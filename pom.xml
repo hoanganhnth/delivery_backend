@@ -1,0 +1,24 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.delivery</groupId>
+    <artifactId>deliveryvn</artifactId>
+    <version>1.0.0</version>
+    <packaging>pom</packaging>
+
+    <modules>
+        <module>auth-service</module>
+        <module>user-service</module>
+        <module>api-gateway</module>
+        <module>delivery-service</module>
+        <module>notification-service</module>
+        <module>order-service</module>
+        <module>restaurant-service</module>
+        <module>shipper-service</module>
+        <module>search-service</module>
+    </modules>
+</project>
