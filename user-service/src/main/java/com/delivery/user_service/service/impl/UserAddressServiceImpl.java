@@ -1,9 +1,10 @@
-package com.delivery.user_service.service;
+package com.delivery.user_service.service.impl;
 
 import com.delivery.user_service.dto.UserAddressRequest;
 import com.delivery.user_service.dto.UserAddressResponse;
 import com.delivery.user_service.entity.UserAddress;
 import com.delivery.user_service.repository.UserAddressRepository;
+import com.delivery.user_service.service.UserAddressService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;

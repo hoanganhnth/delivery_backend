@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "auth_account")
+@Table(name = "auth_account", uniqueConstraints = @UniqueConstraint(columnNames = { "email", "role" }))
 public class AuthAccount {
 
     public enum Role {
@@ -18,7 +18,7 @@ public class AuthAccount {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false)
     private String email;
 
     @Column(name = "password_hash", nullable = false)

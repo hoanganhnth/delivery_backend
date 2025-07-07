@@ -1,10 +1,12 @@
 package com.delivery.auth_service.service;
 
+import com.delivery.auth_service.config.UserServiceConfig;
 import com.delivery.auth_service.dto.AuthResponse;
 import com.delivery.auth_service.dto.LoginRequest;
 import com.delivery.auth_service.dto.RefreshTokenRequest;
 import com.delivery.auth_service.dto.RegisterRequest;
 import com.delivery.auth_service.dto.SessionInfoResponse;
+import com.delivery.auth_service.dto.CreateUserRequest;
 import com.delivery.auth_service.entity.AuthAccount;
 import com.delivery.auth_service.entity.AuthSession;
 import com.delivery.auth_service.repository.AuthAccountRepository;
@@ -16,9 +18,10 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.stereotype.Service;
-import java.util.List;
+import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Service
 public class AuthService implements UserDetailsService {
@@ -35,6 +38,12 @@ public class AuthService implements UserDetailsService {
     @Autowired
     private TokenService tokenService;
 
+    @Autowired
+    private UserServiceConfig userServiceConfig; // ✅ dùng Config class
+
+    @Autowired
+    private RestTemplate restTemplate;
+
     // Đăng ký tài khoản mới
     public void register(RegisterRequest request) {
         if (authAccountRepository.findByEmail(request.getEmail()).isPresent()) {
@@ -44,34 +53,40 @@ public class AuthService implements UserDetailsService {
         AuthAccount account = new AuthAccount();
         account.setEmail(request.getEmail());
         account.setPasswordHash(passwordEncoder.encode(request.getPassword()));
-        account.setRole(
-                request.getRole() != null ? request.getRole() : AuthAccount.Role.USER);
+        account.setRole(request.getRole() != null ? request.getRole() : AuthAccount.Role.USER);
         authAccountRepository.save(account);
+
+        // Gửi request sang user-service
+        CreateUserRequest userRequest = new CreateUserRequest(
+                account.getId(),
+                account.getEmail(),
+                account.getRole().name());
+
+        try {
+            String userServiceUrl = userServiceConfig.getUrl(); // ✅ dùng từ config
+            restTemplate.postForObject(userServiceUrl, userRequest, Void.class);
+            System.out.println("✅ User created in user-service");
+        } catch (Exception e) {
+            System.err.println("❌ Failed to create user in user-service: " + e.getMessage());
+        }
     }
 
     @Transactional
     public AuthResponse login(LoginRequest request) {
-        System.out.println("Login called with email: " + request.getEmail());
-
         AuthAccount account = authAccountRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new RuntimeException("Invalid email or password"));
-        System.out.println("Account found: " + account.getEmail());
 
         if (!passwordEncoder.matches(request.getPassword(), account.getPasswordHash())) {
-            System.out.println("Password mismatch");
             throw new RuntimeException("Invalid email or password");
         }
-        System.out.println("Password matched");
 
         String accessToken = tokenService.generateToken(account.getEmail());
         String refreshToken = tokenService.generateRefreshToken(account.getEmail());
-        System.out.println("Tokens generated");
 
         AuthSession session = new AuthSession();
         session.setAuthAccount(account);
         session.setDeviceId(request.getDeviceId());
         session.setDeviceName(request.getDeviceName());
-        // set enum trực tiếp
         session.setDeviceType(request.getDeviceType());
         session.setIpAddress(request.getIpAddress());
         session.setRefreshToken(refreshToken);
@@ -80,13 +95,15 @@ public class AuthService implements UserDetailsService {
         session.setIsActive(true);
 
         authSessionRepository.save(session);
-        System.out.println("Session saved");
 
-        return new AuthResponse(accessToken, refreshToken);
+        return new AuthResponse(
+                accessToken,
+                refreshToken,
+                account.getId(),
+                account.getEmail(),
+                account.getRole().name());
     }
 
-    // Refresh token: kiểm tra refreshToken hợp lệ, cập nhật session với
-    // refreshToken mới
     public AuthResponse refreshToken(RefreshTokenRequest request) {
         String oldRefreshToken = request.getRefreshToken();
 
@@ -101,21 +118,24 @@ public class AuthService implements UserDetailsService {
             throw new RuntimeException("Session is inactive");
         }
 
-        String email = tokenService.extractEmail(oldRefreshToken);
-        String newAccessToken = tokenService.generateToken(email);
-        String newRefreshToken = tokenService.generateRefreshToken(email);
+        AuthAccount account = session.getAuthAccount();
 
-        // Cập nhật session với refresh token mới
+        String newAccessToken = tokenService.generateToken(account.getEmail());
+        String newRefreshToken = tokenService.generateRefreshToken(account.getEmail());
+
         session.setRefreshToken(newRefreshToken);
         session.setLastLoginAt(LocalDateTime.now());
         session.setExpiresAt(LocalDateTime.now().plusDays(7));
-
         authSessionRepository.save(session);
 
-        return new AuthResponse(newAccessToken, newRefreshToken);
+        return new AuthResponse(
+                newAccessToken,
+                newRefreshToken,
+                account.getId(),
+                account.getEmail(),
+                account.getRole().name());
     }
 
-    // Đăng xuất: set session isActive = false
     public void logout(String refreshToken) {
         if (!tokenService.isValid(refreshToken)) {
             throw new RuntimeException("Invalid refresh token");
@@ -127,7 +147,6 @@ public class AuthService implements UserDetailsService {
         });
     }
 
-    // Load user by username (email) để Spring Security xử lý authentication
     @Override
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
         AuthAccount account = authAccountRepository.findByEmail(email)
@@ -140,7 +159,6 @@ public class AuthService implements UserDetailsService {
                 .build();
     }
 
-    // Lấy thông tin các phiên đăng nhập đang hoạt động của người dùng
     public List<SessionInfoResponse> getActiveSessions(String email) {
         AuthAccount account = authAccountRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("User not found"));
@@ -158,5 +176,4 @@ public class AuthService implements UserDetailsService {
                         session.getIsActive()))
                 .toList();
     }
-
 }

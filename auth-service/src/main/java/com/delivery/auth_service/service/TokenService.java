@@ -1,60 +1,86 @@
 package com.delivery.auth_service.service;
 
 import io.jsonwebtoken.*;
-import io.jsonwebtoken.io.Decoders;
-import io.jsonwebtoken.security.Keys;
 import org.springframework.stereotype.Service;
 
-import java.security.Key;
+import java.io.InputStream;
+import java.security.KeyFactory;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.spec.*;
+import java.util.Base64;
 import java.util.Date;
 
 @Service
 public class TokenService {
 
-    // 256-bit secret key, phải được Base64 encode
-    private static final String SECRET_KEY = "0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF";
+    private final PrivateKey privateKey;
+    private final PublicKey publicKey;
 
-    // Lấy khóa ký từ chuỗi bí mật
-    private Key getSigningKey() {
-        byte[] keyBytes = Decoders.BASE64.decode(SECRET_KEY);
-        return Keys.hmacShaKeyFor(keyBytes);
+    public TokenService() {
+        try {
+            this.privateKey = loadPrivateKey();
+            this.publicKey = loadPublicKey();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to load RSA keys", e);
+        }
     }
 
-    // Tạo access token (thường có thời hạn ngắn, 15 phút)
+    private PrivateKey loadPrivateKey() throws Exception {
+        InputStream is = getClass().getClassLoader().getResourceAsStream("private.pem");
+        String key = new String(is.readAllBytes())
+                .replaceAll("-----BEGIN (.*)-----", "")
+                .replaceAll("-----END (.*)-----", "")
+                .replaceAll("\\s", "");
+
+        byte[] keyBytes = Base64.getDecoder().decode(key);
+        PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(keyBytes);
+        return KeyFactory.getInstance("RSA").generatePrivate(spec);
+    }
+
+    private PublicKey loadPublicKey() throws Exception {
+        InputStream is = getClass().getClassLoader().getResourceAsStream("public.pem");
+        String key = new String(is.readAllBytes())
+                .replaceAll("-----BEGIN (.*)-----", "")
+                .replaceAll("-----END (.*)-----", "")
+                .replaceAll("\\s", "");
+
+        byte[] keyBytes = Base64.getDecoder().decode(key);
+        X509EncodedKeySpec spec = new X509EncodedKeySpec(keyBytes);
+        return KeyFactory.getInstance("RSA").generatePublic(spec);
+    }
+
     public String generateToken(String email) {
         return Jwts.builder()
                 .setSubject(email)
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + 1000 * 60 * 15)) // 15 phút
-                .signWith(getSigningKey(), SignatureAlgorithm.HS256)
+                .signWith(privateKey, SignatureAlgorithm.RS256)
                 .compact();
     }
 
-    // Tạo refresh token (vẫn là JWT, thường có thời hạn dài hơn)
     public String generateRefreshToken(String email) {
         return Jwts.builder()
                 .setSubject(email)
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + 1000 * 60 * 60 * 24 * 7)) // 7 ngày
-                .signWith(getSigningKey(), SignatureAlgorithm.HS256)
+                .signWith(privateKey, SignatureAlgorithm.RS256)
                 .compact();
     }
 
-    // Giải mã JWT và lấy email từ payload
     public String extractEmail(String token) {
         return Jwts.parserBuilder()
-                .setSigningKey(getSigningKey())
+                .setSigningKey(publicKey)
                 .build()
                 .parseClaimsJws(token)
                 .getBody()
                 .getSubject();
     }
 
-    // Kiểm tra token có hợp lệ hay không (có đúng chữ ký và chưa hết hạn)
     public boolean isValid(String token) {
         try {
             Jwts.parserBuilder()
-                    .setSigningKey(getSigningKey())
+                    .setSigningKey(publicKey)
                     .build()
                     .parseClaimsJws(token);
             return true;
@@ -63,21 +89,18 @@ public class TokenService {
         }
     }
 
-    // Trích xuất username (email) từ token
     public String extractUsername(String token) {
         return extractEmail(token);
     }
 
-    // Kiểm tra token có thuộc về người dùng và chưa hết hạn không
     public boolean isTokenValid(String token, org.springframework.security.core.userdetails.UserDetails userDetails) {
         final String username = extractUsername(token);
         return username.equals(userDetails.getUsername()) && !isTokenExpired(token);
     }
 
-    // Kiểm tra token đã hết hạn chưa
     private boolean isTokenExpired(String token) {
         Date expiration = Jwts.parserBuilder()
-                .setSigningKey(getSigningKey())
+                .setSigningKey(publicKey)
                 .build()
                 .parseClaimsJws(token)
                 .getBody()
