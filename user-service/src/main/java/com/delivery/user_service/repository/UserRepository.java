@@ -1,9 +1,10 @@
 package com.delivery.user_service.repository;
 
-import com.delivery.user_service.entity.User;
+import java.util.Optional;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 
-import java.util.Optional;
+import com.delivery.user_service.entity.User;
 
 public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByAuthId(Long authId);

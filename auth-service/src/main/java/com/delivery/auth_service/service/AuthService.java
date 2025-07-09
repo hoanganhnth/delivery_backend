@@ -1,50 +1,46 @@
 package com.delivery.auth_service.service;
 
-import com.delivery.auth_service.config.UserServiceConfig;
-import com.delivery.auth_service.dto.AuthResponse;
-import com.delivery.auth_service.dto.LoginRequest;
-import com.delivery.auth_service.dto.RefreshTokenRequest;
-import com.delivery.auth_service.dto.RegisterRequest;
-import com.delivery.auth_service.dto.SessionInfoResponse;
-import com.delivery.auth_service.dto.CreateUserRequest;
-import com.delivery.auth_service.entity.AuthAccount;
-import com.delivery.auth_service.entity.AuthSession;
-import com.delivery.auth_service.repository.AuthAccountRepository;
-import com.delivery.auth_service.repository.AuthSessionRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import java.time.LocalDateTime;
+import java.util.List;
+
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
-import java.time.LocalDateTime;
-import java.util.List;
+import com.delivery.auth_service.config.UserServiceConfig;
+import com.delivery.auth_service.dto.AuthAccountDto;
+import com.delivery.auth_service.dto.AuthResponse;
+import com.delivery.auth_service.dto.CreateUserRequest;
+import com.delivery.auth_service.dto.LoginRequest;
+import com.delivery.auth_service.dto.RefreshTokenRequest;
+import com.delivery.auth_service.dto.RegisterRequest;
+import com.delivery.auth_service.dto.SessionInfoResponse;
+import com.delivery.auth_service.entity.AuthAccount;
+import com.delivery.auth_service.entity.AuthSession;
+import com.delivery.auth_service.repository.AuthAccountRepository;
+import com.delivery.auth_service.repository.AuthSessionRepository;
+
+import lombok.RequiredArgsConstructor;
 
 @Service
+@RequiredArgsConstructor
 public class AuthService implements UserDetailsService {
 
-    @Autowired
-    private AuthAccountRepository authAccountRepository;
+    private final AuthAccountRepository authAccountRepository;
+    private final AuthSessionRepository authSessionRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final TokenService tokenService;
+    private final UserServiceConfig userServiceConfig;
+    private final RestTemplate restTemplate;
 
-    @Autowired
-    private AuthSessionRepository authSessionRepository;
-
-    @Autowired
-    private PasswordEncoder passwordEncoder;
-
-    @Autowired
-    private TokenService tokenService;
-
-    @Autowired
-    private UserServiceConfig userServiceConfig; // ✅ dùng Config class
-
-    @Autowired
-    private RestTemplate restTemplate;
-
-    // Đăng ký tài khoản mới
+    /**
+     * Đăng ký tài khoản mới
+     */
     public void register(RegisterRequest request) {
         if (authAccountRepository.findByEmail(request.getEmail()).isPresent()) {
             throw new RuntimeException("Email already registered");
@@ -54,23 +50,26 @@ public class AuthService implements UserDetailsService {
         account.setEmail(request.getEmail());
         account.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         account.setRole(request.getRole() != null ? request.getRole() : AuthAccount.Role.USER);
+
         authAccountRepository.save(account);
 
-        // Gửi request sang user-service
         CreateUserRequest userRequest = new CreateUserRequest(
                 account.getId(),
                 account.getEmail(),
-                account.getRole().name());
+                account.getRole().name()
+        );
 
         try {
-            String userServiceUrl = userServiceConfig.getUrl(); // ✅ dùng từ config
-            restTemplate.postForObject(userServiceUrl, userRequest, Void.class);
+            restTemplate.postForObject(userServiceConfig.getUrl(), userRequest, Void.class);
             System.out.println("✅ User created in user-service");
-        } catch (Exception e) {
+        } catch (RestClientException e) {
             System.err.println("❌ Failed to create user in user-service: " + e.getMessage());
         }
     }
 
+    /**
+     * Đăng nhập, sinh token và tạo session mới
+     */
     @Transactional
     public AuthResponse login(LoginRequest request) {
         AuthAccount account = authAccountRepository.findByEmail(request.getEmail())
@@ -80,9 +79,18 @@ public class AuthService implements UserDetailsService {
             throw new RuntimeException("Invalid email or password");
         }
 
+        if (request.getDeviceId() == null || request.getDeviceId().trim().isEmpty()) {
+            throw new RuntimeException("Device ID must not be empty");
+        }
+
+        // Vô hiệu hóa session cũ trên cùng thiết bị
+        deactivateSessions(account, request.getDeviceId());
+
+        // Tạo token mới
         String accessToken = tokenService.generateToken(account.getEmail());
         String refreshToken = tokenService.generateRefreshToken(account.getEmail());
 
+        // Tạo session mới
         AuthSession session = new AuthSession();
         session.setAuthAccount(account);
         session.setDeviceId(request.getDeviceId());
@@ -101,9 +109,13 @@ public class AuthService implements UserDetailsService {
                 refreshToken,
                 account.getId(),
                 account.getEmail(),
-                account.getRole().name());
+                account.getRole().name()
+        );
     }
 
+    /**
+     * Làm mới accessToken bằng refreshToken
+     */
     public AuthResponse refreshToken(RefreshTokenRequest request) {
         String oldRefreshToken = request.getRefreshToken();
 
@@ -133,9 +145,13 @@ public class AuthService implements UserDetailsService {
                 newRefreshToken,
                 account.getId(),
                 account.getEmail(),
-                account.getRole().name());
+                account.getRole().name()
+        );
     }
 
+    /**
+     * Đăng xuất bằng cách vô hiệu hóa session theo refreshToken
+     */
     public void logout(String refreshToken) {
         if (!tokenService.isValid(refreshToken)) {
             throw new RuntimeException("Invalid refresh token");
@@ -147,6 +163,51 @@ public class AuthService implements UserDetailsService {
         });
     }
 
+    /**
+     * Trả về danh sách phiên đăng nhập
+     */
+    public List<SessionInfoResponse> getActiveSessions(String email) {
+        AuthAccount account = authAccountRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        return authSessionRepository.findByAuthAccount(account).stream()
+                .map(session -> new SessionInfoResponse(
+                        session.getDeviceId(),
+                        session.getDeviceName(),
+                        session.getDeviceType().toString(),
+                        session.getIpAddress(),
+                        session.getLastLoginAt(),
+                        session.getExpiresAt(),
+                        session.getIsActive()
+                ))
+                .toList();
+    }
+
+    /**
+     * Dùng cho backfill: lấy email+role theo authId
+     */
+    public AuthAccountDto getAccountByIdDto(Long id) {
+        AuthAccount account = authAccountRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("AuthAccount not found: " + id));
+        return new AuthAccountDto(account.getId(), account.getEmail(), account.getRole().name());
+    }
+
+    /**
+     * Vô hiệu hóa session cũ trên cùng thiết bị
+     */
+    private void deactivateSessions(AuthAccount account, String deviceId) {
+        String trimmed = deviceId.trim();
+        var sessions = authSessionRepository.findByAuthAccountAndDeviceIdAndIsActiveTrue(account, trimmed);
+        sessions.forEach(s -> {
+            s.setIsActive(false);
+            s.setExpiresAt(LocalDateTime.now());
+            authSessionRepository.save(s);
+        });
+    }
+
+    /**
+     * Spring Security user lookup
+     */
     @Override
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
         AuthAccount account = authAccountRepository.findByEmail(email)
@@ -157,23 +218,5 @@ public class AuthService implements UserDetailsService {
                 .password(account.getPasswordHash())
                 .roles(account.getRole().name())
                 .build();
-    }
-
-    public List<SessionInfoResponse> getActiveSessions(String email) {
-        AuthAccount account = authAccountRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
-
-        List<AuthSession> sessions = authSessionRepository.findByAuthAccount(account);
-
-        return sessions.stream()
-                .map(session -> new SessionInfoResponse(
-                        session.getDeviceId(),
-                        session.getDeviceName(),
-                        session.getDeviceType().toString(),
-                        session.getIpAddress(),
-                        session.getLastLoginAt(),
-                        session.getExpiresAt(),
-                        session.getIsActive()))
-                .toList();
     }
 }

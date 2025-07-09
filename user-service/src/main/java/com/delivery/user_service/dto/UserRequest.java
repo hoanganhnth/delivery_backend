@@ -1,7 +1,12 @@
 package com.delivery.user_service.dto;
 
-import lombok.*;
 import java.time.LocalDate;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Getter
 @Setter
@@ -10,6 +15,9 @@ import java.time.LocalDate;
 @Builder
 public class UserRequest {
     private Long authId;
+    private String email;
+    private String role;
+
     private String fullName;
     private String phone;
     private LocalDate dob;

@@ -1,7 +1,20 @@
 package com.delivery.auth_service.entity;
 
-import jakarta.persistence.*;
 import java.time.LocalDateTime;
+
+import com.fasterxml.jackson.annotation.JsonCreator;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.Table;
 
 @Entity
 @Table(name = "auth_session")
@@ -11,10 +24,10 @@ public class AuthSession {
         MOBILE, WEB, TABLET;
 
         // Thêm method chuyển từ chuỗi sang enum (case insensitive)
-        public static DeviceType fromString(String deviceTypeStr) {
-            if (deviceTypeStr == null)
-                return null;
-            return DeviceType.valueOf(deviceTypeStr.trim().toUpperCase());
+        @JsonCreator
+        public static DeviceType fromString(String value) {
+            if (value == null) return null;
+            return DeviceType.valueOf(value.trim().toUpperCase());
         }
 
         @Override
