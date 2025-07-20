@@ -42,34 +42,42 @@ public class AuthService implements UserDetailsService {
      * Đăng ký tài khoản mới
      */
     public void register(RegisterRequest request) {
-        if (authAccountRepository.findByEmail(request.getEmail()).isPresent()) {
-            throw new RuntimeException("Email already registered");
-        }
-
-        AuthAccount account = new AuthAccount();
-        account.setEmail(request.getEmail());
-        account.setPasswordHash(passwordEncoder.encode(request.getPassword()));
-        account.setRole(request.getRole() != null ? request.getRole() : AuthAccount.Role.USER);
-
-        authAccountRepository.save(account);
-
-        CreateUserRequest userRequest = new CreateUserRequest(
-                account.getId(),
-                account.getEmail(),
-                account.getRole().name()
-        );
-
-        try {
-            restTemplate.postForObject(userServiceConfig.getUrl(), userRequest, Void.class);
-            System.out.println("✅ User created in user-service");
-        } catch (RestClientException e) {
-            System.err.println("❌ Failed to create user in user-service: " + e.getMessage());
-        }
+    if (authAccountRepository.findByEmail(request.getEmail()).isPresent()) {
+        throw new RuntimeException("Email already registered");
     }
 
-    /**
-     * Đăng nhập, sinh token và tạo session mới
-     */
+    if (request.getRole() == null || request.getRole().isBlank()) {
+        throw new RuntimeException("Role is required");
+    }
+
+    AuthAccount.Role roleEnum;
+    try {
+        roleEnum = AuthAccount.Role.valueOf(request.getRole().toUpperCase());
+    } catch (IllegalArgumentException e) {
+        throw new RuntimeException("Invalid role: " + request.getRole());
+    }
+
+    AuthAccount account = new AuthAccount();
+    account.setEmail(request.getEmail());
+    account.setPasswordHash(passwordEncoder.encode(request.getPassword()));
+    account.setRole(roleEnum);
+
+    authAccountRepository.save(account);
+
+    CreateUserRequest userRequest = new CreateUserRequest(
+        account.getId(),
+        account.getEmail(),
+        account.getRole().name()
+    );
+
+    try {
+        restTemplate.postForObject(userServiceConfig.getUrl(), userRequest, Void.class);
+        System.out.println("✅ User created in user-service");
+    } catch (RestClientException e) {
+        System.err.println("❌ Failed to create user in user-service: " + e.getMessage());
+    }
+}
+
     @Transactional
     public AuthResponse login(LoginRequest request) {
         AuthAccount account = authAccountRepository.findByEmail(request.getEmail())
@@ -83,14 +91,11 @@ public class AuthService implements UserDetailsService {
             throw new RuntimeException("Device ID must not be empty");
         }
 
-        // Vô hiệu hóa session cũ trên cùng thiết bị
         deactivateSessions(account, request.getDeviceId());
 
-        // Tạo token mới
         String accessToken = tokenService.generateToken(account.getEmail());
         String refreshToken = tokenService.generateRefreshToken(account.getEmail());
 
-        // Tạo session mới
         AuthSession session = new AuthSession();
         session.setAuthAccount(account);
         session.setDeviceId(request.getDeviceId());
@@ -113,9 +118,6 @@ public class AuthService implements UserDetailsService {
         );
     }
 
-    /**
-     * Làm mới accessToken bằng refreshToken
-     */
     public AuthResponse refreshToken(RefreshTokenRequest request) {
         String oldRefreshToken = request.getRefreshToken();
 
@@ -149,9 +151,6 @@ public class AuthService implements UserDetailsService {
         );
     }
 
-    /**
-     * Đăng xuất bằng cách vô hiệu hóa session theo refreshToken
-     */
     public void logout(String refreshToken) {
         if (!tokenService.isValid(refreshToken)) {
             throw new RuntimeException("Invalid refresh token");
@@ -163,9 +162,6 @@ public class AuthService implements UserDetailsService {
         });
     }
 
-    /**
-     * Trả về danh sách phiên đăng nhập
-     */
     public List<SessionInfoResponse> getActiveSessions(String email) {
         AuthAccount account = authAccountRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("User not found"));
@@ -183,18 +179,12 @@ public class AuthService implements UserDetailsService {
                 .toList();
     }
 
-    /**
-     * Dùng cho backfill: lấy email+role theo authId
-     */
     public AuthAccountDto getAccountByIdDto(Long id) {
         AuthAccount account = authAccountRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("AuthAccount not found: " + id));
         return new AuthAccountDto(account.getId(), account.getEmail(), account.getRole().name());
     }
 
-    /**
-     * Vô hiệu hóa session cũ trên cùng thiết bị
-     */
     private void deactivateSessions(AuthAccount account, String deviceId) {
         String trimmed = deviceId.trim();
         var sessions = authSessionRepository.findByAuthAccountAndDeviceIdAndIsActiveTrue(account, trimmed);
@@ -205,9 +195,6 @@ public class AuthService implements UserDetailsService {
         });
     }
 
-    /**
-     * Spring Security user lookup
-     */
     @Override
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
         AuthAccount account = authAccountRepository.findByEmail(email)
@@ -218,5 +205,11 @@ public class AuthService implements UserDetailsService {
                 .password(account.getPasswordHash())
                 .roles(account.getRole().name())
                 .build();
+    }
+
+    public AuthAccountDto getAccountByEmailDto(String email) {
+        AuthAccount account = authAccountRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("AuthAccount not found with email: " + email));
+        return new AuthAccountDto(account.getId(), account.getEmail(), account.getRole().name());
     }
 }

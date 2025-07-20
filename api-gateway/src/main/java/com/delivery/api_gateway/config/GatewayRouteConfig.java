@@ -17,11 +17,15 @@ public class GatewayRouteConfig {
     public RouteLocator customRoutes(RouteLocatorBuilder builder) {
         return builder.routes()
                 .route("user-service", r -> r.path("/api/users/**")
-                .filters(f -> f.filter(jwtFilter.apply(new JwtAuthenticationFilter.Config())))
-                .uri("http://localhost:8084"))
+                    .filters(f -> f.filter(jwtFilter.apply(new JwtAuthenticationFilter.Config())))
+                    .uri("http://localhost:8084"))
 
                 .route("auth-service", r -> r.path("/api/auth/**")
-                        .uri("http://localhost:8081"))
+                    .uri("http://localhost:8081"))
+
+                .route("orchestrator", r -> r.path("/api/orchestrator/**")
+                    .uri("http://localhost:8080")) // gọi chính nó
                 .build();
     }
 }
+

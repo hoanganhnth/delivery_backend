@@ -2,12 +2,14 @@ package com.delivery.auth_service.controller;
 
 import java.util.List;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -56,12 +58,25 @@ public class AuthController {
         return ResponseEntity.ok(authService.getActiveSessions(email));
     }
 
-    /**
-     * Cho phép service khác lấy thông tin email và role theo authId
-     */
     @GetMapping("/accounts/{id}")
     public ResponseEntity<AuthAccountDto> getAccountById(@PathVariable Long id) {
         AuthAccountDto dto = authService.getAccountByIdDto(id);
+        return ResponseEntity.ok(dto);
+    }
+
+    /**
+     * Lấy thông tin tài khoản theo email (chỉ cho nội bộ sử dụng)
+     */
+    @GetMapping("/accounts/email/{email}")
+    public ResponseEntity<AuthAccountDto> getAccountByEmail(
+            @PathVariable String email,
+            @RequestHeader(value = "Internal-Token", required = false) String token) {
+
+        if (token == null || !token.equals("GATEWAY_INTERNAL_SECRET_ABC123")) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+
+        AuthAccountDto dto = authService.getAccountByEmailDto(email);
         return ResponseEntity.ok(dto);
     }
 }
