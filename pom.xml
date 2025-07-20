@@ -20,5 +20,6 @@
         <module>restaurant-service</module>
         <module>shipper-service</module>
         <module>search-service</module>
+        <module>saga-orchestrator-service</module>
     </modules>
 </project>
