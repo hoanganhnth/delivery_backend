@@ -31,9 +31,10 @@ public class AuthController {
     private final AuthService authService;
 
     @PostMapping("/register")
-    public ResponseEntity<Void> register(@RequestBody RegisterRequest request) {
-        authService.register(request);
-        return ResponseEntity.ok().build();
+    public ResponseEntity<Long> register(@RequestBody RegisterRequest request) {
+        System.out.println("Registering new account: " + request.getEmail());
+        Long id = authService.register(request);
+        return ResponseEntity.ok(id);
     }
 
     @PostMapping("/login")

@@ -26,6 +26,7 @@ public class UserController {
 
     @PostMapping
     public ResponseEntity<UserResponse> createUser(@Valid @RequestBody UserRequest request) {
+        System.out.println("Creating user with authId: " + request.getAuthId());
         return ResponseEntity.ok(userService.createUser(request));
     }
 

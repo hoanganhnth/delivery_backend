@@ -56,9 +56,9 @@
 		<dependency>
 			<groupId>org.projectlombok</groupId>
 			<artifactId>lombok</artifactId>
-			<version>1.18.32</version> <!-- phiên bản mới nhất tại thời điểm 2025 -->
 			<scope>provided</scope>
 		</dependency>
+
 	</dependencies>
 
 	<build>

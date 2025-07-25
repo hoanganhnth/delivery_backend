@@ -1,17 +1,19 @@
 package com.delivery.user_service.service.impl;
 
+import java.util.List;
+import java.util.stream.Collectors;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
+
 import com.delivery.user_service.dto.UserAddressRequest;
 import com.delivery.user_service.dto.UserAddressResponse;
 import com.delivery.user_service.entity.UserAddress;
 import com.delivery.user_service.repository.UserAddressRepository;
 import com.delivery.user_service.service.UserAddressService;
-import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
-import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
 
-import java.util.List;
-import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
@@ -64,7 +66,7 @@ public class UserAddressServiceImpl implements UserAddressService {
                 .postalCode(req.getPostalCode())
                 .latitude(req.getLatitude())
                 .longitude(req.getLongitude())
-                .isDefault(req.getIsDefault() != null ? req.getIsDefault() : false)
+                .isDefault(Boolean.TRUE.equals(req.getIsDefault())) // đảm bảo không null
                 .build();
         return toDto(addressRepository.save(address));
     }
@@ -82,7 +84,12 @@ public class UserAddressServiceImpl implements UserAddressService {
         address.setPostalCode(req.getPostalCode());
         address.setLatitude(req.getLatitude());
         address.setLongitude(req.getLongitude());
-        address.setIsDefault(req.getIsDefault() != null ? req.getIsDefault() : address.getIsDefault());
+
+        // ✅ Sửa phần này để tránh unboxing null
+        Boolean isDefault = req.getIsDefault();
+        if (isDefault != null) {
+            address.setIsDefault(isDefault);
+        }
 
         return toDto(addressRepository.save(address));
     }
