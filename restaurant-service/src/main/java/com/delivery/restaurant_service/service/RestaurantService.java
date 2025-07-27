@@ -3,7 +3,6 @@ package com.delivery.restaurant_service.service;
 import com.delivery.restaurant_service.dto.request.CreateRestaurantRequest;
 import com.delivery.restaurant_service.dto.request.UpdateRestaurantRequest;
 import com.delivery.restaurant_service.dto.response.RestaurantResponse;
-import com.delivery.restaurant_service.entity.Restaurant;
 
 import java.util.List;
 

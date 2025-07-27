@@ -6,7 +6,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDateTime;
 
 @ControllerAdvice
 public class GlobalExceptionHandler {

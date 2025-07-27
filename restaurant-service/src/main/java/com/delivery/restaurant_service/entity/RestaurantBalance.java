@@ -22,13 +22,16 @@ public class RestaurantBalance {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "restaurant_id", nullable = false)
     private Restaurant restaurant;
-
+    
+    @Builder.Default
     @Column(name = "available_balance", nullable = false, precision = 12, scale = 2)
     private BigDecimal availableBalance = BigDecimal.ZERO;
 
+    @Builder.Default
     @Column(name = "pending_balance", nullable = false, precision = 12, scale = 2)
     private BigDecimal pendingBalance = BigDecimal.ZERO;
 
+    @Builder.Default
     @Column(name = "total_earnings", nullable = false, precision = 12, scale = 2)
     private BigDecimal totalEarnings = BigDecimal.ZERO;
 

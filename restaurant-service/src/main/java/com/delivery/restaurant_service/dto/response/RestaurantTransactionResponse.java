@@ -11,7 +11,6 @@ import java.time.LocalDateTime;
 @Setter
 public class RestaurantTransactionResponse {
     private Long id;
-    private Long restaurantId;
     private Long orderId;
     private RestaurantTransaction.TypeTransaction type;
     private BigDecimal amount;

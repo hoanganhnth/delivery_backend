@@ -2,7 +2,6 @@ package com.delivery.restaurant_service.dto.request;
 
 
 import java.math.BigDecimal;
-import lombok.Data;
 import lombok.Getter;
 import lombok.Setter;
 
