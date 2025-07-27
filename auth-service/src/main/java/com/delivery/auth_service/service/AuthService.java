@@ -9,13 +9,11 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 import com.delivery.auth_service.config.UserServiceConfig;
 import com.delivery.auth_service.dto.AuthAccountDto;
 import com.delivery.auth_service.dto.AuthResponse;
-import com.delivery.auth_service.dto.CreateUserRequest;
 import com.delivery.auth_service.dto.LoginRequest;
 import com.delivery.auth_service.dto.RefreshTokenRequest;
 import com.delivery.auth_service.dto.RegisterRequest;
@@ -41,42 +39,43 @@ public class AuthService implements UserDetailsService {
     /**
      * Đăng ký tài khoản mới
      */
-    public void register(RegisterRequest request) {
-        if (authAccountRepository.findByEmail(request.getEmail()).isPresent()) {
-            throw new RuntimeException("Email already registered");
-        }
-
-        if (request.getRole() == null || request.getRole().isBlank()) {
-            throw new RuntimeException("Role is required");
-        }
-
-        AuthAccount.Role roleEnum;
-        try {
-            roleEnum = AuthAccount.Role.valueOf(request.getRole().toUpperCase());
-        } catch (IllegalArgumentException e) {
-            throw new RuntimeException("Invalid role: " + request.getRole());
-        }
-
-        AuthAccount account = new AuthAccount();
-        account.setEmail(request.getEmail());
-        account.setPasswordHash(passwordEncoder.encode(request.getPassword()));
-        account.setRole(roleEnum);
-
-        authAccountRepository.save(account);
-
-        CreateUserRequest userRequest = new CreateUserRequest(
-                account.getId(),
-                account.getEmail(),
-                account.getRole().name()
-        );
-
-        try {
-            restTemplate.postForObject(userServiceConfig.getUrl(), userRequest, Void.class);
-            System.out.println("✅ User created in user-service");
-        } catch (RestClientException e) {
-            System.err.println("❌ Failed to create user in user-service: " + e.getMessage());
-        }
+    public Long register(RegisterRequest request) {
+    if (authAccountRepository.findByEmail(request.getEmail()).isPresent()) {
+        throw new RuntimeException("Email already registered");
     }
+
+    if (request.getRole() == null || request.getRole().isBlank()) {
+        throw new RuntimeException("Role is required");
+    }
+
+    AuthAccount.Role roleEnum;
+    try {
+        roleEnum = AuthAccount.Role.valueOf(request.getRole().toUpperCase());
+    } catch (IllegalArgumentException e) {
+        throw new RuntimeException("Invalid role: " + request.getRole());
+    }
+
+    AuthAccount account = new AuthAccount();
+    account.setEmail(request.getEmail());
+    account.setPasswordHash(passwordEncoder.encode(request.getPassword()));
+    account.setRole(roleEnum);
+
+    authAccountRepository.save(account);
+
+    // CreateUserRequest userRequest = new CreateUserRequest(
+    //     account.getId(),
+    //     account.getEmail(),
+    //     account.getRole().name()
+    // );
+
+    // try {
+    //     restTemplate.postForObject(userServiceConfig.getUrl(), userRequest, Void.class);
+    //     System.out.println("✅ User created in user-service");
+    // } catch (RestClientException e) {
+    //     System.err.println("❌ Failed to create user in user-service: " + e.getMessage());
+    // }
+    return account.getId();
+}
 
     @Transactional
     public AuthResponse login(LoginRequest request) {
