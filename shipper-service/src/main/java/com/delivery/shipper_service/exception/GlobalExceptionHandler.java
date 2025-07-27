@@ -28,6 +28,6 @@ public class GlobalExceptionHandler {
     public ResponseEntity<BaseResponse<Object>> handleAll(Exception ex) {
         ex.printStackTrace(); // log lỗi để debug
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(new BaseResponse<>(0, null, "Đã xảy ra lỗi nội bộ."));
+                .body(new BaseResponse<>(0, null, ex.getMessage()));
     }
 }

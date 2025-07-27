@@ -120,7 +120,7 @@ Table MenuItem {
 // === RESTAURANT SERVICE ===
 Table restaurant_balances {
   id bigint [pk, increment]
-  restaurant_id bigint [ref: > Restaurant.id]
+  restaurant_id bigint [ref: > Restaurant.id, unique]
   available_balance decimal(12,2) // Số dư có thể rút
   pending_balance decimal(12,2)   // Doanh thu chờ thanh toán
   total_earnings decimal(12,2)

@@ -9,6 +9,7 @@ import com.delivery.shipper_service.exception.ResourceNotFoundException;
 import com.delivery.shipper_service.mapper.ShipperMapper;
 import com.delivery.shipper_service.repository.ShipperRepository;
 import com.delivery.shipper_service.service.ShipperService;
+import com.delivery.shipper_service.service.ShipperBalanceService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -26,6 +27,9 @@ public class ShipperServiceImpl implements ShipperService {
 
     @Autowired
     private ShipperMapper shipperMapper;
+
+    @Autowired
+    private ShipperBalanceService shipperBalanceService;
 
     @Override
     public ShipperResponse createShipper(CreateShipperRequest request, Long creatorId, String role) {
@@ -51,6 +55,10 @@ public class ShipperServiceImpl implements ShipperService {
 
         Shipper shipper = shipperMapper.toEntity(request);
         Shipper savedShipper = shipperRepository.save(shipper);
+        
+        // Automatically create balance for new shipper
+        shipperBalanceService.createBalanceForShipper(savedShipper.getId());
+        
         return shipperMapper.toResponse(savedShipper);
     }
 
