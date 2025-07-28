@@ -298,7 +298,57 @@ public class GlobalExceptionHandler {
 }
 ```
 
-### 8. Service Layer Pattern
+### 8. Dependency Injection Standards
+
+#### Constructor Injection (REQUIRED)
+**LUÔN** sử dụng Constructor Injection thay vì `@Autowired` field injection:
+
+```java
+@Service
+public class {Entity}ServiceImpl implements {Entity}Service {
+    
+    private final {Entity}Repository {entity}Repository;
+    private final {Entity}Mapper {entity}Mapper;
+    
+    public {Entity}ServiceImpl({Entity}Repository {entity}Repository, {Entity}Mapper {entity}Mapper) {
+        this.{entity}Repository = {entity}Repository;
+        this.{entity}Mapper = {entity}Mapper;
+    }
+    
+    // Implementation methods...
+}
+```
+
+#### Lợi ích Constructor Injection:
+1. **Immutable dependencies** - Fields được khai báo `final`
+2. **Better testability** - Dễ dàng mock dependencies trong unit tests
+3. **Fail-fast** - Phát hiện lỗi dependency ngay khi khởi tạo  
+4. **No reflection needed** - Không cần reflection để inject
+5. **Required dependencies** - Đảm bảo tất cả dependencies được provide
+
+#### ❌ KHÔNG sử dụng Field Injection:
+```java
+// ❌ BAD - Field injection
+@Autowired
+private {Entity}Repository {entity}Repository;
+
+@Autowired  
+private {Entity}Mapper {entity}Mapper;
+```
+
+#### ✅ SỬ DỤNG Constructor Injection:
+```java
+// ✅ GOOD - Constructor injection
+private final {Entity}Repository {entity}Repository;
+private final {Entity}Mapper {entity}Mapper;
+
+public {Entity}ServiceImpl({Entity}Repository {entity}Repository, {Entity}Mapper {entity}Mapper) {
+    this.{entity}Repository = {entity}Repository;
+    this.{entity}Mapper = {entity}Mapper;
+}
+```
+
+### 9. Service Layer Pattern
 
 #### Service Interface
 ```java
@@ -316,17 +366,19 @@ public interface {Entity}Service {
 @Service
 public class {Entity}ServiceImpl implements {Entity}Service {
     
-    @Autowired
-    private {Entity}Repository {entity}Repository;
+    private final {Entity}Repository {entity}Repository;
+    private final {Entity}Mapper {entity}Mapper;
     
-    @Autowired
-    private {Entity}Mapper {entity}Mapper;
+    public {Entity}ServiceImpl({Entity}Repository {entity}Repository, {Entity}Mapper {entity}Mapper) {
+        this.{entity}Repository = {entity}Repository;
+        this.{entity}Mapper = {entity}Mapper;
+    }
     
     // Implementation methods...
 }
 ```
 
-### 9. Database Standards
+### 10. Database Standards
 
 #### Port Assignment
 - api-gateway: 8080
@@ -344,7 +396,7 @@ public class {Entity}ServiceImpl implements {Entity}Service {
 - Mỗi service có database riêng: `{service_name}_db`
 - Ví dụ: `restaurant_db`, `order_db`, `user_db`
 
-### 10. Security Standards
+### 11. Security Standards
 
 #### Role-based Access Control
 Sử dụng constants cho roles:
@@ -357,16 +409,17 @@ public class RoleConstants {
 }
 ```
 
-### 11. Development Guidelines
+### 12. Development Guidelines
 
 #### Code Quality
-1. **LUÔN** sử dụng MapStruct cho mapping giữa Entity và DTO
-2. **LUÔN** validate input trong Controller layer
-3. **LUÔN** handle exceptions với GlobalExceptionHandler
-4. **LUÔN** sử dụng Constants classes thay vì hardcode strings
-5. **LUÔN** follow naming conventions
-6. **LUÔN** sử dụng BaseResponse wrapper
-7. **LUÔN** sử dụng Lombok annotations (@Getter, @Setter, @Builder) để giảm boilerplate code
+1. **LUÔN** sử dụng Constructor Injection thay vì `@Autowired` field injection
+2. **LUÔN** sử dụng MapStruct cho mapping giữa Entity và DTO
+3. **LUÔN** validate input trong Controller layer
+4. **LUÔN** handle exceptions với GlobalExceptionHandler
+5. **LUÔN** sử dụng Constants classes thay vì hardcode strings
+6. **LUÔN** follow naming conventions
+7. **LUÔN** sử dụng BaseResponse wrapper
+8. **LUÔN** sử dụng Lombok annotations (@Getter, @Setter, @Builder) để giảm boilerplate code
 
 #### Best Practices
 1. Service methods PHẢI throw meaningful exceptions

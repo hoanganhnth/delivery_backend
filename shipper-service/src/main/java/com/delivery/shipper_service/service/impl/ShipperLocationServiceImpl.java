@@ -19,11 +19,14 @@ import java.util.stream.Collectors;
 @Transactional
 public class ShipperLocationServiceImpl implements ShipperLocationService {
 
-    @Autowired
-    private ShipperLocationRepository shipperLocationRepository;
+    private final ShipperLocationRepository shipperLocationRepository;
+    private final ShipperLocationMapper shipperLocationMapper;
 
-    @Autowired
-    private ShipperLocationMapper shipperLocationMapper;
+    public ShipperLocationServiceImpl(ShipperLocationRepository shipperLocationRepository,
+                                      ShipperLocationMapper shipperLocationMapper) {
+        this.shipperLocationRepository = shipperLocationRepository;
+        this.shipperLocationMapper = shipperLocationMapper;
+    }
 
     @Override
     public ShipperLocationResponse updateLocation(Long shipperId, UpdateLocationRequest request) {

@@ -7,7 +7,6 @@ import com.delivery.shipper_service.dto.request.UpdateShipperRequest;
 import com.delivery.shipper_service.dto.response.ShipperResponse;
 import com.delivery.shipper_service.payload.BaseResponse;
 import com.delivery.shipper_service.service.ShipperService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -17,8 +16,11 @@ import java.util.List;
 @RequestMapping(ApiPathConstants.SHIPPERS)
 public class ShipperController {
 
-    @Autowired
-    private ShipperService shipperService;
+    private final ShipperService shipperService;
+
+    public ShipperController(ShipperService shipperService) {
+        this.shipperService = shipperService;
+    }
 
     @PostMapping
     public ResponseEntity<BaseResponse<ShipperResponse>> create(

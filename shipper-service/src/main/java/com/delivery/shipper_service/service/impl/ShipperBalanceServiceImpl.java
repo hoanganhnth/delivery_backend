@@ -23,17 +23,20 @@ import java.util.stream.Collectors;
 @Service
 public class ShipperBalanceServiceImpl implements ShipperBalanceService {
 
-    @Autowired
-    private ShipperBalanceRepository shipperBalanceRepository;
+    private final ShipperBalanceRepository shipperBalanceRepository;
+    private final ShipperTransactionRepository shipperTransactionRepository;
+    private final ShipperBalanceMapper shipperBalanceMapper;
+    private final ShipperTransactionMapper shipperTransactionMapper;
 
-    @Autowired
-    private ShipperTransactionRepository shipperTransactionRepository;
-
-    @Autowired
-    private ShipperBalanceMapper shipperBalanceMapper;
-
-    @Autowired
-    private ShipperTransactionMapper shipperTransactionMapper;
+    public ShipperBalanceServiceImpl(ShipperBalanceRepository shipperBalanceRepository,
+                                     ShipperTransactionRepository shipperTransactionRepository,
+                                     ShipperBalanceMapper shipperBalanceMapper,
+                                     ShipperTransactionMapper shipperTransactionMapper) {
+        this.shipperBalanceRepository = shipperBalanceRepository;
+        this.shipperTransactionRepository = shipperTransactionRepository;
+        this.shipperBalanceMapper = shipperBalanceMapper;
+        this.shipperTransactionMapper = shipperTransactionMapper;
+    }
 
     @Override
     @Transactional(readOnly = true)

@@ -22,11 +22,13 @@ import java.util.stream.Collectors;
 @Transactional
 public class ShipperServiceImpl implements ShipperService {
 
-    @Autowired
-    private ShipperRepository shipperRepository;
+    private final ShipperRepository shipperRepository;
+    private final ShipperMapper shipperMapper;
 
-    @Autowired
-    private ShipperMapper shipperMapper;
+    public ShipperServiceImpl(ShipperRepository shipperRepository, ShipperMapper shipperMapper) {
+        this.shipperRepository = shipperRepository;
+        this.shipperMapper = shipperMapper;
+    }
 
     @Autowired
     private ShipperBalanceService shipperBalanceService;

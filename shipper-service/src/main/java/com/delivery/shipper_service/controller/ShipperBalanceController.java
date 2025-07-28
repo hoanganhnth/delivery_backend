@@ -7,7 +7,6 @@ import com.delivery.shipper_service.dto.response.ShipperBalanceResponse;
 import com.delivery.shipper_service.dto.response.ShipperTransactionResponse;
 import com.delivery.shipper_service.payload.BaseResponse;
 import com.delivery.shipper_service.service.ShipperBalanceService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -18,8 +17,11 @@ import java.util.List;
 @RequestMapping(ApiPathConstants.SHIPPER_BALANCES)
 public class ShipperBalanceController {
 
-    @Autowired
-    private ShipperBalanceService shipperBalanceService;
+    private final ShipperBalanceService shipperBalanceService;
+
+    public ShipperBalanceController(ShipperBalanceService shipperBalanceService) {
+        this.shipperBalanceService = shipperBalanceService;
+    }
 
     @GetMapping
     public ResponseEntity<BaseResponse<ShipperBalanceResponse>> getMyBalance(

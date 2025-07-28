@@ -6,7 +6,6 @@ import com.delivery.shipper_service.dto.request.UpdateLocationRequest;
 import com.delivery.shipper_service.dto.response.ShipperLocationResponse;
 import com.delivery.shipper_service.payload.BaseResponse;
 import com.delivery.shipper_service.service.ShipperLocationService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -16,8 +15,11 @@ import java.util.List;
 @RequestMapping(ApiPathConstants.SHIPPER_LOCATIONS)
 public class ShipperLocationController {
 
-    @Autowired
-    private ShipperLocationService shipperLocationService;
+    private final ShipperLocationService shipperLocationService;
+
+    public ShipperLocationController(ShipperLocationService shipperLocationService) {
+        this.shipperLocationService = shipperLocationService;
+    }
 
     @PutMapping
     public ResponseEntity<BaseResponse<ShipperLocationResponse>> updateLocation(
