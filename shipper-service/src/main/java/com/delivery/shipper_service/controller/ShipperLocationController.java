@@ -24,15 +24,15 @@ public class ShipperLocationController {
     @PutMapping
     public ResponseEntity<BaseResponse<ShipperLocationResponse>> updateLocation(
             @RequestBody UpdateLocationRequest request,
-            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long shipperId) {
-        ShipperLocationResponse response = shipperLocationService.updateLocation(shipperId, request);
+            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId) {
+        ShipperLocationResponse response = shipperLocationService.updateLocationByUserId(userId, request);
         return ResponseEntity.ok(new BaseResponse<>(1, response));
     }
 
     @GetMapping
     public ResponseEntity<BaseResponse<ShipperLocationResponse>> getMyLocation(
-            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long shipperId) {
-        ShipperLocationResponse response = shipperLocationService.getLocationByShipperId(shipperId);
+            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId) {
+        ShipperLocationResponse response = shipperLocationService.getLocationByUserId(userId);
         return ResponseEntity.ok(new BaseResponse<>(1, response));
     }
 
@@ -47,8 +47,8 @@ public class ShipperLocationController {
 
     @DeleteMapping
     public ResponseEntity<BaseResponse<Void>> deleteLocation(
-            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long shipperId) {
-        shipperLocationService.deleteLocation(shipperId);
+            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId) {
+        shipperLocationService.deleteLocationByUserId(userId);
         return ResponseEntity.ok(new BaseResponse<>(1, null));
     }
 }

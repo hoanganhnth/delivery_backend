@@ -25,31 +25,31 @@ public class ShipperBalanceController {
 
     @GetMapping
     public ResponseEntity<BaseResponse<ShipperBalanceResponse>> getMyBalance(
-            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long shipperId) {
-        ShipperBalanceResponse response = shipperBalanceService.getBalanceByShipperId(shipperId);
+            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId) {
+        ShipperBalanceResponse response = shipperBalanceService.getBalanceByUserId(userId);
         return ResponseEntity.ok(new BaseResponse<>(1, response));
     }
 
     @PostMapping
     public ResponseEntity<BaseResponse<ShipperBalanceResponse>> createBalance(
-            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long shipperId) {
-        ShipperBalanceResponse response = shipperBalanceService.createBalanceForShipper(shipperId);
+            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId) {
+        ShipperBalanceResponse response = shipperBalanceService.createBalanceForUserId(userId);
         return ResponseEntity.ok(new BaseResponse<>(1, response));
     }
 
     @PostMapping("/deposit")
     public ResponseEntity<BaseResponse<ShipperBalanceResponse>> deposit(
             @RequestBody BalanceTransactionRequest request,
-            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long shipperId) {
-        ShipperBalanceResponse response = shipperBalanceService.depositBalance(shipperId, request);
+            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId) {
+        ShipperBalanceResponse response = shipperBalanceService.depositBalanceByUserId(userId, request);
         return ResponseEntity.ok(new BaseResponse<>(1, response));
     }
 
     @PostMapping("/withdraw")
     public ResponseEntity<BaseResponse<ShipperBalanceResponse>> withdraw(
             @RequestBody BalanceTransactionRequest request,
-            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long shipperId) {
-        ShipperBalanceResponse response = shipperBalanceService.withdrawBalance(shipperId, request);
+            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId) {
+        ShipperBalanceResponse response = shipperBalanceService.withdrawBalanceByUserId(userId, request);
         return ResponseEntity.ok(new BaseResponse<>(1, response));
     }
 
@@ -57,8 +57,8 @@ public class ShipperBalanceController {
     public ResponseEntity<BaseResponse<ShipperBalanceResponse>> holdBalance(
             @RequestParam BigDecimal amount,
             @RequestParam(required = false) String description,
-            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long shipperId) {
-        ShipperBalanceResponse response = shipperBalanceService.holdBalance(shipperId, amount, description);
+            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId) {
+        ShipperBalanceResponse response = shipperBalanceService.holdBalanceByUserId(userId, amount, description);
         return ResponseEntity.ok(new BaseResponse<>(1, response));
     }
 
@@ -66,8 +66,8 @@ public class ShipperBalanceController {
     public ResponseEntity<BaseResponse<ShipperBalanceResponse>> releaseBalance(
             @RequestParam BigDecimal amount,
             @RequestParam(required = false) String description,
-            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long shipperId) {
-        ShipperBalanceResponse response = shipperBalanceService.releaseBalance(shipperId, amount, description);
+            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId) {
+        ShipperBalanceResponse response = shipperBalanceService.releaseBalanceByUserId(userId, amount, description);
         return ResponseEntity.ok(new BaseResponse<>(1, response));
     }
 
@@ -75,15 +75,15 @@ public class ShipperBalanceController {
     public ResponseEntity<BaseResponse<ShipperBalanceResponse>> earnFromOrder(
             @RequestParam Long orderId,
             @RequestParam BigDecimal amount,
-            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long shipperId) {
-        ShipperBalanceResponse response = shipperBalanceService.earnFromOrder(shipperId, orderId, amount);
+            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId) {
+        ShipperBalanceResponse response = shipperBalanceService.earnFromOrderByUserId(userId, orderId, amount);
         return ResponseEntity.ok(new BaseResponse<>(1, response));
     }
 
     @GetMapping("/transactions")
     public ResponseEntity<BaseResponse<List<ShipperTransactionResponse>>> getTransactionHistory(
-            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long shipperId) {
-        List<ShipperTransactionResponse> response = shipperBalanceService.getTransactionHistory(shipperId);
+            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId) {
+        List<ShipperTransactionResponse> response = shipperBalanceService.getTransactionHistoryByUserId(userId);
         return ResponseEntity.ok(new BaseResponse<>(1, response));
     }
 }

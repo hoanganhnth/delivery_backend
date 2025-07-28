@@ -6,8 +6,8 @@ import com.delivery.shipper_service.dto.response.ShipperLocationResponse;
 import java.util.List;
 
 public interface ShipperLocationService {
-    ShipperLocationResponse updateLocation(Long shipperId, UpdateLocationRequest request);
-    ShipperLocationResponse getLocationByShipperId(Long shipperId);
+    ShipperLocationResponse updateLocationByUserId(Long userId, UpdateLocationRequest request);
+    ShipperLocationResponse getLocationByUserId(Long userId);
     List<ShipperLocationResponse> findShippersNearby(Double lat, Double lng, Double radiusKm);
-    void deleteLocation(Long shipperId);
+    void deleteLocationByUserId(Long userId);
 }

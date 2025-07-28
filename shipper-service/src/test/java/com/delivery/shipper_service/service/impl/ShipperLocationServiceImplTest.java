@@ -48,7 +48,7 @@ public class ShipperLocationServiceImplTest {
         when(shipperLocationMapper.toResponse(any(ShipperLocation.class))).thenReturn(expectedResponse);
 
         // When
-        ShipperLocationResponse result = shipperLocationService.updateLocation(shipperId, request);
+        ShipperLocationResponse result = shipperLocationService.updateLocationByUserId(shipperId, request);
 
         // Then
         assertNotNull(result);

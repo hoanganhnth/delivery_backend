@@ -7,12 +7,15 @@ import com.delivery.shipper_service.dto.response.ShipperResponse;
 import java.util.List;
 
 public interface ShipperService {
-    ShipperResponse createShipper(CreateShipperRequest request, Long creatorId, String role);
-    ShipperResponse updateShipper(Long id, UpdateShipperRequest request, Long creatorId);
-    void deleteShipper(Long id, Long creatorId);
+    // Main shipper operations based on userId (from X-User-Id header)
+    ShipperResponse createShipper(CreateShipperRequest request, Long userId, String role);
+    ShipperResponse updateShipperByUserId(Long userId, UpdateShipperRequest request);
+    void deleteShipperByUserId(Long userId);
+    ShipperResponse updateOnlineStatusByUserId(Long userId, Boolean isOnline);
+    
+    // Read operations
     ShipperResponse getShipperById(Long id);
     ShipperResponse getShipperByUserId(Long userId);
     List<ShipperResponse> getAllShippers();
     List<ShipperResponse> getOnlineShippers();
-    ShipperResponse updateOnlineStatus(Long id, Boolean isOnline, Long creatorId);
 }

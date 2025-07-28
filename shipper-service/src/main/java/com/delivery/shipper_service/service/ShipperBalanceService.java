@@ -8,12 +8,13 @@ import java.math.BigDecimal;
 import java.util.List;
 
 public interface ShipperBalanceService {
-    ShipperBalanceResponse getBalanceByShipperId(Long shipperId);
-    ShipperBalanceResponse createBalanceForShipper(Long shipperId);
-    ShipperBalanceResponse depositBalance(Long shipperId, BalanceTransactionRequest request);
-    ShipperBalanceResponse withdrawBalance(Long shipperId, BalanceTransactionRequest request);
-    ShipperBalanceResponse holdBalance(Long shipperId, BigDecimal amount, String description);
-    ShipperBalanceResponse releaseBalance(Long shipperId, BigDecimal amount, String description);
-    ShipperBalanceResponse earnFromOrder(Long shipperId, Long orderId, BigDecimal amount);
-    List<ShipperTransactionResponse> getTransactionHistory(Long shipperId);
+    // Operations based on userId (from X-User-Id header)
+    ShipperBalanceResponse getBalanceByUserId(Long userId);
+    ShipperBalanceResponse createBalanceForUserId(Long userId);
+    ShipperBalanceResponse depositBalanceByUserId(Long userId, BalanceTransactionRequest request);
+    ShipperBalanceResponse withdrawBalanceByUserId(Long userId, BalanceTransactionRequest request);
+    ShipperBalanceResponse holdBalanceByUserId(Long userId, BigDecimal amount, String description);
+    ShipperBalanceResponse releaseBalanceByUserId(Long userId, BigDecimal amount, String description);
+    ShipperBalanceResponse earnFromOrderByUserId(Long userId, Long orderId, BigDecimal amount);
+    List<ShipperTransactionResponse> getTransactionHistoryByUserId(Long userId);
 }

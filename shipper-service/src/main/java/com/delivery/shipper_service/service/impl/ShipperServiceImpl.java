@@ -1,6 +1,5 @@
 package com.delivery.shipper_service.service.impl;
 
-import com.delivery.shipper_service.common.constants.RoleConstants;
 import com.delivery.shipper_service.dto.request.CreateShipperRequest;
 import com.delivery.shipper_service.dto.request.UpdateShipperRequest;
 import com.delivery.shipper_service.dto.response.ShipperResponse;
@@ -10,8 +9,6 @@ import com.delivery.shipper_service.mapper.ShipperMapper;
 import com.delivery.shipper_service.repository.ShipperRepository;
 import com.delivery.shipper_service.service.ShipperService;
 import com.delivery.shipper_service.service.ShipperBalanceService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,22 +21,19 @@ public class ShipperServiceImpl implements ShipperService {
 
     private final ShipperRepository shipperRepository;
     private final ShipperMapper shipperMapper;
+    private final ShipperBalanceService shipperBalanceService;
 
-    public ShipperServiceImpl(ShipperRepository shipperRepository, ShipperMapper shipperMapper) {
+    public ShipperServiceImpl(ShipperRepository shipperRepository, 
+                              ShipperMapper shipperMapper,
+                              ShipperBalanceService shipperBalanceService) {
         this.shipperRepository = shipperRepository;
         this.shipperMapper = shipperMapper;
+        this.shipperBalanceService = shipperBalanceService;
     }
 
-    @Autowired
-    private ShipperBalanceService shipperBalanceService;
-
     @Override
-    public ShipperResponse createShipper(CreateShipperRequest request, Long creatorId, String role) {
-        // Kiểm tra quyền tạo shipper
-        if (!RoleConstants.ADMIN.equals(role) && !request.getUserId().equals(creatorId)) {
-            throw new AccessDeniedException("Bạn không có quyền tạo shipper cho user khác");
-        }
-
+    @Transactional
+    public ShipperResponse createShipper(CreateShipperRequest request, Long userId, String role) {
         // Kiểm tra trùng lặp license number
         if (shipperRepository.existsByLicenseNumber(request.getLicenseNumber())) {
             throw new IllegalArgumentException("Số bằng lái đã tồn tại trong hệ thống");
@@ -51,37 +45,34 @@ public class ShipperServiceImpl implements ShipperService {
         }
 
         // Kiểm tra user đã là shipper chưa
-        if (shipperRepository.findByUserId(request.getUserId()).isPresent()) {
+        if (shipperRepository.findByUserId(userId).isPresent()) {
             throw new IllegalArgumentException("User này đã là shipper");
         }
 
         Shipper shipper = shipperMapper.toEntity(request);
+        shipper.setUserId(userId); // Set userId từ header
         Shipper savedShipper = shipperRepository.save(shipper);
         
-        // Automatically create balance for new shipper
-        shipperBalanceService.createBalanceForShipper(savedShipper.getId());
+        // Tự động tạo balance cho shipper mới - sử dụng userId không phải shipper.getId()
+        shipperBalanceService.createBalanceForUserId(userId);
         
         return shipperMapper.toResponse(savedShipper);
     }
 
     @Override
-    public ShipperResponse updateShipper(Long id, UpdateShipperRequest request, Long creatorId) {
-        Shipper shipper = shipperRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy shipper với ID: " + id));
+    @Transactional
+    public ShipperResponse updateShipperByUserId(Long userId, UpdateShipperRequest request) {
+        Shipper shipper = shipperRepository.findByUserId(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy shipper của user với ID: " + userId));
 
-        // Kiểm tra quyền cập nhật
-        if (!shipper.getUserId().equals(creatorId)) {
-            throw new AccessDeniedException("Bạn không có quyền cập nhật thông tin shipper này");
-        }
-
-        // Kiểm tra trùng lặp license number (nếu có thay đổi)
+        // Kiểm tra trùng lặp license number (ngoại trừ chính shipper này)
         if (request.getLicenseNumber() != null && 
             !request.getLicenseNumber().equals(shipper.getLicenseNumber()) &&
             shipperRepository.existsByLicenseNumber(request.getLicenseNumber())) {
             throw new IllegalArgumentException("Số bằng lái đã tồn tại trong hệ thống");
         }
 
-        // Kiểm tra trùng lặp ID card (nếu có thay đổi)
+        // Kiểm tra trùng lặp ID card (ngoại trừ chính shipper này)
         if (request.getIdCard() != null && 
             !request.getIdCard().equals(shipper.getIdCard()) &&
             shipperRepository.existsByIdCard(request.getIdCard())) {
@@ -89,21 +80,27 @@ public class ShipperServiceImpl implements ShipperService {
         }
 
         shipperMapper.updateEntityFromRequest(request, shipper);
-        Shipper updatedShipper = shipperRepository.save(shipper);
-        return shipperMapper.toResponse(updatedShipper);
+        Shipper savedShipper = shipperRepository.save(shipper);
+        return shipperMapper.toResponse(savedShipper);
     }
 
     @Override
-    public void deleteShipper(Long id, Long creatorId) {
-        Shipper shipper = shipperRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy shipper với ID: " + id));
-
-        // Chỉ cho phép shipper xóa chính mình
-        if (!shipper.getUserId().equals(creatorId)) {
-            throw new AccessDeniedException("Bạn không có quyền xóa shipper này");
-        }
-
+    @Transactional
+    public void deleteShipperByUserId(Long userId) {
+        Shipper shipper = shipperRepository.findByUserId(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy shipper của user với ID: " + userId));
         shipperRepository.delete(shipper);
+    }
+
+    @Override
+    @Transactional
+    public ShipperResponse updateOnlineStatusByUserId(Long userId, Boolean isOnline) {
+        Shipper shipper = shipperRepository.findByUserId(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy shipper của user với ID: " + userId));
+        
+        shipper.setIsOnline(isOnline);
+        Shipper savedShipper = shipperRepository.save(shipper);
+        return shipperMapper.toResponse(savedShipper);
     }
 
     @Override
@@ -118,15 +115,15 @@ public class ShipperServiceImpl implements ShipperService {
     @Transactional(readOnly = true)
     public ShipperResponse getShipperByUserId(Long userId) {
         Shipper shipper = shipperRepository.findByUserId(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy shipper cho user ID: " + userId));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy shipper của user với ID: " + userId));
         return shipperMapper.toResponse(shipper);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<ShipperResponse> getAllShippers() {
-        return shipperRepository.findAll()
-                .stream()
+        List<Shipper> shippers = shipperRepository.findAll();
+        return shippers.stream()
                 .map(shipperMapper::toResponse)
                 .collect(Collectors.toList());
     }
@@ -134,24 +131,9 @@ public class ShipperServiceImpl implements ShipperService {
     @Override
     @Transactional(readOnly = true)
     public List<ShipperResponse> getOnlineShippers() {
-        return shipperRepository.findByIsOnline(true)
-                .stream()
+        List<Shipper> onlineShippers = shipperRepository.findByIsOnline(true);
+        return onlineShippers.stream()
                 .map(shipperMapper::toResponse)
                 .collect(Collectors.toList());
-    }
-
-    @Override
-    public ShipperResponse updateOnlineStatus(Long id, Boolean isOnline, Long creatorId) {
-        Shipper shipper = shipperRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy shipper với ID: " + id));
-
-        // Kiểm tra quyền cập nhật
-        if (!shipper.getUserId().equals(creatorId)) {
-            throw new AccessDeniedException("Bạn không có quyền cập nhật trạng thái online của shipper này");
-        }
-
-        shipper.setIsOnline(isOnline);
-        Shipper updatedShipper = shipperRepository.save(shipper);
-        return shipperMapper.toResponse(updatedShipper);
     }
 }

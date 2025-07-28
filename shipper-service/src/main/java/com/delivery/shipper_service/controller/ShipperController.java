@@ -25,38 +25,46 @@ public class ShipperController {
     @PostMapping
     public ResponseEntity<BaseResponse<ShipperResponse>> create(
             @RequestBody CreateShipperRequest request,
-            @RequestHeader(value = HttpHeaderConstants.X_USER_ID, required = false) Long creatorId,
+            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId,
             @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
-        ShipperResponse response = shipperService.createShipper(request, creatorId, role);
+        ShipperResponse response = shipperService.createShipper(request, userId, role);
         return ResponseEntity.ok(new BaseResponse<>(1, response));
     }
 
-    @PutMapping("/{id}")
+    @GetMapping("/my-profile")
+    public ResponseEntity<BaseResponse<ShipperResponse>> getMyProfile(
+            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId) {
+        ShipperResponse response = shipperService.getShipperByUserId(userId);
+        return ResponseEntity.ok(new BaseResponse<>(1, response));
+    }
+
+    @PutMapping
     public ResponseEntity<BaseResponse<ShipperResponse>> update(
-            @PathVariable Long id,
             @RequestBody UpdateShipperRequest request,
-            @RequestHeader(value = HttpHeaderConstants.X_USER_ID, required = false) Long creatorId) {
-        ShipperResponse response = shipperService.updateShipper(id, request, creatorId);
+            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId) {
+        ShipperResponse response = shipperService.updateShipperByUserId(userId, request);
         return ResponseEntity.ok(new BaseResponse<>(1, response));
     }
 
-    @DeleteMapping("/{id}")
+    @DeleteMapping
     public ResponseEntity<BaseResponse<Void>> delete(
-            @PathVariable Long id,
-            @RequestHeader(value = HttpHeaderConstants.X_USER_ID, required = false) Long creatorId) {
-        shipperService.deleteShipper(id, creatorId);
+            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId) {
+        shipperService.deleteShipperByUserId(userId);
         return ResponseEntity.ok(new BaseResponse<>(1, null));
     }
 
-    @GetMapping("/{id}")
-    public ResponseEntity<BaseResponse<ShipperResponse>> getById(@PathVariable Long id) {
-        ShipperResponse response = shipperService.getShipperById(id);
+    @PatchMapping("/online-status")
+    public ResponseEntity<BaseResponse<ShipperResponse>> updateOnlineStatus(
+            @RequestParam Boolean isOnline,
+            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId) {
+        ShipperResponse response = shipperService.updateOnlineStatusByUserId(userId, isOnline);
         return ResponseEntity.ok(new BaseResponse<>(1, response));
     }
 
-    @GetMapping("/user/{userId}")
-    public ResponseEntity<BaseResponse<ShipperResponse>> getByUserId(@PathVariable Long userId) {
-        ShipperResponse response = shipperService.getShipperByUserId(userId);
+    // Admin endpoints
+    @GetMapping("/{id}")
+    public ResponseEntity<BaseResponse<ShipperResponse>> getById(@PathVariable Long id) {
+        ShipperResponse response = shipperService.getShipperById(id);
         return ResponseEntity.ok(new BaseResponse<>(1, response));
     }
 
@@ -69,15 +77,6 @@ public class ShipperController {
     @GetMapping("/online")
     public ResponseEntity<BaseResponse<List<ShipperResponse>>> getOnlineShippers() {
         List<ShipperResponse> response = shipperService.getOnlineShippers();
-        return ResponseEntity.ok(new BaseResponse<>(1, response));
-    }
-
-    @PatchMapping("/{id}/online-status")
-    public ResponseEntity<BaseResponse<ShipperResponse>> updateOnlineStatus(
-            @PathVariable Long id,
-            @RequestParam Boolean isOnline,
-            @RequestHeader(value = HttpHeaderConstants.X_USER_ID, required = false) Long creatorId) {
-        ShipperResponse response = shipperService.updateOnlineStatus(id, isOnline, creatorId);
         return ResponseEntity.ok(new BaseResponse<>(1, response));
     }
 }
