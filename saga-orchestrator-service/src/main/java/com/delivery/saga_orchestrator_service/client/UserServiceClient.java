@@ -1,7 +1,5 @@
 package com.delivery.saga_orchestrator_service.client;
 
-import java.util.HashMap;
-import java.util.Map;
 
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
