@@ -18,7 +18,7 @@ public class GatewayRouteConfig {
         return builder.routes()
                 .route("user-service", r -> r.path("/api/users/**")
                     .filters(f -> f.filter(jwtFilter.apply(new JwtAuthenticationFilter.Config())))
-                    .uri("http://localhost:8084"))
+                    .uri("http://localhost:8082"))
 
                 .route("auth-service", r -> r.path("/api/auth/**")
                     .uri("http://localhost:8081"))

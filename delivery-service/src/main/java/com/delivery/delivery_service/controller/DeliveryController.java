@@ -25,6 +25,18 @@ public class DeliveryController {
     }
 
     /**
+     * POST /findNearbyShippers- Tìm shipper gần nhất
+     */
+    // @PostMapping("/findNearbyShippers")
+    // public ResponseEntity<BaseResponse<List<Long>>> findNearbyShippers(
+    //         @RequestBody AssignDeliveryRequest request,
+    //         @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId,
+    //         @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
+    //     List<Long> shipperIds = deliveryService.findNearbyShippers(request, userId, role);
+    //     return ResponseEntity.ok(new BaseResponse<>(1, shipperIds, "Tìm shipper gần nhất thành công"));
+    // }
+
+    /**
      * POST /assign - Giao shipper với đơn hàng
      */
     @PostMapping("/assign")

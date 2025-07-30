@@ -24,6 +24,9 @@ public class Shipper {
     @Column(name = "id_card", length = 20)
     private String idCard;
 
+    @Column(name = "phone", length = 15)
+    private String phone;
+
     @Column(name = "driver_image", columnDefinition = "TEXT")
     private String driverImage;
 

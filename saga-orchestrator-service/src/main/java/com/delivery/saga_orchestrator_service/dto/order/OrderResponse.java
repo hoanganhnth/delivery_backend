@@ -1,8 +1,7 @@
-package com.delivery.order_service.dto.response;
+package com.delivery.saga_orchestrator_service.dto.order;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.List;
 
 import lombok.Getter;
 import lombok.Setter;
@@ -34,7 +33,5 @@ public class OrderResponse {
     private String notes;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
-    private List<OrderItemResponse> items;
-
 
 }

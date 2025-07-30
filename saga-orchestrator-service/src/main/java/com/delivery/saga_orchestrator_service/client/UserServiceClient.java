@@ -5,7 +5,6 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
@@ -17,7 +16,6 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class UserServiceClient {
 
-    private final KafkaTemplate<String, Object> kafkaTemplate;
     private final RestTemplate restTemplate = new RestTemplate();
 
     private static final String USER_SERVICE_URL = "http://localhost:8084/api/users";

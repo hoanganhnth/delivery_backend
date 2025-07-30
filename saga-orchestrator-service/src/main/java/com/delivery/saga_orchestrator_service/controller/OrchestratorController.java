@@ -1,12 +1,13 @@
 package com.delivery.saga_orchestrator_service.controller;
 
 import com.delivery.saga_orchestrator_service.dto.RegisterRequest;
+import com.delivery.saga_orchestrator_service.dto.order.CreateOrderRequest;
 import com.delivery.saga_orchestrator_service.saga.order.OrderSaga;
 import com.delivery.saga_orchestrator_service.saga.user_registration.UserRegistrationSaga;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -29,8 +30,10 @@ public class OrchestratorController {
     }
 
     @PostMapping("/create-order")
-    public ResponseEntity<Void> createOrder(@RequestBody RegisterRequest request) {
-        orderSaga.start();
+    public ResponseEntity<Void> createOrder(@RequestBody CreateOrderRequest request,
+            @RequestHeader(value = "X-User-Id") Long userId,
+            @RequestHeader(value = "X-Role", required = false) String role) {
+        orderSaga.executeOrderCreationSaga(request, userId, role);
         return ResponseEntity.ok().build();
     }
 
