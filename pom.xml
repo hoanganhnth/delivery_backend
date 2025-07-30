@@ -21,5 +21,7 @@
         <module>shipper-service</module>
         <module>search-service</module>
         <module>saga-orchestrator-service</module>
+        <module>tracking-service</module>
+        <module>match-service</module>
     </modules>
 </project>

@@ -35,10 +35,10 @@ public class OrderSaga {
             System.out.println("✅ Order created successfully with ID: " + orderResponse.getId());
             System.out.println("🔍 Step 2: Finding available shippers...");
 
-            deliveryServiceClient.findNearbyShippers(
-                    orderResponse.getRestaurantLat(),
-                    orderResponse.getRestaurantLng(),
-                    userId, role);
+            // deliveryServiceClient.findNearbyShippers(
+            //         orderResponse.getRestaurantLat(),
+            //         orderResponse.getRestaurantLng(),
+            //         userId, role);
 
         } catch (Exception e) {
             System.out.println("❌ Order creation saga failed: " + e.getMessage());
