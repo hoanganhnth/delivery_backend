@@ -25,5 +25,4 @@ public class UpdateLocationRequest {
     private Double speed;
     private Double heading;
     private Boolean isOnline = true;
-    private String shipperId;
 }

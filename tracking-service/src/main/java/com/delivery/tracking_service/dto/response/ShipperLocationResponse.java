@@ -15,8 +15,8 @@ public class ShipperLocationResponse {
     private Double speed;
     private Double heading;
     private Boolean isOnline;
-    private LocalDateTime lastPing;
-    private LocalDateTime updatedAt;
+    private String lastPing;
+    private String updatedAt;
     
     // ✅ NEW: Distance field for spatial search results theo Backend Instructions
     private Double distance; // Distance in kilometers (populated by spatial queries)

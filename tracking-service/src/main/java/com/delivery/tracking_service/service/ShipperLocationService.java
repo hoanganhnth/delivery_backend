@@ -32,20 +32,20 @@ public class ShipperLocationService {
             response.setSpeed(request.getSpeed());
             response.setHeading(request.getHeading());
             response.setIsOnline(request.getIsOnline());
-            
+
             // ✅ Server-side timestamps theo Backend Instructions
             LocalDateTime now = LocalDateTime.now();
-            response.setLastPing(now);
-            response.setUpdatedAt(now);
-            
+            response.setLastPing(now.toString());
+            response.setUpdatedAt(now.toString());
+
             // ✅ Cache using Redis GEO service
             redisGeoService.cacheShipperLocation(shipperId, response);
-            
-            log.info("✅ Updated location for shipper: {} at ({}, {}) - Online: {} [Redis GEO]", 
-                shipperId, request.getLatitude(), request.getLongitude(), request.getIsOnline());
-            
+
+            log.info("✅ Updated location for shipper: {} at ({}, {}) - Online: {} [Redis GEO]",
+                    shipperId, request.getLatitude(), request.getLongitude(), request.getIsOnline());
+
             return response;
-            
+
         } catch (Exception e) {
             log.error("💥 Error updating shipper location: {}", e.getMessage(), e);
             throw new RuntimeException("Không thể cập nhật vị trí shipper");
@@ -62,10 +62,10 @@ public class ShipperLocationService {
                 log.debug("📍 Retrieved location for shipper: {} from Redis cache", shipperId);
                 return Optional.of(cached);
             }
-            
+
             log.debug("⚠️ No location found for shipper: {}", shipperId);
             return Optional.empty();
-            
+
         } catch (Exception e) {
             log.error("💥 Error getting shipper location: {}", e.getMessage(), e);
             return Optional.empty();
@@ -75,21 +75,20 @@ public class ShipperLocationService {
     /**
      * ✅ Find nearby shippers using Redis GEO operations theo Backend Instructions
      */
-    public List<ShipperLocationResponse> findNearbyShippers(Double centerLat, 
-                                                          Double centerLng, 
-                                                          Double radiusKm, 
-                                                          Integer limit) {
+    public List<ShipperLocationResponse> findNearbyShippers(Double centerLat,
+            Double centerLng,
+            Double radiusKm,
+            Integer limit) {
         try {
             // ✅ Use Redis GEORADIUS command for spatial query
             List<ShipperLocationResponse> nearbyShippers = redisGeoService.findShippersWithinRadius(
-                centerLat, centerLng, radiusKm, limit
-            );
-            
-            log.info("🔍 Found {} shippers within {}km from ({}, {}) using Redis GEO", 
+                    centerLat, centerLng, radiusKm, limit);
+
+            log.info("🔍 Found {} shippers within {}km from ({}, {}) using Redis GEO",
                     nearbyShippers.size(), radiusKm, centerLat, centerLng);
-            
+
             return nearbyShippers;
-            
+
         } catch (Exception e) {
             log.error("💥 Error finding nearby shippers with Redis GEO: {}", e.getMessage(), e);
             return List.of();
@@ -102,15 +101,15 @@ public class ShipperLocationService {
     public Double getDistanceBetweenShippers(Long shipperId1, Long shipperId2) {
         try {
             Double distance = redisGeoService.getDistanceBetweenShippers(shipperId1, shipperId2);
-            
+
             if (distance != null) {
                 log.debug("📏 Distance between shipper {} and {}: {}km", shipperId1, shipperId2, distance);
             } else {
                 log.warn("⚠️ Could not calculate distance between shipper {} and {}", shipperId1, shipperId2);
             }
-            
+
             return distance;
-            
+
         } catch (Exception e) {
             log.error("💥 Error calculating distance between shippers: {}", e.getMessage(), e);
             return null;
@@ -123,23 +122,23 @@ public class ShipperLocationService {
     public void markShipperOffline(Long shipperId) {
         try {
             Optional<ShipperLocationResponse> currentLocation = getShipperLocation(shipperId);
-            
+
             if (currentLocation.isPresent()) {
                 // Case 1: Có location trong cache → Update isOnline = false
                 ShipperLocationResponse location = currentLocation.get();
                 location.setIsOnline(false);
-                location.setUpdatedAt(LocalDateTime.now()); // Backend tự generate timestamp
-                
+                location.setUpdatedAt(LocalDateTime.now().toString()); // Backend tự generate timestamp
+
                 // ✅ Save updated location using Redis GEO service
                 redisGeoService.cacheShipperLocation(shipperId, location);
                 log.info("🔴 Marked shipper {} as offline (updated existing location) [Redis GEO]", shipperId);
-                
+
             } else {
                 // Case 2: Không có location trong cache → Remove completely
                 redisGeoService.removeShipperLocationCache(shipperId);
                 log.info("🔴 Removed offline shipper {} from Redis GEO cache", shipperId);
             }
-            
+
         } catch (Exception e) {
             log.error("💥 Error marking shipper {} offline: {}", shipperId, e.getMessage(), e);
             // Fallback: Remove from cache completely
@@ -154,10 +153,10 @@ public class ShipperLocationService {
         try {
             // ✅ Use optimized Redis SET query instead of scanning all keys
             List<ShipperLocationResponse> onlineShippers = redisGeoService.getAllOnlineShippers();
-            
+
             log.info("📋 Retrieved {} online shippers from Redis GEO cache", onlineShippers.size());
             return onlineShippers;
-            
+
         } catch (Exception e) {
             log.error("💥 Error getting online shippers: {}", e.getMessage(), e);
             return List.of();
