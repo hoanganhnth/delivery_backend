@@ -8,19 +8,20 @@ import com.delivery.match_service.payload.BaseResponse;
 import com.delivery.match_service.service.MatchService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Mono;
 
 import java.util.List;
 
 /**
- * ✅ Match Controller - Tìm shipper gần nhất
+ * ✅ Match Controller - Tìm shipper gần nhất với Non-blocking approach
  * Theo Backend Instructions: Controller pattern với BaseResponse wrapper
  */
 @RestController
 @RequestMapping(ApiPathConstants.MATCH)
 public class MatchController {
-    
+
     private final MatchService matchService;
-    
+
     /**
      * ✅ Constructor Injection thay vì @Autowired field injection
      * Theo Backend Instructions: Constructor injection là REQUIRED
@@ -28,55 +29,51 @@ public class MatchController {
     public MatchController(MatchService matchService) {
         this.matchService = matchService;
     }
-    
+
     /**
-     * ✅ API tìm shipper gần nhất
+     * ✅ Non-blocking API tìm shipper gần nhất với flexible content type support
      * 
      * POST /api/match/nearby-shippers
      * Request Body: {
-     *   "latitude": 10.762622,
-     *   "longitude": 106.660172,
-     *   "radiusKm": 5.0,
-     *   "maxShippers": 10
+     * "latitude": 10.762622,
+     * "longitude": 106.660172,
+     * "radiusKm": 5.0,
+     * "maxShippers": 10
      * }
      * 
      * @param request Thông tin vị trí và bán kính tìm kiếm
-     * @param userId User ID từ header (optional)
-     * @param role Role từ header (optional)
-     * @return List shipper gần nhất với khoảng cách
+     * @param userId  User ID từ header (optional)
+     * @param role    Role từ header (optional)
+     * @return Mono<ResponseEntity> với list shipper gần nhất
      */
-    @PostMapping(ApiPathConstants.NEARBY_SHIPPERS)
-    public ResponseEntity<BaseResponse<List<NearbyShipperResponse>>> findNearbyShippers(
+    @PostMapping(value = ApiPathConstants.NEARBY_SHIPPERS, 
+                consumes = {"application/json", "text/plain", "*/*"},
+                produces = "application/json")
+    public Mono<ResponseEntity<BaseResponse<List<NearbyShipperResponse>>>> findNearbyShippers(
             @RequestBody FindNearbyShippersRequest request,
             @RequestHeader(value = HttpHeaderConstants.X_USER_ID, required = false) Long userId,
             @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
         
-        // ✅ Validate input
-        if (request.getLatitude() < -90 || request.getLatitude() > 90) {
-            return ResponseEntity.badRequest()
-                    .body(new BaseResponse<>(0, null, "Latitude phải trong khoảng -90 đến 90"));
+        try {
+            // ✅ Validate input với utility class
+            String validationError = com.delivery.match_service.common.util.ValidationUtil
+                    .validateFindNearbyShippersRequest(request);
+
+            if (validationError != null) {
+                return Mono.just(ResponseEntity.badRequest()
+                        .body(new BaseResponse<>(0, null, validationError)));
+            }
+
+            // ✅ Non-blocking call service để lấy nearby shippers từ Tracking Service
+            return matchService.findNearbyShippers(request, userId, role)
+                    .map(nearbyShippers -> ResponseEntity.ok(new BaseResponse<>(1, nearbyShippers,
+                            "Tìm thấy " + nearbyShippers.size() + " shipper gần vị trí yêu cầu")))
+                    .onErrorReturn(ResponseEntity.status(500)
+                            .body(new BaseResponse<>(0, null, "Lỗi khi tìm kiếm shipper gần nhất")));
+            
+        } catch (Exception parseEx) {
+            return Mono.just(ResponseEntity.badRequest()
+                    .body(new BaseResponse<>(0, null, parseEx.getMessage())));
         }
-        
-        if (request.getLongitude() < -180 || request.getLongitude() > 180) {
-            return ResponseEntity.badRequest()
-                    .body(new BaseResponse<>(0, null, "Longitude phải trong khoảng -180 đến 180"));
-        }
-        
-        if (request.getRadiusKm() <= 0 || request.getRadiusKm() > 50) {
-            return ResponseEntity.badRequest()
-                    .body(new BaseResponse<>(0, null, "Bán kính phải từ 0.1 đến 50 km"));
-        }
-        
-        if (request.getMaxShippers() <= 0 || request.getMaxShippers() > 100) {
-            return ResponseEntity.badRequest()
-                    .body(new BaseResponse<>(0, null, "Số lượng shipper phải từ 1 đến 100"));
-        }
-        
-        // ✅ Call service để lấy nearby shippers từ Tracking Service
-        List<NearbyShipperResponse> nearbyShippers = matchService.findNearbyShippers(request);
-        
-        // ✅ Return với BaseResponse wrapper theo Backend Instructions
-        return ResponseEntity.ok(new BaseResponse<>(1, nearbyShippers, 
-                "Tìm thấy " + nearbyShippers.size() + " shipper gần vị trí yêu cầu"));
     }
 }

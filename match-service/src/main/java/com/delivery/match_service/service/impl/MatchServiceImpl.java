@@ -1,23 +1,25 @@
 package com.delivery.match_service.service.impl;
 
+import com.delivery.match_service.common.constants.HttpHeaderConstants;
 import com.delivery.match_service.dto.request.FindNearbyShippersRequest;
 import com.delivery.match_service.dto.response.NearbyShipperResponse;
+import com.delivery.match_service.dto.response.TrackingServiceResponse;
 import com.delivery.match_service.service.MatchService;
-import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Mono;
 
 import java.util.List;
 
 /**
- * ✅ Match Service Implementation
+ * ✅ Match Service Implementation với Non-blocking WebFlux
  * Theo Backend Instructions: Constructor injection pattern
  */
 @Service
 public class MatchServiceImpl implements MatchService {
-    
+
     private final WebClient trackingServiceWebClient;
-    
+
     /**
      * ✅ Constructor Injection thay vì @Autowired field injection
      * Theo Backend Instructions: Constructor injection là REQUIRED
@@ -25,29 +27,47 @@ public class MatchServiceImpl implements MatchService {
     public MatchServiceImpl(WebClient trackingServiceWebClient) {
         this.trackingServiceWebClient = trackingServiceWebClient;
     }
-    
+
     /**
-     * ✅ Call Tracking Service để lấy nearby shippers
-     * Sử dụng WebClient để call microservice khác
+     * ✅ Non-blocking call Tracking Service với GET method và flexible response
+     * handling
+     * Sử dụng Mono<List> thay vì blocking call, handle both JSON and text/plain
      */
     @Override
-    public List<NearbyShipperResponse> findNearbyShippers(FindNearbyShippersRequest request) {
-        try {
-            // ✅ Call tracking service API endpoint
-            var response = trackingServiceWebClient
-                    .post()
-                    .uri("/api/tracking/nearby-shippers")
-                    .bodyValue(request)
-                    .retrieve()
-                    .bodyToMono(new ParameterizedTypeReference<List<NearbyShipperResponse>>() {})
-                    .block(); // Blocking call cho simplicity
-            
-            return response != null ? response : List.of();
-            
-        } catch (Exception ex) {
-            // Log error và return empty list thay vì throw exception
-            System.err.println("Error calling tracking service: " + ex.getMessage());
-            return List.of();
-        }
+    public Mono<List<NearbyShipperResponse>> findNearbyShippers(FindNearbyShippersRequest request, Long userId,
+            String role) {
+        return trackingServiceWebClient
+                .get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/api/tracking/shipper-locations/nearby")
+                        .queryParam("lat", request.getLatitude())
+                        .queryParam("lng", request.getLongitude())
+                        .queryParam("radiusKm", request.getRadiusKm())
+                        .queryParam("limit", request.getMaxShippers())
+                        .build())
+                .header(HttpHeaderConstants.X_USER_ID, userId != null ? userId.toString() : "")
+                .header(HttpHeaderConstants.X_ROLE, role != null ? role : "")
+                .header("Accept", "application/json, text/plain, */*")
+                .retrieve()
+                .onStatus(status -> status.is4xxClientError() || status.is5xxServerError(),
+                        response -> {
+                            System.err.println("HTTP Error: " + response.statusCode());
+                            return Mono.error(new RuntimeException("Tracking service error: " + response.statusCode()));
+                        })
+                .bodyToMono(String.class) // Get raw response as String first
+                .map(rawResponse -> {
+
+                    // ✅ Try to parse as JSON using Gson (available in dependencies)
+                    com.google.gson.Gson gson = new com.google.gson.Gson();
+                    TrackingServiceResponse response = gson.fromJson(rawResponse, TrackingServiceResponse.class);
+
+                    if (response != null && response.getStatus() == 1 && response.getData() != null) {
+                        return response.getData();
+                    }
+                    return List.<NearbyShipperResponse>of();
+
+                })
+                .onErrorReturn(List.of()) // Return empty list nếu có lỗi
+                .doOnError(ex -> System.err.println("Error calling tracking service: " + ex.getMessage()));
     }
 }
