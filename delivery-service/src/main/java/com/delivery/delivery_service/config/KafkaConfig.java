@@ -34,8 +34,9 @@ public class KafkaConfig {
         props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, JsonDeserializer.class);
         
-        // JsonDeserializer config for OrderCreatedEvent
-        props.put(JsonDeserializer.TRUSTED_PACKAGES, "com.delivery.delivery_service.dto.event");
+        // JsonDeserializer config - Secure but independent approach
+        props.put(JsonDeserializer.TRUSTED_PACKAGES, "java.util,java.lang,com.delivery.delivery_service.dto.event");
+        props.put(JsonDeserializer.USE_TYPE_INFO_HEADERS, false);
         props.put(JsonDeserializer.VALUE_DEFAULT_TYPE, "com.delivery.delivery_service.dto.event.OrderCreatedEvent");
         
         // Additional consumer configs
