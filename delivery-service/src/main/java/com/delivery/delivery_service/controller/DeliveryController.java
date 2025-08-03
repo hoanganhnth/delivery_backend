@@ -75,15 +75,15 @@ public class DeliveryController {
     /**
      * PUT /:id/location - Cập nhật vị trí shipper
      */
-    @PutMapping("/{id}/location")
-    public ResponseEntity<BaseResponse<DeliveryResponse>> updateLocation(
-            @PathVariable Long id,
-            @RequestBody UpdateLocationRequest request,
-            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId,
-            @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
-        DeliveryResponse response = deliveryService.updateShipperLocation(id, request, userId, role);
-        return ResponseEntity.ok(new BaseResponse<>(1, response, "Cập nhật vị trí shipper thành công"));
-    }
+    // @PutMapping("/{id}/location")
+    // public ResponseEntity<BaseResponse<DeliveryResponse>> updateLocation(
+    //         @PathVariable Long id,
+    //         @RequestBody UpdateLocationRequest request,
+    //         @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId,
+    //         @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
+    //     DeliveryResponse response = deliveryService.updateShipperLocation(id, request, userId, role);
+    //     return ResponseEntity.ok(new BaseResponse<>(1, response, "Cập nhật vị trí shipper thành công"));
+    // }
 
     /**
      * PUT /:id/status - Cập nhật trạng thái delivery

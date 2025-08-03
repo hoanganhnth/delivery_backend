@@ -1,6 +1,7 @@
 package com.delivery.delivery_service.entity;
 
 public enum DeliveryStatus {
+    PENDING("Chờ phân công shipper"),
     ASSIGNED("Đã phân công"),
     PICKED_UP("Đã lấy hàng"),
     DELIVERING("Đang giao hàng"),

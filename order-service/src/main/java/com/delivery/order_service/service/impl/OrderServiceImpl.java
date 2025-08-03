@@ -11,6 +11,7 @@ import com.delivery.order_service.exception.ResourceNotFoundException;
 import com.delivery.order_service.mapper.OrderMapper;
 import com.delivery.order_service.repository.OrderItemRepository;
 import com.delivery.order_service.repository.OrderRepository;
+import com.delivery.order_service.service.OrderEventPublisher;
 import com.delivery.order_service.service.OrderService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,13 +25,16 @@ public class OrderServiceImpl implements OrderService {
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
     private final OrderMapper orderMapper;
+    private final OrderEventPublisher orderEventPublisher;
 
     public OrderServiceImpl(OrderRepository orderRepository, 
                            OrderItemRepository orderItemRepository,
-                           OrderMapper orderMapper) {
+                           OrderMapper orderMapper,
+                           OrderEventPublisher orderEventPublisher) {
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
         this.orderMapper = orderMapper;
+        this.orderEventPublisher = orderEventPublisher;
     }
 
     @Override
@@ -61,6 +65,9 @@ public class OrderServiceImpl implements OrderService {
         
         orderItemRepository.saveAll(orderItems);
         savedOrder.setItems(orderItems);
+        
+        // ✅ Publish OrderCreatedEvent to Kafka for Delivery Service
+        orderEventPublisher.publishOrderCreatedEvent(savedOrder);
         
         return orderMapper.orderToOrderResponse(savedOrder);
     }

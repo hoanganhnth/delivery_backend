@@ -1,7 +1,7 @@
 package com.delivery.delivery_service.service;
 
+import com.delivery.delivery_service.dto.event.OrderCreatedEvent;
 import com.delivery.delivery_service.dto.request.AssignDeliveryRequest;
-import com.delivery.delivery_service.dto.request.UpdateLocationRequest;
 import com.delivery.delivery_service.dto.response.DeliveryResponse;
 import com.delivery.delivery_service.dto.response.DeliveryTrackingResponse;
 import com.delivery.delivery_service.entity.DeliveryStatus;
@@ -9,6 +9,11 @@ import com.delivery.delivery_service.entity.DeliveryStatus;
 import java.util.List;
 
 public interface DeliveryService {
+
+    /**
+     * ✅ Tạo delivery từ OrderCreatedEvent (Kafka event processing)
+     */
+    DeliveryResponse createDeliveryFromOrderEvent(OrderCreatedEvent event);
 
     /**
      * Gán shipper cho đơn hàng
@@ -23,7 +28,7 @@ public interface DeliveryService {
     /**
      * Cập nhật vị trí shipper
      */
-    DeliveryResponse updateShipperLocation(Long deliveryId, UpdateLocationRequest request, Long userId, String role);
+    // DeliveryResponse updateShipperLocation(Long deliveryId, UpdateLocationRequest request, Long userId, String role);
 
     /**
      * Cập nhật trạng thái giao hàng

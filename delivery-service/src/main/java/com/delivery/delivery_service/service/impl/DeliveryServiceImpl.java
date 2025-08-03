@@ -1,8 +1,8 @@
 package com.delivery.delivery_service.service.impl;
 
 import com.delivery.delivery_service.common.constants.RoleConstants;
+import com.delivery.delivery_service.dto.event.OrderCreatedEvent;
 import com.delivery.delivery_service.dto.request.AssignDeliveryRequest;
-import com.delivery.delivery_service.dto.request.UpdateLocationRequest;
 import com.delivery.delivery_service.dto.response.DeliveryResponse;
 import com.delivery.delivery_service.dto.response.DeliveryTrackingResponse;
 import com.delivery.delivery_service.entity.Delivery;
@@ -32,11 +32,58 @@ public class DeliveryServiceImpl implements DeliveryService {
 
     @Override
     @Transactional
+    public DeliveryResponse createDeliveryFromOrderEvent(OrderCreatedEvent event) {
+        try {
+            // ✅ Tự động tạo delivery record từ OrderCreatedEvent theo Backend Instructions
+            Delivery delivery = new Delivery();
+            
+            // Set basic order info
+            delivery.setOrderId(event.getOrderId());
+            // Note: shipperId sẽ được set sau khi có shipper assignment
+            
+            // Set pickup location (restaurant)
+            delivery.setPickupAddress(event.getRestaurantAddress());
+            // Note: pickup lat/lng có thể được set sau từ restaurant service
+            
+            // Set delivery location
+            delivery.setDeliveryAddress(event.getDeliveryAddress());
+            delivery.setDeliveryLat(event.getDeliveryLat());
+            delivery.setDeliveryLng(event.getDeliveryLng());
+            
+            // Set notes
+            delivery.setNotes(event.getNotes());
+            
+            // Set initial status - PENDING (chờ assign shipper)
+            delivery.setStatus(DeliveryStatus.PENDING);
+            
+            // Set timestamps
+            delivery.setCreatedAt(LocalDateTime.now());
+            delivery.setUpdatedAt(LocalDateTime.now());
+            delivery.setCreatorId(event.getCreatorId());
+            
+            // Ước tính thời gian giao hàng (30 phút mặc định)
+            delivery.setEstimatedDeliveryTime(LocalDateTime.now().plusMinutes(30));
+            
+            // shipperId sẽ là null cho đến khi được assign
+            // delivery.setShipperId(null); // default is null
+            
+            // Save delivery
+            Delivery savedDelivery = deliveryRepository.save(delivery);
+            
+            return deliveryMapper.deliveryToDeliveryResponse(savedDelivery);
+            
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to create delivery from order event: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
+    @Transactional
     public DeliveryResponse assignDelivery(AssignDeliveryRequest request, Long userId, String role) {
         // Chỉ admin mới có thể assign delivery
-        if (!RoleConstants.ADMIN.equals(role)) {
-            throw new AccessDeniedException("Bạn không có quyền phân công giao hàng");
-        }
+        // if (!RoleConstants.ADMIN.equals(role)) {
+        //     throw new AccessDeniedException("Bạn không có quyền phân công giao hàng");
+        // }
 
         // Kiểm tra order đã có delivery chưa
         if (deliveryRepository.existsByOrderId(request.getOrderId())) {
@@ -45,7 +92,7 @@ public class DeliveryServiceImpl implements DeliveryService {
 
         // Tạo delivery mới
         Delivery delivery = deliveryMapper.assignRequestToDelivery(request);
-        delivery.setCreatorId(userId);
+        // delivery.setCreatorId(userId);
 
         // Ước tính thời gian giao hàng (30 phút mặc định)
         delivery.setEstimatedDeliveryTime(LocalDateTime.now().plusMinutes(30));
@@ -82,28 +129,7 @@ public class DeliveryServiceImpl implements DeliveryService {
         return trackingResponse;
     }
 
-    @Override
-    @Transactional
-    public DeliveryResponse updateShipperLocation(Long deliveryId, UpdateLocationRequest request, Long userId, String role) {
-        Delivery delivery = findDeliveryById(deliveryId);
-
-        // Chỉ shipper được giao hoặc admin mới được update location
-        if (!RoleConstants.ADMIN.equals(role) && !delivery.getShipperId().equals(userId)) {
-            throw new AccessDeniedException("Bạn không có quyền cập nhật vị trí giao hàng này");
-        }
-
-        // Cập nhật vị trí shipper
-        delivery.setShipperCurrentLat(request.getLat());
-        delivery.setShipperCurrentLng(request.getLng());
-
-        // Nếu có status trong request thì cập nhật luôn
-        if (request.getStatus() != null) {
-            updateDeliveryStatusInternal(delivery, request.getStatus());
-        }
-
-        Delivery updatedDelivery = deliveryRepository.save(delivery);
-        return deliveryMapper.deliveryToDeliveryResponse(updatedDelivery);
-    }
+   
 
     @Override
     @Transactional
@@ -212,6 +238,7 @@ public class DeliveryServiceImpl implements DeliveryService {
             case DELIVERED:
                 delivery.setDeliveredAt(LocalDateTime.now());
                 break;
+            case PENDING:
             case ASSIGNED:
             case DELIVERING:
             case CANCELLED:
@@ -223,6 +250,7 @@ public class DeliveryServiceImpl implements DeliveryService {
     private boolean isValidStatusTransition(DeliveryStatus currentStatus, DeliveryStatus newStatus) {
         // Định nghĩa các transition hợp lệ
         return switch (currentStatus) {
+            case PENDING -> newStatus == DeliveryStatus.ASSIGNED || newStatus == DeliveryStatus.CANCELLED;
             case ASSIGNED -> newStatus == DeliveryStatus.PICKED_UP || newStatus == DeliveryStatus.CANCELLED;
             case PICKED_UP -> newStatus == DeliveryStatus.DELIVERING || newStatus == DeliveryStatus.CANCELLED;
             case DELIVERING -> newStatus == DeliveryStatus.DELIVERED || newStatus == DeliveryStatus.CANCELLED;

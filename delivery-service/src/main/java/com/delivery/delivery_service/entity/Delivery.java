@@ -19,12 +19,12 @@ public class Delivery {
     @Column(name = "order_id", nullable = false, unique = true)
     private Long orderId;
 
-    @Column(name = "shipper_id", nullable = false)
-    private Long shipperId;
+    @Column(name = "shipper_id")
+    private Long shipperId; // nullable - sẽ được set khi assign shipper
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status")
-    private DeliveryStatus status = DeliveryStatus.ASSIGNED;
+    private DeliveryStatus status = DeliveryStatus.PENDING;
 
     @Column(name = "pickup_address", columnDefinition = "TEXT")
     private String pickupAddress; // Địa chỉ nhà hàng
