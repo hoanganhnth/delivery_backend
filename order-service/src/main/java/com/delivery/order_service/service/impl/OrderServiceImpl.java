@@ -13,6 +13,7 @@ import com.delivery.order_service.repository.OrderItemRepository;
 import com.delivery.order_service.repository.OrderRepository;
 import com.delivery.order_service.service.OrderEventPublisher;
 import com.delivery.order_service.service.OrderService;
+import com.delivery.order_service.service.OrderValidationService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,20 +27,26 @@ public class OrderServiceImpl implements OrderService {
     private final OrderItemRepository orderItemRepository;
     private final OrderMapper orderMapper;
     private final OrderEventPublisher orderEventPublisher;
+    private final OrderValidationService orderValidationService;
 
     public OrderServiceImpl(OrderRepository orderRepository, 
                            OrderItemRepository orderItemRepository,
                            OrderMapper orderMapper,
-                           OrderEventPublisher orderEventPublisher) {
+                           OrderEventPublisher orderEventPublisher,
+                           OrderValidationService orderValidationService) {
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
         this.orderMapper = orderMapper;
         this.orderEventPublisher = orderEventPublisher;
+        this.orderValidationService = orderValidationService;
     }
 
     @Override
     @Transactional
     public OrderResponse createOrder(CreateOrderRequest request, Long userId, String role) {
+        // ✅ Validate request data trước khi xử lý
+        orderValidationService.validateCreateOrderRequest(request, userId);
+        
         // Tạo order chính
         Order order = orderMapper.createOrderRequestToOrder(request);
         order.setUserId(userId);

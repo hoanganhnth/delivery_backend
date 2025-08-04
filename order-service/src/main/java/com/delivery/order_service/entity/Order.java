@@ -55,6 +55,12 @@ public class Order {
     @Column(name = "delivery_lng")
     private Double deliveryLng;
 
+    @Column(name = "pickup_lat")
+    private Double pickupLat;
+
+    @Column(name = "pickup_lng")
+    private Double pickupLng;
+
     @Column(name = "restaurant_name")
     private String restaurantName;
 

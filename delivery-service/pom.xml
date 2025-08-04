@@ -74,6 +74,12 @@
 			<artifactId>spring-security-core</artifactId>
 		</dependency>
 		
+		<!-- ✅ Validation for event DTOs -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-validation</artifactId>
+		</dependency>
+		
 		<!-- JSON Processing -->
 		<dependency>
 			<groupId>com.google.code.gson</groupId>

@@ -3,7 +3,6 @@ package com.delivery.delivery_service.controller;
 import com.delivery.delivery_service.common.constants.ApiPathConstants;
 import com.delivery.delivery_service.common.constants.HttpHeaderConstants;
 import com.delivery.delivery_service.dto.request.AssignDeliveryRequest;
-import com.delivery.delivery_service.dto.request.UpdateLocationRequest;
 import com.delivery.delivery_service.dto.response.DeliveryResponse;
 import com.delivery.delivery_service.dto.response.DeliveryTrackingResponse;
 import com.delivery.delivery_service.entity.DeliveryStatus;

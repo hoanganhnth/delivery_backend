@@ -80,6 +80,10 @@ public class OrderEventPublisher {
         event.setDeliveryLat(order.getDeliveryLat());
         event.setDeliveryLng(order.getDeliveryLng());
         
+        // Pickup location info
+        event.setPickupLat(order.getPickupLat());
+        event.setPickupLng(order.getPickupLng());
+        
         // Restaurant info
         event.setRestaurantName(order.getRestaurantName());
         event.setRestaurantAddress(order.getRestaurantAddress());

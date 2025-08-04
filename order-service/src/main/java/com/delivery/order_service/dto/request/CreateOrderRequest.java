@@ -21,6 +21,8 @@ public class CreateOrderRequest {
     private String customerPhone;
     private String paymentMethod; // COD or ONLINE
     private String notes;
+    private Double pickupLat;
+    private Double pickupLng;
     private List<OrderItemRequest> items;
 
     @Setter
@@ -31,7 +33,5 @@ public class CreateOrderRequest {
         private Integer quantity;
         private BigDecimal price;
         private String notes;
-
-
     }
 }

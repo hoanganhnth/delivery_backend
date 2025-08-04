@@ -3,6 +3,7 @@ package com.delivery.delivery_service.listener;
 import com.delivery.delivery_service.common.constants.KafkaTopicConstants;
 import com.delivery.delivery_service.dto.event.OrderCreatedEvent;
 import com.delivery.delivery_service.service.DeliveryService;
+import com.delivery.delivery_service.service.EventValidationService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;
@@ -13,17 +14,20 @@ import org.springframework.stereotype.Component;
 
 /**
  * ✅ Kafka Event Listener cho Delivery Service theo Backend Instructions
- * Lắng nghe OrderCreatedEvent từ Order Service
+ * Lắng nghe OrderCreatedEvent từ Order Service với comprehensive validation
  */
 @Slf4j
 @Component
 public class OrderEventListener {
     
     private final DeliveryService deliveryService;
+    private final EventValidationService eventValidationService;
     
     // ✅ Constructor Injection Pattern (MANDATORY)
-    public OrderEventListener(DeliveryService deliveryService) {
+    public OrderEventListener(DeliveryService deliveryService, 
+                             EventValidationService eventValidationService) {
         this.deliveryService = deliveryService;
+        this.eventValidationService = eventValidationService;
     }
     
     /**
@@ -41,7 +45,28 @@ public class OrderEventListener {
             log.info("📥 Received OrderCreatedEvent for order: {} from topic: {} partition: {} timestamp: {}",
                     event.getOrderId(), topic, partition, timestamp);
             
-            // Tự động tạo delivery record cho order mới
+            // ✅ Validate event data trước khi process
+            EventValidationService.ValidationResult validationResult = 
+                    eventValidationService.validateOrderCreatedEvent(event);
+            
+            if (!validationResult.isValid()) {
+                log.error("💥 Invalid OrderCreatedEvent for order: {} - Errors: {}", 
+                         event.getOrderId(), validationResult.getErrorMessage());
+                
+                // Check if có minimum required fields để fallback processing
+                if (eventValidationService.hasMinimumRequiredFields(event)) {
+                    log.warn("🔄 Attempting fallback processing với minimum required fields for order: {}", 
+                            event.getOrderId());
+                    // Continue processing với degraded data quality
+                } else {
+                    log.error("🚫 Order {} không có minimum required fields, skipping processing", 
+                             event.getOrderId());
+                    acknowledgment.acknowledge();
+                    return;
+                }
+            }
+            
+            // ✅ Tự động tạo delivery record cho order mới
             deliveryService.createDeliveryFromOrderEvent(event);
             
             log.info("✅ Successfully processed OrderCreatedEvent for order: {}", event.getOrderId());

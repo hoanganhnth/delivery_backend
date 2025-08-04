@@ -33,6 +33,10 @@ public class OrderCreatedEvent {
     private Double deliveryLat;
     private Double deliveryLng;
     
+    // Pickup location info (restaurant coordinates)
+    private Double pickupLat;
+    private Double pickupLng;
+    
     // Restaurant info
     private String restaurantName;
     private String restaurantAddress;

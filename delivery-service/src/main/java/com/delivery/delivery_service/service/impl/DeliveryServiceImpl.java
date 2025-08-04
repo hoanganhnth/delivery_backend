@@ -1,6 +1,7 @@
 package com.delivery.delivery_service.service.impl;
 
 import com.delivery.delivery_service.common.constants.RoleConstants;
+import com.delivery.delivery_service.dto.event.FindShipperEvent;
 import com.delivery.delivery_service.dto.event.OrderCreatedEvent;
 import com.delivery.delivery_service.dto.request.AssignDeliveryRequest;
 import com.delivery.delivery_service.dto.response.DeliveryResponse;
@@ -13,21 +14,29 @@ import com.delivery.delivery_service.exception.ResourceNotFoundException;
 import com.delivery.delivery_service.mapper.DeliveryMapper;
 import com.delivery.delivery_service.repository.DeliveryRepository;
 import com.delivery.delivery_service.service.DeliveryService;
+import com.delivery.delivery_service.service.MatchServiceEventPublisher;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
+@Slf4j
 @Service
 public class DeliveryServiceImpl implements DeliveryService {
 
     private final DeliveryRepository deliveryRepository;
     private final DeliveryMapper deliveryMapper;
+    private final MatchServiceEventPublisher matchServiceEventPublisher;
 
-    public DeliveryServiceImpl(DeliveryRepository deliveryRepository, DeliveryMapper deliveryMapper) {
+    // ✅ Constructor Injection Pattern (MANDATORY)
+    public DeliveryServiceImpl(DeliveryRepository deliveryRepository,
+            DeliveryMapper deliveryMapper,
+            MatchServiceEventPublisher matchServiceEventPublisher) {
         this.deliveryRepository = deliveryRepository;
         this.deliveryMapper = deliveryMapper;
+        this.matchServiceEventPublisher = matchServiceEventPublisher;
     }
 
     @Override
@@ -36,42 +45,51 @@ public class DeliveryServiceImpl implements DeliveryService {
         try {
             // ✅ Tự động tạo delivery record từ OrderCreatedEvent theo Backend Instructions
             Delivery delivery = new Delivery();
-            
+
             // Set basic order info
             delivery.setOrderId(event.getOrderId());
             // Note: shipperId sẽ được set sau khi có shipper assignment
-            
+
             // Set pickup location (restaurant)
             delivery.setPickupAddress(event.getRestaurantAddress());
-            // Note: pickup lat/lng có thể được set sau từ restaurant service
-            
+
+            // ✅ Set default pickup coordinates (có thể improve sau bằng geocoding)
+            // TODO: Integrate với geocoding service để convert address → coordinates
+
+            // Fallback: TP.HCM center coordinates
+            delivery.setPickupLat(event.getPickupLat());
+            delivery.setPickupLng(event.getPickupLng());
+
             // Set delivery location
             delivery.setDeliveryAddress(event.getDeliveryAddress());
             delivery.setDeliveryLat(event.getDeliveryLat());
             delivery.setDeliveryLng(event.getDeliveryLng());
-            
+
             // Set notes
             delivery.setNotes(event.getNotes());
-            
+
             // Set initial status - PENDING (chờ assign shipper)
             delivery.setStatus(DeliveryStatus.PENDING);
-            
+
             // Set timestamps
             delivery.setCreatedAt(LocalDateTime.now());
             delivery.setUpdatedAt(LocalDateTime.now());
             delivery.setCreatorId(event.getCreatorId());
-            
+
             // Ước tính thời gian giao hàng (30 phút mặc định)
             delivery.setEstimatedDeliveryTime(LocalDateTime.now().plusMinutes(30));
-            
+
             // shipperId sẽ là null cho đến khi được assign
             // delivery.setShipperId(null); // default is null
-            
+
             // Save delivery
             Delivery savedDelivery = deliveryRepository.save(delivery);
-            
+
+            // ✅ Gửi FindShipperEvent đến Match Service để tìm shipper phù hợp
+            publishFindShipperEvent(savedDelivery);
+
             return deliveryMapper.deliveryToDeliveryResponse(savedDelivery);
-            
+
         } catch (Exception e) {
             throw new RuntimeException("Failed to create delivery from order event: " + e.getMessage(), e);
         }
@@ -82,7 +100,7 @@ public class DeliveryServiceImpl implements DeliveryService {
     public DeliveryResponse assignDelivery(AssignDeliveryRequest request, Long userId, String role) {
         // Chỉ admin mới có thể assign delivery
         // if (!RoleConstants.ADMIN.equals(role)) {
-        //     throw new AccessDeniedException("Bạn không có quyền phân công giao hàng");
+        // throw new AccessDeniedException("Bạn không có quyền phân công giao hàng");
         // }
 
         // Kiểm tra order đã có delivery chưa
@@ -113,12 +131,11 @@ public class DeliveryServiceImpl implements DeliveryService {
         // Tính toán khoảng cách và thời gian ước tính
         if (delivery.getShipperCurrentLat() != null && delivery.getShipperCurrentLng() != null
                 && delivery.getDeliveryLat() != null && delivery.getDeliveryLng() != null) {
-            
+
             double distance = calculateDistance(
                     delivery.getShipperCurrentLat(), delivery.getShipperCurrentLng(),
-                    delivery.getDeliveryLat(), delivery.getDeliveryLng()
-            );
-            
+                    delivery.getDeliveryLat(), delivery.getDeliveryLng());
+
             trackingResponse.setDistanceToDestination(Math.round(distance * 100.0) / 100.0);
             trackingResponse.setEstimatedMinutes((int) Math.ceil(distance * 5)); // 5 phút/km
         }
@@ -129,8 +146,6 @@ public class DeliveryServiceImpl implements DeliveryService {
         return trackingResponse;
     }
 
-   
-
     @Override
     @Transactional
     public DeliveryResponse updateDeliveryStatus(Long deliveryId, DeliveryStatus status, Long userId, String role) {
@@ -139,9 +154,17 @@ public class DeliveryServiceImpl implements DeliveryService {
         // Kiểm tra quyền cập nhật status
         validateStatusUpdatePermission(delivery, status, userId, role);
 
+        // Lưu old status để publish event
+        String oldStatus = delivery.getStatus().name();
+
         updateDeliveryStatusInternal(delivery, status);
 
         Delivery updatedDelivery = deliveryRepository.save(delivery);
+
+        // ✅ Publish delivery status update event
+        matchServiceEventPublisher.publishDeliveryStatusUpdated(
+                deliveryId, status.name(), oldStatus);
+
         return deliveryMapper.deliveryToDeliveryResponse(updatedDelivery);
     }
 
@@ -166,7 +189,8 @@ public class DeliveryServiceImpl implements DeliveryService {
     @Override
     public DeliveryResponse getDeliveryByOrderId(Long orderId, Long userId, String role) {
         Delivery delivery = deliveryRepository.findByOrderId(orderId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thông tin giao hàng cho đơn hàng: " + orderId));
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Không tìm thấy thông tin giao hàng cho đơn hàng: " + orderId));
 
         validateViewPermission(delivery, userId, role);
         return deliveryMapper.deliveryToDeliveryResponse(delivery);
@@ -185,7 +209,8 @@ public class DeliveryServiceImpl implements DeliveryService {
 
     private Delivery findDeliveryById(Long deliveryId) {
         return deliveryRepository.findById(deliveryId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thông tin giao hàng với ID: " + deliveryId));
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Không tìm thấy thông tin giao hàng với ID: " + deliveryId));
     }
 
     private void validateViewPermission(Delivery delivery, Long userId, String role) {
@@ -198,7 +223,8 @@ public class DeliveryServiceImpl implements DeliveryService {
             return;
         }
 
-        // User có thể xem delivery nếu là order của họ (cần check thêm orderId với userId)
+        // User có thể xem delivery nếu là order của họ (cần check thêm orderId với
+        // userId)
         // Tạm thời cho phép user xem tất cả, có thể tích hợp với order service sau
         if (RoleConstants.USER.equals(role)) {
             return;
@@ -222,10 +248,11 @@ public class DeliveryServiceImpl implements DeliveryService {
 
     private void updateDeliveryStatusInternal(Delivery delivery, DeliveryStatus status) {
         DeliveryStatus currentStatus = delivery.getStatus();
-        
+
         // Validate status transition
         if (!isValidStatusTransition(currentStatus, status)) {
-            throw new InvalidStatusException("Không thể chuyển từ trạng thái " + currentStatus.getDescription() + " sang " + status.getDescription());
+            throw new InvalidStatusException("Không thể chuyển từ trạng thái " + currentStatus.getDescription()
+                    + " sang " + status.getDescription());
         }
 
         delivery.setStatus(status);
@@ -271,10 +298,41 @@ public class DeliveryServiceImpl implements DeliveryService {
 
         double a = Math.sin(latDistance / 2) * Math.sin(latDistance / 2)
                 + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
-                * Math.sin(lngDistance / 2) * Math.sin(lngDistance / 2);
+                        * Math.sin(lngDistance / 2) * Math.sin(lngDistance / 2);
 
         double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
         return R * c;
     }
+
+    /**
+     * ✅ Gửi FindShipperEvent đến Match Service để tự động tìm shipper phù hợp
+     */
+    private void publishFindShipperEvent(Delivery delivery) {
+        try {
+            // Tạo FindShipperEvent từ delivery data
+            FindShipperEvent event = new FindShipperEvent(
+                    delivery.getId(),
+                    delivery.getOrderId(),
+                    delivery.getPickupAddress(),
+                    delivery.getPickupLat(),
+                    delivery.getPickupLng(),
+                    delivery.getDeliveryAddress(),
+                    delivery.getDeliveryLat(),
+                    delivery.getDeliveryLng(),
+                    delivery.getEstimatedDeliveryTime(),
+                    delivery.getNotes(),
+                    delivery.getCreatedAt());
+
+            // Gửi event đến Match Service
+            matchServiceEventPublisher.publishFindShipperEvent(event);
+
+        } catch (Exception e) {
+            // Log lỗi nhưng không throw để không làm fail delivery creation
+            // Có thể implement retry mechanism sau
+            System.err.println("🔥 Failed to publish FindShipperEvent for delivery: " +
+                    delivery.getId() + " - Error: " + e.getMessage());
+        }
+    }
+
 }

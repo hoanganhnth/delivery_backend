@@ -29,6 +29,8 @@ public class OrderResponse {
     private String deliveryAddress;
     private Double deliveryLat;
     private Double deliveryLng;
+    private Double pickupLat;
+    private Double pickupLng;
     private String customerName;
     private String customerPhone;
     private String notes;
