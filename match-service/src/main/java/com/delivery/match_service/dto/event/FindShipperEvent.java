@@ -17,9 +17,14 @@ public class FindShipperEvent {
     
     private Long deliveryId;
     private Long orderId;
+    
+    // Restaurant information
+    private String restaurantName;   // Tên nhà hàng
     private String pickupAddress;
     private Double pickupLat;
     private Double pickupLng;
+    
+    // Delivery information
     private String deliveryAddress;
     private Double deliveryLat;
     private Double deliveryLng;

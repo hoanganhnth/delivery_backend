@@ -12,7 +12,8 @@ import org.springframework.stereotype.Component;
 
 /**
  * ✅ Match Event Listener để nhận events từ Match Service theo Backend Instructions
- * Match Service sẽ gọi đến Notification Service để thông báo cho shipper phù hợp
+ * Match Service sẽ publish events với topic "match.shipper-matched" khi tìm thấy shipper phù hợp
+ * Topics đã được align với Match Service KafkaTopicConstants
  */
 @Slf4j
 @Component
@@ -24,6 +25,9 @@ public class MatchEventListener {
         this.notificationService = notificationService;
     }
 
+    /**
+     * ✅ Lắng nghe khi Match Service tìm thấy shipper phù hợp (topic: match.shipper-matched)
+     */
     @KafkaListener(topics = KafkaTopicConstants.MATCH_FOUND_TOPIC)
     public void handleMatchFoundEvent(
             @Payload MatchEvent event,
@@ -31,8 +35,8 @@ public class MatchEventListener {
             @Header(KafkaHeaders.RECEIVED_PARTITION) int partition,
             @Header(KafkaHeaders.OFFSET) String offset) {
 
-        log.info("📥 Received MatchFoundEvent: matchId={}, orderId={}, shipperId={}, shipperName={}, distance={}km",
-                event.getMatchId(), event.getOrderId(), event.getShipperId(), event.getShipperName(), event.getDistance());
+        log.info("📥 Received MatchFoundEvent from topic '{}': matchId={}, orderId={}, shipperId={}, shipperName={}, distance={}km",
+                topic, event.getMatchId(), event.getOrderId(), event.getShipperId(), event.getShipperName(), event.getDistance());
 
         try {
             // Thông báo cho shipper về order mới phù hợp

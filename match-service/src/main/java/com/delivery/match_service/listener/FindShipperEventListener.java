@@ -3,8 +3,8 @@ package com.delivery.match_service.listener;
 import com.delivery.match_service.common.constants.KafkaTopicConstants;
 import com.delivery.match_service.dto.event.FindShipperEvent;
 import com.delivery.match_service.dto.request.FindNearbyShippersRequest;
-import com.delivery.match_service.dto.response.NearbyShipperResponse;
 import com.delivery.match_service.service.MatchService;
+import com.delivery.match_service.service.MatchEventService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;
@@ -13,21 +13,22 @@ import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Component;
 
-import java.util.List;
-
 /**
  * ✅ Kafka Event Listener cho Match Service theo Backend Instructions
- * Lắng nghe FindShipperEvent từ Delivery Service và tự động tìm shipper
+ * Lắng nghe FindShipperEvent từ Delivery Service và delegate to MatchEventService
+ * Clean separation: Listener chỉ handle Kafka, business logic ở Service layer
  */
 @Slf4j
 @Component
 public class FindShipperEventListener {
     
     private final MatchService matchService;
+    private final MatchEventService matchEventService;
     
-    // ✅ Constructor Injection Pattern (MANDATORY)
-    public FindShipperEventListener(MatchService matchService) {
+    // ✅ Constructor Injection Pattern (MANDATORY)  
+    public FindShipperEventListener(MatchService matchService, MatchEventService matchEventService) {
         this.matchService = matchService;
+        this.matchEventService = matchEventService;
     }
     
     /**
@@ -65,8 +66,8 @@ public class FindShipperEventListener {
                             log.info("✅ Found {} nearby shippers for delivery: {}", 
                                    shippers.size(), event.getDeliveryId());
                             
-                            // TODO: Process found shippers (notify delivery service, assign best shipper, etc.)
-                            processFoundShippers(event, shippers);
+                            // ✅ Delegate to MatchEventService for business logic
+                            matchEventService.processShipperMatchResult(event, shippers);
                             
                             // ✅ Acknowledge after successful processing
                             acknowledgment.acknowledge();
@@ -127,34 +128,5 @@ public class FindShipperEventListener {
         request.setMaxShippers(10); // Tối đa 10 shippers
         
         return request;
-    }
-    
-    /**
-     * ✅ Process found shippers (có thể mở rộng sau)
-     */
-    private void processFoundShippers(FindShipperEvent event, List<NearbyShipperResponse> shippers) {
-        if (shippers.isEmpty()) {
-            log.warn("⚠️ No shippers found for delivery: {} at location: {}, {}", 
-                    event.getDeliveryId(), event.getPickupLat(), event.getPickupLng());
-            
-            // TODO: Publish NoShipperAvailableEvent
-            return;
-        }
-        
-        // Log found shippers
-        shippers.forEach(shipper -> 
-            log.info("🚚 Found shipper at location: {}, {} with distance: {}km for delivery: {}", 
-                    shipper.getLatitude(), shipper.getLongitude(), shipper.getDistanceKm(), event.getDeliveryId())
-        );
-        
-        // TODO: Implement shipper matching logic
-        // - Score shippers based on distance, rating, availability
-        // - Select best shipper
-        // - Publish ShipperMatchedEvent to notify Delivery Service
-        // - Or call Delivery Service API to assign shipper
-        
-        NearbyShipperResponse bestShipper = shippers.get(0); // Simplified: take first shipper
-        log.info("🎯 Best shipper selected at location: {}, {} for delivery: {}", 
-                bestShipper.getLatitude(), bestShipper.getLongitude(), event.getDeliveryId());
     }
 }
