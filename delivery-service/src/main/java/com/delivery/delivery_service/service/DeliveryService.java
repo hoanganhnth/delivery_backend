@@ -32,11 +32,6 @@ public interface DeliveryService {
     DeliveryTrackingResponse getDeliveryTracking(Long deliveryId, Long userId, String role);
 
     /**
-     * Cập nhật vị trí shipper
-     */
-    // DeliveryResponse updateShipperLocation(Long deliveryId, UpdateLocationRequest request, Long userId, String role);
-
-    /**
      * Cập nhật trạng thái giao hàng
      */
     DeliveryResponse updateDeliveryStatus(Long deliveryId, DeliveryStatus status, Long userId, String role);

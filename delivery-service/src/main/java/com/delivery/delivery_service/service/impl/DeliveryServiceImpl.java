@@ -18,6 +18,7 @@ import com.delivery.delivery_service.mapper.DeliveryMapper;
 import com.delivery.delivery_service.repository.DeliveryRepository;
 import com.delivery.delivery_service.service.DeliveryService;
 import com.delivery.delivery_service.service.DeliveryEventPublisher;
+import com.delivery.delivery_service.service.DeliveryWebSocketService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,14 +34,17 @@ public class DeliveryServiceImpl implements DeliveryService {
     private final DeliveryRepository deliveryRepository;
     private final DeliveryMapper deliveryMapper;
     private final DeliveryEventPublisher deliveryEventPublisher;
+    private final DeliveryWebSocketService webSocketService;
 
     // ✅ Constructor Injection Pattern (MANDATORY)
     public DeliveryServiceImpl(DeliveryRepository deliveryRepository,
             DeliveryMapper deliveryMapper,
-            DeliveryEventPublisher deliveryEventPublisher) {
+            DeliveryEventPublisher deliveryEventPublisher,
+            DeliveryWebSocketService webSocketService) {
         this.deliveryRepository = deliveryRepository;
         this.deliveryMapper = deliveryMapper;
         this.deliveryEventPublisher = deliveryEventPublisher;
+        this.webSocketService = webSocketService;
     }
 
     @Override
@@ -222,7 +226,12 @@ public class DeliveryServiceImpl implements DeliveryService {
                     delivery.getId(), shipperId, request.getRejectReason());
         }
         
-        return deliveryMapper.deliveryToDeliveryResponse(savedDelivery);
+        DeliveryResponse response = deliveryMapper.deliveryToDeliveryResponse(savedDelivery);
+        
+        // ✅ Send real-time update via WebSocket
+        sendDeliveryUpdateViaWebSocket(savedDelivery, response);
+        
+        return response;
     }
 
     @Override
@@ -271,7 +280,12 @@ public class DeliveryServiceImpl implements DeliveryService {
         deliveryEventPublisher.publishDeliveryStatusUpdated(
                 deliveryId, status.name(), oldStatus);
 
-        return deliveryMapper.deliveryToDeliveryResponse(updatedDelivery);
+        DeliveryResponse response = deliveryMapper.deliveryToDeliveryResponse(updatedDelivery);
+        
+        // ✅ Send real-time update via WebSocket
+        sendDeliveryUpdateViaWebSocket(updatedDelivery, response);
+
+        return response;
     }
 
     @Override
@@ -507,6 +521,34 @@ public class DeliveryServiceImpl implements DeliveryService {
             log.error("💥 Failed to publish MatchRejectedEvent for delivery {}: {}", 
                      delivery.getId(), e.getMessage(), e);
             // Don't fail main operation if event publishing fails
+        }
+    }
+    
+    /**
+     * ✅ Send delivery update via WebSocket to relevant parties
+     */
+    private void sendDeliveryUpdateViaWebSocket(Delivery delivery, DeliveryResponse response) {
+        try {
+            // Send to customer if delivery has customer info
+            if (delivery.getCreatorId() != null) {
+                webSocketService.sendDeliveryUpdateToCustomer(delivery.getCreatorId(), response);
+            }
+            
+            // Send to shipper if assigned
+            if (delivery.getShipperId() != null) {
+                webSocketService.sendDeliveryUpdateToShipper(delivery.getShipperId(), response);
+            }
+            
+            // Broadcast to all subscribers (admin, restaurant)
+            webSocketService.broadcastDeliveryUpdate(response);
+            
+            log.info("📡 Sent WebSocket updates for delivery {} status: {}", 
+                    delivery.getId(), delivery.getStatus());
+            
+        } catch (Exception e) {
+            log.error("💥 Failed to send WebSocket update for delivery {}: {}", 
+                     delivery.getId(), e.getMessage(), e);
+            // Don't fail main operation if WebSocket fails
         }
     }
     
