@@ -65,6 +65,9 @@ public class Delivery {
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
 
+    @Column(name = "reject_reason", columnDefinition = "TEXT")
+    private String rejectReason; // Lý do từ chối (nếu có)
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 

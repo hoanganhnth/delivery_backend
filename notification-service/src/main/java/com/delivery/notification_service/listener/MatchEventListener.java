@@ -183,7 +183,7 @@ public class MatchEventListener {
                     event.getShipperId(),
                     event.getOrderId(),
                     event.getRestaurantName(),
-                    event.getRestaurantAddress(),
+                    event.getPickupAddress(),  // Use pickup address
                     event.getCustomerPhone()
             );
 

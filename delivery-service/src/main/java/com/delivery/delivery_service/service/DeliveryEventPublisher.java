@@ -11,17 +11,17 @@ import org.springframework.stereotype.Service;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * ✅ Event Publisher để gửi events đến Match Service theo AI Instructions
+ * ✅ Event Publisher để gửi delivery events đến các services khác theo AI Instructions
  * Sử dụng constructor injection và async publishing với callbacks
  */
 @Slf4j
 @Service
-public class MatchServiceEventPublisher {
+public class DeliveryEventPublisher {
     
     private final KafkaTemplate<String, Object> kafkaTemplate;
     
     // ✅ Constructor Injection Pattern (MANDATORY)
-    public MatchServiceEventPublisher(KafkaTemplate<String, Object> kafkaTemplate) {
+    public DeliveryEventPublisher(KafkaTemplate<String, Object> kafkaTemplate) {
         this.kafkaTemplate = kafkaTemplate;
     }
     

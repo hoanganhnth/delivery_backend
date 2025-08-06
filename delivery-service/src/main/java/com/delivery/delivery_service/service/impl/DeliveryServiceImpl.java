@@ -4,6 +4,7 @@ import com.delivery.delivery_service.common.constants.RoleConstants;
 import com.delivery.delivery_service.dto.event.FindShipperEvent;
 import com.delivery.delivery_service.dto.event.MatchAcceptedEvent;
 import com.delivery.delivery_service.dto.event.OrderCreatedEvent;
+import com.delivery.delivery_service.common.constants.ShipperActionConstants;
 import com.delivery.delivery_service.dto.request.AcceptDeliveryRequest;
 import com.delivery.delivery_service.dto.request.AssignDeliveryRequest;
 import com.delivery.delivery_service.dto.response.DeliveryResponse;
@@ -16,7 +17,7 @@ import com.delivery.delivery_service.exception.ResourceNotFoundException;
 import com.delivery.delivery_service.mapper.DeliveryMapper;
 import com.delivery.delivery_service.repository.DeliveryRepository;
 import com.delivery.delivery_service.service.DeliveryService;
-import com.delivery.delivery_service.service.MatchServiceEventPublisher;
+import com.delivery.delivery_service.service.DeliveryEventPublisher;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,15 +32,15 @@ public class DeliveryServiceImpl implements DeliveryService {
 
     private final DeliveryRepository deliveryRepository;
     private final DeliveryMapper deliveryMapper;
-    private final MatchServiceEventPublisher matchServiceEventPublisher;
+    private final DeliveryEventPublisher deliveryEventPublisher;
 
     // ✅ Constructor Injection Pattern (MANDATORY)
     public DeliveryServiceImpl(DeliveryRepository deliveryRepository,
             DeliveryMapper deliveryMapper,
-            MatchServiceEventPublisher matchServiceEventPublisher) {
+            DeliveryEventPublisher deliveryEventPublisher) {
         this.deliveryRepository = deliveryRepository;
         this.deliveryMapper = deliveryMapper;
-        this.matchServiceEventPublisher = matchServiceEventPublisher;
+        this.deliveryEventPublisher = deliveryEventPublisher;
     }
 
     @Override
@@ -137,6 +138,25 @@ public class DeliveryServiceImpl implements DeliveryService {
             throw new InvalidStatusException("Order ID is required");
         }
         
+        // ✅ Validate action
+        if (request.getAction() == null || 
+            (!ShipperActionConstants.ACCEPT.equals(request.getAction()) && 
+             !ShipperActionConstants.REJECT.equals(request.getAction()))) {
+            throw new InvalidStatusException("Action must be ACCEPT or REJECT");
+        }
+        
+        // ✅ Validate reject reason if rejecting
+        if (ShipperActionConstants.REJECT.equals(request.getAction()) && 
+            (request.getRejectReason() == null || request.getRejectReason().trim().isEmpty())) {
+            throw new InvalidStatusException("Reject reason is required when rejecting delivery");
+        }
+        
+        // ✅ Validate pickup time if accepting
+        if (ShipperActionConstants.ACCEPT.equals(request.getAction()) && 
+            request.getEstimatedPickupTime() == null) {
+            throw new InvalidStatusException("Estimated pickup time is required when accepting delivery");
+        }
+        
         // ✅ Find delivery by order ID
         Delivery delivery = deliveryRepository.findByOrderId(request.getOrderId())
                 .orElseThrow(() -> new ResourceNotFoundException(
@@ -152,34 +172,56 @@ public class DeliveryServiceImpl implements DeliveryService {
             throw new InvalidStatusException("Đơn hàng đã được giao cho shipper khác");
         }
         
-        // ✅ Update delivery với shipper assignment
-        delivery.setShipperId(shipperId);
-        delivery.setStatus(DeliveryStatus.ASSIGNED);
-        delivery.setUpdatedAt(LocalDateTime.now());
-        
-        // Update shipper location nếu có
-        if (request.getCurrentLat() != null && request.getCurrentLng() != null) {
-            delivery.setShipperCurrentLat(request.getCurrentLat());
-            delivery.setShipperCurrentLng(request.getCurrentLng());
-        }
-        
-        // Update estimated pickup time nếu có
-        if (request.getEstimatedPickupTime() != null) {
-            delivery.setEstimatedDeliveryTime(
-                LocalDateTime.now().plusMinutes(request.getEstimatedPickupTime().longValue()));
+        // ✅ Process based on action
+        if (ShipperActionConstants.ACCEPT.equals(request.getAction())) {
+            // ACCEPT logic
+            delivery.setShipperId(shipperId);
+            delivery.setStatus(DeliveryStatus.ASSIGNED);
+            delivery.setUpdatedAt(LocalDateTime.now());
+            
+            // Update shipper location nếu có
+            if (request.getCurrentLat() != null && request.getCurrentLng() != null) {
+                delivery.setShipperCurrentLat(request.getCurrentLat());
+                delivery.setShipperCurrentLng(request.getCurrentLng());
+            }
+            
+            // Update estimated pickup time 
+            if (request.getEstimatedPickupTime() != null) {
+                delivery.setEstimatedDeliveryTime(
+                    LocalDateTime.now().plusMinutes(request.getEstimatedPickupTime().longValue()));
+            }
+            
+            log.info("✅ Shipper {} ACCEPTED order {}", shipperId, request.getOrderId());
+            
+        } else if (ShipperActionConstants.REJECT.equals(request.getAction())) {
+            // REJECT logic - không assign shipper, reset lại status
+            delivery.setShipperId(null);
+            delivery.setStatus(DeliveryStatus.PENDING);
+            delivery.setUpdatedAt(LocalDateTime.now());
+            delivery.setRejectReason(request.getRejectReason());
+            
+            log.info("❌ Shipper {} REJECTED order {} - Reason: {}", 
+                    shipperId, request.getOrderId(), request.getRejectReason());
         }
         
         // Update notes nếu có
-        if (request.getNotes() != null) {
-            delivery.setNotes(delivery.getNotes() + " | Shipper notes: " + request.getNotes());
+        if (request.getNotes() != null && !request.getNotes().trim().isEmpty()) {
+            String existingNotes = delivery.getNotes() != null ? delivery.getNotes() : "";
+            delivery.setNotes(existingNotes + " | Shipper notes: " + request.getNotes());
         }
         
         Delivery savedDelivery = deliveryRepository.save(delivery);
         
-        // ✅ Publish MatchAcceptedEvent để thông báo cho customer
-        publishMatchAcceptedEvent(savedDelivery, shipperId, request);
+        // ✅ Publish event based on action
+        if (ShipperActionConstants.ACCEPT.equals(request.getAction())) {
+            publishMatchAcceptedEvent(savedDelivery, shipperId, request);
+            log.info("✅ Delivery {} ACCEPTED successfully by shipper {}", delivery.getId(), shipperId);
+        } else if (ShipperActionConstants.REJECT.equals(request.getAction())) {
+            publishMatchRejectedEvent(savedDelivery, shipperId, request);
+            log.info("❌ Delivery {} REJECTED by shipper {} - Reason: {}", 
+                    delivery.getId(), shipperId, request.getRejectReason());
+        }
         
-        log.info("✅ Delivery {} accepted successfully by shipper {}", delivery.getId(), shipperId);
         return deliveryMapper.deliveryToDeliveryResponse(savedDelivery);
     }
 
@@ -226,7 +268,7 @@ public class DeliveryServiceImpl implements DeliveryService {
         Delivery updatedDelivery = deliveryRepository.save(delivery);
 
         // ✅ Publish delivery status update event
-        matchServiceEventPublisher.publishDeliveryStatusUpdated(
+        deliveryEventPublisher.publishDeliveryStatusUpdated(
                 deliveryId, status.name(), oldStatus);
 
         return deliveryMapper.deliveryToDeliveryResponse(updatedDelivery);
@@ -389,7 +431,7 @@ public class DeliveryServiceImpl implements DeliveryService {
                     delivery.getCreatedAt());
 
             // Gửi event đến Match Service
-            matchServiceEventPublisher.publishFindShipperEvent(event);
+            deliveryEventPublisher.publishFindShipperEvent(event);
 
         } catch (Exception e) {
             // Log lỗi nhưng không throw để không làm fail delivery creation
@@ -419,13 +461,50 @@ public class DeliveryServiceImpl implements DeliveryService {
                     .build();
             
             // TODO: Gửi qua Kafka để Notification Service nhận
-            matchServiceEventPublisher.publishShipperAcceptedEvent(event);
+            deliveryEventPublisher.publishShipperAcceptedEvent(event);
             
             log.info("📤 Published ShipperAcceptedEvent for delivery {}, shipper {}", 
                     delivery.getId(), shipperId);
             
         } catch (Exception e) {
             log.error("💥 Failed to publish MatchAcceptedEvent for delivery {}: {}", 
+                     delivery.getId(), e.getMessage(), e);
+            // Don't fail main operation if event publishing fails
+        }
+    }
+    
+    /**
+     * ✅ Publish MatchRejectedEvent khi shipper reject đơn
+     */
+    private void publishMatchRejectedEvent(Delivery delivery, Long shipperId, AcceptDeliveryRequest request) {
+        try {
+            log.info("📤 Publishing ShipperRejectedEvent for delivery {}, shipper {}", 
+                    delivery.getId(), shipperId);
+            
+            // Create rejection event - reuse MatchAcceptedEvent structure
+            MatchAcceptedEvent event = MatchAcceptedEvent.builder()
+                    .orderId(delivery.getOrderId())
+                    .deliveryId(delivery.getId())
+                    .shipperId(shipperId)
+                    .shipperName("Shipper " + shipperId) // TODO: Get real name from Shipper Service
+                    .shipperPhone("N/A") // TODO: Get real phone
+                    .eventType("SHIPPER_REJECTED") // Different event type for rejection
+                    .estimatedTime(0) // No pickup time for rejected
+                    .pickupAddress(delivery.getPickupAddress())
+                    .deliveryAddress(delivery.getDeliveryAddress())
+                    .notes(request.getRejectReason()) // Use reject reason as notes
+                    .timestamp(LocalDateTime.now())
+                    .build();
+            
+            // TODO: Consider creating separate ShipperRejectedEvent topic
+            // For now, use same event with different status
+            deliveryEventPublisher.publishShipperAcceptedEvent(event);
+            
+            log.info("📤 Published ShipperRejectedEvent for delivery {}, shipper {} - Reason: {}", 
+                    delivery.getId(), shipperId, request.getRejectReason());
+            
+        } catch (Exception e) {
+            log.error("💥 Failed to publish MatchRejectedEvent for delivery {}: {}", 
                      delivery.getId(), e.getMessage(), e);
             // Don't fail main operation if event publishing fails
         }
