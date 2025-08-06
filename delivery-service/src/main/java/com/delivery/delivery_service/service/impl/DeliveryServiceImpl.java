@@ -2,7 +2,9 @@ package com.delivery.delivery_service.service.impl;
 
 import com.delivery.delivery_service.common.constants.RoleConstants;
 import com.delivery.delivery_service.dto.event.FindShipperEvent;
+import com.delivery.delivery_service.dto.event.MatchAcceptedEvent;
 import com.delivery.delivery_service.dto.event.OrderCreatedEvent;
+import com.delivery.delivery_service.dto.request.AcceptDeliveryRequest;
 import com.delivery.delivery_service.dto.request.AssignDeliveryRequest;
 import com.delivery.delivery_service.dto.response.DeliveryResponse;
 import com.delivery.delivery_service.dto.response.DeliveryTrackingResponse;
@@ -21,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 @Slf4j
 @Service
@@ -116,6 +119,67 @@ public class DeliveryServiceImpl implements DeliveryService {
         delivery.setEstimatedDeliveryTime(LocalDateTime.now().plusMinutes(30));
 
         Delivery savedDelivery = deliveryRepository.save(delivery);
+        return deliveryMapper.deliveryToDeliveryResponse(savedDelivery);
+    }
+
+    @Override
+    @Transactional
+    public DeliveryResponse acceptDelivery(AcceptDeliveryRequest request, Long shipperId, String role) {
+        log.info("🚚 Shipper {} attempting to accept order {}", shipperId, request.getOrderId());
+        
+        // ✅ Validate shipper role
+        if (!RoleConstants.SHIPPER.equals(role)) {
+            throw new AccessDeniedException("Chỉ shipper mới có thể nhận đơn hàng");
+        }
+        
+        // ✅ Validate request
+        if (request.getOrderId() == null) {
+            throw new InvalidStatusException("Order ID is required");
+        }
+        
+        // ✅ Find delivery by order ID
+        Delivery delivery = deliveryRepository.findByOrderId(request.getOrderId())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Không tìm thấy thông tin giao hàng cho đơn hàng: " + request.getOrderId()));
+        
+        // ✅ Validate delivery status
+        if (!DeliveryStatus.PENDING.equals(delivery.getStatus())) {
+            throw new InvalidStatusException("Đơn hàng không ở trạng thái chờ nhận (PENDING)");
+        }
+        
+        // ✅ Check if already assigned to another shipper
+        if (delivery.getShipperId() != null && !delivery.getShipperId().equals(shipperId)) {
+            throw new InvalidStatusException("Đơn hàng đã được giao cho shipper khác");
+        }
+        
+        // ✅ Update delivery với shipper assignment
+        delivery.setShipperId(shipperId);
+        delivery.setStatus(DeliveryStatus.ASSIGNED);
+        delivery.setUpdatedAt(LocalDateTime.now());
+        
+        // Update shipper location nếu có
+        if (request.getCurrentLat() != null && request.getCurrentLng() != null) {
+            delivery.setShipperCurrentLat(request.getCurrentLat());
+            delivery.setShipperCurrentLng(request.getCurrentLng());
+        }
+        
+        // Update estimated pickup time nếu có
+        if (request.getEstimatedPickupTime() != null) {
+            delivery.setEstimatedDeliveryTime(
+                LocalDateTime.now().plusMinutes(request.getEstimatedPickupTime().longValue()));
+        }
+        
+        // Update notes nếu có
+        if (request.getNotes() != null) {
+            delivery.setNotes(delivery.getNotes() + " | Shipper notes: " + request.getNotes());
+        }
+        
+        Delivery savedDelivery = deliveryRepository.save(delivery);
+        
+        // ✅ Publish MatchAcceptedEvent để thông báo cho customer
+        publishMatchAcceptedEvent(savedDelivery, shipperId, request);
+        
+        log.info("✅ Delivery {} accepted successfully by shipper {}", delivery.getId(), shipperId);
         return deliveryMapper.deliveryToDeliveryResponse(savedDelivery);
     }
 
@@ -333,6 +397,49 @@ public class DeliveryServiceImpl implements DeliveryService {
             System.err.println("🔥 Failed to publish FindShipperEvent for delivery: " +
                     delivery.getId() + " - Error: " + e.getMessage());
         }
+    }
+    
+    /**
+     * ✅ Publish MatchAcceptedEvent để thông báo cho Notification Service
+     */
+    private void publishMatchAcceptedEvent(Delivery delivery, Long shipperId, AcceptDeliveryRequest request) {
+        try {
+            MatchAcceptedEvent event = MatchAcceptedEvent.builder()
+                    .matchId(UUID.randomUUID().toString())
+                    .orderId(delivery.getOrderId())
+                    .deliveryId(delivery.getId())
+                    .shipperId(shipperId)
+                    .userId(delivery.getCreatorId()) // Customer ID
+                    .pickupAddress(delivery.getPickupAddress())
+                    .deliveryAddress(delivery.getDeliveryAddress())
+                    .estimatedTime(calculateEstimatedTimeInMinutes(delivery))
+                    .timestamp(LocalDateTime.now())
+                    .eventType("MATCH_ACCEPTED")
+                    .notes(request.getNotes())
+                    .build();
+            
+            // TODO: Gửi qua Kafka để Notification Service nhận
+            matchServiceEventPublisher.publishShipperAcceptedEvent(event);
+            
+            log.info("📤 Published ShipperAcceptedEvent for delivery {}, shipper {}", 
+                    delivery.getId(), shipperId);
+            
+        } catch (Exception e) {
+            log.error("💥 Failed to publish MatchAcceptedEvent for delivery {}: {}", 
+                     delivery.getId(), e.getMessage(), e);
+            // Don't fail main operation if event publishing fails
+        }
+    }
+    
+    /**
+     * ✅ Calculate estimated time in minutes for event
+     */
+    private Integer calculateEstimatedTimeInMinutes(Delivery delivery) {
+        if (delivery.getEstimatedDeliveryTime() != null) {
+            return (int) java.time.Duration.between(LocalDateTime.now(), 
+                    delivery.getEstimatedDeliveryTime()).toMinutes();
+        }
+        return 30; // Default 30 minutes
     }
 
 }

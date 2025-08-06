@@ -1,6 +1,7 @@
 package com.delivery.delivery_service.service;
 
 import com.delivery.delivery_service.dto.event.OrderCreatedEvent;
+import com.delivery.delivery_service.dto.request.AcceptDeliveryRequest;
 import com.delivery.delivery_service.dto.request.AssignDeliveryRequest;
 import com.delivery.delivery_service.dto.response.DeliveryResponse;
 import com.delivery.delivery_service.dto.response.DeliveryTrackingResponse;
@@ -19,6 +20,11 @@ public interface DeliveryService {
      * Gán shipper cho đơn hàng
      */
     DeliveryResponse assignDelivery(AssignDeliveryRequest request, Long userId, String role);
+    
+    /**
+     * ✅ Shipper accept delivery assignment
+     */
+    DeliveryResponse acceptDelivery(AcceptDeliveryRequest request, Long shipperId, String role);
 
     /**
      * Lấy trạng thái và vị trí giao hàng

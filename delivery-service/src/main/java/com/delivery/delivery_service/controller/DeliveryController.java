@@ -2,6 +2,7 @@ package com.delivery.delivery_service.controller;
 
 import com.delivery.delivery_service.common.constants.ApiPathConstants;
 import com.delivery.delivery_service.common.constants.HttpHeaderConstants;
+import com.delivery.delivery_service.dto.request.AcceptDeliveryRequest;
 import com.delivery.delivery_service.dto.request.AssignDeliveryRequest;
 import com.delivery.delivery_service.dto.response.DeliveryResponse;
 import com.delivery.delivery_service.dto.response.DeliveryTrackingResponse;
@@ -45,6 +46,18 @@ public class DeliveryController {
             @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
         DeliveryResponse response = deliveryService.assignDelivery(request, userId, role);
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Phân công giao hàng thành công"));
+    }
+    
+    /**
+     * ✅ POST /accept - Shipper nhận đơn hàng
+     */
+    @PostMapping("/accept")
+    public ResponseEntity<BaseResponse<DeliveryResponse>> acceptDelivery(
+            @RequestBody AcceptDeliveryRequest request,
+            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long shipperId,
+            @RequestHeader(value = HttpHeaderConstants.X_ROLE) String role) {
+        DeliveryResponse response = deliveryService.acceptDelivery(request, shipperId, role);
+        return ResponseEntity.ok(new BaseResponse<>(1, response, "Nhận đơn hàng thành công"));
     }
 
     /**

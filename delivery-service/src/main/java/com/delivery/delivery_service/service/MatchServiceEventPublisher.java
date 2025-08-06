@@ -2,6 +2,7 @@ package com.delivery.delivery_service.service;
 
 import com.delivery.delivery_service.common.constants.KafkaTopicConstants;
 import com.delivery.delivery_service.dto.event.FindShipperEvent;
+import com.delivery.delivery_service.dto.event.MatchAcceptedEvent;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
@@ -58,6 +59,44 @@ public class MatchServiceEventPublisher {
         } catch (Exception e) {
             log.error("🔥 Unexpected error while publishing FindShipperEvent for delivery: {} - Error: {}",
                     event.getDeliveryId(), e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * ✅ Gửi ShipperAcceptedEvent đến Notification Service khi shipper accept đơn
+     */
+    public void publishShipperAcceptedEvent(MatchAcceptedEvent event) {
+        try {
+            log.info("🚀 Publishing ShipperAcceptedEvent for order: {} shipper: {} to Notification Service", 
+                    event.getOrderId(), event.getShipperId());
+            
+            // ✅ Async publishing với callbacks
+            CompletableFuture<SendResult<String, Object>> future = kafkaTemplate.send(
+                    KafkaTopicConstants.SHIPPER_ACCEPTED_TOPIC,
+                    event.getOrderId().toString(),
+                    event
+            );
+            
+            // Success callback
+            future.thenAccept(result -> {
+                log.info("✅ Successfully published ShipperAcceptedEvent for order: {} to partition: {} offset: {}",
+                        event.getOrderId(),
+                        result.getRecordMetadata().partition(),
+                        result.getRecordMetadata().offset());
+            });
+            
+            // Error callback
+            future.exceptionally(throwable -> {
+                log.error("💥 Failed to publish ShipperAcceptedEvent for order: {} - Error: {}",
+                        event.getOrderId(), throwable.getMessage(), throwable);
+                
+                // TODO: Implement retry logic hoặc save to dead letter queue
+                return null;
+            });
+            
+        } catch (Exception e) {
+            log.error("🔥 Unexpected error while publishing ShipperAcceptedEvent for order: {} - Error: {}",
+                    event.getOrderId(), e.getMessage(), e);
         }
     }
     

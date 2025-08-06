@@ -153,4 +153,45 @@ public class MatchEventListener {
             log.error("💥 Failed to process MatchRejectedEvent for match {}: {}", event.getMatchId(), e.getMessage(), e);
         }
     }
+
+    /**
+     * ✅ Listen cho delivery.shipper-accepted từ Delivery Service
+     * Khi shipper thực sự accept đơn qua API
+     */
+    @KafkaListener(topics = KafkaTopicConstants.SHIPPER_ACCEPTED_TOPIC)
+    public void handleShipperAcceptedEvent(
+            @Payload MatchEvent event,
+            @Header(KafkaHeaders.RECEIVED_TOPIC) String topic,
+            @Header(KafkaHeaders.RECEIVED_PARTITION) int partition,
+            @Header(KafkaHeaders.OFFSET) String offset) {
+
+        log.info("📥 Received ShipperAcceptedEvent from Delivery Service: orderId={}, shipperId={}, shipperName={}",
+                event.getOrderId(), event.getShipperId(), event.getShipperName());
+
+        try {
+            // Thông báo cho customer về việc shipper đã chính thức nhận đơn
+            notificationService.sendCustomerShipperAcceptedNotification(
+                    event.getUserId(),
+                    event.getOrderId(),
+                    event.getShipperName(),
+                    event.getShipperPhone(),
+                    30  // Default estimated time in minutes
+            );
+
+            // Thông báo confirmation cho shipper
+            notificationService.sendShipperConfirmationNotification(
+                    event.getShipperId(),
+                    event.getOrderId(),
+                    event.getRestaurantName(),
+                    event.getRestaurantAddress(),
+                    event.getCustomerPhone()
+            );
+
+            log.info("✅ Successfully processed ShipperAcceptedEvent for order: {}, shipper: {}", 
+                    event.getOrderId(), event.getShipperId());
+
+        } catch (Exception e) {
+            log.error("💥 Failed to process ShipperAcceptedEvent for order {}: {}", event.getOrderId(), e.getMessage(), e);
+        }
+    }
 }

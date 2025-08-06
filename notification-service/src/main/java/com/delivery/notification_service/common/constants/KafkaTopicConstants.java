@@ -17,6 +17,9 @@ public class KafkaTopicConstants {
     public static final String MATCH_ACCEPTED_TOPIC = "match.shipper-accepted";
     public static final String MATCH_REJECTED_TOPIC = "match.shipper-rejected";
     
+    // Delivery Service topics
+    public static final String SHIPPER_ACCEPTED_TOPIC = "delivery.shipper-accepted";
+    
     // Output topics (producing notifications)
     public static final String NOTIFICATION_CREATED_TOPIC = "notification.created";
     public static final String NOTIFICATION_SENT_TOPIC = "notification.sent";
