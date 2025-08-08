@@ -38,9 +38,17 @@ public class DeliveryEventListener {
                 event.getOrderId(), event.getDeliveryId(), event.getStatus(), event.getPreviousStatus());
 
         try {
+            // ✅ Validate event data
+            if (event.getOrderId() == null) {
+                log.error("💥 Invalid DeliveryStatusUpdatedEvent: orderId is null");
+                return;
+            }
+
+            // ✅ Handle delivery status update using orderId to update order status
             orderEventService.handleDeliveryStatusUpdate(event);
             
-            log.info("✅ Successfully processed DeliveryStatusUpdatedEvent for order: {}", event.getOrderId());
+            log.info("✅ Successfully processed DeliveryStatusUpdatedEvent for order: {} (delivery: {})", 
+                    event.getOrderId(), event.getDeliveryId());
 
         } catch (Exception e) {
             log.error("💥 Failed to process DeliveryStatusUpdatedEvent for order {}: {}", 

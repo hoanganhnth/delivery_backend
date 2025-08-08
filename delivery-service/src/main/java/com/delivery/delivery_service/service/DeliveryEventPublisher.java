@@ -101,16 +101,16 @@ public class DeliveryEventPublisher {
     }
     
     /**
-     * Gửi delivery status update event (có thể dùng sau này)
+     * Gửi delivery status update event với orderId để cập nhật order status
      */
-    public void publishDeliveryStatusUpdated(Long deliveryId, String status, String previousStatus) {
+    public void publishDeliveryStatusUpdated(Long deliveryId, Long orderId, String status, String previousStatus) {
         try {
-            log.info("📊 Publishing delivery status update: {} -> {} for delivery: {}",
-                    previousStatus, status, deliveryId);
+            log.info("📊 Publishing delivery status update: {} -> {} for delivery: {}, order: {}",
+                    previousStatus, status, deliveryId, orderId);
             
-            // Create status update event
+            // Create status update event với orderId
             DeliveryStatusUpdateEvent statusEvent = new DeliveryStatusUpdateEvent(
-                    deliveryId, status, previousStatus
+                    deliveryId, orderId, status, previousStatus
             );
             
             CompletableFuture<SendResult<String, Object>> future = kafkaTemplate.send(
@@ -134,17 +134,19 @@ public class DeliveryEventPublisher {
     }
     
     /**
-     * Inner class for delivery status update events
+     * Inner class for delivery status update events với orderId
      */
     public static class DeliveryStatusUpdateEvent {
         public final Long deliveryId;
+        public final Long orderId;
         public final String newStatus;
         public final String oldStatus;
         public final String eventType = "DELIVERY_STATUS_UPDATED";
         public final java.time.LocalDateTime timestamp = java.time.LocalDateTime.now();
         
-        public DeliveryStatusUpdateEvent(Long deliveryId, String newStatus, String oldStatus) {
+        public DeliveryStatusUpdateEvent(Long deliveryId, Long orderId, String newStatus, String oldStatus) {
             this.deliveryId = deliveryId;
+            this.orderId = orderId;
             this.newStatus = newStatus;
             this.oldStatus = oldStatus;
         }

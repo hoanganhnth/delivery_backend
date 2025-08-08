@@ -12,27 +12,40 @@ import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Component;
+import reactor.core.publisher.Mono;
+import reactor.util.retry.Retry;
+
+import java.time.Duration;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * ✅ Kafka Event Listener cho Match Service theo Backend Instructions
- * Lắng nghe FindShipperEvent từ Delivery Service và delegate to MatchEventService
+ * Lắng nghe FindShipperEvent từ Delivery Service và delegate to
+ * MatchEventService
  * Clean separation: Listener chỉ handle Kafka, business logic ở Service layer
+ * ✅ Retry mechanism: Tìm shipper liên tục nếu chưa tìm thấy
  */
 @Slf4j
 @Component
 public class FindShipperEventListener {
-    
+
     private final MatchService matchService;
     private final MatchEventService matchEventService;
-    
-    // ✅ Constructor Injection Pattern (MANDATORY)  
+
+    // ✅ Retry configuration constants
+    private static final int MAX_RETRY_ATTEMPTS = 10; // Tối đa 10 lần retry
+    private static final int INITIAL_DELAY_SECONDS = 30; // Bắt đầu với 30 giây
+    private static final int MAX_DELAY_SECONDS = 300; // Tối đa 5 phút
+    private static final double BACKOFF_MULTIPLIER = 1.5; // Tăng delay theo exponential
+
+    // ✅ Constructor Injection Pattern (MANDATORY)
     public FindShipperEventListener(MatchService matchService, MatchEventService matchEventService) {
         this.matchService = matchService;
         this.matchEventService = matchEventService;
     }
-    
+
     /**
-     * ✅ Lắng nghe FindShipperEvent và tự động gọi findNearbyShippers
+     * ✅ Lắng nghe FindShipperEvent và tìm shipper liên tục với retry mechanism
      */
     @KafkaListener(topics = KafkaTopicConstants.FIND_SHIPPER_TOPIC)
     public void handleFindShipperEvent(
@@ -41,92 +54,130 @@ public class FindShipperEventListener {
             @Header(KafkaHeaders.RECEIVED_PARTITION) Integer partition,
             @Header(KafkaHeaders.RECEIVED_TIMESTAMP) Long timestamp,
             Acknowledgment acknowledgment) {
-        
+
         try {
             log.info("📥 Received FindShipperEvent for delivery: {} from topic: {} partition: {} timestamp: {}",
                     event.getDeliveryId(), topic, partition, timestamp);
-            
+
             // ✅ Validate event data
             if (event.getDeliveryId() == null) {
                 log.error("💥 Invalid FindShipperEvent: deliveryId is null");
                 acknowledgment.acknowledge();
                 return;
             }
-            
-            // ✅ Convert event to FindNearbyShippersRequest
-            FindNearbyShippersRequest request = createFindShippersRequest(event);
-            
-            // ✅ Gọi findNearbyShippers với system user context
-            Long systemUserId = 1L; // System user ID
-            String systemRole = "SYSTEM";
-            
-            matchService.findNearbyShippers(request, systemUserId, systemRole)
-                    .subscribe(
-                        shippers -> {
-                            log.info("✅ Found {} nearby shippers for delivery: {}", 
-                                   shippers.size(), event.getDeliveryId());
-                            
-                            // ✅ Delegate to MatchEventService for business logic
-                            matchEventService.processShipperMatchResult(event, shippers);
-                            
-                            // ✅ Acknowledge after successful processing
-                            acknowledgment.acknowledge();
-                        },
-                        error -> {
-                            log.error("💥 Error finding shippers for delivery: {} - Error: {}", 
-                                     event.getDeliveryId(), error.getMessage(), error);
-                            
-                            // ✅ Acknowledge even on error to avoid infinite retry
-                            // TODO: Implement DLQ (Dead Letter Queue) for failed events
-                            acknowledgment.acknowledge();
-                        }
-                    );
-            
+
+            // ✅ Start continuous shipper search with retry mechanism
+            startContinuousShipperSearch(event, acknowledgment);
+
         } catch (Exception e) {
-            log.error("🔥 Unexpected error processing FindShipperEvent for delivery: {} - Error: {}", 
-                     event.getDeliveryId(), e.getMessage(), e);
-            
+            log.error("🔥 Unexpected error processing FindShipperEvent for delivery: {} - Error: {}",
+                    event.getDeliveryId(), e.getMessage(), e);
+
             // ✅ Acknowledge to prevent blocking
             acknowledgment.acknowledge();
         }
     }
-    
+
+    /**
+     * ✅ Tìm shipper liên tục với exponential backoff retry
+     */
+    private void startContinuousShipperSearch(FindShipperEvent event, Acknowledgment acknowledgment) {
+        AtomicInteger attemptCount = new AtomicInteger(0);
+
+        // ✅ Convert event to request một lần
+        FindNearbyShippersRequest request = createFindShippersRequest(event);
+        Long systemUserId = 1L;
+        String systemRole = "SYSTEM";
+
+        // ✅ Reactive retry với exponential backoff
+        matchService.findNearbyShippers(request, systemUserId, systemRole)
+                .flatMap(shippers -> {
+                    if (shippers != null && !shippers.isEmpty()) {
+                        // ✅ Tìm thấy shipper, trả về kết quả
+                        return Mono.just(shippers);
+                    } else {
+                        // ✅ Không tìm thấy shipper, trigger retry
+                        return Mono.error(
+                                new RuntimeException("No shippers found for delivery: " + event.getDeliveryId()));
+                    }
+                })
+                .retryWhen(Retry.backoff(MAX_RETRY_ATTEMPTS, Duration.ofSeconds(INITIAL_DELAY_SECONDS))
+                        .maxBackoff(Duration.ofSeconds(MAX_DELAY_SECONDS))
+                        .multiplier(BACKOFF_MULTIPLIER)
+                        .doBeforeRetry(retrySignal -> {
+                            int attempt = attemptCount.incrementAndGet();
+                            long delayMs = retrySignal.totalRetries() == 0 ? INITIAL_DELAY_SECONDS * 1000
+                                    : Math.min(
+                                            (long) (INITIAL_DELAY_SECONDS
+                                                    * Math.pow(BACKOFF_MULTIPLIER, retrySignal.totalRetries()) * 1000),
+                                            MAX_DELAY_SECONDS * 1000);
+
+                            log.info("🔄 Retry attempt {}/{} for delivery: {} - Next retry in {}ms",
+                                    attempt, MAX_RETRY_ATTEMPTS, event.getDeliveryId(), delayMs);
+                        })
+                        .filter(throwable -> {
+                            // ✅ Chỉ retry nếu không tìm thấy shipper (empty result)
+                            // Không retry nếu có lỗi system khác
+                            return throwable instanceof RuntimeException &&
+                                    throwable.getMessage().contains("No shippers found");
+                        }))
+                .subscribe(
+                        shippers -> {
+                            log.info("✅ Found {} nearby shippers for delivery: {} after {} attempts",
+                                    shippers.size(), event.getDeliveryId(), attemptCount.get() + 1);
+
+                            // ✅ Delegate to MatchEventService for business logic
+                            matchEventService.processShipperMatchResult(event, shippers);
+
+                            // ✅ Acknowledge after successful processing
+                            acknowledgment.acknowledge();
+                        },
+                        error -> {
+                            log.error("� Failed to find shippers for delivery: {} after {} attempts - Error: {}",
+                                    event.getDeliveryId(), MAX_RETRY_ATTEMPTS, error.getMessage());
+
+                            // ✅ After max retries, delegate with empty list
+                            matchEventService.processShipperMatchResult(event, java.util.Collections.emptyList());
+
+                            // ✅ Acknowledge even after failure to avoid infinite processing
+                            acknowledgment.acknowledge();
+                        });
+    }
+
     /**
      * ✅ Convert FindShipperEvent to FindNearbyShippersRequest với null safety
      */
     private FindNearbyShippersRequest createFindShippersRequest(FindShipperEvent event) {
         FindNearbyShippersRequest request = new FindNearbyShippersRequest();
-        
+
         // ✅ Null safety check for pickup coordinates
         if (event.getPickupLat() != null && event.getPickupLng() != null) {
             // Sử dụng pickup location để tìm shipper gần restaurant
             request.setLatitude(event.getPickupLat());
             request.setLongitude(event.getPickupLng());
-            
-            log.debug("🎯 Using pickup location: {}, {} for delivery: {}", 
-                     event.getPickupLat(), event.getPickupLng(), event.getDeliveryId());
-        } 
-        else if (event.getDeliveryLat() != null && event.getDeliveryLng() != null) {
+
+            log.debug("🎯 Using pickup location: {}, {} for delivery: {}",
+                    event.getPickupLat(), event.getPickupLng(), event.getDeliveryId());
+        } else if (event.getDeliveryLat() != null && event.getDeliveryLng() != null) {
             // Fallback: sử dụng delivery location nếu pickup location null
             request.setLatitude(event.getDeliveryLat());
             request.setLongitude(event.getDeliveryLng());
-            
-            log.warn("⚠️ Pickup location null, using delivery location: {}, {} for delivery: {}", 
+
+            log.warn("⚠️ Pickup location null, using delivery location: {}, {} for delivery: {}",
                     event.getDeliveryLat(), event.getDeliveryLng(), event.getDeliveryId());
-        } 
-        else {
+        } else {
             // Default location (TP.HCM center) nếu cả 2 đều null
             request.setLatitude(10.762622); // Landmark 81 coordinates
             request.setLongitude(106.660172);
-            
-            log.error("🔥 Both pickup and delivery coordinates are null for delivery: {}, using default location", 
-                     event.getDeliveryId());
+
+            log.error("🔥 Both pickup and delivery coordinates are null for delivery: {}, using default location",
+                    event.getDeliveryId());
         }
-        
+
         // Default search parameters
         request.setRadiusKm(5.0); // 5km radius
         request.setMaxShippers(10); // Tối đa 10 shippers
-        
+
         return request;
     }
 }

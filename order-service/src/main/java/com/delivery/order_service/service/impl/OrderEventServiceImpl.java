@@ -30,9 +30,10 @@ public class OrderEventServiceImpl implements OrderEventService {
     @Override
     @Transactional
     public void handleDeliveryStatusUpdate(DeliveryStatusUpdatedEvent event) {
-        log.info("🚚 Processing delivery status update: orderId={}, status={}", 
-                event.getOrderId(), event.getStatus());
+        log.info("🚚 Processing delivery status update: orderId={}, deliveryId={}, status={}", 
+                event.getOrderId(), event.getDeliveryId(), event.getStatus());
 
+        // ✅ Sử dụng orderId từ event để tìm và cập nhật order
         Order order = findOrderById(event.getOrderId());
 
         // Map delivery status to order status

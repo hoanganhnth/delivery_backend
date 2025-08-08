@@ -131,106 +131,106 @@ public class DeliveryServiceImpl implements DeliveryService {
     @Transactional
     public DeliveryResponse acceptDelivery(AcceptDeliveryRequest request, Long shipperId, String role) {
         log.info("🚚 Shipper {} attempting to accept order {}", shipperId, request.getOrderId());
-        
+
         // ✅ Validate shipper role
         if (!RoleConstants.SHIPPER.equals(role)) {
             throw new AccessDeniedException("Chỉ shipper mới có thể nhận đơn hàng");
         }
-        
+
         // ✅ Validate request
         if (request.getOrderId() == null) {
             throw new InvalidStatusException("Order ID is required");
         }
-        
+
         // ✅ Validate action
-        if (request.getAction() == null || 
-            (!ShipperActionConstants.ACCEPT.equals(request.getAction()) && 
-             !ShipperActionConstants.REJECT.equals(request.getAction()))) {
+        if (request.getAction() == null ||
+                (!ShipperActionConstants.ACCEPT.equals(request.getAction()) &&
+                        !ShipperActionConstants.REJECT.equals(request.getAction()))) {
             throw new InvalidStatusException("Action must be ACCEPT or REJECT");
         }
-        
+
         // ✅ Validate reject reason if rejecting
-        if (ShipperActionConstants.REJECT.equals(request.getAction()) && 
-            (request.getRejectReason() == null || request.getRejectReason().trim().isEmpty())) {
+        if (ShipperActionConstants.REJECT.equals(request.getAction()) &&
+                (request.getRejectReason() == null || request.getRejectReason().trim().isEmpty())) {
             throw new InvalidStatusException("Reject reason is required when rejecting delivery");
         }
-        
+
         // ✅ Validate pickup time if accepting
-        if (ShipperActionConstants.ACCEPT.equals(request.getAction()) && 
-            request.getEstimatedPickupTime() == null) {
+        if (ShipperActionConstants.ACCEPT.equals(request.getAction()) &&
+                request.getEstimatedPickupTime() == null) {
             throw new InvalidStatusException("Estimated pickup time is required when accepting delivery");
         }
-        
+
         // ✅ Find delivery by order ID
         Delivery delivery = deliveryRepository.findByOrderId(request.getOrderId())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Không tìm thấy thông tin giao hàng cho đơn hàng: " + request.getOrderId()));
-        
+
         // ✅ Validate delivery status
         if (!DeliveryStatus.PENDING.equals(delivery.getStatus())) {
             throw new InvalidStatusException("Đơn hàng không ở trạng thái chờ nhận (PENDING)");
         }
-        
+
         // ✅ Check if already assigned to another shipper
         if (delivery.getShipperId() != null && !delivery.getShipperId().equals(shipperId)) {
             throw new InvalidStatusException("Đơn hàng đã được giao cho shipper khác");
         }
-        
+
         // ✅ Process based on action
         if (ShipperActionConstants.ACCEPT.equals(request.getAction())) {
             // ACCEPT logic
             delivery.setShipperId(shipperId);
             delivery.setStatus(DeliveryStatus.ASSIGNED);
             delivery.setUpdatedAt(LocalDateTime.now());
-            
+
             // Update shipper location nếu có
             if (request.getCurrentLat() != null && request.getCurrentLng() != null) {
                 delivery.setShipperCurrentLat(request.getCurrentLat());
                 delivery.setShipperCurrentLng(request.getCurrentLng());
             }
-            
-            // Update estimated pickup time 
+
+            // Update estimated pickup time
             if (request.getEstimatedPickupTime() != null) {
                 delivery.setEstimatedDeliveryTime(
-                    LocalDateTime.now().plusMinutes(request.getEstimatedPickupTime().longValue()));
+                        LocalDateTime.now().plusMinutes(request.getEstimatedPickupTime().longValue()));
             }
-            
+
             log.info("✅ Shipper {} ACCEPTED order {}", shipperId, request.getOrderId());
-            
+
         } else if (ShipperActionConstants.REJECT.equals(request.getAction())) {
             // REJECT logic - không assign shipper, reset lại status
             delivery.setShipperId(null);
             delivery.setStatus(DeliveryStatus.PENDING);
             delivery.setUpdatedAt(LocalDateTime.now());
             delivery.setRejectReason(request.getRejectReason());
-            
-            log.info("❌ Shipper {} REJECTED order {} - Reason: {}", 
+
+            log.info("❌ Shipper {} REJECTED order {} - Reason: {}",
                     shipperId, request.getOrderId(), request.getRejectReason());
         }
-        
+
         // Update notes nếu có
         if (request.getNotes() != null && !request.getNotes().trim().isEmpty()) {
             String existingNotes = delivery.getNotes() != null ? delivery.getNotes() : "";
             delivery.setNotes(existingNotes + " | Shipper notes: " + request.getNotes());
         }
-        
+
         Delivery savedDelivery = deliveryRepository.save(delivery);
-        
+
         // ✅ Publish event based on action
         if (ShipperActionConstants.ACCEPT.equals(request.getAction())) {
             publishMatchAcceptedEvent(savedDelivery, shipperId, request);
             log.info("✅ Delivery {} ACCEPTED successfully by shipper {}", delivery.getId(), shipperId);
         } else if (ShipperActionConstants.REJECT.equals(request.getAction())) {
             publishMatchRejectedEvent(savedDelivery, shipperId, request);
-            log.info("❌ Delivery {} REJECTED by shipper {} - Reason: {}", 
+            log.info("❌ Delivery {} REJECTED by shipper {} - Reason: {}",
                     delivery.getId(), shipperId, request.getRejectReason());
         }
-        
+
         DeliveryResponse response = deliveryMapper.deliveryToDeliveryResponse(savedDelivery);
-        
+
         // ✅ Send real-time update via WebSocket
         sendDeliveryUpdateViaWebSocket(savedDelivery, response);
-        
+
         return response;
     }
 
@@ -276,12 +276,12 @@ public class DeliveryServiceImpl implements DeliveryService {
 
         Delivery updatedDelivery = deliveryRepository.save(delivery);
 
-        // ✅ Publish delivery status update event
+        // ✅ Publish delivery status update event với orderId
         deliveryEventPublisher.publishDeliveryStatusUpdated(
-                deliveryId, status.name(), oldStatus);
+                deliveryId, delivery.getOrderId(), status.name(), oldStatus);
 
         DeliveryResponse response = deliveryMapper.deliveryToDeliveryResponse(updatedDelivery);
-        
+
         // ✅ Send real-time update via WebSocket
         sendDeliveryUpdateViaWebSocket(updatedDelivery, response);
 
@@ -399,8 +399,8 @@ public class DeliveryServiceImpl implements DeliveryService {
         return switch (currentStatus) {
             case PENDING -> newStatus == DeliveryStatus.ASSIGNED || newStatus == DeliveryStatus.CANCELLED;
             case ASSIGNED -> newStatus == DeliveryStatus.PICKED_UP || newStatus == DeliveryStatus.CANCELLED;
-            case PICKED_UP -> newStatus == DeliveryStatus.DELIVERING || newStatus == DeliveryStatus.CANCELLED;
-            case DELIVERING -> newStatus == DeliveryStatus.DELIVERED || newStatus == DeliveryStatus.CANCELLED;
+            case PICKED_UP -> newStatus == DeliveryStatus.DELIVERING;
+            case DELIVERING -> newStatus == DeliveryStatus.DELIVERED;
             case DELIVERED, CANCELLED -> false; // Không thể thay đổi từ trạng thái cuối
         };
     }
@@ -454,7 +454,7 @@ public class DeliveryServiceImpl implements DeliveryService {
                     delivery.getId() + " - Error: " + e.getMessage());
         }
     }
-    
+
     /**
      * ✅ Publish MatchAcceptedEvent để thông báo cho Notification Service
      */
@@ -473,28 +473,28 @@ public class DeliveryServiceImpl implements DeliveryService {
                     .eventType("MATCH_ACCEPTED")
                     .notes(request.getNotes())
                     .build();
-            
+
             // TODO: Gửi qua Kafka để Notification Service nhận
             deliveryEventPublisher.publishShipperAcceptedEvent(event);
-            
-            log.info("📤 Published ShipperAcceptedEvent for delivery {}, shipper {}", 
+
+            log.info("📤 Published ShipperAcceptedEvent for delivery {}, shipper {}",
                     delivery.getId(), shipperId);
-            
+
         } catch (Exception e) {
-            log.error("💥 Failed to publish MatchAcceptedEvent for delivery {}: {}", 
-                     delivery.getId(), e.getMessage(), e);
+            log.error("💥 Failed to publish MatchAcceptedEvent for delivery {}: {}",
+                    delivery.getId(), e.getMessage(), e);
             // Don't fail main operation if event publishing fails
         }
     }
-    
+
     /**
      * ✅ Publish MatchRejectedEvent khi shipper reject đơn
      */
     private void publishMatchRejectedEvent(Delivery delivery, Long shipperId, AcceptDeliveryRequest request) {
         try {
-            log.info("📤 Publishing ShipperRejectedEvent for delivery {}, shipper {}", 
+            log.info("📤 Publishing ShipperRejectedEvent for delivery {}, shipper {}",
                     delivery.getId(), shipperId);
-            
+
             // Create rejection event - reuse MatchAcceptedEvent structure
             MatchAcceptedEvent event = MatchAcceptedEvent.builder()
                     .orderId(delivery.getOrderId())
@@ -509,21 +509,21 @@ public class DeliveryServiceImpl implements DeliveryService {
                     .notes(request.getRejectReason()) // Use reject reason as notes
                     .timestamp(LocalDateTime.now())
                     .build();
-            
+
             // TODO: Consider creating separate ShipperRejectedEvent topic
             // For now, use same event with different status
             deliveryEventPublisher.publishShipperAcceptedEvent(event);
-            
-            log.info("📤 Published ShipperRejectedEvent for delivery {}, shipper {} - Reason: {}", 
+
+            log.info("📤 Published ShipperRejectedEvent for delivery {}, shipper {} - Reason: {}",
                     delivery.getId(), shipperId, request.getRejectReason());
-            
+
         } catch (Exception e) {
-            log.error("💥 Failed to publish MatchRejectedEvent for delivery {}: {}", 
-                     delivery.getId(), e.getMessage(), e);
+            log.error("💥 Failed to publish MatchRejectedEvent for delivery {}: {}",
+                    delivery.getId(), e.getMessage(), e);
             // Don't fail main operation if event publishing fails
         }
     }
-    
+
     /**
      * ✅ Send delivery update via WebSocket to relevant parties
      */
@@ -533,31 +533,31 @@ public class DeliveryServiceImpl implements DeliveryService {
             if (delivery.getCreatorId() != null) {
                 webSocketService.sendDeliveryUpdateToCustomer(delivery.getCreatorId(), response);
             }
-            
+
             // Send to shipper if assigned
             if (delivery.getShipperId() != null) {
                 webSocketService.sendDeliveryUpdateToShipper(delivery.getShipperId(), response);
             }
-            
+
             // Broadcast to all subscribers (admin, restaurant)
             webSocketService.broadcastDeliveryUpdate(response);
-            
-            log.info("📡 Sent WebSocket updates for delivery {} status: {}", 
+
+            log.info("📡 Sent WebSocket updates for delivery {} status: {}",
                     delivery.getId(), delivery.getStatus());
-            
+
         } catch (Exception e) {
-            log.error("💥 Failed to send WebSocket update for delivery {}: {}", 
-                     delivery.getId(), e.getMessage(), e);
+            log.error("💥 Failed to send WebSocket update for delivery {}: {}",
+                    delivery.getId(), e.getMessage(), e);
             // Don't fail main operation if WebSocket fails
         }
     }
-    
+
     /**
      * ✅ Calculate estimated time in minutes for event
      */
     private Integer calculateEstimatedTimeInMinutes(Delivery delivery) {
         if (delivery.getEstimatedDeliveryTime() != null) {
-            return (int) java.time.Duration.between(LocalDateTime.now(), 
+            return (int) java.time.Duration.between(LocalDateTime.now(),
                     delivery.getEstimatedDeliveryTime()).toMinutes();
         }
         return 30; // Default 30 minutes
