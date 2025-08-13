@@ -10,13 +10,13 @@ import java.util.List;
 public class RestaurantBalanceServiceImpl implements RestaurantBalanceService {
 
     // mapper
-    private final RestaurantBalanceMapper restaurantBalanceMapper;
-    private final RestaurantRepository restaurantRepository;
+    // private final RestaurantBalanceMapper restaurantBalanceMapper;
+    // private final RestaurantRepository restaurantRepository;
 
     RestaurantBalanceServiceImpl(RestaurantBalanceMapper restaurantBalanceMapper,
                                  RestaurantRepository restaurantRepository) {
-        this.restaurantBalanceMapper = restaurantBalanceMapper;
-        this.restaurantRepository = restaurantRepository;
+        // this.restaurantBalanceMapper = restaurantBalanceMapper;
+        // this.restaurantRepository = restaurantRepository;
     }
 
     @Override

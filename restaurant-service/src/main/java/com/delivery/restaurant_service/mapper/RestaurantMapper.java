@@ -9,9 +9,15 @@ import org.mapstruct.*;
 import java.time.LocalTime;
 @Mapper(componentModel = "spring")
 public interface RestaurantMapper {
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "creatorId", ignore = true)
     Restaurant toEntity(CreateRestaurantRequest request);
 
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
+    @Mappings({
+        @Mapping(target = "id", ignore = true),
+        @Mapping(target = "creatorId", ignore = true)
+    })
     void updateEntityFromDto(UpdateRestaurantRequest request, @MappingTarget Restaurant restaurant);
 
     @Mapping(target = "open", expression = "java(isOpen(restaurant.getOpeningHour(), restaurant.getClosingHour()))")

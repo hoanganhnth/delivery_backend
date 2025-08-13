@@ -9,9 +9,15 @@ import org.mapstruct.*;
 @Mapper(componentModel = "spring")
 public interface MenuItemMapper {
 
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "restaurant", ignore = true)
+    @Mapping(target = "status", ignore = true)
     MenuItem toEntity(CreateMenuItemRequest request);
 
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "restaurant", ignore = true)
     void updateEntityFromDto(UpdateMenuItemRequest request, @MappingTarget MenuItem item);
 
+    @Mapping(target = "restaurantId", source = "restaurant.id")
     MenuItemResponse toResponse(MenuItem item);
 }

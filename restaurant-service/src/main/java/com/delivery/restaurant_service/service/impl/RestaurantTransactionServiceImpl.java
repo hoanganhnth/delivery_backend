@@ -8,14 +8,14 @@ import java.util.List;
 
 public class RestaurantTransactionServiceImpl implements RestaurantTransactionService {
 
-    private final RestaurantTransactionService restaurantTransactionService;
+    // private final RestaurantTransactionService restaurantTransactionService;
 
-    private final RestaurantTransactionMapper restaurantTransactionMapper;
+    // private final RestaurantTransactionMapper restaurantTransactionMapper;
 
     public RestaurantTransactionServiceImpl(RestaurantTransactionService restaurantTransactionService,
                                             RestaurantTransactionMapper restaurantTransactionMapper) {
-        this.restaurantTransactionService = restaurantTransactionService;
-        this.restaurantTransactionMapper = restaurantTransactionMapper;
+        // this.restaurantTransactionService = restaurantTransactionService;
+        // this.restaurantTransactionMapper = restaurantTransactionMapper;
     }
 
     @Override
