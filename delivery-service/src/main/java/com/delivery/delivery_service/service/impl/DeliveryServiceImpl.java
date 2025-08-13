@@ -451,6 +451,8 @@ public class DeliveryServiceImpl implements DeliveryService {
             // Có thể implement retry mechanism sau
             System.err.println("🔥 Failed to publish FindShipperEvent for delivery: " +
                     delivery.getId() + " - Error: " + e.getMessage());
+
+            throw new RuntimeException("Failed to publish FindShipperEvent: " + e.getMessage(), e);
         }
     }
 

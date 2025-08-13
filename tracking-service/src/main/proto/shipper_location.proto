@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "com.delivery.tracking_service.grpc";
+option java_outer_classname = "ShipperLocationProto";
+
+message ShipperLocation {
+  int64 shipperId = 1;
+  double latitude = 2;
+  double longitude = 3;
+  double accuracy = 4;
+  double speed = 5;
+  double heading = 6;
+  bool isOnline = 7;
+  int64 timestamp = 8;
+}
+
+message LocationAck {
+  string message = 1;
+  ShipperLocation location = 2;
+}
+
+service ShipperLocationService {
+  // Bidirectional streaming: client gửi vị trí liên tục, server có thể gửi lại cập nhật hoặc ack
+  rpc StreamLocation(stream ShipperLocation) returns (stream LocationAck);
+}
