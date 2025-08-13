@@ -23,6 +23,7 @@ public interface DeliveryMapper {
     @Mapping(target = "estimatedDeliveryTime", ignore = true)
     @Mapping(target = "shipperCurrentLat", ignore = true)
     @Mapping(target = "shipperCurrentLng", ignore = true)
+    @Mapping(target = "rejectReason", ignore = true)
     @Mapping(target = "status", expression = "java(com.delivery.delivery_service.entity.DeliveryStatus.ASSIGNED)")
     Delivery assignRequestToDelivery(AssignDeliveryRequest request);
 

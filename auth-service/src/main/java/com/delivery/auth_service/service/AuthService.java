@@ -9,9 +9,7 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.client.RestTemplate;
 
-import com.delivery.auth_service.config.UserServiceConfig;
 import com.delivery.auth_service.dto.AuthAccountDto;
 import com.delivery.auth_service.dto.AuthResponse;
 import com.delivery.auth_service.dto.LoginRequest;
@@ -33,8 +31,6 @@ public class AuthService implements UserDetailsService {
     private final AuthSessionRepository authSessionRepository;
     private final PasswordEncoder passwordEncoder;
     private final TokenService tokenService;
-    private final UserServiceConfig userServiceConfig;
-    private final RestTemplate restTemplate;
 
     /**
      * Đăng ký tài khoản mới

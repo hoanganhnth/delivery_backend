@@ -26,8 +26,13 @@ public interface OrderMapper {
     @Mapping(target = "shippingFee", ignore = true)
     @Mapping(target = "totalPrice", ignore = true)
     @Mapping(target = "status", constant = "PENDING")
+    @Mapping(target = "creatorId", ignore = true)
+    @Mapping(target = "shipperId", ignore = true)
+    
     Order createOrderRequestToOrder(CreateOrderRequest request);
 
+    @Mapping(target = "restaurantLat", ignore = true)
+    @Mapping(target = "restaurantLng", ignore = true)
     OrderResponse orderToOrderResponse(Order order);
     
     List<OrderResponse> ordersToOrderResponses(List<Order> orders);
@@ -50,6 +55,9 @@ public interface OrderMapper {
     @Mapping(target = "customerName", ignore = true)
     @Mapping(target = "customerPhone", ignore = true)
     @Mapping(target = "items", ignore = true)
+    @Mapping(target = "creatorId", ignore = true)
+    @Mapping(target = "pickupLat", ignore = true)
+    @Mapping(target = "pickupLng", ignore = true)
     void updateOrderFromRequest(UpdateOrderRequest request, @MappingTarget Order order);
 
     @Mapping(target = "id", ignore = true)

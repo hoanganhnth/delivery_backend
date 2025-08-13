@@ -29,7 +29,7 @@ public class ShipperResponse {
     public ShipperResponse(Long id, Long userId, String vehicleType, String licenseNumber,
             String idCard, String driverImage, Boolean isOnline,
             BigDecimal rating, Integer completedDeliveries,
-            LocalDateTime createdAt, LocalDateTime updatedAt) {
+            LocalDateTime createdAt, LocalDateTime updatedAt, String phone) {
         this.id = id;
         this.userId = userId;
         this.vehicleType = vehicleType;
@@ -41,6 +41,7 @@ public class ShipperResponse {
         this.completedDeliveries = completedDeliveries;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
+        this.phone = phone;
     }
  
 }
