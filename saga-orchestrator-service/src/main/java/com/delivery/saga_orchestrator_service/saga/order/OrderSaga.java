@@ -1,6 +1,5 @@
 package com.delivery.saga_orchestrator_service.saga.order;
 
-import java.util.List;
 
 import org.springframework.stereotype.Component;
 
@@ -13,15 +12,15 @@ import com.delivery.saga_orchestrator_service.dto.order.OrderResponse;
 @Component
 public class OrderSaga {
     private final OrderServiceClient orderServiceClient;
-    private final ShipperServiceClient shipperServiceClient;
-    private final DeliveryServiceClient deliveryServiceClient;
+    // private final ShipperServiceClient shipperServiceClient;
+    // private final DeliveryServiceClient deliveryServiceClient;
 
     // constructor injection
     public OrderSaga(OrderServiceClient orderServiceClient, ShipperServiceClient shipperServiceClient,
             DeliveryServiceClient deliveryServiceClient) {
         this.orderServiceClient = orderServiceClient;
-        this.shipperServiceClient = shipperServiceClient;
-        this.deliveryServiceClient = deliveryServiceClient;
+        // this.shipperServiceClient = shipperServiceClient;
+        // this.deliveryServiceClient = deliveryServiceClient;
 
     }
 
