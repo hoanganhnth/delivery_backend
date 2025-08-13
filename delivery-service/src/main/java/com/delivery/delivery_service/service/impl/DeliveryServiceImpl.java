@@ -62,7 +62,6 @@ public class DeliveryServiceImpl implements DeliveryService {
             delivery.setPickupAddress(event.getRestaurantAddress());
 
             // ✅ Set default pickup coordinates (có thể improve sau bằng geocoding)
-            // TODO: Integrate với geocoding service để convert address → coordinates
 
             // Fallback: TP.HCM center coordinates
             delivery.setPickupLat(event.getPickupLat());
@@ -474,7 +473,6 @@ public class DeliveryServiceImpl implements DeliveryService {
                     .notes(request.getNotes())
                     .build();
 
-            // TODO: Gửi qua Kafka để Notification Service nhận
             deliveryEventPublisher.publishShipperAcceptedEvent(event);
 
             log.info("📤 Published ShipperAcceptedEvent for delivery {}, shipper {}",
@@ -500,8 +498,8 @@ public class DeliveryServiceImpl implements DeliveryService {
                     .orderId(delivery.getOrderId())
                     .deliveryId(delivery.getId())
                     .shipperId(shipperId)
-                    .shipperName("Shipper " + shipperId) // TODO: Get real name from Shipper Service
-                    .shipperPhone("N/A") // TODO: Get real phone
+                    .shipperName("Shipper " + shipperId) 
+                    .shipperPhone("N/A") 
                     .eventType("SHIPPER_REJECTED") // Different event type for rejection
                     .estimatedTime(0) // No pickup time for rejected
                     .pickupAddress(delivery.getPickupAddress())
@@ -510,7 +508,6 @@ public class DeliveryServiceImpl implements DeliveryService {
                     .timestamp(LocalDateTime.now())
                     .build();
 
-            // TODO: Consider creating separate ShipperRejectedEvent topic
             // For now, use same event with different status
             deliveryEventPublisher.publishShipperAcceptedEvent(event);
 

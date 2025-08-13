@@ -94,7 +94,6 @@ public class MatchEventServiceImpl implements MatchEventService {
     @Override
     public void publishNoShipperAvailableEvent(FindShipperEvent deliveryEvent) {
         try {
-            // TODO: Create proper NoShipperAvailableEvent DTO
             log.warn("📤 Should publish NoShipperAvailableEvent for delivery: {} (implementing...)", 
                     deliveryEvent.getDeliveryId());
             
@@ -126,7 +125,6 @@ public class MatchEventServiceImpl implements MatchEventService {
         }
         
         // ✅ Simple selection logic: closest shipper (first in sorted list)
-        // TODO: Enhanced logic considering rating, availability, etc.
         NearbyShipperResponse bestShipper = validShippers.get(0);
         
         log.debug("🎯 Selected shipper {} with distance {}km", 

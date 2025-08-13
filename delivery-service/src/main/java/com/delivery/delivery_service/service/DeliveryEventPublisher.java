@@ -52,7 +52,6 @@ public class DeliveryEventPublisher {
                 log.error("💥 Failed to publish FindShipperEvent for delivery: {} - Error: {}",
                         event.getDeliveryId(), throwable.getMessage(), throwable);
                 
-                // TODO: Implement retry logic or save to dead letter queue
                 return null;
             });
             
@@ -90,7 +89,6 @@ public class DeliveryEventPublisher {
                 log.error("💥 Failed to publish ShipperAcceptedEvent for order: {} - Error: {}",
                         event.getOrderId(), throwable.getMessage(), throwable);
                 
-                // TODO: Implement retry logic hoặc save to dead letter queue
                 return null;
             });
             

@@ -53,7 +53,6 @@ public class DeliveryEventListener {
         } catch (Exception e) {
             log.error("💥 Failed to process DeliveryStatusUpdatedEvent for order {}: {}", 
                     event.getOrderId(), e.getMessage(), e);
-            // TODO: Implement retry logic or dead letter queue
         }
     }
 }
