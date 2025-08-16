@@ -34,52 +34,54 @@ public class AuthController {
 
     @PostMapping("/register")
     public ResponseEntity<BaseResponse<AuthAccount>> register(@RequestBody RegisterRequest request) {
-        System.out.println("Registering new account: " + request.getEmail());
         AuthAccount account = authService.register(request);
         return ResponseEntity.ok(new BaseResponse<>(1, account, "Account registered successfully"));
     }
 
     @PostMapping("/login")
-    public ResponseEntity<AuthResponse> login(@RequestBody LoginRequest request) {
-        return ResponseEntity.ok(authService.login(request));
+    public ResponseEntity<BaseResponse<AuthResponse>> login(@RequestBody LoginRequest request) {
+        AuthResponse response = authService.login(request);
+        return ResponseEntity.ok(new BaseResponse<>(1, response, "Login successful"));
     }
 
     @PostMapping("/refresh-token")
-    public ResponseEntity<AuthResponse> refreshToken(@RequestBody RefreshTokenRequest request) {
-        return ResponseEntity.ok(authService.refreshToken(request));
+    public ResponseEntity<BaseResponse<AuthResponse>> refreshToken(@RequestBody RefreshTokenRequest request) {
+        AuthResponse response = authService.refreshToken(request);
+        return ResponseEntity.ok(new BaseResponse<>(1, response, "Token refreshed"));
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<Void> logout(@RequestBody RefreshTokenRequest request) {
+    public ResponseEntity<BaseResponse<Void>> logout(@RequestBody RefreshTokenRequest request) {
         authService.logout(request.getRefreshToken());
-        return ResponseEntity.ok().build();
+        return ResponseEntity.ok(new BaseResponse<>(1, null, "Logout successful"));
     }
 
     @GetMapping("/sessions")
-    public ResponseEntity<List<SessionInfoResponse>> getSessions() {
+    public ResponseEntity<BaseResponse<List<SessionInfoResponse>>> getSessions() {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
-        return ResponseEntity.ok(authService.getActiveSessions(email));
+        List<SessionInfoResponse> sessions = authService.getActiveSessions(email);
+        return ResponseEntity.ok(new BaseResponse<>(1, sessions));
     }
 
     @GetMapping("/accounts/{id}")
-    public ResponseEntity<AuthAccountDto> getAccountById(@PathVariable Long id) {
+    public ResponseEntity<BaseResponse<AuthAccountDto>> getAccountById(@PathVariable Long id) {
         AuthAccountDto dto = authService.getAccountByIdDto(id);
-        return ResponseEntity.ok(dto);
+        return ResponseEntity.ok(new BaseResponse<>(1, dto));
     }
 
     /**
      * Lấy thông tin tài khoản theo email (chỉ cho nội bộ sử dụng)
      */
     @GetMapping("/accounts/email/{email}")
-    public ResponseEntity<AuthAccountDto> getAccountByEmail(
+    public ResponseEntity<BaseResponse<AuthAccountDto>> getAccountByEmail(
             @PathVariable String email,
             @RequestHeader(value = "Internal-Token", required = false) String token) {
 
         if (token == null || !token.equals("GATEWAY_INTERNAL_SECRET_ABC123")) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new BaseResponse<>(0, null, "Forbidden"));
         }
 
         AuthAccountDto dto = authService.getAccountByEmailDto(email);
-        return ResponseEntity.ok(dto);
+        return ResponseEntity.ok(new BaseResponse<>(1, dto));
     }
 }

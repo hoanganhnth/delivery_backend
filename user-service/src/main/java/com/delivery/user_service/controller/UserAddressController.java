@@ -6,6 +6,7 @@ import com.delivery.user_service.service.UserAddressService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import com.delivery.user_service.payload.BaseResponse;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -17,36 +18,47 @@ public class UserAddressController {
 
     private final UserAddressService addressService;
 
+
     @GetMapping("/users/{userId}/addresses")
-    public ResponseEntity<List<UserAddressResponse>> getUserAddresses(@PathVariable Long userId) {
-        return ResponseEntity.ok(addressService.getAllAddressesByUser(userId));
+    public ResponseEntity<BaseResponse<List<UserAddressResponse>>> getUserAddresses(@PathVariable Long userId) {
+        List<UserAddressResponse> addresses = addressService.getAllAddressesByUser(userId);
+        return ResponseEntity.ok(new BaseResponse<>(1, addresses));
     }
+
 
     @GetMapping("/addresses/{id}")
-    public ResponseEntity<UserAddressResponse> getAddress(@PathVariable Long id) {
-        return ResponseEntity.ok(addressService.getAddressById(id));
+    public ResponseEntity<BaseResponse<UserAddressResponse>> getAddress(@PathVariable Long id) {
+        UserAddressResponse address = addressService.getAddressById(id);
+        return ResponseEntity.ok(new BaseResponse<>(1, address));
     }
+
 
     @PostMapping("/users/{userId}/addresses")
-    public ResponseEntity<UserAddressResponse> createAddress(@PathVariable Long userId,
+    public ResponseEntity<BaseResponse<UserAddressResponse>> createAddress(@PathVariable Long userId,
             @Valid @RequestBody UserAddressRequest request) {
-        return ResponseEntity.ok(addressService.createAddress(userId, request));
+        UserAddressResponse address = addressService.createAddress(userId, request);
+        return ResponseEntity.ok(new BaseResponse<>(1, address));
     }
+
 
     @PutMapping("/addresses/{id}")
-    public ResponseEntity<UserAddressResponse> updateAddress(@PathVariable Long id,
+    public ResponseEntity<BaseResponse<UserAddressResponse>> updateAddress(@PathVariable Long id,
             @Valid @RequestBody UserAddressRequest request) {
-        return ResponseEntity.ok(addressService.updateAddress(id, request));
+        UserAddressResponse address = addressService.updateAddress(id, request);
+        return ResponseEntity.ok(new BaseResponse<>(1, address));
     }
+
 
     @DeleteMapping("/addresses/{id}")
-    public ResponseEntity<Void> deleteAddress(@PathVariable Long id) {
+    public ResponseEntity<BaseResponse<Void>> deleteAddress(@PathVariable Long id) {
         addressService.deleteAddress(id);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(new BaseResponse<>(1, null, "Xóa địa chỉ thành công"));
     }
 
+
     @PatchMapping("/addresses/{id}/default")
-    public ResponseEntity<UserAddressResponse> setDefault(@PathVariable Long id) {
-        return ResponseEntity.ok(addressService.setDefaultAddress(id));
+    public ResponseEntity<BaseResponse<UserAddressResponse>> setDefault(@PathVariable Long id) {
+        UserAddressResponse address = addressService.setDefaultAddress(id);
+        return ResponseEntity.ok(new BaseResponse<>(1, address));
     }
 }
