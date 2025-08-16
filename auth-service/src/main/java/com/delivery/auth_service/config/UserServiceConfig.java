@@ -12,6 +12,11 @@ public class UserServiceConfig {
         return url;
     }
 
+    // get right url register user
+    public String getRegisterUrl() {
+        return url + "/api/users/register"; // ✅ thêm /api/users/register để trỏ đúng endpoint
+    }
+
     public void setUrl(String url) {
         this.url = url;
     }

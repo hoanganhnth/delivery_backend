@@ -19,6 +19,8 @@ import com.delivery.auth_service.dto.LoginRequest;
 import com.delivery.auth_service.dto.RefreshTokenRequest;
 import com.delivery.auth_service.dto.RegisterRequest;
 import com.delivery.auth_service.dto.SessionInfoResponse;
+import com.delivery.auth_service.entity.AuthAccount;
+import com.delivery.auth_service.payload.BaseResponse;
 import com.delivery.auth_service.service.AuthService;
 
 import lombok.RequiredArgsConstructor;
@@ -31,10 +33,10 @@ public class AuthController {
     private final AuthService authService;
 
     @PostMapping("/register")
-    public ResponseEntity<Long> register(@RequestBody RegisterRequest request) {
+    public ResponseEntity<BaseResponse<AuthAccount>> register(@RequestBody RegisterRequest request) {
         System.out.println("Registering new account: " + request.getEmail());
-        Long id = authService.register(request);
-        return ResponseEntity.ok(id);
+        AuthAccount account = authService.register(request);
+        return ResponseEntity.ok(new BaseResponse<>(1, account, "Account registered successfully"));
     }
 
     @PostMapping("/login")
