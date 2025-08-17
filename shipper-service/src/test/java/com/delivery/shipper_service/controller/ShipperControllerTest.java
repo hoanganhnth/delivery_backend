@@ -33,7 +33,7 @@ public class ShipperControllerTest {
     @Test
     public void testCreateShipper() throws Exception {
         CreateShipperRequest request = new CreateShipperRequest();
-        request.setUserId(1L);
+        // request.setUserId(1L);
         request.setVehicleType("MOTORBIKE");
         request.setLicenseNumber("B1-123456");
         request.setIdCard("123456789");

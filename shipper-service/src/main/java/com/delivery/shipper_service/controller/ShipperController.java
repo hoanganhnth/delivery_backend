@@ -25,39 +25,39 @@ public class ShipperController {
     @PostMapping
     public ResponseEntity<BaseResponse<ShipperResponse>> create(
             @RequestBody CreateShipperRequest request,
-            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId,
+            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) String userId,
             @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
-        ShipperResponse response = shipperService.createShipper(request, userId, role);
+        ShipperResponse response = shipperService.createShipper(request, Long.parseLong(userId), role);
         return ResponseEntity.ok(new BaseResponse<>(1, response));
     }
 
     @GetMapping("/my-profile")
     public ResponseEntity<BaseResponse<ShipperResponse>> getMyProfile(
-            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId) {
-        ShipperResponse response = shipperService.getShipperByUserId(userId);
+            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) String userId) {
+        ShipperResponse response = shipperService.getShipperByUserId(Long.parseLong(userId));
         return ResponseEntity.ok(new BaseResponse<>(1, response));
     }
 
     @PutMapping
     public ResponseEntity<BaseResponse<ShipperResponse>> update(
             @RequestBody UpdateShipperRequest request,
-            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId) {
-        ShipperResponse response = shipperService.updateShipperByUserId(userId, request);
+            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) String userId) {
+        ShipperResponse response = shipperService.updateShipperByUserId(Long.parseLong(userId), request);
         return ResponseEntity.ok(new BaseResponse<>(1, response));
     }
 
     @DeleteMapping
     public ResponseEntity<BaseResponse<Void>> delete(
-            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId) {
-        shipperService.deleteShipperByUserId(userId);
+            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) String userId) {
+        shipperService.deleteShipperByUserId(Long.parseLong(userId));
         return ResponseEntity.ok(new BaseResponse<>(1, null));
     }
 
     @PatchMapping("/online-status")
     public ResponseEntity<BaseResponse<ShipperResponse>> updateOnlineStatus(
             @RequestParam Boolean isOnline,
-            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId) {
-        ShipperResponse response = shipperService.updateOnlineStatusByUserId(userId, isOnline);
+            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) String userId) {
+        ShipperResponse response = shipperService.updateOnlineStatusByUserId(Long.parseLong(userId), isOnline);
         return ResponseEntity.ok(new BaseResponse<>(1, response));
     }
 
