@@ -40,10 +40,16 @@ public class JwtAuthenticationFilter extends AbstractGatewayFilterFactory<JwtAut
                         .build()
                         .parseClaimsJws(token)
                         .getBody();
+    String userId = claims.getSubject();  
+                    String role = claims.get("role", String.class);
+                exchange = exchange.mutate()
+                        .request(r -> r.headers(headers -> {
+                            headers.add("X-User-Id", userId);
+                            headers.add("X-Role", role);
+                        }))
+                        .build();
 
-                // Ví dụ: log hoặc sử dụng subject
-                String subject = claims.getSubject();
-                System.out.println("Authenticated user: " + subject);
+                System.out.println("✅ Authenticated userId=" + userId + ", role=" + role);
 
             } catch (JwtException e) {
                 exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);

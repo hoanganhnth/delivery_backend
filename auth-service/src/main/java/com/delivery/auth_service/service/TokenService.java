@@ -50,23 +50,28 @@ public class TokenService {
         return KeyFactory.getInstance("RSA").generatePublic(spec);
     }
 
-    public String generateToken(String email) {
-        return Jwts.builder()
-                .setSubject(email)
-                .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + 1000 * 60 * 15)) // 15 phút
-                .signWith(privateKey, SignatureAlgorithm.RS256)
-                .compact();
-    }
+   public String generateToken(int userId, String email, String role) {
+    return Jwts.builder()
+            .setSubject(String.valueOf(userId)) // có thể dùng userId làm subject
+            .claim("email", email)
+            .claim("role", role)
+            .setIssuedAt(new Date())
+            .setExpiration(new Date(System.currentTimeMillis() + 1000 * 60 * 15 * 10)) // 15 phút
+            .signWith(privateKey, SignatureAlgorithm.RS256)
+            .compact();
+}
 
-    public String generateRefreshToken(String email) {
-        return Jwts.builder()
-                .setSubject(email)
-                .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + 1000 * 60 * 60 * 24 * 7)) // 7 ngày
-                .signWith(privateKey, SignatureAlgorithm.RS256)
-                .compact();
-    }
+public String generateRefreshToken(int userId, String email, String role) {
+    return Jwts.builder()
+            .setSubject(String.valueOf(userId)) // có thể dùng userId làm subject
+            .claim("email", email)
+            .claim("role", role)
+            .setIssuedAt(new Date())
+            .setExpiration(new Date(System.currentTimeMillis() + 1000L * 60 * 60 * 24 * 7)) // 7 ngày
+            .signWith(privateKey, SignatureAlgorithm.RS256)
+            .compact();
+}
+
 
     public String extractEmail(String token) {
         return Jwts.parserBuilder()
