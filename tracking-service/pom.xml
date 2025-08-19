@@ -124,7 +124,7 @@
                 </executions>
             </plugin>
             <!-- Protobuf plugin for gRPC code generation -->
-            <plugin>
+            <!-- <plugin>
                 <groupId>org.xolstice.maven.plugins</groupId>
                 <artifactId>protobuf-maven-plugin</artifactId>
                 <version>0.6.1</version>
@@ -141,7 +141,7 @@
                         </goals>
                     </execution>
                 </executions>
-            </plugin>
+            </plugin> -->
         </plugins>
         <extensions>
         <extension>

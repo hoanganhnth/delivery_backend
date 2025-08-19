@@ -261,6 +261,8 @@ public class NotificationServiceImpl implements NotificationService {
         request.setPriority(NotificationConstants.PRIORITY_HIGH);
         request.setRelatedEntityId(orderId);
         request.setRelatedEntityType("ORDER");
+        request.setSendPush(false); // Only send WebSocket for match found  
+        request.setSendWebSocket(true);
         
         // Add detailed info to data field
         Map<String, Object> data = new HashMap<>();
