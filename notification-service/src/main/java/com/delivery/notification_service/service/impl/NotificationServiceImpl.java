@@ -413,7 +413,7 @@ public class NotificationServiceImpl implements NotificationService {
         }
         
         notificationRepository.save(notification);
-        redisService.removeCachedNotification(notificationId);
+        // redisService.removeCachedNotification(notificationId);
     }
 
     // Status mapping helper methods

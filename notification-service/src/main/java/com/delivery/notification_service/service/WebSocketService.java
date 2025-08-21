@@ -26,10 +26,10 @@ public class WebSocketService {
     public void sendNotificationToUser(Long userId, WebSocketMessage message) {
         try {
             // Check if user is online
-            if (!redisService.isUserOnline(userId)) {
-                log.debug("📴 User {} is offline, skipping WebSocket notification", userId);
-                return;
-            }
+            // if (!redisService.isUserOnline(userId)) {
+            //     log.debug("📴 User {} is offline, skipping WebSocket notification", userId);
+            //     return;
+            // }
 
             String destination = "/topic/user/" + userId;
             messagingTemplate.convertAndSend(destination, message);
