@@ -8,6 +8,10 @@ import com.delivery.notification_service.entity.Notification;
 import com.delivery.notification_service.mapper.NotificationMapper;
 import com.delivery.notification_service.repository.NotificationRepository;
 import com.delivery.notification_service.service.*;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.gson.Gson;
+
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,10 +35,10 @@ public class NotificationServiceImpl implements NotificationService {
     private final RedisService redisService;
 
     public NotificationServiceImpl(NotificationRepository notificationRepository,
-                                 NotificationMapper notificationMapper,
-                                 WebSocketService webSocketService,
-                                 FirebaseService firebaseService,
-                                 RedisService redisService) {
+            NotificationMapper notificationMapper,
+            WebSocketService webSocketService,
+            FirebaseService firebaseService,
+            RedisService redisService) {
         this.notificationRepository = notificationRepository;
         this.notificationMapper = notificationMapper;
         this.webSocketService = webSocketService;
@@ -47,20 +51,20 @@ public class NotificationServiceImpl implements NotificationService {
     public NotificationResponse sendNotification(SendNotificationRequest request) {
         // Create notification in database
         NotificationResponse notification = createNotification(request);
-        
+
         // Send via WebSocket if user is online
         if (request.getSendWebSocket()) {
             sendWebSocketNotification(notification);
         }
-        
+
         // Send push notification
         if (request.getSendPush()) {
             sendPushNotification(notification);
         }
-        
+
         // Update status to SENT
         updateNotificationStatus(notification.getId(), NotificationConstants.STATUS_SENT);
-        
+
         log.info("📤 Successfully sent notification {} to user {}", notification.getId(), notification.getUserId());
         return notification;
     }
@@ -78,13 +82,13 @@ public class NotificationServiceImpl implements NotificationService {
         notification.setRelatedEntityType(request.getRelatedEntityType());
         notification.setData(request.getData());
         notification.setStatus(NotificationConstants.STATUS_PENDING);
-        
+
         Notification saved = notificationRepository.save(notification);
-        
+
         // Cache for quick access
         NotificationResponse response = notificationMapper.toResponse(saved);
         redisService.cacheNotification(saved.getId(), response);
-        
+
         log.info("✅ Created notification {} for user {}", saved.getId(), saved.getUserId());
         return response;
     }
@@ -97,7 +101,8 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Override
     public List<NotificationResponse> getUnreadNotifications(Long userId) {
-        List<Notification> notifications = notificationRepository.findByUserIdAndIsReadOrderByCreatedAtDesc(userId, false);
+        List<Notification> notifications = notificationRepository.findByUserIdAndIsReadOrderByCreatedAtDesc(userId,
+                false);
         return notificationMapper.toResponseList(notifications);
     }
 
@@ -106,18 +111,18 @@ public class NotificationServiceImpl implements NotificationService {
     public NotificationResponse markAsRead(Long notificationId) {
         LocalDateTime readAt = LocalDateTime.now();
         int updated = notificationRepository.markAsRead(notificationId, readAt);
-        
+
         if (updated > 0) {
             // Remove from cache to force refresh
             redisService.removeCachedNotification(notificationId);
-            
+
             Notification notification = notificationRepository.findById(notificationId)
                     .orElseThrow(() -> new RuntimeException("Notification not found"));
-            
+
             log.info("👁️ Marked notification {} as read", notificationId);
             return notificationMapper.toResponse(notification);
         }
-        
+
         throw new RuntimeException("Failed to mark notification as read");
     }
 
@@ -126,7 +131,7 @@ public class NotificationServiceImpl implements NotificationService {
     public int markAllAsRead(Long userId) {
         LocalDateTime readAt = LocalDateTime.now();
         int updated = notificationRepository.markAllAsReadByUser(userId, readAt);
-        
+
         log.info("👁️ Marked {} notifications as read for user {}", updated, userId);
         return updated;
     }
@@ -143,14 +148,14 @@ public class NotificationServiceImpl implements NotificationService {
         if (cached instanceof NotificationResponse) {
             return (NotificationResponse) cached;
         }
-        
+
         // Fallback to database
         Notification notification = notificationRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Notification not found"));
-        
+
         NotificationResponse response = notificationMapper.toResponse(notification);
         redisService.cacheNotification(id, response);
-        
+
         return response;
     }
 
@@ -172,7 +177,7 @@ public class NotificationServiceImpl implements NotificationService {
         request.setPriority(NotificationConstants.PRIORITY_MEDIUM);
         request.setRelatedEntityId(orderId);
         request.setRelatedEntityType("ORDER");
-        
+
         sendNotification(request);
     }
 
@@ -180,7 +185,7 @@ public class NotificationServiceImpl implements NotificationService {
     public void sendOrderStatusNotification(Long userId, Long orderId, String status, String restaurantName) {
         String title = getOrderStatusTitle(status);
         String message = getOrderStatusMessage(orderId, status, restaurantName);
-        
+
         SendNotificationRequest request = new SendNotificationRequest();
         request.setUserId(userId);
         request.setTitle(title);
@@ -189,7 +194,7 @@ public class NotificationServiceImpl implements NotificationService {
         request.setPriority(getOrderStatusPriority(status));
         request.setRelatedEntityId(orderId);
         request.setRelatedEntityType("ORDER");
-        
+
         sendNotification(request);
     }
 
@@ -197,7 +202,7 @@ public class NotificationServiceImpl implements NotificationService {
     public void sendDeliveryStatusNotification(Long userId, Long deliveryId, String status, String shipperName) {
         String title = getDeliveryStatusTitle(status);
         String message = getDeliveryStatusMessage(deliveryId, status, shipperName);
-        
+
         SendNotificationRequest request = new SendNotificationRequest();
         request.setUserId(userId);
         request.setTitle(title);
@@ -206,7 +211,7 @@ public class NotificationServiceImpl implements NotificationService {
         request.setPriority(NotificationConstants.PRIORITY_HIGH);
         request.setRelatedEntityId(deliveryId);
         request.setRelatedEntityType("DELIVERY");
-        
+
         sendNotification(request);
     }
 
@@ -220,7 +225,7 @@ public class NotificationServiceImpl implements NotificationService {
         request.setPriority(NotificationConstants.PRIORITY_HIGH);
         request.setRelatedEntityId(deliveryId);
         request.setRelatedEntityType("DELIVERY");
-        
+
         sendNotification(request);
     }
 
@@ -232,7 +237,7 @@ public class NotificationServiceImpl implements NotificationService {
         request.setMessage(message);
         request.setType(type);
         request.setPriority(NotificationConstants.PRIORITY_MEDIUM);
-        
+
         sendNotification(request);
     }
 
@@ -241,7 +246,7 @@ public class NotificationServiceImpl implements NotificationService {
         // This would typically get all user IDs and send to each
         // For now, log the broadcast intention
         log.info("📢 Broadcast notification: {} - {}", title, message);
-        
+
         // Could also use Firebase topic messaging here
         Map<String, String> data = new HashMap<>();
         data.put("type", type);
@@ -250,20 +255,21 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Override
     public void sendShipperMatchFoundNotification(Long shipperId, Long orderId, String restaurantName,
-                                                String pickupAddress, String deliveryAddress,
-                                                Double distance, Double estimatedPrice, Integer estimatedTime) {
+            String pickupAddress, String deliveryAddress,
+            Double distance, Double estimatedPrice, Integer estimatedTime) {
         SendNotificationRequest request = new SendNotificationRequest();
         request.setUserId(shipperId);
         request.setTitle("🎯 Đơn hàng phù hợp!");
-        request.setMessage(String.format("Đơn hàng #%d từ %s - Khoảng cách: %.1fkm - Phí: %,.0f VND - Thời gian: %d phút",
-                orderId, restaurantName, distance, estimatedPrice, estimatedTime));
+        request.setMessage(
+                String.format("Đơn hàng #%d từ %s - Khoảng cách: %.1fkm - Phí: %,.0f VND - Thời gian: %d phút",
+                        orderId, restaurantName, distance, estimatedPrice, estimatedTime));
         request.setType(NotificationConstants.MATCH_FOUND);
         request.setPriority(NotificationConstants.PRIORITY_HIGH);
         request.setRelatedEntityId(orderId);
         request.setRelatedEntityType("ORDER");
-        request.setSendPush(false); // Only send WebSocket for match found  
+        request.setSendPush(false); // Only send WebSocket for match found
         request.setSendWebSocket(true);
-        
+
         // Add detailed info to data field
         Map<String, Object> data = new HashMap<>();
         data.put("pickupAddress", pickupAddress);
@@ -271,16 +277,17 @@ public class NotificationServiceImpl implements NotificationService {
         data.put("distance", distance);
         data.put("estimatedPrice", estimatedPrice);
         data.put("estimatedTime", estimatedTime);
-        request.setData(data.toString());
-        
+        Gson gson = new Gson();
+        String json = gson.toJson(data);
+        request.setData(json);
         sendNotification(request);
         log.info("🎯 Sent match found notification to shipper {}", shipperId);
     }
 
     @Override
     public void sendShipperDeliveryRequestNotification(Long shipperId, Long orderId, String restaurantName,
-                                                     String customerName, String pickupAddress, String deliveryAddress,
-                                                     Double orderValue, Double estimatedPrice, Integer estimatedTime) {
+            String customerName, String pickupAddress, String deliveryAddress,
+            Double orderValue, Double estimatedPrice, Integer estimatedTime) {
         SendNotificationRequest request = new SendNotificationRequest();
         request.setUserId(shipperId);
         request.setTitle("📦 Yêu cầu giao hàng");
@@ -290,7 +297,7 @@ public class NotificationServiceImpl implements NotificationService {
         request.setPriority(NotificationConstants.PRIORITY_HIGH);
         request.setRelatedEntityId(orderId);
         request.setRelatedEntityType("ORDER");
-        
+
         Map<String, Object> data = new HashMap<>();
         data.put("customerName", customerName);
         data.put("pickupAddress", pickupAddress);
@@ -299,14 +306,14 @@ public class NotificationServiceImpl implements NotificationService {
         data.put("estimatedPrice", estimatedPrice);
         data.put("estimatedTime", estimatedTime);
         request.setData(data.toString());
-        
+
         sendNotification(request);
         log.info("📦 Sent delivery request notification to shipper {}", shipperId);
     }
 
     @Override
     public void sendCustomerShipperAcceptedNotification(Long userId, Long orderId, String shipperName,
-                                                      String shipperPhone, Integer estimatedTime) {
+            String shipperPhone, Integer estimatedTime) {
         SendNotificationRequest request = new SendNotificationRequest();
         request.setUserId(userId);
         request.setTitle("✅ Shipper đã nhận đơn hàng!");
@@ -316,20 +323,20 @@ public class NotificationServiceImpl implements NotificationService {
         request.setPriority(NotificationConstants.PRIORITY_HIGH);
         request.setRelatedEntityId(orderId);
         request.setRelatedEntityType("ORDER");
-        
+
         Map<String, Object> data = new HashMap<>();
         data.put("shipperName", shipperName);
         data.put("shipperPhone", shipperPhone);
         data.put("estimatedTime", estimatedTime);
         request.setData(data.toString());
-        
+
         sendNotification(request);
         log.info("✅ Sent shipper accepted notification to customer {}", userId);
     }
 
     @Override
     public void sendShipperConfirmationNotification(Long shipperId, Long orderId, String restaurantName,
-                                                  String pickupAddress, String customerPhone) {
+            String pickupAddress, String customerPhone) {
         SendNotificationRequest request = new SendNotificationRequest();
         request.setUserId(shipperId);
         request.setTitle("✅ Xác nhận nhận đơn");
@@ -339,13 +346,13 @@ public class NotificationServiceImpl implements NotificationService {
         request.setPriority(NotificationConstants.PRIORITY_MEDIUM);
         request.setRelatedEntityId(orderId);
         request.setRelatedEntityType("ORDER");
-        
+
         Map<String, Object> data = new HashMap<>();
         data.put("restaurantName", restaurantName);
         data.put("pickupAddress", pickupAddress);
         data.put("customerPhone", customerPhone);
         request.setData(data.toString());
-        
+
         sendNotification(request);
         log.info("✅ Sent confirmation notification to shipper {}", shipperId);
     }
@@ -360,11 +367,11 @@ public class NotificationServiceImpl implements NotificationService {
         request.setPriority(NotificationConstants.PRIORITY_LOW);
         request.setRelatedEntityId(orderId);
         request.setRelatedEntityType("ORDER");
-        
+
         Map<String, Object> data = new HashMap<>();
         data.put("reason", reason);
         request.setData(data.toString());
-        
+
         sendNotification(request);
         log.info("❌ Sent rejection confirmation to shipper {}", shipperId);
     }
@@ -372,7 +379,7 @@ public class NotificationServiceImpl implements NotificationService {
     // Helper methods
     private void sendWebSocketNotification(NotificationResponse notification) {
         WebSocketMessage wsMessage = new WebSocketMessage();
-        wsMessage.setType("NOTIFICATION");
+        wsMessage.setType(notification.getType());
         wsMessage.setUserId(notification.getUserId());
         wsMessage.setTitle(notification.getTitle());
         wsMessage.setMessage(notification.getMessage());
@@ -382,7 +389,7 @@ public class NotificationServiceImpl implements NotificationService {
         wsMessage.setRelatedEntityType(notification.getRelatedEntityType());
         wsMessage.setData(notification.getData());
         wsMessage.setTimestamp(LocalDateTime.now());
-        
+
         webSocketService.sendNotificationToUser(notification.getUserId(), wsMessage);
     }
 
@@ -394,24 +401,23 @@ public class NotificationServiceImpl implements NotificationService {
             data.put("relatedEntityId", notification.getRelatedEntityId().toString());
             data.put("relatedEntityType", notification.getRelatedEntityType());
         }
-        
+
         firebaseService.sendPushNotificationToUser(
                 notification.getUserId(),
                 notification.getTitle(),
                 notification.getMessage(),
-                data
-        );
+                data);
     }
 
     private void updateNotificationStatus(Long notificationId, String status) {
         Notification notification = notificationRepository.findById(notificationId)
                 .orElseThrow(() -> new RuntimeException("Notification not found"));
-        
+
         notification.setStatus(status);
         if (NotificationConstants.STATUS_SENT.equals(status)) {
             notification.setSentAt(LocalDateTime.now());
         }
-        
+
         notificationRepository.save(notification);
         // redisService.removeCachedNotification(notificationId);
     }
