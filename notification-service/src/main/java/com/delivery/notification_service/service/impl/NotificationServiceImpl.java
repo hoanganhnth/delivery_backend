@@ -277,6 +277,7 @@ public class NotificationServiceImpl implements NotificationService {
         data.put("distance", distance);
         data.put("estimatedPrice", estimatedPrice);
         data.put("estimatedTime", estimatedTime);
+        data.put("orderId", orderId);
         Gson gson = new Gson();
         String json = gson.toJson(data);
         request.setData(json);

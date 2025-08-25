@@ -58,7 +58,7 @@ public class KafkaConfig {
 
         // Manual acknowledgment for reliability
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
-        factory.setAutoStartup(false); //NEED REMOVE
+        // factory.setAutoStartup(false); //NEED REMOVE
         // Error handling
         factory.setCommonErrorHandler(new org.springframework.kafka.listener.DefaultErrorHandler());
 

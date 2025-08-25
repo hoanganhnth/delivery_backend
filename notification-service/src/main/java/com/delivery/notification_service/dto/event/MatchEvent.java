@@ -10,7 +10,7 @@ import java.time.LocalDateTime;
 @Data
 public class MatchEvent {
     
-    private Long matchId;
+    private String matchId;
     private Long orderId;
     private Long userId;
     private Long shipperId;

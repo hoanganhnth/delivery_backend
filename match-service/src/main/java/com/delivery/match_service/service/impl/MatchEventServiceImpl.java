@@ -174,15 +174,15 @@ public class MatchEventServiceImpl implements MatchEventService {
             return false;
         }
         
-        if (shipper.getShipperName() == null || shipper.getShipperName().trim().isEmpty()) {
-            log.warn("⚠️ Shipper name is null/empty for shipper: {}", shipper.getShipperId());
-            return false;
-        }
+        // if (shipper.getShipperName() == null || shipper.getShipperName().trim().isEmpty()) {
+        //     log.warn("⚠️ Shipper name is null/empty for shipper: {}", shipper.getShipperId());
+        //     return false;
+        // }
         
-        if (shipper.getShipperPhone() == null || shipper.getShipperPhone().trim().isEmpty()) {
-            log.warn("⚠️ Shipper phone is null/empty for shipper: {}", shipper.getShipperId());
-            return false;
-        }
+        // if (shipper.getShipperPhone() == null || shipper.getShipperPhone().trim().isEmpty()) {
+        //     log.warn("⚠️ Shipper phone is null/empty for shipper: {}", shipper.getShipperId());
+        //     return false;
+        // }
         
         if (shipper.getDistanceKm() < 0) {
             log.error("🚫 Invalid distance: {} for shipper: {}", shipper.getDistanceKm(), shipper.getShipperId());
@@ -211,10 +211,10 @@ public class MatchEventServiceImpl implements MatchEventService {
             return false;
         }
         
-        if (event.getRestaurantName() == null || event.getRestaurantName().trim().isEmpty()) {
-            log.warn("⚠️ Restaurant name is null/empty for delivery: {}", event.getDeliveryId());
-            return false;
-        }
+        // if (event.getRestaurantName() == null || event.getRestaurantName().trim().isEmpty()) {
+        //     log.warn("⚠️ Restaurant name is null/empty for delivery: {}", event.getDeliveryId());
+        //     return false;
+        // }
         
         if (event.getPickupAddress() == null || event.getPickupAddress().trim().isEmpty()) {
             log.error("🚫 Pickup address is null/empty for delivery: {}", event.getDeliveryId());

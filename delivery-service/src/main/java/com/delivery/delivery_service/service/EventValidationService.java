@@ -62,22 +62,22 @@ public class EventValidationService {
             errors.add("Delivery address phải có ít nhất 10 ký tự");
         }
         
-        if (event.getRestaurantName() == null || event.getRestaurantName().trim().length() < 2) {
-            errors.add("Restaurant name phải có ít nhất 2 ký tự");
-        }
+        // if (event.getRestaurantName() == null || event.getRestaurantName().trim().length() < 2) {
+        //     errors.add("Restaurant name phải có ít nhất 2 ký tự");
+        // }
         
         if (event.getRestaurantAddress() == null || event.getRestaurantAddress().trim().length() < 10) {
             errors.add("Restaurant address phải có ít nhất 10 ký tự");
         }
         
         // Validate customer info
-        if (event.getCustomerName() == null || event.getCustomerName().trim().length() < 2) {
-            errors.add("Customer name phải có ít nhất 2 ký tự");
-        }
+        // if (event.getCustomerName() == null || event.getCustomerName().trim().length() < 2) {
+        //     errors.add("Customer name phải có ít nhất 2 ký tự");
+        // }
         
-        if (event.getCustomerPhone() == null || !event.getCustomerPhone().matches("^[0-9]{10,11}$")) {
-            errors.add("Customer phone phải là 10-11 chữ số");
-        }
+        // if (event.getCustomerPhone() == null || !event.getCustomerPhone().matches("^[0-9]{10,11}$")) {
+        //     errors.add("Customer phone phải là 10-11 chữ số");
+        // }
         
         // Validate coordinates if present
         if (event.getDeliveryLat() != null && (event.getDeliveryLat() < -90 || event.getDeliveryLat() > 90)) {
@@ -96,9 +96,9 @@ public class EventValidationService {
             errors.add("Pickup longitude phải trong khoảng -180 đến 180");
         }
         
-        if (event.getCreatedAt() == null) {
-            errors.add("Created at không được null");
-        }
+        // if (event.getCreatedAt() == null) {
+        //     errors.add("Created at không được null");
+        // }
         
         if (errors.isEmpty()) {
             log.debug("✅ OrderCreatedEvent validation passed for order: {}", event.getOrderId());

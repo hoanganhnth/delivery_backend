@@ -155,10 +155,10 @@ public class DeliveryServiceImpl implements DeliveryService {
         }
 
         // ✅ Validate pickup time if accepting
-        if (ShipperActionConstants.ACCEPT.equals(request.getAction()) &&
-                request.getEstimatedPickupTime() == null) {
-            throw new InvalidStatusException("Estimated pickup time is required when accepting delivery");
-        }
+        // if (ShipperActionConstants.ACCEPT.equals(request.getAction()) &&
+        //         request.getEstimatedPickupTime() == null) {
+        //     throw new InvalidStatusException("Estimated pickup time is required when accepting delivery");
+        // }
 
         // ✅ Find delivery by order ID
         Delivery delivery = deliveryRepository.findByOrderId(request.getOrderId())
