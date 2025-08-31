@@ -18,6 +18,9 @@ public class AuthAccount {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "user_id", nullable = true)
+    private Long userId;
+
     @Column(nullable = false)
     private String email;
 
@@ -92,5 +95,12 @@ public class AuthAccount {
 
     public LocalDateTime getUpdatedAt() {
         return updatedAt;
+    }
+    public Long getUserId() {
+        return userId;
+    }
+
+    public void setUserId(Long userId) {
+        this.userId = userId;
     }
 }

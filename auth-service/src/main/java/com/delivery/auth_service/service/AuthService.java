@@ -3,6 +3,10 @@ package com.delivery.auth_service.service;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -20,10 +24,13 @@ import com.delivery.auth_service.dto.LoginRequest;
 import com.delivery.auth_service.dto.RefreshTokenRequest;
 import com.delivery.auth_service.dto.RegisterRequest;
 import com.delivery.auth_service.dto.SessionInfoResponse;
+import com.delivery.auth_service.dto.UserResponse;
 import com.delivery.auth_service.entity.AuthAccount;
 import com.delivery.auth_service.entity.AuthSession;
+import com.delivery.auth_service.payload.BaseResponse;
 import com.delivery.auth_service.repository.AuthAccountRepository;
 import com.delivery.auth_service.repository.AuthSessionRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.RequiredArgsConstructor;
 
@@ -43,10 +50,12 @@ public class AuthService implements UserDetailsService {
      */
     @Transactional
     public AuthAccount register(RegisterRequest request) {
+        // 1. Kiểm tra email đã tồn tại
         if (authAccountRepository.findByEmail(request.getEmail()).isPresent()) {
             throw new RuntimeException("Email already registered");
         }
 
+        // 2. Kiểm tra role
         if (request.getRole() == null || request.getRole().isBlank()) {
             throw new RuntimeException("Role is required");
         }
@@ -58,6 +67,7 @@ public class AuthService implements UserDetailsService {
             throw new RuntimeException("Invalid role: " + request.getRole());
         }
 
+        // 3. Tạo AuthAccount
         AuthAccount account = new AuthAccount();
         account.setEmail(request.getEmail());
         account.setPasswordHash(passwordEncoder.encode(request.getPassword()));
@@ -65,18 +75,44 @@ public class AuthService implements UserDetailsService {
 
         authAccountRepository.save(account);
 
+        // 4. Gọi user-service để tạo user
         CreateUserRequest userRequest = new CreateUserRequest(
                 account.getId(),
                 account.getEmail(),
                 account.getRole().name());
 
         try {
-            restTemplate.postForObject(userServiceConfig.getRegisterUrl(), userRequest, Void.class);
-            System.out.println("✅ User created in user-service");
+            ResponseEntity<BaseResponse<UserResponse>> responseEntity = restTemplate.exchange(
+                    userServiceConfig.getRegisterUrl(),
+                    HttpMethod.POST,
+                    new HttpEntity<>(userRequest),
+                    new ParameterizedTypeReference<BaseResponse<UserResponse>>() {
+                    });
+
+            BaseResponse<UserResponse> response = responseEntity.getBody();
+
+            if (response == null || response.getStatus() != 1) {
+                String msg = (response != null) ? response.getMessage() : "Unknown error";
+                throw new RuntimeException("Failed to create user in user-service: " + msg);
+            }
+
+            UserResponse userResponse = response.getData();
+
+            // 5. Update userId lại cho AuthAccount
+            if (userResponse != null && userResponse.getId() != null) {
+                account.setUserId(userResponse.getId());
+                authAccountRepository.save(account);
+            } else {
+                throw new RuntimeException("Failed to create user in user-service: userId is null");
+            }
+
+            System.out.println("✅ User created in user-service with userId = " + userResponse.getId());
+
         } catch (RestClientException e) {
             System.err.println("❌ Failed to create user in user-service: " + e.getMessage());
             throw new RuntimeException("Failed to create user in user-service", e);
         }
+
         return account;
     }
 
@@ -95,8 +131,10 @@ public class AuthService implements UserDetailsService {
 
         deactivateSessions(account, request.getDeviceId());
 
-        String accessToken = tokenService.generateToken(1, account.getEmail(), account.getRole().name());
-        String refreshToken = tokenService.generateRefreshToken(1, account.getEmail(), account.getRole().name());
+        String accessToken = tokenService.generateToken(account.getUserId(), account.getEmail(),
+                account.getRole().name());
+        String refreshToken = tokenService.generateRefreshToken(account.getUserId(), account.getEmail(),
+                account.getRole().name());
 
         AuthSession session = new AuthSession();
         session.setAuthAccount(account);
@@ -135,8 +173,10 @@ public class AuthService implements UserDetailsService {
 
         AuthAccount account = session.getAuthAccount();
 
-        String newAccessToken = tokenService.generateToken(1, account.getEmail(), account.getRole().name());
-        String newRefreshToken = tokenService.generateRefreshToken(1, account.getEmail(), account.getRole().name());
+        String newAccessToken = tokenService.generateToken(account.getUserId(), account.getEmail(),
+                account.getRole().name());
+        String newRefreshToken = tokenService.generateRefreshToken(account.getUserId(), account.getEmail(),
+                account.getRole().name());
 
         session.setRefreshToken(newRefreshToken);
         session.setLastLoginAt(LocalDateTime.now());

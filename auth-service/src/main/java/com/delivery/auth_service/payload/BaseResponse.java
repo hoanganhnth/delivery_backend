@@ -1,11 +1,15 @@
 package com.delivery.auth_service.payload;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 @Getter
+@NoArgsConstructor              // 👈 thêm constructor rỗng
+@AllArgsConstructor  
 public class BaseResponse<T> {
-    private final int status;      // 1 = success, 0 = failure
-    private final String message;  // Success/error message
-    private final T data;          // Response data
+    private  int status;      // 1 = success, 0 = failure
+    private  String message;  // Success/error message
+    private  T data;          // Response data
     
     public BaseResponse(int status, T data, String message) {
         this.status = status;

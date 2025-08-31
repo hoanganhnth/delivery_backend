@@ -50,7 +50,7 @@ public class TokenService {
         return KeyFactory.getInstance("RSA").generatePublic(spec);
     }
 
-   public String generateToken(int userId, String email, String role) {
+   public String generateToken(Long userId, String email, String role) {
     return Jwts.builder()
             .setSubject(String.valueOf(userId)) // có thể dùng userId làm subject
             .claim("email", email)
@@ -61,7 +61,7 @@ public class TokenService {
             .compact();
 }
 
-public String generateRefreshToken(int userId, String email, String role) {
+public String generateRefreshToken(Long userId, String email, String role) {
     return Jwts.builder()
             .setSubject(String.valueOf(userId)) // có thể dùng userId làm subject
             .claim("email", email)

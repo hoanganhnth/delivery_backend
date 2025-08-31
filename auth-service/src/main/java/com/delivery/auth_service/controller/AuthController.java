@@ -53,7 +53,7 @@ public class AuthController {
     @PostMapping("/logout")
     public ResponseEntity<BaseResponse<Void>> logout(@RequestBody RefreshTokenRequest request) {
         authService.logout(request.getRefreshToken());
-        return ResponseEntity.ok(new BaseResponse<>(1, null, "Logout successful"));
+        return ResponseEntity.ok(new BaseResponse<Void>(1, null, "Logout successful"));
     }
 
     @GetMapping("/sessions")
@@ -78,7 +78,7 @@ public class AuthController {
             @RequestHeader(value = "Internal-Token", required = false) String token) {
 
         if (token == null || !token.equals("GATEWAY_INTERNAL_SECRET_ABC123")) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new BaseResponse<>(0, null, "Forbidden"));
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new BaseResponse<AuthAccountDto>(0, null, "Forbidden"));
         }
 
         AuthAccountDto dto = authService.getAccountByEmailDto(email);
