@@ -33,9 +33,9 @@ public class AuthController {
     private final AuthService authService;
 
     @PostMapping("/register")
-    public ResponseEntity<BaseResponse<AuthAccount>> register(@RequestBody RegisterRequest request) {
+    public ResponseEntity<BaseResponse<Boolean>> register(@RequestBody RegisterRequest request) {
         AuthAccount account = authService.register(request);
-        return ResponseEntity.ok(new BaseResponse<>(1, account, "Account registered successfully"));
+        return ResponseEntity.ok(new BaseResponse<>(1, true, "Account registered successfully"));
     }
 
     @PostMapping("/login")

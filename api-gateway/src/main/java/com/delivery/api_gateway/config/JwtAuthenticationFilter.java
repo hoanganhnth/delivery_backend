@@ -40,8 +40,8 @@ public class JwtAuthenticationFilter extends AbstractGatewayFilterFactory<JwtAut
                         .build()
                         .parseClaimsJws(token)
                         .getBody();
-    String userId = claims.getSubject();  
-                    String role = claims.get("role", String.class);
+                String userId = claims.getSubject();
+                String role = claims.get("role", String.class);
                 exchange = exchange.mutate()
                         .request(r -> r.headers(headers -> {
                             headers.add("X-User-Id", userId);
@@ -52,6 +52,7 @@ public class JwtAuthenticationFilter extends AbstractGatewayFilterFactory<JwtAut
                 System.out.println("✅ Authenticated userId=" + userId + ", role=" + role);
 
             } catch (JwtException e) {
+                System.out.println("❌ Invalid JWT: " + e.getMessage());
                 exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
                 return exchange.getResponse().setComplete();
             }

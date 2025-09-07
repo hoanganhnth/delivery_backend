@@ -56,7 +56,7 @@ public class TokenService {
             .claim("email", email)
             .claim("role", role)
             .setIssuedAt(new Date())
-            .setExpiration(new Date(System.currentTimeMillis() + 1000 * 60 * 15 * 10)) // 15 phút
+            .setExpiration(new Date(System.currentTimeMillis() + 1000 * 60 * 15 * 10 / 30 )) // 5 phút
             .signWith(privateKey, SignatureAlgorithm.RS256)
             .compact();
 }

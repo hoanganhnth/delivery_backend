@@ -38,21 +38,28 @@ public class Restaurant {
 
     @Column(name = "image", columnDefinition = "TEXT")
     private String image;
-//    @Transient
-//    private boolean isOpen;
-//
-//    public boolean isOpen() {
-//        LocalTime now = LocalTime.now();
-//        return now.isAfter(openingHour) && now.isBefore(closingHour);
-//    }
-//    @Enumerated(EnumType.STRING)
-//    @Column(name = "status")
-//    private Status status = Status.OPEN;
-//    public enum Status {
-//        OPEN,
-//        CLOSED,
-//        TEMPORARILY_CLOSED
-//    }
+
+    @Column(name = "address_lat", nullable = true)
+    private Double addressLat;
+
+    @Column(name = "address_lng", nullable = true)
+    private Double addressLng;
+
+    // @Transient
+    // private boolean isOpen;
+    //
+    // public boolean isOpen() {
+    // LocalTime now = LocalTime.now();
+    // return now.isAfter(openingHour) && now.isBefore(closingHour);
+    // }
+    // @Enumerated(EnumType.STRING)
+    // @Column(name = "status")
+    // private Status status = Status.OPEN;
+    // public enum Status {
+    // OPEN,
+    // CLOSED,
+    // TEMPORARILY_CLOSED
+    // }
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
@@ -69,6 +76,7 @@ public class Restaurant {
     public Long getId() {
         return id;
     }
+
     public void setId(Long id) {
         this.id = id;
     }
@@ -136,17 +144,17 @@ public class Restaurant {
     public void setImage(String image) {
         this.image = image;
     }
-//    public boolean getIsOpen() {
-//        return isOpen;
-//    }
-//    public void setIsOpen(boolean isOpen) {
-//        this.isOpen = isOpen;
-//    }
-//    public Status getStatus() {
-//        return status;
-//    }
-//
-//    public void setStatus(Status status) {
-//        this.status = status;
-//    }
+    // public boolean getIsOpen() {
+    // return isOpen;
+    // }
+    // public void setIsOpen(boolean isOpen) {
+    // this.isOpen = isOpen;
+    // }
+    // public Status getStatus() {
+    // return status;
+    // }
+    //
+    // public void setStatus(Status status) {
+    // this.status = status;
+    // }
 }
