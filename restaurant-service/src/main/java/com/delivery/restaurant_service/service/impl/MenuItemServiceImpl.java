@@ -30,11 +30,9 @@ public class MenuItemServiceImpl implements MenuItemService {
     @Autowired
     private RestaurantRepository restaurantRepository;
 
-
     @Override
     public MenuItemResponse createMenuItem(CreateMenuItemRequest request, Long creatorId, String role) {
         // Check if the creatorId matches the restaurant's creatorId
-
 
         if (role == null || !RoleConstants.ALLOWED_CREATORS.contains(role.toUpperCase())) {
             throw new AccessDeniedException("Only ADMIN or OWNER can create menu items");
@@ -44,6 +42,9 @@ public class MenuItemServiceImpl implements MenuItemService {
         }
         Restaurant restaurant = restaurantRepository.findById(request.getRestaurantId())
                 .orElseThrow(() -> new ResourceNotFoundException("Restaurant not found"));
+        if (!restaurant.getCreatorId().equals(creatorId) && !role.equalsIgnoreCase(RoleConstants.ADMIN)) {
+            throw new AccessDeniedException("Creator does not have permission to add items to this restaurant");
+        }
         MenuItem item = menuItemMapper.toEntity(request);
         item.setRestaurant(restaurant);
         MenuItem saved = menuItemRepository.save(item);
@@ -52,7 +53,8 @@ public class MenuItemServiceImpl implements MenuItemService {
 
     @Override
     public MenuItemResponse updateMenuItem(Long id, UpdateMenuItemRequest request, Long creatorId) {
-        MenuItem item = menuItemRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("MenuItem not found"));
+        MenuItem item = menuItemRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("MenuItem not found"));
         checkPermission(item, creatorId);
         menuItemMapper.updateEntityFromDto(request, item);
         MenuItem updated = menuItemRepository.save(item);
@@ -61,7 +63,8 @@ public class MenuItemServiceImpl implements MenuItemService {
 
     @Override
     public void deleteMenuItem(Long id, Long creatorId) {
-        MenuItem item = menuItemRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("MenuItem not found"));
+        MenuItem item = menuItemRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("MenuItem not found"));
 
         checkPermission(item, creatorId);
 
@@ -70,12 +73,14 @@ public class MenuItemServiceImpl implements MenuItemService {
 
     @Override
     public List<MenuItemResponse> getItemsByRestaurant(Long restaurantId) {
-        return menuItemRepository.findByRestaurantId(restaurantId).stream().map(menuItemMapper::toResponse).collect(Collectors.toList());
+        return menuItemRepository.findByRestaurantId(restaurantId).stream().map(menuItemMapper::toResponse)
+                .collect(Collectors.toList());
     }
 
     @Override
     public List<MenuItemResponse> getAvailableItems(Long restaurantId) {
-        return menuItemRepository.findByRestaurantIdAndStatus(restaurantId, MenuItem.Status.AVAILABLE).stream().map(menuItemMapper::toResponse).collect(Collectors.toList());
+        return menuItemRepository.findByRestaurantIdAndStatus(restaurantId, MenuItem.Status.AVAILABLE).stream()
+                .map(menuItemMapper::toResponse).collect(Collectors.toList());
     }
 
     private void checkPermission(MenuItem item, Long creatorId) {

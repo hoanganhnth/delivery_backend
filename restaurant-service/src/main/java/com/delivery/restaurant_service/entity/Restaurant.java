@@ -18,6 +18,9 @@ public class Restaurant {
     @Column(columnDefinition = "TEXT")
     private String address;
 
+    @Column(columnDefinition = "TEXT")
+    private String description;
+
     @Column(length = 20)
     private String phone;
 

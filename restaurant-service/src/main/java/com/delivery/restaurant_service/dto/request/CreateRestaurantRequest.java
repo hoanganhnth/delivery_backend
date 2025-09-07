@@ -17,5 +17,6 @@ public class CreateRestaurantRequest {
     private String image;
     private Double addressLat;
     private Double addressLng; 
+    private String description;
 
 }

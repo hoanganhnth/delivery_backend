@@ -23,7 +23,7 @@ public class GatewayRouteConfig {
                         .filters(f -> f.filter(jwtFilter.apply(new JwtAuthenticationFilter.Config())))
                         .uri("http://localhost:8082"))
 
-                .route("restaurant-service", r -> r.path("/api/restaurants/**")
+                .route("restaurant-service", r -> r.path("/api/**")
                         .filters(f -> f.filter(jwtFilter.apply(new JwtAuthenticationFilter.Config())))
                         .uri("http://localhost:8083"))
 
