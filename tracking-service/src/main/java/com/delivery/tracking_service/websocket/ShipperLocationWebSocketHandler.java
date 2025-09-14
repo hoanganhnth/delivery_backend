@@ -54,7 +54,7 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
         String sessionId = session.getId();
         String payload = message.getPayload();
 
-        try {
+        try { 
             // Parse message từ client
             @SuppressWarnings("unchecked")
             Map<String, Object> clientMessage = objectMapper.readValue(payload, Map.class);
@@ -205,15 +205,16 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
 
         if (subscribers != null && !subscribers.isEmpty()) {
             try {
-                Map<String, Object> locationUpdate = Map.of(
-                        "type", "location_update",
-                        "shipperId", location.getShipperId(),
-                        "latitude", location.getLatitude(),
-                        "longitude", location.getLongitude(),
-                        "isOnline", location.getIsOnline(),
-                        "speed", location.getSpeed() != null ? location.getSpeed() : 0.0,
-                        "heading", location.getHeading() != null ? location.getHeading() : 0.0,
-                        "timestamp", location.getUpdatedAt());
+                // Sử dụng HashMap thay vì Map.of() để tránh NullPointerException
+                Map<String, Object> locationUpdate = new java.util.HashMap<>();
+                locationUpdate.put("type", "location_update");
+                locationUpdate.put("shipperId", location.getShipperId());
+                locationUpdate.put("latitude", location.getLatitude());
+                locationUpdate.put("longitude", location.getLongitude());
+                locationUpdate.put("isOnline", location.getIsOnline() != null ? location.getIsOnline() : false);
+                locationUpdate.put("speed", location.getSpeed() != null ? location.getSpeed() : 0.0);
+                locationUpdate.put("heading", location.getHeading() != null ? location.getHeading() : 0.0);
+                locationUpdate.put("timestamp", location.getUpdatedAt() != null ? location.getUpdatedAt() : "");
 
                 String message = objectMapper.writeValueAsString(locationUpdate);
 
@@ -247,15 +248,16 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
         }
 
         try {
-            Map<String, Object> locationUpdate = Map.of(
-                    "type", "area_location_update",
-                    "shipperId", location.getShipperId(),
-                    "latitude", location.getLatitude(),
-                    "longitude", location.getLongitude(),
-                    "isOnline", location.getIsOnline(),
-                    "speed", location.getSpeed() != null ? location.getSpeed() : 0.0,
-                    "heading", location.getHeading() != null ? location.getHeading() : 0.0,
-                    "timestamp", location.getUpdatedAt());
+            // Sử dụng HashMap thay vì Map.of() để tránh NullPointerException
+            Map<String, Object> locationUpdate = new java.util.HashMap<>();
+            locationUpdate.put("type", "area_location_update");
+            locationUpdate.put("shipperId", location.getShipperId());
+            locationUpdate.put("latitude", location.getLatitude());
+            locationUpdate.put("longitude", location.getLongitude());
+            locationUpdate.put("isOnline", location.getIsOnline() != null ? location.getIsOnline() : false);
+            locationUpdate.put("speed", location.getSpeed() != null ? location.getSpeed() : 0.0);
+            locationUpdate.put("heading", location.getHeading() != null ? location.getHeading() : 0.0);
+            locationUpdate.put("timestamp", location.getUpdatedAt() != null ? location.getUpdatedAt() : "");
 
             String message = objectMapper.writeValueAsString(locationUpdate);
 
