@@ -24,7 +24,7 @@ public class DeliveryWebSocketService {
      */
     public void sendDeliveryUpdateToCustomer(Long userId, DeliveryResponse delivery) {
         try {
-            String destination = "/topic/customer/" + userId + "/delivery";
+            String destination = "/topic/delivery/" + delivery.getOrderId();
 
             log.info("📡 Sending delivery update to customer {} via WebSocket: {}",
                     userId, delivery.getStatus());
