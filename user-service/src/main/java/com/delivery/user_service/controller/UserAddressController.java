@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api")
+@RequestMapping("/api/addresses")
 @RequiredArgsConstructor
 public class UserAddressController {
 
@@ -26,7 +26,7 @@ public class UserAddressController {
     }
 
 
-    @GetMapping("/addresses/{id}")
+    @GetMapping("/{id}")
     public ResponseEntity<BaseResponse<UserAddressResponse>> getAddress(@PathVariable Long id) {
         UserAddressResponse address = addressService.getAddressById(id);
         return ResponseEntity.ok(new BaseResponse<>(1, address));
@@ -41,7 +41,7 @@ public class UserAddressController {
     }
 
 
-    @PutMapping("/addresses/{id}")
+    @PutMapping("/{id}")
     public ResponseEntity<BaseResponse<UserAddressResponse>> updateAddress(@PathVariable Long id,
             @Valid @RequestBody UserAddressRequest request) {
         UserAddressResponse address = addressService.updateAddress(id, request);
@@ -49,14 +49,14 @@ public class UserAddressController {
     }
 
 
-    @DeleteMapping("/addresses/{id}")
+    @DeleteMapping("/{id}")
     public ResponseEntity<BaseResponse<Void>> deleteAddress(@PathVariable Long id) {
         addressService.deleteAddress(id);
         return ResponseEntity.ok(new BaseResponse<>(1, null, "Xóa địa chỉ thành công"));
     }
 
 
-    @PatchMapping("/addresses/{id}/default")
+    @PatchMapping("/{id}/default")
     public ResponseEntity<BaseResponse<UserAddressResponse>> setDefault(@PathVariable Long id) {
         UserAddressResponse address = addressService.setDefaultAddress(id);
         return ResponseEntity.ok(new BaseResponse<>(1, address));
