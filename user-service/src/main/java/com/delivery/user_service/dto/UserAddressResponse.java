@@ -13,6 +13,8 @@ public class UserAddressResponse {
     private Long id;
     private Long userId;
     private String label;
+    private String recipientName;
+    private String phoneNumber;
     private String addressLine;
     private String ward;
     private String district;

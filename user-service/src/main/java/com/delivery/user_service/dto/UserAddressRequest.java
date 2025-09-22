@@ -9,6 +9,8 @@ import lombok.*;
 @Builder
 public class UserAddressRequest {
     private String label;
+    private String recipientName;
+    private String phoneNumber;
     private String addressLine;
     private String ward;
     private String district;

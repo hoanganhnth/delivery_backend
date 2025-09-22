@@ -26,6 +26,8 @@ public class UserAddressServiceImpl implements UserAddressService {
                 .id(address.getId())
                 .userId(address.getUserId())
                 .label(address.getLabel())
+                .recipientName(address.getRecipientName())
+                .phoneNumber(address.getPhoneNumber())
                 .addressLine(address.getAddressLine())
                 .ward(address.getWard())
                 .district(address.getDistrict())
@@ -66,6 +68,8 @@ public class UserAddressServiceImpl implements UserAddressService {
         UserAddress address = UserAddress.builder()
                 .userId(userId)
                 .label(req.getLabel())
+                .recipientName(req.getRecipientName())
+                .phoneNumber(req.getPhoneNumber())
                 .addressLine(req.getAddressLine())
                 .ward(req.getWard())
                 .district(req.getDistrict())
@@ -84,6 +88,8 @@ public class UserAddressServiceImpl implements UserAddressService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Address not found"));
 
         address.setLabel(req.getLabel());
+        address.setRecipientName(req.getRecipientName());
+        address.setPhoneNumber(req.getPhoneNumber());
         address.setAddressLine(req.getAddressLine());
         address.setWard(req.getWard());
         address.setDistrict(req.getDistrict());
