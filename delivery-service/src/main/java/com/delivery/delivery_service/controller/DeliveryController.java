@@ -63,14 +63,14 @@ public class DeliveryController {
     /**
      * GET /delivery/:id/track - Lấy trạng thái đơn, vị trí shipper
      */
-    @GetMapping("/{id}/track")
-    public ResponseEntity<BaseResponse<DeliveryTrackingResponse>> trackDelivery(
-            @PathVariable Long id,
-            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId,
-            @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
-        DeliveryTrackingResponse response = deliveryService.getDeliveryTracking(id, userId, role);
-        return ResponseEntity.ok(new BaseResponse<>(1, response, "Lấy thông tin tracking thành công"));
-    }
+    // @GetMapping("/{id}/track")
+    // public ResponseEntity<BaseResponse<DeliveryTrackingResponse>> trackDelivery(
+    //         @PathVariable Long id,
+    //         @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId,
+    //         @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
+    //     DeliveryTrackingResponse response = deliveryService.getDeliveryTracking(id, userId, role);
+    //     return ResponseEntity.ok(new BaseResponse<>(1, response, "Lấy thông tin tracking thành công"));
+    // }
 
     /**
      * GET /:id - Lấy thông tin delivery

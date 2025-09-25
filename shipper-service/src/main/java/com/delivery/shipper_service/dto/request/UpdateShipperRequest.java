@@ -6,16 +6,20 @@ public class UpdateShipperRequest {
     private String idCard;
     private String driverImage;
     private Boolean isOnline;
+    private String phone;
 
     // Constructors
-    public UpdateShipperRequest() {}
+    public UpdateShipperRequest() {
+    }
 
-    public UpdateShipperRequest(String vehicleType, String licenseNumber, String idCard, String driverImage, Boolean isOnline) {
+    public UpdateShipperRequest(String vehicleType, String licenseNumber, String idCard, String driverImage,
+            Boolean isOnline,  String phone) {
         this.vehicleType = vehicleType;
         this.licenseNumber = licenseNumber;
         this.idCard = idCard;
         this.driverImage = driverImage;
         this.isOnline = isOnline;
+        this.phone = phone;
     }
 
     // Getters and Setters
@@ -57,5 +61,14 @@ public class UpdateShipperRequest {
 
     public void setIsOnline(Boolean isOnline) {
         this.isOnline = isOnline;
+    }
+
+  
+    public String getPhone() {
+        return phone;
+    }
+
+    public void setPhone(String phone) {
+        this.phone = phone;
     }
 }

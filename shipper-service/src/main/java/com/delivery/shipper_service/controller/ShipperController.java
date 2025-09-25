@@ -64,7 +64,7 @@ public class ShipperController {
     // Admin endpoints
     @GetMapping("/{id}")
     public ResponseEntity<BaseResponse<ShipperResponse>> getById(@PathVariable Long id) {
-        ShipperResponse response = shipperService.getShipperById(id);
+        ShipperResponse response = shipperService.getShipperByUserId(id);
         return ResponseEntity.ok(new BaseResponse<>(1, response));
     }
 

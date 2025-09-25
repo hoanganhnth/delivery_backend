@@ -28,11 +28,11 @@ public class GatewayRouteConfig {
                                                                 jwtFilter.apply(new JwtAuthenticationFilter.Config())))
                                                 .uri("http://localhost:8082"))
 
-                                .route("restaurant-service", r -> r.path("/api/restaurants**")
+                                .route("restaurant-service", r -> r.path("/api/restaurants/**")
                                                 .filters(f -> f.filter(
                                                                 jwtFilter.apply(new JwtAuthenticationFilter.Config())))
                                                 .uri("http://localhost:8083"))
-                                .route("restaurant-service", r -> r.path("/api/menu-items**")
+                                .route("restaurant-service", r -> r.path("/api/menu-items/**")
                                                 .filters(f -> f.filter(
                                                                 jwtFilter.apply(new JwtAuthenticationFilter.Config())))
                                                 .uri("http://localhost:8083"))

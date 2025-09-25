@@ -16,12 +16,13 @@ public class CreateShipperRequest {
     // Constructors
     public CreateShipperRequest() {}
 
-    public CreateShipperRequest(Long userId, String vehicleType, String licenseNumber, String idCard, String driverImage) {
+    public CreateShipperRequest(Long userId, String vehicleType, String licenseNumber, String idCard, String driverImage, String phone) {
         // this.userId = userId;
         this.vehicleType = vehicleType;
         this.licenseNumber = licenseNumber;
         this.idCard = idCard;
         this.driverImage = driverImage;
+        this.phone = phone;
     }
 
    

@@ -107,6 +107,14 @@ public class Shipper {
         this.idCard = idCard;
     }
 
+    public String getPhone() {
+        return phone;
+    }
+
+    public void setPhone(String phone) {
+        this.phone = phone;
+    }
+
     public String getDriverImage() {
         return driverImage;
     }
