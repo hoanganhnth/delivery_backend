@@ -9,21 +9,26 @@ import com.delivery.restaurant_service.exception.ResourceNotFoundException;
 import com.delivery.restaurant_service.mapper.RestaurantMapper;
 import com.delivery.restaurant_service.repository.RestaurantRepository;
 import com.delivery.restaurant_service.service.RestaurantService;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.delivery.restaurant_service.service.RestaurantCacheService;
+import com.delivery.restaurant_service.service.RestaurantCatalogService;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
+@RequiredArgsConstructor
+@Slf4j
 public class RestaurantServiceImpl implements RestaurantService {
-    // Gọi hàm isOpen trước khi trả về đối tượng Restaurant để đảm bảo trạng thái mở/đóng được cập nhật.
-    @Autowired
-    private RestaurantRepository restaurantRepository;
-
-    @Autowired
-    private RestaurantMapper restaurantMapper;
+    
+    private final RestaurantRepository restaurantRepository;
+    private final RestaurantMapper restaurantMapper;
+    private final RestaurantCacheService restaurantCacheService;
+    private final RestaurantCatalogService restaurantCatalogService;
 
     @Override
     public RestaurantResponse createRestaurant(CreateRestaurantRequest request,
@@ -36,10 +41,21 @@ public class RestaurantServiceImpl implements RestaurantService {
         if (creatorId == null) {
             throw new AccessDeniedException("You must be authenticated to create a restaurant");
         }
+        
         Restaurant restaurant = restaurantMapper.toEntity(request);
         restaurant.setCreatorId(creatorId);
 
         Restaurant saved = restaurantRepository.save(restaurant);
+        
+        // 🔥 Cache restaurant data after creation
+        try {
+            restaurantCacheService.cacheRestaurant(saved);
+            restaurantCatalogService.cacheRestaurantForHomeFeed(saved, Collections.emptyList());
+            log.info("✅ Cached new restaurant: {} (ID: {})", saved.getName(), saved.getId());
+        } catch (Exception e) {
+            log.warn("⚠️ Failed to cache restaurant after creation: {}", e.getMessage());
+        }
+        
         return restaurantMapper.toResponse(saved);
     }
 
@@ -50,8 +66,19 @@ public class RestaurantServiceImpl implements RestaurantService {
         if (!existingRestaurant.getCreatorId().equals(creatorId)) {
             throw new AccessDeniedException("You are not allowed to update this restaurant");
         }
-        restaurantMapper.updateEntityFromDto(request, existingRestaurant); // cập nhật các trường từ DTO
+        
+        restaurantMapper.updateEntityFromDto(request, existingRestaurant);
         Restaurant updated = restaurantRepository.save(existingRestaurant);
+        
+        // 🔥 Update cache after modification
+        try {
+            restaurantCacheService.cacheRestaurant(updated);
+            restaurantCatalogService.cacheRestaurantForHomeFeed(updated, Collections.emptyList());
+            log.info("🔄 Updated cache for restaurant: {} (ID: {})", updated.getName(), updated.getId());
+        } catch (Exception e) {
+            log.warn("⚠️ Failed to update cache after restaurant update: {}", e.getMessage());
+        }
+        
         return restaurantMapper.toResponse(updated);
     }
 
@@ -62,6 +89,15 @@ public class RestaurantServiceImpl implements RestaurantService {
 
         if (!restaurant.getCreatorId().equals(creatorId)) {
             throw new AccessDeniedException("You are not allowed to delete this restaurant");
+        }
+
+        // 🔥 Remove from cache before deletion
+        try {
+            restaurantCacheService.removeRestaurantFromCache(id);
+            restaurantCatalogService.removeRestaurantFromCatalog(id);
+            log.info("🗑️ Removed restaurant from cache: {} (ID: {})", restaurant.getName(), id);
+        } catch (Exception e) {
+            log.warn("⚠️ Failed to remove restaurant from cache: {}", e.getMessage());
         }
 
         restaurantRepository.deleteById(id);
@@ -89,5 +125,26 @@ public class RestaurantServiceImpl implements RestaurantService {
         return restaurants.stream()
                 .map(restaurantMapper::toResponse)
                 .collect(Collectors.toList());
+    }
+    
+    /**
+     * Update restaurant availability và cache
+     */
+    public void updateRestaurantAvailability(Long restaurantId, boolean isAvailable, Long creatorId) {
+        Restaurant restaurant = restaurantRepository.findById(restaurantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Restaurant not found"));
+                
+        if (!restaurant.getCreatorId().equals(creatorId)) {
+            throw new AccessDeniedException("You are not allowed to update this restaurant availability");
+        }
+        
+        // 🔥 Update cache availability
+        try {
+            restaurantCacheService.updateRestaurantAvailability(restaurantId, isAvailable);
+            restaurantCatalogService.updateRestaurantAvailability(restaurantId, isAvailable, true);
+            log.info("🔄 Updated availability for restaurant: {} -> {}", restaurant.getName(), isAvailable);
+        } catch (Exception e) {
+            log.warn("⚠️ Failed to update restaurant availability in cache: {}", e.getMessage());
+        }
     }
 }
