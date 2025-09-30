@@ -2,36 +2,41 @@ package com.delivery.restaurant_service.controller;
 
 import com.delivery.restaurant_service.common.constants.ApiPathConstants;
 import com.delivery.restaurant_service.common.constants.HttpHeaderConstants;
-import com.delivery.restaurant_service.dto.request.ValidateOrderRequest;
-import com.delivery.restaurant_service.dto.response.OrderValidationResponse;
+import com.delivery.restaurant_service.dto.request.OrderValidationRequest;
+import com.delivery.restaurant_service.dto.response.OrderValidationResultResponse;
 import com.delivery.restaurant_service.payload.BaseResponse;
-import com.delivery.restaurant_service.service.OrderValidationService;
+import com.delivery.restaurant_service.service.OrderCacheValidationService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 /**
- * Controller tạm thời cho Order Validation
- * Thiết kế để dễ dàng di chuyển sang Catalog Service
+ * Controller cho Order Validation sử dụng OrderValidationRequest format
+ * Tích hợp với OrderCacheValidationService để validate từ Redis cache
  */
 @RestController
 @RequestMapping(ApiPathConstants.RESTAURANTS + "/validate")
 @RequiredArgsConstructor
+@Slf4j
 public class OrderValidationController {
     
-    private final OrderValidationService orderValidationService;
+    private final OrderCacheValidationService orderCacheValidationService;
     
     /**
-     * API validate order trước khi tạo
+     * API validate order với OrderValidationRequest format từ order-service
      * Endpoint: POST /api/restaurants/validate/order
      */
     @PostMapping("/order")
-    public ResponseEntity<BaseResponse<OrderValidationResponse>> validateOrder(
-            @RequestBody ValidateOrderRequest request,
+    public ResponseEntity<BaseResponse<OrderValidationResultResponse>> validateOrder(
+            @RequestBody OrderValidationRequest request,
             @RequestHeader(value = HttpHeaderConstants.X_USER_ID, required = false) Long userId,
             @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
         
-        OrderValidationResponse response = orderValidationService.validateOrder(request);
+        log.info("🔍 Validating order for restaurant: {} by user: {}", request.getRestaurantId(), userId);
+        
+        OrderValidationResultResponse response = 
+                orderCacheValidationService.validateOrderFromOrderService(request);
         
         String message = response.getIsValid() ? 
                 "Order validation thành công" : 
@@ -44,7 +49,7 @@ public class OrderValidationController {
     }
     
     /**
-     * API validate single menu item
+     * API validate single menu item (helper method)
      * Endpoint: POST /api/restaurants/validate/menu-item
      */
     @PostMapping("/menu-item")
@@ -55,7 +60,18 @@ public class OrderValidationController {
             @RequestHeader(value = HttpHeaderConstants.X_USER_ID, required = false) Long userId,
             @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
         
-        boolean isValid = orderValidationService.validateMenuItem(restaurantId, menuItemId, quantity);
+        log.info("🔍 Validating single menu item: {} for restaurant: {}", menuItemId, restaurantId);
+        
+        // Tạo OrderItemRequest để validate
+        OrderValidationRequest.OrderItemRequest item = OrderValidationRequest.OrderItemRequest.builder()
+                .menuItemId(menuItemId)
+                .quantity(quantity)
+                .build();
+        
+        OrderValidationResultResponse.ItemValidationInfo validation = 
+                orderCacheValidationService.validateMenuItem(restaurantId, item);
+        
+        boolean isValid = validation.getIsAvailable() && validation.getHasEnoughStock();
         
         return ResponseEntity.ok(new BaseResponse<>(
                 isValid ? 1 : 0,
@@ -64,16 +80,19 @@ public class OrderValidationController {
     }
     
     /**
-     * API calculate order total
+     * API calculate order total từ OrderValidationRequest
      * Endpoint: POST /api/restaurants/validate/calculate-total
      */
     @PostMapping("/calculate-total")
     public ResponseEntity<BaseResponse<Double>> calculateOrderTotal(
-            @RequestBody ValidateOrderRequest request,
+            @RequestBody OrderValidationRequest request,
             @RequestHeader(value = HttpHeaderConstants.X_USER_ID, required = false) Long userId,
             @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
         
-        Double total = orderValidationService.calculateOrderTotal(request);
+        log.info("🧮 Calculating total for restaurant: {} with {} items", 
+                request.getRestaurantId(), request.getItems().size());
+        
+        Double total = orderCacheValidationService.calculateTotalFromItems(request);
         
         return ResponseEntity.ok(new BaseResponse<>(1, total, "Tính tổng tiền thành công"));
     }
@@ -88,7 +107,9 @@ public class OrderValidationController {
             @RequestHeader(value = HttpHeaderConstants.X_USER_ID, required = false) Long userId,
             @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
         
-        boolean isOpen = orderValidationService.validateRestaurantOperatingHours(restaurantId);
+        log.info("🕐 Checking operating hours for restaurant: {}", restaurantId);
+        
+        boolean isOpen = orderCacheValidationService.isRestaurantAvailable(restaurantId);
         
         return ResponseEntity.ok(new BaseResponse<>(
                 isOpen ? 1 : 0,

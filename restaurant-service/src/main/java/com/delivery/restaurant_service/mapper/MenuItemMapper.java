@@ -13,7 +13,8 @@ public interface MenuItemMapper {
     @Mapping(target = "restaurant", ignore = true)
     @Mapping(target = "status", ignore = true)
     MenuItem toEntity(CreateMenuItemRequest request);
-
+    
+    @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "restaurant", ignore = true)
     void updateEntityFromDto(UpdateMenuItemRequest request, @MappingTarget MenuItem item);
