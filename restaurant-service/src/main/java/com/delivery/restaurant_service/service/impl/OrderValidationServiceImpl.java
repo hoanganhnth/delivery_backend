@@ -4,36 +4,24 @@ import com.delivery.restaurant_service.dto.request.ValidateOrderRequest;
 import com.delivery.restaurant_service.dto.response.OrderValidationResponse;
 import com.delivery.restaurant_service.service.OrderValidationService;
 import com.delivery.restaurant_service.service.RestaurantCacheService;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 /**
- * Implementation tạm thời trong restaurant-service
- * Thiết kế để dễ dàng tách thành Catalog Service độc lập
+ * Order validation service sử dụng RestaurantCacheService
+ * Không direct access Redis, tuân thủ service layer architecture
  */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class OrderValidationServiceImpl implements OrderValidationService {
     
-    private final RedisTemplate<String, Object> redisTemplate;
     private final RestaurantCacheService restaurantCacheService;
-    private final ObjectMapper objectMapper;
-    
-    // Redis Keys - thiết kế để tương thích với future Catalog Service
-    private static final String RESTAURANT_KEY_PREFIX = "catalog:restaurant:";
-    private static final String MENU_ITEM_KEY_PREFIX = "catalog:menu_item:";
-    private static final String RESTAURANT_MENU_KEY_PREFIX = "catalog:restaurant_menu:";
     
     @Override
     public OrderValidationResponse validateOrder(ValidateOrderRequest request) {
@@ -76,44 +64,9 @@ public class OrderValidationServiceImpl implements OrderValidationService {
     
     @Override
     public boolean validateMenuItem(Long restaurantId, Long menuItemId, Integer quantity) {
-        try {
-            String menuItemKey = MENU_ITEM_KEY_PREFIX + menuItemId;
-            Map<String, Object> menuItem = (Map<String, Object>) redisTemplate.opsForValue().get(menuItemKey);
-            
-            if (menuItem == null) {
-                log.warn("❌ Menu item not found in cache: {}", menuItemId);
-                return false;
-            }
-            
-            // Kiểm tra menu item thuộc restaurant này không
-            Long itemRestaurantId = Long.valueOf(menuItem.get("restaurantId").toString());
-            if (!itemRestaurantId.equals(restaurantId)) {
-                log.warn("❌ Menu item {} does not belong to restaurant {}", menuItemId, restaurantId);
-                return false;
-            }
-            
-            // Kiểm tra available
-            Boolean isAvailable = (Boolean) menuItem.get("isAvailable");
-            if (Boolean.FALSE.equals(isAvailable)) {
-                log.warn("❌ Menu item {} is not available", menuItemId);
-                return false;
-            }
-            
-            // Kiểm tra stock nếu có
-            Integer stock = menuItem.get("stock") != null ? 
-                    Integer.valueOf(menuItem.get("stock").toString()) : null;
-            if (stock != null && stock < quantity) {
-                log.warn("❌ Insufficient stock for menu item {}: {} < {}", 
-                        menuItemId, stock, quantity);
-                return false;
-            }
-            
-            return true;
-            
-        } catch (Exception e) {
-            log.error("💥 Error validating menu item {}: {}", menuItemId, e.getMessage());
-            return false;
-        }
+        log.debug("🔍 Validating menu item: {} for restaurant: {} with quantity: {}", 
+                menuItemId, restaurantId, quantity);
+        return restaurantCacheService.isMenuItemAvailable(restaurantId, menuItemId, quantity);
     }
     
     @Override
@@ -121,7 +74,7 @@ public class OrderValidationServiceImpl implements OrderValidationService {
         double total = 0.0;
         
         for (ValidateOrderRequest.OrderItemValidationRequest item : request.getItems()) {
-            Double itemPrice = getMenuItemPrice(item.getMenuItemId());
+            Double itemPrice = restaurantCacheService.getMenuItemPrice(item.getMenuItemId());
             if (itemPrice != null) {
                 total += itemPrice * item.getQuantity();
             }
@@ -132,37 +85,8 @@ public class OrderValidationServiceImpl implements OrderValidationService {
     
     @Override
     public boolean validateRestaurantOperatingHours(Long restaurantId) {
-        try {
-            String restaurantKey = RESTAURANT_KEY_PREFIX + restaurantId;
-            Map<String, Object> restaurant = (Map<String, Object>) redisTemplate.opsForValue().get(restaurantKey);
-            
-            if (restaurant == null) {
-                return false;
-            }
-            
-            Boolean isOpen = (Boolean) restaurant.get("isOpen");
-            if (Boolean.FALSE.equals(isOpen)) {
-                return false;
-            }
-            
-            // Kiểm tra giờ mở cửa
-            String openTime = (String) restaurant.get("openTime");
-            String closeTime = (String) restaurant.get("closeTime");
-            
-            if (openTime != null && closeTime != null) {
-                LocalTime now = LocalTime.now();
-                LocalTime open = LocalTime.parse(openTime, DateTimeFormatter.ofPattern("HH:mm"));
-                LocalTime close = LocalTime.parse(closeTime, DateTimeFormatter.ofPattern("HH:mm"));
-                
-                return now.isAfter(open) && now.isBefore(close);
-            }
-            
-            return true;
-            
-        } catch (Exception e) {
-            log.error("💥 Error validating restaurant operating hours: {}", e.getMessage());
-            return false;
-        }
+        log.debug("🔍 Validating operating hours for restaurant: {}", restaurantId);
+        return restaurantCacheService.isRestaurantAvailable(restaurantId);
     }
     
     // Private helper methods
@@ -170,8 +94,7 @@ public class OrderValidationServiceImpl implements OrderValidationService {
     private OrderValidationResponse.RestaurantValidationInfo validateRestaurantInfo(
             Long restaurantId, List<OrderValidationResponse.ValidationError> errors) {
         
-        String restaurantKey = RESTAURANT_KEY_PREFIX + restaurantId;
-        Map<String, Object> restaurant = (Map<String, Object>) redisTemplate.opsForValue().get(restaurantKey);
+        Map<String, Object> restaurant = restaurantCacheService.getRestaurantFromCache(restaurantId);
         
         if (restaurant == null) {
             errors.add(OrderValidationResponse.ValidationError.builder()
@@ -183,12 +106,12 @@ public class OrderValidationServiceImpl implements OrderValidationService {
             return null;
         }
         
-        Boolean isOpen = validateRestaurantOperatingHours(restaurantId);
+        Boolean isAvailable = restaurantCacheService.isRestaurantAvailable(restaurantId);
         
         return OrderValidationResponse.RestaurantValidationInfo.builder()
                 .restaurantId(restaurantId)
                 .restaurantName((String) restaurant.get("name"))
-                .isOpen(isOpen)
+                .isOpen(isAvailable)
                 .operatingHours(restaurant.get("openTime") + " - " + restaurant.get("closeTime"))
                 .isAvailable((Boolean) restaurant.get("isAvailable"))
                 .build();
@@ -197,7 +120,7 @@ public class OrderValidationServiceImpl implements OrderValidationService {
     private Double validateOrderItem(ValidateOrderRequest.OrderItemValidationRequest item, 
                                    Long restaurantId, List<OrderValidationResponse.ValidationError> errors) {
         
-        Double itemPrice = getMenuItemPrice(item.getMenuItemId());
+        Double itemPrice = restaurantCacheService.getMenuItemPrice(item.getMenuItemId());
         
         if (itemPrice == null) {
             errors.add(OrderValidationResponse.ValidationError.builder()
@@ -222,8 +145,8 @@ public class OrderValidationServiceImpl implements OrderValidationService {
                     .build());
         }
         
-        // Validate menu item
-        if (!validateMenuItem(restaurantId, item.getMenuItemId(), item.getQuantity())) {
+        // Validate menu item availability
+        if (!restaurantCacheService.isMenuItemAvailable(restaurantId, item.getMenuItemId(), item.getQuantity())) {
             errors.add(OrderValidationResponse.ValidationError.builder()
                     .field("menuItem")
                     .errorCode("MENU_ITEM_INVALID")
@@ -233,21 +156,5 @@ public class OrderValidationServiceImpl implements OrderValidationService {
         }
         
         return itemPrice * item.getQuantity();
-    }
-    
-    private Double getMenuItemPrice(Long menuItemId) {
-        try {
-            String menuItemKey = MENU_ITEM_KEY_PREFIX + menuItemId;
-            Map<String, Object> menuItem = (Map<String, Object>) redisTemplate.opsForValue().get(menuItemKey);
-            
-            if (menuItem != null && menuItem.get("price") != null) {
-                return Double.valueOf(menuItem.get("price").toString());
-            }
-            
-            return null;
-        } catch (Exception e) {
-            log.error("💥 Error getting menu item price: {}", e.getMessage());
-            return null;
-        }
     }
 }

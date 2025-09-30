@@ -8,6 +8,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -144,6 +146,159 @@ public class RestaurantCacheServiceImpl implements RestaurantCacheService {
             
         } catch (Exception e) {
             log.error("💥 Error updating menu item {} availability: {}", menuItemId, e.getMessage());
+        }
+    }
+    
+    // ===============================
+    // GETTER METHODS FOR VALIDATION
+    // ===============================
+    
+    @Override
+    public Map<String, Object> getRestaurantFromCache(Long restaurantId) {
+        try {
+            String key = RESTAURANT_KEY_PREFIX + restaurantId;
+            return (Map<String, Object>) redisTemplate.opsForValue().get(key);
+        } catch (Exception e) {
+            log.error("💥 Error getting restaurant {} from cache: {}", restaurantId, e.getMessage());
+            return null;
+        }
+    }
+    
+    @Override
+    public Map<String, Object> getMenuItemFromCache(Long menuItemId) {
+        try {
+            String key = MENU_ITEM_KEY_PREFIX + menuItemId;
+            return (Map<String, Object>) redisTemplate.opsForValue().get(key);
+        } catch (Exception e) {
+            log.error("💥 Error getting menu item {} from cache: {}", menuItemId, e.getMessage());
+            return null;
+        }
+    }
+    
+    @Override
+    public boolean isRestaurantInCache(Long restaurantId) {
+        try {
+            String key = RESTAURANT_KEY_PREFIX + restaurantId;
+            return Boolean.TRUE.equals(redisTemplate.hasKey(key));
+        } catch (Exception e) {
+            log.error("💥 Error checking restaurant {} existence: {}", restaurantId, e.getMessage());
+            return false;
+        }
+    }
+    
+    @Override
+    public boolean isMenuItemInCache(Long menuItemId) {
+        try {
+            String key = MENU_ITEM_KEY_PREFIX + menuItemId;
+            return Boolean.TRUE.equals(redisTemplate.hasKey(key));
+        } catch (Exception e) {
+            log.error("💥 Error checking menu item {} existence: {}", menuItemId, e.getMessage());
+            return false;
+        }
+    }
+    
+    @Override
+    public Double getMenuItemPrice(Long menuItemId) {
+        try {
+            Map<String, Object> menuItem = getMenuItemFromCache(menuItemId);
+            if (menuItem != null && menuItem.get("price") != null) {
+                return Double.valueOf(menuItem.get("price").toString());
+            }
+            return null;
+        } catch (Exception e) {
+            log.error("💥 Error getting menu item {} price: {}", menuItemId, e.getMessage());
+            return null;
+        }
+    }
+    
+    @Override
+    public boolean isRestaurantAvailable(Long restaurantId) {
+        try {
+            Map<String, Object> restaurant = getRestaurantFromCache(restaurantId);
+            if (restaurant == null) {
+                return false;
+            }
+            
+            // Kiểm tra isAvailable
+            Boolean isAvailable = (Boolean) restaurant.get("isAvailable");
+            if (Boolean.FALSE.equals(isAvailable)) {
+                return false;
+            }
+            
+            // Kiểm tra isOpen
+            Boolean isOpen = (Boolean) restaurant.get("isOpen");
+            if (Boolean.FALSE.equals(isOpen)) {
+                return false;
+            }
+            
+            // Kiểm tra operating hours
+            return checkOperatingHours(restaurant);
+            
+        } catch (Exception e) {
+            log.error("💥 Error checking restaurant {} availability: {}", restaurantId, e.getMessage());
+            return false;
+        }
+    }
+    
+    @Override
+    public boolean isMenuItemAvailable(Long restaurantId, Long menuItemId, Integer quantity) {
+        try {
+            Map<String, Object> menuItem = getMenuItemFromCache(menuItemId);
+            if (menuItem == null) {
+                log.warn("❌ Menu item not found in cache: {}", menuItemId);
+                return false;
+            }
+            
+            // Kiểm tra menu item thuộc restaurant này không
+            Long itemRestaurantId = Long.valueOf(menuItem.get("restaurantId").toString());
+            if (!itemRestaurantId.equals(restaurantId)) {
+                log.warn("❌ Menu item {} does not belong to restaurant {}", menuItemId, restaurantId);
+                return false;
+            }
+            
+            // Kiểm tra available
+            Boolean isAvailable = (Boolean) menuItem.get("isAvailable");
+            if (Boolean.FALSE.equals(isAvailable)) {
+                log.warn("❌ Menu item {} is not available", menuItemId);
+                return false;
+            }
+            
+            // Kiểm tra stock nếu có
+            Integer stock = menuItem.get("stock") != null ? 
+                    Integer.valueOf(menuItem.get("stock").toString()) : null;
+            if (stock != null && stock < quantity) {
+                log.warn("❌ Insufficient stock for menu item {}: {} < {}", 
+                        menuItemId, stock, quantity);
+                return false;
+            }
+            
+            return true;
+            
+        } catch (Exception e) {
+            log.error("💥 Error validating menu item {}: {}", menuItemId, e.getMessage());
+            return false;
+        }
+    }
+    
+    // Private helper method để check operating hours
+    private boolean checkOperatingHours(Map<String, Object> restaurant) {
+        try {
+            String openTime = (String) restaurant.get("openTime");
+            String closeTime = (String) restaurant.get("closeTime");
+            
+            if (openTime != null && closeTime != null) {
+                LocalTime now = LocalTime.now();
+                LocalTime open = LocalTime.parse(openTime, DateTimeFormatter.ofPattern("HH:mm"));
+                LocalTime close = LocalTime.parse(closeTime, DateTimeFormatter.ofPattern("HH:mm"));
+                
+                return now.isAfter(open) && now.isBefore(close);
+            }
+            
+            return true; // Nếu không có thời gian hoạt động thì coi như luôn mở
+            
+        } catch (Exception e) {
+            log.error("💥 Error checking operating hours: {}", e.getMessage());
+            return false;
         }
     }
 }
