@@ -3,6 +3,7 @@ package com.delivery.delivery_service.listener;
 import com.delivery.delivery_service.common.constants.KafkaTopicConstants;
 import com.delivery.delivery_service.dto.event.OrderCreatedEvent;
 import com.delivery.delivery_service.dto.event.OrderCancelledEvent;
+import com.delivery.delivery_service.dto.event.ShipperNotFoundEvent;
 import com.delivery.delivery_service.service.DeliveryService;
 import com.delivery.delivery_service.service.EventValidationService;
 import lombok.extern.slf4j.Slf4j;
@@ -119,6 +120,46 @@ public class OrderEventListener {
         } catch (Exception e) {
             log.error("💥 Error processing OrderCancelledEvent for order: {} - Error: {}", 
                      event.getOrderId(), e.getMessage(), e);
+            
+            // Acknowledge để tránh infinite retry
+            acknowledgment.acknowledge();
+        }
+    }
+    
+    /**
+     * ✅ Lắng nghe ShipperNotFoundEvent từ match-service và cập nhật delivery status
+     */
+    @KafkaListener(topics = KafkaTopicConstants.SHIPPER_NOT_FOUND_TOPIC)
+    public void handleShipperNotFoundEvent(
+            @Payload ShipperNotFoundEvent event,
+            @Header(KafkaHeaders.RECEIVED_TOPIC) String topic,
+            @Header(KafkaHeaders.RECEIVED_PARTITION) Integer partition,
+            @Header(KafkaHeaders.RECEIVED_TIMESTAMP) Long timestamp,
+            Acknowledgment acknowledgment) {
+        
+        try {
+            log.info("📥 Received ShipperNotFoundEvent for delivery: {}, order: {} from topic: {} partition: {} timestamp: {}",
+                    event.getDeliveryId(), event.getOrderId(), topic, partition, timestamp);
+            
+            // ✅ Validate event data
+            if (event.getDeliveryId() == null || event.getOrderId() == null) {
+                log.error("💥 Invalid ShipperNotFoundEvent: deliveryId or orderId is null");
+                acknowledgment.acknowledge();
+                return;
+            }
+            
+            // ✅ Cập nhật delivery status thành SHIPPER_NOT_FOUND
+            deliveryService.updateDeliveryStatusFromShipperNotFoundEvent(event);
+            
+            log.info("✅ Successfully processed ShipperNotFoundEvent for delivery: {} - Updated status to SHIPPER_NOT_FOUND", 
+                    event.getDeliveryId());
+            
+            // Manual acknowledgment
+            acknowledgment.acknowledge();
+            
+        } catch (Exception e) {
+            log.error("💥 Error processing ShipperNotFoundEvent for delivery: {} - Error: {}", 
+                     event.getDeliveryId(), e.getMessage(), e);
             
             // Acknowledge để tránh infinite retry
             acknowledgment.acknowledge();

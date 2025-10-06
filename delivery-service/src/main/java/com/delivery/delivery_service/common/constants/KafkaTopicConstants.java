@@ -9,6 +9,7 @@ public class KafkaTopicConstants {
     public static final String ORDER_CREATED_TOPIC = "order.created";
     public static final String ORDER_UPDATED_TOPIC = "order.updated";
     public static final String ORDER_CANCELLED_TOPIC = "order.cancelled";
+    public static final String SHIPPER_NOT_FOUND_TOPIC = "shipper.not-found";
     
     // ✅ Outgoing topics to other services
     public static final String FIND_SHIPPER_TOPIC = "delivery.find-shipper";

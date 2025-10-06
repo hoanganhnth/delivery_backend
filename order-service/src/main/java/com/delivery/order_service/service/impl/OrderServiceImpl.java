@@ -4,6 +4,7 @@ import com.delivery.order_service.common.constants.RoleConstants;
 import com.delivery.order_service.dto.request.CreateOrderRequest;
 import com.delivery.order_service.dto.request.UpdateOrderRequest;
 import com.delivery.order_service.dto.response.OrderResponse;
+import com.delivery.order_service.dto.event.ShipperNotFoundEvent;
 import com.delivery.order_service.entity.Order;
 import com.delivery.order_service.entity.OrderItem;
 import com.delivery.order_service.exception.AccessDeniedException;
@@ -14,6 +15,7 @@ import com.delivery.order_service.repository.OrderRepository;
 import com.delivery.order_service.service.OrderEventPublisher;
 import com.delivery.order_service.service.OrderService;
 import com.delivery.order_service.service.OrderValidationService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,6 +23,7 @@ import java.math.BigDecimal;
 import java.util.List;
 
 @Service
+@Slf4j
 public class OrderServiceImpl implements OrderService {
 
     private final OrderRepository orderRepository;
@@ -317,6 +320,49 @@ public class OrderServiceImpl implements OrderService {
         // Không cho phép hủy nếu đã có shipper được gán
         if (order.getShipperId() != null) {
             throw new IllegalStateException("Không thể hủy đơn hàng đã được gán cho shipper");
+        }
+    }
+    
+    /**
+     * ✅ Cập nhật order status khi không tìm được shipper
+     */
+    @Override
+    @Transactional
+    public void updateOrderStatusFromShipperNotFoundEvent(ShipperNotFoundEvent event) {
+        try {
+            log.info("🔄 Processing ShipperNotFoundEvent for order: {}, delivery: {}", 
+                    event.getOrderId(), event.getDeliveryId());
+            
+            // Tìm order theo orderId
+            Order order = orderRepository.findById(event.getOrderId())
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Order not found with id: " + event.getOrderId()));
+            
+            // Chỉ cập nhật nếu order đang ở trạng thái phù hợp (PENDING, CONFIRMED)
+            if (!"PENDING".equals(order.getStatus()) && !"CONFIRMED".equals(order.getStatus())) {
+                log.warn("⚠️ Order {} not in PENDING/CONFIRMED status, current status: {}", 
+                        order.getId(), order.getStatus());
+                return;
+            }
+            
+            // Cập nhật status và note về việc không tìm được shipper
+            String previousStatus = order.getStatus();
+            order.setStatus("SHIPPER_NOT_FOUND");
+            order.setNotes("Không tìm được shipper sau " + event.getRetryAttempts() + " lần thử");
+            
+            orderRepository.save(order);
+            
+            log.info("✅ Updated order {} status from {} to SHIPPER_NOT_FOUND after {} retry attempts", 
+                    order.getId(), previousStatus, event.getRetryAttempts());
+            
+            // TODO: Có thể thêm logic để:
+            // 1. Notify customer về việc không tìm được shipper
+            // 2. Suggest alternative solutions (tăng tip, extend search radius)
+            // 3. Auto-retry sau một khoảng thời gian
+            
+        } catch (Exception e) {
+            log.error("💥 Error updating order status from ShipperNotFoundEvent for order: {}: {}", 
+                     event.getOrderId(), e.getMessage(), e);
         }
     }
 }

@@ -2,9 +2,11 @@ package com.delivery.match_service.listener;
 
 import com.delivery.match_service.common.constants.KafkaTopicConstants;
 import com.delivery.match_service.dto.event.FindShipperEvent;
+import com.delivery.match_service.dto.event.ShipperNotFoundEvent;
 import com.delivery.match_service.dto.request.FindNearbyShippersRequest;
 import com.delivery.match_service.service.MatchService;
 import com.delivery.match_service.service.MatchEventService;
+import com.delivery.match_service.service.MatchEventPublisher;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;
@@ -31,6 +33,7 @@ public class FindShipperEventListener {
 
     private final MatchService matchService;
     private final MatchEventService matchEventService;
+    private final MatchEventPublisher matchEventPublisher;
 
     // ✅ Retry configuration constants
     private static final int MAX_RETRY_ATTEMPTS = 10; // Tối đa 10 lần retry
@@ -39,9 +42,11 @@ public class FindShipperEventListener {
     private static final double BACKOFF_MULTIPLIER = 1.5; // Tăng delay theo exponential
 
     // ✅ Constructor Injection Pattern (MANDATORY)
-    public FindShipperEventListener(MatchService matchService, MatchEventService matchEventService) {
+    public FindShipperEventListener(MatchService matchService, MatchEventService matchEventService, 
+                                   MatchEventPublisher matchEventPublisher) {
         this.matchService = matchService;
         this.matchEventService = matchEventService;
+        this.matchEventPublisher = matchEventPublisher;
     }
 
     /**
@@ -133,8 +138,20 @@ public class FindShipperEventListener {
                             acknowledgment.acknowledge();
                         },
                         error -> {
-                            log.error("� Failed to find shippers for delivery: {} after {} attempts - Error: {}",
+                            log.error("💥 Failed to find shippers for delivery: {} after {} attempts - Error: {}",
                                     event.getDeliveryId(), MAX_RETRY_ATTEMPTS, error.getMessage());
+
+                            // ✅ Bắn ShipperNotFoundEvent cho delivery-service và order-service
+                            ShipperNotFoundEvent notFoundEvent = new ShipperNotFoundEvent(
+                                    event.getDeliveryId(), 
+                                    event.getOrderId(), 
+                                    MAX_RETRY_ATTEMPTS
+                            );
+                            notFoundEvent.setSearchRadius(request.getRadiusKm());
+                            notFoundEvent.setPickupLat(request.getLatitude());
+                            notFoundEvent.setPickupLng(request.getLongitude());
+                            
+                            matchEventPublisher.publishShipperNotFoundEvent(notFoundEvent);
 
                             // ✅ After max retries, delegate with empty list
                             matchEventService.processShipperMatchResult(event, java.util.Collections.emptyList());

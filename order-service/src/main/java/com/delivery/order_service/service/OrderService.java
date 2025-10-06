@@ -1,5 +1,6 @@
 package com.delivery.order_service.service;
 
+import com.delivery.order_service.dto.event.ShipperNotFoundEvent;
 import com.delivery.order_service.dto.request.CreateOrderRequest;
 import com.delivery.order_service.dto.request.UpdateOrderRequest;
 import com.delivery.order_service.dto.response.OrderResponse;
@@ -67,4 +68,9 @@ public interface OrderService {
      * Hủy đơn hàng (chỉ khi đơn hàng mới tạo và chưa được gán shipper)
      */
     OrderResponse cancelOrder(Long orderId, Long userId, String role);
+    
+    /**
+     * ✅ Cập nhật order status khi không tìm được shipper
+     */
+    void updateOrderStatusFromShipperNotFoundEvent(ShipperNotFoundEvent event);
 }

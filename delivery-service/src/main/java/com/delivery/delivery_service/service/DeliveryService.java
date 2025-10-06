@@ -2,6 +2,7 @@ package com.delivery.delivery_service.service;
 
 import com.delivery.delivery_service.dto.event.OrderCreatedEvent;
 import com.delivery.delivery_service.dto.event.OrderCancelledEvent;
+import com.delivery.delivery_service.dto.event.ShipperNotFoundEvent;
 import com.delivery.delivery_service.dto.request.AcceptDeliveryRequest;
 import com.delivery.delivery_service.dto.request.AssignDeliveryRequest;
 import com.delivery.delivery_service.dto.response.DeliveryResponse;
@@ -21,6 +22,11 @@ public interface DeliveryService {
      * ✅ Hủy delivery và ngừng tìm shipper từ OrderCancelledEvent
      */
     void cancelDeliveryFromOrderCancelledEvent(OrderCancelledEvent event);
+    
+    /**
+     * ✅ Cập nhật delivery status khi không tìm được shipper
+     */
+    void updateDeliveryStatusFromShipperNotFoundEvent(ShipperNotFoundEvent event);
 
     /**
      * Gán shipper cho đơn hàng

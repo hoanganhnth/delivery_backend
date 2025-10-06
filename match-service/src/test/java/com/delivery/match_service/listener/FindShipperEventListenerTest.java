@@ -5,6 +5,7 @@ import com.delivery.match_service.dto.request.FindNearbyShippersRequest;
 import com.delivery.match_service.dto.response.NearbyShipperResponse;
 import com.delivery.match_service.service.MatchService;
 import com.delivery.match_service.service.MatchEventService;
+import com.delivery.match_service.service.MatchEventPublisher;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -34,6 +35,9 @@ class FindShipperEventListenerTest {
     private MatchEventService matchEventService;
 
     @Mock
+    private MatchEventPublisher matchEventPublisher;
+
+    @Mock
     private Acknowledgment acknowledgment;
 
     private FindShipperEventListener listener;
@@ -43,7 +47,7 @@ class FindShipperEventListenerTest {
     @BeforeEach
     void setUp() {
         // ✅ Constructor Injection (MANDATORY)
-        listener = new FindShipperEventListener(matchService, matchEventService);
+        listener = new FindShipperEventListener(matchService, matchEventService, matchEventPublisher);
 
         // Setup test event
         testEvent = new FindShipperEvent();

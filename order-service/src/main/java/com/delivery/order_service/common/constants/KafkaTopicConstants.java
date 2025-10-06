@@ -13,6 +13,7 @@ public class KafkaTopicConstants {
     
     // ✅ Topics mà Order Service consume từ services khác
     public static final String DELIVERY_STATUS_UPDATED_TOPIC = "delivery.status-updated";
+    public static final String SHIPPER_NOT_FOUND_TOPIC = "shipper.not-found";
     public static final String PAYMENT_COMPLETED_TOPIC = "payment.completed";
     public static final String PAYMENT_FAILED_TOPIC = "payment.failed";
     public static final String RESTAURANT_CONFIRMED_TOPIC = "restaurant.order-confirmed";

@@ -6,6 +6,7 @@ import com.delivery.delivery_service.dto.event.MatchAcceptedEvent;
 import com.delivery.delivery_service.dto.event.OrderCreatedEvent;
 import com.delivery.delivery_service.dto.event.OrderCancelledEvent;
 import com.delivery.delivery_service.dto.event.DeliveryCancelledEvent;
+import com.delivery.delivery_service.dto.event.ShipperNotFoundEvent;
 import com.delivery.delivery_service.common.constants.ShipperActionConstants;
 import com.delivery.delivery_service.dto.request.AcceptDeliveryRequest;
 import com.delivery.delivery_service.dto.request.AssignDeliveryRequest;
@@ -77,8 +78,8 @@ public class DeliveryServiceImpl implements DeliveryService {
             // Set notes
             delivery.setNotes(event.getNotes());
 
-            // Set initial status - PENDING (chờ assign shipper)
-            delivery.setStatus(DeliveryStatus.PENDING);
+            // Set initial status - FINDING_SHIPPER (tự động tìm shipper)
+            delivery.setStatus(DeliveryStatus.FINDING_SHIPPER);
 
             // Set timestamps
             delivery.setCreatedAt(LocalDateTime.now());
@@ -387,6 +388,8 @@ public class DeliveryServiceImpl implements DeliveryService {
                 delivery.setDeliveredAt(LocalDateTime.now());
                 break;
             case PENDING:
+            case FINDING_SHIPPER:
+            case SHIPPER_NOT_FOUND:
             case ASSIGNED:
             case DELIVERING:
             case CANCELLED:
@@ -398,7 +401,9 @@ public class DeliveryServiceImpl implements DeliveryService {
     private boolean isValidStatusTransition(DeliveryStatus currentStatus, DeliveryStatus newStatus) {
         // Định nghĩa các transition hợp lệ
         return switch (currentStatus) {
-            case PENDING -> newStatus == DeliveryStatus.ASSIGNED || newStatus == DeliveryStatus.CANCELLED;
+            case PENDING -> newStatus == DeliveryStatus.FINDING_SHIPPER || newStatus == DeliveryStatus.ASSIGNED || newStatus == DeliveryStatus.CANCELLED;
+            case FINDING_SHIPPER -> newStatus == DeliveryStatus.ASSIGNED || newStatus == DeliveryStatus.SHIPPER_NOT_FOUND || newStatus == DeliveryStatus.CANCELLED;
+            case SHIPPER_NOT_FOUND -> newStatus == DeliveryStatus.FINDING_SHIPPER || newStatus == DeliveryStatus.ASSIGNED || newStatus == DeliveryStatus.CANCELLED;
             case ASSIGNED -> newStatus == DeliveryStatus.PICKED_UP || newStatus == DeliveryStatus.CANCELLED;
             case PICKED_UP -> newStatus == DeliveryStatus.DELIVERING;
             case DELIVERING -> newStatus == DeliveryStatus.DELIVERED;
@@ -647,6 +652,54 @@ public class DeliveryServiceImpl implements DeliveryService {
             log.error("💥 Failed to publish stop matching event for delivery: {}: {}", 
                      delivery.getId(), e.getMessage(), e);
             // Don't fail main cancellation if event publishing fails
+        }
+    }
+    
+    /**
+     * ✅ Cập nhật delivery status khi không tìm được shipper
+     */
+    @Override
+    @Transactional
+    public void updateDeliveryStatusFromShipperNotFoundEvent(ShipperNotFoundEvent event) {
+        try {
+            log.info("🔄 Processing ShipperNotFoundEvent for delivery: {}, order: {}", 
+                    event.getDeliveryId(), event.getOrderId());
+            
+            // Tìm delivery theo deliveryId
+            Delivery delivery = deliveryRepository.findById(event.getDeliveryId())
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Delivery not found with id: " + event.getDeliveryId()));
+            
+            // Validate order ID match
+            if (!delivery.getOrderId().equals(event.getOrderId())) {
+                log.error("💥 Order ID mismatch: delivery.orderId={}, event.orderId={}", 
+                         delivery.getOrderId(), event.getOrderId());
+                return;
+            }
+            
+            // Chỉ cập nhật nếu delivery đang ở trạng thái FINDING_SHIPPER
+            if (delivery.getStatus() != DeliveryStatus.FINDING_SHIPPER) {
+                log.warn("⚠️ Delivery {} not in FINDING_SHIPPER status, current status: {}", 
+                        delivery.getId(), delivery.getStatus());
+                return;
+            }
+            
+            // Cập nhật status thành SHIPPER_NOT_FOUND
+            DeliveryStatus previousStatus = delivery.getStatus();
+            delivery.setStatus(DeliveryStatus.SHIPPER_NOT_FOUND);
+            delivery.setUpdatedAt(LocalDateTime.now());
+            
+            deliveryRepository.save(delivery);
+            
+            log.info("✅ Updated delivery {} status from {} to SHIPPER_NOT_FOUND after {} retry attempts", 
+                    delivery.getId(), previousStatus, event.getRetryAttempts());
+            
+            // TODO: Có thể thêm logic để notify customer về việc không tìm được shipper
+            // hoặc trigger retry mechanism sau một khoảng thời gian
+            
+        } catch (Exception e) {
+            log.error("💥 Error updating delivery status from ShipperNotFoundEvent for delivery: {}: {}", 
+                     event.getDeliveryId(), e.getMessage(), e);
         }
     }
 
