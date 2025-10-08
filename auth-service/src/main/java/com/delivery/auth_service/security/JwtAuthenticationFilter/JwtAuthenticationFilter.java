@@ -29,7 +29,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private static final Set<String> PUBLIC_PATHS = Set.of(
         "/api/auth/login",
         "/api/auth/register",
-        "/api/auth/refresh",
+        "/api/auth/refresh-token",
         "/api/auth/logout",
         "/error"
     );

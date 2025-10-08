@@ -50,28 +50,27 @@ public class TokenService {
         return KeyFactory.getInstance("RSA").generatePublic(spec);
     }
 
-   public String generateToken(Long userId, String email, String role) {
-    return Jwts.builder()
-            .setSubject(String.valueOf(userId)) // có thể dùng userId làm subject
-            .claim("email", email)
-            .claim("role", role)
-            .setIssuedAt(new Date())
-            .setExpiration(new Date(System.currentTimeMillis() + 1000 * 60 * 15 * 10 / 30 * 100 )) // 5 phút
-            .signWith(privateKey, SignatureAlgorithm.RS256)
-            .compact();
-}
+    public String generateToken(Long userId, String email, String role) {
+        return Jwts.builder()
+                .setSubject(String.valueOf(userId)) // có thể dùng userId làm subject
+                .claim("email", email)
+                .claim("role", role)
+                .setIssuedAt(new Date())
+                .setExpiration(new Date(System.currentTimeMillis() + 1000 * 60 * 15 * 10 / 30 * 100 / 5 / 10/10)) // 5 phút
+                .signWith(privateKey, SignatureAlgorithm.RS256)
+                .compact();
+    }
 
-public String generateRefreshToken(Long userId, String email, String role) {
-    return Jwts.builder()
-            .setSubject(String.valueOf(userId)) // có thể dùng userId làm subject
-            .claim("email", email)
-            .claim("role", role)
-            .setIssuedAt(new Date())
-            .setExpiration(new Date(System.currentTimeMillis() + 1000L * 60 * 60 * 24 * 7)) // 7 ngày
-            .signWith(privateKey, SignatureAlgorithm.RS256)
-            .compact();
-}
-
+    public String generateRefreshToken(Long userId, String email, String role) {
+        return Jwts.builder()
+                .setSubject(String.valueOf(userId)) // có thể dùng userId làm subject
+                .claim("email", email)
+                .claim("role", role)
+                .setIssuedAt(new Date())
+                .setExpiration(new Date(System.currentTimeMillis() + 1000L * 60 * 60 * 24 * 7)) // 7 ngày
+                .signWith(privateKey, SignatureAlgorithm.RS256)
+                .compact();
+    }
 
     public String extractEmail(String token) {
         return Jwts.parserBuilder()
