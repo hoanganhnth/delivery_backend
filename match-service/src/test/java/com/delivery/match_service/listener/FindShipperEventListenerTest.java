@@ -1,10 +1,10 @@
 package com.delivery.match_service.listener;
 
 import com.delivery.match_service.dto.event.FindShipperEvent;
+import com.delivery.match_service.dto.event.ShipperFoundEvent;
 import com.delivery.match_service.dto.request.FindNearbyShippersRequest;
 import com.delivery.match_service.dto.response.NearbyShipperResponse;
 import com.delivery.match_service.service.MatchService;
-import com.delivery.match_service.service.MatchEventService;
 import com.delivery.match_service.service.MatchEventPublisher;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -23,16 +23,14 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 /**
- * ✅ Test Continuous Shipper Search với Retry Mechanism
+ * ✅ Test Continuous Shipper Search với Simplified Event Architecture
+ * Chỉ test ShipperFoundEvent publishing, không có MatchEventService
  */
 @ExtendWith(MockitoExtension.class)
 class FindShipperEventListenerTest {
 
     @Mock
     private MatchService matchService;
-
-    @Mock
-    private MatchEventService matchEventService;
 
     @Mock
     private MatchEventPublisher matchEventPublisher;
@@ -46,8 +44,8 @@ class FindShipperEventListenerTest {
 
     @BeforeEach
     void setUp() {
-        // ✅ Constructor Injection (MANDATORY)
-        listener = new FindShipperEventListener(matchService, matchEventService, matchEventPublisher);
+        // ✅ Constructor Injection với simplified dependencies
+        listener = new FindShipperEventListener(matchService, matchEventPublisher);
 
         // Setup test event
         testEvent = new FindShipperEvent();
@@ -57,6 +55,9 @@ class FindShipperEventListenerTest {
         testEvent.setPickupLng(106.660172);
         testEvent.setDeliveryLat(10.775000);
         testEvent.setDeliveryLng(106.700000);
+        testEvent.setRestaurantName("Test Restaurant");
+        testEvent.setPickupAddress("123 Pickup St");
+        testEvent.setDeliveryAddress("456 Delivery Ave");
     }
 
     @Test
@@ -72,8 +73,8 @@ class FindShipperEventListenerTest {
         // When
         listener.handleFindShipperEvent(testEvent, "test-topic", 0, System.currentTimeMillis(), acknowledgment);
 
-        // Then
-        verify(matchEventService, timeout(1000)).processShipperMatchResult(testEvent, foundShippers);
+        // Then - Verify ShipperFoundEvent is published
+        verify(matchEventPublisher, timeout(1000)).publishShipperFoundEvent(any(ShipperFoundEvent.class));
         verify(acknowledgment, timeout(1000)).acknowledge();
     }
 
@@ -90,8 +91,8 @@ class FindShipperEventListenerTest {
         // When
         listener.handleFindShipperEvent(testEvent, "test-topic", 0, System.currentTimeMillis(), acknowledgment);
 
-        // Then
-        verify(matchEventService, timeout(35000)).processShipperMatchResult(testEvent, foundShippers);
+        // Then - Verify ShipperFoundEvent is published after retry
+        verify(matchEventPublisher, timeout(35000)).publishShipperFoundEvent(any(ShipperFoundEvent.class));
         verify(acknowledgment, timeout(35000)).acknowledge();
     }
 
@@ -104,9 +105,11 @@ class FindShipperEventListenerTest {
         // When
         listener.handleFindShipperEvent(testEvent, "test-topic", 0, System.currentTimeMillis(), acknowledgment);
 
-        // Then - Should eventually call with empty list after max retries
-        verify(matchEventService, timeout(60000)).processShipperMatchResult(testEvent, Collections.emptyList());
+        // Then - Should publish ShipperNotFoundEvent after max retries
+        verify(matchEventPublisher, timeout(60000)).publishShipperNotFoundEvent(any());
         verify(acknowledgment, timeout(60000)).acknowledge();
+        // Should not publish ShipperFoundEvent
+        verify(matchEventPublisher, never()).publishShipperFoundEvent(any());
     }
 
     @Test
@@ -118,9 +121,11 @@ class FindShipperEventListenerTest {
         // When
         listener.handleFindShipperEvent(testEvent, "test-topic", 0, System.currentTimeMillis(), acknowledgment);
 
-        // Then - Should not retry system errors, acknowledge immediately
-        verify(matchEventService, timeout(5000)).processShipperMatchResult(testEvent, Collections.emptyList());
+        // Then - Should not retry system errors, publish ShipperNotFoundEvent
+        verify(matchEventPublisher, timeout(5000)).publishShipperNotFoundEvent(any());
         verify(acknowledgment, timeout(5000)).acknowledge();
+        // Should not publish ShipperFoundEvent
+        verify(matchEventPublisher, never()).publishShipperFoundEvent(any());
     }
 
     @Test
@@ -135,16 +140,13 @@ class FindShipperEventListenerTest {
         // Then
         verify(acknowledgment, timeout(1000)).acknowledge();
         verifyNoInteractions(matchService);
-        verifyNoInteractions(matchEventService);
+        verifyNoInteractions(matchEventPublisher);
     }
 
     @Test 
     void testCreateFindShippersRequest_WithPickupLocation() {
-        // When - Call private method through reflection or use public wrapper
-        // This would test the createFindShippersRequest logic
-        
-        // Note: Since method is private, we test it indirectly through handleFindShipperEvent
-                when(matchService.findNearbyShippers(any(FindNearbyShippersRequest.class), anyLong(), anyString()))
+        // Given
+        when(matchService.findNearbyShippers(any(FindNearbyShippersRequest.class), anyLong(), anyString()))
                 .thenAnswer(invocation -> {
                     FindNearbyShippersRequest request = invocation.getArgument(0);
                     // Verify that pickup location is used
@@ -154,17 +156,22 @@ class FindShipperEventListenerTest {
                     assert request.getMaxShippers() == 10;
                     
                     return Mono.just(List.of(createTestShipper(1L, 10.763000, 106.661000)));
-                });        // When
+                });
+        
+        // When
         listener.handleFindShipperEvent(testEvent, "test-topic", 0, System.currentTimeMillis(), acknowledgment);
 
         // Then
         verify(matchService, timeout(1000)).findNearbyShippers(any(FindNearbyShippersRequest.class), anyLong(), anyString());
+        verify(matchEventPublisher, timeout(1000)).publishShipperFoundEvent(any(ShipperFoundEvent.class));
         verify(acknowledgment, timeout(1000)).acknowledge();
     }
 
     private NearbyShipperResponse createTestShipper(Long shipperId, Double lat, Double lng) {
         NearbyShipperResponse shipper = new NearbyShipperResponse();
         shipper.setShipperId(shipperId);
+        shipper.setShipperName("Shipper " + shipperId);
+        shipper.setShipperPhone("090123456" + shipperId);
         shipper.setLatitude(lat);
         shipper.setLongitude(lng);
         shipper.setDistanceKm(1.2);

@@ -3,9 +3,10 @@ package com.delivery.match_service.listener;
 import com.delivery.match_service.common.constants.KafkaTopicConstants;
 import com.delivery.match_service.dto.event.FindShipperEvent;
 import com.delivery.match_service.dto.event.ShipperNotFoundEvent;
+import com.delivery.match_service.dto.event.ShipperFoundEvent;
 import com.delivery.match_service.dto.request.FindNearbyShippersRequest;
+import com.delivery.match_service.dto.response.NearbyShipperResponse;
 import com.delivery.match_service.service.MatchService;
-import com.delivery.match_service.service.MatchEventService;
 import com.delivery.match_service.service.MatchEventPublisher;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -19,12 +20,12 @@ import reactor.util.retry.Retry;
 
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.List;
 
 /**
  * ✅ Kafka Event Listener cho Match Service theo Backend Instructions
- * Lắng nghe FindShipperEvent từ Delivery Service và delegate to
- * MatchEventService
- * Clean separation: Listener chỉ handle Kafka, business logic ở Service layer
+ * Lắng nghe FindShipperEvent từ Delivery Service và chỉ publish ShipperFoundEvent
+ * Simplified: Chỉ dùng 1 event duy nhất cho dễ quản lý
  * ✅ Retry mechanism: Tìm shipper liên tục nếu chưa tìm thấy
  */
 @Slf4j
@@ -32,7 +33,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class FindShipperEventListener {
 
     private final MatchService matchService;
-    private final MatchEventService matchEventService;
     private final MatchEventPublisher matchEventPublisher;
 
     // ✅ Retry configuration constants
@@ -42,10 +42,8 @@ public class FindShipperEventListener {
     private static final double BACKOFF_MULTIPLIER = 1.5; // Tăng delay theo exponential
 
     // ✅ Constructor Injection Pattern (MANDATORY)
-    public FindShipperEventListener(MatchService matchService, MatchEventService matchEventService, 
-                                   MatchEventPublisher matchEventPublisher) {
+    public FindShipperEventListener(MatchService matchService, MatchEventPublisher matchEventPublisher) {
         this.matchService = matchService;
-        this.matchEventService = matchEventService;
         this.matchEventPublisher = matchEventPublisher;
     }
 
@@ -131,8 +129,12 @@ public class FindShipperEventListener {
                             log.info("✅ Found {} nearby shippers for delivery: {} after {} attempts",
                                     shippers.size(), event.getDeliveryId(), attemptCount.get() + 1);
 
-                            // ✅ Delegate to MatchEventService for business logic
-                            matchEventService.processShipperMatchResult(event, shippers);
+                            // ✅ Chỉ bắn ShipperFoundEvent - cả delivery-service và notification-service sẽ listen
+                            ShipperFoundEvent foundEvent = createShipperFoundEvent(event, shippers);
+                            matchEventPublisher.publishShipperFoundEvent(foundEvent);
+
+                            log.info("✅ Published ShipperFoundEvent for delivery: {} with {} shippers - both delivery-service and notification-service will handle", 
+                                    event.getDeliveryId(), shippers.size());
 
                             // ✅ Acknowledge after successful processing
                             acknowledgment.acknowledge();
@@ -153,8 +155,8 @@ public class FindShipperEventListener {
                             
                             matchEventPublisher.publishShipperNotFoundEvent(notFoundEvent);
 
-                            // ✅ After max retries, delegate with empty list
-                            matchEventService.processShipperMatchResult(event, java.util.Collections.emptyList());
+                            log.info("✅ Published ShipperNotFoundEvent for delivery: {} after {} failed attempts", 
+                                    event.getDeliveryId(), MAX_RETRY_ATTEMPTS);
 
                             // ✅ Acknowledge even after failure to avoid infinite processing
                             acknowledgment.acknowledge();
@@ -196,5 +198,37 @@ public class FindShipperEventListener {
         request.setMaxShippers(10); // Tối đa 10 shippers
 
         return request;
+    }
+    
+    /**
+     * ✅ Convert tìm được shippers thành ShipperFoundEvent với đầy đủ thông tin
+     */
+    private ShipperFoundEvent createShipperFoundEvent(FindShipperEvent event, List<NearbyShipperResponse> shippers) {
+        List<ShipperFoundEvent.ShipperMatchResult> matchResults = shippers.stream()
+                .map(shipper -> new ShipperFoundEvent.ShipperMatchResult(
+                        shipper.getShipperId(),
+                        shipper.getShipperName() != null ? shipper.getShipperName() : "Shipper " + shipper.getShipperId(),
+                        shipper.getShipperPhone() != null ? shipper.getShipperPhone() : "N/A",
+                        shipper.getDistanceKm(),
+                        shipper.getLatitude(),
+                        shipper.getLongitude(),
+                        5.0, // Default rating
+                        shipper.isOnline()
+                ))
+                .collect(java.util.stream.Collectors.toList());
+        
+        // ✅ Tạo ShipperFoundEvent với đầy đủ thông tin cho cả delivery-service và notification-service
+        ShipperFoundEvent foundEvent = new ShipperFoundEvent(event.getDeliveryId(), event.getOrderId(), matchResults);
+        
+        // ✅ Set additional info từ FindShipperEvent
+        foundEvent.setRestaurantName(event.getRestaurantName());
+        foundEvent.setPickupAddress(event.getPickupAddress());
+        foundEvent.setDeliveryAddress(event.getDeliveryAddress());
+        foundEvent.setPickupLat(event.getPickupLat());
+        foundEvent.setPickupLng(event.getPickupLng());
+        foundEvent.setDeliveryLat(event.getDeliveryLat());
+        foundEvent.setDeliveryLng(event.getDeliveryLng());
+        
+        return foundEvent;
     }
 }

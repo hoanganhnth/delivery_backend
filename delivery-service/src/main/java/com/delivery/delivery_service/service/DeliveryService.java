@@ -67,4 +67,14 @@ public interface DeliveryService {
      * Lấy các delivery đang active của shipper
      */
     List<DeliveryResponse> getActiveDeliveriesByShipper(Long shipperId, Long userId, String role);
+    
+    /**
+     * ✅ Lấy delivery information cho retry mechanism (internal use)
+     */
+    DeliveryResponse getDeliveryForRetry(Long deliveryId);
+    
+    /**
+     * ✅ Retry tìm shipper sau khi acceptance timeout (triggered by Redis expiration)
+     */
+    void retryFindShipper(Long deliveryId);
 }

@@ -12,6 +12,7 @@ public class KafkaTopicConstants {
     
     // Topics match-service publishes to  
     public static final String SHIPPER_NOT_FOUND_TOPIC = "shipper.not-found";
+    public static final String SHIPPER_FOUND_TOPIC = "shipper.found";
     public static final String SHIPPER_MATCHED_TOPIC = "shipper.matched";
     public static final String NO_SHIPPER_AVAILABLE_TOPIC = "no.shipper.available";
     

@@ -22,6 +22,7 @@ import com.delivery.delivery_service.repository.DeliveryRepository;
 import com.delivery.delivery_service.service.DeliveryService;
 import com.delivery.delivery_service.service.DeliveryEventPublisher;
 import com.delivery.delivery_service.service.DeliveryWebSocketService;
+import com.delivery.delivery_service.service.DeliveryWaitingService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,16 +39,19 @@ public class DeliveryServiceImpl implements DeliveryService {
     private final DeliveryMapper deliveryMapper;
     private final DeliveryEventPublisher deliveryEventPublisher;
     private final DeliveryWebSocketService webSocketService;
+    private final DeliveryWaitingService deliveryWaitingService;
 
     // ✅ Constructor Injection Pattern (MANDATORY)
     public DeliveryServiceImpl(DeliveryRepository deliveryRepository,
             DeliveryMapper deliveryMapper,
             DeliveryEventPublisher deliveryEventPublisher,
-            DeliveryWebSocketService webSocketService) {
+            DeliveryWebSocketService webSocketService,
+            DeliveryWaitingService deliveryWaitingService) {
         this.deliveryRepository = deliveryRepository;
         this.deliveryMapper = deliveryMapper;
         this.deliveryEventPublisher = deliveryEventPublisher;
         this.webSocketService = webSocketService;
+        this.deliveryWaitingService = deliveryWaitingService;
     }
 
     @Override
@@ -389,6 +393,7 @@ public class DeliveryServiceImpl implements DeliveryService {
                 break;
             case PENDING:
             case FINDING_SHIPPER:
+            case WAIT_SHIPPER_CONFIRM:
             case SHIPPER_NOT_FOUND:
             case ASSIGNED:
             case DELIVERING:
@@ -402,12 +407,14 @@ public class DeliveryServiceImpl implements DeliveryService {
         // Định nghĩa các transition hợp lệ
         return switch (currentStatus) {
             case PENDING -> newStatus == DeliveryStatus.FINDING_SHIPPER || newStatus == DeliveryStatus.ASSIGNED || newStatus == DeliveryStatus.CANCELLED;
-            case FINDING_SHIPPER -> newStatus == DeliveryStatus.ASSIGNED || newStatus == DeliveryStatus.SHIPPER_NOT_FOUND || newStatus == DeliveryStatus.CANCELLED;
+            case FINDING_SHIPPER -> newStatus == DeliveryStatus.WAIT_SHIPPER_CONFIRM || newStatus == DeliveryStatus.ASSIGNED || newStatus == DeliveryStatus.SHIPPER_NOT_FOUND || newStatus == DeliveryStatus.CANCELLED;
+            case WAIT_SHIPPER_CONFIRM -> newStatus == DeliveryStatus.ASSIGNED || newStatus == DeliveryStatus.FINDING_SHIPPER || newStatus == DeliveryStatus.CANCELLED;
             case SHIPPER_NOT_FOUND -> newStatus == DeliveryStatus.FINDING_SHIPPER || newStatus == DeliveryStatus.ASSIGNED || newStatus == DeliveryStatus.CANCELLED;
             case ASSIGNED -> newStatus == DeliveryStatus.PICKED_UP || newStatus == DeliveryStatus.CANCELLED;
             case PICKED_UP -> newStatus == DeliveryStatus.DELIVERING;
             case DELIVERING -> newStatus == DeliveryStatus.DELIVERED;
             case DELIVERED, CANCELLED -> false; // Không thể thay đổi từ trạng thái cuối
+            default -> false;
         };
     }
 
@@ -700,6 +707,91 @@ public class DeliveryServiceImpl implements DeliveryService {
         } catch (Exception e) {
             log.error("💥 Error updating delivery status from ShipperNotFoundEvent for delivery: {}: {}", 
                      event.getDeliveryId(), e.getMessage(), e);
+        }
+    }
+    
+    @Override
+    public DeliveryResponse getDeliveryForRetry(Long deliveryId) {
+        try {
+            log.debug("🔍 Getting delivery for retry: {}", deliveryId);
+            
+            Delivery delivery = deliveryRepository.findById(deliveryId)
+                    .orElse(null);
+            
+            if (delivery == null) {
+                log.warn("⚠️ Delivery not found for retry: {}", deliveryId);
+                return null;
+            }
+            
+            // ✅ Only return deliveries that are eligible for retry
+            if (delivery.getStatus() == DeliveryStatus.WAIT_SHIPPER_CONFIRM || 
+                delivery.getStatus() == DeliveryStatus.FINDING_SHIPPER) {
+                
+                return deliveryMapper.deliveryToDeliveryResponse(delivery);
+            }
+            
+            log.warn("⚠️ Delivery {} not eligible for retry, current status: {}", 
+                    deliveryId, delivery.getStatus());
+            return null;
+            
+        } catch (Exception e) {
+            log.error("💥 Error getting delivery for retry: {}: {}", deliveryId, e.getMessage(), e);
+            return null;
+        }
+    }
+    
+    @Override
+    @Transactional
+    public void retryFindShipper(Long deliveryId) {
+        try {
+            log.info("🔄 Retrying shipper search for delivery: {} after acceptance timeout", deliveryId);
+            
+            Delivery delivery = deliveryRepository.findById(deliveryId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Delivery not found: " + deliveryId));
+            
+            // ✅ Validate current status allows retry
+            if (delivery.getStatus() != DeliveryStatus.WAIT_SHIPPER_CONFIRM) {
+                log.warn("⚠️ Cannot retry delivery {}, current status: {}", deliveryId, delivery.getStatus());
+                return;
+            }
+            
+            // ✅ Reset status back to FINDING_SHIPPER
+            delivery.setStatus(DeliveryStatus.FINDING_SHIPPER);
+            delivery.setUpdatedAt(LocalDateTime.now());
+            deliveryRepository.save(delivery);
+            
+            // ✅ Remove any remaining waiting state
+            deliveryWaitingService.removeWaitingState(deliveryId);
+            
+            // ✅ Publish FindShipperEvent with retry flag
+            FindShipperEvent retryEvent = new FindShipperEvent(
+                    delivery.getId(),
+                    delivery.getOrderId(),
+                    delivery.getPickupAddress(),
+                    delivery.getPickupLat(),
+                    delivery.getPickupLng(),
+                    delivery.getDeliveryAddress(),
+                    delivery.getDeliveryLat(),
+                    delivery.getDeliveryLng(),
+                    delivery.getEstimatedDeliveryTime(),
+                    delivery.getNotes(),
+                    delivery.getCreatedAt()
+            );
+            
+            // ✅ Set retry-specific fields
+            retryEvent.setSessionId(UUID.randomUUID().toString());
+            retryEvent.setIsRetry(true);
+            retryEvent.setRetryCount(1);  // TODO: Track retry count in database
+            retryEvent.setMaxRetries(3);  // TODO: Make configurable
+            
+            deliveryEventPublisher.publishFindShipperEvent(retryEvent);
+            
+            log.info("✅ Successfully triggered shipper retry for delivery: {}", deliveryId);
+            
+        } catch (ResourceNotFoundException e) {
+            log.error("💥 Delivery not found for retry: {}", deliveryId);
+        } catch (Exception e) {
+            log.error("💥 Error retrying shipper search for delivery: {}: {}", deliveryId, e.getMessage(), e);
         }
     }
 

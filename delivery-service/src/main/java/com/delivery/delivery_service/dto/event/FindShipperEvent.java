@@ -27,9 +27,22 @@ public class FindShipperEvent {
     private String notes;
     private LocalDateTime createdAt;
     
+    // ✅ Retry mechanism fields
+    private String sessionId;        // Unique session identifier for tracking
+    private Boolean isRetry = false; // Flag to indicate if this is a retry attempt
+    private Integer retryCount = 0;  // Number of retry attempts made
+    private Integer maxRetries = 3;  // Maximum allowed retries
+    
     // Event metadata
     private String eventType = "FIND_SHIPPER_REQUESTED";
     private LocalDateTime timestamp = LocalDateTime.now();
+    
+    /**
+     * ✅ Check if retry attempts have exceeded the maximum limit
+     */
+    public boolean hasExceededMaxRetries() {
+        return retryCount != null && maxRetries != null && retryCount >= maxRetries;
+    }
     
     // Constructor cho business logic
     public FindShipperEvent(Long deliveryId, Long orderId, String pickupAddress, 

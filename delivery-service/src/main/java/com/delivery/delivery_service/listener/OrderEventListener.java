@@ -4,8 +4,10 @@ import com.delivery.delivery_service.common.constants.KafkaTopicConstants;
 import com.delivery.delivery_service.dto.event.OrderCreatedEvent;
 import com.delivery.delivery_service.dto.event.OrderCancelledEvent;
 import com.delivery.delivery_service.dto.event.ShipperNotFoundEvent;
+import com.delivery.delivery_service.dto.event.ShipperFoundEvent;
 import com.delivery.delivery_service.service.DeliveryService;
 import com.delivery.delivery_service.service.EventValidationService;
+import com.delivery.delivery_service.service.DeliveryWaitingService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;
@@ -24,12 +26,15 @@ public class OrderEventListener {
     
     private final DeliveryService deliveryService;
     private final EventValidationService eventValidationService;
+    private final DeliveryWaitingService deliveryWaitingService;
     
     // ✅ Constructor Injection Pattern (MANDATORY)
     public OrderEventListener(DeliveryService deliveryService, 
-                             EventValidationService eventValidationService) {
+                             EventValidationService eventValidationService,
+                             DeliveryWaitingService deliveryWaitingService) {
         this.deliveryService = deliveryService;
         this.eventValidationService = eventValidationService;
+        this.deliveryWaitingService = deliveryWaitingService;
     }
     
     /**
@@ -159,6 +164,47 @@ public class OrderEventListener {
             
         } catch (Exception e) {
             log.error("💥 Error processing ShipperNotFoundEvent for delivery: {} - Error: {}", 
+                     event.getDeliveryId(), e.getMessage(), e);
+            
+            // Acknowledge để tránh infinite retry
+            // Acknowledge để tránh infinite retry
+            acknowledgment.acknowledge();
+        }
+    }
+    
+    /**
+     * ✅ Lắng nghe ShipperFoundEvent và cache trạng thái "chờ shipper nhận"
+     */
+    @KafkaListener(topics = KafkaTopicConstants.SHIPPER_FOUND_TOPIC)
+    public void handleShipperFoundEvent(
+            @Payload ShipperFoundEvent event,
+            @Header(KafkaHeaders.RECEIVED_TOPIC) String topic,
+            @Header(KafkaHeaders.RECEIVED_PARTITION) Integer partition,
+            @Header(KafkaHeaders.RECEIVED_TIMESTAMP) Long timestamp,
+            Acknowledgment acknowledgment) {
+        
+        try {
+            log.info("📥 Received ShipperFoundEvent for delivery: {}, order: {} - {} shippers found from topic: {} partition: {} timestamp: {}",
+                    event.getDeliveryId(), event.getOrderId(), event.getAvailableShippers().size(), topic, partition, timestamp);
+            
+            // ✅ Validate event data
+            if (event.getDeliveryId() == null || event.getOrderId() == null) {
+                log.error("💥 Invalid ShipperFoundEvent: deliveryId or orderId is null");
+                acknowledgment.acknowledge();
+                return;
+            }
+            
+            // ✅ Cache trạng thái "chờ shipper nhận" trong Redis với TTL
+            deliveryWaitingService.cacheWaitingForShipperAcceptance(event);
+            
+            log.info("✅ Successfully cached waiting state for delivery: {} - waiting for shipper acceptance", 
+                    event.getDeliveryId());
+            
+            // Manual acknowledgment
+            acknowledgment.acknowledge();
+            
+        } catch (Exception e) {
+            log.error("💥 Error processing ShipperFoundEvent for delivery: {} - Error: {}", 
                      event.getDeliveryId(), e.getMessage(), e);
             
             // Acknowledge để tránh infinite retry

@@ -12,7 +12,8 @@ public class KafkaTopicConstants {
     public static final String SHIPPER_ASSIGNED_TOPIC = "delivery.shipper-assigned";
     
     // Match Service topics - aligned with Match Service KafkaTopicConstants
-    public static final String MATCH_FOUND_TOPIC = "match.shipper-matched";  // ✅ Fixed to match Match Service
+    public static final String MATCH_FOUND_TOPIC = "match.shipper-matched";  // ✅ Legacy topic
+    public static final String SHIPPER_FOUND_TOPIC = "shipper.found";       // ✅ New unified event
     public static final String MATCH_REQUEST_TOPIC = "match.shipper-request";
     public static final String MATCH_ACCEPTED_TOPIC = "match.shipper-accepted";
     public static final String MATCH_REJECTED_TOPIC = "match.shipper-rejected";
