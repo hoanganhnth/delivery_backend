@@ -11,11 +11,12 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-
+//need remove 
 /**
  * Order validation service sử dụng RestaurantCacheService
- * Không direct access Redis, tuân thủ service layer architecture
+ * Không direct access Redis, tuân thủ service layer architecture 
  */
+
 @Service
 @RequiredArgsConstructor
 @Slf4j

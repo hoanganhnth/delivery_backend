@@ -9,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -52,24 +53,30 @@ public class OrderCacheValidationServiceImpl implements OrderCacheValidationServ
             }
             
             if (!itemValidation.getPriceMatches()) {
+                // Create map with null-safe values for Map.of()
+                Map<String, Object> priceInfo = new HashMap<>();
+                priceInfo.put("expected", itemValidation.getExpectedPrice());
+                priceInfo.put("actual", itemValidation.getActualPrice());
+                
                 errors.add(OrderValidationResultResponse.ValidationError.builder()
                         .field("price")
                         .errorCode("PRICE_MISMATCH")
                         .message("Giá món " + item.getMenuItemName() + " đã thay đổi")
-                        .invalidValue(Map.of(
-                                "expected", itemValidation.getExpectedPrice(),
-                                "actual", itemValidation.getActualPrice()))
+                        .invalidValue(priceInfo)
                         .build());
             }
             
             if (!itemValidation.getHasEnoughStock()) {
+                // Create map with null-safe values for stock info
+                Map<String, Object> stockInfo = new HashMap<>();
+                stockInfo.put("requested", itemValidation.getRequestedQuantity());
+                stockInfo.put("available", itemValidation.getAvailableStock());
+                
                 errors.add(OrderValidationResultResponse.ValidationError.builder()
                         .field("stock")
                         .errorCode("INSUFFICIENT_STOCK")
                         .message("Không đủ hàng cho món " + item.getMenuItemName())
-                        .invalidValue(Map.of(
-                                "requested", itemValidation.getRequestedQuantity(),
-                                "available", itemValidation.getAvailableStock()))
+                        .invalidValue(stockInfo)
                         .build());
             }
             
@@ -115,22 +122,87 @@ public class OrderCacheValidationServiceImpl implements OrderCacheValidationServ
     public OrderValidationResultResponse.ItemValidationInfo validateMenuItem(
             Long restaurantId, OrderValidationRequest.OrderItemRequest item) {
         
-        // Lấy thông tin từ cache
+        // Lấy thông tin từ cache với null check
         Map<String, Object> menuItemData = restaurantCacheService.getMenuItemFromCache(item.getMenuItemId());
-        Double actualPrice = restaurantCacheService.getMenuItemPrice(item.getMenuItemId());
-        boolean isAvailable = restaurantCacheService.isMenuItemAvailable(
-                restaurantId, item.getMenuItemId(), item.getQuantity());
         
-        // Kiểm tra price match
+        // Kiểm tra menuItemData có tồn tại không
+        if (menuItemData == null) {
+            log.warn("⚠️ Menu item {} not found in cache", item.getMenuItemId());
+            return OrderValidationResultResponse.ItemValidationInfo.builder()
+                    .menuItemId(item.getMenuItemId())
+                    .menuItemName(item.getMenuItemName())
+                    .isAvailable(false)
+                    .actualPrice(null)
+                    .expectedPrice(item.getPrice())
+                    .priceMatches(false)
+                    .requestedQuantity(item.getQuantity())
+                    .availableStock(0)
+                    .hasEnoughStock(false)
+                    .build();
+        }
+        
+        // Null-safe extraction của actual price từ cache data
+        Double actualPrice = null;
+        Object priceObj = menuItemData.get("price");
+        if (priceObj != null) {
+            try {
+                actualPrice = Double.valueOf(priceObj.toString());
+            } catch (NumberFormatException e) {
+                log.warn("⚠️ Invalid price format for menu item {}: {}", item.getMenuItemId(), priceObj);
+            }
+        }
+        
+        // Null-safe validation cho restaurant ownership
+        boolean belongsToRestaurant = true;
+        Object restaurantIdObj = menuItemData.get("restaurantId");
+        if (restaurantIdObj != null) {
+            try {
+                Long itemRestaurantId = Long.valueOf(restaurantIdObj.toString());
+                belongsToRestaurant = itemRestaurantId.equals(restaurantId);
+                if (!belongsToRestaurant) {
+                    log.warn("⚠️ Menu item {} does not belong to restaurant {}", item.getMenuItemId(), restaurantId);
+                }
+            } catch (NumberFormatException e) {
+                log.warn("⚠️ Invalid restaurantId format for menu item {}: {}", item.getMenuItemId(), restaurantIdObj);
+                belongsToRestaurant = false;
+            }
+        }
+        
+        // Null-safe status check
+        boolean statusAvailable = true;
+        Object statusObj = menuItemData.get("status");
+        if (statusObj != null) {
+            String statusStr = statusObj.toString();
+            statusAvailable = !"SOLD_OUT".equals(statusStr) && !"UNAVAILABLE".equals(statusStr);
+        }
+        
+        // Overall availability check
+        boolean isAvailable = belongsToRestaurant && statusAvailable && 
+                             restaurantCacheService.isRestaurantAvailable(restaurantId);
+        
+        // Kiểm tra price match với null-safe operation
         boolean priceMatches = actualPrice != null && actualPrice.equals(item.getPrice());
         
-        // Kiểm tra stock
+        // Kiểm tra stock với null-safe operation - Note: current cache structure doesn't include stock
+        // but we keep this for future compatibility
         Integer availableStock = null;
         boolean hasEnoughStock = true;
         
-        if (menuItemData != null && menuItemData.get("stock") != null) {
-            availableStock = Integer.valueOf(menuItemData.get("stock").toString());
-            hasEnoughStock = availableStock >= item.getQuantity();
+        Object stockObj = menuItemData.get("stock");
+        if (stockObj != null) {
+            try {
+                availableStock = Integer.valueOf(stockObj.toString());
+                hasEnoughStock = availableStock >= item.getQuantity();
+            } catch (NumberFormatException e) {
+                log.warn("⚠️ Invalid stock format for menu item {}: {}", item.getMenuItemId(), stockObj);
+                availableStock = 0;
+                hasEnoughStock = false;
+            }
+        } else {
+            // Không có thông tin stock trong cache hiện tại, assume có đủ hàng
+            log.debug("📝 No stock information in cache for menu item {}, assuming sufficient stock", item.getMenuItemId());
+            availableStock = null; // Unknown stock
+            hasEnoughStock = true; // Assume available if no stock tracking
         }
         
         return OrderValidationResultResponse.ItemValidationInfo.builder()
@@ -160,18 +232,32 @@ public class OrderCacheValidationServiceImpl implements OrderCacheValidationServ
                     .message("Restaurant không tồn tại trong cache")
                     .invalidValue(restaurantId)
                     .build());
+            
+            // Return default info nếu restaurant không tồn tại
+            return OrderValidationResultResponse.RestaurantInfo.builder()
+                    .restaurantId(restaurantId)
+                    .restaurantName("Unknown Restaurant")
+                    .isAvailable(false)
+                    .isOpen(false)
+                    .operatingHours("N/A")
+                    .build();
         }
         
         boolean isAvailable = restaurantCacheService.isRestaurantAvailable(restaurantId);
         
+        // Null-safe operation cho operating hours
         String operatingHours = "N/A";
         if (restaurant.get("openingHour") != null && restaurant.get("closingHour") != null) {
             operatingHours = restaurant.get("openingHour") + " - " + restaurant.get("closingHour");
         }
         
+        // Null-safe operation cho restaurant name
+        String restaurantName = restaurant.get("name") != null ? 
+                (String) restaurant.get("name") : "Unknown Restaurant";
+        
         return OrderValidationResultResponse.RestaurantInfo.builder()
                 .restaurantId(restaurantId)
-                .restaurantName((String) restaurant.get("name"))
+                .restaurantName(restaurantName)
                 .isAvailable(isAvailable)
                 .isOpen(isAvailable) // Simplified for now
                 .operatingHours(operatingHours)
