@@ -2,6 +2,7 @@ package com.delivery.delivery_service.listener;
 
 import com.delivery.delivery_service.common.constants.KafkaTopicConstants;
 import com.delivery.delivery_service.dto.event.OrderCreatedEvent;
+import com.delivery.delivery_service.dto.event.OrderCancelledEvent;
 import com.delivery.delivery_service.service.DeliveryService;
 import com.delivery.delivery_service.service.EventValidationService;
 import lombok.extern.slf4j.Slf4j;
@@ -80,6 +81,46 @@ public class OrderEventListener {
             
             // Trong trường hợp lỗi, có thể implement retry logic hoặc send to DLQ
             // Hiện tại sẽ acknowledge để tránh infinite retry
+            acknowledgment.acknowledge();
+        }
+    }
+    
+    /**
+     * Lắng nghe OrderCancelledEvent và ngừng tìm kiếm shipper
+     */
+    @KafkaListener(topics = KafkaTopicConstants.ORDER_CANCELLED_TOPIC)
+    public void handleOrderCancelledEvent(
+            @Payload OrderCancelledEvent event,
+            @Header(KafkaHeaders.RECEIVED_TOPIC) String topic,
+            @Header(KafkaHeaders.RECEIVED_PARTITION) Integer partition,
+            @Header(KafkaHeaders.RECEIVED_TIMESTAMP) Long timestamp,
+            Acknowledgment acknowledgment) {
+        
+        try {
+            log.info("📥 Received OrderCancelledEvent for order: {} from topic: {} partition: {} timestamp: {}",
+                    event.getOrderId(), topic, partition, timestamp);
+            
+            // ✅ Validate event data trước khi process
+            if (event.getOrderId() == null) {
+                log.error("💥 Invalid OrderCancelledEvent: orderId is null");
+                acknowledgment.acknowledge();
+                return;
+            }
+            
+            // ✅ Ngừng tìm kiếm shipper và hủy delivery record nếu có
+            deliveryService.cancelDeliveryFromOrderCancelledEvent(event);
+            
+            log.info("✅ Successfully processed OrderCancelledEvent for order: {} - Stopped shipper search", 
+                    event.getOrderId());
+            
+            // Manual acknowledgment
+            acknowledgment.acknowledge();
+            
+        } catch (Exception e) {
+            log.error("💥 Error processing OrderCancelledEvent for order: {} - Error: {}", 
+                     event.getOrderId(), e.getMessage(), e);
+            
+            // Acknowledge để tránh infinite retry
             acknowledgment.acknowledge();
         }
     }

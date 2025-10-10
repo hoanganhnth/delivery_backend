@@ -262,4 +262,61 @@ public class OrderServiceImpl implements OrderService {
         
         throw new AccessDeniedException("Bạn không có quyền cập nhật trạng thái đơn hàng này");
     }
+
+    @Override
+    @Transactional
+    public OrderResponse cancelOrder(Long orderId, Long userId, String role) {
+        // Lấy thông tin đơn hàng
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn hàng với ID: " + orderId));
+        
+        // Kiểm tra quyền hủy đơn hàng
+        validateCancelOrderPermission(order, userId, role);
+        
+        // Kiểm tra điều kiện hủy đơn hàng
+        validateCancelOrderConditions(order);
+        
+        // Lưu trạng thái cũ để gửi event
+        String previousStatus = order.getStatus();
+        
+        // Cập nhật trạng thái thành CANCELLED
+        order.setStatus("CANCELLED");
+        order = orderRepository.save(order);
+        
+        // ✅ Publish OrderCancelledEvent để thông báo delivery service ngừng tìm shipper
+        orderEventPublisher.publishOrderCancelledEvent(order, previousStatus, userId);
+        
+        return orderMapper.orderToOrderResponse(order);
+    }
+    
+    private void validateCancelOrderPermission(Order order, Long userId, String role) {
+        // Admin có thể hủy bất kỳ đơn hàng nào
+        if (RoleConstants.ADMIN.equals(role)) {
+            return;
+        }
+        
+        // User chỉ có thể hủy đơn hàng của mình
+        if (order.getUserId().equals(userId)) {
+            return;
+        }
+        
+        // Restaurant owner có thể hủy đơn hàng của nhà hàng mình
+        if (RoleConstants.RESTAURANT_OWNER.equals(role) && order.getCreatorId().equals(userId)) {
+            return;
+        }
+        
+        throw new AccessDeniedException("Bạn không có quyền hủy đơn hàng này");
+    }
+    
+    private void validateCancelOrderConditions(Order order) {
+        // Chỉ cho phép hủy đơn hàng ở trạng thái PENDING hoặc CONFIRMED
+        if (!"PENDING".equals(order.getStatus()) && !"CONFIRMED".equals(order.getStatus())) {
+            throw new IllegalStateException("Chỉ có thể hủy đơn hàng ở trạng thái PENDING hoặc CONFIRMED. Trạng thái hiện tại: " + order.getStatus());
+        }
+        
+        // Không cho phép hủy nếu đã có shipper được gán
+        if (order.getShipperId() != null) {
+            throw new IllegalStateException("Không thể hủy đơn hàng đã được gán cho shipper");
+        }
+    }
 }

@@ -7,6 +7,7 @@ public class KafkaTopicConstants {
     
     // ✅ Incoming topics từ other services
     public static final String FIND_SHIPPER_TOPIC = "delivery.find-shipper";
+    public static final String DELIVERY_CANCELLED_TOPIC = "delivery.cancelled";
     
     // ✅ Outgoing topics - aligned with Notification Service expectations
     public static final String SHIPPER_MATCHED_TOPIC = "match.shipper-matched";        // When shipper found

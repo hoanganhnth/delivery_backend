@@ -19,4 +19,13 @@ public interface MatchService {
      * @return Mono<List> các shipper gần nhất
      */
     Mono<List<NearbyShipperResponse>> findNearbyShippers(FindNearbyShippersRequest request, Long userId, String role);
+    
+    /**
+     * Dừng quá trình matching cho một delivery cụ thể
+     * 
+     * @param deliveryId ID của delivery bị hủy
+     * @param orderId ID của order bị hủy
+     * @param reason Lý do hủy
+     */
+    void stopMatchingProcess(Long deliveryId, Long orderId, String reason);
 }

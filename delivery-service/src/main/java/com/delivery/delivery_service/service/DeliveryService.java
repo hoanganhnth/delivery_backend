@@ -1,6 +1,7 @@
 package com.delivery.delivery_service.service;
 
 import com.delivery.delivery_service.dto.event.OrderCreatedEvent;
+import com.delivery.delivery_service.dto.event.OrderCancelledEvent;
 import com.delivery.delivery_service.dto.request.AcceptDeliveryRequest;
 import com.delivery.delivery_service.dto.request.AssignDeliveryRequest;
 import com.delivery.delivery_service.dto.response.DeliveryResponse;
@@ -15,6 +16,11 @@ public interface DeliveryService {
      * ✅ Tạo delivery từ OrderCreatedEvent (Kafka event processing)
      */
     DeliveryResponse createDeliveryFromOrderEvent(OrderCreatedEvent event);
+
+    /**
+     * ✅ Hủy delivery và ngừng tìm shipper từ OrderCancelledEvent
+     */
+    void cancelDeliveryFromOrderCancelledEvent(OrderCancelledEvent event);
 
     /**
      * Gán shipper cho đơn hàng

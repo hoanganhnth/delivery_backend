@@ -130,4 +130,13 @@ public class OrderController {
         OrderResponse response = orderService.assignShipper(orderId, shipperId, userId, role);
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Phân công shipper thành công"));
     }
+
+    @PutMapping("/{id}/cancel")
+    public ResponseEntity<BaseResponse<OrderResponse>> cancelOrder(
+            @PathVariable Long id,
+            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId,
+            @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
+        OrderResponse response = orderService.cancelOrder(id, userId, role);
+        return ResponseEntity.ok(new BaseResponse<>(1, response, "Hủy đơn hàng thành công"));
+    }
 }

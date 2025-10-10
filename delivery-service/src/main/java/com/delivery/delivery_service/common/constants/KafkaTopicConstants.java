@@ -14,6 +14,7 @@ public class KafkaTopicConstants {
     public static final String FIND_SHIPPER_TOPIC = "delivery.find-shipper";
     public static final String DELIVERY_STATUS_UPDATED_TOPIC = "delivery.status-updated";
     public static final String SHIPPER_ACCEPTED_TOPIC = "delivery.shipper-accepted";
+    public static final String DELIVERY_CANCELLED_TOPIC = "delivery.cancelled";
     
     private KafkaTopicConstants() {
         // Utility class

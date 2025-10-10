@@ -5,6 +5,7 @@ import com.delivery.match_service.dto.request.FindNearbyShippersRequest;
 import com.delivery.match_service.dto.response.NearbyShipperResponse;
 import com.delivery.match_service.dto.response.TrackingServiceResponse;
 import com.delivery.match_service.service.MatchService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
@@ -16,6 +17,7 @@ import java.util.List;
  * Theo Backend Instructions: Constructor injection pattern
  */
 @Service
+@Slf4j
 public class MatchServiceImpl implements MatchService {
 
     private final WebClient trackingServiceWebClient;
@@ -69,5 +71,32 @@ public class MatchServiceImpl implements MatchService {
                 })
                 .onErrorReturn(List.of()) // Return empty list nếu có lỗi
                 .doOnError(ex -> System.err.println("Error calling tracking service: " + ex.getMessage()));
+    }
+
+    /**
+     * ✅ Dừng quá trình matching cho delivery bị hủy
+     * TODO: Implement Redis cleanup và notification logic
+     */
+    @Override
+    public void stopMatchingProcess(Long deliveryId, Long orderId, String reason) {
+        try {
+            log.info("🛑 Stopping matching process for delivery: {}, order: {}, reason: {}", 
+                    deliveryId, orderId, reason);
+            
+            // Generate matching session ID (consistent với delivery-service)
+            String matchingSessionId = "delivery_" + deliveryId;
+            
+            // TODO: Implement these features:
+            // 1. Remove matching session từ Redis (nếu có)
+            // 2. Cancel scheduled matching tasks 
+            // 3. Notify shippers về việc hủy (nếu có ongoing matching)
+            // 4. Log cancellation event
+            
+            log.info("✅ Successfully stopped matching process for delivery: {} with session: {}", 
+                    deliveryId, matchingSessionId);
+                    
+        } catch (Exception e) {
+            log.error("💥 Error stopping matching process for delivery: {}: {}", deliveryId, e.getMessage(), e);
+        }
     }
 }

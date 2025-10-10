@@ -62,4 +62,9 @@ public interface OrderService {
      * Phân công shipper cho đơn hàng
      */
     OrderResponse assignShipper(Long orderId, Long shipperId, Long userId, String role);
+    
+    /**
+     * Hủy đơn hàng (chỉ khi đơn hàng mới tạo và chưa được gán shipper)
+     */
+    OrderResponse cancelOrder(Long orderId, Long userId, String role);
 }

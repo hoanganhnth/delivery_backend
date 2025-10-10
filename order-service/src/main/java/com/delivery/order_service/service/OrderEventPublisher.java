@@ -2,12 +2,14 @@ package com.delivery.order_service.service;
 
 import com.delivery.order_service.common.constants.KafkaTopicConstants;
 import com.delivery.order_service.dto.event.OrderCreatedEvent;
+import com.delivery.order_service.dto.event.OrderCancelledEvent;
 import com.delivery.order_service.entity.Order;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -54,6 +56,67 @@ public class OrderEventPublisher {
         } catch (Exception e) {
             log.error("🔥 Error publishing OrderCreatedEvent for order: {}", order.getId(), e);
         }
+    }
+    
+    /**
+     * Publish OrderCancelledEvent khi order bị hủy
+     */
+    public void publishOrderCancelledEvent(Order order, String previousStatus, Long cancelledBy) {
+        try {
+            OrderCancelledEvent event = mapOrderToCancelledEvent(order, previousStatus, cancelledBy);
+            
+            log.info("📤 Publishing OrderCancelledEvent for order: {}", order.getId());
+            
+            CompletableFuture<SendResult<String, Object>> future = kafkaTemplate.send(
+                KafkaTopicConstants.ORDER_CANCELLED_TOPIC,
+                order.getId().toString(), // Key: orderId
+                event
+            );
+            
+            // Async callback handling
+            future.whenComplete((result, throwable) -> {
+                if (throwable == null) {
+                    log.info("✅ Successfully published OrderCancelledEvent for order: {} to partition: {} with offset: {}",
+                            order.getId(),
+                            result.getRecordMetadata().partition(),
+                            result.getRecordMetadata().offset());
+                } else {
+                    log.error("💥 Failed to publish OrderCancelledEvent for order: {}", order.getId(), throwable);
+                }
+            });
+            
+        } catch (Exception e) {
+            log.error("🔥 Error publishing OrderCancelledEvent for order: {}", order.getId(), e);
+        }
+    }
+    
+    /**
+     * Map Order entity to OrderCancelledEvent
+     */
+    private OrderCancelledEvent mapOrderToCancelledEvent(Order order, String previousStatus, Long cancelledBy) {
+        OrderCancelledEvent event = new OrderCancelledEvent();
+        
+        // Order basic info
+        event.setOrderId(order.getId());
+        event.setUserId(order.getUserId());
+        event.setRestaurantId(order.getRestaurantId());
+        event.setPreviousStatus(previousStatus);
+        event.setCurrentStatus(order.getStatus()); // CANCELLED
+        
+        // Cancellation info
+        event.setCancelReason("Order cancelled by user/admin");
+        event.setCancelledBy(cancelledBy);
+        event.setCancelledAt(LocalDateTime.now());
+        
+        // Delivery related
+        event.setShipperId(order.getShipperId());
+        event.setHasActiveDelivery(order.getShipperId() != null);
+        
+        // Timestamps
+        event.setCreatedAt(order.getCreatedAt());
+        event.setUpdatedAt(order.getUpdatedAt());
+        
+        return event;
     }
     
     /**

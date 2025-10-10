@@ -3,6 +3,7 @@ package com.delivery.delivery_service.service;
 import com.delivery.delivery_service.common.constants.KafkaTopicConstants;
 import com.delivery.delivery_service.dto.event.FindShipperEvent;
 import com.delivery.delivery_service.dto.event.MatchAcceptedEvent;
+import com.delivery.delivery_service.dto.event.DeliveryCancelledEvent;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
@@ -147,6 +148,41 @@ public class DeliveryEventPublisher {
             this.orderId = orderId;
             this.newStatus = newStatus;
             this.oldStatus = oldStatus;
+        }
+    }
+    
+    /**
+     * ✅ Publish DeliveryCancelledEvent để dừng quá trình tìm shipper
+     */
+    public void publishDeliveryCancelledEvent(DeliveryCancelledEvent event) {
+        try {
+            log.info("🛑 Publishing DeliveryCancelledEvent for delivery: {}, order: {}", 
+                    event.getDeliveryId(), event.getOrderId());
+            
+            CompletableFuture<SendResult<String, Object>> future = kafkaTemplate.send(
+                    KafkaTopicConstants.DELIVERY_CANCELLED_TOPIC,
+                    event.getDeliveryId().toString(),
+                    event
+            );
+            
+            // Success callback
+            future.thenAccept(result -> {
+                log.info("✅ Successfully published DeliveryCancelledEvent for delivery: {} to partition: {} offset: {}",
+                        event.getDeliveryId(),
+                        result.getRecordMetadata().partition(),
+                        result.getRecordMetadata().offset());
+            });
+            
+            // Error callback
+            future.exceptionally(throwable -> {
+                log.error("💥 Failed to publish DeliveryCancelledEvent for delivery: {} - Error: {}",
+                         event.getDeliveryId(), throwable.getMessage(), throwable);
+                return null;
+            });
+            
+        } catch (Exception e) {
+            log.error("🔥 Error publishing DeliveryCancelledEvent for delivery: {}: {}", 
+                     event.getDeliveryId(), e.getMessage(), e);
         }
     }
 }

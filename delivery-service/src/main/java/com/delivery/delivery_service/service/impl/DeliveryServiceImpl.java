@@ -4,6 +4,8 @@ import com.delivery.delivery_service.common.constants.RoleConstants;
 import com.delivery.delivery_service.dto.event.FindShipperEvent;
 import com.delivery.delivery_service.dto.event.MatchAcceptedEvent;
 import com.delivery.delivery_service.dto.event.OrderCreatedEvent;
+import com.delivery.delivery_service.dto.event.OrderCancelledEvent;
+import com.delivery.delivery_service.dto.event.DeliveryCancelledEvent;
 import com.delivery.delivery_service.common.constants.ShipperActionConstants;
 import com.delivery.delivery_service.dto.request.AcceptDeliveryRequest;
 import com.delivery.delivery_service.dto.request.AssignDeliveryRequest;
@@ -426,9 +428,13 @@ public class DeliveryServiceImpl implements DeliveryService {
 
     /**
      * ✅ Gửi FindShipperEvent đến Match Service để tự động tìm shipper phù hợp
+     * Lưu matching session ID để có thể dừng matching khi cần
      */
     private void publishFindShipperEvent(Delivery delivery) {
         try {
+            // Tạo unique matching session ID
+            String matchingSessionId = "delivery_" + delivery.getId();
+            
             // Tạo FindShipperEvent từ delivery data
             FindShipperEvent event = new FindShipperEvent(
                     delivery.getId(),
@@ -445,12 +451,14 @@ public class DeliveryServiceImpl implements DeliveryService {
 
             // Gửi event đến Match Service
             deliveryEventPublisher.publishFindShipperEvent(event);
+            
+            log.info("🔍 Started shipper matching process for delivery: {} with session: {}", 
+                    delivery.getId(), matchingSessionId);
 
         } catch (Exception e) {
             // Log lỗi nhưng không throw để không làm fail delivery creation
-            // Có thể implement retry mechanism sau
-            System.err.println("🔥 Failed to publish FindShipperEvent for delivery: " +
-                    delivery.getId() + " - Error: " + e.getMessage());
+            log.error("🔥 Failed to publish FindShipperEvent for delivery: {} - Error: {}", 
+                    delivery.getId(), e.getMessage(), e);
 
             throw new RuntimeException("Failed to publish FindShipperEvent: " + e.getMessage(), e);
         }
@@ -560,6 +568,86 @@ public class DeliveryServiceImpl implements DeliveryService {
                     delivery.getEstimatedDeliveryTime()).toMinutes();
         }
         return 30; // Default 30 minutes
+    }
+
+    @Override
+    @Transactional
+    public void cancelDeliveryFromOrderCancelledEvent(OrderCancelledEvent event) {
+        try {
+            log.info("🚫 Processing order cancellation for orderId: {}", event.getOrderId());
+            
+            // Tìm delivery record theo orderId
+            Delivery delivery = deliveryRepository.findByOrderId(event.getOrderId())
+                    .orElse(null);
+            
+            if (delivery == null) {
+                log.warn("⚠️ No delivery found for cancelled order: {}", event.getOrderId());
+                return;
+            }
+            
+            log.info("📦 Found delivery {} for cancelled order: {}, current status: {}", 
+                    delivery.getId(), event.getOrderId(), delivery.getStatus());
+            
+            // ✅ STOP MATCHING: Publish event để dừng quá trình tìm shipper
+            publishStopMatchingEvent(delivery, event);
+            
+            // Chỉ cancel nếu delivery chưa được assigned hoặc đang trong quá trình matching
+            if (delivery.getStatus() == DeliveryStatus.PENDING || 
+                delivery.getStatus() == DeliveryStatus.ASSIGNED) {
+                
+                // Cập nhật trạng thái delivery thành CANCELLED
+                delivery.setStatus(DeliveryStatus.CANCELLED);
+                delivery.setRejectReason("Order cancelled by user/admin - orderId: " + event.getOrderId());
+                delivery.setUpdatedAt(LocalDateTime.now());
+                
+                deliveryRepository.save(delivery);
+                
+                log.info("✅ Successfully cancelled delivery {} for order: {}", 
+                        delivery.getId(), event.getOrderId());
+                
+            } else if (delivery.getShipperId() != null && 
+                      (delivery.getStatus() == DeliveryStatus.PICKED_UP || 
+                       delivery.getStatus() == DeliveryStatus.DELIVERING)) {
+                // Nếu đã pickup hoặc đang giao, không thể tự động hủy
+                log.warn("⚠️ Cannot auto-cancel delivery {} for order: {} - Already in progress (status: {}, shipper: {})", 
+                        delivery.getId(), event.getOrderId(), delivery.getStatus(), delivery.getShipperId());
+                
+            } else {
+                log.info("📝 Delivery {} for order: {} is in status: {} - Manual intervention may be required", 
+                        delivery.getId(), event.getOrderId(), delivery.getStatus());
+            }
+            
+        } catch (Exception e) {
+            log.error("💥 Error processing order cancellation for orderId: {}", 
+                     event.getOrderId(), e);
+        }
+    }
+    
+    /**
+     * ✅ Publish event để dừng quá trình matching shipper
+     */
+    private void publishStopMatchingEvent(Delivery delivery, OrderCancelledEvent orderEvent) {
+        try {
+            DeliveryCancelledEvent cancelEvent = DeliveryCancelledEvent.builder()
+                    .deliveryId(delivery.getId())
+                    .orderId(delivery.getOrderId())
+                    .reason("Order cancelled: " + (orderEvent.getCancelReason() != null ? orderEvent.getCancelReason() : "User cancelled"))
+                    .cancelledAt(LocalDateTime.now())
+                    .cancelledBy(orderEvent.getCancelledBy() != null ? orderEvent.getCancelledBy().toString() : "SYSTEM")
+                    .stopMatching(true)
+                    .matchingSessionId("delivery_" + delivery.getId()) // Unique session ID
+                    .build();
+            
+            deliveryEventPublisher.publishDeliveryCancelledEvent(cancelEvent);
+            
+            log.info("🛑 Published stop matching event for delivery: {}, order: {}", 
+                    delivery.getId(), delivery.getOrderId());
+            
+        } catch (Exception e) {
+            log.error("💥 Failed to publish stop matching event for delivery: {}: {}", 
+                     delivery.getId(), e.getMessage(), e);
+            // Don't fail main cancellation if event publishing fails
+        }
     }
 
 }
