@@ -264,7 +264,13 @@ public class RestaurantCacheServiceImpl implements RestaurantCacheService {
             }
 
             // Kiểm tra menu item thuộc restaurant này không
-            Long itemRestaurantId = Long.valueOf(menuItem.get("restaurantId").toString());
+            Object restaurantIdObj = menuItem.get("restaurantId");
+            if (restaurantIdObj == null) {
+                log.warn("❌ Menu item {} missing restaurantId field", menuItemId);
+                return false;
+            }
+            
+            Long itemRestaurantId = Long.valueOf(restaurantIdObj.toString());
             if (!itemRestaurantId.equals(restaurantId)) {
                 log.warn("❌ Menu item {} does not belong to restaurant {}", menuItemId, restaurantId);
                 return false;
@@ -278,11 +284,14 @@ public class RestaurantCacheServiceImpl implements RestaurantCacheService {
             }
 
             // Kiểm tra stock nếu có
-            Integer stock = menuItem.get("stock") != null ? Integer.valueOf(menuItem.get("stock").toString()) : null;
-            if (stock != null && stock < quantity) {
-                log.warn("❌ Insufficient stock for menu item {}: {} < {}",
-                        menuItemId, stock, quantity);
-                return false;
+            Object stockObj = menuItem.get("stock");
+            if (stockObj != null) {
+                Integer stock = Integer.valueOf(stockObj.toString());
+                if (stock < quantity) {
+                    log.warn("❌ Insufficient stock for menu item {}: {} < {}",
+                            menuItemId, stock, quantity);
+                    return false;
+                }
             }
 
             return true;

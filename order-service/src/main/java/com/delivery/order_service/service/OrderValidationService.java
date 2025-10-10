@@ -2,22 +2,34 @@ package com.delivery.order_service.service;
 
 import com.delivery.order_service.dto.request.CreateOrderRequest;
 import com.delivery.order_service.exception.ValidationException;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.web.reactive.function.client.WebClient;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * ✅ Service validation cho Order theo Backend Instructions
+ * Tích hợp với Restaurant Service để validate restaurant và menu items
  */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class OrderValidationService {
+
+    private final WebClient webClient;
+    
+    @Value("${restaurant.service.url:http://localhost:8083}")
+    private String restaurantServiceUrl;
 
     /**
      * Validate comprehensive business rules cho CreateOrderRequest
+     * Bao gồm cả validation với restaurant-service
      */
     public void validateCreateOrderRequest(CreateOrderRequest request, Long userId) {
         List<String> errors = new ArrayList<>();
@@ -36,6 +48,9 @@ public class OrderValidationService {
         
         // 5. Validate user context
         validateUserContext(request, userId, errors);
+        
+        // 6. NEW: Validate với restaurant service (restaurant availability và menu items)
+        validateWithRestaurantService(request, userId, errors);
         
         if (!errors.isEmpty()) {
             String errorMessage = "Dữ liệu đơn hàng không hợp lệ: " + String.join(", ", errors);
@@ -304,5 +319,68 @@ public class OrderValidationService {
         double distance = R * c;
         
         return distance;
+    }
+    
+    /**
+     * Validate với restaurant service sử dụng API validateOrder duy nhất
+     */
+    private void validateWithRestaurantService(CreateOrderRequest request, Long userId, List<String> errors) {
+        try {
+            // Tạo OrderValidationRequest từ CreateOrderRequest
+            Map<String, Object> orderValidationRequest = Map.of(
+                "restaurantId", request.getRestaurantId(),
+                "items", request.getItems().stream()
+                    .map(item -> Map.of(
+                        "menuItemId", item.getMenuItemId(),
+                        "menuItemName", item.getMenuItemName(),
+                        "quantity", item.getQuantity(),
+                        "price", item.getPrice()
+                    ))
+                    .toList()
+            );
+            
+            String url = restaurantServiceUrl + "/api/restaurants/validate/order";
+            
+            @SuppressWarnings("unchecked")
+            Map<String, Object> responseBody = webClient
+                .post()
+                .uri(url)
+                .header("Content-Type", "application/json")
+                .header("X-User-Id", userId.toString())
+                .bodyValue(orderValidationRequest)
+                .retrieve()
+                .bodyToMono(Map.class)
+                .block();
+            
+            if (responseBody != null) {
+                Integer status = (Integer) responseBody.get("status");
+                
+                if (status != null && status != 1) {
+                    // Validation failed
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> data = (Map<String, Object>) responseBody.get("data");
+                    if (data != null && data.get("errors") != null) {
+                        @SuppressWarnings("unchecked")
+                        List<Map<String, Object>> validationErrors = (List<Map<String, Object>>) data.get("errors");
+                        for (Map<String, Object> error : validationErrors) {
+                            String message = (String) error.get("message");
+                            if (message != null) {
+                                errors.add(message);
+                            }
+                        }
+                    } else {
+                        errors.add("Order validation failed");
+                    }
+                }
+                
+                log.info("🔍 Order validation for restaurant {}: status={}", request.getRestaurantId(), status);
+            } else {
+                errors.add("Không thể xác thực đơn hàng với restaurant service");
+            }
+            
+        } catch (Exception e) {
+            log.error("💥 Error validating order with restaurant service: {}", e.getMessage());
+            errors.add("Không thể xác thực thông tin restaurant/menu items");
+        }
     }
 }
