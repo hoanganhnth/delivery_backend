@@ -83,6 +83,12 @@
 			<artifactId>gson</artifactId>
 		</dependency>
 
+		<!-- ✅ Kafka for event-driven communication -->
+		<dependency>
+			<groupId>org.springframework.kafka</groupId>
+			<artifactId>spring-kafka</artifactId>
+		</dependency>
+
 		<!-- Testing -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>

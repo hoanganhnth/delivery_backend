@@ -62,6 +62,9 @@ public class Delivery {
     @Column(name = "estimated_delivery_time")
     private LocalDateTime estimatedDeliveryTime;
 
+    @Column(name = "shipping_fee", precision = 12, scale = 2)
+    private java.math.BigDecimal shippingFee; // Phí giao hàng mà shipper sẽ nhận
+
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
 

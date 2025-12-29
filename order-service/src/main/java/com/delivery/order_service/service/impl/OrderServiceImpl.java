@@ -15,6 +15,7 @@ import com.delivery.order_service.repository.OrderRepository;
 import com.delivery.order_service.service.OrderEventPublisher;
 import com.delivery.order_service.service.OrderService;
 import com.delivery.order_service.service.OrderValidationService;
+import com.delivery.order_service.service.ShippingFeeCalculationService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,17 +32,20 @@ public class OrderServiceImpl implements OrderService {
     private final OrderMapper orderMapper;
     private final OrderEventPublisher orderEventPublisher;
     private final OrderValidationService orderValidationService;
+    private final ShippingFeeCalculationService shippingFeeCalculationService;
 
     public OrderServiceImpl(OrderRepository orderRepository, 
                            OrderItemRepository orderItemRepository,
                            OrderMapper orderMapper,
                            OrderEventPublisher orderEventPublisher,
-                           OrderValidationService orderValidationService) {
+                           OrderValidationService orderValidationService,
+                           ShippingFeeCalculationService shippingFeeCalculationService) {
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
         this.orderMapper = orderMapper;
         this.orderEventPublisher = orderEventPublisher;
         this.orderValidationService = orderValidationService;
+        this.shippingFeeCalculationService = shippingFeeCalculationService;
     }
 
     @Override
@@ -58,8 +62,18 @@ public class OrderServiceImpl implements OrderService {
         BigDecimal subtotal = calculateSubtotal(request.getItems());
         order.setSubtotalPrice(subtotal);
         order.setDiscountAmount(BigDecimal.ZERO);
-        order.setShippingFee(BigDecimal.valueOf(15000)); // Default shipping fee
-        order.setTotalPrice(subtotal.add(order.getShippingFee()));
+        
+        // ✅ Tính phí ship động theo khoảng cách (giống Shopee/Grab)
+        BigDecimal shippingFee = shippingFeeCalculationService.calculateShippingFee(
+            request.getPickupLat(),
+            request.getPickupLng(),
+            request.getDeliveryLat(),
+            request.getDeliveryLng(),
+            subtotal
+        );
+        order.setShippingFee(shippingFee);
+        
+        order.setTotalPrice(subtotal.add(shippingFee).subtract(order.getDiscountAmount()));
         
         // Lưu order
         Order savedOrder = orderRepository.save(order);

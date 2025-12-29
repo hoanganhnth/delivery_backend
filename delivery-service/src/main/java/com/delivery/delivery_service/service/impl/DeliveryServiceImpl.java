@@ -7,6 +7,7 @@ import com.delivery.delivery_service.dto.event.OrderCreatedEvent;
 import com.delivery.delivery_service.dto.event.OrderCancelledEvent;
 import com.delivery.delivery_service.dto.event.DeliveryCancelledEvent;
 import com.delivery.delivery_service.dto.event.ShipperNotFoundEvent;
+import com.delivery.delivery_service.dto.event.DeliveryCompletedEvent;
 import com.delivery.delivery_service.common.constants.ShipperActionConstants;
 import com.delivery.delivery_service.dto.request.AcceptDeliveryRequest;
 import com.delivery.delivery_service.dto.request.AssignDeliveryRequest;
@@ -78,6 +79,14 @@ public class DeliveryServiceImpl implements DeliveryService {
             delivery.setDeliveryAddress(event.getDeliveryAddress());
             delivery.setDeliveryLat(event.getDeliveryLat());
             delivery.setDeliveryLng(event.getDeliveryLng());
+
+            // ✅ Set shipping fee từ order event
+            if (event.getShippingFee() != null) {
+                delivery.setShippingFee(event.getShippingFee());
+            } else {
+                // Default shipping fee nếu không có trong event
+                delivery.setShippingFee(java.math.BigDecimal.valueOf(15000));
+            }
 
             // Set notes
             delivery.setNotes(event.getNotes());
@@ -390,6 +399,9 @@ public class DeliveryServiceImpl implements DeliveryService {
                 break;
             case DELIVERED:
                 delivery.setDeliveredAt(LocalDateTime.now());
+                
+                // ✅ Publish DeliveryCompletedEvent để tự động cộng tiền cho shipper
+                publishDeliveryCompletedEvent(delivery);
                 break;
             case PENDING:
             case FINDING_SHIPPER:
@@ -538,6 +550,58 @@ public class DeliveryServiceImpl implements DeliveryService {
 
         } catch (Exception e) {
             log.error("💥 Failed to publish MatchRejectedEvent for delivery {}: {}",
+                    delivery.getId(), e.getMessage(), e);
+            // Don't fail main operation if event publishing fails
+        }
+    }
+    
+    /**
+     * ✅ Publish DeliveryCompletedEvent để tự động cộng tiền vào shipper balance
+     */
+    private void publishDeliveryCompletedEvent(Delivery delivery) {
+        try {
+            if (delivery.getShipperId() == null) {
+                log.warn("⚠️ Cannot publish DeliveryCompletedEvent: no shipper assigned to delivery {}",
+                        delivery.getId());
+                return;
+            }
+            
+            if (delivery.getShippingFee() == null || delivery.getShippingFee().compareTo(java.math.BigDecimal.ZERO) <= 0) {
+                log.warn("⚠️ Delivery {} has no valid shipping fee, using default 15000",
+                        delivery.getId());
+                delivery.setShippingFee(java.math.BigDecimal.valueOf(15000));
+            }
+            
+            // ✅ Calculate shipper earnings (85% của shipping fee)
+            java.math.BigDecimal shipperEarnings = com.delivery.delivery_service.common.constants.PricingConstants
+                    .calculateShipperEarnings(delivery.getShippingFee());
+            
+            java.math.BigDecimal platformCommission = com.delivery.delivery_service.common.constants.PricingConstants
+                    .calculatePlatformCommission(delivery.getShippingFee());
+            
+            log.info("💰 Publishing DeliveryCompletedEvent for delivery {}, shipper {}, shippingFee: {}, shipperEarnings: {}, commission: {}",
+                    delivery.getId(), delivery.getShipperId(), delivery.getShippingFee(), shipperEarnings, platformCommission);
+
+            DeliveryCompletedEvent event = DeliveryCompletedEvent.builder()
+                    .deliveryId(delivery.getId())
+                    .orderId(delivery.getOrderId())
+                    .shipperId(delivery.getShipperId())
+                    .shippingFee(delivery.getShippingFee())
+                    .shipperEarnings(shipperEarnings)
+                    .platformCommission(platformCommission)
+                    .deliveredAt(delivery.getDeliveredAt())
+                    .deliveryAddress(delivery.getDeliveryAddress())
+                    .restaurantName("Restaurant") // TODO: get from order
+                    .customerName("Customer") // TODO: get from order
+                    .build();
+
+            deliveryEventPublisher.publishDeliveryCompletedEvent(event);
+
+            log.info("✅ Published DeliveryCompletedEvent for delivery {}, shipper will receive {} (85% of {})",
+                    delivery.getId(), shipperEarnings, delivery.getShippingFee());
+
+        } catch (Exception e) {
+            log.error("💥 Failed to publish DeliveryCompletedEvent for delivery {}: {}",
                     delivery.getId(), e.getMessage(), e);
             // Don't fail main operation if event publishing fails
         }

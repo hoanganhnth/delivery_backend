@@ -4,6 +4,7 @@ import com.delivery.delivery_service.common.constants.KafkaTopicConstants;
 import com.delivery.delivery_service.dto.event.FindShipperEvent;
 import com.delivery.delivery_service.dto.event.MatchAcceptedEvent;
 import com.delivery.delivery_service.dto.event.DeliveryCancelledEvent;
+import com.delivery.delivery_service.dto.event.DeliveryCompletedEvent;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
@@ -182,6 +183,41 @@ public class DeliveryEventPublisher {
             
         } catch (Exception e) {
             log.error("🔥 Error publishing DeliveryCancelledEvent for delivery: {}: {}", 
+                     event.getDeliveryId(), e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * ✅ Publish DeliveryCompletedEvent để tự động cộng tiền vào shipper balance
+     */
+    public void publishDeliveryCompletedEvent(DeliveryCompletedEvent event) {
+        try {
+            log.info("💰 Publishing DeliveryCompletedEvent for delivery: {}, shipper: {}, amount: {}", 
+                    event.getDeliveryId(), event.getShipperId(), event.getShippingFee());
+            
+            CompletableFuture<SendResult<String, Object>> future = kafkaTemplate.send(
+                    KafkaTopicConstants.DELIVERY_COMPLETED_TOPIC,
+                    event.getDeliveryId().toString(),
+                    event
+            );
+            
+            // Success callback
+            future.thenAccept(result -> {
+                log.info("✅ Successfully published DeliveryCompletedEvent for delivery: {} to partition: {} offset: {}",
+                        event.getDeliveryId(),
+                        result.getRecordMetadata().partition(),
+                        result.getRecordMetadata().offset());
+            });
+            
+            // Error callback
+            future.exceptionally(throwable -> {
+                log.error("💥 Failed to publish DeliveryCompletedEvent for delivery: {} - Error: {}",
+                         event.getDeliveryId(), throwable.getMessage(), throwable);
+                return null;
+            });
+            
+        } catch (Exception e) {
+            log.error("🔥 Error publishing DeliveryCompletedEvent for delivery: {}: {}", 
                      event.getDeliveryId(), e.getMessage(), e);
         }
     }

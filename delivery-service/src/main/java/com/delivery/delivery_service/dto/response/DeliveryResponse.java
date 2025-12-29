@@ -3,6 +3,7 @@ package com.delivery.delivery_service.dto.response;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Getter
@@ -28,5 +29,10 @@ public class DeliveryResponse {
     private String notes;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    
+    // ✅ Pricing Information
+    private BigDecimal shippingFee;           // Tổng phí vận chuyển (customer trả)
+    private BigDecimal estimatedEarnings;     // Thu nhập shipper (85% của shippingFee)
+    private BigDecimal platformCommission;    // Hoa hồng platform (15% của shippingFee)
 
 }
