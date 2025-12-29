@@ -5,6 +5,7 @@ import com.delivery.match_service.dto.event.ShipperFoundEvent;
 import com.delivery.match_service.dto.request.FindNearbyShippersRequest;
 import com.delivery.match_service.dto.response.NearbyShipperResponse;
 import com.delivery.match_service.service.MatchService;
+import com.delivery.match_service.service.MatchCancellationService;
 import com.delivery.match_service.service.MatchEventPublisher;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -41,11 +42,12 @@ class FindShipperEventListenerTest {
     private FindShipperEventListener listener;
 
     private FindShipperEvent testEvent;
+    MatchCancellationService matchCancellationService;
 
     @BeforeEach
     void setUp() {
         // ✅ Constructor Injection với simplified dependencies
-        listener = new FindShipperEventListener(matchService, matchEventPublisher);
+        listener = new FindShipperEventListener(matchService, matchEventPublisher, matchCancellationService);
 
         // Setup test event
         testEvent = new FindShipperEvent();
@@ -85,8 +87,8 @@ class FindShipperEventListenerTest {
         List<NearbyShipperResponse> foundShippers = List.of(shipper1);
 
         when(matchService.findNearbyShippers(any(FindNearbyShippersRequest.class), anyLong(), anyString()))
-                .thenReturn(Mono.just(Collections.emptyList()))  // First call - empty
-                .thenReturn(Mono.just(foundShippers));           // Second call - success
+                .thenReturn(Mono.just(Collections.emptyList())) // First call - empty
+                .thenReturn(Mono.just(foundShippers)); // Second call - success
 
         // When
         listener.handleFindShipperEvent(testEvent, "test-topic", 0, System.currentTimeMillis(), acknowledgment);
@@ -143,7 +145,7 @@ class FindShipperEventListenerTest {
         verifyNoInteractions(matchEventPublisher);
     }
 
-    @Test 
+    @Test
     void testCreateFindShippersRequest_WithPickupLocation() {
         // Given
         when(matchService.findNearbyShippers(any(FindNearbyShippersRequest.class), anyLong(), anyString()))
@@ -154,15 +156,16 @@ class FindShipperEventListenerTest {
                     assert Double.compare(request.getLongitude(), 106.660172) == 0;
                     assert Double.compare(request.getRadiusKm(), 5.0) == 0;
                     assert request.getMaxShippers() == 10;
-                    
+
                     return Mono.just(List.of(createTestShipper(1L, 10.763000, 106.661000)));
                 });
-        
+
         // When
         listener.handleFindShipperEvent(testEvent, "test-topic", 0, System.currentTimeMillis(), acknowledgment);
 
         // Then
-        verify(matchService, timeout(1000)).findNearbyShippers(any(FindNearbyShippersRequest.class), anyLong(), anyString());
+        verify(matchService, timeout(1000)).findNearbyShippers(any(FindNearbyShippersRequest.class), anyLong(),
+                anyString());
         verify(matchEventPublisher, timeout(1000)).publishShipperFoundEvent(any(ShipperFoundEvent.class));
         verify(acknowledgment, timeout(1000)).acknowledge();
     }

@@ -6,6 +6,7 @@ import com.delivery.match_service.dto.event.ShipperNotFoundEvent;
 import com.delivery.match_service.dto.event.ShipperFoundEvent;
 import com.delivery.match_service.dto.request.FindNearbyShippersRequest;
 import com.delivery.match_service.dto.response.NearbyShipperResponse;
+import com.delivery.match_service.service.MatchCancellationService;
 import com.delivery.match_service.service.MatchService;
 import com.delivery.match_service.service.MatchEventPublisher;
 import lombok.extern.slf4j.Slf4j;
@@ -34,6 +35,7 @@ public class FindShipperEventListener {
 
     private final MatchService matchService;
     private final MatchEventPublisher matchEventPublisher;
+        private final MatchCancellationService matchCancellationService;
 
     // ✅ Retry configuration constants
     private static final int MAX_RETRY_ATTEMPTS = 10; // Tối đa 10 lần retry
@@ -42,9 +44,13 @@ public class FindShipperEventListener {
     private static final double BACKOFF_MULTIPLIER = 1.5; // Tăng delay theo exponential
 
     // ✅ Constructor Injection Pattern (MANDATORY)
-    public FindShipperEventListener(MatchService matchService, MatchEventPublisher matchEventPublisher) {
+        public FindShipperEventListener(
+                        MatchService matchService,
+                        MatchEventPublisher matchEventPublisher,
+                        MatchCancellationService matchCancellationService) {
         this.matchService = matchService;
         this.matchEventPublisher = matchEventPublisher;
+                this.matchCancellationService = matchCancellationService;
     }
 
     /**
@@ -87,13 +93,23 @@ public class FindShipperEventListener {
     private void startContinuousShipperSearch(FindShipperEvent event, Acknowledgment acknowledgment) {
         AtomicInteger attemptCount = new AtomicInteger(0);
 
+        // ✅ New search session => clear cancel flag (idempotent)
+        matchCancellationService.clearCancelled(event.getDeliveryId());
+
         // ✅ Convert event to request một lần
         FindNearbyShippersRequest request = createFindShippersRequest(event);
         Long systemUserId = 1L;
         String systemRole = "SYSTEM";
 
         // ✅ Reactive retry với exponential backoff
-        matchService.findNearbyShippers(request, systemUserId, systemRole)
+                matchService.findNearbyShippers(request, systemUserId, systemRole)
+                                // ✅ Cancel fast: if delivery already cancelled, stop chain immediately
+                                .flatMap(shippers -> {
+                                        if (matchCancellationService.isCancelled(event.getDeliveryId())) {
+                                                return Mono.error(new RuntimeException("DELIVERY_CANCELLED"));
+                                        }
+                                        return Mono.just(shippers);
+                                })
                 .flatMap(shippers -> {
                     if (shippers != null && !shippers.isEmpty()) {
                         // ✅ Tìm thấy shipper, trả về kết quả
@@ -108,6 +124,11 @@ public class FindShipperEventListener {
                         .maxBackoff(Duration.ofSeconds(MAX_DELAY_SECONDS))
                         .multiplier(BACKOFF_MULTIPLIER)
                         .doBeforeRetry(retrySignal -> {
+                                                        // ✅ Nếu đã cancel thì đừng schedule retry nữa
+                                                        if (matchCancellationService.isCancelled(event.getDeliveryId())) {
+                                                                throw new RuntimeException("DELIVERY_CANCELLED");
+                                                        }
+
                             int attempt = attemptCount.incrementAndGet();
                             long delayMs = retrySignal.totalRetries() == 0 ? INITIAL_DELAY_SECONDS * 1000
                                     : Math.min(
@@ -118,14 +139,33 @@ public class FindShipperEventListener {
                             log.info("🔄 Retry attempt {}/{} for delivery: {} - Next retry in {}ms",
                                     attempt, MAX_RETRY_ATTEMPTS, event.getDeliveryId(), delayMs);
                         })
-                        .filter(throwable -> {
+                                                .filter(throwable -> {
                             // ✅ Chỉ retry nếu không tìm thấy shipper (empty result)
                             // Không retry nếu có lỗi system khác
-                            return throwable instanceof RuntimeException &&
-                                    throwable.getMessage().contains("No shippers found");
+                                                        if (!(throwable instanceof RuntimeException)) {
+                                                                return false;
+                                                        }
+
+                                                        String msg = throwable.getMessage();
+                                                        if (msg == null) {
+                                                                return false;
+                                                        }
+
+                                                        // ✅ never retry when cancelled
+                                                        if (msg.contains("DELIVERY_CANCELLED")) {
+                                                                return false;
+                                                        }
+
+                                                        return msg.contains("No shippers found");
                         }))
                 .subscribe(
                         shippers -> {
+                                                        if (matchCancellationService.isCancelled(event.getDeliveryId())) {
+                                                                log.info("🛑 Delivery {} cancelled while matching; skip publish found event", event.getDeliveryId());
+                                                                acknowledgment.acknowledge();
+                                                                return;
+                                                        }
+
                             log.info("✅ Found {} nearby shippers for delivery: {} after {} attempts",
                                     shippers.size(), event.getDeliveryId(), attemptCount.get() + 1);
 
@@ -140,6 +180,12 @@ public class FindShipperEventListener {
                             acknowledgment.acknowledge();
                         },
                         error -> {
+                                                        if (error != null && error.getMessage() != null && error.getMessage().contains("DELIVERY_CANCELLED")) {
+                                                                log.info("🛑 Matching stopped because delivery {} was cancelled", event.getDeliveryId());
+                                                                acknowledgment.acknowledge();
+                                                                return;
+                                                        }
+
                             log.error("💥 Failed to find shippers for delivery: {} after {} attempts - Error: {}",
                                     event.getDeliveryId(), MAX_RETRY_ATTEMPTS, error.getMessage());
 

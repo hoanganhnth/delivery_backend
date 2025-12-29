@@ -4,6 +4,7 @@ import com.delivery.match_service.common.constants.HttpHeaderConstants;
 import com.delivery.match_service.dto.request.FindNearbyShippersRequest;
 import com.delivery.match_service.dto.response.NearbyShipperResponse;
 import com.delivery.match_service.dto.response.TrackingServiceResponse;
+import com.delivery.match_service.service.MatchCancellationService;
 import com.delivery.match_service.service.MatchService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -21,13 +22,15 @@ import java.util.List;
 public class MatchServiceImpl implements MatchService {
 
     private final WebClient trackingServiceWebClient;
+    private final MatchCancellationService matchCancellationService;
 
     /**
      * ✅ Constructor Injection thay vì @Autowired field injection
-     * Theo Backend Instructions: Constructor injection là REQUIRED
      */
-    public MatchServiceImpl(WebClient trackingServiceWebClient) {
+    public MatchServiceImpl(WebClient trackingServiceWebClient,
+            MatchCancellationService matchCancellationService) {
         this.trackingServiceWebClient = trackingServiceWebClient;
+        this.matchCancellationService = matchCancellationService;
     }
 
     /**
@@ -82,6 +85,10 @@ public class MatchServiceImpl implements MatchService {
         try {
             log.info("🛑 Stopping matching process for delivery: {}, order: {}, reason: {}", 
                     deliveryId, orderId, reason);
+
+            // ✅ Redis-based cancel flag; FindShipperEventListener will check this and stop retry.
+            matchCancellationService.markCancelled(deliveryId);
+            log.info("🧹 Marked delivery as cancelled in Redis for delivery: {}", deliveryId);
             
             // Generate matching session ID (consistent với delivery-service)
             String matchingSessionId = "delivery_" + deliveryId;
