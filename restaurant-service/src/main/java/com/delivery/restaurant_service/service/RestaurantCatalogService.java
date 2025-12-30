@@ -18,8 +18,33 @@ public interface RestaurantCatalogService {
     
     /**
      * Get restaurants cho home feed (có pagination)
+     * Uses default location (HCM city center)
      */
     List<RestaurantCatalogResponse> getRestaurantsForHomeFeed(int page, int size);
+    
+    /**
+     * Get restaurants cho home feed with custom user location (HYBRID QUERY)
+     * Combines GEO proximity + rating/popularity score
+     * Uses default radiusKm=5.0 and nearbyLimit=50
+     */
+    List<RestaurantCatalogResponse> getRestaurantsForHomeFeed(int page, int size, double userLatitude, double userLongitude);
+    
+    /**
+     * Get restaurants cho home feed with FULL custom parameters (HYBRID QUERY)
+     * Combines GEO proximity + rating/popularity score
+     * 
+     * @param page Page number (0-based)
+     * @param size Page size
+     * @param userLatitude User's latitude
+     * @param userLongitude User's longitude
+     * @param radiusKm Search radius in kilometers (e.g., 5.0)
+     * @param nearbyLimit Max number of nearby restaurants to fetch (e.g., 50)
+     */
+    List<RestaurantCatalogResponse> getRestaurantsForHomeFeed(
+        int page, int size, 
+        double userLatitude, double userLongitude, 
+        double radiusKm, int nearbyLimit
+    );
     
     /**
      * Get restaurants by location (geo-based)

@@ -44,6 +44,39 @@ public class RestaurantCatalogServiceImpl implements RestaurantCatalogService {
         this.objectMapper = objectMapper;
     }
     
+    /**
+     * ✅ Helper class for Hybrid Query - Stores restaurant with combined score
+     */
+    private static class RestaurantWithScore {
+        private final Long restaurantId;
+        private final double finalScore;        // Combined score (70% rating + 30% distance)
+        private final Double distanceKm;        // Distance from user location
+        private final Double homeFeedScore;     // Original home feed score
+        
+        public RestaurantWithScore(Long restaurantId, double finalScore, Double distanceKm, Double homeFeedScore) {
+            this.restaurantId = restaurantId;
+            this.finalScore = finalScore;
+            this.distanceKm = distanceKm;
+            this.homeFeedScore = homeFeedScore;
+        }
+        
+        public Long getRestaurantId() {
+            return restaurantId;
+        }
+        
+        public double getFinalScore() {
+            return finalScore;
+        }
+        
+        public Double getDistanceKm() {
+            return distanceKm;
+        }
+        
+        public Double getHomeFeedScore() {
+            return homeFeedScore;
+        }
+    }
+    
     @Override
     public void cacheRestaurantForHomeFeed(Restaurant restaurant, List<Long> featuredMenuItemIds) {
         try {
@@ -86,31 +119,137 @@ public class RestaurantCatalogServiceImpl implements RestaurantCatalogService {
     
     @Override
     public List<RestaurantCatalogResponse> getRestaurantsForHomeFeed(int page, int size) {
+        // ✅ Default method delegates to custom location method with HCM City center as fallback
+        double defaultLatitude = 10.7769;  // HCM City center
+        double defaultLongitude = 106.7009;
+        
+        log.info("� Using default location (HCM City center): ({}, {})", defaultLatitude, defaultLongitude);
+        return getRestaurantsForHomeFeed(page, size, defaultLatitude, defaultLongitude);
+    }
+    
+    @Override
+    public List<RestaurantCatalogResponse> getRestaurantsForHomeFeed(int page, int size, double userLatitude, double userLongitude) {
+        // ✅ Delegates to full parameter method with default radius and limit
+        double defaultRadiusKm = 5.0;  // 5km radius
+        int defaultNearbyLimit = 50;   // Max 50 nearby restaurants
+        
+        log.info("📍 Using default search params: radiusKm={}, nearbyLimit={}", defaultRadiusKm, defaultNearbyLimit);
+        return getRestaurantsForHomeFeed(page, size, userLatitude, userLongitude, defaultRadiusKm, defaultNearbyLimit);
+    }
+    
+    @Override
+    public List<RestaurantCatalogResponse> getRestaurantsForHomeFeed(
+            int page, int size, 
+            double userLatitude, double userLongitude, 
+            double radiusKm, int nearbyLimit) {
         try {
-            long start = (long) page * size;
-            long end = start + size - 1;
+            // ✅ HYBRID QUERY with FULL CUSTOM PARAMETERS - Cách xịn nhất và linh hoạt nhất
             
-            // Get top restaurants from home feed (highest scores first)
-            Set<Object> restaurantIds = redisTemplate.opsForZSet().reverseRange(HOME_FEED_KEY, start, end);
+            // Bước 1: Dùng LOCATION_KEY lấy nearby restaurants (số lượng và bán kính tùy chỉnh)
+            log.info("🔍 HYBRID QUERY - Step 1: Getting {} nearest restaurants within {}km from ({}, {})", 
+                nearbyLimit, radiusKm, userLatitude, userLongitude);
             
-            if (restaurantIds == null || restaurantIds.isEmpty()) {
-                log.info("🔍 No restaurants found in home feed (page: {}, size: {})", page, size);
+            Distance radius = new Distance(radiusKm, Metrics.KILOMETERS);
+            Circle area = new Circle(new Point(userLongitude, userLatitude), radius);
+            
+            GeoResults<RedisGeoCommands.GeoLocation<Object>> geoResults = geoOperations.radius(
+                LOCATION_KEY,
+                area,
+                RedisGeoCommands.GeoRadiusCommandArgs.newGeoRadiusArgs()
+                    .includeDistance()
+                    .includeCoordinates()
+                    .sortAscending()
+                    .limit(nearbyLimit)
+            );
+            
+            // Bước 2: Lấy danh sách ID đó, so sánh với điểm số trong HOME_FEED_KEY để sắp xếp lại
+            List<RestaurantWithScore> restaurantsWithScores = new ArrayList<>();
+            
+            if (geoResults != null && geoResults.getContent() != null && !geoResults.getContent().isEmpty()) {
+                log.info("🔍 HYBRID QUERY - Step 2: Found {} nearby restaurants, now fetching scores from HOME_FEED_KEY", 
+                    geoResults.getContent().size());
+                
+                for (GeoResult<RedisGeoCommands.GeoLocation<Object>> result : geoResults) {
+                    String restaurantIdStr = result.getContent().getName().toString();
+                    
+                    // Lấy score từ HOME_FEED_KEY (rating + popularity + availability)
+                    Double homeFeedScore = redisTemplate.opsForZSet().score(HOME_FEED_KEY, restaurantIdStr);
+                    
+                    // Distance score (càng gần càng cao điểm)
+                    double distanceKm = result.getDistance().getValue();
+                    double distanceScore = Math.max(0, 1.0 - (distanceKm / radiusKm)); // 0.0-1.0
+                    
+                    // Tổng hợp score: 70% home feed score + 30% distance score
+                    double finalScore = 0.0;
+                    if (homeFeedScore != null) {
+                        finalScore = (homeFeedScore * 0.7) + (distanceScore * 0.3);
+                    } else {
+                        finalScore = distanceScore; // Chỉ dùng distance nếu không có home feed score
+                    }
+                    
+                    restaurantsWithScores.add(new RestaurantWithScore(
+                        Long.valueOf(restaurantIdStr),
+                        finalScore,
+                        distanceKm,
+                        homeFeedScore
+                    ));
+                }
+                
+                // Sắp xếp theo điểm số tổng hợp (cao nhất trước)
+                restaurantsWithScores.sort((a, b) -> Double.compare(b.getFinalScore(), a.getFinalScore()));
+                
+                log.info("🎯 HYBRID QUERY - Step 2 Complete: Sorted {} restaurants by hybrid score (70% rating + 30% distance)", 
+                    restaurantsWithScores.size());
+                
+            } else {
+                // Fallback: Nếu không có GEO data hoặc không có quán trong bán kính, dùng HOME_FEED_KEY scoring only
+                log.info("⚠️ HYBRID QUERY - No restaurants found within {}km, fallback to scoring-only from HOME_FEED_KEY", radiusKm);
+                
+                Set<Object> restaurantIds = redisTemplate.opsForZSet().reverseRange(HOME_FEED_KEY, 0, nearbyLimit - 1);
+                
+                if (restaurantIds != null && !restaurantIds.isEmpty()) {
+                    for (Object restaurantId : restaurantIds) {
+                        String restaurantIdStr = restaurantId.toString();
+                        Double homeFeedScore = redisTemplate.opsForZSet().score(HOME_FEED_KEY, restaurantIdStr);
+                        
+                        restaurantsWithScores.add(new RestaurantWithScore(
+                            Long.valueOf(restaurantIdStr),
+                            homeFeedScore != null ? homeFeedScore : 0.0,
+                            null, // No distance in fallback mode
+                            homeFeedScore
+                        ));
+                    }
+                }
+            }
+            
+            // Bước 3: Phân trang và trả về cho khách
+            int totalFound = restaurantsWithScores.size();
+            int start = page * size;
+            int end = Math.min(start + size, totalFound);
+            
+            if (start >= totalFound) {
+                log.info("🔍 HYBRID QUERY - Page {} out of range (total: {})", page, totalFound);
                 return Collections.emptyList();
             }
             
+            List<RestaurantWithScore> pageRestaurants = restaurantsWithScores.subList(start, end);
+            
+            // Fetch full catalog data
             List<RestaurantCatalogResponse> restaurants = new ArrayList<>();
-            for (Object restaurantId : restaurantIds) {
-                RestaurantCatalogResponse restaurant = getRestaurantCatalog(Long.valueOf(restaurantId.toString()));
+            for (RestaurantWithScore rws : pageRestaurants) {
+                RestaurantCatalogResponse restaurant = getRestaurantCatalog(rws.getRestaurantId());
                 if (restaurant != null) {
                     restaurants.add(restaurant);
                 }
             }
             
-            log.info("🏠 Retrieved {} restaurants for home feed (page: {}, size: {})", restaurants.size(), page, size);
+            log.info("✅ HYBRID QUERY - Step 3 Complete: Returned {} restaurants (page: {}, size: {}, total: {}) from ({}, {})", 
+                restaurants.size(), page, size, totalFound, userLatitude, userLongitude);
+            
             return restaurants;
             
         } catch (Exception e) {
-            log.error("❌ Failed to get home feed restaurants", e);
+            log.error("❌ HYBRID QUERY - Failed to get home feed restaurants", e);
             return Collections.emptyList();
         }
     }
