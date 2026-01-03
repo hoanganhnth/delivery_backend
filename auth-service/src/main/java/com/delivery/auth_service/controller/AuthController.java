@@ -19,7 +19,6 @@ import com.delivery.auth_service.dto.LoginRequest;
 import com.delivery.auth_service.dto.RefreshTokenRequest;
 import com.delivery.auth_service.dto.RegisterRequest;
 import com.delivery.auth_service.dto.SessionInfoResponse;
-import com.delivery.auth_service.entity.AuthAccount;
 import com.delivery.auth_service.payload.BaseResponse;
 import com.delivery.auth_service.service.AuthService;
 
@@ -34,26 +33,30 @@ public class AuthController {
 
     @PostMapping("/register")
     public ResponseEntity<BaseResponse<Boolean>> register(@RequestBody RegisterRequest request) {
-        AuthAccount account = authService.register(request);
-        return ResponseEntity.ok(new BaseResponse<>(1, true, "Account registered successfully"));
+        authService.register(request);
+        BaseResponse<Boolean> response = new BaseResponse<>(1, "Account registered successfully", true);
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/login")
     public ResponseEntity<BaseResponse<AuthResponse>> login(@RequestBody LoginRequest request) {
-        AuthResponse response = authService.login(request);
-        return ResponseEntity.ok(new BaseResponse<>(1, response, "Login successful"));
+        AuthResponse authResponse = authService.login(request);
+        BaseResponse<AuthResponse> response = new BaseResponse<>(1, "Login successful", authResponse);
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/refresh-token")
     public ResponseEntity<BaseResponse<AuthResponse>> refreshToken(@RequestBody RefreshTokenRequest request) {
-        AuthResponse response = authService.refreshToken(request);
-        return ResponseEntity.ok(new BaseResponse<>(1, response, "Token refreshed"));
+        AuthResponse authResponse = authService.refreshToken(request);
+        BaseResponse<AuthResponse> response = new BaseResponse<>(1, "Token refreshed", authResponse);
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/logout")
     public ResponseEntity<BaseResponse<Void>> logout(@RequestBody RefreshTokenRequest request) {
         authService.logout(request.getRefreshToken());
-        return ResponseEntity.ok(new BaseResponse<Void>(1, null, "Logout successful"));
+        BaseResponse<Void> response = new BaseResponse<>(1, "Logout successful", null);
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/sessions")
@@ -78,7 +81,8 @@ public class AuthController {
             @RequestHeader(value = "Internal-Token", required = false) String token) {
 
         if (token == null || !token.equals("GATEWAY_INTERNAL_SECRET_ABC123")) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new BaseResponse<AuthAccountDto>(0, null, "Forbidden"));
+            BaseResponse<AuthAccountDto> response = new BaseResponse<>(0, "Forbidden", null);
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
         }
 
         AuthAccountDto dto = authService.getAccountByEmailDto(email);

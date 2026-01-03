@@ -3,6 +3,8 @@ package com.delivery.auth_service.service;
 import io.jsonwebtoken.*;
 import org.springframework.stereotype.Service;
 
+import com.delivery.auth_service.exception.InvalidTokenException;
+
 import java.io.InputStream;
 import java.security.KeyFactory;
 import java.security.PrivateKey;
@@ -94,21 +96,33 @@ public class TokenService {
     }
 
     public String extractUsername(String token) {
-        return extractEmail(token);
+        try {
+            return extractEmail(token);
+        } catch (JwtException e) {
+            throw new InvalidTokenException("Failed to extract username from token");
+        }
     }
 
     public boolean isTokenValid(String token, org.springframework.security.core.userdetails.UserDetails userDetails) {
-        final String username = extractUsername(token);
-        return username.equals(userDetails.getUsername()) && !isTokenExpired(token);
+        try {
+            final String username = extractUsername(token);
+            return username.equals(userDetails.getUsername()) && !isTokenExpired(token);
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private boolean isTokenExpired(String token) {
-        Date expiration = Jwts.parserBuilder()
-                .setSigningKey(publicKey)
-                .build()
-                .parseClaimsJws(token)
-                .getBody()
-                .getExpiration();
-        return expiration.before(new Date());
+        try {
+            Date expiration = Jwts.parserBuilder()
+                    .setSigningKey(publicKey)
+                    .build()
+                    .parseClaimsJws(token)
+                    .getBody()
+                    .getExpiration();
+            return expiration.before(new Date());
+        } catch (JwtException e) {
+            throw new InvalidTokenException("Token expired or invalid");
+        }
     }
 }

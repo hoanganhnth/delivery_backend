@@ -27,10 +27,13 @@ import com.delivery.auth_service.dto.SessionInfoResponse;
 import com.delivery.auth_service.dto.UserResponse;
 import com.delivery.auth_service.entity.AuthAccount;
 import com.delivery.auth_service.entity.AuthSession;
+import com.delivery.auth_service.exception.EmailAlreadyExistsException;
+import com.delivery.auth_service.exception.InvalidCredentialsException;
+import com.delivery.auth_service.exception.InvalidTokenException;
+import com.delivery.auth_service.exception.ResourceNotFoundException;
 import com.delivery.auth_service.payload.BaseResponse;
 import com.delivery.auth_service.repository.AuthAccountRepository;
 import com.delivery.auth_service.repository.AuthSessionRepository;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.RequiredArgsConstructor;
 
@@ -52,19 +55,19 @@ public class AuthService implements UserDetailsService {
     public AuthAccount register(RegisterRequest request) {
         // 1. Kiểm tra email đã tồn tại
         if (authAccountRepository.findByEmail(request.getEmail()).isPresent()) {
-            throw new RuntimeException("Email already registered");
+            throw new EmailAlreadyExistsException("Email already registered: " + request.getEmail());
         }
 
         // 2. Kiểm tra role
         if (request.getRole() == null || request.getRole().isBlank()) {
-            throw new RuntimeException("Role is required");
+            throw new IllegalArgumentException("Role is required");
         }
 
         AuthAccount.Role roleEnum;
         try {
             roleEnum = AuthAccount.Role.valueOf(request.getRole().toUpperCase());
         } catch (IllegalArgumentException e) {
-            throw new RuntimeException("Invalid role: " + request.getRole());
+            throw new IllegalArgumentException("Invalid role: " + request.getRole());
         }
 
         // 3. Tạo AuthAccount
@@ -119,14 +122,14 @@ public class AuthService implements UserDetailsService {
     @Transactional
     public AuthResponse login(LoginRequest request) {
         AuthAccount account = authAccountRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new RuntimeException("Invalid email or password"));
+                .orElseThrow(() -> new InvalidCredentialsException("Invalid email or password"));
 
         if (!passwordEncoder.matches(request.getPassword(), account.getPasswordHash())) {
-            throw new RuntimeException("Invalid email or password");
+            throw new InvalidCredentialsException("Invalid email or password");
         }
 
         if (request.getDeviceId() == null || request.getDeviceId().trim().isEmpty()) {
-            throw new RuntimeException("Device ID must not be empty");
+            throw new IllegalArgumentException("Device ID must not be empty");
         }
 
         deactivateSessions(account, request.getDeviceId());
@@ -161,14 +164,14 @@ public class AuthService implements UserDetailsService {
         String oldRefreshToken = request.getRefreshToken();
 
         if (!tokenService.isValid(oldRefreshToken)) {
-            throw new RuntimeException("Invalid refresh token");
+            throw new InvalidTokenException("Invalid refresh token");
         }
 
         AuthSession session = authSessionRepository.findByRefreshToken(oldRefreshToken)
-                .orElseThrow(() -> new RuntimeException("Session not found"));
+                .orElseThrow(() -> new InvalidTokenException("Refresh token not found or expired"));
 
         if (!session.getIsActive()) {
-            throw new RuntimeException("Session is inactive");
+            throw new InvalidTokenException("Session is inactive");
         }
 
         AuthAccount account = session.getAuthAccount();
@@ -193,7 +196,7 @@ public class AuthService implements UserDetailsService {
 
     public void logout(String refreshToken) {
         if (!tokenService.isValid(refreshToken)) {
-            throw new RuntimeException("Invalid refresh token");
+            throw new InvalidTokenException("Invalid refresh token");
         }
 
         authSessionRepository.findByRefreshToken(refreshToken).ifPresent(session -> {
@@ -204,7 +207,7 @@ public class AuthService implements UserDetailsService {
 
     public List<SessionInfoResponse> getActiveSessions(String email) {
         AuthAccount account = authAccountRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Account", "email", email));
 
         return authSessionRepository.findByAuthAccount(account).stream()
                 .map(session -> new SessionInfoResponse(
@@ -220,7 +223,7 @@ public class AuthService implements UserDetailsService {
 
     public AuthAccountDto getAccountByIdDto(Long id) {
         AuthAccount account = authAccountRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("AuthAccount not found: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Account", "id", id));
         return new AuthAccountDto(account.getId(), account.getEmail(), account.getRole().name());
     }
 
@@ -248,7 +251,7 @@ public class AuthService implements UserDetailsService {
 
     public AuthAccountDto getAccountByEmailDto(String email) {
         AuthAccount account = authAccountRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("AuthAccount not found with email: " + email));
+                .orElseThrow(() -> new ResourceNotFoundException("Account", "email", email));
         return new AuthAccountDto(account.getId(), account.getEmail(), account.getRole().name());
     }
 }
