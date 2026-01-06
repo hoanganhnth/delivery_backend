@@ -19,4 +19,6 @@ public interface MenuItemService {
     List<MenuItemResponse> getItemsByRestaurant(Long restaurantId);
 
     List<MenuItemResponse> getAvailableItems(Long restaurantId);
+    
+    List<MenuItemResponse> getMenuItemsByCreatorId(Long creatorId);
 }

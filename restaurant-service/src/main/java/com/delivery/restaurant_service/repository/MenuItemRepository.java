@@ -31,4 +31,9 @@ public interface MenuItemRepository extends JpaRepository<MenuItem, Long> {
      * Tìm các món ăn có trạng thái và thuộc một nhà hàng cụ thể.
      */
     List<MenuItem> findByRestaurantIdAndStatus(Long restaurantId, MenuItem.Status status);
+    
+    /**
+     * Tìm tất cả các món ăn thuộc các nhà hàng được tạo bởi creator cụ thể.
+     */
+    List<MenuItem> findByRestaurantCreatorId(Long creatorId);
 }

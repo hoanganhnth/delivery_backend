@@ -112,6 +112,14 @@ public class MenuItemServiceImpl implements MenuItemService {
                 .map(menuItemMapper::toResponse).collect(Collectors.toList());
     }
     
+    @Override
+    public List<MenuItemResponse> getMenuItemsByCreatorId(Long creatorId) {
+        List<MenuItem> menuItems = menuItemRepository.findByRestaurantCreatorId(creatorId);
+        return menuItems.stream()
+                .map(menuItemMapper::toResponse)
+                .collect(Collectors.toList());
+    }
+    
     /**
      * Update menu item availability và cache
      */

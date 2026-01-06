@@ -56,4 +56,22 @@ public class MenuItemController {
         List<MenuItemResponse> list = menuItemService.getAvailableItems(restaurantId);
         return ResponseEntity.ok(new BaseResponse<>(1, list));
     }
+    
+    @GetMapping("/creator/{creatorId}")
+    public ResponseEntity<BaseResponse<List<MenuItemResponse>>> getByCreatorId(@PathVariable Long creatorId) {
+        List<MenuItemResponse> list = menuItemService.getMenuItemsByCreatorId(creatorId);
+        return ResponseEntity.ok(new BaseResponse<>(1, list));
+    }
+    
+    @GetMapping("/my-menu-items")
+    public ResponseEntity<BaseResponse<List<MenuItemResponse>>> getMyMenuItems(
+            @RequestHeader(value = HttpHeaderConstants.X_USER_ID, required = false) Long creatorId) {
+        
+        if (creatorId == null) {
+            throw new IllegalArgumentException("User ID is required");
+        }
+        
+        List<MenuItemResponse> list = menuItemService.getMenuItemsByCreatorId(creatorId);
+        return ResponseEntity.ok(new BaseResponse<>(1, list));
+    }
 }
