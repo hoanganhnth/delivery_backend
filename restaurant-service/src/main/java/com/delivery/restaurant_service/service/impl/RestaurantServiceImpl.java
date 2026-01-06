@@ -127,6 +127,14 @@ public class RestaurantServiceImpl implements RestaurantService {
                 .collect(Collectors.toList());
     }
     
+    @Override
+    public List<RestaurantResponse> getRestaurantsByCreatorId(Long creatorId) {
+        List<Restaurant> restaurants = restaurantRepository.findByCreatorId(creatorId);
+        return restaurants.stream()
+                .map(restaurantMapper::toResponse)
+                .collect(Collectors.toList());
+    }
+    
     /**
      * Update restaurant availability và cache
      */

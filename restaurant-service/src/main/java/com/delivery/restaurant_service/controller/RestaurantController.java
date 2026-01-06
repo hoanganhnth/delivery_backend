@@ -62,4 +62,22 @@ public class RestaurantController {
         List<RestaurantResponse> list = restaurantService.findByName(keyword);
         return ResponseEntity.ok(new BaseResponse<>(1, list));
     }
+    
+    @GetMapping("/creator/{creatorId}")
+    public ResponseEntity<BaseResponse<List<RestaurantResponse>>> getByCreatorId(@PathVariable Long creatorId) {
+        List<RestaurantResponse> list = restaurantService.getRestaurantsByCreatorId(creatorId);
+        return ResponseEntity.ok(new BaseResponse<>(1, list));
+    }
+    
+    @GetMapping("/my-restaurants")
+    public ResponseEntity<BaseResponse<List<RestaurantResponse>>> getMyRestaurants(
+            @RequestHeader(value = HttpHeaderConstants.X_USER_ID, required = false) Long creatorId) {
+        
+        if (creatorId == null) {
+            throw new IllegalArgumentException("User ID is required");
+        }
+        
+        List<RestaurantResponse> list = restaurantService.getRestaurantsByCreatorId(creatorId);
+        return ResponseEntity.ok(new BaseResponse<>(1, list));
+    }
 }

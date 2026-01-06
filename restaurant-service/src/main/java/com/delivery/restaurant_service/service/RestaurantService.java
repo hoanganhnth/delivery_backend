@@ -23,4 +23,6 @@ public interface RestaurantService {
     List<RestaurantResponse> getAllRestaurants();
 
     List<RestaurantResponse> findByName(String keyword);
+    
+    List<RestaurantResponse> getRestaurantsByCreatorId(Long creatorId);
 }
