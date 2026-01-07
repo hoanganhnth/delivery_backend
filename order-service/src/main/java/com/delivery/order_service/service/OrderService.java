@@ -40,6 +40,11 @@ public interface OrderService {
     List<OrderResponse> getOrdersByRestaurant(Long restaurantId, Long userId, String role);
     
     /**
+     * Lấy danh sách đơn hàng theo restaurant owner (creator ID)
+     */
+    List<OrderResponse> getOrdersByRestaurantOwner(Long ownerId, Long userId, String role);
+    
+    /**
      * Lấy danh sách đơn hàng của shipper
      */
     List<OrderResponse> getOrdersByShipper(Long shipperId, Long userId, String role);

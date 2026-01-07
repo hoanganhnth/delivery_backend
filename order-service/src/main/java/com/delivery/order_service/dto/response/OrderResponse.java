@@ -36,6 +36,7 @@ public class OrderResponse {
     private String notes;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private Long creatorId; // ID của chủ nhà hàng (restaurant owner)
     private List<OrderItemResponse> items;
 
 

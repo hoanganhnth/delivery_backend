@@ -64,4 +64,16 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
      */
     @Query("SELECT o FROM Order o WHERE o.status = 'READY' ORDER BY o.createdAt ASC")
     List<Order> findOrdersWaitingForShipper();
+    
+    /**
+     * Tìm đơn hàng theo danh sách restaurant IDs (cho restaurant owner)
+     */
+    @Query("SELECT o FROM Order o WHERE o.restaurantId IN :restaurantIds ORDER BY o.createdAt DESC")
+    List<Order> findByRestaurantIdIn(@Param("restaurantIds") List<Long> restaurantIds);
+    
+    /**
+     * ✅ Tìm đơn hàng theo creator ID (chủ nhà hàng)
+     * Query trực tiếp từ bảng orders mà không cần JOIN với restaurant
+     */
+    List<Order> findByCreatorIdOrderByCreatedAtDesc(Long creatorId);
 }

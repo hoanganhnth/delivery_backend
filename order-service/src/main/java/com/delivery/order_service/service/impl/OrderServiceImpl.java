@@ -1,9 +1,11 @@
 package com.delivery.order_service.service.impl;
 
+import com.delivery.order_service.client.RestaurantClient;
 import com.delivery.order_service.common.constants.RoleConstants;
 import com.delivery.order_service.dto.request.CreateOrderRequest;
 import com.delivery.order_service.dto.request.UpdateOrderRequest;
 import com.delivery.order_service.dto.response.OrderResponse;
+import com.delivery.order_service.dto.response.RestaurantResponse;
 import com.delivery.order_service.dto.event.ShipperNotFoundEvent;
 import com.delivery.order_service.entity.Order;
 import com.delivery.order_service.entity.OrderItem;
@@ -33,19 +35,22 @@ public class OrderServiceImpl implements OrderService {
     private final OrderEventPublisher orderEventPublisher;
     private final OrderValidationService orderValidationService;
     private final ShippingFeeCalculationService shippingFeeCalculationService;
+    private final RestaurantClient restaurantClient;
 
     public OrderServiceImpl(OrderRepository orderRepository, 
                            OrderItemRepository orderItemRepository,
                            OrderMapper orderMapper,
                            OrderEventPublisher orderEventPublisher,
                            OrderValidationService orderValidationService,
-                           ShippingFeeCalculationService shippingFeeCalculationService) {
+                           ShippingFeeCalculationService shippingFeeCalculationService,
+                           RestaurantClient restaurantClient) {
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
         this.orderMapper = orderMapper;
         this.orderEventPublisher = orderEventPublisher;
         this.orderValidationService = orderValidationService;
         this.shippingFeeCalculationService = shippingFeeCalculationService;
+        this.restaurantClient = restaurantClient;
     }
 
     @Override
@@ -54,9 +59,26 @@ public class OrderServiceImpl implements OrderService {
         // ✅ Validate request data trước khi xử lý
         orderValidationService.validateCreateOrderRequest(request, userId);
         
-        // Tạo order chính
+        // ✅ STEP 1: Gọi Restaurant Service để validate và lấy creatorId (Non-blocking với Mono)
+        log.info("🔍 Step 1: Validating restaurant {} via Restaurant Service", request.getRestaurantId());
+        
+        RestaurantResponse restaurantInfo = restaurantClient
+                .getRestaurantById(request.getRestaurantId())
+                .block(); // Block để chờ kết quả (vì đang trong transaction)
+        
+        if (restaurantInfo == null || restaurantInfo.getCreatorId() == null) {
+            log.error("❌ Restaurant {} not found or invalid", request.getRestaurantId());
+            throw new ResourceNotFoundException(
+                    "Nhà hàng không tồn tại hoặc không khả dụng. ID: " + request.getRestaurantId()
+            );
+        }
+        
+        log.info("✅ Restaurant validated successfully. Creator ID: {}", restaurantInfo.getCreatorId());
+        
+        // ✅ STEP 2: Tạo order với creatorId từ Restaurant
         Order order = orderMapper.createOrderRequestToOrder(request);
         order.setUserId(userId);
+        order.setCreatorId(restaurantInfo.getCreatorId()); // Lưu creatorId của nhà hàng
         
         // Tính toán giá trị
         BigDecimal subtotal = calculateSubtotal(request.getItems());
@@ -77,6 +99,10 @@ public class OrderServiceImpl implements OrderService {
         
         // Lưu order
         Order savedOrder = orderRepository.save(order);
+        
+        log.info("✅ Order created: id={}, restaurantId={}, creatorId={}, totalPrice={}", 
+                savedOrder.getId(), savedOrder.getRestaurantId(), 
+                savedOrder.getCreatorId(), savedOrder.getTotalPrice());
         
         // Tạo order items
         List<OrderItem> orderItems = request.getItems().stream()
@@ -163,6 +189,29 @@ public class OrderServiceImpl implements OrderService {
         }
         
         List<Order> orders = orderRepository.findByRestaurantIdOrderByCreatedAtDesc(restaurantId);
+        return orderMapper.ordersToOrderResponses(orders);
+    }
+    
+    @Override
+    public List<OrderResponse> getOrdersByRestaurantOwner(Long ownerId, Long userId, String role) {
+        // Chỉ admin hoặc chính restaurant owner mới được xem
+        if (!RoleConstants.ADMIN.equals(role)) {
+            if (!RoleConstants.RESTAURANT_OWNER.equals(role)) {
+                throw new AccessDeniedException("Bạn không có quyền xem đơn hàng của chủ nhà hàng");
+            }
+            // Restaurant owner chỉ xem được đơn hàng của chính mình
+            if (!ownerId.equals(userId)) {
+                throw new AccessDeniedException("Bạn chỉ có thể xem đơn hàng của nhà hàng mình sở hữu");
+            }
+        }
+        
+        // ✅ Query trực tiếp từ bảng orders theo creatorId (không cần gọi Restaurant Service)
+        log.info("📋 Getting orders for restaurant owner (creatorId): {}", ownerId);
+        
+        List<Order> orders = orderRepository.findByCreatorIdOrderByCreatedAtDesc(ownerId);
+        
+        log.info("✅ Found {} orders for restaurant owner {}", orders.size(), ownerId);
+        
         return orderMapper.ordersToOrderResponses(orders);
     }
 

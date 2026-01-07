@@ -84,6 +84,23 @@ public class OrderController {
         List<OrderResponse> response = orderService.getOrdersByRestaurant(restaurantId, userId, role);
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Lấy danh sách đơn hàng của nhà hàng thành công"));
     }
+    
+    @GetMapping("/restaurant-owner/{ownerId}")
+    public ResponseEntity<BaseResponse<List<OrderResponse>>> getOrdersByRestaurantOwner(
+            @PathVariable Long ownerId,
+            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId,
+            @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
+        List<OrderResponse> response = orderService.getOrdersByRestaurantOwner(ownerId, userId, role);
+        return ResponseEntity.ok(new BaseResponse<>(1, response, "Lấy danh sách đơn hàng của chủ nhà hàng thành công"));
+    }
+    
+    @GetMapping("/my-restaurant-orders")
+    public ResponseEntity<BaseResponse<List<OrderResponse>>> getMyRestaurantOrders(
+            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId,
+            @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
+        List<OrderResponse> response = orderService.getOrdersByRestaurantOwner(userId, userId, role);
+        return ResponseEntity.ok(new BaseResponse<>(1, response, "Lấy danh sách đơn hàng của nhà hàng tôi sở hữu thành công"));
+    }
 
     @GetMapping("/shipper/{shipperId}")
     public ResponseEntity<BaseResponse<List<OrderResponse>>> getOrdersByShipper(
