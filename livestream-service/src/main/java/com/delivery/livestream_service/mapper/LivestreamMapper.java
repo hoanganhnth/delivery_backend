@@ -6,8 +6,9 @@ import com.delivery.livestream_service.entity.Livestream;
 import com.delivery.livestream_service.entity.LivestreamProduct;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
+import org.mapstruct.NullValuePropertyMappingStrategy;
 
-@Mapper(componentModel = "spring")
+@Mapper(componentModel = "spring", nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
 public interface LivestreamMapper {
 
     @Mapping(target = "pinnedProducts", ignore = true)

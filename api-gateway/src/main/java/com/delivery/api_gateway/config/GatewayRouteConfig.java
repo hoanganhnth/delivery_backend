@@ -77,6 +77,10 @@ public class GatewayRouteConfig {
                                                 .filters(f -> f.filter(
                                                                 jwtFilter.apply(new JwtAuthenticationFilter.Config())))
                                                 .uri("http://localhost:8091"))
+                                .route("livestream-service", r -> r.path("/api/livestreams/**")
+                                                .filters(f -> f.filter(
+                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config())))
+                                                .uri("http://localhost:8092"))
 
                                 .build();
         }

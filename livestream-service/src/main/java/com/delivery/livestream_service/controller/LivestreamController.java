@@ -3,7 +3,9 @@ package com.delivery.livestream_service.controller;
 import com.delivery.livestream_service.common.constants.ApiPathConstants;
 import com.delivery.livestream_service.common.constants.HttpHeaderConstants;
 import com.delivery.livestream_service.dto.request.CreateLivestreamRequest;
+import com.delivery.livestream_service.dto.response.JoinLivestreamResponse;
 import com.delivery.livestream_service.dto.response.LivestreamResponse;
+import com.delivery.livestream_service.dto.response.StartLivestreamResponse;
 import com.delivery.livestream_service.payload.BaseResponse;
 import com.delivery.livestream_service.service.LivestreamService;
 import jakarta.validation.Valid;
@@ -33,12 +35,22 @@ public class LivestreamController {
     }
 
     @PostMapping("/{id}/start")
-    public ResponseEntity<BaseResponse<LivestreamResponse>> startLivestream(
+    public ResponseEntity<BaseResponse<StartLivestreamResponse>> startLivestream(
             @PathVariable UUID id,
             @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId,
             @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
-        LivestreamResponse response = livestreamService.startLivestream(id, userId, role);
-        return ResponseEntity.ok(new BaseResponse<>(1, response, "Bắt đầu livestream thành công"));
+        StartLivestreamResponse response = livestreamService.startLivestream(id, userId, role);
+        return ResponseEntity.ok(new BaseResponse<>(1, response, 
+                "Bắt đầu livestream thành công. Sử dụng token và channelName để join Agora."));
+    }
+
+    @PostMapping("/{id}/join")
+    public ResponseEntity<BaseResponse<JoinLivestreamResponse>> joinLivestream(
+            @PathVariable UUID id,
+            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId) {
+        JoinLivestreamResponse response = livestreamService.joinLivestream(id, userId);
+        return ResponseEntity.ok(new BaseResponse<>(1, response, 
+                "Join livestream thành công. Sử dụng token và channelName để xem trên Agora."));
     }
 
     @PostMapping("/{id}/end")

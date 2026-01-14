@@ -20,24 +20,24 @@ public class LivestreamEventPublisher {
     }
 
     public void publishLivestreamStarted(LivestreamStartedEvent event) {
-        log.info("Publishing LivestreamStartedEvent: livestreamId={}", event.getLivestreamId());
-        kafkaTemplate.send(KafkaTopicConstants.LIVESTREAM_STARTED_TOPIC, event.getLivestreamId().toString(), event);
+        // log.info("Publishing LivestreamStartedEvent: livestreamId={}", event.getLivestreamId());
+        // kafkaTemplate.send(KafkaTopicConstants.LIVESTREAM_STARTED_TOPIC, event.getLivestreamId().toString(), event);
     }
 
     public void publishLivestreamEnded(LivestreamEndedEvent event) {
-        log.info("Publishing LivestreamEndedEvent: livestreamId={}", event.getLivestreamId());
-        kafkaTemplate.send(KafkaTopicConstants.LIVESTREAM_ENDED_TOPIC, event.getLivestreamId().toString(), event);
+        // log.info("Publishing LivestreamEndedEvent: livestreamId={}", event.getLivestreamId());
+        // kafkaTemplate.send(KafkaTopicConstants.LIVESTREAM_ENDED_TOPIC, event.getLivestreamId().toString(), event);
     }
 
     public void publishProductPinned(ProductPinnedEvent event) {
-        log.info("Publishing ProductPinnedEvent: livestreamId={}, productId={}", 
-                event.getLivestreamId(), event.getProductId());
-        kafkaTemplate.send(KafkaTopicConstants.PRODUCT_PINNED_TOPIC, event.getLivestreamId().toString(), event);
+        // log.info("Publishing ProductPinnedEvent: livestreamId={}, productId={}", 
+        //         event.getLivestreamId(), event.getProductId());
+        // kafkaTemplate.send(KafkaTopicConstants.PRODUCT_PINNED_TOPIC, event.getLivestreamId().toString(), event);
     }
 
     public void publishProductUnpinned(ProductUnpinnedEvent event) {
-        log.info("Publishing ProductUnpinnedEvent: livestreamId={}, productId={}", 
-                event.getLivestreamId(), event.getProductId());
-        kafkaTemplate.send(KafkaTopicConstants.PRODUCT_UNPINNED_TOPIC, event.getLivestreamId().toString(), event);
+        // log.info("Publishing ProductUnpinnedEvent: livestreamId={}, productId={}", 
+        //         event.getLivestreamId(), event.getProductId());
+        // kafkaTemplate.send(KafkaTopicConstants.PRODUCT_UNPINNED_TOPIC, event.getLivestreamId().toString(), event);
     }
 }

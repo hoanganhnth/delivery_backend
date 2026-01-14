@@ -3,10 +3,13 @@ package com.delivery.livestream_service.service;
 import com.delivery.livestream_service.dto.event.LivestreamEndedEvent;
 import com.delivery.livestream_service.dto.event.LivestreamStartedEvent;
 import com.delivery.livestream_service.dto.request.CreateLivestreamRequest;
+import com.delivery.livestream_service.dto.response.JoinLivestreamResponse;
 import com.delivery.livestream_service.dto.response.LivestreamProductResponse;
 import com.delivery.livestream_service.dto.response.LivestreamResponse;
+import com.delivery.livestream_service.dto.response.StartLivestreamResponse;
 import com.delivery.livestream_service.entity.Livestream;
 import com.delivery.livestream_service.enums.LivestreamStatus;
+import com.delivery.livestream_service.enums.TokenRole;
 import com.delivery.livestream_service.exception.InvalidLivestreamStatusException;
 import com.delivery.livestream_service.exception.LivestreamNotFoundException;
 import com.delivery.livestream_service.exception.UnauthorizedLivestreamAccessException;
@@ -29,13 +32,16 @@ public class LivestreamService {
     private final LivestreamRepository livestreamRepository;
     private final LivestreamEventPublisher eventPublisher;
     private final LivestreamMapper mapper;
+    private final StreamTokenService streamTokenService;
 
     public LivestreamService(LivestreamRepository livestreamRepository,
                             LivestreamEventPublisher eventPublisher,
-                            LivestreamMapper mapper) {
+                            LivestreamMapper mapper,
+                            StreamTokenService streamTokenService) {
         this.livestreamRepository = livestreamRepository;
         this.eventPublisher = eventPublisher;
         this.mapper = mapper;
+        this.streamTokenService = streamTokenService;
     }
 
     @Transactional
@@ -58,8 +64,8 @@ public class LivestreamService {
     }
 
     @Transactional
-    public LivestreamResponse startLivestream(UUID id, Long sellerId, String role) {
-        log.info("Starting livestream: id={}, seller={}", id, sellerId);
+    public StartLivestreamResponse startLivestream(UUID id, Long sellerId, String role) {
+        log.info("🎬 Starting livestream: id={}, seller={}", id, sellerId);
 
         Livestream livestream = livestreamRepository.findById(id)
                 .orElseThrow(() -> new LivestreamNotFoundException("Không tìm thấy livestream với ID: " + id));
@@ -75,6 +81,10 @@ public class LivestreamService {
         livestream.setStartedAt(LocalDateTime.now());
         livestream = livestreamRepository.save(livestream);
 
+        // Generate Agora token for HOST (seller)
+        int expireSeconds = 3600; // 1 hour
+        var tokenResponse = streamTokenService.generateToken(id, sellerId, TokenRole.HOST, expireSeconds);
+
         // Publish Kafka event
         LivestreamStartedEvent event = new LivestreamStartedEvent(
                 livestream.getId(),
@@ -85,8 +95,22 @@ public class LivestreamService {
         );
         eventPublisher.publishLivestreamStarted(event);
 
-        log.info("Livestream started successfully: id={}", id);
-        return mapper.toResponse(livestream);
+        log.info("✅ Livestream started successfully: id={}, channelName={}", id, livestream.getChannelName());
+        
+        // Build response với token để seller join Agora ngay
+        StartLivestreamResponse response = new StartLivestreamResponse();
+        response.setLivestreamId(livestream.getId());
+        response.setChannelName(livestream.getChannelName());
+        response.setStatus(livestream.getStatus());
+        response.setToken(tokenResponse.getToken());
+        response.setUid(sellerId.intValue());
+        response.setRole("HOST");
+        response.setTokenExpiresAt(tokenResponse.getExpiresAt());
+        response.setTitle(livestream.getTitle());
+        response.setRestaurantId(livestream.getRestaurantId());
+        response.setStartedAt(livestream.getStartedAt());
+        
+        return response;
     }
 
     @Transactional
@@ -140,6 +164,45 @@ public class LivestreamService {
         Livestream livestream = livestreamRepository.findById(id)
                 .orElseThrow(() -> new LivestreamNotFoundException("Không tìm thấy livestream với ID: " + id));
         return mapper.toResponse(livestream);
+    }
+
+    /**
+     * Viewer join livestream - generate token VIEWER
+     */
+    @Transactional(readOnly = true)
+    public JoinLivestreamResponse joinLivestream(UUID id, Long viewerId) {
+        log.info("👀 Viewer joining livestream: id={}, viewer={}", id, viewerId);
+
+        Livestream livestream = livestreamRepository.findById(id)
+                .orElseThrow(() -> new LivestreamNotFoundException("Không tìm thấy livestream với ID: " + id));
+
+        // Check livestream đang LIVE
+        if (livestream.getStatus() != LivestreamStatus.LIVE) {
+            throw new InvalidLivestreamStatusException(
+                    "Livestream chưa bắt đầu hoặc đã kết thúc. Trạng thái: " + livestream.getStatus());
+        }
+
+        // Generate Agora token for VIEWER
+        int expireSeconds = 3600; // 1 hour
+        var tokenResponse = streamTokenService.generateToken(id, viewerId, TokenRole.VIEWER, expireSeconds);
+
+        log.info("✅ Viewer joined successfully: livestream={}, viewer={}, channelName={}", 
+                id, viewerId, livestream.getChannelName());
+
+        // Build response với token để viewer join Agora
+        JoinLivestreamResponse response = new JoinLivestreamResponse();
+        response.setLivestreamId(livestream.getId());
+        response.setChannelName(livestream.getChannelName());
+        response.setTitle(livestream.getTitle());
+        response.setRestaurantId(livestream.getRestaurantId());
+        response.setToken(tokenResponse.getToken());
+        response.setUid(viewerId.intValue());
+        response.setTokenExpiresAt(tokenResponse.getExpiresAt());
+        response.setSellerId(livestream.getSellerId());
+        response.setStartedAt(livestream.getStartedAt());
+        // response.setCurrentViewers(0); // TODO: Implement viewer counting
+
+        return response;
     }
 
     @Transactional(readOnly = true)

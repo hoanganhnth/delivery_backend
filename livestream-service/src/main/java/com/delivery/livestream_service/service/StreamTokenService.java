@@ -1,5 +1,6 @@
 package com.delivery.livestream_service.service;
 
+import com.delivery.livestream_service.config.agora.RtcTokenBuilder;
 import com.delivery.livestream_service.dto.response.TokenResponse;
 import com.delivery.livestream_service.entity.Livestream;
 import com.delivery.livestream_service.enums.LivestreamStatus;
@@ -15,9 +16,8 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
- * Service for generating streaming tokens (Agora/LiveKit)
- * Note: This is a placeholder implementation. 
- * For production, integrate with actual Agora RTC SDK or LiveKit SDK.
+ * Service for generating streaming tokens (Agora)
+ * Uses RtcTokenBuilder to generate real Agora tokens
  */
 @Slf4j
 @Service
@@ -28,11 +28,14 @@ public class StreamTokenService {
 
     @Value("${agora.app-certificate}")
     private String agoraAppCertificate;
-
+    
+    private final int expireTimeInSeconds = 3600;   
     private final LivestreamRepository livestreamRepository;
+    private final RtcTokenBuilder rtcTokenBuilder;
 
     public StreamTokenService(LivestreamRepository livestreamRepository) {
         this.livestreamRepository = livestreamRepository;
+        this.rtcTokenBuilder = new RtcTokenBuilder();
     }
 
     public TokenResponse generateToken(UUID livestreamId, Long userId, TokenRole role, Integer expireSeconds) {
@@ -48,30 +51,45 @@ public class StreamTokenService {
         }
 
         String roomId = livestream.getRoomId();
+        String channelName = livestream.getChannelName();
         LocalDateTime expiresAt = LocalDateTime.now().plusSeconds(expireSeconds);
 
-        // TODO: Integrate with actual Agora SDK
-        // For now, returning a mock token
-        String token = generateAgoraToken(roomId, userId, role, expireSeconds);
+        // Generate real Agora token using RtcTokenBuilder
+        String token = generateAgoraToken(channelName, userId, role, expireSeconds);
 
-        log.info("Token generated successfully for livestream={}, expires at {}", livestreamId, expiresAt);
+        log.info("Token generated successfully for livestream={}, channelName={}, expires at {}", 
+                livestreamId, channelName, expiresAt);
         return new TokenResponse(token, roomId, livestreamId, expiresAt);
     }
 
     /**
-     * Placeholder for Agora token generation
-     * In production, use: io.agora.rtc.RtcTokenBuilder
+     * Generate Agora token using RtcTokenBuilder
      */
-    private String generateAgoraToken(String roomId, Long userId, TokenRole role, Integer expireSeconds) {
-        // Mock implementation - replace with actual Agora SDK call
-        // Example with Agora SDK:
-        // RtcTokenBuilder builder = new RtcTokenBuilder();
-        // int uid = userId.intValue();
-        // int privilege = role == TokenRole.HOST ? 1 : 2;
-        // int timestamp = (int)(System.currentTimeMillis() / 1000 + expireSeconds);
-        // return builder.buildTokenWithUid(agoraAppId, agoraAppCertificate, roomId, uid, privilege, timestamp);
-        
-        log.warn("Using mock token - replace with actual Agora SDK integration");
-        return String.format("MOCK_TOKEN_%s_%s_%s_%d", roomId, userId, role, System.currentTimeMillis());
+    private String generateAgoraToken(String channelName, Long userId, TokenRole role, Integer expireSeconds) {
+        try {
+            int uid = userId.intValue();
+            int timestamp = (int)(System.currentTimeMillis() / 1000 + expireSeconds);
+            
+            // Convert TokenRole to Agora Role
+            RtcTokenBuilder.Role agoraRole = (role == TokenRole.HOST) 
+                    ? RtcTokenBuilder.Role.Role_Publisher 
+                    : RtcTokenBuilder.Role.Role_Subscriber;
+            
+            String token = rtcTokenBuilder.buildTokenWithUid(
+                    agoraAppId, 
+                    agoraAppCertificate, 
+                    channelName, 
+                    uid, 
+                    agoraRole, 
+                    timestamp
+            );
+            
+            log.info("✅ Agora token generated: channel={}, uid={}, role={}", channelName, uid, role);
+            return token;
+            
+        } catch (Exception e) {
+            log.error("❌ Failed to generate Agora token: {}", e.getMessage(), e);
+            throw new RuntimeException("Không thể tạo Agora token: " + e.getMessage());
+        }
     }
 }

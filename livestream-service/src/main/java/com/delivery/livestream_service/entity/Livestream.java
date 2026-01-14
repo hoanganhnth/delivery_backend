@@ -44,6 +44,9 @@ public class Livestream {
     @Column(name = "room_id", unique = true, nullable = false)
     private String roomId;
 
+    @Column(name = "channel_name", unique = true, nullable = false)
+    private String channelName;
+
     @Column(name = "started_at")
     private LocalDateTime startedAt;
 
@@ -65,6 +68,10 @@ public class Livestream {
         updatedAt = LocalDateTime.now();
         if (roomId == null) {
             roomId = UUID.randomUUID().toString();
+        }
+        if (channelName == null) {
+            // Format: livestream_{restaurantId}_{timestamp}
+            channelName = String.format("livestream_%d_%d", restaurantId, System.currentTimeMillis() / 1000);
         }
     }
 

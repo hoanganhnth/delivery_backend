@@ -21,6 +21,7 @@ public class LivestreamResponse {
     private LivestreamStatus status;
     private StreamProvider streamProvider;
     private String roomId;
+    private String channelName;
     private LocalDateTime startedAt;
     private LocalDateTime endedAt;
     private LocalDateTime createdAt;
