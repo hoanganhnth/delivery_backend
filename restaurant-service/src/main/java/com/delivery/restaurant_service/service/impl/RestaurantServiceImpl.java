@@ -11,6 +11,7 @@ import com.delivery.restaurant_service.repository.RestaurantRepository;
 import com.delivery.restaurant_service.service.RestaurantService;
 import com.delivery.restaurant_service.service.RestaurantCacheService;
 import com.delivery.restaurant_service.service.RestaurantCatalogService;
+import com.delivery.restaurant_service.service.RestaurantBalanceService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
@@ -24,16 +25,17 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Slf4j
 public class RestaurantServiceImpl implements RestaurantService {
-    
+
     private final RestaurantRepository restaurantRepository;
     private final RestaurantMapper restaurantMapper;
     private final RestaurantCacheService restaurantCacheService;
     private final RestaurantCatalogService restaurantCatalogService;
+    private final RestaurantBalanceService restaurantBalanceService;
 
     @Override
     public RestaurantResponse createRestaurant(CreateRestaurantRequest request,
-                                               Long creatorId,
-                                               String role) {
+            Long creatorId,
+            String role) {
 
         if (role == null || !RoleConstants.ALLOWED_CREATORS.contains(role.toUpperCase())) {
             throw new AccessDeniedException("Only ADMIN or OWNER can create restaurants");
@@ -41,12 +43,21 @@ public class RestaurantServiceImpl implements RestaurantService {
         if (creatorId == null) {
             throw new AccessDeniedException("You must be authenticated to create a restaurant");
         }
-        
+
         Restaurant restaurant = restaurantMapper.toEntity(request);
         restaurant.setCreatorId(creatorId);
 
         Restaurant saved = restaurantRepository.save(restaurant);
-        
+
+        // ✅ Create initial balance for restaurant
+        try {
+            restaurantBalanceService.createInitialBalance(saved);
+            log.info("✅ Created initial balance for restaurant: {} (ID: {})", saved.getName(), saved.getId());
+        } catch (Exception e) {
+            log.warn("⚠️ Failed to create initial balance for restaurant: {}", e.getMessage());
+            // Don't fail restaurant creation if balance creation fails
+        }
+
         // 🔥 Cache restaurant data after creation
         try {
             restaurantCacheService.cacheRestaurant(saved);
@@ -55,7 +66,7 @@ public class RestaurantServiceImpl implements RestaurantService {
         } catch (Exception e) {
             log.warn("⚠️ Failed to cache restaurant after creation: {}", e.getMessage());
         }
-        
+
         return restaurantMapper.toResponse(saved);
     }
 
@@ -66,10 +77,10 @@ public class RestaurantServiceImpl implements RestaurantService {
         if (!existingRestaurant.getCreatorId().equals(creatorId)) {
             throw new AccessDeniedException("You are not allowed to update this restaurant");
         }
-        
+
         restaurantMapper.updateEntityFromDto(request, existingRestaurant);
         Restaurant updated = restaurantRepository.save(existingRestaurant);
-        
+
         // 🔥 Update cache after modification
         try {
             restaurantCacheService.cacheRestaurant(updated);
@@ -78,7 +89,7 @@ public class RestaurantServiceImpl implements RestaurantService {
         } catch (Exception e) {
             log.warn("⚠️ Failed to update cache after restaurant update: {}", e.getMessage());
         }
-        
+
         return restaurantMapper.toResponse(updated);
     }
 
@@ -126,7 +137,7 @@ public class RestaurantServiceImpl implements RestaurantService {
                 .map(restaurantMapper::toResponse)
                 .collect(Collectors.toList());
     }
-    
+
     @Override
     public List<RestaurantResponse> getRestaurantsByCreatorId(Long creatorId) {
         List<Restaurant> restaurants = restaurantRepository.findByCreatorId(creatorId);
@@ -134,18 +145,18 @@ public class RestaurantServiceImpl implements RestaurantService {
                 .map(restaurantMapper::toResponse)
                 .collect(Collectors.toList());
     }
-    
+
     /**
      * Update restaurant availability và cache
      */
     public void updateRestaurantAvailability(Long restaurantId, boolean isAvailable, Long creatorId) {
         Restaurant restaurant = restaurantRepository.findById(restaurantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Restaurant not found"));
-                
+
         if (!restaurant.getCreatorId().equals(creatorId)) {
             throw new AccessDeniedException("You are not allowed to update this restaurant availability");
         }
-        
+
         // 🔥 Update cache availability
         try {
             restaurantCacheService.updateRestaurantAvailability(restaurantId, isAvailable);

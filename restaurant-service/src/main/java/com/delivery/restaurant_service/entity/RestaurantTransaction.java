@@ -1,8 +1,7 @@
-
 package com.delivery.restaurant_service.entity;
+
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -11,6 +10,9 @@ import java.time.LocalDateTime;
 @Setter
 @Entity
 @Table(name = "restaurant_transactions")
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class RestaurantTransaction {
 
     public enum TypeTransaction {
@@ -19,6 +21,13 @@ public class RestaurantTransaction {
         WITHDRAW,
         ADJUSTMENT,
         REFUND
+    }
+
+    public enum TransactionStatus {
+        PENDING, // Withdrawal request pending approval
+        APPROVED, // Withdrawal approved by admin
+        REJECTED, // Withdrawal rejected
+        COMPLETED // Transaction completed (for earnings, this is immediate)
     }
 
     @Id
@@ -42,6 +51,17 @@ public class RestaurantTransaction {
     @Column(columnDefinition = "TEXT")
     private String description;
 
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    @Builder.Default
+    private TransactionStatus status = TransactionStatus.COMPLETED;
+
+    @Column(name = "processed_at")
+    private LocalDateTime processedAt;
+
+    @Column(name = "processed_by")
+    private Long processedBy;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
     @Column(name = "updated_at")
@@ -57,6 +77,5 @@ public class RestaurantTransaction {
     protected void onUpdate() {
         this.updatedAt = LocalDateTime.now();
     }
-
 
 }

@@ -20,10 +20,10 @@ public interface RestaurantMapper {
     })
     void updateEntityFromDto(UpdateRestaurantRequest request, @MappingTarget Restaurant restaurant);
 
-    @Mapping(target = "open", expression = "java(isOpen(restaurant.getOpeningHour(), restaurant.getClosingHour()))")
+    @Mapping(target = "open", expression = "java(isRestaurantOpen(restaurant.getOpeningHour(), restaurant.getClosingHour()))")
     RestaurantResponse toResponse(Restaurant restaurant);
 
-    default boolean isOpen(LocalTime opening, LocalTime closing) {
+    default boolean isRestaurantOpen(LocalTime opening, LocalTime closing) {
         if (opening == null || closing == null) {
             return true; // hoặc throw exception nếu muốn bắt buộc phải có giờ mở/đóng
         }

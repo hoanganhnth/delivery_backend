@@ -12,21 +12,15 @@ import org.mapstruct.NullValuePropertyMappingStrategy;
 
 @Mapper(componentModel = "spring")
 public interface RestaurantBalanceMapper {
-    // Define mapping methods here if needed
-    // For example, you can map CreateRestaurantBalanceRequest to RestaurantBalanceResponse
-    // and vice versa, or any other necessary mappings.
-    @Mapping(target = "id", ignore = true)
-    @Mapping(target = "createdAt", ignore = true)
-    @Mapping(target = "updatedAt", ignore = true)
-    RestaurantBalanceResponse toResponse(CreateRestaurantBalanceRequest request);
+    
+    @Mapping(target = "restaurantId", source = "restaurant.id")
+    RestaurantBalanceResponse toResponse(RestaurantBalance restaurantBalance);
 
-    // update entity from response
+    // update entity from request
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
     @Mapping(target = "restaurant", ignore = true)
     void updateEntityFromDto(UpdateRestaurantBalanceRequest request, @MappingTarget RestaurantBalance restaurantBalance);
-
-    CreateRestaurantBalanceRequest toEntity(RestaurantBalanceResponse response);
 }

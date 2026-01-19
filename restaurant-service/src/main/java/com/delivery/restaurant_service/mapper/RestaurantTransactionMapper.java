@@ -8,14 +8,11 @@ import org.mapstruct.Mapper;
 @Mapper(componentModel = "spring")
 public interface RestaurantTransactionMapper {
 
+    @org.mapstruct.Mapping(target = "id", ignore = true)
     @org.mapstruct.Mapping(target = "createdAt", ignore = true)
     @org.mapstruct.Mapping(target = "updatedAt", ignore = true)
     @org.mapstruct.Mapping(target = "restaurant", ignore = true)
     RestaurantTransaction toEntity(CreateRestaurantTransactionRequest request);
 
-    //updateEntityFromDto
-//    @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
-//    RestaurantTransactionResponse updateEntityFromDto(CreateRestaurantBalanceRequest request, RestaurantTransaction transaction);
-
-    RestaurantTransactionResponse toResponse(RestaurantTransaction restaurant);
+    RestaurantTransactionResponse toResponse(RestaurantTransaction transaction);
 }
