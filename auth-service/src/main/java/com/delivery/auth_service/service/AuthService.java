@@ -128,6 +128,11 @@ public class AuthService implements UserDetailsService {
             throw new InvalidCredentialsException("Invalid email or password");
         }
 
+        // Check if account is active
+        if (account.getIsActive() == null || !account.getIsActive()) {
+            throw new InvalidCredentialsException("Account is blocked or inactive");
+        }
+
         if (request.getDeviceId() == null || request.getDeviceId().trim().isEmpty()) {
             throw new IllegalArgumentException("Device ID must not be empty");
         }
@@ -253,5 +258,82 @@ public class AuthService implements UserDetailsService {
         AuthAccount account = authAccountRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("Account", "email", email));
         return new AuthAccountDto(account.getId(), account.getEmail(), account.getRole().name());
+    }
+
+    // Admin methods
+
+    /**
+     * Block an account (set isActive = false)
+     */
+    @Transactional
+    public void blockAccount(Long accountId, Long adminId, String reason) {
+        AuthAccount account = authAccountRepository.findById(accountId)
+                .orElseThrow(() -> new ResourceNotFoundException("Account", "id", accountId));
+
+        account.setIsActive(false);
+        authAccountRepository.save(account);
+
+        // Deactivate all active sessions
+        List<AuthSession> activeSessions = authSessionRepository.findByAuthAccount(account).stream()
+                .filter(AuthSession::getIsActive)
+                .toList();
+
+        activeSessions.forEach(session -> {
+            session.setIsActive(false);
+            session.setExpiresAt(LocalDateTime.now());
+            authSessionRepository.save(session);
+        });
+
+        // 3. Call user-service to block user
+        if (account.getUserId() != null) {
+            try {
+                String url = userServiceConfig.getBlockUserUrl(account.getUserId());
+
+                // Create request body
+                java.util.Map<String, String> requestBody = new java.util.HashMap<>();
+                requestBody.put("reason", reason != null ? reason : "Blocked by admin");
+
+                // Create headers with admin ID
+                org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+                headers.set("X-User-Id", String.valueOf(adminId));
+                headers.set("X-Role", "ADMIN");
+                headers.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
+
+                HttpEntity<java.util.Map<String, String>> request = new HttpEntity<>(requestBody, headers);
+
+                restTemplate.exchange(
+                        url,
+                        HttpMethod.POST,
+                        request,
+                        new ParameterizedTypeReference<BaseResponse<Void>>() {
+                        });
+
+                System.out.println("✅ User blocked in user-service: userId=" + account.getUserId());
+            } catch (Exception e) {
+                System.err.println("⚠️ Failed to block user in user-service: " + e.getMessage());
+                // Don't fail the whole operation if user-service call fails
+            }
+        }
+    }
+
+    /**
+     * Unblock an account (set isActive = true)
+     */
+    @Transactional
+    public void unblockAccount(Long accountId) {
+        AuthAccount account = authAccountRepository.findById(accountId)
+                .orElseThrow(() -> new ResourceNotFoundException("Account", "id", accountId));
+
+        account.setIsActive(true);
+        authAccountRepository.save(account);
+    }
+
+    /**
+     * Get all accounts (for admin)
+     */
+    public List<AuthAccountDto> getAllAccounts() {
+        return authAccountRepository.findAll().stream()
+                .map(account -> new AuthAccountDto(account.getId(), account.getEmail(), account.getRole().name()))
+                .toList();
     }
 }

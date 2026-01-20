@@ -17,6 +17,14 @@ public class UserServiceConfig {
         return url + "/api/users"; // ✅ thêm /api/users/register để trỏ đúng endpoint
     }
 
+    public String getBlockUserUrl(Long userId) {
+        return url + "/api/users/admin/" + userId + "/block";
+    }
+
+    public String getUnblockUserUrl(Long userId) {
+        return url + "/api/users/admin/" + userId + "/unblock";
+    }
+
     public void setUrl(String url) {
         this.url = url;
     }

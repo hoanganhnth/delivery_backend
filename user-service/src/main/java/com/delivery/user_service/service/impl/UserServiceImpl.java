@@ -6,11 +6,14 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.delivery.user_service.dto.UserRequest;
 import com.delivery.user_service.dto.UserResponse;
+import com.delivery.user_service.dto.UserStatisticsResponse;
 import com.delivery.user_service.entity.User;
 import com.delivery.user_service.repository.UserRepository;
 import com.delivery.user_service.service.UserService;
 
 import lombok.RequiredArgsConstructor;
+
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -84,5 +87,69 @@ public class UserServiceImpl implements UserService {
                 .createdAt(user.getCreatedAt())
                 .updatedAt(user.getUpdatedAt())
                 .build();
+    }
+
+    @Override
+    public UserStatisticsResponse getUserStatistics() {
+        long totalUsers = userRepository.count();
+        long userCount = userRepository.countByRole("USER");
+        long adminCount = userRepository.countByRole("ADMIN");
+        long shipperCount = userRepository.countByRole("SHIPPER");
+        long shopOwnerCount = userRepository.countByRole("SHOP_OWNER");
+        long activeUsers = userRepository.countByIsActive(true);
+        long blockedUsers = userRepository.countByIsBlocked(true);
+
+        return UserStatisticsResponse.builder()
+                .totalUsers(totalUsers)
+                .userCount(userCount)
+                .adminCount(adminCount)
+                .shipperCount(shipperCount)
+                .shopOwnerCount(shopOwnerCount)
+                .activeUsers(activeUsers)
+                .blockedUsers(blockedUsers)
+                .build();
+    }
+
+    @Override
+    public List<UserResponse> getAllUsers() {
+        return userRepository.findAllByOrderByCreatedAtDesc().stream()
+                .map(this::toDto)
+                .collect(java.util.stream.Collectors.toList());
+    }
+
+    @Override
+    public void blockUser(Long userId, Long adminId, String reason) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+
+        if (user.getIsBlocked()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "User is already blocked");
+        }
+
+        user.setIsBlocked(true);
+        user.setIsActive(false);
+        user.setBlockedAt(java.time.LocalDateTime.now());
+        user.setBlockedBy(adminId);
+        user.setBlockReason(reason != null ? reason : "No reason provided");
+
+        userRepository.save(user);
+    }
+
+    @Override
+    public void unblockUser(Long userId, Long adminId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+
+        if (!user.getIsBlocked()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "User is not blocked");
+        }
+
+        user.setIsBlocked(false);
+        user.setIsActive(true);
+        user.setBlockedAt(null);
+        user.setBlockedBy(null);
+        user.setBlockReason(null);
+
+        userRepository.save(user);
     }
 }

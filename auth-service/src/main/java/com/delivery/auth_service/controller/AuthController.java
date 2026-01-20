@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.delivery.auth_service.dto.AuthAccountDto;
 import com.delivery.auth_service.dto.AuthResponse;
+import com.delivery.auth_service.dto.BlockAccountRequest;
 import com.delivery.auth_service.dto.LoginRequest;
 import com.delivery.auth_service.dto.RefreshTokenRequest;
 import com.delivery.auth_service.dto.RegisterRequest;
@@ -87,5 +88,62 @@ public class AuthController {
 
         AuthAccountDto dto = authService.getAccountByEmailDto(email);
         return ResponseEntity.ok(new BaseResponse<>(1, dto));
+    }
+
+    // Admin endpoints
+
+    /**
+     * Get all accounts (admin only)
+     */
+    @GetMapping("/admin/accounts")
+    public ResponseEntity<BaseResponse<List<AuthAccountDto>>> getAllAccounts(
+            @RequestHeader(value = "X-Role", required = false) String role) {
+
+        if (!"ADMIN".equals(role)) {
+            return ResponseEntity.status(403)
+                    .body(new BaseResponse<>(0, "Only ADMIN can access this endpoint", null));
+        }
+
+        List<AuthAccountDto> accounts = authService.getAllAccounts();
+        return ResponseEntity.ok(new BaseResponse<>(1, accounts));
+    }
+
+    /**
+     * Block an account (admin only)
+     */
+    @PostMapping("/admin/accounts/{id}/block")
+    public ResponseEntity<BaseResponse<Void>> blockAccount(
+            @PathVariable Long id,
+            @RequestHeader(value = "X-Role", required = false) String role,
+            @RequestHeader(value = "X-User-Id", required = false) String userId,
+            @RequestBody(required = false) BlockAccountRequest request) {
+
+        if (!"ADMIN".equals(role)) {
+            return ResponseEntity.status(403)
+                    .body(new BaseResponse<>(0, "Only ADMIN can block accounts", null));
+        }
+
+        Long adminId = userId != null ? Long.parseLong(userId) : null;
+        String reason = (request != null && request.getReason() != null) ? request.getReason() : "Blocked by admin";
+
+        authService.blockAccount(id, adminId, reason);
+        return ResponseEntity.ok(new BaseResponse<>(1, "Account blocked successfully", null));
+    }
+
+    /**
+     * Unblock an account (admin only)
+     */
+    @PostMapping("/admin/accounts/{id}/unblock")
+    public ResponseEntity<BaseResponse<Void>> unblockAccount(
+            @PathVariable Long id,
+            @RequestHeader(value = "X-Role", required = false) String role) {
+
+        if (!"ADMIN".equals(role)) {
+            return ResponseEntity.status(403)
+                    .body(new BaseResponse<>(0, "Only ADMIN can unblock accounts", null));
+        }
+
+        authService.unblockAccount(id);
+        return ResponseEntity.ok(new BaseResponse<>(1, "Account unblocked successfully", null));
     }
 }

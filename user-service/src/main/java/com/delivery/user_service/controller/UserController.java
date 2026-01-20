@@ -59,4 +59,88 @@ public class UserController {
         userService.deleteUser(id);
         return ResponseEntity.ok(new BaseResponse<>(1, null, "Xóa user thành công"));
     }
+
+    // Admin endpoints
+
+    /**
+     * Get user statistics by role
+     */
+    @GetMapping("/admin/statistics")
+    public ResponseEntity<BaseResponse<com.delivery.user_service.dto.UserStatisticsResponse>> getUserStatistics(
+            @RequestHeader(value = HttpHeaderConstants.X_USER_ID, required = false) Long userId,
+            @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
+
+        // TODO: Add proper authorization check for ADMIN role
+        if (!"ADMIN".equals(role)) {
+            return ResponseEntity.status(403)
+                    .body(new BaseResponse<>(0, null, "Only ADMIN can access this endpoint"));
+        }
+
+        com.delivery.user_service.dto.UserStatisticsResponse statistics = userService.getUserStatistics();
+        return ResponseEntity.ok(new BaseResponse<>(1, statistics));
+    }
+
+    /**
+     * Get all users
+     */
+    @GetMapping("/admin/all")
+    public ResponseEntity<BaseResponse<java.util.List<UserResponse>>> getAllUsers(
+            @RequestHeader(value = HttpHeaderConstants.X_USER_ID, required = false) Long userId,
+            @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
+
+        if (!"ADMIN".equals(role)) {
+            return ResponseEntity.status(403)
+                    .body(new BaseResponse<>(0, null, "Only ADMIN can access this endpoint"));
+        }
+
+        java.util.List<UserResponse> users = userService.getAllUsers();
+        return ResponseEntity.ok(new BaseResponse<>(1, users));
+    }
+
+    /**
+     * Block a user account
+     */
+    @PostMapping("/admin/{userId}/block")
+    public ResponseEntity<BaseResponse<Void>> blockUser(
+            @PathVariable Long userId,
+            @RequestBody com.delivery.user_service.dto.BlockUserRequest request,
+            @RequestHeader(value = HttpHeaderConstants.X_USER_ID, required = false) Long adminId,
+            @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
+
+        if (!"ADMIN".equals(role)) {
+            return ResponseEntity.status(403)
+                    .body(new BaseResponse<>(0, null, "Only ADMIN can block users"));
+        }
+
+        if (adminId == null) {
+            return ResponseEntity.status(400)
+                    .body(new BaseResponse<>(0, null, "Admin ID is required"));
+        }
+
+        userService.blockUser(userId, adminId, request.getReason());
+        return ResponseEntity.ok(new BaseResponse<>(1, null, "User blocked successfully"));
+    }
+
+    /**
+     * Unblock a user account
+     */
+    @PostMapping("/admin/{userId}/unblock")
+    public ResponseEntity<BaseResponse<Void>> unblockUser(
+            @PathVariable Long userId,
+            @RequestHeader(value = HttpHeaderConstants.X_USER_ID, required = false) Long adminId,
+            @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
+
+        if (!"ADMIN".equals(role)) {
+            return ResponseEntity.status(403)
+                    .body(new BaseResponse<>(0, null, "Only ADMIN can unblock users"));
+        }
+
+        if (adminId == null) {
+            return ResponseEntity.status(400)
+                    .body(new BaseResponse<>(0, null, "Admin ID is required"));
+        }
+
+        userService.unblockUser(userId, adminId);
+        return ResponseEntity.ok(new BaseResponse<>(1, null, "User unblocked successfully"));
+    }
 }

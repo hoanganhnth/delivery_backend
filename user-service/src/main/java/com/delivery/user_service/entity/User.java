@@ -50,6 +50,23 @@ public class User {
 
     private String address;
 
+    @Column(name = "is_active")
+    @Builder.Default
+    private Boolean isActive = true;
+
+    @Column(name = "is_blocked")
+    @Builder.Default
+    private Boolean isBlocked = false;
+
+    @Column(name = "blocked_at")
+    private LocalDateTime blockedAt;
+
+    @Column(name = "blocked_by")
+    private Long blockedBy;
+
+    @Column(name = "block_reason", columnDefinition = "TEXT")
+    private String blockReason;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
