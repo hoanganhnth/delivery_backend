@@ -8,7 +8,6 @@ import com.delivery.shipper_service.exception.ResourceNotFoundException;
 import com.delivery.shipper_service.mapper.ShipperMapper;
 import com.delivery.shipper_service.repository.ShipperRepository;
 import com.delivery.shipper_service.service.ShipperService;
-import com.delivery.shipper_service.service.ShipperBalanceService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,14 +20,11 @@ public class ShipperServiceImpl implements ShipperService {
 
     private final ShipperRepository shipperRepository;
     private final ShipperMapper shipperMapper;
-    private final ShipperBalanceService shipperBalanceService;
 
-    public ShipperServiceImpl(ShipperRepository shipperRepository, 
-                              ShipperMapper shipperMapper,
-                              ShipperBalanceService shipperBalanceService) {
+    public ShipperServiceImpl(ShipperRepository shipperRepository,
+            ShipperMapper shipperMapper) {
         this.shipperRepository = shipperRepository;
         this.shipperMapper = shipperMapper;
-        this.shipperBalanceService = shipperBalanceService;
     }
 
     @Override
@@ -52,9 +48,10 @@ public class ShipperServiceImpl implements ShipperService {
         Shipper shipper = shipperMapper.toEntity(request);
         shipper.setUserId(userId); // Set userId từ header
         Shipper savedShipper = shipperRepository.save(shipper);
-        
-        // Tự động tạo balance cho shipper mới - sử dụng userId không phải shipper.getId()
-        shipperBalanceService.createBalanceForUserId(userId);
+
+        // Tự động tạo balance cho shipper mới - sử dụng userId không phải
+        // shipper.getId()
+
         
         return shipperMapper.toResponse(savedShipper);
     }
@@ -66,16 +63,16 @@ public class ShipperServiceImpl implements ShipperService {
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy shipper của user với ID: " + userId));
 
         // Kiểm tra trùng lặp license number (ngoại trừ chính shipper này)
-        if (request.getLicenseNumber() != null && 
-            !request.getLicenseNumber().equals(shipper.getLicenseNumber()) &&
-            shipperRepository.existsByLicenseNumber(request.getLicenseNumber())) {
+        if (request.getLicenseNumber() != null &&
+                !request.getLicenseNumber().equals(shipper.getLicenseNumber()) &&
+                shipperRepository.existsByLicenseNumber(request.getLicenseNumber())) {
             throw new IllegalArgumentException("Số bằng lái đã tồn tại trong hệ thống");
         }
 
         // Kiểm tra trùng lặp ID card (ngoại trừ chính shipper này)
-        if (request.getIdCard() != null && 
-            !request.getIdCard().equals(shipper.getIdCard()) &&
-            shipperRepository.existsByIdCard(request.getIdCard())) {
+        if (request.getIdCard() != null &&
+                !request.getIdCard().equals(shipper.getIdCard()) &&
+                shipperRepository.existsByIdCard(request.getIdCard())) {
             throw new IllegalArgumentException("Số CMND/CCCD đã tồn tại trong hệ thống");
         }
 
@@ -97,7 +94,7 @@ public class ShipperServiceImpl implements ShipperService {
     public ShipperResponse updateOnlineStatusByUserId(Long userId, Boolean isOnline) {
         Shipper shipper = shipperRepository.findByUserId(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy shipper của user với ID: " + userId));
-        
+
         shipper.setIsOnline(isOnline);
         Shipper savedShipper = shipperRepository.save(shipper);
         return shipperMapper.toResponse(savedShipper);

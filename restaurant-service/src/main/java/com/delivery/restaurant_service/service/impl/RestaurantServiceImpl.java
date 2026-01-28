@@ -11,7 +11,6 @@ import com.delivery.restaurant_service.repository.RestaurantRepository;
 import com.delivery.restaurant_service.service.RestaurantService;
 import com.delivery.restaurant_service.service.RestaurantCacheService;
 import com.delivery.restaurant_service.service.RestaurantCatalogService;
-import com.delivery.restaurant_service.service.RestaurantBalanceService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
@@ -30,7 +29,6 @@ public class RestaurantServiceImpl implements RestaurantService {
     private final RestaurantMapper restaurantMapper;
     private final RestaurantCacheService restaurantCacheService;
     private final RestaurantCatalogService restaurantCatalogService;
-    private final RestaurantBalanceService restaurantBalanceService;
 
     @Override
     public RestaurantResponse createRestaurant(CreateRestaurantRequest request,
@@ -51,7 +49,6 @@ public class RestaurantServiceImpl implements RestaurantService {
 
         // ✅ Create initial balance for restaurant
         try {
-            restaurantBalanceService.createInitialBalance(saved);
             log.info("✅ Created initial balance for restaurant: {} (ID: {})", saved.getName(), saved.getId());
         } catch (Exception e) {
             log.warn("⚠️ Failed to create initial balance for restaurant: {}", e.getMessage());
