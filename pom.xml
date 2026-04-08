@@ -23,5 +23,6 @@
         <module>tracking-service</module>
         <module>match-service</module>
         <module>livestream-service</module>
+        <module>settlement-service</module>
     </modules>
 </project>

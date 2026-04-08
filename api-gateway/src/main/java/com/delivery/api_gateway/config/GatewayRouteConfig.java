@@ -82,6 +82,11 @@ public class GatewayRouteConfig {
                                                                 jwtFilter.apply(new JwtAuthenticationFilter.Config())))
                                                 .uri("http://localhost:8092"))
 
+                                .route("settlement-service", r -> r.path("/api/settlement/**")
+                                                .filters(f -> f.filter(
+                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config())))
+                                                .uri("http://localhost:8095"))                
+
                                 .build();
         }
 }
