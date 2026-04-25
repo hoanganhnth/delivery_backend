@@ -98,6 +98,7 @@ public class DeliveryServiceImpl implements DeliveryService {
             delivery.setCreatedAt(LocalDateTime.now());
             delivery.setUpdatedAt(LocalDateTime.now());
             delivery.setCreatorId(event.getCreatorId());
+            delivery.setRestaurantId(event.getRestaurantId());
 
             // Ước tính thời gian giao hàng (30 phút mặc định)
             delivery.setEstimatedDeliveryTime(LocalDateTime.now().plusMinutes(30));
@@ -586,6 +587,7 @@ public class DeliveryServiceImpl implements DeliveryService {
                     .deliveryId(delivery.getId())
                     .orderId(delivery.getOrderId())
                     .shipperId(delivery.getShipperId())
+                    .restaurantId(delivery.getRestaurantId())
                     .shippingFee(delivery.getShippingFee())
                     .shipperEarnings(shipperEarnings)
                     .platformCommission(platformCommission)

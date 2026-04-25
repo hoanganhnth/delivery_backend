@@ -208,8 +208,7 @@ public class OrderServiceImpl implements OrderService {
         // ✅ Query trực tiếp từ bảng orders theo creatorId (không cần gọi Restaurant Service)
         log.info("📋 Getting orders for restaurant owner (creatorId): {}", ownerId);
         
-        // List<Order> orders = orderRepository.findByCreatorIdOrderByCreatedAtDesc(ownerId);
-        List<Order> orders = orderRepository.findAll();
+        List<Order> orders = orderRepository.findByCreatorIdOrderByCreatedAtDesc(ownerId);
         log.info("✅ Found {} orders for restaurant owner {}", orders.size(), ownerId);
         
         return orderMapper.ordersToOrderResponses(orders);

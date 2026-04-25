@@ -46,7 +46,7 @@ public class OrderEventServiceImpl implements OrderEventService {
 
             // Add notes if available
             if (event.getNotes() != null) {
-                order.setNotes(order.getNotes() + "\n" + event.getNotes());
+                appendNotes(order, event.getNotes());
             }
 
             orderRepository.save(order);
@@ -67,7 +67,7 @@ public class OrderEventServiceImpl implements OrderEventService {
         if ("PENDING_PAYMENT".equals(order.getStatus())) {
             order.setStatus("CONFIRMED");
             order.setUpdatedAt(LocalDateTime.now());
-            order.setNotes(order.getNotes() + "\nPayment completed: " + event.getAmount());
+            appendNotes(order, "Payment completed: " + event.getAmount());
 
             orderRepository.save(order);
             
@@ -86,7 +86,7 @@ public class OrderEventServiceImpl implements OrderEventService {
         order.setStatus("PAYMENT_FAILED");
         order.setUpdatedAt(LocalDateTime.now());
         if (event.getFailureReason() != null) {
-            order.setNotes(order.getNotes() + "\nPayment failed: " + event.getFailureReason());
+            appendNotes(order, "Payment failed: " + event.getFailureReason());
         }
 
         orderRepository.save(order);
@@ -106,7 +106,7 @@ public class OrderEventServiceImpl implements OrderEventService {
         order.setUpdatedAt(LocalDateTime.now());
 
         if (event.getNotes() != null) {
-            order.setNotes(order.getNotes() + "\nRestaurant confirmed: " + event.getNotes());
+            appendNotes(order, "Restaurant confirmed: " + event.getNotes());
         }
 
         orderRepository.save(order);
@@ -126,7 +126,7 @@ public class OrderEventServiceImpl implements OrderEventService {
         order.setUpdatedAt(LocalDateTime.now());
         
         if (event.getRejectionReason() != null) {
-            order.setNotes(order.getNotes() + "\nRejected by restaurant: " + event.getRejectionReason());
+            appendNotes(order, "Rejected by restaurant: " + event.getRejectionReason());
         }
 
         orderRepository.save(order);
@@ -147,7 +147,7 @@ public class OrderEventServiceImpl implements OrderEventService {
         order.setUpdatedAt(LocalDateTime.now());
 
         if (event.getNotes() != null) {
-            order.setNotes(order.getNotes() + "\nShipper accepted: " + event.getNotes());
+            appendNotes(order, "Shipper accepted: " + event.getNotes());
         }
 
         orderRepository.save(order);
@@ -167,7 +167,7 @@ public class OrderEventServiceImpl implements OrderEventService {
         order.setUpdatedAt(LocalDateTime.now());
 
         if (event.getRejectReason() != null) {
-            order.setNotes(order.getNotes() + "\nShipper rejected: " + event.getRejectReason());
+            appendNotes(order, "Shipper rejected: " + event.getRejectReason());
         }
 
         orderRepository.save(order);
@@ -184,19 +184,34 @@ public class OrderEventServiceImpl implements OrderEventService {
     }
 
     /**
+     * ✅ Null-safe note concatenation
+     */
+    private void appendNotes(Order order, String note) {
+        String current = order.getNotes();
+        order.setNotes(current != null ? current + "\n" + note : note);
+    }
+
+    /**
      * ✅ Map delivery status to order status
      */
     private String mapDeliveryStatusToOrderStatus(String deliveryStatus) {
         switch (deliveryStatus) {
             case "ASSIGNED":
+            case "WAIT_SHIPPER_CONFIRM":
                 return "ASSIGNED_TO_SHIPPER";
+            case "FINDING_SHIPPER":
+                return "FINDING_SHIPPER";
             case "IN_PROGRESS":
             case "PICKED_UP":
+                return "IN_DELIVERY";
+            case "DELIVERING":
                 return "IN_DELIVERY";
             case "DELIVERED":
                 return "DELIVERED";
             case "CANCELLED":
                 return "CANCELLED";
+            case "SHIPPER_NOT_FOUND":
+                return "SHIPPER_NOT_FOUND";
             default:
                 log.warn("⚠️ Unknown delivery status: {}", deliveryStatus);
                 return null;

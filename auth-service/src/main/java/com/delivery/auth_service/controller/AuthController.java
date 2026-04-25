@@ -27,10 +27,16 @@ import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api/auth")
-@RequiredArgsConstructor
 public class AuthController {
 
     private final AuthService authService;
+
+    @org.springframework.beans.factory.annotation.Value("${app.internal.secret:CHANGE_ME_IN_PRODUCTION}")
+    private String internalSecret;
+
+    public AuthController(AuthService authService) {
+        this.authService = authService;
+    }
 
     @PostMapping("/register")
     public ResponseEntity<BaseResponse<Boolean>> register(@RequestBody RegisterRequest request) {
@@ -81,7 +87,7 @@ public class AuthController {
             @PathVariable String email,
             @RequestHeader(value = "Internal-Token", required = false) String token) {
 
-        if (token == null || !token.equals("GATEWAY_INTERNAL_SECRET_ABC123")) {
+        if (token == null || !token.equals(internalSecret)) {
             BaseResponse<AuthAccountDto> response = new BaseResponse<>(0, "Forbidden", null);
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
         }

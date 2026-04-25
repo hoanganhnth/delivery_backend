@@ -80,6 +80,9 @@ public class Delivery {
     @Column(name = "creator_id", nullable = false)
     private Long creatorId;
 
+    @Column(name = "restaurant_id")
+    private Long restaurantId;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();

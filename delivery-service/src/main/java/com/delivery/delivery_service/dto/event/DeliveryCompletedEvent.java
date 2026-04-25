@@ -19,6 +19,7 @@ public class DeliveryCompletedEvent {
     private Long deliveryId;
     private Long orderId;
     private Long shipperId;
+    private Long restaurantId;
     
     private BigDecimal shippingFee; // Tổng phí ship khách hàng trả
     private BigDecimal shipperEarnings; // Số tiền shipper thực nhận (85% của shippingFee)

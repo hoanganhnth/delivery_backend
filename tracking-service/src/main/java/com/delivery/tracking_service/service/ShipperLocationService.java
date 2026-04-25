@@ -47,8 +47,8 @@ public class ShipperLocationService {
             redisGeoRepository.cacheShipperLocation(shipperId, response);
 
             // ✅ Broadcast vị trí mới qua WebSocket cho các client đang theo dõi
-            // webSocketHandler.broadcastShipperLocation(response);
-            // webSocketHandler.broadcastAreaLocationUpdate(response);
+            webSocketHandler.broadcastShipperLocation(response);
+            webSocketHandler.broadcastAreaLocationUpdate(response);
 
             log.info("✅ Updated location for shipper: {} at ({}, {}) - Online: {} [Redis GEO + WebSocket]",
                     shipperId, request.getLatitude(), request.getLongitude(), request.getIsOnline());

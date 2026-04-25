@@ -9,22 +9,40 @@ import org.springframework.stereotype.Component;
 
 /**
  * ✅ Redis Keyspace Notifications Listener for automatic shipper retry on TTL expiration
- * Listen for expired keys with pattern "delivery:waiting:{deliveryId}"
+ * Graceful degradation: nếu Redis không available, listener sẽ bị skip nhưng service vẫn start bình thường.
  */
 @Component
 @Slf4j
 public class DeliveryKeyExpiredListener extends KeyExpirationEventMessageListener {
-    
+
     private static final String WAITING_KEY_PREFIX = "delivery:waiting:";
-    
+
     private final DeliveryService deliveryService;
-    
+    private boolean redisAvailable = false;
+
     public DeliveryKeyExpiredListener(RedisMessageListenerContainer listenerContainer,
                                       DeliveryService deliveryService) {
         super(listenerContainer);
         this.deliveryService = deliveryService;
     }
-    
+
+    /**
+     * ✅ Override afterPropertiesSet to catch Redis connection failure gracefully.
+     * Without this, a missing Redis causes BeanCreationException and the whole app crashes.
+     */
+    @Override
+    public void afterPropertiesSet() {
+        try {
+            super.afterPropertiesSet();
+            redisAvailable = true;
+            log.info("✅ Redis keyspace listener initialized – shipper auto-retry on TTL expiration is ACTIVE");
+        } catch (Exception e) {
+            redisAvailable = false;
+            log.warn("⚠️ Redis not available – keyspace listener is DISABLED. " +
+                     "Shipper auto-retry via TTL will not work until Redis is restarted.");
+        }
+    }
+
     /**
      * ✅ Handle Redis key expiration event
      * This method is automatically called when a Redis key expires
