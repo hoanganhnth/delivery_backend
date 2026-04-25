@@ -16,7 +16,19 @@ public class GatewayRouteConfig {
         @Bean
         public RouteLocator customRoutes(RouteLocatorBuilder builder) {
                 return builder.routes()
-                                .route("auth-service", r -> r.path("/api/auth/**")
+                                // Public auth endpoints (no JWT required)
+                                .route("auth-service-public", r -> r.path(
+                                                "/api/auth/login",
+                                                "/api/auth/register",
+                                                "/api/auth/refresh-token",
+                                                "/api/auth/logout",
+                                                "/api/auth/accounts/email/**")
+                                                .uri("http://localhost:8081"))
+
+                                // Protected auth endpoints (JWT required)
+                                .route("auth-service-protected", r -> r.path("/api/auth/**")
+                                                .filters(f -> f.filter(
+                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config())))
                                                 .uri("http://localhost:8081"))
 
                                 .route("user-service", r -> r.path("/api/users/**")
@@ -85,7 +97,7 @@ public class GatewayRouteConfig {
                                 .route("settlement-service", r -> r.path("/api/settlement/**")
                                                 .filters(f -> f.filter(
                                                                 jwtFilter.apply(new JwtAuthenticationFilter.Config())))
-                                                .uri("http://localhost:8095"))                
+                                                .uri("http://localhost:8095"))
 
                                 .build();
         }
