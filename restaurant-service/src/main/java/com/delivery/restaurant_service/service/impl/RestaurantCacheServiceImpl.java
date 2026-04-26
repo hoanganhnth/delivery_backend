@@ -64,6 +64,9 @@ public class RestaurantCacheServiceImpl implements RestaurantCacheService {
             restaurantData.put("updatedAt",
                     restaurant.getUpdatedAt() != null ? restaurant.getUpdatedAt().toString() : null);
 
+            restaurantData.put("latitude", restaurant.getAddressLat());
+            restaurantData.put("longitude", restaurant.getAddressLng());
+
             redisTemplate.opsForValue().set(key, restaurantData, CACHE_TTL_HOURS, TimeUnit.HOURS);
 
             log.info("✅ Cached restaurant: {} -> {}", restaurant.getId(), restaurant.getName());

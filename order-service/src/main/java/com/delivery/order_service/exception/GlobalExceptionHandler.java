@@ -48,6 +48,17 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * Handle IllegalStateException and IllegalArgumentException
+     */
+    @ExceptionHandler({IllegalStateException.class, IllegalArgumentException.class})
+    public ResponseEntity<BaseResponse<Object>> handleIllegalStateException(RuntimeException ex) {
+        log.error("⚠️ Business rule violation: {}", ex.getMessage());
+        
+        BaseResponse<Object> response = new BaseResponse<>(0, null, ex.getMessage());
+        return ResponseEntity.badRequest().body(response);
+    }
+
+    /**
      * Handle all other exceptions
      */
     @ExceptionHandler(Exception.class)

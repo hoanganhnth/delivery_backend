@@ -144,20 +144,23 @@ public class Restaurant {
         return image;
     }
 
-    public void setImage(String image) {
-        this.image = image;
-    }
-    // public boolean getIsOpen() {
-    // return isOpen;
-    // }
-    // public void setIsOpen(boolean isOpen) {
-    // this.isOpen = isOpen;
-    // }
-    // public Status getStatus() {
-    // return status;
-    // }
-    //
     // public void setStatus(Status status) {
     // this.status = status;
     // }
+
+    public Double getAddressLat() {
+        return addressLat;
+    }
+
+    public void setAddressLat(Double addressLat) {
+        this.addressLat = addressLat;
+    }
+
+    public Double getAddressLng() {
+        return addressLng;
+    }
+
+    public void setAddressLng(Double addressLng) {
+        this.addressLng = addressLng;
+    }
 }

@@ -21,6 +21,8 @@ public interface RestaurantMapper {
     void updateEntityFromDto(UpdateRestaurantRequest request, @MappingTarget Restaurant restaurant);
 
     @Mapping(target = "open", expression = "java(isRestaurantOpen(restaurant.getOpeningHour(), restaurant.getClosingHour()))")
+    @Mapping(target = "latitude", source = "addressLat")
+    @Mapping(target = "longitude", source = "addressLng")
     RestaurantResponse toResponse(Restaurant restaurant);
 
     default boolean isRestaurantOpen(LocalTime opening, LocalTime closing) {

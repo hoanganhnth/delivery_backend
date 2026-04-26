@@ -173,8 +173,9 @@ public class DeliveryServiceImpl implements DeliveryService {
 
         // ✅ Validate pickup time if accepting
         // if (ShipperActionConstants.ACCEPT.equals(request.getAction()) &&
-        //         request.getEstimatedPickupTime() == null) {
-        //     throw new InvalidStatusException("Estimated pickup time is required when accepting delivery");
+        // request.getEstimatedPickupTime() == null) {
+        // throw new InvalidStatusException("Estimated pickup time is required when
+        // accepting delivery");
         // }
 
         // ✅ Find delivery by order ID
@@ -183,7 +184,7 @@ public class DeliveryServiceImpl implements DeliveryService {
                         "Không tìm thấy thông tin giao hàng cho đơn hàng: " + request.getOrderId()));
 
         // ✅ Validate delivery status
-        if (!DeliveryStatus.PENDING.equals(delivery.getStatus())) {
+        if (!DeliveryStatus.FINDING_SHIPPER.equals(delivery.getStatus())) {
             throw new InvalidStatusException("Đơn hàng không ở trạng thái chờ nhận (PENDING)");
         }
 
@@ -400,7 +401,7 @@ public class DeliveryServiceImpl implements DeliveryService {
                 break;
             case DELIVERED:
                 delivery.setDeliveredAt(LocalDateTime.now());
-                
+
                 // ✅ Publish DeliveryCompletedEvent để tự động cộng tiền cho shipper
                 publishDeliveryCompletedEvent(delivery);
                 break;
@@ -419,10 +420,15 @@ public class DeliveryServiceImpl implements DeliveryService {
     private boolean isValidStatusTransition(DeliveryStatus currentStatus, DeliveryStatus newStatus) {
         // Định nghĩa các transition hợp lệ
         return switch (currentStatus) {
-            case PENDING -> newStatus == DeliveryStatus.FINDING_SHIPPER || newStatus == DeliveryStatus.ASSIGNED || newStatus == DeliveryStatus.CANCELLED;
-            case FINDING_SHIPPER -> newStatus == DeliveryStatus.WAIT_SHIPPER_CONFIRM || newStatus == DeliveryStatus.ASSIGNED || newStatus == DeliveryStatus.SHIPPER_NOT_FOUND || newStatus == DeliveryStatus.CANCELLED;
-            case WAIT_SHIPPER_CONFIRM -> newStatus == DeliveryStatus.ASSIGNED || newStatus == DeliveryStatus.FINDING_SHIPPER || newStatus == DeliveryStatus.CANCELLED;
-            case SHIPPER_NOT_FOUND -> newStatus == DeliveryStatus.FINDING_SHIPPER || newStatus == DeliveryStatus.ASSIGNED || newStatus == DeliveryStatus.CANCELLED;
+            case PENDING -> newStatus == DeliveryStatus.FINDING_SHIPPER || newStatus == DeliveryStatus.ASSIGNED
+                    || newStatus == DeliveryStatus.CANCELLED;
+            case FINDING_SHIPPER ->
+                newStatus == DeliveryStatus.WAIT_SHIPPER_CONFIRM || newStatus == DeliveryStatus.ASSIGNED
+                        || newStatus == DeliveryStatus.SHIPPER_NOT_FOUND || newStatus == DeliveryStatus.CANCELLED;
+            case WAIT_SHIPPER_CONFIRM -> newStatus == DeliveryStatus.ASSIGNED
+                    || newStatus == DeliveryStatus.FINDING_SHIPPER || newStatus == DeliveryStatus.CANCELLED;
+            case SHIPPER_NOT_FOUND -> newStatus == DeliveryStatus.FINDING_SHIPPER
+                    || newStatus == DeliveryStatus.ASSIGNED || newStatus == DeliveryStatus.CANCELLED;
             case ASSIGNED -> newStatus == DeliveryStatus.PICKED_UP || newStatus == DeliveryStatus.CANCELLED;
             case PICKED_UP -> newStatus == DeliveryStatus.DELIVERING;
             case DELIVERING -> newStatus == DeliveryStatus.DELIVERED;
@@ -459,7 +465,7 @@ public class DeliveryServiceImpl implements DeliveryService {
         try {
             // Tạo unique matching session ID
             String matchingSessionId = "delivery_" + delivery.getId();
-            
+
             // Tạo FindShipperEvent từ delivery data
             FindShipperEvent event = new FindShipperEvent(
                     delivery.getId(),
@@ -476,13 +482,13 @@ public class DeliveryServiceImpl implements DeliveryService {
 
             // Gửi event đến Match Service
             deliveryEventPublisher.publishFindShipperEvent(event);
-            
-            log.info("🔍 Started shipper matching process for delivery: {} with session: {}", 
+
+            log.info("🔍 Started shipper matching process for delivery: {} with session: {}",
                     delivery.getId(), matchingSessionId);
 
         } catch (Exception e) {
             // Log lỗi nhưng không throw để không làm fail delivery creation
-            log.error("🔥 Failed to publish FindShipperEvent for delivery: {} - Error: {}", 
+            log.error("🔥 Failed to publish FindShipperEvent for delivery: {} - Error: {}",
                     delivery.getId(), e.getMessage(), e);
 
             throw new RuntimeException("Failed to publish FindShipperEvent: " + e.getMessage(), e);
@@ -533,8 +539,8 @@ public class DeliveryServiceImpl implements DeliveryService {
                     .orderId(delivery.getOrderId())
                     .deliveryId(delivery.getId())
                     .shipperId(shipperId)
-                    .shipperName("Shipper " + shipperId) 
-                    .shipperPhone("N/A") 
+                    .shipperName("Shipper " + shipperId)
+                    .shipperPhone("N/A")
                     .eventType("SHIPPER_REJECTED") // Different event type for rejection
                     .estimatedTime(0) // No pickup time for rejected
                     .pickupAddress(delivery.getPickupAddress())
@@ -555,7 +561,7 @@ public class DeliveryServiceImpl implements DeliveryService {
             // Don't fail main operation if event publishing fails
         }
     }
-    
+
     /**
      * ✅ Publish DeliveryCompletedEvent để tự động cộng tiền vào shipper balance
      */
@@ -566,22 +572,25 @@ public class DeliveryServiceImpl implements DeliveryService {
                         delivery.getId());
                 return;
             }
-            
-            if (delivery.getShippingFee() == null || delivery.getShippingFee().compareTo(java.math.BigDecimal.ZERO) <= 0) {
+
+            if (delivery.getShippingFee() == null
+                    || delivery.getShippingFee().compareTo(java.math.BigDecimal.ZERO) <= 0) {
                 log.warn("⚠️ Delivery {} has no valid shipping fee, using default 15000",
                         delivery.getId());
                 delivery.setShippingFee(java.math.BigDecimal.valueOf(15000));
             }
-            
+
             // ✅ Calculate shipper earnings (85% của shipping fee)
             java.math.BigDecimal shipperEarnings = com.delivery.delivery_service.common.constants.PricingConstants
                     .calculateShipperEarnings(delivery.getShippingFee());
-            
+
             java.math.BigDecimal platformCommission = com.delivery.delivery_service.common.constants.PricingConstants
                     .calculatePlatformCommission(delivery.getShippingFee());
-            
-            log.info("💰 Publishing DeliveryCompletedEvent for delivery {}, shipper {}, shippingFee: {}, shipperEarnings: {}, commission: {}",
-                    delivery.getId(), delivery.getShipperId(), delivery.getShippingFee(), shipperEarnings, platformCommission);
+
+            log.info(
+                    "💰 Publishing DeliveryCompletedEvent for delivery {}, shipper {}, shippingFee: {}, shipperEarnings: {}, commission: {}",
+                    delivery.getId(), delivery.getShipperId(), delivery.getShippingFee(), shipperEarnings,
+                    platformCommission);
 
             DeliveryCompletedEvent event = DeliveryCompletedEvent.builder()
                     .deliveryId(delivery.getId())
@@ -653,54 +662,55 @@ public class DeliveryServiceImpl implements DeliveryService {
     public void cancelDeliveryFromOrderCancelledEvent(OrderCancelledEvent event) {
         try {
             log.info("🚫 Processing order cancellation for orderId: {}", event.getOrderId());
-            
+
             // Tìm delivery record theo orderId
             Delivery delivery = deliveryRepository.findByOrderId(event.getOrderId())
                     .orElse(null);
-            
+
             if (delivery == null) {
                 log.warn("⚠️ No delivery found for cancelled order: {}", event.getOrderId());
                 return;
             }
-            
-            log.info("📦 Found delivery {} for cancelled order: {}, current status: {}", 
+
+            log.info("📦 Found delivery {} for cancelled order: {}, current status: {}",
                     delivery.getId(), event.getOrderId(), delivery.getStatus());
-            
+
             // ✅ STOP MATCHING: Publish event để dừng quá trình tìm shipper
             publishStopMatchingEvent(delivery, event);
-            
+
             // Chỉ cancel nếu delivery chưa được assigned hoặc đang trong quá trình matching
-            if (delivery.getStatus() == DeliveryStatus.PENDING || 
-                delivery.getStatus() == DeliveryStatus.ASSIGNED) {
-                
+            if (delivery.getStatus() == DeliveryStatus.PENDING ||
+                    delivery.getStatus() == DeliveryStatus.ASSIGNED) {
+
                 // Cập nhật trạng thái delivery thành CANCELLED
                 delivery.setStatus(DeliveryStatus.CANCELLED);
                 delivery.setRejectReason("Order cancelled by user/admin - orderId: " + event.getOrderId());
                 delivery.setUpdatedAt(LocalDateTime.now());
-                
+
                 deliveryRepository.save(delivery);
-                
-                log.info("✅ Successfully cancelled delivery {} for order: {}", 
+
+                log.info("✅ Successfully cancelled delivery {} for order: {}",
                         delivery.getId(), event.getOrderId());
-                
-            } else if (delivery.getShipperId() != null && 
-                      (delivery.getStatus() == DeliveryStatus.PICKED_UP || 
-                       delivery.getStatus() == DeliveryStatus.DELIVERING)) {
+
+            } else if (delivery.getShipperId() != null &&
+                    (delivery.getStatus() == DeliveryStatus.PICKED_UP ||
+                            delivery.getStatus() == DeliveryStatus.DELIVERING)) {
                 // Nếu đã pickup hoặc đang giao, không thể tự động hủy
-                log.warn("⚠️ Cannot auto-cancel delivery {} for order: {} - Already in progress (status: {}, shipper: {})", 
+                log.warn(
+                        "⚠️ Cannot auto-cancel delivery {} for order: {} - Already in progress (status: {}, shipper: {})",
                         delivery.getId(), event.getOrderId(), delivery.getStatus(), delivery.getShipperId());
-                
+
             } else {
-                log.info("📝 Delivery {} for order: {} is in status: {} - Manual intervention may be required", 
+                log.info("📝 Delivery {} for order: {} is in status: {} - Manual intervention may be required",
                         delivery.getId(), event.getOrderId(), delivery.getStatus());
             }
-            
+
         } catch (Exception e) {
-            log.error("💥 Error processing order cancellation for orderId: {}", 
-                     event.getOrderId(), e);
+            log.error("💥 Error processing order cancellation for orderId: {}",
+                    event.getOrderId(), e);
         }
     }
-    
+
     /**
      * ✅ Publish event để dừng quá trình matching shipper
      */
@@ -709,25 +719,27 @@ public class DeliveryServiceImpl implements DeliveryService {
             DeliveryCancelledEvent cancelEvent = DeliveryCancelledEvent.builder()
                     .deliveryId(delivery.getId())
                     .orderId(delivery.getOrderId())
-                    .reason("Order cancelled: " + (orderEvent.getCancelReason() != null ? orderEvent.getCancelReason() : "User cancelled"))
+                    .reason("Order cancelled: "
+                            + (orderEvent.getCancelReason() != null ? orderEvent.getCancelReason() : "User cancelled"))
                     .cancelledAt(LocalDateTime.now())
-                    .cancelledBy(orderEvent.getCancelledBy() != null ? orderEvent.getCancelledBy().toString() : "SYSTEM")
+                    .cancelledBy(
+                            orderEvent.getCancelledBy() != null ? orderEvent.getCancelledBy().toString() : "SYSTEM")
                     .stopMatching(true)
                     .matchingSessionId("delivery_" + delivery.getId()) // Unique session ID
                     .build();
-            
+
             deliveryEventPublisher.publishDeliveryCancelledEvent(cancelEvent);
-            
-            log.info("🛑 Published stop matching event for delivery: {}, order: {}", 
+
+            log.info("🛑 Published stop matching event for delivery: {}, order: {}",
                     delivery.getId(), delivery.getOrderId());
-            
+
         } catch (Exception e) {
-            log.error("💥 Failed to publish stop matching event for delivery: {}: {}", 
-                     delivery.getId(), e.getMessage(), e);
+            log.error("💥 Failed to publish stop matching event for delivery: {}: {}",
+                    delivery.getId(), e.getMessage(), e);
             // Don't fail main cancellation if event publishing fails
         }
     }
-    
+
     /**
      * ✅ Cập nhật delivery status khi không tìm được shipper
      */
@@ -735,100 +747,100 @@ public class DeliveryServiceImpl implements DeliveryService {
     @Transactional
     public void updateDeliveryStatusFromShipperNotFoundEvent(ShipperNotFoundEvent event) {
         try {
-            log.info("🔄 Processing ShipperNotFoundEvent for delivery: {}, order: {}", 
+            log.info("🔄 Processing ShipperNotFoundEvent for delivery: {}, order: {}",
                     event.getDeliveryId(), event.getOrderId());
-            
+
             // Tìm delivery theo deliveryId
             Delivery delivery = deliveryRepository.findById(event.getDeliveryId())
                     .orElseThrow(() -> new ResourceNotFoundException(
                             "Delivery not found with id: " + event.getDeliveryId()));
-            
+
             // Validate order ID match
             if (!delivery.getOrderId().equals(event.getOrderId())) {
-                log.error("💥 Order ID mismatch: delivery.orderId={}, event.orderId={}", 
-                         delivery.getOrderId(), event.getOrderId());
+                log.error("💥 Order ID mismatch: delivery.orderId={}, event.orderId={}",
+                        delivery.getOrderId(), event.getOrderId());
                 return;
             }
-            
+
             // Chỉ cập nhật nếu delivery đang ở trạng thái FINDING_SHIPPER
             if (delivery.getStatus() != DeliveryStatus.FINDING_SHIPPER) {
-                log.warn("⚠️ Delivery {} not in FINDING_SHIPPER status, current status: {}", 
+                log.warn("⚠️ Delivery {} not in FINDING_SHIPPER status, current status: {}",
                         delivery.getId(), delivery.getStatus());
                 return;
             }
-            
+
             // Cập nhật status thành SHIPPER_NOT_FOUND
             DeliveryStatus previousStatus = delivery.getStatus();
             delivery.setStatus(DeliveryStatus.SHIPPER_NOT_FOUND);
             delivery.setUpdatedAt(LocalDateTime.now());
-            
+
             deliveryRepository.save(delivery);
-            
-            log.info("✅ Updated delivery {} status from {} to SHIPPER_NOT_FOUND after {} retry attempts", 
+
+            log.info("✅ Updated delivery {} status from {} to SHIPPER_NOT_FOUND after {} retry attempts",
                     delivery.getId(), previousStatus, event.getRetryAttempts());
-            
+
             // TODO: Có thể thêm logic để notify customer về việc không tìm được shipper
             // hoặc trigger retry mechanism sau một khoảng thời gian
-            
+
         } catch (Exception e) {
-            log.error("💥 Error updating delivery status from ShipperNotFoundEvent for delivery: {}: {}", 
-                     event.getDeliveryId(), e.getMessage(), e);
+            log.error("💥 Error updating delivery status from ShipperNotFoundEvent for delivery: {}: {}",
+                    event.getDeliveryId(), e.getMessage(), e);
         }
     }
-    
+
     @Override
     public DeliveryResponse getDeliveryForRetry(Long deliveryId) {
         try {
             log.debug("🔍 Getting delivery for retry: {}", deliveryId);
-            
+
             Delivery delivery = deliveryRepository.findById(deliveryId)
                     .orElse(null);
-            
+
             if (delivery == null) {
                 log.warn("⚠️ Delivery not found for retry: {}", deliveryId);
                 return null;
             }
-            
+
             // ✅ Only return deliveries that are eligible for retry
-            if (delivery.getStatus() == DeliveryStatus.WAIT_SHIPPER_CONFIRM || 
-                delivery.getStatus() == DeliveryStatus.FINDING_SHIPPER) {
-                
+            if (delivery.getStatus() == DeliveryStatus.WAIT_SHIPPER_CONFIRM ||
+                    delivery.getStatus() == DeliveryStatus.FINDING_SHIPPER) {
+
                 return deliveryMapper.deliveryToDeliveryResponse(delivery);
             }
-            
-            log.warn("⚠️ Delivery {} not eligible for retry, current status: {}", 
+
+            log.warn("⚠️ Delivery {} not eligible for retry, current status: {}",
                     deliveryId, delivery.getStatus());
             return null;
-            
+
         } catch (Exception e) {
             log.error("💥 Error getting delivery for retry: {}: {}", deliveryId, e.getMessage(), e);
             return null;
         }
     }
-    
+
     @Override
     @Transactional
     public void retryFindShipper(Long deliveryId) {
         try {
             log.info("🔄 Retrying shipper search for delivery: {} after acceptance timeout", deliveryId);
-            
+
             Delivery delivery = deliveryRepository.findById(deliveryId)
                     .orElseThrow(() -> new ResourceNotFoundException("Delivery not found: " + deliveryId));
-            
+
             // ✅ Validate current status allows retry
             if (delivery.getStatus() != DeliveryStatus.WAIT_SHIPPER_CONFIRM) {
                 log.warn("⚠️ Cannot retry delivery {}, current status: {}", deliveryId, delivery.getStatus());
                 return;
             }
-            
+
             // ✅ Reset status back to FINDING_SHIPPER
             delivery.setStatus(DeliveryStatus.FINDING_SHIPPER);
             delivery.setUpdatedAt(LocalDateTime.now());
             deliveryRepository.save(delivery);
-            
+
             // ✅ Remove any remaining waiting state
             deliveryWaitingService.removeWaitingState(deliveryId);
-            
+
             // ✅ Publish FindShipperEvent with retry flag
             FindShipperEvent retryEvent = new FindShipperEvent(
                     delivery.getId(),
@@ -841,19 +853,18 @@ public class DeliveryServiceImpl implements DeliveryService {
                     delivery.getDeliveryLng(),
                     delivery.getEstimatedDeliveryTime(),
                     delivery.getNotes(),
-                    delivery.getCreatedAt()
-            );
-            
+                    delivery.getCreatedAt());
+
             // ✅ Set retry-specific fields
             retryEvent.setSessionId(UUID.randomUUID().toString());
             retryEvent.setIsRetry(true);
-            retryEvent.setRetryCount(1);  // TODO: Track retry count in database
-            retryEvent.setMaxRetries(3);  // TODO: Make configurable
-            
+            retryEvent.setRetryCount(1); // TODO: Track retry count in database
+            retryEvent.setMaxRetries(3); // TODO: Make configurable
+
             deliveryEventPublisher.publishFindShipperEvent(retryEvent);
-            
+
             log.info("✅ Successfully triggered shipper retry for delivery: {}", deliveryId);
-            
+
         } catch (ResourceNotFoundException e) {
             log.error("💥 Delivery not found for retry: {}", deliveryId);
         } catch (Exception e) {
