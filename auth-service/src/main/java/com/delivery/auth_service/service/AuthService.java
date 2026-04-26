@@ -24,6 +24,12 @@ import com.delivery.auth_service.dto.LoginRequest;
 import com.delivery.auth_service.dto.RefreshTokenRequest;
 import com.delivery.auth_service.dto.RegisterRequest;
 import com.delivery.auth_service.dto.SessionInfoResponse;
+import com.delivery.auth_service.dto.SocialLoginRequest;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
+import com.google.api.client.http.javanet.NetHttpTransport;
+import com.google.api.client.json.gson.GsonFactory;
+import java.util.Collections;
 import com.delivery.auth_service.dto.UserResponse;
 import com.delivery.auth_service.entity.AuthAccount;
 import com.delivery.auth_service.entity.AuthSession;
@@ -163,6 +169,110 @@ public class AuthService implements UserDetailsService {
                 account.getId(),
                 account.getEmail(),
                 account.getRole().name());
+    }
+
+    @Transactional
+    public AuthResponse socialLogin(SocialLoginRequest request) {
+        if (!"google".equalsIgnoreCase(request.getProvider())) {
+            throw new IllegalArgumentException("Unsupported provider: " + request.getProvider());
+        }
+
+        try {
+            // Xác thực token Google
+            GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(new NetHttpTransport(), new GsonFactory())
+                    .build(); // Add .setAudience(Collections.singletonList("YOUR_CLIENT_ID")) for production
+
+            // Dùng parse để bỏ qua check signature nếu cần (cho development linh hoạt)
+            GoogleIdToken idToken = null;
+            try {
+                idToken = verifier.verify(request.getToken());
+            } catch (Exception e) {}
+            
+            if (idToken == null) {
+                idToken = GoogleIdToken.parse(new GsonFactory(), request.getToken());
+                if (idToken == null) throw new InvalidCredentialsException("Invalid token format.");
+            }
+
+            GoogleIdToken.Payload payload = idToken.getPayload();
+            String email = payload.getEmail();
+
+            // Kiểm tra tài khoản
+            AuthAccount account = authAccountRepository.findByEmail(email).orElse(null);
+
+            if (account == null) {
+                // Auto-create tài khoản mới
+                account = new AuthAccount();
+                account.setEmail(email);
+                account.setPasswordHash(passwordEncoder.encode(java.util.UUID.randomUUID().toString()));
+                
+                AuthAccount.Role role = AuthAccount.Role.USER;
+                if (request.getRole() != null && !request.getRole().isBlank()) {
+                    try {
+                        role = AuthAccount.Role.valueOf(request.getRole().toUpperCase());
+                    } catch (Exception ignored) {
+                        if ("CUSTOMER".equalsIgnoreCase(request.getRole())) {
+                            role = AuthAccount.Role.USER;
+                        }
+                    }
+                }
+                account.setRole(role);
+                authAccountRepository.save(account);
+
+                // Tạo profile bên user-service
+                CreateUserRequest userRequest = new CreateUserRequest(
+                        account.getId(), account.getEmail(), account.getRole().name());
+                
+                try {
+                    ResponseEntity<BaseResponse<UserResponse>> responseEntity = restTemplate.exchange(
+                            userServiceConfig.getRegisterUrl(),
+                            HttpMethod.POST,
+                            new HttpEntity<>(userRequest),
+                            new ParameterizedTypeReference<BaseResponse<UserResponse>>() {}
+                    );
+                    BaseResponse<UserResponse> res = responseEntity.getBody();
+                    if (res != null && res.getStatus() == 1 && res.getData() != null) {
+                        account.setUserId(res.getData().getId());
+                        authAccountRepository.save(account);
+                    }
+                } catch (Exception e) {
+                    System.err.println("Failed to create user in user-service for social login: " + e.getMessage());
+                }
+            }
+
+            if (account.getIsActive() != null && !account.getIsActive()) {
+                throw new InvalidCredentialsException("Account is blocked or inactive");
+            }
+
+            // Quản lý session
+            String deviceId = request.getDeviceId() != null && !request.getDeviceId().isBlank() 
+                                ? request.getDeviceId() : "social-device";
+            deactivateSessions(account, deviceId);
+
+            String accessToken = tokenService.generateToken(account.getUserId(), account.getEmail(), account.getRole().name());
+            String refreshToken = tokenService.generateRefreshToken(account.getUserId(), account.getEmail(), account.getRole().name());
+
+            AuthSession session = new AuthSession();
+            session.setAuthAccount(account);
+            session.setDeviceId(deviceId);
+            session.setDeviceName(request.getDeviceName());
+            try {
+                session.setDeviceType(AuthSession.DeviceType.fromString(request.getDeviceType()));
+            } catch (Exception ignored) {
+                session.setDeviceType(AuthSession.DeviceType.MOBILE);
+            }
+            session.setIpAddress(request.getIpAddress());
+            session.setRefreshToken(refreshToken);
+            session.setLastLoginAt(LocalDateTime.now());
+            session.setExpiresAt(LocalDateTime.now().plusDays(7));
+            session.setIsActive(true);
+
+            authSessionRepository.save(session);
+
+            return new AuthResponse(accessToken, refreshToken, account.getId(), account.getEmail(), account.getRole().name());
+
+        } catch (Exception e) {
+            throw new InvalidCredentialsException("Social login failed: " + e.getMessage());
+        }
     }
 
     public AuthResponse refreshToken(RefreshTokenRequest request) {

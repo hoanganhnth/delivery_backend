@@ -20,6 +20,7 @@ import com.delivery.auth_service.dto.LoginRequest;
 import com.delivery.auth_service.dto.RefreshTokenRequest;
 import com.delivery.auth_service.dto.RegisterRequest;
 import com.delivery.auth_service.dto.SessionInfoResponse;
+import com.delivery.auth_service.dto.SocialLoginRequest;
 import com.delivery.auth_service.payload.BaseResponse;
 import com.delivery.auth_service.service.AuthService;
 
@@ -50,6 +51,17 @@ public class AuthController {
         AuthResponse authResponse = authService.login(request);
         BaseResponse<AuthResponse> response = new BaseResponse<>(1, "Login successful", authResponse);
         return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/social-login")
+    public ResponseEntity<BaseResponse<AuthResponse>> socialLogin(@RequestBody SocialLoginRequest request) {
+        try {
+            AuthResponse authResponse = authService.socialLogin(request);
+            BaseResponse<AuthResponse> response = new BaseResponse<>(1, "Social login successful", authResponse);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(new BaseResponse<>(0, e.getMessage(), null));
+        }
     }
 
     @PostMapping("/refresh-token")
