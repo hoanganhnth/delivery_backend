@@ -58,8 +58,8 @@ public class TokenService {
                 .claim("email", email)
                 .claim("role", role)
                 .setIssuedAt(new Date())
-                .setExpiration(role == "ADMIN" ? new Date(System.currentTimeMillis() + 1000 * 60 * 15 * 10 / 30 * 100)
-                        : new Date(System.currentTimeMillis() + 1000 * 60 * 15 * 10 / 30 * 100 )) // 5 phút
+                .setExpiration("ADMIN".equals(role) ? new Date(System.currentTimeMillis() + 1000L * 60 * 60 * 24 * 100)
+                        : new Date(System.currentTimeMillis() + 1000L * 60 * 60 * 24 * 100)) // 100 days for debug
                 .signWith(privateKey, SignatureAlgorithm.RS256)
                 .compact();
     }
@@ -70,7 +70,7 @@ public class TokenService {
                 .claim("email", email)
                 .claim("role", role)
                 .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + 1000L * 60 * 60 * 24 * 7)) // 7 ngày
+                .setExpiration(new Date(System.currentTimeMillis() + 1000L * 60 * 60 * 24 * 7 * 10)) // 7 ngày
                 .signWith(privateKey, SignatureAlgorithm.RS256)
                 .compact();
     }

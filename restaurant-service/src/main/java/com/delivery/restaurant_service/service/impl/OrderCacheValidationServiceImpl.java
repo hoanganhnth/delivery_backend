@@ -233,10 +233,13 @@ public class OrderCacheValidationServiceImpl implements OrderCacheValidationServ
                     .invalidValue(restaurantId)
                     .build());
             
-            // Return default info nếu restaurant không tồn tại
             return OrderValidationResultResponse.RestaurantInfo.builder()
                     .restaurantId(restaurantId)
                     .restaurantName("Unknown Restaurant")
+                    .restaurantAddress(null)
+                    .restaurantPhone(null)
+                    .latitude(null)
+                    .longitude(null)
                     .isAvailable(false)
                     .isOpen(false)
                     .operatingHours("N/A")
@@ -245,21 +248,49 @@ public class OrderCacheValidationServiceImpl implements OrderCacheValidationServ
         
         boolean isAvailable = restaurantCacheService.isRestaurantAvailable(restaurantId);
         
-        // Null-safe operation cho operating hours
+        // Null-safe extraction of fields from cache
+        String restaurantName = restaurant.get("name") != null ?
+                (String) restaurant.get("name") : "Unknown Restaurant";
+
+        String restaurantAddress = restaurant.get("address") != null ?
+                (String) restaurant.get("address") : null;
+
+        String restaurantPhone = restaurant.get("phone") != null ?
+                (String) restaurant.get("phone") : null;
+
+        Long creatorId = null;
+        if (restaurant.get("creatorId") != null) {
+            try { creatorId = Long.valueOf(restaurant.get("creatorId").toString()); }
+            catch (NumberFormatException e) { log.warn("⚠️ Invalid creatorId for restaurant {}", restaurantId); }
+        }
+
+        Double latitude = null;
+        if (restaurant.get("latitude") != null) {
+            try { latitude = Double.valueOf(restaurant.get("latitude").toString()); }
+            catch (NumberFormatException e) { log.warn("⚠️ Invalid latitude for restaurant {}", restaurantId); }
+        }
+
+        Double longitude = null;
+        if (restaurant.get("longitude") != null) {
+            try { longitude = Double.valueOf(restaurant.get("longitude").toString()); }
+            catch (NumberFormatException e) { log.warn("⚠️ Invalid longitude for restaurant {}", restaurantId); }
+        }
+
         String operatingHours = "N/A";
         if (restaurant.get("openingHour") != null && restaurant.get("closingHour") != null) {
             operatingHours = restaurant.get("openingHour") + " - " + restaurant.get("closingHour");
         }
         
-        // Null-safe operation cho restaurant name
-        String restaurantName = restaurant.get("name") != null ? 
-                (String) restaurant.get("name") : "Unknown Restaurant";
-        
         return OrderValidationResultResponse.RestaurantInfo.builder()
                 .restaurantId(restaurantId)
                 .restaurantName(restaurantName)
+                .restaurantAddress(restaurantAddress)
+                .restaurantPhone(restaurantPhone)
+                .latitude(latitude)
+                .longitude(longitude)
+                .creatorId(creatorId)
                 .isAvailable(isAvailable)
-                .isOpen(isAvailable) // Simplified for now
+                .isOpen(isAvailable)
                 .operatingHours(operatingHours)
                 .build();
     }

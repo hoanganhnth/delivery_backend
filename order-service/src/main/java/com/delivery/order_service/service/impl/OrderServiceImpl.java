@@ -2,10 +2,10 @@ package com.delivery.order_service.service.impl;
 
 import com.delivery.order_service.client.RestaurantClient;
 import com.delivery.order_service.common.constants.RoleConstants;
+import com.delivery.order_service.dto.internal.ValidatedOrderData;
 import com.delivery.order_service.dto.request.CreateOrderRequest;
 import com.delivery.order_service.dto.request.UpdateOrderRequest;
 import com.delivery.order_service.dto.response.OrderResponse;
-import com.delivery.order_service.dto.response.RestaurantResponse;
 import com.delivery.order_service.dto.event.ShipperNotFoundEvent;
 import com.delivery.order_service.entity.Order;
 import com.delivery.order_service.entity.OrderItem;
@@ -35,57 +35,56 @@ public class OrderServiceImpl implements OrderService {
     private final OrderEventPublisher orderEventPublisher;
     private final OrderValidationService orderValidationService;
     private final ShippingFeeCalculationService shippingFeeCalculationService;
-    private final RestaurantClient restaurantClient;
 
     public OrderServiceImpl(OrderRepository orderRepository, 
                            OrderItemRepository orderItemRepository,
                            OrderMapper orderMapper,
                            OrderEventPublisher orderEventPublisher,
                            OrderValidationService orderValidationService,
-                           ShippingFeeCalculationService shippingFeeCalculationService,
-                           RestaurantClient restaurantClient) {
+                           ShippingFeeCalculationService shippingFeeCalculationService) {
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
         this.orderMapper = orderMapper;
         this.orderEventPublisher = orderEventPublisher;
         this.orderValidationService = orderValidationService;
         this.shippingFeeCalculationService = shippingFeeCalculationService;
-        this.restaurantClient = restaurantClient;
     }
 
     @Override
     @Transactional
     public OrderResponse createOrder(CreateOrderRequest request, Long userId, String role) {
-        // ✅ Validate request data trước khi xử lý
-        orderValidationService.validateCreateOrderRequest(request, userId);
-        
-        // ✅ STEP 1: Gọi Restaurant Service để validate và lấy creatorId (Non-blocking với Mono)
-        log.info("🔍 Step 1: Validating restaurant {} via Restaurant Service", request.getRestaurantId());
-        
-        RestaurantResponse restaurantInfo = restaurantClient
-                .getRestaurantById(request.getRestaurantId())
-                .block(); // Block để chờ kết quả (vì đang trong transaction)
-        
-        if (restaurantInfo == null || restaurantInfo.getCreatorId() == null) {
-            log.error("❌ Restaurant {} not found or invalid", request.getRestaurantId());
+        // ✅ Validate request + lấy canonical restaurant data từ server (1 lần duy nhất gọi restaurant-service)
+        ValidatedOrderData validated = orderValidationService.validateCreateOrderRequest(request, userId);
+
+        if (validated == null || validated.creatorId() == null) {
             throw new ResourceNotFoundException(
-                    "Nhà hàng không tồn tại hoặc không khả dụng. ID: " + request.getRestaurantId()
+                    "Không thể lấy thông tin nhà hàng. Restaurant ID: " + request.getRestaurantId()
             );
         }
+
+        log.info("✅ Restaurant validated from server. creatorId={}, name={}",
+                validated.creatorId(), validated.restaurantName());
         
-        log.info("✅ Restaurant validated successfully. Creator ID: {}", restaurantInfo.getCreatorId());
-        
-        // ✅ STEP 2: Tạo order với creatorId từ Restaurant
+        // ✅ Mapper chỉ copy: restaurantId, deliveryAddress, deliveryLat/Lng,
+        //   customerName, customerPhone, paymentMethod, notes.
+        //   Các trường nhà hàng sẽ được set rõ ràng từ ValidatedOrderData bên dưới.
         Order order = orderMapper.createOrderRequestToOrder(request);
         order.setUserId(userId);
-        order.setCreatorId(restaurantInfo.getCreatorId()); // Lưu creatorId của nhà hàng
+
+        // ✅ Set canonical restaurant data từ server — không dùng bất cứ dữ liệu nào từ client
+        order.setCreatorId(validated.creatorId());
+        order.setRestaurantName(validated.restaurantName());
+        order.setRestaurantAddress(validated.restaurantAddress());
+        order.setRestaurantPhone(validated.restaurantPhone());
+        order.setPickupLat(validated.pickupLat());
+        order.setPickupLng(validated.pickupLng());
         
         // Tính toán giá trị
         BigDecimal subtotal = calculateSubtotal(request.getItems());
         order.setSubtotalPrice(subtotal);
         order.setDiscountAmount(BigDecimal.ZERO);
         
-        // ✅ Tính phí ship động theo khoảng cách (giống Shopee/Grab)
+        // ✅ Tính phí ship động theo khoảng cách
         BigDecimal shippingFee = shippingFeeCalculationService.calculateShippingFee(
             request.getPickupLat(),
             request.getPickupLng(),

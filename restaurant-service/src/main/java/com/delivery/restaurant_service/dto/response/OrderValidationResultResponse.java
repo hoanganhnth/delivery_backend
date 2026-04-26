@@ -40,7 +40,12 @@ public class OrderValidationResultResponse {
     @Builder
     public static class RestaurantInfo {
         private Long restaurantId;
+        private Long creatorId;
         private String restaurantName;
+        private String restaurantAddress;
+        private String restaurantPhone;
+        private Double latitude;
+        private Double longitude;
         private Boolean isAvailable;
         private Boolean isOpen;
         private String operatingHours;

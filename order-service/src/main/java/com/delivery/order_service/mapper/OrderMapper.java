@@ -28,7 +28,12 @@ public interface OrderMapper {
     @Mapping(target = "status", constant = "PENDING")
     @Mapping(target = "creatorId", ignore = true)
     @Mapping(target = "shipperId", ignore = true)
-    
+    // Các trường nhà hàng được set từ ValidatedOrderData (server-side), không lấy từ request
+    @Mapping(target = "restaurantName", ignore = true)
+    @Mapping(target = "restaurantAddress", ignore = true)
+    @Mapping(target = "restaurantPhone", ignore = true)
+    @Mapping(target = "pickupLat", ignore = true)
+    @Mapping(target = "pickupLng", ignore = true)
     Order createOrderRequestToOrder(CreateOrderRequest request);
 
     @Mapping(target = "restaurantLat", ignore = true)

@@ -2,6 +2,8 @@ package com.delivery.restaurant_service.service.impl;
 
 import com.delivery.restaurant_service.entity.MenuItem;
 import com.delivery.restaurant_service.entity.Restaurant;
+import com.delivery.restaurant_service.repository.MenuItemRepository;
+import com.delivery.restaurant_service.repository.RestaurantRepository;
 import com.delivery.restaurant_service.service.RestaurantCacheService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,6 +26,8 @@ import java.util.concurrent.TimeUnit;
 public class RestaurantCacheServiceImpl implements RestaurantCacheService {
 
     private final RedisTemplate<String, Object> redisTemplate;
+    private final RestaurantRepository restaurantRepository;
+    private final MenuItemRepository menuItemRepository;
 
     // Redis Keys - thiết kế để tương thích với future Catalog Service
     private static final String RESTAURANT_KEY_PREFIX = "catalog:restaurant:";
@@ -168,23 +172,53 @@ public class RestaurantCacheServiceImpl implements RestaurantCacheService {
     // ===============================
 
     @Override
+    @SuppressWarnings("unchecked")
     public Map<String, Object> getRestaurantFromCache(Long restaurantId) {
         try {
             String key = RESTAURANT_KEY_PREFIX + restaurantId;
-            return (Map<String, Object>) redisTemplate.opsForValue().get(key);
+            Map<String, Object> cachedData = (Map<String, Object>) redisTemplate.opsForValue().get(key);
+            
+            if (cachedData == null) {
+                log.info("⚠️ Cache miss for restaurant {}. Falling back to DB...", restaurantId);
+                return restaurantRepository.findById(restaurantId)
+                        .map(restaurant -> {
+                            cacheRestaurant(restaurant); // Cache it
+                            return (Map<String, Object>) redisTemplate.opsForValue().get(key); // Return cached version
+                        })
+                        .orElseGet(() -> {
+                            log.error("❌ Restaurant {} not found in DB either.", restaurantId);
+                            return null;
+                        });
+            }
+            return cachedData;
         } catch (Exception e) {
-            log.error("💥 Error getting restaurant {} from cache: {}", restaurantId, e.getMessage());
+            log.error("💥 Error getting restaurant {} from cache/db: {}", restaurantId, e.getMessage());
             return null;
         }
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public Map<String, Object> getMenuItemFromCache(Long menuItemId) {
         try {
             String key = MENU_ITEM_KEY_PREFIX + menuItemId;
-            return (Map<String, Object>) redisTemplate.opsForValue().get(key);
+            Map<String, Object> cachedData = (Map<String, Object>) redisTemplate.opsForValue().get(key);
+            
+            if (cachedData == null) {
+                log.info("⚠️ Cache miss for menu item {}. Falling back to DB...", menuItemId);
+                return menuItemRepository.findById(menuItemId)
+                        .map(menuItem -> {
+                            cacheMenuItem(menuItem); // Cache it
+                            return (Map<String, Object>) redisTemplate.opsForValue().get(key); // Return cached version
+                        })
+                        .orElseGet(() -> {
+                            log.error("❌ Menu item {} not found in DB either.", menuItemId);
+                            return null;
+                        });
+            }
+            return cachedData;
         } catch (Exception e) {
-            log.error("💥 Error getting menu item {} from cache: {}", menuItemId, e.getMessage());
+            log.error("💥 Error getting menu item {} from cache/db: {}", menuItemId, e.getMessage());
             return null;
         }
     }

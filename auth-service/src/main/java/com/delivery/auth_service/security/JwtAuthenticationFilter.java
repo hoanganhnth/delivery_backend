@@ -1,4 +1,4 @@
-package com.delivery.auth_service.security.JwtAuthenticationFilter;
+package com.delivery.auth_service.security;
 
 import java.io.IOException;
 import java.util.Enumeration;
