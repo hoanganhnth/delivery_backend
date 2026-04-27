@@ -28,6 +28,9 @@ public interface DeliveryMapper {
     @Mapping(target = "shipperCurrentLng", ignore = true)
     @Mapping(target = "rejectReason", ignore = true)
     @Mapping(target = "shippingFee", ignore = true)
+    @Mapping(target = "totalPrice", ignore = true)
+    @Mapping(target = "paymentMethod", ignore = true)
+    @Mapping(target = "restaurantId", ignore = true)
     @Mapping(target = "status", expression = "java(com.delivery.delivery_service.entity.DeliveryStatus.ASSIGNED)")
     Delivery assignRequestToDelivery(AssignDeliveryRequest request);
 

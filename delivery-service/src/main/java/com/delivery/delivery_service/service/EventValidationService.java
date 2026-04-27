@@ -52,9 +52,8 @@ public class EventValidationService {
             errors.add("Total price phải lớn hơn 0");
         }
         
-        if (event.getPaymentMethod() == null || 
-            (!event.getPaymentMethod().equals("COD") && !event.getPaymentMethod().equals("ONLINE"))) {
-            errors.add("Payment method chỉ có thể là COD hoặc ONLINE");
+        if (event.getPaymentMethod() == null || event.getPaymentMethod().trim().isEmpty()) {
+            errors.add("Payment method không được null hoặc rỗng");
         }
         
         // Validate address fields

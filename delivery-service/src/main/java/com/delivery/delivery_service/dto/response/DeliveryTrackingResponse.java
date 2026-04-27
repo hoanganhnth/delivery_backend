@@ -19,4 +19,9 @@ public class DeliveryTrackingResponse {
     private Integer estimatedMinutes; // phút
     private String statusMessage;
 
+    // ✅ Thêm thông tin tài chính/nhà hàng cho tracking
+    private java.math.BigDecimal totalPrice; 
+    private String paymentMethod;
+    private Long restaurantId;
+
 }

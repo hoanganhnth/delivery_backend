@@ -65,6 +65,12 @@ public class Delivery {
     @Column(name = "shipping_fee", precision = 12, scale = 2)
     private java.math.BigDecimal shippingFee; // Phí giao hàng mà shipper sẽ nhận
 
+    @Column(name = "total_price", precision = 12, scale = 2)
+    private java.math.BigDecimal totalPrice; // Tổng tiền khách phải trả (COD thu hộ)
+
+    @Column(name = "payment_method")
+    private String paymentMethod; // Phương thức thanh toán (COD, MOMO, etc.)
+
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
 

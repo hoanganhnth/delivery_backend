@@ -35,4 +35,9 @@ public class DeliveryResponse {
     private BigDecimal estimatedEarnings;     // Thu nhập shipper (85% của shippingFee)
     private BigDecimal platformCommission;    // Hoa hồng platform (15% của shippingFee)
 
+    // ✅ COD Information (tiền thu hộ khách)
+    private BigDecimal totalPrice;            // Tổng tiền khách phải trả (tiền hàng + ship)
+    private String paymentMethod;             // Phương thức thanh toán (COD, MOMO, etc.)
+    private Long restaurantId;                // ID nhà hàng
+
 }

@@ -93,6 +93,10 @@ public class DeliveryServiceImpl implements DeliveryService {
                 delivery.setShippingFee(java.math.BigDecimal.valueOf(15000));
             }
 
+            // ✅ Set COD info (tổng tiền khách trả + phương thức thanh toán)
+            delivery.setTotalPrice(event.getTotalPrice());
+            delivery.setPaymentMethod(event.getPaymentMethod());
+
             // Set notes
             delivery.setNotes(event.getNotes());
 
@@ -139,7 +143,7 @@ public class DeliveryServiceImpl implements DeliveryService {
 
         // Tạo delivery mới
         Delivery delivery = deliveryMapper.assignRequestToDelivery(request);
-        // delivery.setCreatorId(userId);
+        delivery.setCreatorId(userId);
 
         // Ước tính thời gian giao hàng (30 phút mặc định)
         delivery.setEstimatedDeliveryTime(LocalDateTime.now().plusMinutes(30));
