@@ -77,4 +77,11 @@ public interface DeliveryService {
      * ✅ Retry tìm shipper sau khi acceptance timeout (triggered by Redis expiration)
      */
     void retryFindShipper(Long deliveryId);
+
+    /**
+     * ✅ ADMIN: Huỷ tất cả delivery chưa hoàn thành (PENDING, FINDING_SHIPPER, ASSIGNED, PICKED_UP, DELIVERING)
+     * Dùng để cleanup dữ liệu cũ bị lỗi. Gọi từ Postman.
+     * @return Map chứa thống kê: totalFound, cancelled, details
+     */
+    java.util.Map<String, Object> adminCancelAllNonTerminalDeliveries();
 }

@@ -145,4 +145,23 @@ public class DeliveryController {
         DeliveryResponse response = deliveryService.getDeliveryByOrderId(orderId, userId, role);
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Lấy thông tin delivery theo order thành công"));
     }
+
+    /**
+     * ✅ ADMIN: POST /admin/cancel-all-pending
+     * Huỷ tất cả delivery chưa hoàn thành (không phải DELIVERED/CANCELLED).
+     * Dùng để đồng bộ/cleanup dữ liệu cũ. Gọi thẳng từ Postman.
+     *
+     * Cách dùng:
+     * POST http://localhost:8085/api/deliveries/admin/cancel-all-pending
+     * Headers: (không cần)
+     * Body: (không cần)
+     *
+     * Response:
+     * { "totalFound": 5, "cancelled": 5, "details": ["ID 1 (ASSIGNED)", ...] }
+     */
+    @PostMapping("/admin/cancel-all-pending")
+    public ResponseEntity<BaseResponse<java.util.Map<String, Object>>> adminCancelAllPending() {
+        var result = deliveryService.adminCancelAllNonTerminalDeliveries();
+        return ResponseEntity.ok(new BaseResponse<>(1, result, "Đồng bộ hoàn tất"));
+    }
 }

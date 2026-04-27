@@ -49,4 +49,11 @@ public interface DeliveryRepository extends JpaRepository<Delivery, Long> {
      */
     @Query("SELECT COUNT(d) FROM Delivery d WHERE d.shipperId = :shipperId AND d.status IN (com.delivery.delivery_service.entity.DeliveryStatus.ASSIGNED, com.delivery.delivery_service.entity.DeliveryStatus.PICKED_UP, com.delivery.delivery_service.entity.DeliveryStatus.DELIVERING)")
     long countActiveDeliveriesByShipper(@Param("shipperId") Long shipperId);
+
+    /**
+     * ✅ Admin: Lấy tất cả delivery chưa hoàn thành (không phải DELIVERED/CANCELLED)
+     * Dùng cho tác vụ đồng bộ/cleanup
+     */
+    @Query("SELECT d FROM Delivery d WHERE d.status NOT IN (com.delivery.delivery_service.entity.DeliveryStatus.DELIVERED, com.delivery.delivery_service.entity.DeliveryStatus.CANCELLED) ORDER BY d.createdAt ASC")
+    List<Delivery> findAllNonTerminalDeliveries();
 }

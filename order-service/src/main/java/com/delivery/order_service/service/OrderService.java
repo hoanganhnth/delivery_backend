@@ -78,4 +78,10 @@ public interface OrderService {
      * ✅ Cập nhật order status khi không tìm được shipper
      */
     void updateOrderStatusFromShipperNotFoundEvent(ShipperNotFoundEvent event);
+
+    /**
+     * ✅ ADMIN: Huỷ tất cả order chưa hoàn thành (không phải DELIVERED/CANCELLED)
+     * Dùng để cleanup dữ liệu cũ bị lỗi. Gọi từ Postman.
+     */
+    java.util.Map<String, Object> adminCancelAllNonTerminalOrders();
 }

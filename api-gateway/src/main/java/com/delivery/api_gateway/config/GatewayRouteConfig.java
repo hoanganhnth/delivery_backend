@@ -48,10 +48,18 @@ public class GatewayRouteConfig {
                                                 .filters(f -> f.filter(
                                                                 jwtFilter.apply(new JwtAuthenticationFilter.Config())))
                                                 .uri("http://localhost:8083"))
+                                // ✅ Admin endpoints (no JWT) — MUST be before the protected orders route
+                                .route("order-service-admin", r -> r.path("/api/orders/admin/**")
+                                                .uri("http://localhost:8084"))
+
                                 .route("order-service", r -> r.path("/api/orders/**")
                                                 .filters(f -> f.filter(
                                                                 jwtFilter.apply(new JwtAuthenticationFilter.Config())))
                                                 .uri("http://localhost:8084"))
+
+                                // ✅ Admin endpoints (no JWT) — MUST be before the protected delivery route
+                                .route("delivery-service-admin", r -> r.path("/api/deliveries/admin/**")
+                                                .uri("http://localhost:8085"))
 
                                 .route("delivery-service", r -> r.path("/api/deliveries/**")
                                                 .filters(f -> f.filter(

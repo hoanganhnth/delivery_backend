@@ -76,4 +76,11 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
      * Query trực tiếp từ bảng orders mà không cần JOIN với restaurant
      */
     List<Order> findByCreatorIdOrderByCreatedAtDesc(Long creatorId);
+
+    /**
+     * ✅ Admin: Lấy tất cả order chưa hoàn thành (không phải DELIVERED hoặc CANCELLED)
+     * Dùng cho tác vụ dọn dẹp/cleanup dữ liệu
+     */
+    @Query("SELECT o FROM Order o WHERE o.status NOT IN ('DELIVERED', 'CANCELLED') ORDER BY o.createdAt ASC")
+    List<Order> findAllNonTerminalOrders();
 }

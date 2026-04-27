@@ -156,4 +156,16 @@ public class OrderController {
         OrderResponse response = orderService.cancelOrder(id, userId, role);
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Hủy đơn hàng thành công"));
     }
+
+    /**
+     * ✅ ADMIN: POST /admin/cancel-all-pending
+     * Huỷ tất cả order chưa hoàn thành. Gọi thẳng từ Postman.
+     *
+     * POST http://localhost:8084/api/orders/admin/cancel-all-pending
+     */
+    @PostMapping("/admin/cancel-all-pending")
+    public ResponseEntity<BaseResponse<java.util.Map<String, Object>>> adminCancelAllPending() {
+        var result = orderService.adminCancelAllNonTerminalOrders();
+        return ResponseEntity.ok(new BaseResponse<>(1, result, "Đồng bộ hoàn tất"));
+    }
 }

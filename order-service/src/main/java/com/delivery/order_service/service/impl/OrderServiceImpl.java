@@ -426,4 +426,45 @@ public class OrderServiceImpl implements OrderService {
                      event.getOrderId(), e.getMessage(), e);
         }
     }
+
+    /**
+     * ✅ ADMIN: Huỷ tất cả order chưa hoàn thành
+     */
+    @Override
+    @Transactional
+    public java.util.Map<String, Object> adminCancelAllNonTerminalOrders() {
+        log.warn("⚠️ [ADMIN] Starting bulk cancel of all non-terminal orders...");
+
+        List<Order> orders = orderRepository.findAllNonTerminalOrders();
+        log.info("🔍 [ADMIN] Found {} non-terminal orders to cancel", orders.size());
+
+        java.util.List<String> details = new java.util.ArrayList<>();
+        int cancelled = 0;
+
+        for (Order order : orders) {
+            try {
+                String prev = order.getStatus();
+                order.setStatus("CANCELLED");
+                orderRepository.save(order);
+
+                details.add(String.format("Order #%d (userId=%d, status=%s → CANCELLED)",
+                        order.getId(), order.getUserId(), prev));
+                cancelled++;
+
+                log.info("✅ Cancelled order #{} (prev={})", order.getId(), prev);
+            } catch (Exception e) {
+                details.add(String.format("❌ Order #%d FAILED: %s", order.getId(), e.getMessage()));
+                log.error("💥 Failed to cancel order #{}: {}", order.getId(), e.getMessage());
+            }
+        }
+
+        log.warn("✅ [ADMIN] Bulk cancel complete: {}/{} orders cancelled", cancelled, orders.size());
+
+        java.util.Map<String, Object> result = new java.util.LinkedHashMap<>();
+        result.put("totalFound", orders.size());
+        result.put("cancelled", cancelled);
+        result.put("failed", orders.size() - cancelled);
+        result.put("details", details);
+        return result;
+    }
 }

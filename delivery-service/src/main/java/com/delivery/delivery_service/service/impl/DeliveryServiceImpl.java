@@ -902,4 +902,55 @@ public class DeliveryServiceImpl implements DeliveryService {
         }
     }
 
+    /**
+     * ✅ ADMIN: Huỷ tất cả delivery chưa hoàn thành
+     */
+    @Override
+    @Transactional
+    public java.util.Map<String, Object> adminCancelAllNonTerminalDeliveries() {
+        log.warn("⚠️ [ADMIN] Starting bulk cancel of all non-terminal deliveries...");
+
+        List<Delivery> deliveries = deliveryRepository.findAllNonTerminalDeliveries();
+        log.info("🔍 [ADMIN] Found {} non-terminal deliveries to cancel", deliveries.size());
+
+        java.util.List<String> details = new java.util.ArrayList<>();
+        int cancelled = 0;
+
+        for (Delivery delivery : deliveries) {
+            try {
+                String prev = delivery.getStatus().name();
+                delivery.setStatus(DeliveryStatus.CANCELLED);
+                delivery.setUpdatedAt(LocalDateTime.now());
+                deliveryRepository.save(delivery);
+
+                // Release shipper busy flag in tracking-service nếu có
+                if (delivery.getShipperId() != null) {
+                    try {
+                        trackingServiceClient.markShipperAvailable(delivery.getShipperId());
+                    } catch (Exception ex) {
+                        log.warn("⚠️ Could not release busy flag for shipper {}: {}", delivery.getShipperId(), ex.getMessage());
+                    }
+                }
+
+                details.add(String.format("Delivery #%d (orderId=%d, status=%s → CANCELLED)",
+                        delivery.getId(), delivery.getOrderId(), prev));
+                cancelled++;
+
+                log.info("✅ Cancelled delivery #{} (order={}, prev={})", delivery.getId(), delivery.getOrderId(), prev);
+            } catch (Exception e) {
+                details.add(String.format("❌ Delivery #%d FAILED: %s", delivery.getId(), e.getMessage()));
+                log.error("💥 Failed to cancel delivery #{}: {}", delivery.getId(), e.getMessage());
+            }
+        }
+
+        log.warn("✅ [ADMIN] Bulk cancel complete: {}/{} deliveries cancelled", cancelled, deliveries.size());
+
+        java.util.Map<String, Object> result = new java.util.LinkedHashMap<>();
+        result.put("totalFound", deliveries.size());
+        result.put("cancelled", cancelled);
+        result.put("failed", deliveries.size() - cancelled);
+        result.put("details", details);
+        return result;
+    }
+
 }
