@@ -10,6 +10,7 @@ import com.delivery.delivery_service.dto.event.OrderCancelledEvent;
 import com.delivery.delivery_service.dto.event.DeliveryCancelledEvent;
 import com.delivery.delivery_service.dto.event.ShipperNotFoundEvent;
 import com.delivery.delivery_service.dto.event.DeliveryCompletedEvent;
+import com.delivery.delivery_service.dto.event.DeliveryPickedUpEvent;
 import com.delivery.delivery_service.common.constants.ShipperActionConstants;
 import com.delivery.delivery_service.dto.request.AcceptDeliveryRequest;
 import com.delivery.delivery_service.dto.request.AssignDeliveryRequest;
@@ -129,7 +130,7 @@ public class DeliveryServiceImpl implements DeliveryService {
 
             // Gửi trực tiếp lên Kafka thay vì qua Outbox
             kafkaTemplate.send("delivery.created.result", savedDelivery.getOrderId().toString(), result);
-            log.info("✅ [Delivery] Published result to Kafka for orderId={}, deliveryId={}", 
+            log.info("✅ [Delivery] Published result to Kafka for orderId={}, deliveryId={}",
                     savedDelivery.getOrderId(), savedDelivery.getId());
 
             return deliveryMapper.deliveryToDeliveryResponse(savedDelivery);
@@ -198,8 +199,8 @@ public class DeliveryServiceImpl implements DeliveryService {
                 log.warn("⚠️ Shipper {} attempted to accept order {} but already has {} active delivery(ies)",
                         shipperId, request.getOrderId(), activeDeliveries.size());
                 throw new InvalidStatusException(
-                        "Bạn đang có đơn hàng đang xử lý (Delivery #" + activeDeliveries.get(0).getId() 
-                        + "). Hãy hoàn thành đơn hiện tại trước khi nhận đơn mới!");
+                        "Bạn đang có đơn hàng đang xử lý (Delivery #" + activeDeliveries.get(0).getId()
+                                + "). Hãy hoàn thành đơn hiện tại trước khi nhận đơn mới!");
             }
         }
 
@@ -434,6 +435,9 @@ public class DeliveryServiceImpl implements DeliveryService {
         switch (status) {
             case PICKED_UP:
                 delivery.setPickedUpAt(LocalDateTime.now());
+
+                // ✅ Publish DeliveryPickedUpEvent — Settlement sẽ trừ ví COD nếu cần
+                publishDeliveryPickedUpEvent(delivery);
                 break;
             case DELIVERED:
                 delivery.setDeliveredAt(LocalDateTime.now());
@@ -629,10 +633,25 @@ public class DeliveryServiceImpl implements DeliveryService {
             java.math.BigDecimal platformCommission = com.delivery.delivery_service.common.constants.PricingConstants
                     .calculatePlatformCommission(delivery.getShippingFee());
 
+            // ✅ Calculate restaurant earnings = totalPrice - shippingFee (food value cho
+            // nhà hàng)
+            java.math.BigDecimal restaurantEarnings = java.math.BigDecimal.ZERO;
+            if (delivery.getTotalPrice() != null && delivery.getShippingFee() != null) {
+                restaurantEarnings = delivery.getTotalPrice().subtract(delivery.getShippingFee());
+                if (restaurantEarnings.compareTo(java.math.BigDecimal.ZERO) <= 0) {
+                    // Fallback: nếu totalPrice <= shippingFee thì dùng totalPrice làm restaurant
+                    // earnings
+                    restaurantEarnings = delivery.getTotalPrice();
+                }
+            } else if (delivery.getTotalPrice() != null) {
+                restaurantEarnings = delivery.getTotalPrice();
+            }
+
             log.info(
-                    "💰 Publishing DeliveryCompletedEvent for delivery {}, shipper {}, shippingFee: {}, shipperEarnings: {}, commission: {}",
-                    delivery.getId(), delivery.getShipperId(), delivery.getShippingFee(), shipperEarnings,
-                    platformCommission);
+                    "💰 Publishing DeliveryCompletedEvent for delivery {}, shipper {}, restaurant {}, " +
+                            "shippingFee: {}, shipperEarnings: {}, restaurantEarnings: {}, commission: {}",
+                    delivery.getId(), delivery.getShipperId(), delivery.getRestaurantId(),
+                    delivery.getShippingFee(), shipperEarnings, restaurantEarnings, platformCommission);
 
             DeliveryCompletedEvent event = DeliveryCompletedEvent.builder()
                     .deliveryId(delivery.getId())
@@ -641,22 +660,62 @@ public class DeliveryServiceImpl implements DeliveryService {
                     .restaurantId(delivery.getRestaurantId())
                     .shippingFee(delivery.getShippingFee())
                     .shipperEarnings(shipperEarnings)
+                    .restaurantEarnings(restaurantEarnings)
                     .platformCommission(platformCommission)
                     .deliveredAt(delivery.getDeliveredAt())
                     .deliveryAddress(delivery.getDeliveryAddress())
+                    .paymentMethod(delivery.getPaymentMethod() != null ? delivery.getPaymentMethod() : "ONLINE")
                     .restaurantName("Restaurant") // TODO: get from order
                     .customerName("Customer") // TODO: get from order
                     .build();
 
             deliveryEventPublisher.publishDeliveryCompletedEvent(event);
 
-            log.info("✅ Published DeliveryCompletedEvent for delivery {}, shipper will receive {} (85% of {})",
-                    delivery.getId(), shipperEarnings, delivery.getShippingFee());
+            log.info(
+                    "✅ Published DeliveryCompletedEvent for delivery {}, shipper will receive {} (85% of {}), restaurant will receive {}",
+                    delivery.getId(), shipperEarnings, delivery.getShippingFee(), restaurantEarnings);
 
         } catch (Exception e) {
             log.error("💥 Failed to publish DeliveryCompletedEvent for delivery {}: {}",
                     delivery.getId(), e.getMessage(), e);
             // Don't fail main operation if event publishing fails
+        }
+    }
+
+    /**
+     * ✅ Publish DeliveryPickedUpEvent — Settlement sẽ trừ ví shipper nếu COD
+     */
+    private void publishDeliveryPickedUpEvent(Delivery delivery) {
+        try {
+            if (delivery.getShipperId() == null) {
+                log.warn("⚠️ Cannot publish DeliveryPickedUpEvent: no shipper assigned");
+                return;
+            }
+
+            java.math.BigDecimal shipperEarnings = com.delivery.delivery_service.common.constants.PricingConstants
+                    .calculateShipperEarnings(delivery.getShippingFee());
+            java.math.BigDecimal platformCommission = com.delivery.delivery_service.common.constants.PricingConstants
+                    .calculatePlatformCommission(delivery.getShippingFee());
+
+            DeliveryPickedUpEvent event = DeliveryPickedUpEvent.builder()
+                    .deliveryId(delivery.getId())
+                    .orderId(delivery.getOrderId())
+                    .shipperId(delivery.getShipperId())
+                    .restaurantId(delivery.getRestaurantId())
+                    .paymentMethod(delivery.getPaymentMethod() != null ? delivery.getPaymentMethod() : "ONLINE")
+                    .totalPrice(delivery.getTotalPrice())
+                    .shippingFee(delivery.getShippingFee())
+                    .shipperEarnings(shipperEarnings)
+                    .platformCommission(platformCommission)
+                    .build();
+
+            deliveryEventPublisher.publishDeliveryPickedUpEvent(event);
+
+            log.info("✅ Published DeliveryPickedUpEvent for delivery {}, paymentMethod={}",
+                    delivery.getId(), delivery.getPaymentMethod());
+
+        } catch (Exception e) {
+            log.error("💥 Failed to publish DeliveryPickedUpEvent: {}", e.getMessage(), e);
         }
     }
 
@@ -835,8 +894,6 @@ public class DeliveryServiceImpl implements DeliveryService {
                     event.getDeliveryId(), e.getMessage(), e);
         }
     }
-
-
 
     /**
      * ✅ ADMIN: Huỷ tất cả delivery chưa hoàn thành

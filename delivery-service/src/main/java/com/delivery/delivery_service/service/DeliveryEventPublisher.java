@@ -5,6 +5,7 @@ import com.delivery.delivery_service.dto.event.FindShipperEvent;
 import com.delivery.delivery_service.dto.event.MatchAcceptedEvent;
 import com.delivery.delivery_service.dto.event.DeliveryCancelledEvent;
 import com.delivery.delivery_service.dto.event.DeliveryCompletedEvent;
+import com.delivery.delivery_service.dto.event.DeliveryPickedUpEvent;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -100,6 +101,19 @@ public class DeliveryEventPublisher {
                 event.getDeliveryId(), event.getOrderId());
         kafkaTemplate.send(
                 KafkaTopicConstants.DELIVERY_CANCELLED_TOPIC,
+                event.getDeliveryId().toString(),
+                event
+        );
+    }
+
+    /**
+     * ✅ Publish DeliveryPickedUpEvent — Dùng cho COD deduction
+     */
+    public void publishDeliveryPickedUpEvent(DeliveryPickedUpEvent event) {
+        log.info("📦 [Kafka] Sending DeliveryPickedUpEvent for delivery: {}, shipper: {}, paymentMethod: {}",
+                event.getDeliveryId(), event.getShipperId(), event.getPaymentMethod());
+        kafkaTemplate.send(
+                KafkaTopicConstants.DELIVERY_PICKED_UP_TOPIC,
                 event.getDeliveryId().toString(),
                 event
         );

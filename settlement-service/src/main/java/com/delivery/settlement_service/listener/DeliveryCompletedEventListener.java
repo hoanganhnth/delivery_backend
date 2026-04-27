@@ -89,8 +89,10 @@ public class DeliveryCompletedEventListener {
                     return;
                 }
 
-                // ✅ IDEMPOTENCY CHECK: Shipper đã được cộng tiền cho order này chưa?
-                if (transactionRepository.existsByOrderIdAndEntityIdAndEntityTypeAndReason(
+                boolean isCOD = "COD".equalsIgnoreCase(event.getPaymentMethod());
+
+                // ✅ IDEMPOTENCY CHECK: Shipper đã được cộng tiền cho order này chưa? (Chỉ check cho pre-paid)
+                if (!isCOD && transactionRepository.existsByOrderIdAndEntityIdAndEntityTypeAndReason(
                         event.getOrderId(), event.getShipperId(),
                         EntityType.SHIPPER, TransactionReason.DELIVERY_FEE)) {
                     log.warn("⚠️ [Idempotent] Shipper {} already credited for order {}, skipping",
@@ -129,19 +131,25 @@ public class DeliveryCompletedEventListener {
                             event.getPlatformCommission(), event.getOrderId());
                 }
 
-                // 3. Create CREDIT transaction for shipper (DELIVERY_FEE)
-                transactionService.createTransaction(
-                        event.getShipperId(),
-                        EntityType.SHIPPER,
-                        event.getOrderId(),
-                        TransactionDirection.CREDIT,
-                        TransactionReason.DELIVERY_FEE,
-                        event.getShipperEarnings(),
-                        "Delivery fee from order #" + event.getOrderId() + " - Delivery completed"
-                );
+                // 3. Create CREDIT transaction for shipper (DELIVERY_FEE) — CHỈ cho đơn Pre-paid
+                // COD: Shipper đã cầm tiền mặt, không cần CREDIT thêm vào ví
+                if (!isCOD) {
+                    transactionService.createTransaction(
+                            event.getShipperId(),
+                            EntityType.SHIPPER,
+                            event.getOrderId(),
+                            TransactionDirection.CREDIT,
+                            TransactionReason.DELIVERY_FEE,
+                            event.getShipperEarnings(),
+                            "Delivery fee from order #" + event.getOrderId() + " - Delivery completed"
+                    );
 
-                log.info("✅ Credited {} to shipper {} for order {}",
-                        event.getShipperEarnings(), event.getShipperId(), event.getOrderId());
+                    log.info("✅ Credited {} to shipper {} for order {} (Pre-paid)",
+                            event.getShipperEarnings(), event.getShipperId(), event.getOrderId());
+                } else {
+                    log.info("💵 Skipping shipper CREDIT for COD order {} — shipper holds {} cash",
+                            event.getOrderId(), event.getShipperEarnings());
+                }
 
             } catch (Exception e) {
                 log.error("💥 Failed to create transactions for delivery {}: {}",

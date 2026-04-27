@@ -23,10 +23,12 @@ public class DeliveryCompletedEvent {
     
     private BigDecimal shippingFee; // Tổng phí ship khách hàng trả
     private BigDecimal shipperEarnings; // Số tiền shipper thực nhận (85% của shippingFee)
+    private BigDecimal restaurantEarnings; // Số tiền nhà hàng nhận (totalPrice - shippingFee)
     private BigDecimal platformCommission; // Commission platform lấy (15%)
     
     private LocalDateTime deliveredAt;
     private String deliveryAddress;
+    private String paymentMethod;     // "COD" or "ONLINE"
     
     // Additional info for transaction description
     private String restaurantName;

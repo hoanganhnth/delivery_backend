@@ -94,6 +94,7 @@ public class Transaction {
         REFUND_RECEIVED,        // Refund received
         ADJUSTMENT_CREDIT,      // Admin adjustment (credit)
         RELEASE,                // Release from holding (shipper)
+        COD_REFUND,             // Refund COD deduction (order cancelled after pickup)
         
         // Expenses/Debits
         PLATFORM_COMMISSION,    // Platform commission deduction
@@ -101,7 +102,8 @@ public class Transaction {
         REFUND_ISSUED,          // Refund issued to customer
         PENALTY,                // Penalty/fine
         ADJUSTMENT_DEBIT,       // Admin adjustment (debit)
-        HOLD                    // Move to holding balance (shipper)
+        HOLD,                   // Move to holding balance (shipper)
+        COD_DEDUCTION           // COD collection deduction from shipper wallet
     }
 
     /**

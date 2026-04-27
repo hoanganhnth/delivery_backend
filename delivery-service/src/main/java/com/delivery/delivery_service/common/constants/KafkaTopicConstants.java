@@ -18,6 +18,7 @@ public class KafkaTopicConstants {
     public static final String SHIPPER_ACCEPTED_TOPIC = "delivery.shipper-accepted";
     public static final String DELIVERY_CANCELLED_TOPIC = "delivery.cancelled";
     public static final String DELIVERY_COMPLETED_TOPIC = "delivery.completed";
+    public static final String DELIVERY_PICKED_UP_TOPIC = "delivery.picked-up";
     
     // ✅ NEW: Thay thế REST call đến tracking-service
     public static final String SHIPPER_STATUS_CHANGE_TOPIC = "shipper.status-change";
