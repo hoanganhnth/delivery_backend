@@ -60,6 +60,11 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
             Map<String, Object> clientMessage = objectMapper.readValue(payload, Map.class);
             String action = (String) clientMessage.get("action");
 
+            if (action == null) {
+                log.warn("⚠️ Received message without 'action' field from session {}: {}", sessionId, payload);
+                return;
+            }
+
             switch (action) {
                 case "subscribe_shipper":
                     handleSubscribeShipper(session, clientMessage);
@@ -72,6 +77,13 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
                     break;
                 case "update_location":
                     handleUpdateLocation(session, clientMessage);
+                    break;
+                case "ping":
+                    // Respond to heartbeat ping from clients
+                    Map<String, Object> pongResponse = Map.of(
+                            "type", "pong",
+                            "timestamp", java.time.Instant.now().toString());
+                    session.sendMessage(new TextMessage(objectMapper.writeValueAsString(pongResponse)));
                     break;
                 default:
                     log.warn("⚠️ Unknown action: {} from session: {}", action, sessionId);

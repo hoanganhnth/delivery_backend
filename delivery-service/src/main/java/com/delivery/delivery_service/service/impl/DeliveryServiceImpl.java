@@ -1,5 +1,7 @@
 package com.delivery.delivery_service.service.impl;
 
+import com.delivery.delivery_service.client.TrackingServiceClient;
+
 import com.delivery.delivery_service.common.constants.RoleConstants;
 import com.delivery.delivery_service.dto.event.FindShipperEvent;
 import com.delivery.delivery_service.dto.event.MatchAcceptedEvent;
@@ -41,18 +43,21 @@ public class DeliveryServiceImpl implements DeliveryService {
     private final DeliveryEventPublisher deliveryEventPublisher;
     private final DeliveryWebSocketService webSocketService;
     private final DeliveryWaitingService deliveryWaitingService;
+    private final TrackingServiceClient trackingServiceClient;
 
     // ✅ Constructor Injection Pattern (MANDATORY)
     public DeliveryServiceImpl(DeliveryRepository deliveryRepository,
             DeliveryMapper deliveryMapper,
             DeliveryEventPublisher deliveryEventPublisher,
             DeliveryWebSocketService webSocketService,
-            DeliveryWaitingService deliveryWaitingService) {
+            DeliveryWaitingService deliveryWaitingService,
+            TrackingServiceClient trackingServiceClient) {
         this.deliveryRepository = deliveryRepository;
         this.deliveryMapper = deliveryMapper;
         this.deliveryEventPublisher = deliveryEventPublisher;
         this.webSocketService = webSocketService;
         this.deliveryWaitingService = deliveryWaitingService;
+        this.trackingServiceClient = trackingServiceClient;
     }
 
     @Override
@@ -171,6 +176,18 @@ public class DeliveryServiceImpl implements DeliveryService {
             throw new InvalidStatusException("Reject reason is required when rejecting delivery");
         }
 
+        // ✅ Guard: Không cho shipper nhận đơn mới nếu đang có đơn đang xử lý
+        if (ShipperActionConstants.ACCEPT.equals(request.getAction())) {
+            List<Delivery> activeDeliveries = deliveryRepository.findActiveDeliveriesByShipper(shipperId);
+            if (activeDeliveries != null && !activeDeliveries.isEmpty()) {
+                log.warn("⚠️ Shipper {} attempted to accept order {} but already has {} active delivery(ies)",
+                        shipperId, request.getOrderId(), activeDeliveries.size());
+                throw new InvalidStatusException(
+                        "Bạn đang có đơn hàng đang xử lý (Delivery #" + activeDeliveries.get(0).getId() 
+                        + "). Hãy hoàn thành đơn hiện tại trước khi nhận đơn mới!");
+            }
+        }
+
         // ✅ Validate pickup time if accepting
         // if (ShipperActionConstants.ACCEPT.equals(request.getAction()) &&
         // request.getEstimatedPickupTime() == null) {
@@ -213,6 +230,9 @@ public class DeliveryServiceImpl implements DeliveryService {
             }
 
             log.info("✅ Shipper {} ACCEPTED order {}", shipperId, request.getOrderId());
+
+            // ✅ Đánh dấu shipper đang bận trong Redis (tracking-service)
+            trackingServiceClient.markShipperBusy(shipperId);
 
         } else if (ShipperActionConstants.REJECT.equals(request.getAction())) {
             // REJECT logic - không assign shipper, reset lại status
@@ -404,6 +424,11 @@ public class DeliveryServiceImpl implements DeliveryService {
 
                 // ✅ Publish DeliveryCompletedEvent để tự động cộng tiền cho shipper
                 publishDeliveryCompletedEvent(delivery);
+
+                // ✅ Đánh dấu shipper rảnh trong Redis (tracking-service)
+                if (delivery.getShipperId() != null) {
+                    trackingServiceClient.markShipperAvailable(delivery.getShipperId());
+                }
                 break;
             case PENDING:
             case FINDING_SHIPPER:
@@ -688,6 +713,11 @@ public class DeliveryServiceImpl implements DeliveryService {
                 delivery.setUpdatedAt(LocalDateTime.now());
 
                 deliveryRepository.save(delivery);
+
+                // ✅ Đánh dấu shipper rảnh nếu đã được assign
+                if (delivery.getShipperId() != null) {
+                    trackingServiceClient.markShipperAvailable(delivery.getShipperId());
+                }
 
                 log.info("✅ Successfully cancelled delivery {} for order: {}",
                         delivery.getId(), event.getOrderId());

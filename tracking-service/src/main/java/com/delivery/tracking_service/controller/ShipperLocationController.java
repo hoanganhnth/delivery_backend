@@ -134,4 +134,24 @@ public class ShipperLocationController {
         shipperLocationService.markShipperOffline(userId);
         return ResponseEntity.ok(new BaseResponse<>(1, "Đã đánh dấu offline thành công"));
     }
+
+    /**
+     * ✅ Internal API: Đánh dấu shipper đang bận (gọi bởi delivery-service)
+     */
+    @PutMapping("/{shipperId}/busy")
+    public ResponseEntity<BaseResponse<String>> markShipperBusy(
+            @PathVariable Long shipperId) {
+        shipperLocationService.markShipperBusy(shipperId);
+        return ResponseEntity.ok(new BaseResponse<>(1, "Shipper " + shipperId + " marked as BUSY"));
+    }
+
+    /**
+     * ✅ Internal API: Đánh dấu shipper rảnh (gọi bởi delivery-service)
+     */
+    @DeleteMapping("/{shipperId}/busy")
+    public ResponseEntity<BaseResponse<String>> markShipperAvailable(
+            @PathVariable Long shipperId) {
+        shipperLocationService.markShipperAvailable(shipperId);
+        return ResponseEntity.ok(new BaseResponse<>(1, "Shipper " + shipperId + " marked as AVAILABLE"));
+    }
 }

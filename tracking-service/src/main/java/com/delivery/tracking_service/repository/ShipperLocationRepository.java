@@ -17,4 +17,9 @@ public interface ShipperLocationRepository {
     int getActiveConnections();
     int getTotalConnections();
     int getCachedShippersCount();
+    
+    // Busy Shippers Management
+    void markShipperBusy(Long shipperId);
+    void markShipperAvailable(Long shipperId);
+    boolean isShipperBusy(Long shipperId);
 }

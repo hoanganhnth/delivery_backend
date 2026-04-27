@@ -171,4 +171,22 @@ public class ShipperLocationService {
             return List.of();
         }
     }
+
+    /**
+     * ✅ Đánh dấu shipper đang bận (đang có đơn hàng)
+     * Gọi bởi delivery-service khi shipper nhận đơn
+     */
+    public void markShipperBusy(Long shipperId) {
+        redisGeoRepository.markShipperBusy(shipperId);
+        log.info("🔴 Shipper {} marked as BUSY - excluded from matching", shipperId);
+    }
+
+    /**
+     * ✅ Đánh dấu shipper rảnh (hoàn thành hoặc huỷ đơn)
+     * Gọi bởi delivery-service khi shipper hoàn thành/huỷ đơn
+     */
+    public void markShipperAvailable(Long shipperId) {
+        redisGeoRepository.markShipperAvailable(shipperId);
+        log.info("🟢 Shipper {} marked as AVAILABLE - eligible for matching", shipperId);
+    }
 }

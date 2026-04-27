@@ -26,6 +26,7 @@ public class RedisGeoRepository implements ShipperLocationRepository {
     private final RedisTemplate<String, Object> redisTemplate;
     private static final String GEO_KEY = "shippers:geo:locations";
     private static final String ONLINE_SHIPPERS_SET = "shippers:online:set";
+    private static final String BUSY_SHIPPER_PREFIX = "shipper:busy:";
 
     // --- BEGIN: Method implement từ RedisGeoService ---
     public void cacheShipperLocation(Long shipperId, ShipperLocationResponse location) {
@@ -86,12 +87,16 @@ public class RedisGeoRepository implements ShipperLocationRepository {
                         String shipperIdStr = geoResult.getContent().getName().toString();
                         Long shipperId = Long.parseLong(shipperIdStr);
                         boolean isOnline = redisTemplate.opsForSet().isMember(ONLINE_SHIPPERS_SET, shipperIdStr);
-                        if (isOnline) {
+                        boolean isBusy = Boolean.TRUE.equals(
+                                redisTemplate.hasKey(BUSY_SHIPPER_PREFIX + shipperIdStr));
+                        if (isOnline && !isBusy) {
                             ShipperLocationResponse location = getCachedShipperLocation(shipperId);
                             if (location != null) {
                                 location.setDistance(geoResult.getDistance().getValue());
                                 nearbyShippers.add(location);
                             }
+                        } else if (isBusy) {
+                            log.debug("🚫 Skipping busy shipper {} in nearby results", shipperId);
                         }
                     } catch (NumberFormatException e) {
                         log.warn("Invalid shipper ID in GEO results: {}", geoResult.getContent().getName());
@@ -199,5 +204,49 @@ public class RedisGeoRepository implements ShipperLocationRepository {
             return 0;
         }
     }
+    // --- Busy Shippers Management ---
+
+    /**
+     * ✅ Đánh dấu shipper đang bận (đang có đơn hàng) với TTL 2 tiếng an toàn
+     */
+    public void markShipperBusy(Long shipperId) {
+        try {
+            redisTemplate.opsForValue().set(
+                BUSY_SHIPPER_PREFIX + shipperId.toString(), 
+                "BUSY", 
+                2, 
+                TimeUnit.HOURS
+            );
+            log.info("🔴 Marked shipper {} as BUSY (TTL: 2 hours)", shipperId);
+        } catch (Exception e) {
+            log.error("💥 Error marking shipper {} as busy: {}", shipperId, e.getMessage(), e);
+        }
+    }
+
+    /**
+     * ✅ Đánh dấu shipper rảnh (đã hoàn thành hoặc huỷ đơn)
+     */
+    public void markShipperAvailable(Long shipperId) {
+        try {
+            redisTemplate.delete(BUSY_SHIPPER_PREFIX + shipperId.toString());
+            log.info("🟢 Marked shipper {} as AVAILABLE", shipperId);
+        } catch (Exception e) {
+            log.error("💥 Error marking shipper {} as available: {}", shipperId, e.getMessage(), e);
+        }
+    }
+
+    /**
+     * ✅ Kiểm tra shipper có đang bận không
+     */
+    public boolean isShipperBusy(Long shipperId) {
+        try {
+            return Boolean.TRUE.equals(
+                    redisTemplate.hasKey(BUSY_SHIPPER_PREFIX + shipperId.toString()));
+        } catch (Exception e) {
+            log.error("💥 Error checking busy status for shipper {}: {}", shipperId, e.getMessage(), e);
+            return false;
+        }
+    }
+
     // --- END ---
 }
