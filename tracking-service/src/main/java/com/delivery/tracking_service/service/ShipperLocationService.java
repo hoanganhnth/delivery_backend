@@ -23,6 +23,9 @@ public class ShipperLocationService {
     // ✅ WebSocket handler để broadcast real-time updates
     private final ShipperLocationWebSocketHandler webSocketHandler;
 
+    // ✅ Kafka publisher để replicate vị trí sang match-service
+    private final ShipperLocationEventPublisher locationEventPublisher;
+
     /**
      * ✅ Update shipper location with Redis GEO support theo Backend Instructions
      */
@@ -50,7 +53,11 @@ public class ShipperLocationService {
             webSocketHandler.broadcastShipperLocation(response);
             webSocketHandler.broadcastAreaLocationUpdate(response);
 
-            log.info("✅ Updated location for shipper: {} at ({}, {}) - Online: {} [Redis GEO + WebSocket]",
+            // ✅ Publish vị trí qua Kafka để match-service replicate
+            locationEventPublisher.publishLocationUpdate(
+                    shipperId, request.getLatitude(), request.getLongitude(), request.getIsOnline());
+
+            log.info("✅ Updated location for shipper: {} at ({}, {}) - Online: {} [Redis GEO + WebSocket + Kafka]",
                     shipperId, request.getLatitude(), request.getLongitude(), request.getIsOnline());
 
             return response;

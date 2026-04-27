@@ -15,6 +15,10 @@ public class KafkaTopicConstants {
     public static final String SHIPPER_FOUND_TOPIC = "shipper.found";
     public static final String SHIPPER_MATCHED_TOPIC = "shipper.matched";
     public static final String NO_SHIPPER_AVAILABLE_TOPIC = "no.shipper.available";
+
+    // ✅ NEW: Topics for event-driven shipper tracking (replaces REST calls)
+    public static final String SHIPPER_LOCATION_UPDATED_TOPIC = "shipper.location-updated";
+    public static final String SHIPPER_STATUS_CHANGE_TOPIC = "shipper.status-change";
     
     private KafkaTopicConstants() {
         // Utility class

@@ -47,15 +47,9 @@ public class KafkaConfig {
     }
 
     @Bean
-    public org.springframework.kafka.support.converter.RecordMessageConverter converter() {
-        return new org.springframework.kafka.support.converter.StringJsonMessageConverter();
-    }
-
-    @Bean
     public ConcurrentKafkaListenerContainerFactory<String, Object> kafkaListenerContainerFactory() {
         ConcurrentKafkaListenerContainerFactory<String, Object> factory = new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(consumerFactory());
-        factory.setRecordMessageConverter(converter());
 
         // Manual acknowledgment for reliability
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);

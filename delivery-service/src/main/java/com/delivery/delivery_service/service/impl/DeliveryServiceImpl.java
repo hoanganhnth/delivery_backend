@@ -1,6 +1,6 @@
 package com.delivery.delivery_service.service.impl;
 
-import com.delivery.delivery_service.client.TrackingServiceClient;
+// ❌ TrackingServiceClient removed — replaced by Kafka events
 
 import com.delivery.delivery_service.common.constants.RoleConstants;
 import com.delivery.delivery_service.dto.event.FindShipperEvent;
@@ -25,7 +25,6 @@ import com.delivery.delivery_service.repository.DeliveryRepository;
 import com.delivery.delivery_service.service.DeliveryService;
 import com.delivery.delivery_service.service.DeliveryEventPublisher;
 import com.delivery.delivery_service.service.DeliveryWebSocketService;
-import com.delivery.delivery_service.service.DeliveryWaitingService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,22 +41,19 @@ public class DeliveryServiceImpl implements DeliveryService {
     private final DeliveryMapper deliveryMapper;
     private final DeliveryEventPublisher deliveryEventPublisher;
     private final DeliveryWebSocketService webSocketService;
-    private final DeliveryWaitingService deliveryWaitingService;
-    private final TrackingServiceClient trackingServiceClient;
+    private final org.springframework.kafka.core.KafkaTemplate<String, Object> kafkaTemplate;
 
-    // ✅ Constructor Injection Pattern (MANDATORY)
+    // ✅ Constructor Injection Pattern
     public DeliveryServiceImpl(DeliveryRepository deliveryRepository,
             DeliveryMapper deliveryMapper,
             DeliveryEventPublisher deliveryEventPublisher,
             DeliveryWebSocketService webSocketService,
-            DeliveryWaitingService deliveryWaitingService,
-            TrackingServiceClient trackingServiceClient) {
+            org.springframework.kafka.core.KafkaTemplate<String, Object> kafkaTemplate) {
         this.deliveryRepository = deliveryRepository;
         this.deliveryMapper = deliveryMapper;
         this.deliveryEventPublisher = deliveryEventPublisher;
         this.webSocketService = webSocketService;
-        this.deliveryWaitingService = deliveryWaitingService;
-        this.trackingServiceClient = trackingServiceClient;
+        this.kafkaTemplate = kafkaTemplate;
     }
 
     @Override
@@ -118,8 +114,23 @@ public class DeliveryServiceImpl implements DeliveryService {
             // Save delivery
             Delivery savedDelivery = deliveryRepository.save(delivery);
 
-            // ✅ Gửi FindShipperEvent đến Match Service để tìm shipper phù hợp
-            publishFindShipperEvent(savedDelivery);
+            // ✅ PHÁT LỆNH: Lưu kết quả vào Outbox để OutboxRelay gửi cho Saga
+            // Saga sẽ nhận event [delivery.created.result] để tiếp tục luồng FIND_SHIPPER
+            java.util.Map<String, Object> result = new java.util.HashMap<>();
+            result.put("orderId", savedDelivery.getOrderId());
+            result.put("deliveryId", savedDelivery.getId());
+            result.put("status", savedDelivery.getStatus().name());
+            result.put("pickupAddress", savedDelivery.getPickupAddress());
+            result.put("pickupLat", savedDelivery.getPickupLat());
+            result.put("pickupLng", savedDelivery.getPickupLng());
+            result.put("deliveryAddress", savedDelivery.getDeliveryAddress());
+            result.put("deliveryLat", savedDelivery.getDeliveryLat());
+            result.put("deliveryLng", savedDelivery.getDeliveryLng());
+
+            // Gửi trực tiếp lên Kafka thay vì qua Outbox
+            kafkaTemplate.send("delivery.created.result", savedDelivery.getOrderId().toString(), result);
+            log.info("✅ [Delivery] Published result to Kafka for orderId={}, deliveryId={}", 
+                    savedDelivery.getOrderId(), savedDelivery.getId());
 
             return deliveryMapper.deliveryToDeliveryResponse(savedDelivery);
 
@@ -235,8 +246,9 @@ public class DeliveryServiceImpl implements DeliveryService {
 
             log.info("✅ Shipper {} ACCEPTED order {}", shipperId, request.getOrderId());
 
-            // ✅ Đánh dấu shipper đang bận trong Redis (tracking-service)
-            trackingServiceClient.markShipperBusy(shipperId);
+            // ✅ Publish event đánh dấu shipper bận (thay thế REST call)
+            deliveryEventPublisher.publishShipperStatusChange(
+                    shipperId, "BUSY", delivery.getId(), delivery.getOrderId());
 
         } else if (ShipperActionConstants.REJECT.equals(request.getAction())) {
             // REJECT logic - không assign shipper, reset lại status
@@ -429,9 +441,10 @@ public class DeliveryServiceImpl implements DeliveryService {
                 // ✅ Publish DeliveryCompletedEvent để tự động cộng tiền cho shipper
                 publishDeliveryCompletedEvent(delivery);
 
-                // ✅ Đánh dấu shipper rảnh trong Redis (tracking-service)
+                // ✅ Publish event đánh dấu shipper rảnh (thay thế REST call)
                 if (delivery.getShipperId() != null) {
-                    trackingServiceClient.markShipperAvailable(delivery.getShipperId());
+                    deliveryEventPublisher.publishShipperStatusChange(
+                            delivery.getShipperId(), "AVAILABLE", delivery.getId(), delivery.getOrderId());
                 }
                 break;
             case PENDING:
@@ -718,9 +731,10 @@ public class DeliveryServiceImpl implements DeliveryService {
 
                 deliveryRepository.save(delivery);
 
-                // ✅ Đánh dấu shipper rảnh nếu đã được assign
+                // ✅ Publish event đánh dấu shipper rảnh (thay thế REST call)
                 if (delivery.getShipperId() != null) {
-                    trackingServiceClient.markShipperAvailable(delivery.getShipperId());
+                    deliveryEventPublisher.publishShipperStatusChange(
+                            delivery.getShipperId(), "AVAILABLE", delivery.getId(), delivery.getOrderId());
                 }
 
                 log.info("✅ Successfully cancelled delivery {} for order: {}",
@@ -822,89 +836,7 @@ public class DeliveryServiceImpl implements DeliveryService {
         }
     }
 
-    @Override
-    public DeliveryResponse getDeliveryForRetry(Long deliveryId) {
-        try {
-            log.debug("🔍 Getting delivery for retry: {}", deliveryId);
 
-            Delivery delivery = deliveryRepository.findById(deliveryId)
-                    .orElse(null);
-
-            if (delivery == null) {
-                log.warn("⚠️ Delivery not found for retry: {}", deliveryId);
-                return null;
-            }
-
-            // ✅ Only return deliveries that are eligible for retry
-            if (delivery.getStatus() == DeliveryStatus.WAIT_SHIPPER_CONFIRM ||
-                    delivery.getStatus() == DeliveryStatus.FINDING_SHIPPER) {
-
-                return deliveryMapper.deliveryToDeliveryResponse(delivery);
-            }
-
-            log.warn("⚠️ Delivery {} not eligible for retry, current status: {}",
-                    deliveryId, delivery.getStatus());
-            return null;
-
-        } catch (Exception e) {
-            log.error("💥 Error getting delivery for retry: {}: {}", deliveryId, e.getMessage(), e);
-            return null;
-        }
-    }
-
-    @Override
-    @Transactional
-    public void retryFindShipper(Long deliveryId) {
-        try {
-            log.info("🔄 Retrying shipper search for delivery: {} after acceptance timeout", deliveryId);
-
-            Delivery delivery = deliveryRepository.findById(deliveryId)
-                    .orElseThrow(() -> new ResourceNotFoundException("Delivery not found: " + deliveryId));
-
-            // ✅ Validate current status allows retry
-            if (delivery.getStatus() != DeliveryStatus.WAIT_SHIPPER_CONFIRM) {
-                log.warn("⚠️ Cannot retry delivery {}, current status: {}", deliveryId, delivery.getStatus());
-                return;
-            }
-
-            // ✅ Reset status back to FINDING_SHIPPER
-            delivery.setStatus(DeliveryStatus.FINDING_SHIPPER);
-            delivery.setUpdatedAt(LocalDateTime.now());
-            deliveryRepository.save(delivery);
-
-            // ✅ Remove any remaining waiting state
-            deliveryWaitingService.removeWaitingState(deliveryId);
-
-            // ✅ Publish FindShipperEvent with retry flag
-            FindShipperEvent retryEvent = new FindShipperEvent(
-                    delivery.getId(),
-                    delivery.getOrderId(),
-                    delivery.getPickupAddress(),
-                    delivery.getPickupLat(),
-                    delivery.getPickupLng(),
-                    delivery.getDeliveryAddress(),
-                    delivery.getDeliveryLat(),
-                    delivery.getDeliveryLng(),
-                    delivery.getEstimatedDeliveryTime(),
-                    delivery.getNotes(),
-                    delivery.getCreatedAt());
-
-            // ✅ Set retry-specific fields
-            retryEvent.setSessionId(UUID.randomUUID().toString());
-            retryEvent.setIsRetry(true);
-            retryEvent.setRetryCount(1); // TODO: Track retry count in database
-            retryEvent.setMaxRetries(3); // TODO: Make configurable
-
-            deliveryEventPublisher.publishFindShipperEvent(retryEvent);
-
-            log.info("✅ Successfully triggered shipper retry for delivery: {}", deliveryId);
-
-        } catch (ResourceNotFoundException e) {
-            log.error("💥 Delivery not found for retry: {}", deliveryId);
-        } catch (Exception e) {
-            log.error("💥 Error retrying shipper search for delivery: {}: {}", deliveryId, e.getMessage(), e);
-        }
-    }
 
     /**
      * ✅ ADMIN: Huỷ tất cả delivery chưa hoàn thành
@@ -927,13 +859,10 @@ public class DeliveryServiceImpl implements DeliveryService {
                 delivery.setUpdatedAt(LocalDateTime.now());
                 deliveryRepository.save(delivery);
 
-                // Release shipper busy flag in tracking-service nếu có
+                // ✅ Publish event đánh dấu shipper rảnh (thay thế REST call)
                 if (delivery.getShipperId() != null) {
-                    try {
-                        trackingServiceClient.markShipperAvailable(delivery.getShipperId());
-                    } catch (Exception ex) {
-                        log.warn("⚠️ Could not release busy flag for shipper {}: {}", delivery.getShipperId(), ex.getMessage());
-                    }
+                    deliveryEventPublisher.publishShipperStatusChange(
+                            delivery.getShipperId(), "AVAILABLE", delivery.getId(), delivery.getOrderId());
                 }
 
                 details.add(String.format("Delivery #%d (orderId=%d, status=%s → CANCELLED)",

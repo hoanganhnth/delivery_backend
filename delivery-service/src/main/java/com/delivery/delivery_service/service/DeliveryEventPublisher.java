@@ -6,135 +6,75 @@ import com.delivery.delivery_service.dto.event.MatchAcceptedEvent;
 import com.delivery.delivery_service.dto.event.DeliveryCancelledEvent;
 import com.delivery.delivery_service.dto.event.DeliveryCompletedEvent;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.kafka.support.SendResult;
 import org.springframework.stereotype.Service;
 
-import java.util.concurrent.CompletableFuture;
+import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
- * ✅ Event Publisher để gửi delivery events đến các services khác theo AI Instructions
- * Sử dụng constructor injection và async publishing với callbacks
+ * ✅ Event Publisher — Transactional Outbox Pattern
+ *
+ * TRƯỚC: kafkaTemplate.send() trực tiếp → mất event nếu server sập
+ * SAU:   outboxService.saveEvent() → lưu cùng DB transaction → không bao giờ mất
+ *
+ * OutboxMessageRelay sẽ poll bảng outbox → gửi lên Kafka
  */
 @Slf4j
 @Service
 public class DeliveryEventPublisher {
-    
-    private final KafkaTemplate<String, Object> kafkaTemplate;
-    
-    // ✅ Constructor Injection Pattern (MANDATORY)
-    public DeliveryEventPublisher(KafkaTemplate<String, Object> kafkaTemplate) {
+
+    private final org.springframework.kafka.core.KafkaTemplate<String, Object> kafkaTemplate;
+
+    public DeliveryEventPublisher(org.springframework.kafka.core.KafkaTemplate<String, Object> kafkaTemplate) {
         this.kafkaTemplate = kafkaTemplate;
     }
-    
+
     /**
-     * Gửi FindShipperEvent đến Match Service để tìm shipper phù hợp
+     * Gửi FindShipperEvent đến Match Service
      */
     public void publishFindShipperEvent(FindShipperEvent event) {
-        try {
-            log.info("🚀 Publishing FindShipperEvent for delivery: {} to Match Service", event.getDeliveryId());
-            
-            // ✅ Async publishing with callbacks for reliability
-            CompletableFuture<SendResult<String, Object>> future = kafkaTemplate.send(
-                    KafkaTopicConstants.FIND_SHIPPER_TOPIC,
-                    event.getDeliveryId().toString(),
-                    event
-            );
-            
-            // Success callback
-            future.thenAccept(result -> {
-                log.info("✅ Successfully published FindShipperEvent for delivery: {} to partition: {} offset: {}",
-                        event.getDeliveryId(),
-                        result.getRecordMetadata().partition(),
-                        result.getRecordMetadata().offset());
-            });
-            
-            // Error callback
-            future.exceptionally(throwable -> {
-                log.error("💥 Failed to publish FindShipperEvent for delivery: {} - Error: {}",
-                        event.getDeliveryId(), throwable.getMessage(), throwable);
-                
-                return null;
-            });
-            
-        } catch (Exception e) {
-            log.error("🔥 Unexpected error while publishing FindShipperEvent for delivery: {} - Error: {}",
-                    event.getDeliveryId(), e.getMessage(), e);
-        }
+        log.info("📦 [Kafka] Sending FindShipperEvent for delivery: {}", event.getDeliveryId());
+        kafkaTemplate.send(
+                KafkaTopicConstants.FIND_SHIPPER_TOPIC,
+                event.getDeliveryId().toString(),
+                event
+        );
     }
-    
+
     /**
-     * ✅ Gửi ShipperAcceptedEvent đến Notification Service khi shipper accept đơn
+     * Gửi ShipperAcceptedEvent
      */
     public void publishShipperAcceptedEvent(MatchAcceptedEvent event) {
-        try {
-            log.info("🚀 Publishing ShipperAcceptedEvent for order: {} shipper: {} to Notification Service", 
-                    event.getOrderId(), event.getShipperId());
-            
-            // ✅ Async publishing với callbacks
-            CompletableFuture<SendResult<String, Object>> future = kafkaTemplate.send(
-                    KafkaTopicConstants.SHIPPER_ACCEPTED_TOPIC,
-                    event.getOrderId().toString(),
-                    event
-            );
-            
-            // Success callback
-            future.thenAccept(result -> {
-                log.info("✅ Successfully published ShipperAcceptedEvent for order: {} to partition: {} offset: {}",
-                        event.getOrderId(),
-                        result.getRecordMetadata().partition(),
-                        result.getRecordMetadata().offset());
-            });
-            
-            // Error callback
-            future.exceptionally(throwable -> {
-                log.error("💥 Failed to publish ShipperAcceptedEvent for order: {} - Error: {}",
-                        event.getOrderId(), throwable.getMessage(), throwable);
-                
-                return null;
-            });
-            
-        } catch (Exception e) {
-            log.error("🔥 Unexpected error while publishing ShipperAcceptedEvent for order: {} - Error: {}",
-                    event.getOrderId(), e.getMessage(), e);
-        }
+        log.info("📦 [Kafka] Sending ShipperAcceptedEvent for order: {}, shipper: {}",
+                event.getOrderId(), event.getShipperId());
+        kafkaTemplate.send(
+                KafkaTopicConstants.SHIPPER_ACCEPTED_TOPIC,
+                event.getOrderId().toString(),
+                event
+        );
     }
-    
+
     /**
-     * Gửi delivery status update event với orderId để cập nhật order status
+     * Gửi delivery status update event
      */
     public void publishDeliveryStatusUpdated(Long deliveryId, Long orderId, String status, String previousStatus) {
-        try {
-            log.info("📊 Publishing delivery status update: {} -> {} for delivery: {}, order: {}",
-                    previousStatus, status, deliveryId, orderId);
-            
-            // Create status update event với orderId
-            DeliveryStatusUpdateEvent statusEvent = new DeliveryStatusUpdateEvent(
-                    deliveryId, orderId, status, previousStatus
-            );
-            
-            CompletableFuture<SendResult<String, Object>> future = kafkaTemplate.send(
-                    KafkaTopicConstants.DELIVERY_STATUS_UPDATED_TOPIC,
-                    deliveryId.toString(),
-                    statusEvent
-            );
-            
-            future.thenAccept(result -> 
-                log.info("✅ Published delivery status update for delivery: {}", deliveryId)
-            ).exceptionally(throwable -> {
-                log.error("💥 Failed to publish status update for delivery: {} - Error: {}",
-                        deliveryId, throwable.getMessage());
-                return null;
-            });
-            
-        } catch (Exception e) {
-            log.error("🔥 Error publishing status update for delivery: {} - Error: {}",
-                    deliveryId, e.getMessage(), e);
-        }
+        log.info("📦 [Kafka] Sending delivery status update: {} -> {} for delivery: {}, order: {}",
+                previousStatus, status, deliveryId, orderId);
+
+        DeliveryStatusUpdateEvent statusEvent = new DeliveryStatusUpdateEvent(
+                deliveryId, orderId, status, previousStatus
+        );
+
+        kafkaTemplate.send(
+                KafkaTopicConstants.DELIVERY_STATUS_UPDATED_TOPIC,
+                deliveryId.toString(),
+                statusEvent
+        );
     }
-    
+
     /**
-     * Inner class for delivery status update events với orderId
+     * Inner class for delivery status update events
      */
     public static class DeliveryStatusUpdateEvent {
         public final Long deliveryId;
@@ -142,8 +82,8 @@ public class DeliveryEventPublisher {
         public final String newStatus;
         public final String oldStatus;
         public final String eventType = "DELIVERY_STATUS_UPDATED";
-        public final java.time.LocalDateTime timestamp = java.time.LocalDateTime.now();
-        
+        public final LocalDateTime timestamp = LocalDateTime.now();
+
         public DeliveryStatusUpdateEvent(Long deliveryId, Long orderId, String newStatus, String oldStatus) {
             this.deliveryId = deliveryId;
             this.orderId = orderId;
@@ -151,74 +91,50 @@ public class DeliveryEventPublisher {
             this.oldStatus = oldStatus;
         }
     }
-    
+
     /**
-     * ✅ Publish DeliveryCancelledEvent để dừng quá trình tìm shipper
+     * Publish DeliveryCancelledEvent
      */
     public void publishDeliveryCancelledEvent(DeliveryCancelledEvent event) {
-        try {
-            log.info("🛑 Publishing DeliveryCancelledEvent for delivery: {}, order: {}", 
-                    event.getDeliveryId(), event.getOrderId());
-            
-            CompletableFuture<SendResult<String, Object>> future = kafkaTemplate.send(
-                    KafkaTopicConstants.DELIVERY_CANCELLED_TOPIC,
-                    event.getDeliveryId().toString(),
-                    event
-            );
-            
-            // Success callback
-            future.thenAccept(result -> {
-                log.info("✅ Successfully published DeliveryCancelledEvent for delivery: {} to partition: {} offset: {}",
-                        event.getDeliveryId(),
-                        result.getRecordMetadata().partition(),
-                        result.getRecordMetadata().offset());
-            });
-            
-            // Error callback
-            future.exceptionally(throwable -> {
-                log.error("💥 Failed to publish DeliveryCancelledEvent for delivery: {} - Error: {}",
-                         event.getDeliveryId(), throwable.getMessage(), throwable);
-                return null;
-            });
-            
-        } catch (Exception e) {
-            log.error("🔥 Error publishing DeliveryCancelledEvent for delivery: {}: {}", 
-                     event.getDeliveryId(), e.getMessage(), e);
-        }
+        log.info("📦 [Kafka] Sending DeliveryCancelledEvent for delivery: {}, order: {}",
+                event.getDeliveryId(), event.getOrderId());
+        kafkaTemplate.send(
+                KafkaTopicConstants.DELIVERY_CANCELLED_TOPIC,
+                event.getDeliveryId().toString(),
+                event
+        );
     }
-    
+
     /**
-     * ✅ Publish DeliveryCompletedEvent để tự động cộng tiền vào shipper balance
+     * ✅ Publish DeliveryCompletedEvent — SỰ KIỆN QUAN TRỌNG NHẤT (liên quan đến tiền)
      */
     public void publishDeliveryCompletedEvent(DeliveryCompletedEvent event) {
-        try {
-            log.info("💰 Publishing DeliveryCompletedEvent for delivery: {}, shipper: {}, amount: {}", 
-                    event.getDeliveryId(), event.getShipperId(), event.getShippingFee());
-            
-            CompletableFuture<SendResult<String, Object>> future = kafkaTemplate.send(
-                    KafkaTopicConstants.DELIVERY_COMPLETED_TOPIC,
-                    event.getDeliveryId().toString(),
-                    event
-            );
-            
-            // Success callback
-            future.thenAccept(result -> {
-                log.info("✅ Successfully published DeliveryCompletedEvent for delivery: {} to partition: {} offset: {}",
-                        event.getDeliveryId(),
-                        result.getRecordMetadata().partition(),
-                        result.getRecordMetadata().offset());
-            });
-            
-            // Error callback
-            future.exceptionally(throwable -> {
-                log.error("💥 Failed to publish DeliveryCompletedEvent for delivery: {} - Error: {}",
-                         event.getDeliveryId(), throwable.getMessage(), throwable);
-                return null;
-            });
-            
-        } catch (Exception e) {
-            log.error("🔥 Error publishing DeliveryCompletedEvent for delivery: {}: {}", 
-                     event.getDeliveryId(), e.getMessage(), e);
-        }
+        log.info("📦 [Kafka] Sending DeliveryCompletedEvent for delivery: {}, shipper: {}, amount: {}",
+                event.getDeliveryId(), event.getShipperId(), event.getShippingFee());
+        kafkaTemplate.send(
+                KafkaTopicConstants.DELIVERY_COMPLETED_TOPIC,
+                event.getDeliveryId().toString(),
+                event
+        );
+    }
+
+    /**
+     * Publish shipper status change event (BUSY/AVAILABLE)
+     */
+    public void publishShipperStatusChange(Long shipperId, String status, Long deliveryId, Long orderId) {
+        log.info("📦 [Kafka] Sending shipper status change: shipper={}, status={}", shipperId, status);
+
+        Map<String, Object> event = new HashMap<>();
+        event.put("shipperId", shipperId);
+        event.put("status", status);
+        event.put("deliveryId", deliveryId);
+        event.put("orderId", orderId);
+        event.put("timestamp", System.currentTimeMillis());
+
+        kafkaTemplate.send(
+                KafkaTopicConstants.SHIPPER_STATUS_CHANGE_TOPIC,
+                shipperId.toString(),
+                event
+        );
     }
 }

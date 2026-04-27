@@ -2,6 +2,7 @@ package com.delivery.tracking_service.websocket;
 
 import com.delivery.tracking_service.dto.response.ShipperLocationResponse;
 import com.delivery.tracking_service.repository.RedisGeoRepository;
+import com.delivery.tracking_service.service.ShipperLocationEventPublisher;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,10 +29,14 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
 
     private final ObjectMapper objectMapper;
     private final RedisGeoRepository redisGeoRepository;
+    private final ShipperLocationEventPublisher eventPublisher;
 
-    public ShipperLocationWebSocketHandler(ObjectMapper objectMapper, RedisGeoRepository redisGeoRepository) {
+    public ShipperLocationWebSocketHandler(ObjectMapper objectMapper, 
+                                           RedisGeoRepository redisGeoRepository,
+                                           ShipperLocationEventPublisher eventPublisher) {
         this.objectMapper = objectMapper;
         this.redisGeoRepository = redisGeoRepository;
+        this.eventPublisher = eventPublisher;
     }
 
     @Override
@@ -110,6 +115,15 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
 
         // Lưu vào Redis
         redisGeoRepository.cacheShipperLocation(shipperId, response);
+
+        // Publish qua Kafka cho Match Service
+        try {
+            eventPublisher.publishLocationUpdate(
+                    shipperId, response.getLatitude(), response.getLongitude(), response.getIsOnline());
+            log.debug("📤 [WS] Published location to Kafka `shipper.location-updated` for shipper {}", shipperId);
+        } catch (Exception e) {
+            log.error("💥 Failed to publish shipper location via Kafka: {}", e.getMessage());
+        }
 
         // Broadcast tới subscribers
         broadcastShipperLocation(response);

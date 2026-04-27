@@ -22,9 +22,13 @@ import java.math.BigDecimal;
 public class MatchEventListener {
 
     private final NotificationService notificationService;
+    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
 
     public MatchEventListener(NotificationService notificationService) {
         this.notificationService = notificationService;
+        this.objectMapper = new com.fasterxml.jackson.databind.ObjectMapper()
+                .registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule())
+                .configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     }
 
     /**
@@ -32,13 +36,15 @@ public class MatchEventListener {
      */
     @KafkaListener(topics = KafkaTopicConstants.SHIPPER_FOUND_TOPIC)
     public void handleShipperFoundEvent(
-            @Payload ShipperFoundEvent event,
+            String message,
             @Header(KafkaHeaders.RECEIVED_TOPIC) String topic,
             @Header(KafkaHeaders.RECEIVED_PARTITION) Integer partition,
             @Header(KafkaHeaders.RECEIVED_TIMESTAMP) Long timestamp,
             Acknowledgment acknowledgment) {
 
         try {
+            ShipperFoundEvent event = objectMapper.readValue(message, ShipperFoundEvent.class);
+
             log.info("📥 Received ShipperFoundEvent from topic '{}': deliveryId={}, orderId={}, {} shippers found",
                     topic, event.getDeliveryId(), event.getOrderId(), event.getAvailableShippers().size());
 
@@ -78,8 +84,8 @@ public class MatchEventListener {
             acknowledgment.acknowledge();
 
         } catch (Exception e) {
-            log.error("💥 Error processing ShipperFoundEvent for delivery: {} - Error: {}", 
-                     event.getDeliveryId(), e.getMessage(), e);
+            log.error("💥 Error processing ShipperFoundEvent - Raw Message: {} - Error: {}", 
+                     message, e.getMessage(), e);
             acknowledgment.acknowledge();
         }
     }

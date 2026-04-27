@@ -27,6 +27,13 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     List<Transaction> findByEntityIdAndEntityTypeAndStatus(Long entityId, EntityType entityType, TransactionStatus status);
 
     /**
+     * ✅ Idempotency check — kiểm tra orderId đã được xử lý chưa
+     * Dùng để tránh cộng tiền 2 lần khi Kafka retry
+     */
+    boolean existsByOrderIdAndEntityIdAndEntityTypeAndReason(
+            Long orderId, Long entityId, EntityType entityType, TransactionReason reason);
+
+    /**
      * Calculate available balance from transactions
      * CREDIT increases balance, DEBIT decreases balance
      */

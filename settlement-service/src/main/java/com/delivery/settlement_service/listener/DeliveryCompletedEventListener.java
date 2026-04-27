@@ -5,6 +5,7 @@ import com.delivery.settlement_service.dto.event.DeliveryCompletedEvent;
 import com.delivery.settlement_service.entity.EntityType;
 import com.delivery.settlement_service.entity.Transaction.TransactionDirection;
 import com.delivery.settlement_service.entity.Transaction.TransactionReason;
+import com.delivery.settlement_service.repository.TransactionRepository;
 import com.delivery.settlement_service.service.TransactionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -12,12 +13,14 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.messaging.handler.annotation.Header;
-import org.springframework.messaging.handler.annotation.Payload;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Kafka listener to automatically create transactions when delivery is completed
+ * ✅ Idempotent — kiểm tra orderId trước khi cộng tiền, tránh duplicate khi Kafka retry
  */
 @Slf4j
 @Component
@@ -25,6 +28,9 @@ import org.springframework.transaction.annotation.Transactional;
 public class DeliveryCompletedEventListener {
 
     private final TransactionService transactionService;
+    private final TransactionRepository transactionRepository;
+    private final ObjectMapper objectMapper = new ObjectMapper()
+            .registerModule(new JavaTimeModule());
 
     @KafkaListener(
             topics = KafkaTopicConstants.DELIVERY_COMPLETED_TOPIC,
@@ -32,13 +38,15 @@ public class DeliveryCompletedEventListener {
     )
     @Transactional
     public void handleDeliveryCompleted(
-            @Payload DeliveryCompletedEvent event,
+            String message,
             @Header(KafkaHeaders.RECEIVED_TOPIC) String topic,
             @Header(KafkaHeaders.RECEIVED_PARTITION) Integer partition,
             @Header(KafkaHeaders.RECEIVED_TIMESTAMP) Long timestamp,
             Acknowledgment acknowledgment) {
 
+        DeliveryCompletedEvent event = null;
         try {
+            event = objectMapper.readValue(message, DeliveryCompletedEvent.class);
             log.info("💰 Received DeliveryCompletedEvent: delivery={}, order={}, restaurant={}, shipper={}, " +
                             "restaurantEarnings={}, shipperEarnings={}, commission={} from topic={} partition={} timestamp={}",
                     event.getDeliveryId(), event.getOrderId(), event.getRestaurantId(), event.getShipperId(),
@@ -71,6 +79,26 @@ public class DeliveryCompletedEventListener {
             }
 
             try {
+                // ✅ IDEMPOTENCY CHECK: Restaurant đã được cộng tiền cho order này chưa?
+                if (transactionRepository.existsByOrderIdAndEntityIdAndEntityTypeAndReason(
+                        event.getOrderId(), event.getRestaurantId(),
+                        EntityType.RESTAURANT, TransactionReason.ORDER_EARNING)) {
+                    log.warn("⚠️ [Idempotent] Restaurant {} already credited for order {}, skipping",
+                            event.getRestaurantId(), event.getOrderId());
+                    acknowledgment.acknowledge();
+                    return;
+                }
+
+                // ✅ IDEMPOTENCY CHECK: Shipper đã được cộng tiền cho order này chưa?
+                if (transactionRepository.existsByOrderIdAndEntityIdAndEntityTypeAndReason(
+                        event.getOrderId(), event.getShipperId(),
+                        EntityType.SHIPPER, TransactionReason.DELIVERY_FEE)) {
+                    log.warn("⚠️ [Idempotent] Shipper {} already credited for order {}, skipping",
+                            event.getShipperId(), event.getOrderId());
+                    acknowledgment.acknowledge();
+                    return;
+                }
+
                 // 1. Create CREDIT transaction for restaurant (ORDER_EARNING)
                 transactionService.createTransaction(
                         event.getRestaurantId(),

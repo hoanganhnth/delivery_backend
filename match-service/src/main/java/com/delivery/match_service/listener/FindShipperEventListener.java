@@ -14,7 +14,8 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.messaging.handler.annotation.Header;
-import org.springframework.messaging.handler.annotation.Payload;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 import reactor.util.retry.Retry;
@@ -37,6 +38,7 @@ public class FindShipperEventListener {
         private final MatchService matchService;
         private final MatchEventPublisher matchEventPublisher;
         private final MatchCancellationService matchCancellationService;
+        private final ObjectMapper objectMapper;
 
         // ✅ Retry configuration constants
         private static final int MAX_RETRY_ATTEMPTS = 10; // Tối đa 10 lần retry
@@ -52,20 +54,27 @@ public class FindShipperEventListener {
                 this.matchService = matchService;
                 this.matchEventPublisher = matchEventPublisher;
                 this.matchCancellationService = matchCancellationService;
+                this.objectMapper = new ObjectMapper()
+                                .registerModule(new JavaTimeModule())
+                                .configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         }
 
         /**
-         * ✅ Lắng nghe FindShipperEvent và tìm shipper liên tục với retry mechanism
+         * ✅ Nhận lệnh từ Saga Orchestrator: Tìm shipper
+         * TRƯỚC: delivery.find-shipper (từ delivery-service)
+         * SAU:   saga.command.find-shipper (từ Saga)
          */
-        @KafkaListener(topics = KafkaTopicConstants.FIND_SHIPPER_TOPIC)
+        @KafkaListener(topics = "saga.command.find-shipper")
         public void handleFindShipperEvent(
-                        @Payload FindShipperEvent event,
+                        String message,
                         @Header(KafkaHeaders.RECEIVED_TOPIC) String topic,
                         @Header(KafkaHeaders.RECEIVED_PARTITION) Integer partition,
                         @Header(KafkaHeaders.RECEIVED_TIMESTAMP) Long timestamp,
                         Acknowledgment acknowledgment) {
 
+                FindShipperEvent event = null;
                 try {
+                        event = objectMapper.readValue(message, FindShipperEvent.class);
                         log.info("📥 Received FindShipperEvent for delivery: {} from topic: {} partition: {} timestamp: {}",
                                         event.getDeliveryId(), topic, partition, timestamp);
 
@@ -80,8 +89,9 @@ public class FindShipperEventListener {
                         startContinuousShipperSearch(event, acknowledgment);
 
                 } catch (Exception e) {
+                        Long deliveryId = (event != null) ? event.getDeliveryId() : null;
                         log.error("🔥 Unexpected error processing FindShipperEvent for delivery: {} - Error: {}",
-                                        event.getDeliveryId(), e.getMessage(), e);
+                                        deliveryId, e.getMessage(), e);
 
                         // ✅ Acknowledge to prevent blocking
                         acknowledgment.acknowledge();
