@@ -40,11 +40,11 @@ public class FindShipperEventListener {
         private final MatchCancellationService matchCancellationService;
         private final ObjectMapper objectMapper;
 
-        // ✅ Retry configuration constants
-        private static final int MAX_RETRY_ATTEMPTS = 10; // Tối đa 10 lần retry
-        private static final int INITIAL_DELAY_SECONDS = 30; // Bắt đầu với 30 giây
-        private static final int MAX_DELAY_SECONDS = 300; // Tối đa 5 phút
-        private static final double BACKOFF_MULTIPLIER = 1.5; // Tăng delay theo exponential
+        // ✅ Default retry configuration (nếu Saga không gửi)
+        private static final int DEFAULT_MAX_RETRY_ATTEMPTS = 10;
+        private static final int DEFAULT_INITIAL_DELAY_SECONDS = 30;
+        private static final int DEFAULT_MAX_DELAY_SECONDS = 300;
+        private static final double DEFAULT_BACKOFF_MULTIPLIER = 1.5;
 
         // ✅ Constructor Injection Pattern (MANDATORY)
         public FindShipperEventListener(
@@ -99,6 +99,36 @@ public class FindShipperEventListener {
         }
 
         /**
+         * ✅ Nhận lệnh từ Saga Orchestrator: Dừng tìm shipper (khi Saga timeout hoặc Order bị huỷ)
+         */
+        @KafkaListener(topics = "saga.command.stop-matching")
+        public void handleStopMatchingCommand(
+                        String message,
+                        Acknowledgment acknowledgment) {
+                try {
+                        // Payload thường chỉ là orderId (String) hoặc JSON chứa orderId/deliveryId
+                        // Ở đây SagaManager gửi rawEvent gốc hoặc orderId.toString()
+                        // Ta sẽ parse để lấy deliveryId nếu có, hoặc ít nhất là đánh dấu cancel theo orderId nếu cần
+                        // Tuy nhiên matchCancellationService đang dùng deliveryId
+                        
+                        com.fasterxml.jackson.databind.JsonNode node = objectMapper.readTree(message);
+                        Long deliveryId = node.has("deliveryId") ? node.get("deliveryId").asLong() : null;
+                        
+                        if (deliveryId != null) {
+                                log.warn("🛑 Received STOP_MATCHING command from Saga for delivery: {}", deliveryId);
+                                matchCancellationService.markCancelled(deliveryId);
+                        } else {
+                                log.warn("⚠️ Received STOP_MATCHING command but could not find deliveryId in payload: {}", message);
+                        }
+                        
+                } catch (Exception e) {
+                        log.error("💥 Error processing STOP_MATCHING command: {}", e.getMessage());
+                } finally {
+                        acknowledgment.acknowledge();
+                }
+        }
+
+        /**
          * ✅ Tìm shipper liên tục với exponential backoff retry
          */
         private void startContinuousShipperSearch(FindShipperEvent event, Acknowledgment acknowledgment) {
@@ -111,6 +141,12 @@ public class FindShipperEventListener {
                 FindNearbyShippersRequest request = createFindShippersRequest(event);
                 Long systemUserId = 1L;
                 String systemRole = "SYSTEM";
+
+                // ✅ Lấy config từ Event (do Saga truyền xuống) hoặc dùng mặc định
+                final int maxRetries = event.getMaxRetryAttempts() != null ? event.getMaxRetryAttempts() : DEFAULT_MAX_RETRY_ATTEMPTS;
+                final int initialDelay = event.getInitialDelaySeconds() != null ? event.getInitialDelaySeconds() : DEFAULT_INITIAL_DELAY_SECONDS;
+                final int maxDelay = event.getMaxDelaySeconds() != null ? event.getMaxDelaySeconds() : DEFAULT_MAX_DELAY_SECONDS;
+                final double backoffMulti = event.getBackoffMultiplier() != null ? event.getBackoffMultiplier() : DEFAULT_BACKOFF_MULTIPLIER;
 
                 // ✅ Reactive retry với exponential backoff
                 matchService.findNearbyShippers(request, systemUserId, systemRole)
@@ -132,9 +168,9 @@ public class FindShipperEventListener {
                                                                                 + event.getDeliveryId()));
                                         }
                                 })
-                                .retryWhen(Retry.backoff(MAX_RETRY_ATTEMPTS, Duration.ofSeconds(INITIAL_DELAY_SECONDS))
-                                                .maxBackoff(Duration.ofSeconds(MAX_DELAY_SECONDS))
-                                                .multiplier(BACKOFF_MULTIPLIER)
+                                .retryWhen(Retry.backoff(maxRetries, Duration.ofSeconds(initialDelay))
+                                                .maxBackoff(Duration.ofSeconds(maxDelay))
+                                                .multiplier(backoffMulti)
                                                 .doBeforeRetry(retrySignal -> {
                                                         // ✅ Nếu đã cancel thì đừng schedule retry nữa
                                                         if (matchCancellationService
@@ -144,16 +180,16 @@ public class FindShipperEventListener {
 
                                                         int attempt = attemptCount.incrementAndGet();
                                                         long delayMs = retrySignal.totalRetries() == 0
-                                                                        ? INITIAL_DELAY_SECONDS * 1000
+                                                                        ? initialDelay * 1000L
                                                                         : Math.min(
-                                                                                        (long) (INITIAL_DELAY_SECONDS
-                                                                                                        * Math.pow(BACKOFF_MULTIPLIER,
+                                                                                        (long) (initialDelay
+                                                                                                        * Math.pow(backoffMulti,
                                                                                                                         retrySignal.totalRetries())
                                                                                                         * 1000),
-                                                                                        MAX_DELAY_SECONDS * 1000);
+                                                                                        maxDelay * 1000L);
 
                                                         log.info("🔄 Retry attempt {}/{} for delivery: {} - Next retry in {}ms",
-                                                                        attempt, MAX_RETRY_ATTEMPTS,
+                                                                        attempt, maxRetries,
                                                                         event.getDeliveryId(), delayMs);
                                                 })
                                                 .filter(throwable -> {
@@ -211,7 +247,7 @@ public class FindShipperEventListener {
                                                         }
 
                                                         log.error("💥 Failed to find shippers for delivery: {} after {} attempts - Error: {}",
-                                                                        event.getDeliveryId(), MAX_RETRY_ATTEMPTS,
+                                                                        event.getDeliveryId(), maxRetries,
                                                                         error.getMessage());
 
                                                         // ✅ Bắn ShipperNotFoundEvent cho delivery-service và
@@ -219,7 +255,7 @@ public class FindShipperEventListener {
                                                         ShipperNotFoundEvent notFoundEvent = new ShipperNotFoundEvent(
                                                                         event.getDeliveryId(),
                                                                         event.getOrderId(),
-                                                                        MAX_RETRY_ATTEMPTS);
+                                                                        maxRetries);
                                                         notFoundEvent.setSearchRadius(request.getRadiusKm());
                                                         notFoundEvent.setPickupLat(request.getLatitude());
                                                         notFoundEvent.setPickupLng(request.getLongitude());
@@ -227,7 +263,7 @@ public class FindShipperEventListener {
                                                         matchEventPublisher.publishShipperNotFoundEvent(notFoundEvent);
 
                                                         log.info("✅ Published ShipperNotFoundEvent for delivery: {} after {} failed attempts",
-                                                                        event.getDeliveryId(), MAX_RETRY_ATTEMPTS);
+                                                                        event.getDeliveryId(), maxRetries);
 
                                                         // ✅ Acknowledge even after failure to avoid infinite processing
                                                         acknowledgment.acknowledge();

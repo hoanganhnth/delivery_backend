@@ -35,4 +35,10 @@ public class FindShipperEvent {
     // Event metadata
     private String eventType;
     private LocalDateTime timestamp;
+    
+    // Saga Match Configuration (Syncing timeout & retry from Orchestrator)
+    private Integer maxRetryAttempts;
+    private Integer initialDelaySeconds;
+    private Integer maxDelaySeconds;
+    private Double backoffMultiplier;
 }

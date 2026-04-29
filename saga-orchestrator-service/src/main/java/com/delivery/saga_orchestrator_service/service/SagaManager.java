@@ -90,9 +90,25 @@ public class SagaManager {
         saga.addStep("DELIVERY_CREATED", "delivery.created.result", rawEvent);
         sagaInstanceRepository.save(saga);
 
-        // ✅ PHÁT LỆNH: Tìm shipper
-        sendCommand(CMD_FIND_SHIPPER, orderId.toString(), rawEvent);
-        log.info("📤 [Saga] Sent command: {} for orderId={}, deliveryId={}", CMD_FIND_SHIPPER, orderId, deliveryId);
+        try {
+            // ✅ Inject retry/timeout configuration for match-service
+            ObjectNode payloadNode = (ObjectNode) objectMapper.readTree(rawEvent);
+            payloadNode.put("maxRetryAttempts", 10);
+            payloadNode.put("initialDelaySeconds", 30);
+            payloadNode.put("maxDelaySeconds", 300);
+            payloadNode.put("backoffMultiplier", 1.5);
+            
+            String modifiedEvent = objectMapper.writeValueAsString(payloadNode);
+            
+            // ✅ PHÁT LỆNH: Tìm shipper
+            sendCommand(CMD_FIND_SHIPPER, orderId.toString(), modifiedEvent);
+            log.info("📤 [Saga] Sent command: {} for orderId={}, deliveryId={} with retry settings", CMD_FIND_SHIPPER, orderId, deliveryId);
+        } catch (Exception e) {
+            log.error("💥 [Saga] Failed to inject retry settings into find-shipper command", e);
+            // Fallback to original event if parsing fails
+            sendCommand(CMD_FIND_SHIPPER, orderId.toString(), rawEvent);
+            log.info("📤 [Saga] Sent command: {} for orderId={}, deliveryId={} without retry settings", CMD_FIND_SHIPPER, orderId, deliveryId);
+        }
 
         // Update saga status
         saga.setStatus(SagaStatus.FINDING_SHIPPER);
@@ -205,11 +221,24 @@ public class SagaManager {
         saga.addStep("ORDER_CANCELLED", "order.cancelled", rawEvent);
         sagaInstanceRepository.save(saga);
 
-        // ✅ COMPENSATION: Huỷ delivery
-        sendCommand(CMD_CANCEL_DELIVERY, orderId.toString(), rawEvent);
+        try {
+            // Enrich payload with deliveryId for Match/Delivery services
+            ObjectNode payloadNode = (ObjectNode) objectMapper.readTree(rawEvent);
+            if (saga.getDeliveryId() != null) {
+                payloadNode.put("deliveryId", saga.getDeliveryId());
+            }
+            String enrichedEvent = objectMapper.writeValueAsString(payloadNode);
 
-        // ✅ COMPENSATION: Dừng tìm shipper
-        sendCommand(CMD_STOP_MATCHING, orderId.toString(), rawEvent);
+            // ✅ COMPENSATION: Huỷ delivery
+            sendCommand(CMD_CANCEL_DELIVERY, orderId.toString(), enrichedEvent);
+
+            // ✅ COMPENSATION: Dừng tìm shipper
+            sendCommand(CMD_STOP_MATCHING, orderId.toString(), enrichedEvent);
+        } catch (Exception e) {
+            // Fallback
+            sendCommand(CMD_CANCEL_DELIVERY, orderId.toString(), rawEvent);
+            sendCommand(CMD_STOP_MATCHING, orderId.toString(), rawEvent);
+        }
 
         log.warn("🚨 [Saga] COMPENSATION — order cancelled, orderId={}", orderId);
     }
@@ -255,8 +284,19 @@ public class SagaManager {
         // Compensation dựa trên step hiện tại
         switch (saga.getStatus()) {
             case FINDING_SHIPPER, SHIPPER_FOUND -> {
-                // Đã tạo delivery rồi → huỷ nó
-                sendCommand(CMD_CANCEL_DELIVERY, orderId.toString(), rawEvent);
+                try {
+                    ObjectNode payloadNode = (ObjectNode) objectMapper.readTree(rawEvent);
+                    if (saga.getDeliveryId() != null) {
+                        payloadNode.put("deliveryId", saga.getDeliveryId());
+                    }
+                    String enrichedEvent = objectMapper.writeValueAsString(payloadNode);
+
+                    // Đã tạo delivery rồi → huỷ nó
+                    sendCommand(CMD_CANCEL_DELIVERY, orderId.toString(), enrichedEvent);
+                    sendCommand(CMD_STOP_MATCHING, orderId.toString(), enrichedEvent);
+                } catch (Exception e) {
+                    sendCommand(CMD_CANCEL_DELIVERY, orderId.toString(), rawEvent);
+                }
                 sendOrderStatusCommand(orderId, "FAILED", rawEvent);
             }
             default -> {

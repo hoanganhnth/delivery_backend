@@ -50,20 +50,22 @@ public class SagaTimeoutScheduler {
 
     private void checkStuckSagas(SagaStatus status, int timeoutMinutes, String reason) {
         LocalDateTime cutoff = LocalDateTime.now().minusMinutes(timeoutMinutes);
-        List<SagaInstance> stuckSagas = sagaInstanceRepository.findByStatus(status);
+        // ✅ TỐI ƯU: Chỉ lấy những đơn thực sự bị kẹt từ DB
+        List<SagaInstance> stuckSagas = sagaInstanceRepository.findStuckSagas(status, cutoff);
 
         for (SagaInstance saga : stuckSagas) {
-            if (saga.getUpdatedAt() != null && saga.getUpdatedAt().isBefore(cutoff)) {
-                log.warn("⏰ [Saga] TIMEOUT — orderId={}, status={}, stuck since {}, reason={}",
-                        saga.getOrderId(), status, saga.getUpdatedAt(), reason);
+            log.warn("⏰ [Saga] TIMEOUT — orderId={}, status={}, stuck since {}, reason={}",
+                    saga.getOrderId(), status, saga.getUpdatedAt(), reason);
 
                 // Gọi SagaManager để xử lý compensation
                 String timeoutEvent = String.format(
-                        "{\"orderId\":%d,\"reason\":\"%s\",\"timeout\":true,\"stuckStatus\":\"%s\"}",
-                        saga.getOrderId(), reason, status);
+                        "{\"orderId\":%d,\"deliveryId\":%d,\"reason\":\"%s\",\"timeout\":true,\"stuckStatus\":\"%s\"}",
+                        saga.getOrderId(), 
+                        saga.getDeliveryId() != null ? saga.getDeliveryId() : 0,
+                        reason, 
+                        status);
                 sagaManager.handleStepFailed("TIMEOUT_" + status.name(),
                         saga.getOrderId(), reason, timeoutEvent);
-            }
         }
     }
 }
