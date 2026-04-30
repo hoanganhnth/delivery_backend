@@ -8,6 +8,7 @@ import com.delivery.settlement_service.entity.Transaction;
 import com.delivery.settlement_service.entity.Transaction.TransactionDirection;
 import com.delivery.settlement_service.entity.Transaction.TransactionReason;
 import com.delivery.settlement_service.entity.Transaction.TransactionStatus;
+import com.delivery.settlement_service.entity.Transaction.WalletType;
 import com.delivery.settlement_service.exception.InsufficientBalanceException;
 import com.delivery.settlement_service.exception.ResourceNotFoundException;
 import com.delivery.settlement_service.mapper.TransactionMapper;
@@ -35,13 +36,32 @@ public class TransactionServiceImpl implements TransactionService {
     private final BalanceService balanceService;
     private final TransactionMapper transactionMapper;
 
+    /**
+     * Số tiền ký quỹ tối thiểu để bắt đầu nhận đơn (200,000 VND)
+     */
+    private static final BigDecimal MIN_DEPOSIT_BALANCE = new BigDecimal("200000");
+
+    // ═══════════════════════════════════════════════════════════════
+    // Core Transaction Methods
+    // ═══════════════════════════════════════════════════════════════
+
     @Override
     @Transactional
     public Transaction createTransaction(Long entityId, EntityType entityType, Long orderId,
                                         TransactionDirection direction, TransactionReason reason,
                                         BigDecimal amount, String description) {
-        log.info("Creating transaction: entity={} ({}), direction={}, reason={}, amount={}",
-                entityId, entityType, direction, reason, amount);
+        // Default: EARNINGS wallet
+        return createTransaction(entityId, entityType, orderId, direction, reason,
+                amount, description, WalletType.EARNINGS);
+    }
+
+    @Override
+    @Transactional
+    public Transaction createTransaction(Long entityId, EntityType entityType, Long orderId,
+                                        TransactionDirection direction, TransactionReason reason,
+                                        BigDecimal amount, String description, WalletType walletType) {
+        log.info("Creating transaction: entity={} ({}), wallet={}, direction={}, reason={}, amount={}",
+                entityId, entityType, walletType, direction, reason, amount);
 
         // Validate amount
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
@@ -62,14 +82,16 @@ public class TransactionServiceImpl implements TransactionService {
                 .amount(amount)
                 .description(description)
                 .status(TransactionStatus.COMPLETED)
+                .walletType(walletType)
                 .build();
 
         Transaction saved = transactionRepository.save(transaction);
 
-        // Update balance based on transaction
+        // Update balance based on transaction and wallet type
         updateBalanceFromTransaction(balance, saved);
 
-        log.info("✅ Created transaction ID: {} for entity: {} ({})", saved.getId(), entityId, entityType);
+        log.info("✅ Created transaction ID: {} for entity: {} ({}) on wallet: {}",
+                saved.getId(), entityId, entityType, walletType);
         return saved;
     }
 
@@ -82,8 +104,71 @@ public class TransactionServiceImpl implements TransactionService {
                 : TransactionReason.DELIVERY_FEE;
 
         return createTransaction(entityId, entityType, orderId,
-                TransactionDirection.CREDIT, reason, amount, description);
+                TransactionDirection.CREDIT, reason, amount, description, WalletType.EARNINGS);
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Deposit Wallet Methods (Ví Ký quỹ)
+    // ═══════════════════════════════════════════════════════════════
+
+    @Override
+    @Transactional
+    public Transaction topUpDeposit(Long shipperId, BigDecimal amount, String paymentMethod) {
+        log.info("💰 Shipper {} topping up deposit wallet: {} via {}", shipperId, amount, paymentMethod);
+
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("Top-up amount must be greater than zero");
+        }
+
+        Balance balance = balanceRepository.findByEntityIdAndEntityType(shipperId, EntityType.SHIPPER)
+                .orElseGet(() -> balanceService.createBalance(shipperId, EntityType.SHIPPER));
+
+        // Create CREDIT transaction on DEPOSIT wallet
+        Transaction transaction = Transaction.builder()
+                .entityId(shipperId)
+                .entityType(EntityType.SHIPPER)
+                .direction(TransactionDirection.CREDIT)
+                .reason(TransactionReason.DEPOSIT_TOPUP)
+                .amount(amount)
+                .description("Deposit top-up via " + (paymentMethod != null ? paymentMethod : "UNKNOWN"))
+                .status(TransactionStatus.COMPLETED)
+                .walletType(WalletType.DEPOSIT)
+                .build();
+
+        Transaction saved = transactionRepository.save(transaction);
+
+        // Update deposit balance
+        balance.setDepositBalance(balance.getDepositBalance().add(amount));
+        balance.setTotalDeposited(balance.getTotalDeposited().add(amount));
+        balanceRepository.save(balance);
+
+        log.info("✅ Shipper {} deposit topped up. New deposit balance: {}, Total deposited: {}",
+                shipperId, balance.getDepositBalance(), balance.getTotalDeposited());
+
+        return saved;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean checkCodEligibility(Long shipperId, BigDecimal codAmount) {
+        Balance balance = balanceRepository.findByEntityIdAndEntityType(shipperId, EntityType.SHIPPER)
+                .orElse(null);
+
+        if (balance == null) {
+            log.warn("⚠️ Shipper {} has no balance record. COD not eligible.", shipperId);
+            return false;
+        }
+
+        boolean eligible = balance.getDepositBalance().compareTo(codAmount) >= 0;
+        log.info("🔍 COD eligibility check for shipper {}: deposit={}, codAmount={}, eligible={}",
+                shipperId, balance.getDepositBalance(), codAmount, eligible);
+
+        return eligible;
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Withdrawal Methods (Rút tiền từ Ví Thu nhập)
+    // ═══════════════════════════════════════════════════════════════
 
     @Override
     @Transactional
@@ -101,10 +186,10 @@ public class TransactionServiceImpl implements TransactionService {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Balance not found for entity: " + entityId + " (" + entityType + ")"));
 
-        // Check sufficient balance
+        // ✅ Chỉ cho phép rút từ Ví Thu nhập (availableBalance)
         if (balance.getAvailableBalance().compareTo(amount) < 0) {
             throw new InsufficientBalanceException(
-                    String.format("Insufficient balance. Available: %s, Requested: %s",
+                    String.format("Insufficient earnings balance. Available: %s, Requested: %s",
                             balance.getAvailableBalance(), amount));
         }
 
@@ -117,6 +202,7 @@ public class TransactionServiceImpl implements TransactionService {
                 .amount(amount)
                 .description("Withdrawal request")
                 .status(TransactionStatus.PENDING)
+                .walletType(WalletType.EARNINGS)
                 .build();
 
         Transaction saved = transactionRepository.save(transaction);
@@ -193,7 +279,7 @@ public class TransactionServiceImpl implements TransactionService {
         }
         Transaction saved = transactionRepository.save(transaction);
 
-        // Restore balance: move from pending back to available
+        // Restore balance: move from pending back to available (Ví Thu nhập)
         Balance balance = balanceRepository.findByEntityIdAndEntityType(
                         transaction.getEntityId(), transaction.getEntityType())
                 .orElseThrow(() -> new ResourceNotFoundException("Balance not found"));
@@ -208,6 +294,10 @@ public class TransactionServiceImpl implements TransactionService {
         return saved;
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    // Other Methods
+    // ═══════════════════════════════════════════════════════════════
+
     @Override
     @Transactional
     public Transaction reverseTransaction(Long transactionId, Long adminId, String reason) {
@@ -220,7 +310,7 @@ public class TransactionServiceImpl implements TransactionService {
             throw new IllegalStateException("Can only reverse completed transactions");
         }
 
-        // Create opposite transaction
+        // Create opposite transaction on the same wallet
         TransactionDirection oppositeDirection = original.getDirection() == TransactionDirection.CREDIT
                 ? TransactionDirection.DEBIT
                 : TransactionDirection.CREDIT;
@@ -235,6 +325,7 @@ public class TransactionServiceImpl implements TransactionService {
                 .description("Reversal of transaction #" + transactionId + 
                            (reason != null ? " - " + reason : ""))
                 .status(TransactionStatus.COMPLETED)
+                .walletType(original.getWalletType())
                 .processedBy(adminId)
                 .build();
 
@@ -261,7 +352,7 @@ public class TransactionServiceImpl implements TransactionService {
     public Transaction holdBalance(Long entityId, BigDecimal amount, String description) {
         return createTransaction(entityId, EntityType.SHIPPER, null,
                 TransactionDirection.DEBIT, TransactionReason.HOLD, amount,
-                description != null ? description : "Hold balance");
+                description != null ? description : "Hold balance", WalletType.EARNINGS);
     }
 
     @Override
@@ -279,8 +370,12 @@ public class TransactionServiceImpl implements TransactionService {
 
         return createTransaction(entityId, EntityType.SHIPPER, null,
                 TransactionDirection.CREDIT, TransactionReason.RELEASE, amount,
-                description != null ? description : "Release balance");
+                description != null ? description : "Release balance", WalletType.EARNINGS);
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Query Methods
+    // ═══════════════════════════════════════════════════════════════
 
     @Override
     @Transactional(readOnly = true)
@@ -321,8 +416,12 @@ public class TransactionServiceImpl implements TransactionService {
                 .collect(Collectors.toList());
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    // Balance Update Logic (Dual Wallet)
+    // ═══════════════════════════════════════════════════════════════
+
     /**
-     * Update balance based on completed transaction
+     * ✅ Update balance based on completed transaction — phân biệt Ví Thu nhập vs Ví Ký quỹ
      */
     private void updateBalanceFromTransaction(Balance balance, Transaction transaction) {
         if (transaction.getStatus() != TransactionStatus.COMPLETED) {
@@ -334,21 +433,41 @@ public class TransactionServiceImpl implements TransactionService {
                 // Withdrawal already handled in requestWithdrawal and approveWithdrawal
                 break;
             case HOLD:
-                // Move from available to holding
+                // Move from available (Earnings) to holding
                 balance.setAvailableBalance(balance.getAvailableBalance().subtract(transaction.getAmount()));
                 balance.setHoldingBalance(balance.getHoldingBalance().add(transaction.getAmount()));
                 break;
             case RELEASE:
-                // Move from holding to available
+                // Move from holding to available (Earnings)
                 balance.setHoldingBalance(balance.getHoldingBalance().subtract(transaction.getAmount()));
                 balance.setAvailableBalance(balance.getAvailableBalance().add(transaction.getAmount()));
                 break;
+            case DEPOSIT_TOPUP:
+                // Handled directly in topUpDeposit()
+                break;
+            case COD_SETTLEMENT:
+                // ✅ Đối trừ COD — trừ từ Ví Ký quỹ
+                if (transaction.getDirection() == TransactionDirection.DEBIT) {
+                    balance.setDepositBalance(balance.getDepositBalance().subtract(transaction.getAmount()));
+                    balance.setTotalCodCollected(balance.getTotalCodCollected().add(transaction.getAmount()));
+                }
+                break;
             default:
-                // Normal CREDIT/DEBIT
-                if (transaction.getDirection() == TransactionDirection.CREDIT) {
-                    balance.setAvailableBalance(balance.getAvailableBalance().add(transaction.getAmount()));
+                // Normal CREDIT/DEBIT based on wallet type
+                if (transaction.getWalletType() == WalletType.DEPOSIT) {
+                    // Operations on Deposit wallet
+                    if (transaction.getDirection() == TransactionDirection.CREDIT) {
+                        balance.setDepositBalance(balance.getDepositBalance().add(transaction.getAmount()));
+                    } else {
+                        balance.setDepositBalance(balance.getDepositBalance().subtract(transaction.getAmount()));
+                    }
                 } else {
-                    balance.setAvailableBalance(balance.getAvailableBalance().subtract(transaction.getAmount()));
+                    // Operations on Earnings wallet (default)
+                    if (transaction.getDirection() == TransactionDirection.CREDIT) {
+                        balance.setAvailableBalance(balance.getAvailableBalance().add(transaction.getAmount()));
+                    } else {
+                        balance.setAvailableBalance(balance.getAvailableBalance().subtract(transaction.getAmount()));
+                    }
                 }
         }
 

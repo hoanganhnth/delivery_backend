@@ -23,7 +23,9 @@ public class DeliveryCompletedEvent {
     private Long shipperId;
     private BigDecimal restaurantEarnings;
     private BigDecimal shipperEarnings;
-    private BigDecimal platformCommission;
+    private BigDecimal restaurantCommission;
+    private BigDecimal shippingCommission;
+    private BigDecimal totalPlatformEarnings;
     private BigDecimal shippingFee;
     private LocalDateTime deliveredAt;
     private String deliveryAddress;

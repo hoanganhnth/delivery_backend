@@ -626,32 +626,33 @@ public class DeliveryServiceImpl implements DeliveryService {
                 delivery.setShippingFee(java.math.BigDecimal.valueOf(15000));
             }
 
-            // ✅ Calculate shipper earnings (85% của shipping fee)
+            // ✅ 1. Tính toán phần Shipper (từ Phí Ship)
+            // Phí ship: 85% cho Shipper, 15% cho Platform
             java.math.BigDecimal shipperEarnings = com.delivery.delivery_service.common.constants.PricingConstants
                     .calculateShipperEarnings(delivery.getShippingFee());
-
-            java.math.BigDecimal platformCommission = com.delivery.delivery_service.common.constants.PricingConstants
+            java.math.BigDecimal shippingCommission = com.delivery.delivery_service.common.constants.PricingConstants
                     .calculatePlatformCommission(delivery.getShippingFee());
 
-            // ✅ Calculate restaurant earnings = totalPrice - shippingFee (food value cho
-            // nhà hàng)
-            java.math.BigDecimal restaurantEarnings = java.math.BigDecimal.ZERO;
+            // ✅ 2. Tính toán phần Nhà hàng (từ Giá món ăn)
+            // foodPrice = totalPrice - shippingFee
+            java.math.BigDecimal foodPrice = java.math.BigDecimal.ZERO;
             if (delivery.getTotalPrice() != null && delivery.getShippingFee() != null) {
-                restaurantEarnings = delivery.getTotalPrice().subtract(delivery.getShippingFee());
-                if (restaurantEarnings.compareTo(java.math.BigDecimal.ZERO) <= 0) {
-                    // Fallback: nếu totalPrice <= shippingFee thì dùng totalPrice làm restaurant
-                    // earnings
-                    restaurantEarnings = delivery.getTotalPrice();
-                }
-            } else if (delivery.getTotalPrice() != null) {
-                restaurantEarnings = delivery.getTotalPrice();
+                foodPrice = delivery.getTotalPrice().subtract(delivery.getShippingFee());
             }
 
+            // Hoa hồng từ nhà hàng (ví dụ 20% giá món)
+            java.math.BigDecimal restaurantCommission = foodPrice
+                    .multiply(com.delivery.delivery_service.common.constants.PricingConstants.RESTAURANT_COMMISSION_RATE);
+            // Tiền thực nhận của nhà hàng = Giá món - Hoa hồng
+            java.math.BigDecimal restaurantEarnings = foodPrice.subtract(restaurantCommission);
+
+            // ✅ 3. Tổng thu nhập của nền tảng (Platform)
+            java.math.BigDecimal totalPlatformEarnings = shippingCommission.add(restaurantCommission);
+
             log.info(
-                    "💰 Publishing DeliveryCompletedEvent for delivery {}, shipper {}, restaurant {}, " +
-                            "shippingFee: {}, shipperEarnings: {}, restaurantEarnings: {}, commission: {}",
-                    delivery.getId(), delivery.getShipperId(), delivery.getRestaurantId(),
-                    delivery.getShippingFee(), shipperEarnings, restaurantEarnings, platformCommission);
+                    "💰 Settlement calculation for delivery {}: foodPrice={}, shipFee={}, shipperGets={}, restaurantGets={}, platformGets={}",
+                    delivery.getId(), foodPrice, delivery.getShippingFee(), shipperEarnings, restaurantEarnings,
+                    totalPlatformEarnings);
 
             DeliveryCompletedEvent event = DeliveryCompletedEvent.builder()
                     .deliveryId(delivery.getId())
@@ -661,12 +662,14 @@ public class DeliveryServiceImpl implements DeliveryService {
                     .shippingFee(delivery.getShippingFee())
                     .shipperEarnings(shipperEarnings)
                     .restaurantEarnings(restaurantEarnings)
-                    .platformCommission(platformCommission)
+                    .restaurantCommission(restaurantCommission)
+                    .shippingCommission(shippingCommission)
+                    .totalPlatformEarnings(totalPlatformEarnings)
                     .deliveredAt(delivery.getDeliveredAt())
                     .deliveryAddress(delivery.getDeliveryAddress())
                     .paymentMethod(delivery.getPaymentMethod() != null ? delivery.getPaymentMethod() : "ONLINE")
-                    .restaurantName("Restaurant") // TODO: get from order
-                    .customerName("Customer") // TODO: get from order
+                    .restaurantName("Restaurant")
+                    .customerName("Customer")
                     .build();
 
             deliveryEventPublisher.publishDeliveryCompletedEvent(event);

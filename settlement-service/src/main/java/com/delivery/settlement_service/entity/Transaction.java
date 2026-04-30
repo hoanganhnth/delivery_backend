@@ -61,6 +61,14 @@ public class Transaction {
     @Builder.Default
     private TransactionStatus status = TransactionStatus.COMPLETED;
 
+    /**
+     * Giao dịch thuộc ví nào (EARNINGS hoặc DEPOSIT)
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "wallet_type", nullable = false, length = 20)
+    @Builder.Default
+    private WalletType walletType = WalletType.EARNINGS;
+
     @Column(name = "processed_at")
     private LocalDateTime processedAt;
 
@@ -84,26 +92,36 @@ public class Transaction {
     }
 
     /**
+     * Ví nào xử lý giao dịch này
+     */
+    public enum WalletType {
+        EARNINGS,   // Ví Thu nhập (tiền công, thưởng, rút tiền)
+        DEPOSIT     // Ví Ký quỹ (nạp trước, trừ COD, trừ chiết khấu)
+    }
+
+    /**
      * Business reason for the transaction
      */
     public enum TransactionReason {
         // Income/Credits
         ORDER_EARNING,          // Restaurant/Shipper earned from order
-        DELIVERY_FEE,           // Shipper delivery fee
-        DEPOSIT,                // Manual deposit
+        DELIVERY_FEE,           // Shipper delivery fee (→ Ví Thu nhập)
+        DEPOSIT,                // Manual deposit (legacy)
+        DEPOSIT_TOPUP,          // Shipper nạp tiền vào Ví Ký quỹ
         REFUND_RECEIVED,        // Refund received
         ADJUSTMENT_CREDIT,      // Admin adjustment (credit)
         RELEASE,                // Release from holding (shipper)
         COD_REFUND,             // Refund COD deduction (order cancelled after pickup)
-        
+
         // Expenses/Debits
         PLATFORM_COMMISSION,    // Platform commission deduction
-        WITHDRAW,               // Withdrawal request
+        WITHDRAW,               // Withdrawal request (→ Ví Thu nhập)
         REFUND_ISSUED,          // Refund issued to customer
         PENALTY,                // Penalty/fine
         ADJUSTMENT_DEBIT,       // Admin adjustment (debit)
         HOLD,                   // Move to holding balance (shipper)
-        COD_DEDUCTION           // COD collection deduction from shipper wallet
+        COD_DEDUCTION,          // COD collection deduction (legacy)
+        COD_SETTLEMENT          // Đối trừ tiền COD thu hộ (→ Ví Ký quỹ)
     }
 
     /**

@@ -1,6 +1,7 @@
 package com.delivery.settlement_service.controller;
 
 import com.delivery.settlement_service.dto.request.HoldBalanceRequest;
+import com.delivery.settlement_service.dto.request.TopUpDepositRequest;
 import com.delivery.settlement_service.dto.request.WithdrawalRequest;
 import com.delivery.settlement_service.dto.response.BalanceResponse;
 import com.delivery.settlement_service.dto.response.TransactionResponse;
@@ -122,6 +123,38 @@ public class BalanceController {
 
         return ResponseEntity.ok(new BaseResponse<>(1, "Balance released successfully",
                 transactionMapper.toResponse(transaction)));
+    }
+
+    /**
+     * ✅ Shipper nạp tiền vào Ví Ký quỹ (Deposit Wallet)
+     */
+    @PostMapping("/shipper/{entityId}/deposit")
+    public ResponseEntity<BaseResponse<TransactionResponse>> topUpDeposit(
+            @PathVariable Long entityId,
+            @Valid @RequestBody TopUpDepositRequest request) {
+
+        Transaction transaction = transactionService.topUpDeposit(
+                entityId, request.getAmount(), request.getPaymentMethod());
+
+        return ResponseEntity.ok(new BaseResponse<>(1, "Deposit topped up successfully",
+                transactionMapper.toResponse(transaction)));
+    }
+
+    /**
+     * ✅ Kiểm tra shipper có đủ ký quỹ để nhận đơn COD không
+     */
+    @GetMapping("/shipper/{entityId}/cod-eligibility")
+    public ResponseEntity<BaseResponse<Boolean>> checkCodEligibility(
+            @PathVariable Long entityId,
+            @RequestParam BigDecimal codAmount) {
+
+        boolean eligible = transactionService.checkCodEligibility(entityId, codAmount);
+
+        String message = eligible
+                ? "Shipper eligible for COD order"
+                : "Insufficient deposit balance for COD order";
+
+        return ResponseEntity.ok(new BaseResponse<>(eligible ? 1 : 0, message, eligible));
     }
 
     /**

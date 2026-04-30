@@ -22,6 +22,7 @@ public class TransactionResponse {
     private BigDecimal amount;
     private String description;
     private String status;
+    private String walletType;
     private LocalDateTime processedAt;
     private Long processedBy;
     private LocalDateTime createdAt;

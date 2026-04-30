@@ -76,40 +76,60 @@ public class BalanceServiceImpl implements BalanceService {
         List<Transaction> transactions = transactionRepository
                 .findByEntityIdAndEntityTypeAndStatus(entityId, entityType, TransactionStatus.COMPLETED);
 
-        // Recalculate balances
-        BigDecimal availableBalance = BigDecimal.ZERO;
+        // Recalculate balances (dual wallet)
+        BigDecimal availableBalance = BigDecimal.ZERO;  // Ví Thu nhập
         BigDecimal pendingBalance = BigDecimal.ZERO;
         BigDecimal holdingBalance = BigDecimal.ZERO;
+        BigDecimal depositBalance = BigDecimal.ZERO;    // Ví Ký quỹ
+        BigDecimal totalDeposited = BigDecimal.ZERO;
+        BigDecimal totalCodCollected = BigDecimal.ZERO;
 
         for (Transaction tx : transactions) {
             switch (tx.getReason()) {
                 case WITHDRAW:
                     if (tx.getDirection() == Transaction.TransactionDirection.DEBIT) {
-                        // Withdrawal moves money from available to pending
                         availableBalance = availableBalance.subtract(tx.getAmount());
                         pendingBalance = pendingBalance.add(tx.getAmount());
                     }
                     break;
                 case HOLD:
                     if (tx.getDirection() == Transaction.TransactionDirection.DEBIT) {
-                        // Hold moves money from available to holding
                         availableBalance = availableBalance.subtract(tx.getAmount());
                         holdingBalance = holdingBalance.add(tx.getAmount());
                     }
                     break;
                 case RELEASE:
                     if (tx.getDirection() == Transaction.TransactionDirection.CREDIT) {
-                        // Release moves money from holding back to available
                         holdingBalance = holdingBalance.subtract(tx.getAmount());
                         availableBalance = availableBalance.add(tx.getAmount());
                     }
                     break;
+                case DEPOSIT_TOPUP:
+                    // Nạp tiền vào Ví Ký quỹ
+                    depositBalance = depositBalance.add(tx.getAmount());
+                    totalDeposited = totalDeposited.add(tx.getAmount());
+                    break;
+                case COD_SETTLEMENT:
+                    // Đối trừ COD — trừ từ Ví Ký quỹ
+                    if (tx.getDirection() == Transaction.TransactionDirection.DEBIT) {
+                        depositBalance = depositBalance.subtract(tx.getAmount());
+                        totalCodCollected = totalCodCollected.add(tx.getAmount());
+                    }
+                    break;
                 default:
-                    // Normal CREDIT/DEBIT
-                    if (tx.getDirection() == Transaction.TransactionDirection.CREDIT) {
-                        availableBalance = availableBalance.add(tx.getAmount());
+                    // Route based on wallet type
+                    if (tx.getWalletType() == Transaction.WalletType.DEPOSIT) {
+                        if (tx.getDirection() == Transaction.TransactionDirection.CREDIT) {
+                            depositBalance = depositBalance.add(tx.getAmount());
+                        } else {
+                            depositBalance = depositBalance.subtract(tx.getAmount());
+                        }
                     } else {
-                        availableBalance = availableBalance.subtract(tx.getAmount());
+                        if (tx.getDirection() == Transaction.TransactionDirection.CREDIT) {
+                            availableBalance = availableBalance.add(tx.getAmount());
+                        } else {
+                            availableBalance = availableBalance.subtract(tx.getAmount());
+                        }
                     }
             }
         }
@@ -118,10 +138,13 @@ public class BalanceServiceImpl implements BalanceService {
         balance.setAvailableBalance(availableBalance);
         balance.setPendingBalance(pendingBalance);
         balance.setHoldingBalance(holdingBalance);
+        balance.setDepositBalance(depositBalance);
+        balance.setTotalDeposited(totalDeposited);
+        balance.setTotalCodCollected(totalCodCollected);
 
         Balance saved = balanceRepository.save(balance);
-        log.info("✅ Recalculated balance for entity: {} ({}) - Available: {}, Pending: {}, Holding: {}",
-                entityId, entityType, availableBalance, pendingBalance, holdingBalance);
+        log.info("✅ Recalculated balance for entity: {} ({}) - Earnings: {}, Deposit: {}, Pending: {}, Holding: {}",
+                entityId, entityType, availableBalance, depositBalance, pendingBalance, holdingBalance);
 
         return saved;
     }

@@ -5,6 +5,7 @@ import com.delivery.settlement_service.dto.event.DeliveryCompletedEvent;
 import com.delivery.settlement_service.entity.EntityType;
 import com.delivery.settlement_service.entity.Transaction.TransactionDirection;
 import com.delivery.settlement_service.entity.Transaction.TransactionReason;
+import com.delivery.settlement_service.entity.Transaction.WalletType;
 import com.delivery.settlement_service.repository.TransactionRepository;
 import com.delivery.settlement_service.service.TransactionService;
 import lombok.RequiredArgsConstructor;
@@ -18,9 +19,17 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+
 /**
- * Kafka listener to automatically create transactions when delivery is completed
- * ✅ Idempotent — kiểm tra orderId trước khi cộng tiền, tránh duplicate khi Kafka retry
+ * ✅ Kafka listener: Tạo giao dịch khi đơn hàng giao thành công
+ * 
+ * Mô hình 2 Ví (Dual Wallet):
+ * - Shipper Ví Thu nhập (EARNINGS): Tiền công giao hàng
+ * - Shipper Ví Ký quỹ (DEPOSIT):   Đối trừ tiền COD thu hộ
+ * - Restaurant: Chỉ dùng 1 ví (EARNINGS)
+ * 
+ * Idempotent: Kiểm tra orderId trước khi tạo giao dịch
  */
 @Slf4j
 @Component
@@ -48,60 +57,46 @@ public class DeliveryCompletedEventListener {
         try {
             event = objectMapper.readValue(message, DeliveryCompletedEvent.class);
             log.info("💰 Received DeliveryCompletedEvent: delivery={}, order={}, restaurant={}, shipper={}, " +
-                            "restaurantEarnings={}, shipperEarnings={}, commission={} from topic={} partition={} timestamp={}",
+                            "restaurantEarnings={}, shipperEarnings={}, paymentMethod={}",
                     event.getDeliveryId(), event.getOrderId(), event.getRestaurantId(), event.getShipperId(),
-                    event.getRestaurantEarnings(), event.getShipperEarnings(), event.getPlatformCommission(),
-                    topic, partition, timestamp);
+                    event.getRestaurantEarnings(), event.getShipperEarnings(), event.getPaymentMethod());
 
-            // Validate event data
-            if (event.getRestaurantId() == null) {
-                log.error("💥 Invalid DeliveryCompletedEvent: restaurantId is null");
+            // ── Validate ──────────────────────────────────────────
+            if (event.getRestaurantId() == null || event.getShipperId() == null) {
+                log.error("💥 Invalid event: restaurantId or shipperId is null");
                 acknowledgment.acknowledge();
                 return;
             }
 
-            if (event.getShipperId() == null) {
-                log.error("💥 Invalid DeliveryCompletedEvent: shipperId is null");
+            if (event.getRestaurantEarnings() == null || event.getRestaurantEarnings().compareTo(BigDecimal.ZERO) <= 0) {
+                log.error("💥 Invalid event: restaurantEarnings is null or <= 0");
                 acknowledgment.acknowledge();
                 return;
             }
 
-            if (event.getRestaurantEarnings() == null || event.getRestaurantEarnings().compareTo(java.math.BigDecimal.ZERO) <= 0) {
-                log.error("💥 Invalid DeliveryCompletedEvent: restaurantEarnings is null or <= 0");
-                acknowledgment.acknowledge();
-                return;
-            }
-
-            if (event.getShipperEarnings() == null || event.getShipperEarnings().compareTo(java.math.BigDecimal.ZERO) <= 0) {
-                log.error("💥 Invalid DeliveryCompletedEvent: shipperEarnings is null or <= 0");
+            if (event.getShipperEarnings() == null || event.getShipperEarnings().compareTo(BigDecimal.ZERO) <= 0) {
+                log.error("💥 Invalid event: shipperEarnings is null or <= 0");
                 acknowledgment.acknowledge();
                 return;
             }
 
             try {
-                // ✅ IDEMPOTENCY CHECK: Restaurant đã được cộng tiền cho order này chưa?
+                // ── Idempotency Check ─────────────────────────────
                 if (transactionRepository.existsByOrderIdAndEntityIdAndEntityTypeAndReason(
                         event.getOrderId(), event.getRestaurantId(),
                         EntityType.RESTAURANT, TransactionReason.ORDER_EARNING)) {
-                    log.warn("⚠️ [Idempotent] Restaurant {} already credited for order {}, skipping",
-                            event.getRestaurantId(), event.getOrderId());
+                    log.warn("⚠️ [Idempotent] Order {} already processed, skipping", event.getOrderId());
                     acknowledgment.acknowledge();
                     return;
                 }
 
                 boolean isCOD = "COD".equalsIgnoreCase(event.getPaymentMethod());
 
-                // ✅ IDEMPOTENCY CHECK: Shipper đã được cộng tiền cho order này chưa? (Chỉ check cho pre-paid)
-                if (!isCOD && transactionRepository.existsByOrderIdAndEntityIdAndEntityTypeAndReason(
-                        event.getOrderId(), event.getShipperId(),
-                        EntityType.SHIPPER, TransactionReason.DELIVERY_FEE)) {
-                    log.warn("⚠️ [Idempotent] Shipper {} already credited for order {}, skipping",
-                            event.getShipperId(), event.getOrderId());
-                    acknowledgment.acknowledge();
-                    return;
-                }
+                // ══════════════════════════════════════════════════
+                // 1. RESTAURANT — Ví Thu nhập (EARNINGS)
+                // ══════════════════════════════════════════════════
 
-                // 1. Create CREDIT transaction for restaurant (ORDER_EARNING)
+                // 1a. CREDIT: Doanh thu thực nhận (đã trừ hoa hồng)
                 transactionService.createTransaction(
                         event.getRestaurantId(),
                         EntityType.RESTAURANT,
@@ -109,46 +104,69 @@ public class DeliveryCompletedEventListener {
                         TransactionDirection.CREDIT,
                         TransactionReason.ORDER_EARNING,
                         event.getRestaurantEarnings(),
-                        "Earnings from order #" + event.getOrderId() + " - Delivery completed"
+                        "Doanh thu đơn #" + event.getOrderId() + " (đã trừ hoa hồng)",
+                        WalletType.EARNINGS
                 );
 
-                log.info("✅ Credited {} to restaurant {} for order {}",
-                        event.getRestaurantEarnings(), event.getRestaurantId(), event.getOrderId());
+                log.info("✅ Restaurant {} credited {} for order {}",
+                        event.getRestaurantId(), event.getRestaurantEarnings(), event.getOrderId());
 
-                // 2. Create DEBIT transaction for platform commission (optional - track platform revenue)
-                if (event.getPlatformCommission() != null && event.getPlatformCommission().compareTo(java.math.BigDecimal.ZERO) > 0) {
+                // 1b. DEBIT: Ghi nhận hoa hồng (chỉ ghi sổ, không trừ tiền thực tế)
+                if (event.getRestaurantCommission() != null && event.getRestaurantCommission().compareTo(BigDecimal.ZERO) > 0) {
                     transactionService.createTransaction(
                             event.getRestaurantId(),
                             EntityType.RESTAURANT,
                             event.getOrderId(),
                             TransactionDirection.DEBIT,
                             TransactionReason.PLATFORM_COMMISSION,
-                            event.getPlatformCommission(),
-                            "Platform commission for order #" + event.getOrderId()
+                            event.getRestaurantCommission(),
+                            "Hoa hồng nền tảng (20% giá món) đơn #" + event.getOrderId(),
+                            WalletType.EARNINGS
                     );
-
-                    log.info("✅ Recorded platform commission {} for order {}",
-                            event.getPlatformCommission(), event.getOrderId());
                 }
 
-                // 3. Create CREDIT transaction for shipper (DELIVERY_FEE) — CHỈ cho đơn Pre-paid
-                // COD: Shipper đã cầm tiền mặt, không cần CREDIT thêm vào ví
-                if (!isCOD) {
+                // ══════════════════════════════════════════════════
+                // 2. SHIPPER — Ví Thu nhập (EARNINGS): Tiền công giao hàng
+                // ══════════════════════════════════════════════════
+
+                transactionService.createTransaction(
+                        event.getShipperId(),
+                        EntityType.SHIPPER,
+                        event.getOrderId(),
+                        TransactionDirection.CREDIT,
+                        TransactionReason.DELIVERY_FEE,
+                        event.getShipperEarnings(),
+                        "Tiền công giao đơn #" + event.getOrderId(),
+                        WalletType.EARNINGS
+                );
+
+                log.info("✅ Shipper {} credited {} to Earnings for order {}",
+                        event.getShipperId(), event.getShipperEarnings(), event.getOrderId());
+
+                // ══════════════════════════════════════════════════
+                // 3. SHIPPER (COD only) — Ví Ký quỹ (DEPOSIT): Đối trừ tiền thu hộ
+                // ══════════════════════════════════════════════════
+
+                if (isCOD) {
+                    // totalCollected = Tiền món (net + commission) + Phí ship
+                    // = Tổng số tiền mặt shipper thu từ khách
+                    BigDecimal totalCollected = event.getRestaurantEarnings()
+                            .add(event.getRestaurantCommission() != null ? event.getRestaurantCommission() : BigDecimal.ZERO)
+                            .add(event.getShippingFee() != null ? event.getShippingFee() : BigDecimal.ZERO);
+
                     transactionService.createTransaction(
                             event.getShipperId(),
                             EntityType.SHIPPER,
                             event.getOrderId(),
-                            TransactionDirection.CREDIT,
-                            TransactionReason.DELIVERY_FEE,
-                            event.getShipperEarnings(),
-                            "Delivery fee from order #" + event.getOrderId() + " - Delivery completed"
+                            TransactionDirection.DEBIT,
+                            TransactionReason.COD_SETTLEMENT,
+                            totalCollected,
+                            "Đối trừ COD đơn #" + event.getOrderId() + " (shipper đã thu " + totalCollected + " tiền mặt)",
+                            WalletType.DEPOSIT
                     );
 
-                    log.info("✅ Credited {} to shipper {} for order {} (Pre-paid)",
-                            event.getShipperEarnings(), event.getShipperId(), event.getOrderId());
-                } else {
-                    log.info("💵 Skipping shipper CREDIT for COD order {} — shipper holds {} cash",
-                            event.getOrderId(), event.getShipperEarnings());
+                    log.info("💵 Shipper {} COD settlement: -{} from Deposit for order {}",
+                            event.getShipperId(), totalCollected, event.getOrderId());
                 }
 
             } catch (Exception e) {
@@ -164,7 +182,7 @@ public class DeliveryCompletedEventListener {
 
         } catch (Exception e) {
             log.error("💥 Unexpected error processing DeliveryCompletedEvent for delivery: {} - Error: {}",
-                    event.getDeliveryId(), e.getMessage(), e);
+                    event != null ? event.getDeliveryId() : "unknown", e.getMessage(), e);
 
             // Acknowledge to prevent infinite retry
             acknowledgment.acknowledge();

@@ -19,6 +19,9 @@ public class BalanceMapper {
                 .availableBalance(balance.getAvailableBalance())
                 .pendingBalance(balance.getPendingBalance())
                 .holdingBalance(balance.getHoldingBalance())
+                .depositBalance(balance.getDepositBalance())
+                .totalDeposited(balance.getTotalDeposited())
+                .totalCodCollected(balance.getTotalCodCollected())
                 .createdAt(balance.getCreatedAt())
                 .updatedAt(balance.getUpdatedAt())
                 .build();

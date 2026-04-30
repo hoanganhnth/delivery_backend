@@ -22,6 +22,7 @@ public class TransactionMapper {
                 .amount(transaction.getAmount())
                 .description(transaction.getDescription())
                 .status(transaction.getStatus().name())
+                .walletType(transaction.getWalletType().name())
                 .processedAt(transaction.getProcessedAt())
                 .processedBy(transaction.getProcessedBy())
                 .createdAt(transaction.getCreatedAt())

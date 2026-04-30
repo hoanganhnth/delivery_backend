@@ -11,6 +11,9 @@ public class PricingConstants {
     // ✅ Platform commission (15% - Grab thường lấy 15-20%)
     public static final BigDecimal PLATFORM_COMMISSION_RATE = new BigDecimal("0.15");
     
+    // ✅ Restaurant commission (20% - Phí hoa hồng trên giá món ăn)
+    public static final BigDecimal RESTAURANT_COMMISSION_RATE = new BigDecimal("0.20");
+    
     // ✅ Shipper earnings rate (85% còn lại)
     public static final BigDecimal SHIPPER_EARNINGS_RATE = new BigDecimal("0.85");
     

@@ -6,6 +6,7 @@ import com.delivery.settlement_service.entity.EntityType;
 import com.delivery.settlement_service.entity.Transaction;
 import com.delivery.settlement_service.entity.Transaction.TransactionDirection;
 import com.delivery.settlement_service.entity.Transaction.TransactionReason;
+import com.delivery.settlement_service.entity.Transaction.WalletType;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -13,11 +14,18 @@ import java.util.List;
 public interface TransactionService {
 
     /**
-     * Create a transaction and update balance
+     * Create a transaction on the EARNINGS wallet (default)
      */
     Transaction createTransaction(Long entityId, EntityType entityType, Long orderId,
                                  TransactionDirection direction, TransactionReason reason,
                                  BigDecimal amount, String description);
+
+    /**
+     * ✅ Create a transaction specifying which wallet (EARNINGS or DEPOSIT)
+     */
+    Transaction createTransaction(Long entityId, EntityType entityType, Long orderId,
+                                 TransactionDirection direction, TransactionReason reason,
+                                 BigDecimal amount, String description, WalletType walletType);
 
     /**
      * Helper: Earn from order (creates CREDIT transaction with ORDER_EARNING/DELIVERY_FEE reason)
@@ -26,7 +34,7 @@ public interface TransactionService {
                              BigDecimal amount, String description);
 
     /**
-     * Request withdrawal (creates PENDING DEBIT transaction with WITHDRAW reason)
+     * Request withdrawal from EARNINGS wallet (creates PENDING DEBIT transaction)
      */
     Transaction requestWithdrawal(Long entityId, EntityType entityType,
                                  BigDecimal amount, Long requestedBy);
@@ -55,6 +63,17 @@ public interface TransactionService {
      * Release balance (for shippers - creates CREDIT transaction with RELEASE reason)
      */
     Transaction releaseBalance(Long entityId, BigDecimal amount, String description);
+
+    /**
+     * ✅ Shipper nạp tiền vào Ví Ký quỹ (Deposit Wallet)
+     */
+    Transaction topUpDeposit(Long shipperId, BigDecimal amount, String paymentMethod);
+
+    /**
+     * ✅ Kiểm tra shipper có đủ ký quỹ để nhận đơn COD không
+     * @return true nếu depositBalance >= codAmount
+     */
+    boolean checkCodEligibility(Long shipperId, BigDecimal codAmount);
 
     /**
      * Get transaction history for an entity
