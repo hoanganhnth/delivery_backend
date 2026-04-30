@@ -2,10 +2,13 @@ package com.delivery.order_service.controller;
 
 import com.delivery.order_service.common.constants.ApiPathConstants;
 import com.delivery.order_service.common.constants.HttpHeaderConstants;
+import com.delivery.order_service.dto.request.CheckoutPreviewRequest;
 import com.delivery.order_service.dto.request.CreateOrderRequest;
 import com.delivery.order_service.dto.request.UpdateOrderRequest;
+import com.delivery.order_service.dto.response.CheckoutPreviewResponse;
 import com.delivery.order_service.dto.response.OrderResponse;
 import com.delivery.order_service.payload.BaseResponse;
+import com.delivery.order_service.service.CheckoutPreviewService;
 import com.delivery.order_service.service.OrderService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -17,9 +20,23 @@ import java.util.List;
 public class OrderController {
 
     private final OrderService orderService;
+    private final CheckoutPreviewService checkoutPreviewService;
 
-    public OrderController(OrderService orderService) {
+    public OrderController(OrderService orderService, CheckoutPreviewService checkoutPreviewService) {
         this.orderService = orderService;
+        this.checkoutPreviewService = checkoutPreviewService;
+    }
+
+    /**
+     * ✅ Checkout Preview — Server tính toán giá chính xác trước khi đặt hàng.
+     * Client gọi endpoint này khi mở màn Checkout để hiển thị breakdown.
+     */
+    @PostMapping("/checkout-preview")
+    public ResponseEntity<BaseResponse<CheckoutPreviewResponse>> checkoutPreview(
+            @RequestBody CheckoutPreviewRequest request,
+            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId) {
+        CheckoutPreviewResponse preview = checkoutPreviewService.calculatePreview(request, userId);
+        return ResponseEntity.ok(new BaseResponse<>(1, preview, "Checkout preview thành công"));
     }
 
     @PostMapping
