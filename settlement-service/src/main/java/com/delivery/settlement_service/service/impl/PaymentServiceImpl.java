@@ -33,6 +33,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final PaymentOrderRepository paymentOrderRepository;
     private final PaymentProviderRegistry providerRegistry;
     private final TransactionService transactionService;
+    private final com.delivery.settlement_service.service.PaymentEventPublisher paymentEventPublisher;
 
     @Value("${payment.default-provider:FAKE}")
     private String defaultProvider;
@@ -69,6 +70,7 @@ public class PaymentServiceImpl implements PaymentService {
                 .paymentRef(paymentRef)
                 .entityId(request.getEntityId())
                 .entityType(entityType)
+                .orderId(request.getOrderId())
                 .provider(providerName.toUpperCase())
                 .amount(request.getAmount())
                 .purpose(purpose)
@@ -138,6 +140,19 @@ public class PaymentServiceImpl implements PaymentService {
             return toResponse(order);
         }
 
+        // 🛡️ Security Check: Validate amount matches
+        if (verifyResult.getAmount() != null) {
+            long expectedAmount = order.getAmount().longValue() * 100;
+            if (verifyResult.getAmount() != expectedAmount) {
+                log.error("🚨 Amount mismatch! ref={}, expected={}, received={}", 
+                        order.getPaymentRef(), expectedAmount, verifyResult.getAmount());
+                order.setStatus(PaymentStatus.FAILED);
+                order.setCallbackPayload("Amount mismatch: " + verifyResult.getAmount());
+                paymentOrderRepository.save(order);
+                throw new SecurityException("Payment amount mismatch");
+            }
+        }
+
         // Update order with callback data
         order.setCallbackPayload(verifyResult.getRawPayload());
         order.setProviderTransactionId(verifyResult.getProviderTransactionId());
@@ -148,6 +163,10 @@ public class PaymentServiceImpl implements PaymentService {
             order.setStatus(PaymentStatus.FAILED);
             paymentOrderRepository.save(order);
             log.info("❌ Payment failed: ref={}, code={}", order.getPaymentRef(), verifyResult.getResponseCode());
+            
+            // Notify other services
+            paymentEventPublisher.publishPaymentFailed(order, verifyResult.getMessage());
+            
             return toResponse(order);
         }
     }
@@ -207,8 +226,9 @@ public class PaymentServiceImpl implements PaymentService {
     private PaymentOrderResponse processSuccessfulPayment(PaymentOrder order) {
         order.setStatus(PaymentStatus.SUCCESS);
 
-        // Tạo transaction settlement tương ứng
+        // 1. Xử lý logic nghiệp vụ theo mục đích
         if (order.getPurpose() == PaymentPurpose.DEPOSIT_TOPUP) {
+            // Nạp tiền ký quỹ cho Shipper/Restaurant
             Transaction tx = transactionService.topUpDeposit(
                     order.getEntityId(),
                     order.getAmount(),
@@ -217,8 +237,14 @@ public class PaymentServiceImpl implements PaymentService {
             order.setSettlementTransactionId(tx.getId());
             log.info("✅ Payment SUCCESS → Deposit topped up: ref={}, txId={}", 
                     order.getPaymentRef(), tx.getId());
+        } else if (order.getPurpose() == PaymentPurpose.ORDER_PAYMENT) {
+            // Thanh toán đơn hàng — lúc này entityId chính là orderId
+            log.info("✅ Payment SUCCESS for Order ID: {}", order.getEntityId());
+            // Logic cộng tiền cho hệ thống hoặc trung gian nếu cần
         }
-        // Future: handle ORDER_PAYMENT, WITHDRAWAL...
+
+        // 2. Notify other services via Kafka (ví dụ: order-service)
+        paymentEventPublisher.publishPaymentSuccess(order);
 
         paymentOrderRepository.save(order);
         return toResponse(order);

@@ -63,6 +63,10 @@ public class LivestreamProductService {
                 });
 
         product.setPriceAtLive(request.getPriceAtLive());
+        product.setProductName(request.getProductName());
+        product.setProductImage(request.getProductImage());
+        product.setRestaurantId(request.getRestaurantId());
+        product.setRestaurantName(request.getRestaurantName());
         product.setIsPinned(true);
         product.setPinnedAt(LocalDateTime.now());
         product = productRepository.save(product);

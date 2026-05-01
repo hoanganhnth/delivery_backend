@@ -100,6 +100,8 @@ public class VnPayProvider implements PaymentProvider {
             String paymentRef = params.get("vnp_TxnRef");
             String responseCode = params.get("vnp_ResponseCode");
             String transactionNo = params.get("vnp_TransactionNo");
+            String amountStr = params.get("vnp_Amount");
+            Long amount = amountStr != null ? Long.parseLong(amountStr) : null;
 
             if (!calculatedHash.equalsIgnoreCase(vnpSecureHash)) {
                 log.warn("⚠️ [VNPay] Invalid signature for ref={}", paymentRef);
@@ -108,7 +110,9 @@ public class VnPayProvider implements PaymentProvider {
 
             if ("00".equals(responseCode)) {
                 log.info("✅ [VNPay] Payment SUCCESS for ref={}", paymentRef);
-                return PaymentVerifyResult.success(paymentRef, transactionNo, rawPayload);
+                PaymentVerifyResult result = PaymentVerifyResult.success(paymentRef, transactionNo, rawPayload);
+                result.setAmount(amount);
+                return result;
             } else {
                 String message = getResponseMessage(responseCode);
                 log.info("❌ [VNPay] Payment FAILED for ref={}, code={}, msg={}", paymentRef, responseCode, message);

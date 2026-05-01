@@ -20,6 +20,8 @@ public class CreatePaymentRequest {
     @NotNull(message = "Entity ID is required")
     private Long entityId;
 
+    private Long orderId;
+
     /**
      * Loại entity: SHIPPER (mặc định), CUSTOMER (future)
      */

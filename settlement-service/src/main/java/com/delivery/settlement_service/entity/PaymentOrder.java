@@ -41,6 +41,9 @@ public class PaymentOrder {
     @Column(name = "entity_type", nullable = false, length = 20)
     private EntityType entityType;
 
+    @Column(name = "order_id")
+    private Long orderId;
+
     /**
      * Nhà cung cấp thanh toán: VNPAY, MOMO, ZALOPAY, FAKE...
      */

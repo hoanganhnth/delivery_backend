@@ -72,10 +72,11 @@ public class PaymentController {
 
     /**
      * VNPay IPN webhook — VNPay server gọi trực tiếp (backup confirmation)
+     * VNPay gọi IPN qua phương thức GET.
      */
-    @PostMapping("/vnpay-ipn")
+    @RequestMapping(value = "/vnpay-ipn", method = {RequestMethod.GET, RequestMethod.POST})
     public ResponseEntity<Map<String, String>> vnpayIpn(@RequestParam Map<String, String> params) {
-        log.info("📨 VNPay IPN received: {}", params.get("vnp_TxnRef"));
+        log.info("📨 VNPay IPN received: ref={}, code={}", params.get("vnp_TxnRef"), params.get("vnp_ResponseCode"));
 
         Map<String, String> ipnResponse = new HashMap<>();
         try {

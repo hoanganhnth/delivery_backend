@@ -21,6 +21,7 @@ public class PaymentVerifyResult {
     private String responseCode;             // Mã phản hồi (00 = success)
     private String message;                  // Thông điệp
     private String rawPayload;               // JSON raw từ cổng
+    private Long amount;                     // Số tiền nhận được (đơn vị nhỏ nhất, ví dụ VND)
 
     public static PaymentVerifyResult success(String paymentRef, String providerTxnId, String raw) {
         return PaymentVerifyResult.builder()

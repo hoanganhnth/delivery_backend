@@ -28,6 +28,18 @@ public class LivestreamProduct {
     @Column(name = "product_id", nullable = false)
     private Long productId;
 
+    @Column(name = "product_name")
+    private String productName;
+
+    @Column(name = "product_image", columnDefinition = "TEXT")
+    private String productImage;
+
+    @Column(name = "restaurant_id")
+    private Long restaurantId;
+
+    @Column(name = "restaurant_name")
+    private String restaurantName;
+
     @Column(name = "price_at_live", precision = 12, scale = 2)
     private BigDecimal priceAtLive;
 
