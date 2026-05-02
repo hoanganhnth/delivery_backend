@@ -75,6 +75,10 @@ public class GatewayRouteConfig {
                                                 .filters(f -> f.filter(
                                                                 jwtFilter.apply(new JwtAuthenticationFilter.Config())))
                                                 .uri("http://localhost:8087"))
+                                .route("firebase-service", r -> r.path("/api/firebase/**")
+                                                .filters(f -> f.filter(
+                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config())))
+                                                .uri("http://localhost:8087"))
 
                                 .route("search-service", r -> r.path("/api/search/**")
                                                 .filters(f -> f.filter(
