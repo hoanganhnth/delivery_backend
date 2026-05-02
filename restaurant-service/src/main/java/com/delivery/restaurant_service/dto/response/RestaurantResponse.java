@@ -24,7 +24,5 @@ public class RestaurantResponse {
     private boolean open;
     private String image;
     private String description;
-    private Double latitude;
-    private Double longitude;
 
 }
