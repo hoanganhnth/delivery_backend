@@ -17,6 +17,7 @@ import com.delivery.order_service.repository.OrderRepository;
 import com.delivery.order_service.service.OrderEventPublisher;
 import com.delivery.order_service.service.OrderService;
 import com.delivery.order_service.service.OrderValidationService;
+import com.delivery.order_service.client.PromotionClient;
 import com.delivery.order_service.service.ShippingFeeCalculationService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -35,19 +36,22 @@ public class OrderServiceImpl implements OrderService {
     private final OrderEventPublisher orderEventPublisher;
     private final OrderValidationService orderValidationService;
     private final ShippingFeeCalculationService shippingFeeCalculationService;
+    private final PromotionClient promotionClient;
 
     public OrderServiceImpl(OrderRepository orderRepository, 
                            OrderItemRepository orderItemRepository,
                            OrderMapper orderMapper,
                            OrderEventPublisher orderEventPublisher,
                            OrderValidationService orderValidationService,
-                           ShippingFeeCalculationService shippingFeeCalculationService) {
+                           ShippingFeeCalculationService shippingFeeCalculationService,
+                           PromotionClient promotionClient) {
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
         this.orderMapper = orderMapper;
         this.orderEventPublisher = orderEventPublisher;
         this.orderValidationService = orderValidationService;
         this.shippingFeeCalculationService = shippingFeeCalculationService;
+        this.promotionClient = promotionClient;
     }
 
     @Override
@@ -114,6 +118,16 @@ public class OrderServiceImpl implements OrderService {
         
         orderItemRepository.saveAll(orderItems);
         savedOrder.setItems(orderItems);
+        
+        // ✅ Call Promotion Service to reserve vouchers (if any)
+        if (request.getVoucherIds() != null && !request.getVoucherIds().isEmpty()) {
+            boolean reserved = promotionClient.reserveVouchers(userId, savedOrder.getId(), request.getVoucherIds());
+            if (!reserved) {
+                // Should rollback or throw exception based on business requirement
+                // For now, let's log a warning or throw exception
+                throw new IllegalStateException("Failed to reserve selected vouchers");
+            }
+        }
         
         // ✅ Publish OrderCreatedEvent to Kafka for Delivery Service
         orderEventPublisher.publishOrderCreatedEvent(savedOrder);

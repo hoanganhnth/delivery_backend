@@ -12,6 +12,10 @@ public class CreateShipperRequest {
     private String idCard;
     private String driverImage;
     private String phone;
+    private String idCardFrontImage;
+    private String idCardBackImage;
+    private String licenseImage;
+    private String licensePlate;
 
     // Constructors
     public CreateShipperRequest() {}

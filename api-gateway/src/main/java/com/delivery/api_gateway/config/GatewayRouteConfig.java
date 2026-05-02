@@ -111,6 +111,11 @@ public class GatewayRouteConfig {
                                                                 jwtFilter.apply(new JwtAuthenticationFilter.Config())))
                                                 .uri("http://localhost:8095"))
 
+                                .route("promotion-service", r -> r.path("/api/promotions/**")
+                                                .filters(f -> f.filter(
+                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config())))
+                                                .uri("http://localhost:8096"))
+
                                 .build();
         }
 }

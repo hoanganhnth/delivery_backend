@@ -21,6 +21,10 @@ public class ShipperResponse {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private String phone;
+    private String idCardFrontImage;
+    private String idCardBackImage;
+    private String licenseImage;
+    private String licensePlate;
 
     // Constructors
     public ShipperResponse() {

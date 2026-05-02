@@ -30,6 +30,18 @@ public class Shipper {
     @Column(name = "driver_image", columnDefinition = "TEXT")
     private String driverImage;
 
+    @Column(name = "id_card_front_image", columnDefinition = "TEXT")
+    private String idCardFrontImage;
+
+    @Column(name = "id_card_back_image", columnDefinition = "TEXT")
+    private String idCardBackImage;
+
+    @Column(name = "license_image", columnDefinition = "TEXT")
+    private String licenseImage;
+
+    @Column(name = "license_plate", length = 20)
+    private String licensePlate;
+
     @Column(name = "is_online")
     private Boolean isOnline = false;
 
@@ -161,5 +173,38 @@ public class Shipper {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    // New document fields getters/setters
+    public String getIdCardFrontImage() {
+        return idCardFrontImage;
+    }
+
+    public void setIdCardFrontImage(String idCardFrontImage) {
+        this.idCardFrontImage = idCardFrontImage;
+    }
+
+    public String getIdCardBackImage() {
+        return idCardBackImage;
+    }
+
+    public void setIdCardBackImage(String idCardBackImage) {
+        this.idCardBackImage = idCardBackImage;
+    }
+
+    public String getLicenseImage() {
+        return licenseImage;
+    }
+
+    public void setLicenseImage(String licenseImage) {
+        this.licenseImage = licenseImage;
+    }
+
+    public String getLicensePlate() {
+        return licensePlate;
+    }
+
+    public void setLicensePlate(String licensePlate) {
+        this.licensePlate = licensePlate;
     }
 }

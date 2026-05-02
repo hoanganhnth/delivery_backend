@@ -7,6 +7,10 @@ public class UpdateShipperRequest {
     private String driverImage;
     private Boolean isOnline;
     private String phone;
+    private String idCardFrontImage;
+    private String idCardBackImage;
+    private String licenseImage;
+    private String licensePlate;
 
     // Constructors
     public UpdateShipperRequest() {
@@ -70,5 +74,37 @@ public class UpdateShipperRequest {
 
     public void setPhone(String phone) {
         this.phone = phone;
+    }
+
+    public String getIdCardFrontImage() {
+        return idCardFrontImage;
+    }
+
+    public void setIdCardFrontImage(String idCardFrontImage) {
+        this.idCardFrontImage = idCardFrontImage;
+    }
+
+    public String getIdCardBackImage() {
+        return idCardBackImage;
+    }
+
+    public void setIdCardBackImage(String idCardBackImage) {
+        this.idCardBackImage = idCardBackImage;
+    }
+
+    public String getLicenseImage() {
+        return licenseImage;
+    }
+
+    public void setLicenseImage(String licenseImage) {
+        this.licenseImage = licenseImage;
+    }
+
+    public String getLicensePlate() {
+        return licensePlate;
+    }
+
+    public void setLicensePlate(String licensePlate) {
+        this.licensePlate = licensePlate;
     }
 }

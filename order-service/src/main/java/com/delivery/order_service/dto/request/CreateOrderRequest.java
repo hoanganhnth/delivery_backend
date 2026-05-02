@@ -23,6 +23,7 @@ public class CreateOrderRequest {
     private String notes;
     private Double pickupLat;
     private Double pickupLng;
+    private List<Long> voucherIds;
     private List<OrderItemRequest> items;
 
     @Setter
