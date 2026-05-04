@@ -48,6 +48,12 @@ public class Restaurant {
     @Column(name = "address_lng", nullable = true)
     private Double addressLng;
 
+    @Column(name = "rating", columnDefinition = "DOUBLE PRECISION DEFAULT 0.0")
+    private Double rating = 0.0;
+
+    @Column(name = "rating_count", columnDefinition = "INTEGER DEFAULT 0")
+    private Integer ratingCount = 0;
+
     // @Transient
     // private boolean isOpen;
     //
@@ -90,6 +96,14 @@ public class Restaurant {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
     }
 
     public String getAddress() {
@@ -162,5 +176,21 @@ public class Restaurant {
 
     public void setAddressLng(Double addressLng) {
         this.addressLng = addressLng;
+    }
+
+    public Double getRating() {
+        return rating;
+    }
+
+    public void setRating(Double rating) {
+        this.rating = rating;
+    }
+
+    public Integer getRatingCount() {
+        return ratingCount;
+    }
+
+    public void setRatingCount(Integer ratingCount) {
+        this.ratingCount = ratingCount;
     }
 }

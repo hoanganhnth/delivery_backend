@@ -11,12 +11,16 @@ import java.time.LocalTime;
 public interface RestaurantMapper {
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "creatorId", ignore = true)
+    @Mapping(target = "rating", ignore = true)
+    @Mapping(target = "ratingCount", ignore = true)
     Restaurant toEntity(CreateRestaurantRequest request);
 
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
     @Mappings({
         @Mapping(target = "id", ignore = true),
-        @Mapping(target = "creatorId", ignore = true)
+        @Mapping(target = "creatorId", ignore = true),
+        @Mapping(target = "rating", ignore = true),
+        @Mapping(target = "ratingCount", ignore = true)
     })
     void updateEntityFromDto(UpdateRestaurantRequest request, @MappingTarget Restaurant restaurant);
 
