@@ -12,6 +12,10 @@ public interface RestaurantRatingRepository extends JpaRepository<RestaurantRati
     
     List<RestaurantRating> findByRestaurantId(Long restaurantId);
     
+    List<RestaurantRating> findByRestaurantIdAndStatus(Long restaurantId, com.delivery.restaurant_service.entity.RatingStatus status);
+    
+    List<RestaurantRating> findByStatus(com.delivery.restaurant_service.entity.RatingStatus status);
+    
     List<RestaurantRating> findByCustomerId(Long customerId);
     
     Optional<RestaurantRating> findByOrderId(Long orderId);

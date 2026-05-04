@@ -46,6 +46,22 @@ public class PromotionController {
         return ResponseEntity.ok("Collected successfully");
     }
 
+    @GetMapping("/merchant")
+    public ResponseEntity<java.util.List<Voucher>> listMerchantVouchers(@RequestHeader("X-User-Id") Long merchantId) {
+        return ResponseEntity.ok(promotionService.listMerchantVouchers(merchantId));
+    }
+
+    @GetMapping("/admin")
+    public ResponseEntity<java.util.List<Voucher>> listAllVouchers() {
+        return ResponseEntity.ok(promotionService.listAllVouchers());
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteVoucher(@PathVariable Long id) {
+        promotionService.deleteVoucher(id);
+        return ResponseEntity.ok().build();
+    }
+
     @PostMapping("/calculate")
     public ResponseEntity<CalculateResponse> calculate(@RequestBody CartContextRequest request) {
         return ResponseEntity.ok(promotionService.calculate(request));

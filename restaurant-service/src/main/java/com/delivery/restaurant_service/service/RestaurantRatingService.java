@@ -9,4 +9,6 @@ public interface RestaurantRatingService {
     RestaurantRatingResponse submitRating(Long restaurantId, Long customerId, RestaurantRatingRequest request);
     List<RestaurantRatingResponse> getRestaurantRatings(Long restaurantId);
     List<RestaurantRatingResponse> getMyRatings(Long customerId);
+    List<RestaurantRatingResponse> getAllRatings();
+    RestaurantRatingResponse updateRatingStatus(Long ratingId, String status);
 }

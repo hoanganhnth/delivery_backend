@@ -45,22 +45,10 @@ public class RestaurantRatingServiceImpl implements RestaurantRatingService {
         return mapToResponse(rating);
     }
 
-    private void updateRestaurantAverageRating(Restaurant restaurant) {
-        List<RestaurantRating> allRatings = ratingRepository.findByRestaurantId(restaurant.getId());
-        if (allRatings.isEmpty()) {
-            restaurant.setRating(0.0);
-            restaurant.setRatingCount(0);
-        } else {
-            double sum = allRatings.stream().mapToInt(RestaurantRating::getRating).sum();
-            restaurant.setRating(sum / allRatings.size());
-            restaurant.setRatingCount(allRatings.size());
-        }
-        restaurantRepository.save(restaurant);
-    }
 
     @Override
     public List<RestaurantRatingResponse> getRestaurantRatings(Long restaurantId) {
-        return ratingRepository.findByRestaurantId(restaurantId).stream()
+        return ratingRepository.findByRestaurantIdAndStatus(restaurantId, com.delivery.restaurant_service.entity.RatingStatus.APPROVED).stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
@@ -72,6 +60,44 @@ public class RestaurantRatingServiceImpl implements RestaurantRatingService {
                 .collect(Collectors.toList());
     }
 
+    @Override
+    public List<RestaurantRatingResponse> getAllRatings() {
+        return ratingRepository.findAll().stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public RestaurantRatingResponse updateRatingStatus(Long ratingId, String status) {
+        RestaurantRating rating = ratingRepository.findById(ratingId)
+                .orElseThrow(() -> new IllegalArgumentException("Rating not found with ID: " + ratingId));
+
+        com.delivery.restaurant_service.entity.RatingStatus newStatus = com.delivery.restaurant_service.entity.RatingStatus.valueOf(status.toUpperCase());
+        rating.setStatus(newStatus);
+        rating = ratingRepository.save(rating);
+
+        // Re-calculate average rating if status changed to/from APPROVED
+        Restaurant restaurant = restaurantRepository.findById(rating.getRestaurantId())
+                .orElseThrow(() -> new IllegalArgumentException("Restaurant not found"));
+        updateRestaurantAverageRating(restaurant);
+
+        return mapToResponse(rating);
+    }
+
+    private void updateRestaurantAverageRating(Restaurant restaurant) {
+        List<RestaurantRating> approvedRatings = ratingRepository.findByRestaurantIdAndStatus(restaurant.getId(), com.delivery.restaurant_service.entity.RatingStatus.APPROVED);
+        if (approvedRatings.isEmpty()) {
+            restaurant.setRating(0.0);
+            restaurant.setRatingCount(0);
+        } else {
+            double sum = approvedRatings.stream().mapToInt(RestaurantRating::getRating).sum();
+            restaurant.setRating(sum / approvedRatings.size());
+            restaurant.setRatingCount(approvedRatings.size());
+        }
+        restaurantRepository.save(restaurant);
+    }
+
     private RestaurantRatingResponse mapToResponse(RestaurantRating rating) {
         RestaurantRatingResponse response = new RestaurantRatingResponse();
         response.setId(rating.getId());
@@ -80,6 +106,7 @@ public class RestaurantRatingServiceImpl implements RestaurantRatingService {
         response.setOrderId(rating.getOrderId());
         response.setRating(rating.getRating());
         response.setComment(rating.getComment());
+        response.setStatus(rating.getStatus().name());
         response.setCreatedAt(rating.getCreatedAt());
         return response;
     }

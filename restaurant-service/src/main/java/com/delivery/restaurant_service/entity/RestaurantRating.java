@@ -31,6 +31,10 @@ public class RestaurantRating {
     @Column(name = "comment", columnDefinition = "TEXT")
     private String comment;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false)
+    private RatingStatus status = RatingStatus.PENDING;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 

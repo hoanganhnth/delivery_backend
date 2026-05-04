@@ -18,4 +18,6 @@ public interface VoucherRepository extends JpaRepository<Voucher, Long> {
             "AND v.endTime > :currentTime " +
             "AND (v.scopeType = 'ALL' OR (v.scopeType = 'SHOP' AND v.scopeRefId = :shopId))")
     List<Voucher> findAvailableForShop(Long shopId, LocalDateTime currentTime);
+
+    List<Voucher> findByCreatorTypeAndCreatorId(Voucher.CreatorType creatorType, Long creatorId);
 }

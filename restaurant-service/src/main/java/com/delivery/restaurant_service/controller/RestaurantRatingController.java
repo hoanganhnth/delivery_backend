@@ -40,4 +40,18 @@ public class RestaurantRatingController {
         List<RestaurantRatingResponse> responses = ratingService.getMyRatings(customerId);
         return ResponseEntity.ok(new BaseResponse<>(1, responses));
     }
+
+    @GetMapping("/admin/ratings")
+    public ResponseEntity<BaseResponse<List<RestaurantRatingResponse>>> getAllRatings() {
+        List<RestaurantRatingResponse> responses = ratingService.getAllRatings();
+        return ResponseEntity.ok(new BaseResponse<>(1, responses));
+    }
+
+    @PutMapping("/admin/ratings/{id}/status")
+    public ResponseEntity<BaseResponse<RestaurantRatingResponse>> updateRatingStatus(
+            @PathVariable Long id,
+            @RequestParam String status) {
+        RestaurantRatingResponse response = ratingService.updateRatingStatus(id, status);
+        return ResponseEntity.ok(new BaseResponse<>(1, response, "Cập nhật trạng thái đánh giá thành công"));
+    }
 }

@@ -11,5 +11,6 @@ public class RestaurantRatingResponse {
     private Long orderId;
     private Integer rating;
     private String comment;
+    private String status;
     private LocalDateTime createdAt;
 }

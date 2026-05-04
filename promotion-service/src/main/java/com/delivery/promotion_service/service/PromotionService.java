@@ -189,5 +189,21 @@ public class PromotionService {
             voucher.setUsedQuantity(voucher.getUsedQuantity() + 1);
             voucherRepository.save(voucher);
         }
+    @Transactional(readOnly = true)
+    public List<Voucher> listAllVouchers() {
+        return voucherRepository.findAll();
+    }
+
+    @Transactional(readOnly = true)
+    public List<Voucher> listMerchantVouchers(Long merchantId) {
+        return voucherRepository.findByCreatorTypeAndCreatorId(Voucher.CreatorType.MERCHANT, merchantId);
+    }
+
+    @Transactional
+    public void deleteVoucher(Long id) {
+        Voucher voucher = voucherRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Voucher not found"));
+        voucher.setActive(false);
+        voucherRepository.save(voucher);
     }
 }
