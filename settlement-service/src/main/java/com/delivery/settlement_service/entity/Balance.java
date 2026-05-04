@@ -59,21 +59,21 @@ public class Balance {
      * Shipper nạp trước. App trừ tiền COD thu hộ vào đây.
      */
     @Builder.Default
-    @Column(name = "deposit_balance", nullable = false, precision = 12, scale = 2)
+    @Column(name = "deposit_balance", nullable = false, precision = 12, scale = 2, columnDefinition = "decimal(12,2) default 0.00")
     private BigDecimal depositBalance = BigDecimal.ZERO;
 
     /**
      * Tổng tiền shipper đã nạp vào ví ký quỹ (thống kê, không bao giờ giảm)
      */
     @Builder.Default
-    @Column(name = "total_deposited", nullable = false, precision = 12, scale = 2)
+    @Column(name = "total_deposited", nullable = false, precision = 12, scale = 2, columnDefinition = "decimal(12,2) default 0.00")
     private BigDecimal totalDeposited = BigDecimal.ZERO;
 
     /**
      * Tổng tiền COD shipper đã thu (thống kê)
      */
     @Builder.Default
-    @Column(name = "total_cod_collected", nullable = false, precision = 12, scale = 2)
+    @Column(name = "total_cod_collected", nullable = false, precision = 12, scale = 2, columnDefinition = "decimal(12,2) default 0.00")
     private BigDecimal totalCodCollected = BigDecimal.ZERO;
 
     @Column(name = "created_at", updatable = false)

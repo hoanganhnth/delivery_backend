@@ -65,7 +65,7 @@ public class Transaction {
      * Giao dịch thuộc ví nào (EARNINGS hoặc DEPOSIT)
      */
     @Enumerated(EnumType.STRING)
-    @Column(name = "wallet_type", nullable = false, length = 20)
+    @Column(name = "wallet_type", nullable = false, length = 20, columnDefinition = "varchar(20) default 'EARNINGS'")
     @Builder.Default
     private WalletType walletType = WalletType.EARNINGS;
 

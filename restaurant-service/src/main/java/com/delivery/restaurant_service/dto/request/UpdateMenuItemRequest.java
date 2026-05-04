@@ -1,16 +1,26 @@
 package com.delivery.restaurant_service.dto.request;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.delivery.restaurant_service.entity.MenuItem;
 
 import java.math.BigDecimal;
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class UpdateMenuItemRequest {
     private String name;
     private String description;
     private BigDecimal price;
     private MenuItem.Status status; // AVAILABLE, SOLD_OUT, DISCONTINUED
     private String image;
-//    private Long restaurantId;
+    private Long restaurantId;
+
+    public Long getRestaurantId() {
+        return restaurantId;
+    }
+
+    public void setRestaurantId(Long restaurantId) {
+        this.restaurantId = restaurantId;
+    }
 
     public String getImage() {
         return image;
