@@ -37,6 +37,7 @@ public class OrderResponse {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private Long creatorId; // ID của chủ nhà hàng (restaurant owner)
+    private String cancelReason;
     private List<OrderItemResponse> items;
 
 

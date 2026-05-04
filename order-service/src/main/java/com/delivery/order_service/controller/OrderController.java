@@ -3,6 +3,7 @@ package com.delivery.order_service.controller;
 import com.delivery.order_service.common.constants.ApiPathConstants;
 import com.delivery.order_service.common.constants.HttpHeaderConstants;
 import com.delivery.order_service.dto.request.CheckoutPreviewRequest;
+import com.delivery.order_service.dto.request.CancelOrderRequest;
 import com.delivery.order_service.dto.request.CreateOrderRequest;
 import com.delivery.order_service.dto.request.UpdateOrderRequest;
 import com.delivery.order_service.dto.response.CheckoutPreviewResponse;
@@ -169,8 +170,10 @@ public class OrderController {
     public ResponseEntity<BaseResponse<OrderResponse>> cancelOrder(
             @PathVariable Long id,
             @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId,
-            @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
-        OrderResponse response = orderService.cancelOrder(id, userId, role);
+            @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role,
+            @RequestBody(required = false) CancelOrderRequest cancelRequest) {
+        String reason = cancelRequest != null ? cancelRequest.getReason() : null;
+        OrderResponse response = orderService.cancelOrder(id, userId, role, reason);
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Hủy đơn hàng thành công"));
     }
 

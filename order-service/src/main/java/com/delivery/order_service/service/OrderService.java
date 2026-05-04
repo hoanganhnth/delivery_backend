@@ -70,9 +70,9 @@ public interface OrderService {
     OrderResponse assignShipper(Long orderId, Long shipperId, Long userId, String role);
     
     /**
-     * Hủy đơn hàng (chỉ khi đơn hàng mới tạo và chưa được gán shipper)
+     * Hủy đơn hàng
      */
-    OrderResponse cancelOrder(Long orderId, Long userId, String role);
+    OrderResponse cancelOrder(Long orderId, Long userId, String role, String reason);
     
     /**
      * ✅ Cập nhật order status khi không tìm được shipper

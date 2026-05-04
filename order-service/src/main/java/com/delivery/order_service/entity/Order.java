@@ -79,6 +79,12 @@ public class Order {
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
 
+    @Column(name = "cancel_reason", columnDefinition = "TEXT")
+    private String cancelReason;
+
+    @Column(name = "cancelled_by")
+    private Long cancelledBy;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
