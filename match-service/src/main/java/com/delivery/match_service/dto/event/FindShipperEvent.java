@@ -41,4 +41,7 @@ public class FindShipperEvent {
     private Integer initialDelaySeconds;
     private Integer maxDelaySeconds;
     private Double backoffMultiplier;
+    
+    // ✅ NEW: Excluded shipper IDs (shippers who already rejected this order)
+    private java.util.List<Long> excludedShipperIds;
 }

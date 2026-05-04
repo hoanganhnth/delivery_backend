@@ -125,6 +125,27 @@ public class KafkaEventListener {
         }
     }
 
+    /**
+     * ✅ NEW: Shipper rejected → Saga re-triggers find shipper (re-assign)
+     */
+    @KafkaListener(topics = "delivery.shipper-rejected", groupId = "saga-orchestrator")
+    public void handleShipperRejected(String message, Acknowledgment ack) {
+        try {
+            JsonNode json = objectMapper.readTree(message);
+            Long orderId = extractLong(json, "orderId");
+            Long deliveryId = extractLong(json, "deliveryId");
+            Long rejectedShipperId = extractLong(json, "rejectedShipperId");
+            log.info("📥 [Saga] delivery.shipper-rejected — orderId={}, rejectedShipperId={}", orderId, rejectedShipperId);
+
+            sagaManager.handleShipperRejected(orderId, deliveryId, rejectedShipperId, message);
+            ack.acknowledge();
+
+        } catch (Exception e) {
+            log.error("💥 [Saga] Error processing delivery.shipper-rejected: {}", e.getMessage(), e);
+            ack.acknowledge();
+        }
+    }
+
     // ==================== MATCH RESULT EVENTS ====================
 
     @KafkaListener(topics = "shipper.found", groupId = "saga-orchestrator")

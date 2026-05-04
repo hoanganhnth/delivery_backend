@@ -2,6 +2,7 @@ package com.delivery.delivery_service.service.impl;
 
 // ❌ TrackingServiceClient removed — replaced by Kafka events
 
+import com.delivery.delivery_service.common.constants.KafkaTopicConstants;
 import com.delivery.delivery_service.common.constants.RoleConstants;
 import com.delivery.delivery_service.dto.event.FindShipperEvent;
 import com.delivery.delivery_service.dto.event.MatchAcceptedEvent;
@@ -252,13 +253,13 @@ public class DeliveryServiceImpl implements DeliveryService {
                     shipperId, "BUSY", delivery.getId(), delivery.getOrderId());
 
         } else if (ShipperActionConstants.REJECT.equals(request.getAction())) {
-            // REJECT logic - không assign shipper, reset lại status
+            // REJECT logic - không assign shipper, reset lại status để tìm shipper mới
             delivery.setShipperId(null);
-            delivery.setStatus(DeliveryStatus.PENDING);
+            delivery.setStatus(DeliveryStatus.FINDING_SHIPPER);
             delivery.setUpdatedAt(LocalDateTime.now());
             delivery.setRejectReason(request.getRejectReason());
 
-            log.info("❌ Shipper {} REJECTED order {} - Reason: {}",
+            log.info("❌ Shipper {} REJECTED order {} - Reason: {} → Status reset to FINDING_SHIPPER for re-assignment",
                     shipperId, request.getOrderId(), request.getRejectReason());
         }
 
@@ -573,36 +574,39 @@ public class DeliveryServiceImpl implements DeliveryService {
     }
 
     /**
-     * ✅ Publish MatchRejectedEvent khi shipper reject đơn
+     * ✅ Publish ShipperRejectedEvent khi shipper reject đơn
+     * Gửi đến topic riêng 'delivery.shipper-rejected' để Saga re-trigger tìm shipper mới
      */
     private void publishMatchRejectedEvent(Delivery delivery, Long shipperId, AcceptDeliveryRequest request) {
         try {
             log.info("📤 Publishing ShipperRejectedEvent for delivery {}, shipper {}",
                     delivery.getId(), shipperId);
 
-            // Create rejection event - reuse MatchAcceptedEvent structure
-            MatchAcceptedEvent event = MatchAcceptedEvent.builder()
-                    .orderId(delivery.getOrderId())
-                    .deliveryId(delivery.getId())
-                    .shipperId(shipperId)
-                    .shipperName("Shipper " + shipperId)
-                    .shipperPhone("N/A")
-                    .eventType("SHIPPER_REJECTED") // Different event type for rejection
-                    .estimatedTime(0) // No pickup time for rejected
-                    .pickupAddress(delivery.getPickupAddress())
-                    .deliveryAddress(delivery.getDeliveryAddress())
-                    .notes(request.getRejectReason()) // Use reject reason as notes
-                    .timestamp(LocalDateTime.now())
-                    .build();
+            java.util.Map<String, Object> rejectedEvent = new java.util.HashMap<>();
+            rejectedEvent.put("orderId", delivery.getOrderId());
+            rejectedEvent.put("deliveryId", delivery.getId());
+            rejectedEvent.put("rejectedShipperId", shipperId);
+            rejectedEvent.put("rejectReason", request.getRejectReason());
+            rejectedEvent.put("pickupAddress", delivery.getPickupAddress());
+            rejectedEvent.put("pickupLat", delivery.getPickupLat());
+            rejectedEvent.put("pickupLng", delivery.getPickupLng());
+            rejectedEvent.put("deliveryAddress", delivery.getDeliveryAddress());
+            rejectedEvent.put("deliveryLat", delivery.getDeliveryLat());
+            rejectedEvent.put("deliveryLng", delivery.getDeliveryLng());
+            rejectedEvent.put("eventType", "SHIPPER_REJECTED");
+            rejectedEvent.put("timestamp", System.currentTimeMillis());
 
-            // For now, use same event with different status
-            deliveryEventPublisher.publishShipperAcceptedEvent(event);
+            kafkaTemplate.send(
+                    KafkaTopicConstants.SHIPPER_REJECTED_TOPIC,
+                    delivery.getOrderId().toString(),
+                    rejectedEvent);
 
-            log.info("📤 Published ShipperRejectedEvent for delivery {}, shipper {} - Reason: {}",
+            log.info("📤 Published ShipperRejectedEvent to topic '{}' for delivery {}, shipper {} - Reason: {}",
+                    KafkaTopicConstants.SHIPPER_REJECTED_TOPIC,
                     delivery.getId(), shipperId, request.getRejectReason());
 
         } catch (Exception e) {
-            log.error("💥 Failed to publish MatchRejectedEvent for delivery {}: {}",
+            log.error("💥 Failed to publish ShipperRejectedEvent for delivery {}: {}",
                     delivery.getId(), e.getMessage(), e);
             // Don't fail main operation if event publishing fails
         }

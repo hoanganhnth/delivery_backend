@@ -2,6 +2,7 @@ package com.delivery.saga_orchestrator_service.service;
 
 import com.delivery.saga_orchestrator_service.entity.SagaInstance;
 import com.delivery.saga_orchestrator_service.entity.SagaInstance.SagaStatus;
+import com.delivery.saga_orchestrator_service.entity.SagaStep;
 import com.delivery.saga_orchestrator_service.repository.SagaInstanceRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -175,6 +176,88 @@ public class SagaManager {
         sendOrderStatusCommand(orderId, "SHIPPER_ASSIGNED", rawEvent);
 
         log.info("📤 [Saga] Shipper {} assigned, sent update-order for orderId={}", shipperId, orderId);
+    }
+
+    /**
+     * Step 4b: delivery.shipper-rejected → Re-trigger tìm shipper mới (loại trừ shipper đã reject)
+     */
+    @Transactional
+    public void handleShipperRejected(Long orderId, Long deliveryId, Long rejectedShipperId, String rawEvent) {
+        SagaInstance saga = findSagaByOrderId(orderId);
+        if (saga == null) return;
+
+        // Đếm số lần shipper đã reject cho đơn này
+        long rejectCount = saga.getSteps().stream()
+                .filter(s -> s.getStepName().startsWith("SHIPPER_REJECTED"))
+                .count() + 1;
+
+        // Giới hạn tối đa 5 lần re-assign
+        if (rejectCount > 5) {
+            log.warn("🚨 [Saga] Too many shipper rejections ({}) for orderId={}, failing saga", rejectCount, orderId);
+            saga.setStatus(SagaStatus.FAILED);
+            saga.setCompletedAt(LocalDateTime.now());
+            saga.addStep("SHIPPER_REJECTED_LIMIT", "delivery.shipper-rejected", rawEvent);
+            sagaInstanceRepository.save(saga);
+
+            sendCommand(CMD_CANCEL_DELIVERY, orderId.toString(), rawEvent);
+            sendOrderStatusCommand(orderId, "SHIPPER_NOT_FOUND", rawEvent);
+            return;
+        }
+
+        saga.setStatus(SagaStatus.FINDING_SHIPPER);
+        saga.addStep("SHIPPER_REJECTED_" + rejectCount, "delivery.shipper-rejected", rawEvent);
+        sagaInstanceRepository.save(saga);
+
+        log.info("🔄 [Saga] Shipper {} rejected orderId={} (attempt {}), re-triggering find-shipper",
+                rejectedShipperId, orderId, rejectCount);
+
+        // ✅ Collect all rejected shipper IDs from saga steps
+        java.util.List<Long> excludedShipperIds = new java.util.ArrayList<>();
+        if (rejectedShipperId != null) {
+            excludedShipperIds.add(rejectedShipperId);
+        }
+        // Also extract from previous rejection steps
+        for (SagaStep step : saga.getSteps()) {
+            if (step.getStepName().startsWith("SHIPPER_REJECTED") && step.getEventData() != null) {
+                try {
+                    com.fasterxml.jackson.databind.JsonNode stepData = objectMapper.readTree(step.getEventData());
+                    if (stepData.has("rejectedShipperId")) {
+                        Long prevRejected = stepData.get("rejectedShipperId").asLong();
+                        if (!excludedShipperIds.contains(prevRejected)) {
+                            excludedShipperIds.add(prevRejected);
+                        }
+                    }
+                } catch (Exception ignored) {}
+            }
+        }
+
+        try {
+            // ✅ Enrich payload with excludedShipperIds + retry settings for match-service
+            ObjectNode payloadNode = (ObjectNode) objectMapper.readTree(rawEvent);
+            payloadNode.put("maxRetryAttempts", 5);
+            payloadNode.put("initialDelaySeconds", 15);
+            payloadNode.put("maxDelaySeconds", 120);
+            payloadNode.put("backoffMultiplier", 1.5);
+
+            // Add excluded shipper IDs
+            com.fasterxml.jackson.databind.node.ArrayNode excludedArray = objectMapper.createArrayNode();
+            for (Long id : excludedShipperIds) {
+                excludedArray.add(id);
+            }
+            payloadNode.set("excludedShipperIds", excludedArray);
+
+            String modifiedEvent = objectMapper.writeValueAsString(payloadNode);
+            sendCommand(CMD_FIND_SHIPPER, orderId.toString(), modifiedEvent);
+
+            log.info("📤 [Saga] Re-sent {} for orderId={} with excludedShippers={}", 
+                    CMD_FIND_SHIPPER, orderId, excludedShipperIds);
+        } catch (Exception e) {
+            log.error("💥 [Saga] Failed to re-send find-shipper command for orderId={}", orderId, e);
+            sendCommand(CMD_FIND_SHIPPER, orderId.toString(), rawEvent);
+        }
+
+        // ✅ Update order status to let frontend know we're re-searching
+        sendOrderStatusCommand(orderId, "FINDING_SHIPPER", rawEvent);
     }
 
     /**

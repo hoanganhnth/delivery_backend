@@ -22,6 +22,9 @@ public class KafkaTopicConstants {
     
     // ✅ NEW: Thay thế REST call đến tracking-service
     public static final String SHIPPER_STATUS_CHANGE_TOPIC = "shipper.status-change";
+
+    // ✅ NEW: Shipper rejected event — triggers re-assignment flow
+    public static final String SHIPPER_REJECTED_TOPIC = "delivery.shipper-rejected";
     
     private KafkaTopicConstants() {
         // Utility class

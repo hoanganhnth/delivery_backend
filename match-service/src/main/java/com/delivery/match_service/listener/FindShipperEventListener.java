@@ -157,17 +157,34 @@ public class FindShipperEventListener {
                                         }
                                         return Mono.just(shippers);
                                 })
-                                .flatMap(shippers -> {
-                                        if (shippers != null && !shippers.isEmpty()) {
-                                                // ✅ Tìm thấy shipper, trả về kết quả
-                                                return Mono.just(shippers);
-                                        } else {
-                                                // ✅ Không tìm thấy shipper, trigger retry
+                .flatMap(shippers -> {
+                        if (shippers != null && !shippers.isEmpty()) {
+                                // ✅ Filter out excluded shippers (previously rejected this order)
+                                java.util.List<Long> excluded = event.getExcludedShipperIds();
+                                if (excluded != null && !excluded.isEmpty()) {
+                                        List<NearbyShipperResponse> filtered = shippers.stream()
+                                                .filter(s -> !excluded.contains(s.getShipperId()))
+                                                .collect(java.util.stream.Collectors.toList());
+                                        
+                                        log.info("🔍 Filtered shippers: {} total, {} excluded, {} remaining for delivery: {}",
+                                                shippers.size(), excluded.size(), filtered.size(), event.getDeliveryId());
+                                        
+                                        if (filtered.isEmpty()) {
                                                 return Mono.error(
-                                                                new RuntimeException("No shippers found for delivery: "
-                                                                                + event.getDeliveryId()));
+                                                        new RuntimeException("No shippers found for delivery: "
+                                                                + event.getDeliveryId() + " (all filtered by exclusion list)"));
                                         }
-                                })
+                                        return Mono.just(filtered);
+                                }
+                                // ✅ Tìm thấy shipper, trả về kết quả
+                                return Mono.just(shippers);
+                        } else {
+                                // ✅ Không tìm thấy shipper, trigger retry
+                                return Mono.error(
+                                                new RuntimeException("No shippers found for delivery: "
+                                                                + event.getDeliveryId()));
+                        }
+                })
                                 .retryWhen(Retry.backoff(maxRetries, Duration.ofSeconds(initialDelay))
                                                 .maxBackoff(Duration.ofSeconds(maxDelay))
                                                 .multiplier(backoffMulti)
