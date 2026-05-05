@@ -8,6 +8,7 @@ import com.delivery.shipper_service.exception.ResourceNotFoundException;
 import com.delivery.shipper_service.mapper.ShipperMapper;
 import com.delivery.shipper_service.repository.ShipperRepository;
 import com.delivery.shipper_service.service.ShipperService;
+import com.delivery.shipper_service.service.SearchSyncPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,11 +21,14 @@ public class ShipperServiceImpl implements ShipperService {
 
     private final ShipperRepository shipperRepository;
     private final ShipperMapper shipperMapper;
+    private final SearchSyncPublisher searchSyncPublisher;
 
     public ShipperServiceImpl(ShipperRepository shipperRepository,
-            ShipperMapper shipperMapper) {
+            ShipperMapper shipperMapper,
+            SearchSyncPublisher searchSyncPublisher) {
         this.shipperRepository = shipperRepository;
         this.shipperMapper = shipperMapper;
+        this.searchSyncPublisher = searchSyncPublisher;
     }
 
     @Override
@@ -52,7 +56,9 @@ public class ShipperServiceImpl implements ShipperService {
         // Tự động tạo balance cho shipper mới - sử dụng userId không phải
         // shipper.getId()
 
-        
+        // 🔥 Publish sync event for search service
+        searchSyncPublisher.publishShipperChange(savedShipper, "CREATE");
+
         return shipperMapper.toResponse(savedShipper);
     }
 
@@ -78,6 +84,10 @@ public class ShipperServiceImpl implements ShipperService {
 
         shipperMapper.updateEntityFromRequest(request, shipper);
         Shipper savedShipper = shipperRepository.save(shipper);
+        
+        // 🔥 Publish sync event for search service
+        searchSyncPublisher.publishShipperChange(savedShipper, "UPDATE");
+        
         return shipperMapper.toResponse(savedShipper);
     }
 
@@ -86,6 +96,10 @@ public class ShipperServiceImpl implements ShipperService {
     public void deleteShipperByUserId(Long userId) {
         Shipper shipper = shipperRepository.findByUserId(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy shipper của user với ID: " + userId));
+        
+        // 🔥 Publish sync event for search service
+        searchSyncPublisher.publishShipperChange(shipper, "DELETE");
+        
         shipperRepository.delete(shipper);
     }
 
@@ -97,6 +111,10 @@ public class ShipperServiceImpl implements ShipperService {
 
         shipper.setIsOnline(isOnline);
         Shipper savedShipper = shipperRepository.save(shipper);
+        
+        // 🔥 Publish sync event for search service
+        searchSyncPublisher.publishShipperChange(savedShipper, "UPDATE");
+        
         return shipperMapper.toResponse(savedShipper);
     }
 

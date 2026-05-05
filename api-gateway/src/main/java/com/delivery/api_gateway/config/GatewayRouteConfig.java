@@ -24,6 +24,8 @@ public class GatewayRouteConfig {
                                                 "/api/auth/logout",
                                                 "/api/auth/accounts/email/**")
                                                 .uri("http://localhost:8081"))
+                                .route("search-service-public", r -> r.path("/api/search/**")
+                                                .uri("http://localhost:8088"))
 
                                 // Protected auth endpoints (JWT required)
                                 .route("auth-service-protected", r -> r.path("/api/auth/**")
@@ -80,10 +82,7 @@ public class GatewayRouteConfig {
                                                                 jwtFilter.apply(new JwtAuthenticationFilter.Config())))
                                                 .uri("http://localhost:8087"))
 
-                                .route("search-service", r -> r.path("/api/search/**")
-                                                .filters(f -> f.filter(
-                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config())))
-                                                .uri("http://localhost:8088"))
+
 
                                 .route("saga-orchestrator", r -> r.path("/api/orchestrator/**")
                                                 .filters(f -> f.filter(

@@ -12,6 +12,7 @@ import com.delivery.restaurant_service.repository.MenuItemRepository;
 import com.delivery.restaurant_service.repository.RestaurantRepository;
 import com.delivery.restaurant_service.service.MenuItemService;
 import com.delivery.restaurant_service.service.RestaurantCacheService;
+import com.delivery.restaurant_service.service.SearchSyncPublisher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
@@ -29,6 +30,7 @@ public class MenuItemServiceImpl implements MenuItemService {
     private final MenuItemMapper menuItemMapper;
     private final RestaurantRepository restaurantRepository;
     private final RestaurantCacheService restaurantCacheService;
+    private final SearchSyncPublisher searchSyncPublisher;
 
     @Override
     public MenuItemResponse createMenuItem(CreateMenuItemRequest request, Long creatorId, String role) {
@@ -59,6 +61,9 @@ public class MenuItemServiceImpl implements MenuItemService {
             log.warn("⚠️ Failed to cache menu item after creation: {}", e.getMessage());
         }
         
+        // 🔥 Publish sync event for search service
+        searchSyncPublisher.publishDishChange(saved, "CREATE");
+        
         return menuItemMapper.toResponse(saved);
     }
 
@@ -79,6 +84,9 @@ public class MenuItemServiceImpl implements MenuItemService {
             log.warn("⚠️ Failed to update cache after menu item update: {}", e.getMessage());
         }
         
+        // 🔥 Publish sync event for search service
+        searchSyncPublisher.publishDishChange(updated, "UPDATE");
+        
         return menuItemMapper.toResponse(updated);
     }
 
@@ -96,6 +104,9 @@ public class MenuItemServiceImpl implements MenuItemService {
         } catch (Exception e) {
             log.warn("⚠️ Failed to remove menu item from cache: {}", e.getMessage());
         }
+
+        // 🔥 Publish sync event for search service
+        searchSyncPublisher.publishDishChange(item, "DELETE");
 
         menuItemRepository.delete(item);
     }
@@ -141,6 +152,9 @@ public class MenuItemServiceImpl implements MenuItemService {
         } catch (Exception e) {
             log.warn("⚠️ Failed to update menu item availability in cache: {}", e.getMessage());
         }
+        
+        // 🔥 Publish sync event for search service
+        searchSyncPublisher.publishDishChange(item, "UPDATE");
     }
 
     private void checkPermission(MenuItem item, Long creatorId) {

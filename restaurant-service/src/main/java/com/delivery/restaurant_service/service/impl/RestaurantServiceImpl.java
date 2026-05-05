@@ -11,6 +11,7 @@ import com.delivery.restaurant_service.repository.RestaurantRepository;
 import com.delivery.restaurant_service.service.RestaurantService;
 import com.delivery.restaurant_service.service.RestaurantCacheService;
 import com.delivery.restaurant_service.service.RestaurantCatalogService;
+import com.delivery.restaurant_service.service.SearchSyncPublisher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
@@ -29,6 +30,7 @@ public class RestaurantServiceImpl implements RestaurantService {
     private final RestaurantMapper restaurantMapper;
     private final RestaurantCacheService restaurantCacheService;
     private final RestaurantCatalogService restaurantCatalogService;
+    private final SearchSyncPublisher searchSyncPublisher;
 
     @Override
     public RestaurantResponse createRestaurant(CreateRestaurantRequest request,
@@ -64,6 +66,9 @@ public class RestaurantServiceImpl implements RestaurantService {
             log.warn("⚠️ Failed to cache restaurant after creation: {}", e.getMessage());
         }
 
+        // 🔥 Publish sync event for search service
+        searchSyncPublisher.publishRestaurantChange(saved, "CREATE");
+
         return restaurantMapper.toResponse(saved);
     }
 
@@ -87,6 +92,9 @@ public class RestaurantServiceImpl implements RestaurantService {
             log.warn("⚠️ Failed to update cache after restaurant update: {}", e.getMessage());
         }
 
+        // 🔥 Publish sync event for search service
+        searchSyncPublisher.publishRestaurantChange(updated, "UPDATE");
+
         return restaurantMapper.toResponse(updated);
     }
 
@@ -107,6 +115,9 @@ public class RestaurantServiceImpl implements RestaurantService {
         } catch (Exception e) {
             log.warn("⚠️ Failed to remove restaurant from cache: {}", e.getMessage());
         }
+
+        // 🔥 Publish sync event for search service
+        searchSyncPublisher.publishRestaurantChange(restaurant, "DELETE");
 
         restaurantRepository.deleteById(id);
     }
