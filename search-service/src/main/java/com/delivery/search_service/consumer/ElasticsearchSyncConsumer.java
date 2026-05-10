@@ -11,6 +11,7 @@ import com.delivery.search_service.service.SearchCacheService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
 
@@ -21,9 +22,9 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class ElasticsearchSyncConsumer {
 
-    private final RestaurantSearchRepository restaurantRepository;
-    private final DishSearchRepository dishRepository;
-    private final ShipperSearchRepository shipperRepository;
+    private final ObjectProvider<RestaurantSearchRepository> restaurantRepository;
+    private final ObjectProvider<DishSearchRepository> dishRepository;
+    private final ObjectProvider<ShipperSearchRepository> shipperRepository;
     private final SearchCacheService searchCacheService;
     private final ObjectMapper objectMapper;
 
@@ -55,8 +56,13 @@ public class ElasticsearchSyncConsumer {
     }
 
     private void handleRestaurantSync(EntitySyncEvent event) {
+        if (restaurantRepository.getIfAvailable() == null) {
+            log.debug("Skipping restaurant sync because Elasticsearch is disabled");
+            return;
+        }
+
         if ("DELETE".equalsIgnoreCase(event.getAction())) {
-            restaurantRepository.deleteById(event.getEntityId());
+            restaurantRepository.getIfAvailable().deleteById(event.getEntityId());
             return;
         }
         
@@ -64,13 +70,18 @@ public class ElasticsearchSyncConsumer {
         if (payload != null) {
             RestaurantDocument doc = objectMapper.convertValue(payload, RestaurantDocument.class);
             doc.setId(event.getEntityId());
-            restaurantRepository.save(doc);
+            restaurantRepository.getIfAvailable().save(doc);
         }
     }
 
     private void handleDishSync(EntitySyncEvent event) {
+        if (dishRepository.getIfAvailable() == null) {
+            log.debug("Skipping dish sync because Elasticsearch is disabled");
+            return;
+        }
+
         if ("DELETE".equalsIgnoreCase(event.getAction())) {
-            dishRepository.deleteById(event.getEntityId());
+            dishRepository.getIfAvailable().deleteById(event.getEntityId());
             return;
         }
         
@@ -78,13 +89,18 @@ public class ElasticsearchSyncConsumer {
         if (payload != null) {
             DishDocument doc = objectMapper.convertValue(payload, DishDocument.class);
             doc.setId(event.getEntityId());
-            dishRepository.save(doc);
+            dishRepository.getIfAvailable().save(doc);
         }
     }
 
     private void handleShipperSync(EntitySyncEvent event) {
+        if (shipperRepository.getIfAvailable() == null) {
+            log.debug("Skipping shipper sync because Elasticsearch is disabled");
+            return;
+        }
+
         if ("DELETE".equalsIgnoreCase(event.getAction())) {
-            shipperRepository.deleteById(event.getEntityId());
+            shipperRepository.getIfAvailable().deleteById(event.getEntityId());
             return;
         }
         
@@ -92,7 +108,7 @@ public class ElasticsearchSyncConsumer {
         if (payload != null) {
             ShipperDocument doc = objectMapper.convertValue(payload, ShipperDocument.class);
             doc.setId(event.getEntityId());
-            shipperRepository.save(doc);
+            shipperRepository.getIfAvailable().save(doc);
         }
     }
 }

@@ -8,6 +8,7 @@ import com.delivery.search_service.repository.RestaurantSearchRepository;
 import com.delivery.search_service.repository.ShipperSearchRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -19,9 +20,9 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class SearchService {
 
-    private final RestaurantSearchRepository restaurantRepository;
-    private final DishSearchRepository dishRepository;
-    private final ShipperSearchRepository shipperRepository;
+    private final ObjectProvider<RestaurantSearchRepository> restaurantRepository;
+    private final ObjectProvider<DishSearchRepository> dishRepository;
+    private final ObjectProvider<ShipperSearchRepository> shipperRepository;
     private final SearchCacheService cacheService;
 
     @SuppressWarnings("unchecked")
@@ -33,7 +34,11 @@ public class SearchService {
             return (Page<RestaurantDocument>) cached.get();
         }
 
-        Page<RestaurantDocument> results = restaurantRepository.findByNameOrDescription(query, query, pageable);
+        if (restaurantRepository.getIfAvailable() == null) {
+            log.warn("Elasticsearch is disabled. Returning empty results for restaurant search.");
+            return Page.empty();
+        }
+        Page<RestaurantDocument> results = restaurantRepository.getIfAvailable().findByNameOrDescription(query, query, pageable);
         cacheService.put(cacheKey, results);
         return results;
     }
@@ -47,7 +52,11 @@ public class SearchService {
             return (Page<DishDocument>) cached.get();
         }
 
-        Page<DishDocument> results = dishRepository.findByNameOrDescription(query, query, pageable);
+        if (dishRepository.getIfAvailable() == null) {
+            log.warn("Elasticsearch is disabled. Returning empty results for dish search.");
+            return Page.empty();
+        }
+        Page<DishDocument> results = dishRepository.getIfAvailable().findByNameOrDescription(query, query, pageable);
         cacheService.put(cacheKey, results);
         return results;
     }
@@ -61,7 +70,11 @@ public class SearchService {
             return (Page<ShipperDocument>) cached.get();
         }
 
-        Page<ShipperDocument> results = shipperRepository.findByName(query, pageable);
+        if (shipperRepository.getIfAvailable() == null) {
+            log.warn("Elasticsearch is disabled. Returning empty results for shipper search.");
+            return Page.empty();
+        }
+        Page<ShipperDocument> results = shipperRepository.getIfAvailable().findByName(query, pageable);
         cacheService.put(cacheKey, results);
         return results;
     }

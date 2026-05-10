@@ -1,0 +1,285 @@
+
+services:
+  # --- HẠ TẦNG (INFRASTRUCTURE) ---
+  postgres:
+    image: postgres:16-alpine
+    container_name: delivery-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 123
+    volumes:
+      - ./docker/postgres/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+      - postgres_data:/var/lib/postgresql/data
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    networks:
+      - delivery-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: delivery-redis
+    ports:
+      - "6379:6379"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    networks:
+      - delivery-network
+
+  # ✅ KAFKA TRONG CHẾ ĐỘ KRAFT (KHÔNG CẦN ZOOKEEPER)
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: delivery-kafka
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:9093'
+      KAFKA_LISTENERS: 'PLAINTEXT://kafka:9092,CONTROLLER://kafka:9093,PLAINTEXT_HOST://0.0.0.0:29092'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092'
+      KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT'
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      # UUID định danh Cluster (đã tạo sẵn cho bạn)
+      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+    networks:
+      - delivery-network
+
+  elasticsearch:
+    image: elasticsearch:7.17.10
+    container_name: delivery-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+    networks:
+      - delivery-network
+
+  # --- MICROSERVICES ---
+  api-gateway:
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: api-gateway } }
+    container_name: api-gateway
+    ports: ["8079:8079"]
+    environment: { JAVA_OPTS: "-Xmx384m -Xms256m" }
+    deploy: { resources: { limits: { memory: 512M } } }
+    networks: [delivery-network]
+
+  auth-service:
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: auth-service } }
+    container_name: auth-service
+    ports: ["8081:8081"]
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/auth_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: 123
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      JAVA_OPTS: "-Xmx384m -Xms256m"
+    deploy: { resources: { limits: { memory: 512M } } }
+    depends_on: [postgres, kafka]
+    networks: [delivery-network]
+
+  user-service:
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: user-service } }
+    container_name: user-service
+    ports: ["8082:8082"]
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/user_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: 123
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      JAVA_OPTS: "-Xmx384m -Xms256m"
+    deploy: { resources: { limits: { memory: 512M } } }
+    depends_on: [postgres, kafka]
+    networks: [delivery-network]
+
+  restaurant-service:
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: restaurant-service } }
+    container_name: restaurant-service
+    ports: ["8083:8083"]
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/restaurant_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: 123
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      JAVA_OPTS: "-Xmx384m -Xms256m"
+    deploy: { resources: { limits: { memory: 512M } } }
+    depends_on: [postgres, kafka]
+    networks: [delivery-network]
+
+  order-service:
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: order-service } }
+    container_name: order-service
+    ports: ["8084:8084"]
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/order_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: 123
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      JAVA_OPTS: "-Xmx384m -Xms256m"
+    deploy: { resources: { limits: { memory: 512M } } }
+    depends_on: [postgres, kafka]
+    networks: [delivery-network]
+
+  delivery-service:
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: delivery-service } }
+    container_name: delivery-service
+    ports: ["8085:8085"]
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/delivery_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: 123
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      SPRING_REDIS_HOST: redis
+      JAVA_OPTS: "-Xmx384m -Xms256m"
+    deploy: { resources: { limits: { memory: 512M } } }
+    depends_on: [postgres, kafka, redis]
+    networks: [delivery-network]
+
+  search-service:
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: search-service } }
+    container_name: search-service
+    ports: ["8088:8088"]
+    environment:
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      SPRING_ELASTICSEARCH_URIS: http://elasticsearch:9200
+      SPRING_REDIS_HOST: redis
+      APP_ELASTICSEARCH_ENABLED: "true"
+      JAVA_OPTS: "-Xmx384m -Xms256m"
+    deploy: { resources: { limits: { memory: 512M } } }
+    depends_on: [kafka, elasticsearch, redis]
+    networks: [delivery-network]
+
+  shipper-service:
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: shipper-service } }
+    container_name: shipper-service
+    ports: ["8089:8089"]
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/shipper_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: 123
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      JAVA_OPTS: "-Xmx384m -Xms256m"
+    deploy: { resources: { limits: { memory: 512M } } }
+    depends_on: [postgres, kafka]
+    networks: [delivery-network]
+
+  settlement-service:
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: settlement-service } }
+    container_name: settlement-service
+    ports: ["8090:8090"]
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/settlement_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: 123
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      JAVA_OPTS: "-Xmx384m -Xms256m"
+    deploy: { resources: { limits: { memory: 512M } } }
+    depends_on: [postgres, kafka]
+    networks: [delivery-network]
+
+  notification-service:
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: notification-service } }
+    container_name: notification-service
+    ports: ["8091:8091"]
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/notification_service_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: 123
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      JAVA_OPTS: "-Xmx384m -Xms256m"
+    deploy: { resources: { limits: { memory: 512M } } }
+    depends_on: [postgres, kafka]
+    networks: [delivery-network]
+
+  match-service:
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: match-service } }
+    container_name: match-service
+    ports: ["8092:8092"]
+    environment:
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      JAVA_OPTS: "-Xmx384m -Xms256m"
+    deploy: { resources: { limits: { memory: 512M } } }
+    depends_on: [kafka]
+    networks: [delivery-network]
+
+  tracking-service:
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: tracking-service } }
+    container_name: tracking-service
+    ports: ["8093:8093"]
+    environment:
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      JAVA_OPTS: "-Xmx384m -Xms256m"
+    deploy: { resources: { limits: { memory: 512M } } }
+    depends_on: [kafka]
+    networks: [delivery-network]
+
+  livestream-service:
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: livestream-service } }
+    container_name: livestream-service
+    ports: ["8094:8094"]
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/livestream_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: 123
+      JAVA_OPTS: "-Xmx384m -Xms256m"
+    deploy: { resources: { limits: { memory: 512M } } }
+    depends_on: [postgres]
+    networks: [delivery-network]
+
+  saga-orchestrator-service:
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: saga-orchestrator-service } }
+    container_name: saga-orchestrator-service
+    ports: ["8095:8095"]
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/saga_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: 123
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      JAVA_OPTS: "-Xmx384m -Xms256m"
+    deploy: { resources: { limits: { memory: 512M } } }
+    depends_on: [postgres, kafka]
+    networks: [delivery-network]
+
+  promotion-service:
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: promotion-service } }
+    container_name: promotion-service
+    ports: ["8096:8096"]
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/delivery_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: 123
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      JAVA_OPTS: "-Xmx384m -Xms256m"
+    deploy: { resources: { limits: { memory: 512M } } }
+    depends_on: [postgres, kafka]
+    networks: [delivery-network]
+
+networks:
+  delivery-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  kafka_data:
+  elasticsearch_data:

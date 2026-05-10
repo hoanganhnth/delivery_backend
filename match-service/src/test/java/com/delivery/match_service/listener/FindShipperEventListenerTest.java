@@ -14,6 +14,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.kafka.support.Acknowledgment;
 import reactor.core.publisher.Mono;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 import java.util.Collections;
 import java.util.List;
@@ -42,12 +44,14 @@ class FindShipperEventListenerTest {
     private FindShipperEventListener listener;
 
     private FindShipperEvent testEvent;
-    MatchCancellationService matchCancellationService;
+    private MatchCancellationService matchCancellationService;
+    private ObjectMapper objectMapper;
 
     @BeforeEach
     void setUp() {
         // ✅ Constructor Injection với simplified dependencies
         listener = new FindShipperEventListener(matchService, matchEventPublisher, matchCancellationService);
+        objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
         // Setup test event
         testEvent = new FindShipperEvent();
@@ -73,7 +77,12 @@ class FindShipperEventListenerTest {
                 .thenReturn(Mono.just(foundShippers));
 
         // When
-        listener.handleFindShipperEvent(testEvent, "test-topic", 0, System.currentTimeMillis(), acknowledgment);
+        try {
+            String json = objectMapper.writeValueAsString(testEvent);
+            listener.handleFindShipperEvent(json, "test-topic", 0, System.currentTimeMillis(), acknowledgment);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
 
         // Then - Verify ShipperFoundEvent is published
         verify(matchEventPublisher, timeout(1000)).publishShipperFoundEvent(any(ShipperFoundEvent.class));
@@ -91,7 +100,12 @@ class FindShipperEventListenerTest {
                 .thenReturn(Mono.just(foundShippers)); // Second call - success
 
         // When
-        listener.handleFindShipperEvent(testEvent, "test-topic", 0, System.currentTimeMillis(), acknowledgment);
+        try {
+            String json = objectMapper.writeValueAsString(testEvent);
+            listener.handleFindShipperEvent(json, "test-topic", 0, System.currentTimeMillis(), acknowledgment);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
 
         // Then - Verify ShipperFoundEvent is published after retry
         verify(matchEventPublisher, timeout(35000)).publishShipperFoundEvent(any(ShipperFoundEvent.class));
@@ -105,7 +119,12 @@ class FindShipperEventListenerTest {
                 .thenReturn(Mono.just(Collections.emptyList()));
 
         // When
-        listener.handleFindShipperEvent(testEvent, "test-topic", 0, System.currentTimeMillis(), acknowledgment);
+        try {
+            String json = objectMapper.writeValueAsString(testEvent);
+            listener.handleFindShipperEvent(json, "test-topic", 0, System.currentTimeMillis(), acknowledgment);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
 
         // Then - Should publish ShipperNotFoundEvent after max retries
         verify(matchEventPublisher, timeout(60000)).publishShipperNotFoundEvent(any());
@@ -121,7 +140,12 @@ class FindShipperEventListenerTest {
                 .thenReturn(Mono.error(new RuntimeException("System error")));
 
         // When
-        listener.handleFindShipperEvent(testEvent, "test-topic", 0, System.currentTimeMillis(), acknowledgment);
+        try {
+            String json = objectMapper.writeValueAsString(testEvent);
+            listener.handleFindShipperEvent(json, "test-topic", 0, System.currentTimeMillis(), acknowledgment);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
 
         // Then - Should not retry system errors, publish ShipperNotFoundEvent
         verify(matchEventPublisher, timeout(5000)).publishShipperNotFoundEvent(any());
@@ -137,7 +161,12 @@ class FindShipperEventListenerTest {
         invalidEvent.setDeliveryId(null); // Invalid event
 
         // When
-        listener.handleFindShipperEvent(invalidEvent, "test-topic", 0, System.currentTimeMillis(), acknowledgment);
+        try {
+            String json = objectMapper.writeValueAsString(invalidEvent);
+            listener.handleFindShipperEvent(json, "test-topic", 0, System.currentTimeMillis(), acknowledgment);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
 
         // Then
         verify(acknowledgment, timeout(1000)).acknowledge();
@@ -161,7 +190,12 @@ class FindShipperEventListenerTest {
                 });
 
         // When
-        listener.handleFindShipperEvent(testEvent, "test-topic", 0, System.currentTimeMillis(), acknowledgment);
+        try {
+            String json = objectMapper.writeValueAsString(testEvent);
+            listener.handleFindShipperEvent(json, "test-topic", 0, System.currentTimeMillis(), acknowledgment);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
 
         // Then
         verify(matchService, timeout(1000)).findNearbyShippers(any(FindNearbyShippersRequest.class), anyLong(),

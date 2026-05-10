@@ -1,0 +1,14 @@
+CREATE DATABASE auth_db;
+CREATE DATABASE user_db;
+CREATE DATABASE order_db;
+CREATE DATABASE restaurant_db;
+CREATE DATABASE shipper_db;
+CREATE DATABASE delivery_db;
+CREATE DATABASE notification_service_db;
+CREATE DATABASE saga_db;
+CREATE DATABASE settlement_db;
+CREATE DATABASE search_db;
+CREATE DATABASE livestream_db;
+CREATE DATABASE tracking_db;
+CREATE DATABASE match_db;
+CREATE DATABASE promotion_db;

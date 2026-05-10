@@ -13,9 +13,20 @@ spring:
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
         spring.json.trusted.packages: "*"
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.elasticsearch.ElasticsearchDataAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.elasticsearch.ElasticsearchRepositoriesAutoConfiguration
+      - org.springframework.boot.autoconfigure.elasticsearch.ElasticsearchClientAutoConfiguration
   elasticsearch:
     uris: http://localhost:9200
+  app:
+    elasticsearch:
+      enabled: false # Set to false to run without Elasticsearch
   data:
+    elasticsearch:
+      repositories:
+        enabled: ${app.elasticsearch.enabled:true}
     redis:
       host: localhost
       port: 6379
