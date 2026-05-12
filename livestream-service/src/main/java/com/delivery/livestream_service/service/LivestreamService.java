@@ -151,8 +151,8 @@ public class LivestreamService {
 
     @Transactional(readOnly = true)
     public List<LivestreamResponse> getActiveLivestreams() {
-        log.info("Getting all active livestreams");
-        return livestreamRepository.findByStatus(LivestreamStatus.LIVE)
+        log.info("Getting all active livestreams (sorted by newest)");
+        return livestreamRepository.findByStatusOrderByCreatedAtDesc(LivestreamStatus.LIVE)
                 .stream()
                 .map(mapper::toResponse)
                 .collect(Collectors.toList());
@@ -207,8 +207,8 @@ public class LivestreamService {
 
     @Transactional(readOnly = true)
     public List<LivestreamResponse> getLivestreamsBySeller(Long sellerId) {
-        log.info("Getting livestreams by seller: {}", sellerId);
-        return livestreamRepository.findBySellerId(sellerId)
+        log.info("Getting livestreams by seller: {} (sorted by newest)", sellerId);
+        return livestreamRepository.findBySellerIdOrderByCreatedAtDesc(sellerId)
                 .stream()
                 .map(mapper::toResponse)
                 .collect(Collectors.toList());
@@ -216,8 +216,8 @@ public class LivestreamService {
 
     @Transactional(readOnly = true)
     public List<LivestreamResponse> getLivestreamsByRestaurant(Long restaurantId) {
-        log.info("Getting livestreams by restaurant: {}", restaurantId);
-        return livestreamRepository.findByRestaurantId(restaurantId)
+        log.info("Getting livestreams by restaurant: {} (sorted by newest)", restaurantId);
+        return livestreamRepository.findByRestaurantIdOrderByCreatedAtDesc(restaurantId)
                 .stream()
                 .map(mapper::toResponse)
                 .collect(Collectors.toList());

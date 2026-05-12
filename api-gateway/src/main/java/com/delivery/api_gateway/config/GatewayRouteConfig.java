@@ -105,6 +105,12 @@ public class GatewayRouteConfig {
                                                                 jwtFilter.apply(new JwtAuthenticationFilter.Config())))
                                                 .uri(orderServiceUri))
 
+                                // ✅ Dashboard statistics (protected with JWT)
+                                .route("dashboard-service", r -> r.path("/api/dashboard/**")
+                                                .filters(f -> f.filter(
+                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config())))
+                                                .uri(orderServiceUri))
+
                                 // ✅ Admin endpoints (no JWT) — MUST be before the protected delivery route
                                 .route("delivery-service-admin", r -> r.path("/api/deliveries/admin/**")
                                                 .uri(deliveryServiceUri))

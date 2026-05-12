@@ -83,4 +83,89 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
      */
     @Query("SELECT o FROM Order o WHERE o.status NOT IN ('DELIVERED', 'CANCELLED') ORDER BY o.createdAt ASC")
     List<Order> findAllNonTerminalOrders();
+
+    // ==================== DASHBOARD STATISTICS ====================
+
+    /**
+     * Tổng doanh thu (tất cả đơn DELIVERED)
+     */
+    @Query("SELECT COALESCE(SUM(o.totalPrice), 0) FROM Order o WHERE o.status = 'DELIVERED'")
+    java.math.BigDecimal sumTotalRevenueDelivered();
+
+    /**
+     * Tổng doanh thu cho 1 nhà hàng (DELIVERED)
+     */
+    @Query("SELECT COALESCE(SUM(o.totalPrice), 0) FROM Order o WHERE o.restaurantId = :restaurantId AND o.status = 'DELIVERED'")
+    java.math.BigDecimal sumRevenueByRestaurant(@Param("restaurantId") Long restaurantId);
+
+    /**
+     * Đếm đơn theo trạng thái cho 1 nhà hàng
+     */
+    long countByRestaurantIdAndStatus(Long restaurantId, String status);
+
+    /**
+     * Đếm tổng đơn cho 1 nhà hàng
+     */
+    long countByRestaurantId(Long restaurantId);
+
+    /**
+     * Thống kê doanh thu theo tháng trong năm (platform)
+     */
+    @Query("SELECT MONTH(o.createdAt) as m, COUNT(o) as cnt, COALESCE(SUM(o.totalPrice), 0) as rev " +
+           "FROM Order o WHERE o.status = 'DELIVERED' AND YEAR(o.createdAt) = :year " +
+           "GROUP BY MONTH(o.createdAt) ORDER BY MONTH(o.createdAt)")
+    List<Object[]> monthlyStatsByYear(@Param("year") int year);
+
+    /**
+     * Thống kê doanh thu theo tháng trong năm cho 1 nhà hàng
+     */
+    @Query("SELECT MONTH(o.createdAt) as m, COUNT(o) as cnt, COALESCE(SUM(o.totalPrice), 0) as rev " +
+           "FROM Order o WHERE o.restaurantId = :restaurantId AND o.status = 'DELIVERED' AND YEAR(o.createdAt) = :year " +
+           "GROUP BY MONTH(o.createdAt) ORDER BY MONTH(o.createdAt)")
+    List<Object[]> monthlyStatsByRestaurantAndYear(@Param("restaurantId") Long restaurantId, @Param("year") int year);
+
+    /**
+     * Thống kê theo năm (platform)
+     */
+    @Query("SELECT YEAR(o.createdAt) as y, COUNT(o) as cnt, COALESCE(SUM(o.totalPrice), 0) as rev " +
+           "FROM Order o WHERE o.status = 'DELIVERED' " +
+           "GROUP BY YEAR(o.createdAt) ORDER BY YEAR(o.createdAt)")
+    List<Object[]> yearlyStats();
+
+    /**
+     * Thống kê theo năm cho 1 nhà hàng
+     */
+    @Query("SELECT YEAR(o.createdAt) as y, COUNT(o) as cnt, COALESCE(SUM(o.totalPrice), 0) as rev " +
+           "FROM Order o WHERE o.restaurantId = :restaurantId AND o.status = 'DELIVERED' " +
+           "GROUP BY YEAR(o.createdAt) ORDER BY YEAR(o.createdAt)")
+    List<Object[]> yearlyStatsByRestaurant(@Param("restaurantId") Long restaurantId);
+
+    /**
+     * Top nhà hàng theo doanh thu
+     */
+    @Query("SELECT o.restaurantId, o.restaurantName, COUNT(o), COALESCE(SUM(o.totalPrice), 0) " +
+           "FROM Order o WHERE o.status = 'DELIVERED' " +
+           "GROUP BY o.restaurantId, o.restaurantName ORDER BY SUM(o.totalPrice) DESC")
+    List<Object[]> topRestaurantsByRevenue();
+
+    /**
+     * Top món ăn cho 1 nhà hàng
+     */
+    @Query("SELECT oi.menuItemName, SUM(oi.quantity), COALESCE(SUM(oi.price * oi.quantity), 0) " +
+           "FROM OrderItem oi JOIN oi.order o " +
+           "WHERE o.restaurantId = :restaurantId AND o.status = 'DELIVERED' " +
+           "GROUP BY oi.menuItemName ORDER BY SUM(oi.quantity) DESC")
+    List<Object[]> topMenuItemsByRestaurant(@Param("restaurantId") Long restaurantId);
+
+    /**
+     * Đếm trạng thái đơn (toàn bộ)
+     */
+    @Query("SELECT o.status, COUNT(o) FROM Order o GROUP BY o.status")
+    List<Object[]> countAllByStatus();
+
+    /**
+     * Đếm trạng thái đơn cho 1 nhà hàng
+     */
+    @Query("SELECT o.status, COUNT(o) FROM Order o WHERE o.restaurantId = :restaurantId GROUP BY o.status")
+    List<Object[]> countByRestaurantIdGroupByStatus(@Param("restaurantId") Long restaurantId);
 }
