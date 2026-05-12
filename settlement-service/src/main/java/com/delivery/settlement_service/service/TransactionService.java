@@ -65,9 +65,9 @@ public interface TransactionService {
     Transaction releaseBalance(Long entityId, BigDecimal amount, String description);
 
     /**
-     * ✅ Shipper nạp tiền vào Ví Ký quỹ (Deposit Wallet)
+     * ✅ Nạp tiền vào Ví Ký quỹ (Deposit Wallet)
      */
-    Transaction topUpDeposit(Long shipperId, BigDecimal amount, String paymentMethod);
+    Transaction topUpDeposit(Long entityId, EntityType entityType, BigDecimal amount, String paymentMethod);
 
     /**
      * ✅ Kiểm tra shipper có đủ ký quỹ để nhận đơn COD không

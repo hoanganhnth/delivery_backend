@@ -113,20 +113,20 @@ public class TransactionServiceImpl implements TransactionService {
 
     @Override
     @Transactional
-    public Transaction topUpDeposit(Long shipperId, BigDecimal amount, String paymentMethod) {
-        log.info("💰 Shipper {} topping up deposit wallet: {} via {}", shipperId, amount, paymentMethod);
+    public Transaction topUpDeposit(Long entityId, EntityType entityType, BigDecimal amount, String paymentMethod) {
+        log.info("💰 {} {} topping up deposit wallet: {} via {}", entityType, entityId, amount, paymentMethod);
 
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new IllegalArgumentException("Top-up amount must be greater than zero");
         }
 
-        Balance balance = balanceRepository.findByEntityIdAndEntityType(shipperId, EntityType.SHIPPER)
-                .orElseGet(() -> balanceService.createBalance(shipperId, EntityType.SHIPPER));
+        Balance balance = balanceRepository.findByEntityIdAndEntityType(entityId, entityType)
+                .orElseGet(() -> balanceService.createBalance(entityId, entityType));
 
         // Create CREDIT transaction on DEPOSIT wallet
         Transaction transaction = Transaction.builder()
-                .entityId(shipperId)
-                .entityType(EntityType.SHIPPER)
+                .entityId(entityId)
+                .entityType(entityType)
                 .direction(TransactionDirection.CREDIT)
                 .reason(TransactionReason.DEPOSIT_TOPUP)
                 .amount(amount)
@@ -142,8 +142,8 @@ public class TransactionServiceImpl implements TransactionService {
         balance.setTotalDeposited(balance.getTotalDeposited().add(amount));
         balanceRepository.save(balance);
 
-        log.info("✅ Shipper {} deposit topped up. New deposit balance: {}, Total deposited: {}",
-                shipperId, balance.getDepositBalance(), balance.getTotalDeposited());
+        log.info("✅ {} {} deposit topped up. New deposit balance: {}, Total deposited: {}",
+                entityType, entityId, balance.getDepositBalance(), balance.getTotalDeposited());
 
         return saved;
     }

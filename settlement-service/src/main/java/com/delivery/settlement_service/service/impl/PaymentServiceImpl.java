@@ -231,6 +231,7 @@ public class PaymentServiceImpl implements PaymentService {
             // Nạp tiền ký quỹ cho Shipper/Restaurant
             Transaction tx = transactionService.topUpDeposit(
                     order.getEntityId(),
+                    order.getEntityType(),
                     order.getAmount(),
                     order.getProvider()
             );

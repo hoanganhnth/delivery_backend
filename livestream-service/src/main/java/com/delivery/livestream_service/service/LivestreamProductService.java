@@ -48,8 +48,8 @@ public class LivestreamProductService {
 
         Livestream livestream = getLivestreamAndCheckPermission(livestreamId, sellerId);
 
-        if (livestream.getStatus() != LivestreamStatus.LIVE) {
-            throw new InvalidLivestreamStatusException("Chỉ có thể pin sản phẩm khi livestream đang diễn ra");
+        if (livestream.getStatus() != LivestreamStatus.LIVE && livestream.getStatus() != LivestreamStatus.CREATED) {
+            throw new InvalidLivestreamStatusException("Chỉ có thể thêm sản phẩm khi livestream đang chuẩn bị hoặc đang diễn ra");
         }
 
         // Find or create product
@@ -90,8 +90,8 @@ public class LivestreamProductService {
 
         Livestream livestream = getLivestreamAndCheckPermission(livestreamId, sellerId);
 
-        if (livestream.getStatus() != LivestreamStatus.LIVE) {
-            throw new InvalidLivestreamStatusException("Chỉ có thể bỏ pin sản phẩm khi livestream đang diễn ra");
+        if (livestream.getStatus() != LivestreamStatus.LIVE && livestream.getStatus() != LivestreamStatus.CREATED) {
+            throw new InvalidLivestreamStatusException("Chỉ có thể bỏ sản phẩm khi livestream đang chuẩn bị hoặc đang diễn ra");
         }
 
         LivestreamProduct product = productRepository
@@ -112,7 +112,24 @@ public class LivestreamProductService {
 
         log.info("Product unpinned successfully: livestream={}, product={}", livestreamId, productId);
     }
+    @Transactional
+    public void removeProduct(UUID livestreamId, Long productId, Long sellerId) {
+        log.info("Removing product from livestream: livestream={}, product={}, seller={}", livestreamId, productId, sellerId);
 
+        Livestream livestream = getLivestreamAndCheckPermission(livestreamId, sellerId);
+
+        if (livestream.getStatus() != LivestreamStatus.LIVE && livestream.getStatus() != LivestreamStatus.CREATED) {
+            throw new InvalidLivestreamStatusException("Chỉ có thể xóa sản phẩm khi livestream đang chuẩn bị hoặc đang diễn ra");
+        }
+
+        LivestreamProduct product = productRepository
+                .findByLivestreamIdAndProductId(livestreamId, productId)
+                .orElseThrow(() -> new LivestreamNotFoundException(
+                        "Không tìm thấy sản phẩm trong livestream"));
+
+        productRepository.delete(product);
+        log.info("Product removed successfully: livestream={}, product={}", livestreamId, productId);
+    }
     @Transactional(readOnly = true)
     public List<LivestreamProductResponse> getProductsByLivestream(UUID livestreamId) {
         log.info("Getting all products for livestream: {}", livestreamId);

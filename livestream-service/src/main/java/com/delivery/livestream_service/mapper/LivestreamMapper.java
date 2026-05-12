@@ -11,7 +11,7 @@ import org.mapstruct.NullValuePropertyMappingStrategy;
 @Mapper(componentModel = "spring", nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
 public interface LivestreamMapper {
 
-    @Mapping(target = "pinnedProducts", ignore = true)
+    @Mapping(source = "products", target = "pinnedProducts")
     LivestreamResponse toResponse(Livestream livestream);
 
     LivestreamProductResponse toProductResponse(LivestreamProduct product);

@@ -29,7 +29,7 @@ public class BalanceServiceImpl implements BalanceService {
     private final BalanceMapper balanceMapper;
 
     @Override
-    @Transactional
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
     public Balance createBalance(Long entityId, EntityType entityType) {
         log.info("Creating balance for entity: {} ({})", entityId, entityType);
 
@@ -39,17 +39,26 @@ public class BalanceServiceImpl implements BalanceService {
                     .orElseThrow(() -> new ResourceNotFoundException("Balance", "entityId", entityId));
         }
 
-        Balance balance = Balance.builder()
-                .entityId(entityId)
-                .entityType(entityType)
-                .availableBalance(BigDecimal.ZERO)
-                .pendingBalance(BigDecimal.ZERO)
-                .holdingBalance(BigDecimal.ZERO)
-                .build();
+        try {
+            Balance balance = Balance.builder()
+                    .entityId(entityId)
+                    .entityType(entityType)
+                    .availableBalance(BigDecimal.ZERO)
+                    .depositBalance(BigDecimal.ZERO)
+                    .pendingBalance(BigDecimal.ZERO)
+                    .holdingBalance(BigDecimal.ZERO)
+                    .totalDeposited(BigDecimal.ZERO)
+                    .totalCodCollected(BigDecimal.ZERO)
+                    .build();
 
-        Balance saved = balanceRepository.save(balance);
-        log.info("✅ Created balance for entity: {} ({})", entityId, entityType);
-        return saved;
+            Balance saved = balanceRepository.saveAndFlush(balance);
+            log.info("✅ Created balance for entity: {} ({})", entityId, entityType);
+            return saved;
+        } catch (org.springframework.dao.DataIntegrityViolationException e) {
+            log.warn("Balance already created concurrently for entity: {} ({})", entityId, entityType);
+            return balanceRepository.findByEntityIdAndEntityType(entityId, entityType)
+                    .orElseThrow(() -> new ResourceNotFoundException("Balance", "entityId", entityId));
+        }
     }
 
     @Override

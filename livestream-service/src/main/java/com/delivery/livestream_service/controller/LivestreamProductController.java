@@ -41,6 +41,15 @@ public class LivestreamProductController {
         return ResponseEntity.ok(new BaseResponse<>(1, null, "Bỏ pin sản phẩm thành công"));
     }
 
+    @DeleteMapping("/{id}/products/{productId}")
+    public ResponseEntity<BaseResponse<Void>> removeProduct(
+            @PathVariable UUID id,
+            @PathVariable Long productId,
+            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId) {
+        productService.removeProduct(id, productId, userId);
+        return ResponseEntity.ok(new BaseResponse<>(1, null, "Xóa sản phẩm khỏi livestream thành công"));
+    }
+
     @GetMapping("/{id}/products")
     public ResponseEntity<BaseResponse<List<LivestreamProductResponse>>> getProductsByLivestream(
             @PathVariable UUID id) {
