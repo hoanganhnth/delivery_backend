@@ -6,9 +6,9 @@ spring:
     name: promotion-service
   
   datasource:
-    url: jdbc:postgresql://localhost:5432/delivery_db
+    url: jdbc:postgresql://localhost:5432/promotion_db
     username: postgres
-    password: password
+    password: 123456
     driver-class-name: org.postgresql.Driver
     
   jpa:

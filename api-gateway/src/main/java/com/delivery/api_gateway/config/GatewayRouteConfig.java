@@ -1,5 +1,6 @@
 package com.delivery.api_gateway.config;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.route.RouteLocator;
 import org.springframework.cloud.gateway.route.builder.RouteLocatorBuilder;
 import org.springframework.context.annotation.Bean;
@@ -13,6 +14,51 @@ public class GatewayRouteConfig {
 
         private final JwtAuthenticationFilter jwtFilter;
 
+        @Value("${app.auth-service.uri:http://localhost:8081}")
+        private String authServiceUri;
+
+        @Value("${app.user-service.uri:http://localhost:8082}")
+        private String userServiceUri;
+
+        @Value("${app.restaurant-service.uri:http://localhost:8083}")
+        private String restaurantServiceUri;
+
+        @Value("${app.order-service.uri:http://localhost:8084}")
+        private String orderServiceUri;
+
+        @Value("${app.delivery-service.uri:http://localhost:8085}")
+        private String deliveryServiceUri;
+
+        @Value("${app.search-service.uri:http://localhost:8088}")
+        private String searchServiceUri;
+
+        @Value("${app.shipper-service.uri:http://localhost:8089}")
+        private String shipperServiceUri;
+
+        @Value("${app.notification-service.uri:http://localhost:8091}")
+        private String notificationServiceUri;
+
+        @Value("${app.saga-orchestrator-service.uri:http://localhost:8095}")
+        private String sagaOrchestratorUri;
+
+        @Value("${app.tracking-service.uri:http://localhost:8093}")
+        private String trackingServiceUri;
+
+        @Value("${app.tracking-service.ws-uri:ws://localhost:8093}")
+        private String trackingServiceWsUri;
+
+        @Value("${app.match-service.uri:http://localhost:8092}")
+        private String matchServiceUri;
+
+        @Value("${app.livestream-service.uri:http://localhost:8094}")
+        private String livestreamServiceUri;
+
+        @Value("${app.settlement-service.uri:http://localhost:8090}")
+        private String settlementServiceUri;
+
+        @Value("${app.promotion-service.uri:http://localhost:8096}")
+        private String promotionServiceUri;
+
         @Bean
         public RouteLocator customRoutes(RouteLocatorBuilder builder) {
                 return builder.routes()
@@ -23,97 +69,95 @@ public class GatewayRouteConfig {
                                                 "/api/auth/refresh-token",
                                                 "/api/auth/logout",
                                                 "/api/auth/accounts/email/**")
-                                                .uri("http://localhost:8081"))
+                                                .uri(authServiceUri))
                                 .route("search-service-public", r -> r.path("/api/search/**")
-                                                .uri("http://localhost:8088"))
+                                                .uri(searchServiceUri))
 
                                 // Protected auth endpoints (JWT required)
                                 .route("auth-service-protected", r -> r.path("/api/auth/**")
                                                 .filters(f -> f.filter(
                                                                 jwtFilter.apply(new JwtAuthenticationFilter.Config())))
-                                                .uri("http://localhost:8081"))
+                                                .uri(authServiceUri))
 
                                 .route("user-service", r -> r.path("/api/users/**")
                                                 .filters(f -> f.filter(
                                                                 jwtFilter.apply(new JwtAuthenticationFilter.Config())))
-                                                .uri("http://localhost:8082"))
-                                .route("user-service", r -> r.path("/api/addresses/**")
+                                                .uri(userServiceUri))
+                                .route("user-address-service", r -> r.path("/api/addresses/**")
                                                 .filters(f -> f.filter(
                                                                 jwtFilter.apply(new JwtAuthenticationFilter.Config())))
-                                                .uri("http://localhost:8082"))
+                                                .uri(userServiceUri))
 
                                 .route("restaurant-service", r -> r.path("/api/restaurants/**")
                                                 .filters(f -> f.filter(
                                                                 jwtFilter.apply(new JwtAuthenticationFilter.Config())))
-                                                .uri("http://localhost:8083"))
-                                .route("restaurant-service", r -> r.path("/api/menu-items/**")
+                                                .uri(restaurantServiceUri))
+                                .route("restaurant-menu-service", r -> r.path("/api/menu-items/**")
                                                 .filters(f -> f.filter(
                                                                 jwtFilter.apply(new JwtAuthenticationFilter.Config())))
-                                                .uri("http://localhost:8083"))
+                                                .uri(restaurantServiceUri))
                                 // ✅ Admin endpoints (no JWT) — MUST be before the protected orders route
                                 .route("order-service-admin", r -> r.path("/api/orders/admin/**")
-                                                .uri("http://localhost:8084"))
+                                                .uri(orderServiceUri))
 
                                 .route("order-service", r -> r.path("/api/orders/**")
                                                 .filters(f -> f.filter(
                                                                 jwtFilter.apply(new JwtAuthenticationFilter.Config())))
-                                                .uri("http://localhost:8084"))
+                                                .uri(orderServiceUri))
 
                                 // ✅ Admin endpoints (no JWT) — MUST be before the protected delivery route
                                 .route("delivery-service-admin", r -> r.path("/api/deliveries/admin/**")
-                                                .uri("http://localhost:8085"))
+                                                .uri(deliveryServiceUri))
 
                                 .route("delivery-service", r -> r.path("/api/deliveries/**")
                                                 .filters(f -> f.filter(
                                                                 jwtFilter.apply(new JwtAuthenticationFilter.Config())))
-                                                .uri("http://localhost:8085"))
+                                                .uri(deliveryServiceUri))
 
                                 .route("shipper-service", r -> r.path("/api/shippers/**")
                                                 .filters(f -> f.filter(
                                                                 jwtFilter.apply(new JwtAuthenticationFilter.Config())))
-                                                .uri("http://localhost:8086"))
+                                                .uri(shipperServiceUri))
 
                                 .route("notification-service", r -> r.path("/api/notifications/**")
                                                 .filters(f -> f.filter(
                                                                 jwtFilter.apply(new JwtAuthenticationFilter.Config())))
-                                                .uri("http://localhost:8087"))
+                                                .uri(notificationServiceUri))
                                 .route("firebase-service", r -> r.path("/api/firebase/**")
                                                 .filters(f -> f.filter(
                                                                 jwtFilter.apply(new JwtAuthenticationFilter.Config())))
-                                                .uri("http://localhost:8087"))
-
-
+                                                .uri(notificationServiceUri))
 
                                 .route("saga-orchestrator", r -> r.path("/api/orchestrator/**")
                                                 .filters(f -> f.filter(
                                                                 jwtFilter.apply(new JwtAuthenticationFilter.Config())))
-                                                .uri("http://localhost:8089"))
+                                                .uri(sagaOrchestratorUri))
 
                                 .route("tracking-service", r -> r.path("/api/tracking/**")
                                                 .filters(f -> f.filter(
                                                                 jwtFilter.apply(new JwtAuthenticationFilter.Config())))
-                                                .uri("http://localhost:8090"))
+                                                .uri(trackingServiceUri))
                                 .route("tracking-service-ws", r -> r.path("/ws/shipper-locations/**")
-                                                .uri("ws://localhost:8090"))
+                                                .uri(trackingServiceWsUri))
 
                                 .route("match-service", r -> r.path("/api/match/**")
                                                 .filters(f -> f.filter(
                                                                 jwtFilter.apply(new JwtAuthenticationFilter.Config())))
-                                                .uri("http://localhost:8091"))
+                                                .uri(matchServiceUri))
                                 .route("livestream-service", r -> r.path("/api/livestreams/**")
                                                 .filters(f -> f.filter(
                                                                 jwtFilter.apply(new JwtAuthenticationFilter.Config())))
-                                                .uri("http://localhost:8092"))
+                                                .uri(livestreamServiceUri))
 
                                 .route("settlement-service", r -> r.path("/api/settlement/**")
                                                 .filters(f -> f.filter(
                                                                 jwtFilter.apply(new JwtAuthenticationFilter.Config())))
-                                                .uri("http://localhost:8095"))
+                                                .uri(settlementServiceUri))
 
                                 .route("promotion-service", r -> r.path("/api/promotions/**")
                                                 .filters(f -> f.filter(
                                                                 jwtFilter.apply(new JwtAuthenticationFilter.Config())))
-                                                .uri("http://localhost:8096"))
+                                                .uri(promotionServiceUri))
 
                                 .build();
         }

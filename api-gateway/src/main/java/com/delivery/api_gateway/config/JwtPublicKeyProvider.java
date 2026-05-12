@@ -21,7 +21,7 @@ public class JwtPublicKeyProvider {
     public JwtPublicKeyProvider() {
         try {
             ClassPathResource resource = new ClassPathResource("public.pem");
-            String key = new String(Files.readAllBytes(resource.getFile().toPath()), StandardCharsets.UTF_8);
+            String key = new String(resource.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
             key = key.replace("-----BEGIN PUBLIC KEY-----", "")
                      .replace("-----END PUBLIC KEY-----", "")
                      .replaceAll("\\s", "");

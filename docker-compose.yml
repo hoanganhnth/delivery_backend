@@ -8,7 +8,7 @@ services:
       - "5432:5432"
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: 123
+      POSTGRES_PASSWORD: 123456
     volumes:
       - ./docker/postgres/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
       - postgres_data:/var/lib/postgresql/data
@@ -81,7 +81,23 @@ services:
     build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: api-gateway } }
     container_name: api-gateway
     ports: ["8079:8079"]
-    environment: { JAVA_OPTS: "-Xmx384m -Xms256m" }
+    environment:
+      JAVA_OPTS: "-Xmx384m -Xms256m"
+      APP_AUTH_SERVICE_URI: http://auth-service:8081
+      APP_USER_SERVICE_URI: http://user-service:8082
+      APP_RESTAURANT_SERVICE_URI: http://restaurant-service:8083
+      APP_ORDER_SERVICE_URI: http://order-service:8084
+      APP_DELIVERY_SERVICE_URI: http://delivery-service:8085
+      APP_SEARCH_SERVICE_URI: http://search-service:8088
+      APP_SHIPPER_SERVICE_URI: http://shipper-service:8089
+      APP_NOTIFICATION_SERVICE_URI: http://notification-service:8091
+      APP_SAGA_ORCHESTRATOR_SERVICE_URI: http://saga-orchestrator-service:8095
+      APP_TRACKING_SERVICE_URI: http://tracking-service:8093
+      APP_TRACKING_SERVICE_WS_URI: ws://tracking-service:8093
+      APP_MATCH_SERVICE_URI: http://match-service:8092
+      APP_LIVESTREAM_SERVICE_URI: http://livestream-service:8094
+      APP_SETTLEMENT_SERVICE_URI: http://settlement-service:8090
+      APP_PROMOTION_SERVICE_URI: http://promotion-service:8096
     deploy: { resources: { limits: { memory: 512M } } }
     networks: [delivery-network]
 
@@ -92,7 +108,7 @@ services:
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/auth_db
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: 123
+      SPRING_DATASOURCE_PASSWORD: 123456
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       JAVA_OPTS: "-Xmx384m -Xms256m"
     deploy: { resources: { limits: { memory: 512M } } }
@@ -106,7 +122,7 @@ services:
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/user_db
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: 123
+      SPRING_DATASOURCE_PASSWORD: 123456
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       JAVA_OPTS: "-Xmx384m -Xms256m"
     deploy: { resources: { limits: { memory: 512M } } }
@@ -120,7 +136,7 @@ services:
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/restaurant_db
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: 123
+      SPRING_DATASOURCE_PASSWORD: 123456
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       JAVA_OPTS: "-Xmx384m -Xms256m"
     deploy: { resources: { limits: { memory: 512M } } }
@@ -134,7 +150,7 @@ services:
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/order_db
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: 123
+      SPRING_DATASOURCE_PASSWORD: 123456
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       JAVA_OPTS: "-Xmx384m -Xms256m"
     deploy: { resources: { limits: { memory: 512M } } }
@@ -148,7 +164,7 @@ services:
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/delivery_db
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: 123
+      SPRING_DATASOURCE_PASSWORD: 123456
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       SPRING_REDIS_HOST: redis
       JAVA_OPTS: "-Xmx384m -Xms256m"
@@ -177,7 +193,7 @@ services:
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/shipper_db
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: 123
+      SPRING_DATASOURCE_PASSWORD: 123456
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       JAVA_OPTS: "-Xmx384m -Xms256m"
     deploy: { resources: { limits: { memory: 512M } } }
@@ -191,7 +207,7 @@ services:
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/settlement_db
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: 123
+      SPRING_DATASOURCE_PASSWORD: 123456
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       JAVA_OPTS: "-Xmx384m -Xms256m"
     deploy: { resources: { limits: { memory: 512M } } }
@@ -205,7 +221,7 @@ services:
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/notification_service_db
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: 123
+      SPRING_DATASOURCE_PASSWORD: 123456
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       JAVA_OPTS: "-Xmx384m -Xms256m"
     deploy: { resources: { limits: { memory: 512M } } }
@@ -241,7 +257,7 @@ services:
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/livestream_db
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: 123
+      SPRING_DATASOURCE_PASSWORD: 123456
       JAVA_OPTS: "-Xmx384m -Xms256m"
     deploy: { resources: { limits: { memory: 512M } } }
     depends_on: [postgres]
@@ -254,7 +270,7 @@ services:
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/saga_db
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: 123
+      SPRING_DATASOURCE_PASSWORD: 123456
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       JAVA_OPTS: "-Xmx384m -Xms256m"
     deploy: { resources: { limits: { memory: 512M } } }
@@ -268,7 +284,7 @@ services:
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/delivery_db
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: 123
+      SPRING_DATASOURCE_PASSWORD: 123456
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       JAVA_OPTS: "-Xmx384m -Xms256m"
     deploy: { resources: { limits: { memory: 512M } } }
