@@ -23,6 +23,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import java.math.BigDecimal;
 import java.util.List;
 
@@ -183,30 +185,25 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
-    public List<OrderResponse> getOrdersByUser(Long userId, String role) {
+    public Page<OrderResponse> getOrdersByUser(Long userId, String role, Pageable pageable) {
         // Chỉ cho phép xem đơn hàng của chính mình hoặc admin
-        if (!RoleConstants.ADMIN.equals(role)) {
-            List<Order> orders = orderRepository.findByUserIdOrderByCreatedAtDesc(userId);
-            return orderMapper.ordersToOrderResponses(orders);
-        } else {
-            List<Order> orders = orderRepository.findByUserIdOrderByCreatedAtDesc(userId);
-            return orderMapper.ordersToOrderResponses(orders);
-        }
+        Page<Order> orders = orderRepository.findByUserIdOrderByCreatedAtDesc(userId, pageable);
+        return orders.map(orderMapper::orderToOrderResponse);
     }
 
     @Override
-    public List<OrderResponse> getOrdersByRestaurant(Long restaurantId, Long userId, String role) {
+    public Page<OrderResponse> getOrdersByRestaurant(Long restaurantId, Long userId, String role, Pageable pageable) {
         // Chỉ admin hoặc restaurant owner mới được xem
         if (!RoleConstants.ADMIN.equals(role) && !RoleConstants.RESTAURANT_OWNER.equals(role)) {
             throw new AccessDeniedException("Bạn không có quyền xem đơn hàng của nhà hàng");
         }
         
-        List<Order> orders = orderRepository.findByRestaurantIdOrderByCreatedAtDesc(restaurantId);
-        return orderMapper.ordersToOrderResponses(orders);
+        Page<Order> orders = orderRepository.findByRestaurantIdOrderByCreatedAtDesc(restaurantId, pageable);
+        return orders.map(orderMapper::orderToOrderResponse);
     }
     
     @Override
-    public List<OrderResponse> getOrdersByRestaurantOwner(Long ownerId, Long userId, String role) {
+    public Page<OrderResponse> getOrdersByRestaurantOwner(Long ownerId, Long userId, String role, Pageable pageable) {
         // Chỉ admin hoặc chính restaurant owner mới được xem
         if (!RoleConstants.ADMIN.equals(role)) {
             if (!RoleConstants.RESTAURANT_OWNER.equals(role)) {
@@ -221,44 +218,44 @@ public class OrderServiceImpl implements OrderService {
         // ✅ Query trực tiếp từ bảng orders theo creatorId (không cần gọi Restaurant Service)
         log.info("📋 Getting orders for restaurant owner (creatorId): {}", ownerId);
         
-        List<Order> orders = orderRepository.findByCreatorIdOrderByCreatedAtDesc(ownerId);
-        log.info("✅ Found {} orders for restaurant owner {}", orders.size(), ownerId);
+        Page<Order> orders = orderRepository.findByCreatorIdOrderByCreatedAtDesc(ownerId, pageable);
+        log.info("✅ Found {} orders for restaurant owner {}", orders.getTotalElements(), ownerId);
         
-        return orderMapper.ordersToOrderResponses(orders);
+        return orders.map(orderMapper::orderToOrderResponse);
     }
 
     @Override
-    public List<OrderResponse> getOrdersByShipper(Long shipperId, Long userId, String role) {
+    public Page<OrderResponse> getOrdersByShipper(Long shipperId, Long userId, String role, Pageable pageable) {
         // Chỉ admin hoặc shipper mới được xem
         if (!RoleConstants.ADMIN.equals(role) && !RoleConstants.SHIPPER.equals(role)) {
             throw new AccessDeniedException("Bạn không có quyền xem đơn hàng của shipper");
         }
         
-        List<Order> orders = orderRepository.findByShipperIdOrderByCreatedAtDesc(shipperId);
-        return orderMapper.ordersToOrderResponses(orders);
+        Page<Order> orders = orderRepository.findByShipperIdOrderByCreatedAtDesc(shipperId, pageable);
+        return orders.map(orderMapper::orderToOrderResponse);
     }
 
     @Override
-    public List<OrderResponse> getOrdersByStatus(String status, Long userId, String role) {
+    public Page<OrderResponse> getOrdersByStatus(String status, Long userId, String role, Pageable pageable) {
         // Admin có thể xem tất cả, user chỉ xem của mình
         if (RoleConstants.ADMIN.equals(role)) {
-            List<Order> orders = orderRepository.findByStatusOrderByCreatedAtDesc(status);
-            return orderMapper.ordersToOrderResponses(orders);
+            Page<Order> orders = orderRepository.findByStatusOrderByCreatedAtDesc(status, pageable);
+            return orders.map(orderMapper::orderToOrderResponse);
         } else {
-            List<Order> orders = orderRepository.findByUserIdAndStatusOrderByCreatedAtDesc(userId, status);
-            return orderMapper.ordersToOrderResponses(orders);
+            Page<Order> orders = orderRepository.findByUserIdAndStatusOrderByCreatedAtDesc(userId, status, pageable);
+            return orders.map(orderMapper::orderToOrderResponse);
         }
     }
 
     @Override
-    public List<OrderResponse> getAllOrders(Long userId, String role) {
+    public Page<OrderResponse> getAllOrders(Long userId, String role, Pageable pageable) {
         // Chỉ admin mới được xem tất cả đơn hàng
         if (!RoleConstants.ADMIN.equals(role)) {
             throw new AccessDeniedException("Bạn không có quyền xem tất cả đơn hàng");
         }
         
-        List<Order> orders = orderRepository.findAllByOrderByCreatedAtDesc();
-        return orderMapper.ordersToOrderResponses(orders);
+        Page<Order> orders = orderRepository.findAllByOrderByCreatedAtDesc(pageable);
+        return orders.map(orderMapper::orderToOrderResponse);
     }
 
     @Override

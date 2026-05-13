@@ -14,6 +14,9 @@ import com.delivery.order_service.service.OrderService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import java.util.List;
 
 @RestController
@@ -78,71 +81,95 @@ public class OrderController {
     }
 
     @GetMapping("/user/{userId}")
-    public ResponseEntity<BaseResponse<List<OrderResponse>>> getOrdersByUser(
+    public ResponseEntity<BaseResponse<Page<OrderResponse>>> getOrdersByUser(
             @PathVariable Long userId,
             @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long currentUserId,
-            @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
-        List<OrderResponse> response = orderService.getOrdersByUser(userId, role);
+            @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        Page<OrderResponse> response = orderService.getOrdersByUser(userId, role, pageable);
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Lấy danh sách đơn hàng của user thành công"));
     }
 
     @GetMapping("/my-orders")
-    public ResponseEntity<BaseResponse<List<OrderResponse>>> getMyOrders(
+    public ResponseEntity<BaseResponse<Page<OrderResponse>>> getMyOrders(
             @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId,
-            @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
-        List<OrderResponse> response = orderService.getOrdersByUser(userId, role);
+            @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        Page<OrderResponse> response = orderService.getOrdersByUser(userId, role, pageable);
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Lấy danh sách đơn hàng của tôi thành công"));
     }
 
     @GetMapping("/restaurant/{restaurantId}")
-    public ResponseEntity<BaseResponse<List<OrderResponse>>> getOrdersByRestaurant(
+    public ResponseEntity<BaseResponse<Page<OrderResponse>>> getOrdersByRestaurant(
             @PathVariable Long restaurantId,
             @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId,
-            @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
-        List<OrderResponse> response = orderService.getOrdersByRestaurant(restaurantId, userId, role);
+            @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        Page<OrderResponse> response = orderService.getOrdersByRestaurant(restaurantId, userId, role, pageable);
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Lấy danh sách đơn hàng của nhà hàng thành công"));
     }
     
     @GetMapping("/restaurant-owner/{ownerId}")
-    public ResponseEntity<BaseResponse<List<OrderResponse>>> getOrdersByRestaurantOwner(
+    public ResponseEntity<BaseResponse<Page<OrderResponse>>> getOrdersByRestaurantOwner(
             @PathVariable Long ownerId,
             @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId,
-            @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
-        List<OrderResponse> response = orderService.getOrdersByRestaurantOwner(ownerId, userId, role);
+            @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        Page<OrderResponse> response = orderService.getOrdersByRestaurantOwner(ownerId, userId, role, pageable);
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Lấy danh sách đơn hàng của chủ nhà hàng thành công"));
     }
     
     @GetMapping("/my-restaurant-orders")
-    public ResponseEntity<BaseResponse<List<OrderResponse>>> getMyRestaurantOrders(
+    public ResponseEntity<BaseResponse<Page<OrderResponse>>> getMyRestaurantOrders(
             @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId,
-            @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
-        List<OrderResponse> response = orderService.getOrdersByRestaurantOwner(userId, userId, role);
+            @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        Page<OrderResponse> response = orderService.getOrdersByRestaurantOwner(userId, userId, role, pageable);
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Lấy danh sách đơn hàng của nhà hàng tôi sở hữu thành công"));
     }
 
     @GetMapping("/shipper/{shipperId}")
-    public ResponseEntity<BaseResponse<List<OrderResponse>>> getOrdersByShipper(
+    public ResponseEntity<BaseResponse<Page<OrderResponse>>> getOrdersByShipper(
             @PathVariable Long shipperId,
             @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId,
-            @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
-        List<OrderResponse> response = orderService.getOrdersByShipper(shipperId, userId, role);
+            @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        Page<OrderResponse> response = orderService.getOrdersByShipper(shipperId, userId, role, pageable);
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Lấy danh sách đơn hàng của shipper thành công"));
     }
 
     @GetMapping("/status/{status}")
-    public ResponseEntity<BaseResponse<List<OrderResponse>>> getOrdersByStatus(
+    public ResponseEntity<BaseResponse<Page<OrderResponse>>> getOrdersByStatus(
             @PathVariable String status,
             @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId,
-            @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
-        List<OrderResponse> response = orderService.getOrdersByStatus(status, userId, role);
+            @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        Page<OrderResponse> response = orderService.getOrdersByStatus(status, userId, role, pageable);
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Lấy danh sách đơn hàng theo trạng thái thành công"));
     }
 
     @GetMapping("/all")
-    public ResponseEntity<BaseResponse<List<OrderResponse>>> getAllOrders(
+    public ResponseEntity<BaseResponse<Page<OrderResponse>>> getAllOrders(
             @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId,
-            @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
-        List<OrderResponse> response = orderService.getAllOrders(userId, role);
+            @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        Page<OrderResponse> response = orderService.getAllOrders(userId, role, pageable);
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Lấy tất cả đơn hàng thành công"));
     }
 

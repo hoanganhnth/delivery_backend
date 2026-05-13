@@ -86,6 +86,12 @@ public class SagaManager {
         SagaInstance saga = findSagaByOrderId(orderId);
         if (saga == null) return;
 
+        // Idempotency check: chỉ xử lý khi Saga đang ở STARTED
+        if (saga.getStatus() != SagaStatus.STARTED) {
+            log.warn("⚠️ [Saga] handleDeliveryCreated - Saga cho orderId={} đang ở trạng thái {}, bỏ qua event (idempotency)", orderId, saga.getStatus());
+            return;
+        }
+
         saga.setDeliveryId(deliveryId);
         saga.setStatus(SagaStatus.DELIVERY_CREATED);
         saga.addStep("DELIVERY_CREATED", "delivery.created.result", rawEvent);
@@ -124,6 +130,12 @@ public class SagaManager {
         SagaInstance saga = findSagaByOrderId(orderId);
         if (saga == null) return;
 
+        // Idempotency check: chỉ xử lý khi đang FINDING_SHIPPER
+        if (saga.getStatus() != SagaStatus.FINDING_SHIPPER) {
+            log.warn("⚠️ [Saga] handleShipperFound - Saga cho orderId={} đang ở {}, bỏ qua event", orderId, saga.getStatus());
+            return;
+        }
+
         saga.setStatus(SagaStatus.SHIPPER_FOUND);
         saga.addStep("SHIPPER_FOUND", "shipper.found", rawEvent);
         sagaInstanceRepository.save(saga);
@@ -144,6 +156,12 @@ public class SagaManager {
     public void handleShipperNotFound(Long orderId, Long deliveryId, String rawEvent) {
         SagaInstance saga = findSagaByOrderId(orderId);
         if (saga == null) return;
+
+        // Idempotency check
+        if (saga.getStatus() != SagaStatus.FINDING_SHIPPER) {
+            log.warn("⚠️ [Saga] handleShipperNotFound - Saga cho orderId={} đang ở {}, bỏ qua event", orderId, saga.getStatus());
+            return;
+        }
 
         saga.setStatus(SagaStatus.FAILED);
         saga.setCompletedAt(LocalDateTime.now());
@@ -167,6 +185,12 @@ public class SagaManager {
         SagaInstance saga = findSagaByOrderId(orderId);
         if (saga == null) return;
 
+        // Idempotency check
+        if (saga.getStatus() != SagaStatus.SHIPPER_FOUND && saga.getStatus() != SagaStatus.FINDING_SHIPPER) {
+            log.warn("⚠️ [Saga] handleShipperAccepted - Saga cho orderId={} đang ở {}, bỏ qua event", orderId, saga.getStatus());
+            return;
+        }
+
         saga.setStatus(SagaStatus.SHIPPER_ASSIGNED);
         saga.setShipperId(shipperId);
         saga.addStep("SHIPPER_ASSIGNED", "delivery.shipper-accepted", rawEvent);
@@ -185,6 +209,12 @@ public class SagaManager {
     public void handleShipperRejected(Long orderId, Long deliveryId, Long rejectedShipperId, String rawEvent) {
         SagaInstance saga = findSagaByOrderId(orderId);
         if (saga == null) return;
+
+        // Idempotency check: Chỉ xử lý nếu đang SHIPPER_FOUND hoặc FINDING_SHIPPER
+        if (saga.getStatus() != SagaStatus.SHIPPER_FOUND && saga.getStatus() != SagaStatus.FINDING_SHIPPER) {
+            log.warn("⚠️ [Saga] handleShipperRejected - Saga cho orderId={} đang ở {}, bỏ qua event", orderId, saga.getStatus());
+            return;
+        }
 
         // Đếm số lần shipper đã reject cho đơn này
         long rejectCount = saga.getSteps().stream()
@@ -268,6 +298,12 @@ public class SagaManager {
         SagaInstance saga = findSagaByOrderId(orderId);
         if (saga == null) return;
 
+        // Check if saga is already in terminal state
+        if (saga.getStatus() == SagaStatus.COMPLETED || saga.getStatus() == SagaStatus.CANCELLED || saga.getStatus() == SagaStatus.FAILED) {
+            log.warn("⚠️ [Saga] handleDeliveryStatusUpdated - Saga cho orderId={} đã kết thúc ở {}, bỏ qua update {}", orderId, saga.getStatus(), newStatus);
+            return;
+        }
+
         // Cập nhật saga status
         switch (newStatus) {
             case "PICKED_UP" -> saga.setStatus(SagaStatus.PICKING_UP);
@@ -298,6 +334,11 @@ public class SagaManager {
     public void handleOrderCancelled(Long orderId, String rawEvent) {
         SagaInstance saga = findSagaByOrderId(orderId);
         if (saga == null) return;
+
+        if (saga.getStatus() == SagaStatus.CANCELLED || saga.getStatus() == SagaStatus.COMPLETED || saga.getStatus() == SagaStatus.FAILED) {
+            log.warn("⚠️ [Saga] handleOrderCancelled - Saga cho orderId={} đã ở trạng thái cuối {}, bỏ qua", orderId, saga.getStatus());
+            return;
+        }
 
         saga.setStatus(SagaStatus.CANCELLED);
         saga.setCompletedAt(LocalDateTime.now());
@@ -336,6 +377,11 @@ public class SagaManager {
         SagaInstance saga = findSagaByOrderId(orderId);
         if (saga == null) return;
 
+        if (saga.getStatus() != SagaStatus.STARTED) {
+            log.warn("⚠️ [Saga] handleDeliveryCreationFailed - Saga cho orderId={} đang ở {}, bỏ qua (không phải STARTED)", orderId, saga.getStatus());
+            return;
+        }
+
         saga.setStatus(SagaStatus.COMPENSATING);
         saga.addStep("DELIVERY_CREATION_FAILED", "delivery.created.failed", rawEvent);
         sagaInstanceRepository.save(saga);
@@ -358,6 +404,11 @@ public class SagaManager {
     public void handleStepFailed(String stepName, Long orderId, String reason, String rawEvent) {
         SagaInstance saga = findSagaByOrderId(orderId);
         if (saga == null) return;
+
+        if (saga.getStatus() == SagaStatus.FAILED || saga.getStatus() == SagaStatus.CANCELLED || saga.getStatus() == SagaStatus.COMPLETED) {
+            log.warn("⚠️ [Saga] handleStepFailed - Saga cho orderId={} đã ở trạng thái cuối {}, bỏ qua", orderId, saga.getStatus());
+            return;
+        }
 
         saga.setStatus(SagaStatus.COMPENSATING);
         saga.addStep(stepName + "_FAILED", stepName + ".failed", rawEvent);

@@ -218,9 +218,8 @@ public class DashboardQueryService {
 
     private List<DashboardResponse.TopRestaurant> buildTopRestaurants() {
         // Sử dụng raw events để lấy top restaurants (có cả tên)
-        List<Object[]> rows = eventRepo.topRestaurantsByDeliveredRevenue();
+        List<Object[]> rows = eventRepo.topRestaurantsByDeliveredRevenue(org.springframework.data.domain.PageRequest.of(0, 10));
         return rows.stream()
-                .limit(10)
                 .map(row -> DashboardResponse.TopRestaurant.builder()
                         .restaurantId(((Number) row[0]).longValue())
                         .restaurantName((String) row[1])

@@ -5,6 +5,8 @@ import com.delivery.order_service.dto.request.CreateOrderRequest;
 import com.delivery.order_service.dto.request.UpdateOrderRequest;
 import com.delivery.order_service.dto.response.OrderResponse;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import java.util.List;
 
 public interface OrderService {
@@ -32,32 +34,32 @@ public interface OrderService {
     /**
      * Lấy danh sách đơn hàng của user
      */
-    List<OrderResponse> getOrdersByUser(Long userId, String role);
+    Page<OrderResponse> getOrdersByUser(Long userId, String role, Pageable pageable);
     
     /**
      * Lấy danh sách đơn hàng của restaurant
      */
-    List<OrderResponse> getOrdersByRestaurant(Long restaurantId, Long userId, String role);
+    Page<OrderResponse> getOrdersByRestaurant(Long restaurantId, Long userId, String role, Pageable pageable);
     
     /**
      * Lấy danh sách đơn hàng theo restaurant owner (creator ID)
      */
-    List<OrderResponse> getOrdersByRestaurantOwner(Long ownerId, Long userId, String role);
+    Page<OrderResponse> getOrdersByRestaurantOwner(Long ownerId, Long userId, String role, Pageable pageable);
     
     /**
      * Lấy danh sách đơn hàng của shipper
      */
-    List<OrderResponse> getOrdersByShipper(Long shipperId, Long userId, String role);
+    Page<OrderResponse> getOrdersByShipper(Long shipperId, Long userId, String role, Pageable pageable);
     
     /**
      * Lấy đơn hàng theo trạng thái
      */
-    List<OrderResponse> getOrdersByStatus(String status, Long userId, String role);
+    Page<OrderResponse> getOrdersByStatus(String status, Long userId, String role, Pageable pageable);
     
     /**
      * Lấy tất cả đơn hàng (Admin only)
      */
-    List<OrderResponse> getAllOrders(Long userId, String role);
+    Page<OrderResponse> getAllOrders(Long userId, String role, Pageable pageable);
     
     /**
      * Cập nhật trạng thái đơn hàng

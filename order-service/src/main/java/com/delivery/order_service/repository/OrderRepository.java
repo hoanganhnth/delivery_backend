@@ -6,6 +6,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -15,37 +17,37 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     /**
      * Tìm đơn hàng theo user ID
      */
-    List<Order> findByUserIdOrderByCreatedAtDesc(Long userId);
+    Page<Order> findByUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable);
     
     /**
      * Tìm đơn hàng theo restaurant ID
      */
-    List<Order> findByRestaurantIdOrderByCreatedAtDesc(Long restaurantId);
+    Page<Order> findByRestaurantIdOrderByCreatedAtDesc(Long restaurantId, Pageable pageable);
     
     /**
      * Tìm đơn hàng theo shipper ID
      */
-    List<Order> findByShipperIdOrderByCreatedAtDesc(Long shipperId);
+    Page<Order> findByShipperIdOrderByCreatedAtDesc(Long shipperId, Pageable pageable);
     
     /**
      * Tìm đơn hàng theo status
      */
-    List<Order> findByStatusOrderByCreatedAtDesc(String status);
+    Page<Order> findByStatusOrderByCreatedAtDesc(String status, Pageable pageable);
     
     /**
      * Tìm đơn hàng theo user và status
      */
-    List<Order> findByUserIdAndStatusOrderByCreatedAtDesc(Long userId, String status);
+    Page<Order> findByUserIdAndStatusOrderByCreatedAtDesc(Long userId, String status, Pageable pageable);
     
     /**
      * Tìm đơn hàng theo restaurant và status
      */
-    List<Order> findByRestaurantIdAndStatusOrderByCreatedAtDesc(Long restaurantId, String status);
+    Page<Order> findByRestaurantIdAndStatusOrderByCreatedAtDesc(Long restaurantId, String status, Pageable pageable);
     
     /**
      * Lấy tất cả đơn hàng
      */
-    List<Order> findAllByOrderByCreatedAtDesc();
+    Page<Order> findAllByOrderByCreatedAtDesc(Pageable pageable);
     
     /**
      * Tìm đơn hàng trong khoảng thời gian
@@ -75,7 +77,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
      * ✅ Tìm đơn hàng theo creator ID (chủ nhà hàng)
      * Query trực tiếp từ bảng orders mà không cần JOIN với restaurant
      */
-    List<Order> findByCreatorIdOrderByCreatedAtDesc(Long creatorId);
+    Page<Order> findByCreatorIdOrderByCreatedAtDesc(Long creatorId, Pageable pageable);
 
     /**
      * ✅ Admin: Lấy tất cả order chưa hoàn thành (không phải DELIVERED hoặc CANCELLED)
@@ -146,7 +148,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     @Query("SELECT o.restaurantId, o.restaurantName, COUNT(o), COALESCE(SUM(o.totalPrice), 0) " +
            "FROM Order o WHERE o.status = 'DELIVERED' " +
            "GROUP BY o.restaurantId, o.restaurantName ORDER BY SUM(o.totalPrice) DESC")
-    List<Object[]> topRestaurantsByRevenue();
+    List<Object[]> topRestaurantsByRevenue(Pageable pageable);
 
     /**
      * Top món ăn cho 1 nhà hàng
@@ -155,7 +157,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
            "FROM OrderItem oi JOIN oi.order o " +
            "WHERE o.restaurantId = :restaurantId AND o.status = 'DELIVERED' " +
            "GROUP BY oi.menuItemName ORDER BY SUM(oi.quantity) DESC")
-    List<Object[]> topMenuItemsByRestaurant(@Param("restaurantId") Long restaurantId);
+    List<Object[]> topMenuItemsByRestaurant(@Param("restaurantId") Long restaurantId, Pageable pageable);
 
     /**
      * Đếm trạng thái đơn (toàn bộ)

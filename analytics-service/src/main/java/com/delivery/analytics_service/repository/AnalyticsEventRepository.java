@@ -31,5 +31,5 @@ public interface AnalyticsEventRepository extends JpaRepository<AnalyticsEvent, 
     @Query("SELECT e.restaurantId, e.restaurantName, COUNT(e), COALESCE(SUM(e.amount), 0) " +
            "FROM AnalyticsEvent e WHERE e.eventType = 'ORDER_DELIVERED' AND e.restaurantId IS NOT NULL " +
            "GROUP BY e.restaurantId, e.restaurantName ORDER BY SUM(e.amount) DESC")
-    List<Object[]> topRestaurantsByDeliveredRevenue();
+    List<Object[]> topRestaurantsByDeliveredRevenue(org.springframework.data.domain.Pageable pageable);
 }

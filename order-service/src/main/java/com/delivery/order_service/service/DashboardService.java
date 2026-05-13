@@ -56,7 +56,7 @@ public class DashboardService {
         );
 
         List<DashboardStats.TopRestaurant> topRestaurants = buildTopRestaurants(
-            orderRepository.topRestaurantsByRevenue()
+            orderRepository.topRestaurantsByRevenue(org.springframework.data.domain.PageRequest.of(0, 10))
         );
 
         return DashboardStats.AdminDashboardResponse.builder()
@@ -106,7 +106,7 @@ public class DashboardService {
         );
 
         List<DashboardStats.TopMenuItem> topMenuItems = buildTopMenuItems(
-            orderRepository.topMenuItemsByRestaurant(restaurantId)
+            orderRepository.topMenuItemsByRestaurant(restaurantId, org.springframework.data.domain.PageRequest.of(0, 10))
         );
 
         return DashboardStats.RestaurantDashboardResponse.builder()
@@ -237,7 +237,6 @@ public class DashboardService {
 
     private List<DashboardStats.TopRestaurant> buildTopRestaurants(List<Object[]> rawData) {
         return rawData.stream()
-            .limit(10) // Top 10
             .map(row -> DashboardStats.TopRestaurant.builder()
                 .restaurantId(((Number) row[0]).longValue())
                 .restaurantName((String) row[1])
@@ -249,7 +248,6 @@ public class DashboardService {
 
     private List<DashboardStats.TopMenuItem> buildTopMenuItems(List<Object[]> rawData) {
         return rawData.stream()
-            .limit(10) // Top 10
             .map(row -> DashboardStats.TopMenuItem.builder()
                 .itemName((String) row[0])
                 .quantity(((Number) row[1]).longValue())
