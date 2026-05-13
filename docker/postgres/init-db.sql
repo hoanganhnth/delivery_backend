@@ -12,3 +12,4 @@ CREATE DATABASE livestream_db;
 CREATE DATABASE tracking_db;
 CREATE DATABASE match_db;
 CREATE DATABASE promotion_db;
+CREATE DATABASE analytics_db;

@@ -59,6 +59,9 @@ public class GatewayRouteConfig {
         @Value("${app.promotion-service.uri:http://localhost:8096}")
         private String promotionServiceUri;
 
+        @Value("${app.analytics-service.uri:http://localhost:8097}")
+        private String analyticsServiceUri;
+
         @Bean
         public RouteLocator customRoutes(RouteLocatorBuilder builder) {
                 return builder.routes()
@@ -105,11 +108,15 @@ public class GatewayRouteConfig {
                                                                 jwtFilter.apply(new JwtAuthenticationFilter.Config())))
                                                 .uri(orderServiceUri))
 
-                                // ✅ Dashboard statistics (protected with JWT)
-                                .route("dashboard-service", r -> r.path("/api/dashboard/**")
+                                // ✅ Analytics Dashboard (protected with JWT) → analytics-service
+                                .route("analytics-dashboard", r -> r.path("/api/dashboard/**")
                                                 .filters(f -> f.filter(
                                                                 jwtFilter.apply(new JwtAuthenticationFilter.Config())))
-                                                .uri(orderServiceUri))
+                                                .uri(analyticsServiceUri))
+                                .route("analytics-service", r -> r.path("/api/analytics/**")
+                                                .filters(f -> f.filter(
+                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config())))
+                                                .uri(analyticsServiceUri))
 
                                 // ✅ Admin endpoints (no JWT) — MUST be before the protected delivery route
                                 .route("delivery-service-admin", r -> r.path("/api/deliveries/admin/**")

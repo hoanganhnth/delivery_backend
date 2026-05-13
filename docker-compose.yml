@@ -98,6 +98,7 @@ services:
       APP_LIVESTREAM_SERVICE_URI: http://livestream-service:8094
       APP_SETTLEMENT_SERVICE_URI: http://settlement-service:8090
       APP_PROMOTION_SERVICE_URI: http://promotion-service:8096
+      APP_ANALYTICS_SERVICE_URI: http://analytics-service:8097
     deploy: { resources: { limits: { memory: 512M } } }
     networks: [delivery-network]
 
@@ -283,6 +284,20 @@ services:
     ports: ["8096:8096"]
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/delivery_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: 123456
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      JAVA_OPTS: "-Xmx384m -Xms256m"
+    deploy: { resources: { limits: { memory: 512M } } }
+    depends_on: [postgres, kafka]
+    networks: [delivery-network]
+
+  analytics-service:
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: analytics-service } }
+    container_name: analytics-service
+    ports: ["8097:8097"]
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/analytics_db
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: 123456
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
