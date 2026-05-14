@@ -134,7 +134,7 @@ public class BalanceController {
             @Valid @RequestBody TopUpDepositRequest request) {
 
         Transaction transaction = transactionService.topUpDeposit(
-                entityId, request.getAmount(), request.getPaymentMethod());
+                entityId, EntityType.SHIPPER, request.getAmount(), request.getPaymentMethod());
 
         return ResponseEntity.ok(new BaseResponse<>(1, "Deposit topped up successfully",
                 transactionMapper.toResponse(transaction)));
