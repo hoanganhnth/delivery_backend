@@ -94,29 +94,32 @@ public class OrderEventPublisher {
      * Map Order entity to OrderCancelledEvent
      */
     private OrderCancelledEvent mapOrderToCancelledEvent(Order order, String previousStatus, Long cancelledBy) {
-        OrderCancelledEvent event = new OrderCancelledEvent();
+        // Build cancel event manually to match structure
+        OrderCancelledEvent cancelEvent = new OrderCancelledEvent();
+        cancelEvent.setOrderId(order.getId());
+        cancelEvent.setUserId(order.getUserId());
+        cancelEvent.setRestaurantId(order.getRestaurantId());
+        cancelEvent.setPreviousStatus(previousStatus);
+        cancelEvent.setCurrentStatus("CANCELLED");
+        cancelEvent.setCancelReason(order.getCancelReason());
+        cancelEvent.setCancelledBy(cancelledBy);
+        cancelEvent.setCancelledAt(order.getUpdatedAt() != null ? order.getUpdatedAt() : LocalDateTime.now());
+        cancelEvent.setShipperId(order.getShipperId());
+        cancelEvent.setHasActiveDelivery(order.getShipperId() != null);
+        cancelEvent.setCreatedAt(order.getCreatedAt());
+        cancelEvent.setUpdatedAt(order.getUpdatedAt());
+
+        if (order.getItems() != null) {
+            java.util.List<java.util.Map<String, Object>> items = order.getItems().stream().map(item -> {
+                java.util.Map<String, Object> map = new java.util.HashMap<>();
+                map.put("flashSaleItemId", item.getFlashSaleItemId());
+                map.put("quantity", item.getQuantity());
+                return map;
+            }).toList();
+            cancelEvent.setItems(items);
+        }
         
-        // Order basic info
-        event.setOrderId(order.getId());
-        event.setUserId(order.getUserId());
-        event.setRestaurantId(order.getRestaurantId());
-        event.setPreviousStatus(previousStatus);
-        event.setCurrentStatus(order.getStatus()); // CANCELLED
-        
-        // Cancellation info
-        event.setCancelReason("Order cancelled by user/admin");
-        event.setCancelledBy(cancelledBy);
-        event.setCancelledAt(LocalDateTime.now());
-        
-        // Delivery related
-        event.setShipperId(order.getShipperId());
-        event.setHasActiveDelivery(order.getShipperId() != null);
-        
-        // Timestamps
-        event.setCreatedAt(order.getCreatedAt());
-        event.setUpdatedAt(order.getUpdatedAt());
-        
-        return event;
+        return cancelEvent;
     }
     
     /**

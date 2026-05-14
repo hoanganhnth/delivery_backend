@@ -39,6 +39,7 @@ public class OrderServiceImpl implements OrderService {
     private final OrderValidationService orderValidationService;
     private final ShippingFeeCalculationService shippingFeeCalculationService;
     private final PromotionClient promotionClient;
+    private final com.delivery.order_service.client.FlashSaleClient flashSaleClient;
 
     public OrderServiceImpl(OrderRepository orderRepository, 
                            OrderItemRepository orderItemRepository,
@@ -46,7 +47,8 @@ public class OrderServiceImpl implements OrderService {
                            OrderEventPublisher orderEventPublisher,
                            OrderValidationService orderValidationService,
                            ShippingFeeCalculationService shippingFeeCalculationService,
-                           PromotionClient promotionClient) {
+                           PromotionClient promotionClient,
+                           com.delivery.order_service.client.FlashSaleClient flashSaleClient) {
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
         this.orderMapper = orderMapper;
@@ -54,6 +56,7 @@ public class OrderServiceImpl implements OrderService {
         this.orderValidationService = orderValidationService;
         this.shippingFeeCalculationService = shippingFeeCalculationService;
         this.promotionClient = promotionClient;
+        this.flashSaleClient = flashSaleClient;
     }
 
     @Override
@@ -102,6 +105,27 @@ public class OrderServiceImpl implements OrderService {
         
         order.setTotalPrice(subtotal.add(shippingFee).subtract(order.getDiscountAmount()));
         
+        // ✅ Reserve Flash Sale Stock synchronously
+        List<java.util.Map<String, Object>> flashSaleRequests = request.getItems().stream()
+                .filter(item -> item.getFlashSaleItemId() != null)
+                .map(item -> {
+                    java.util.Map<String, Object> map = new java.util.HashMap<>();
+                    map.put("flashSaleItemId", item.getFlashSaleItemId());
+                    map.put("quantity", item.getQuantity());
+                    map.put("price", item.getPrice());
+                    return map;
+                })
+                .toList();
+
+        if (!flashSaleRequests.isEmpty()) {
+            try {
+                flashSaleClient.reserveStock(flashSaleRequests);
+            } catch (Exception e) {
+                log.error("💥 Flash sale stock reservation failed: {}", e.getMessage());
+                throw new IllegalStateException("Hết suất hoặc thông tin Flash Sale không hợp lệ!");
+            }
+        }
+
         // Lưu order
         Order savedOrder = orderRepository.save(order);
         

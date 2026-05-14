@@ -30,6 +30,7 @@ public class CreateOrderRequest {
     @Getter
     public static class OrderItemRequest {
         private Long menuItemId;
+        private Long flashSaleItemId;
         private String menuItemName;
         private Integer quantity;
         private BigDecimal price;

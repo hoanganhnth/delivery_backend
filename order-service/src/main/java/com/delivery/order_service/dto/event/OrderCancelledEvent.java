@@ -30,6 +30,9 @@ public class OrderCancelledEvent {
     private Long shipperId; // null if no shipper assigned
     private Boolean hasActiveDelivery;
     
+    // Items
+    private java.util.List<java.util.Map<String, Object>> items;
+
     // Timestamps
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

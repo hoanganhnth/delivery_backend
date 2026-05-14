@@ -67,6 +67,7 @@ public interface OrderMapper {
 
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "order", ignore = true)
+    @Mapping(target = "flashSaleItemId", source = "flashSaleItemId")
     OrderItem orderItemRequestToOrderItem(CreateOrderRequest.OrderItemRequest request);
     
     OrderItemResponse orderItemToOrderItemResponse(OrderItem orderItem);

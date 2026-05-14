@@ -23,6 +23,9 @@ public class OrderItem {
     @Column(name = "menu_item_id", nullable = false)
     private Long menuItemId;
 
+    @Column(name = "flash_sale_item_id")
+    private Long flashSaleItemId;
+
     @Column(name = "menu_item_name", nullable = false)
     private String menuItemName;
 
