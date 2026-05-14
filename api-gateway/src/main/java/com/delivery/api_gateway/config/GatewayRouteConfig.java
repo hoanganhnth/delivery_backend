@@ -62,6 +62,9 @@ public class GatewayRouteConfig {
         @Value("${app.analytics-service.uri:http://localhost:8097}")
         private String analyticsServiceUri;
 
+        @Value("${app.flashsale-service.uri:http://localhost:8092}")
+        private String flashsaleServiceUri;
+
         @Bean
         public RouteLocator customRoutes(RouteLocatorBuilder builder) {
                 return builder.routes()
@@ -171,6 +174,11 @@ public class GatewayRouteConfig {
                                                 .filters(f -> f.filter(
                                                                 jwtFilter.apply(new JwtAuthenticationFilter.Config())))
                                                 .uri(promotionServiceUri))
+                                
+                                .route("flashsale-service", r -> r.path("/api/flashsales/**")
+                                                .filters(f -> f.filter(
+                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config())))
+                                                .uri(flashsaleServiceUri))
 
                                 .build();
         }

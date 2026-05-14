@@ -24,5 +24,6 @@
         <module>match-service</module>
         <module>livestream-service</module>
         <module>settlement-service</module>
+        <module>flashsale-service</module>
     </modules>
 </project>
