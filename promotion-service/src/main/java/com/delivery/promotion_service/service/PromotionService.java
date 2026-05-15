@@ -190,6 +190,15 @@ public class PromotionService {
             voucherRepository.save(voucher);
         }
     @Transactional(readOnly = true)
+    public List<Voucher> getCollectedVouchers(Long userId) {
+        List<UserVoucher> userVouchers = userVoucherRepository.findByUserIdAndStatus(userId, UserVoucher.Status.SAVED);
+        List<Long> voucherIds = userVouchers.stream()
+                .map(UserVoucher::getVoucherId)
+                .collect(Collectors.toList());
+        return voucherRepository.findAllById(voucherIds);
+    }
+
+    @Transactional(readOnly = true)
     public List<Voucher> listAllVouchers() {
         return voucherRepository.findAll();
     }

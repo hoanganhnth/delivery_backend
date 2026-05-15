@@ -46,6 +46,11 @@ public class PromotionController {
         return ResponseEntity.ok("Collected successfully");
     }
 
+    @GetMapping("/my-vouchers")
+    public ResponseEntity<java.util.List<Voucher>> getMyVouchers(@RequestHeader("X-User-Id") Long userId) {
+        return ResponseEntity.ok(promotionService.getCollectedVouchers(userId));
+    }
+
     @GetMapping("/merchant")
     public ResponseEntity<java.util.List<Voucher>> listMerchantVouchers(@RequestHeader("X-User-Id") Long merchantId) {
         return ResponseEntity.ok(promotionService.listMerchantVouchers(merchantId));
