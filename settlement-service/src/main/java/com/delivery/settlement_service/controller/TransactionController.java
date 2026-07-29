@@ -6,6 +6,7 @@ import com.delivery.settlement_service.payload.BaseResponse;
 import com.delivery.settlement_service.service.TransactionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -13,6 +14,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/settlement/transactions")
 @RequiredArgsConstructor
+@ConditionalOnProperty(name = "app.settlement.self-service-api-enabled", havingValue = "true")
 public class TransactionController {
 
     private final TransactionService transactionService;
@@ -25,7 +27,7 @@ public class TransactionController {
             @PathVariable Long entityId) {
 
         List<TransactionResponse> transactions = transactionService.getTransactions(entityId, EntityType.RESTAURANT);
-        return ResponseEntity.ok(new BaseResponse<>(1, transactions));
+        return ResponseEntity.ok(BaseResponse.success(transactions));
     }
 
     /**
@@ -36,7 +38,7 @@ public class TransactionController {
             @PathVariable Long entityId) {
 
         List<TransactionResponse> transactions = transactionService.getTransactions(entityId, EntityType.SHIPPER);
-        return ResponseEntity.ok(new BaseResponse<>(1, transactions));
+        return ResponseEntity.ok(BaseResponse.success(transactions));
     }
 
     /**
@@ -45,6 +47,6 @@ public class TransactionController {
     @GetMapping("/{id}")
     public ResponseEntity<BaseResponse<TransactionResponse>> getTransactionById(@PathVariable Long id) {
         TransactionResponse transaction = transactionService.getTransactionById(id);
-        return ResponseEntity.ok(new BaseResponse<>(1, transaction));
+        return ResponseEntity.ok(BaseResponse.success(transaction));
     }
 }

@@ -1,6 +1,13 @@
 server:
   port: 8096
 
+app:
+  internal:
+    secret: ${INTERNAL_SECRET:}
+  promotion:
+    checkout-enabled: ${PROMOTION_CHECKOUT_ENABLED:false}
+    merchant-create-api-enabled: ${PROMOTION_MERCHANT_CREATE_API_ENABLED:false}
+
 spring:
   application:
     name: promotion-service
@@ -8,16 +15,21 @@ spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/promotion_db
     username: postgres
-    password: 123456
+    password: ${DB_PASSWORD:}
     driver-class-name: org.postgresql.Driver
     
   jpa:
+    open-in-view: false
     hibernate:
-      ddl-auto: update
-    show-sql: true
+      ddl-auto: validate
+    show-sql: ${JPA_SHOW_SQL:false}
     properties:
       hibernate:
-        format_sql: true
+        format_sql: ${HIBERNATE_FORMAT_SQL:false}
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 0
 
   kafka:
     bootstrap-servers: localhost:9092
@@ -32,14 +44,7 @@ spring:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
 
-eureka:
-  client:
-    service-url:
-      defaultZone: http://localhost:8761/eureka/
-  instance:
-    prefer-ip-address: true
-
 logging:
   level:
-    com.delivery.promotion_service: DEBUG
+    com.delivery.promotion_service: ${APP_LOG_LEVEL:INFO}
     org.springframework.kafka: INFO

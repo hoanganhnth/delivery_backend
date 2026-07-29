@@ -1,57 +1,51 @@
 package com.delivery.delivery_service.entity;
 
 import jakarta.persistence.*;
-import lombok.*;
-import java.time.LocalDateTime;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
-/**
- * ✅ Outbox Event Entity — Transactional Outbox Pattern
- *
- * Lưu event cùng DB transaction với business logic.
- * MessageRelay sẽ poll bảng này → gửi lên Kafka → đánh dấu SENT.
- */
+import java.time.LocalDateTime;
+import java.util.UUID;
+
 @Entity
 @Table(name = "outbox_events", indexes = {
-        @Index(name = "idx_outbox_status_created", columnList = "status, createdAt")
-})
-@Data
-@Builder
+        @Index(name = "idx_delivery_outbox_pending", columnList = "status,next_attempt_at,created_at"),
+        @Index(name = "idx_delivery_outbox_aggregate", columnList = "aggregate_type,aggregate_id,created_at")
+}, uniqueConstraints = @UniqueConstraint(name = "uk_delivery_outbox_event_id", columnNames = "event_id"))
+@Getter
+@Setter
 @NoArgsConstructor
-@AllArgsConstructor
 public class OutboxEvent {
+    public enum OutboxStatus { PENDING, SENT, DEAD }
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
-    @Column(nullable = false)
-    private String topic;
-
-    @Column(name = "event_key")
-    private String eventKey;
-
-    @Column(columnDefinition = "TEXT", nullable = false)
-    private String payload;
-
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    @Builder.Default
-    private OutboxStatus status = OutboxStatus.PENDING;
-
+    @Column(name = "event_id", nullable = false, updatable = false)
+    private UUID eventId;
+    @Column(name = "aggregate_type", nullable = false, updatable = false, length = 64)
+    private String aggregateType;
+    @Column(name = "aggregate_id", nullable = false, updatable = false)
+    private String aggregateId;
+    @Column(name = "event_type", nullable = false, updatable = false, length = 128)
+    private String eventType;
     @Column(nullable = false, updatable = false)
-    @Builder.Default
-    private LocalDateTime createdAt = LocalDateTime.now();
-
+    private String topic;
+    @Column(name = "event_key", nullable = false, updatable = false)
+    private String eventKey;
+    @Column(nullable = false, updatable = false, columnDefinition = "TEXT")
+    private String payload;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 16)
+    private OutboxStatus status;
+    @Column(nullable = false)
+    private int attempts;
+    @Column(name = "next_attempt_at", nullable = false)
+    private LocalDateTime nextAttemptAt;
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private LocalDateTime createdAt;
+    @Column(name = "sent_at")
     private LocalDateTime sentAt;
-
-    @Builder.Default
-    private int retryCount = 0;
-
-    private String errorMessage;
-
-    public enum OutboxStatus {
-        PENDING,
-        SENT,
-        FAILED
-    }
+    @Column(name = "last_error", length = 2000)
+    private String lastError;
 }

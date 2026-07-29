@@ -16,6 +16,7 @@ import com.delivery.livestream_service.repository.LivestreamRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.PageRequest;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -25,6 +26,8 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 public class LivestreamProductService {
+
+    private static final int COMPATIBILITY_LIST_LIMIT = 100;
 
     private final LivestreamProductRepository productRepository;
     private final LivestreamRepository livestreamRepository;
@@ -133,7 +136,8 @@ public class LivestreamProductService {
     @Transactional(readOnly = true)
     public List<LivestreamProductResponse> getProductsByLivestream(UUID livestreamId) {
         log.info("Getting all products for livestream: {}", livestreamId);
-        return productRepository.findByLivestreamId(livestreamId)
+        return productRepository.findByLivestreamId(
+                        livestreamId, PageRequest.of(0, COMPATIBILITY_LIST_LIMIT))
                 .stream()
                 .map(mapper::toProductResponse)
                 .collect(Collectors.toList());
@@ -142,7 +146,8 @@ public class LivestreamProductService {
     @Transactional(readOnly = true)
     public List<LivestreamProductResponse> getPinnedProducts(UUID livestreamId) {
         log.info("Getting pinned products for livestream: {}", livestreamId);
-        return productRepository.findByLivestreamIdAndIsPinned(livestreamId, true)
+        return productRepository.findByLivestreamIdAndIsPinned(
+                        livestreamId, true, PageRequest.of(0, COMPATIBILITY_LIST_LIMIT))
                 .stream()
                 .map(mapper::toProductResponse)
                 .collect(Collectors.toList());

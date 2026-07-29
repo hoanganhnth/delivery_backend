@@ -24,6 +24,7 @@ public class LivestreamResponse {
     private String channelName;
     private LocalDateTime startedAt;
     private LocalDateTime endedAt;
+    private Long viewCount;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private List<LivestreamProductResponse> pinnedProducts;

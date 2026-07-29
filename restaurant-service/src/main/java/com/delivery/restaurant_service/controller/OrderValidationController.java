@@ -8,6 +8,8 @@ import com.delivery.restaurant_service.payload.BaseResponse;
 import com.delivery.restaurant_service.service.OrderCacheValidationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -22,6 +24,9 @@ import org.springframework.web.bind.annotation.*;
 public class OrderValidationController {
     
     private final OrderCacheValidationService orderCacheValidationService;
+
+    @Value("${app.internal.secret:}")
+    private String internalSecret;
     
     /**
      * API validate order với OrderValidationRequest format từ order-service
@@ -30,10 +35,13 @@ public class OrderValidationController {
     @PostMapping("/order")
     public ResponseEntity<BaseResponse<OrderValidationResultResponse>> validateOrder(
             @RequestBody OrderValidationRequest request,
-            @RequestHeader(value = HttpHeaderConstants.X_USER_ID, required = false) Long userId,
-            @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
+            @RequestHeader(value = HttpHeaderConstants.INTERNAL_TOKEN, required = false) String internalToken) {
+
+        if (!isInternalRequest(internalToken)) {
+            return forbidden();
+        }
         
-        log.info("🔍 Validating order for restaurant: {} by user: {}", request.getRestaurantId(), userId);
+        log.info("🔍 Validating order for restaurant: {}", request.getRestaurantId());
         
         OrderValidationResultResponse response = 
                 orderCacheValidationService.validateOrderFromOrderService(request);
@@ -48,72 +56,13 @@ public class OrderValidationController {
                 message));
     }
     
-    /**
-     * API validate single menu item (helper method)
-     * Endpoint: POST /api/restaurants/validate/menu-item
-     */
-    @PostMapping("/menu-item")
-    public ResponseEntity<BaseResponse<Boolean>> validateMenuItem(
-            @RequestParam Long restaurantId,
-            @RequestParam Long menuItemId,
-            @RequestParam Integer quantity,
-            @RequestHeader(value = HttpHeaderConstants.X_USER_ID, required = false) Long userId,
-            @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
-        
-        log.info("🔍 Validating single menu item: {} for restaurant: {}", menuItemId, restaurantId);
-        
-        // Tạo OrderItemRequest để validate
-        OrderValidationRequest.OrderItemRequest item = OrderValidationRequest.OrderItemRequest.builder()
-                .menuItemId(menuItemId)
-                .quantity(quantity)
-                .build();
-        
-        OrderValidationResultResponse.ItemValidationInfo validation = 
-                orderCacheValidationService.validateMenuItem(restaurantId, item);
-        
-        boolean isValid = validation.getIsAvailable() && validation.getHasEnoughStock();
-        
-        return ResponseEntity.ok(new BaseResponse<>(
-                isValid ? 1 : 0,
-                isValid,
-                isValid ? "Menu item hợp lệ" : "Menu item không hợp lệ"));
+    private boolean isInternalRequest(String internalToken) {
+        return internalSecret != null && !internalSecret.isBlank()
+                && internalSecret.equals(internalToken);
     }
-    
-    /**
-     * API calculate order total từ OrderValidationRequest
-     * Endpoint: POST /api/restaurants/validate/calculate-total
-     */
-    @PostMapping("/calculate-total")
-    public ResponseEntity<BaseResponse<Double>> calculateOrderTotal(
-            @RequestBody OrderValidationRequest request,
-            @RequestHeader(value = HttpHeaderConstants.X_USER_ID, required = false) Long userId,
-            @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
-        
-        log.info("🧮 Calculating total for restaurant: {} with {} items", 
-                request.getRestaurantId(), request.getItems().size());
-        
-        Double total = orderCacheValidationService.calculateTotalFromItems(request);
-        
-        return ResponseEntity.ok(new BaseResponse<>(1, total, "Tính tổng tiền thành công"));
-    }
-    
-    /**
-     * API check restaurant operating hours
-     * Endpoint: GET /api/restaurants/validate/operating-hours/{restaurantId}
-     */
-    @GetMapping("/operating-hours/{restaurantId}")
-    public ResponseEntity<BaseResponse<Boolean>> checkOperatingHours(
-            @PathVariable Long restaurantId,
-            @RequestHeader(value = HttpHeaderConstants.X_USER_ID, required = false) Long userId,
-            @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
-        
-        log.info("🕐 Checking operating hours for restaurant: {}", restaurantId);
-        
-        boolean isOpen = orderCacheValidationService.isRestaurantAvailable(restaurantId);
-        
-        return ResponseEntity.ok(new BaseResponse<>(
-                isOpen ? 1 : 0,
-                isOpen,
-                isOpen ? "Restaurant đang mở cửa" : "Restaurant đang đóng cửa"));
+
+    private <T> ResponseEntity<BaseResponse<T>> forbidden() {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(new BaseResponse<>(0, null, "Forbidden"));
     }
 }

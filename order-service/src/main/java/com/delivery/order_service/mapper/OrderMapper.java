@@ -1,76 +1,108 @@
 package com.delivery.order_service.mapper;
 
 import com.delivery.order_service.dto.request.CreateOrderRequest;
-import com.delivery.order_service.dto.request.UpdateOrderRequest;
 import com.delivery.order_service.dto.response.OrderItemResponse;
 import com.delivery.order_service.dto.response.OrderResponse;
 import com.delivery.order_service.entity.Order;
 import com.delivery.order_service.entity.OrderItem;
-import org.mapstruct.Mapper;
-import org.mapstruct.Mapping;
-import org.mapstruct.MappingTarget;
-import org.mapstruct.NullValuePropertyMappingStrategy;
+import com.delivery.order_service.entity.OrderStatus;
+import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.List;
 
-@Mapper(componentModel = "spring", nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
-public interface OrderMapper {
+@Component
+public class OrderMapper {
 
-    @Mapping(target = "id", ignore = true)
-    @Mapping(target = "createdAt", ignore = true)
-    @Mapping(target = "updatedAt", ignore = true)
-    @Mapping(target = "userId", ignore = true)
-    @Mapping(target = "items", ignore = true)
-    @Mapping(target = "subtotalPrice", ignore = true)
-    @Mapping(target = "discountAmount", ignore = true)
-    @Mapping(target = "shippingFee", ignore = true)
-    @Mapping(target = "totalPrice", ignore = true)
-    @Mapping(target = "status", constant = "PENDING")
-    @Mapping(target = "creatorId", ignore = true)
-    @Mapping(target = "shipperId", ignore = true)
-    // Các trường nhà hàng được set từ ValidatedOrderData (server-side), không lấy từ request
-    @Mapping(target = "restaurantName", ignore = true)
-    @Mapping(target = "restaurantAddress", ignore = true)
-    @Mapping(target = "restaurantPhone", ignore = true)
-    @Mapping(target = "pickupLat", ignore = true)
-    @Mapping(target = "pickupLng", ignore = true)
-    Order createOrderRequestToOrder(CreateOrderRequest request);
+    public Order createOrderRequestToOrder(CreateOrderRequest request) {
+        if (request == null) {
+            return null;
+        }
 
-    @Mapping(target = "restaurantLat", ignore = true)
-    @Mapping(target = "restaurantLng", ignore = true)
-    OrderResponse orderToOrderResponse(Order order);
-    
-    List<OrderResponse> ordersToOrderResponses(List<Order> orders);
+        Order order = new Order();
+        order.setRestaurantId(request.getRestaurantId());
+        order.setPaymentMethod(request.getPaymentMethod());
+        order.setDeliveryAddress(request.getDeliveryAddress());
+        order.setDeliveryLat(request.getDeliveryLat());
+        order.setDeliveryLng(request.getDeliveryLng());
+        order.setCustomerName(request.getCustomerName());
+        order.setCustomerPhone(request.getCustomerPhone());
+        order.setNotes(request.getNotes());
+        order.setStatus(OrderStatus.PENDING);
+        return order;
+    }
 
-    @Mapping(target = "id", ignore = true)
-    @Mapping(target = "createdAt", ignore = true)
-    @Mapping(target = "updatedAt", ignore = true)
-    @Mapping(target = "userId", ignore = true)
-    @Mapping(target = "restaurantId", ignore = true)
-    @Mapping(target = "restaurantName", ignore = true)
-    @Mapping(target = "restaurantAddress", ignore = true)
-    @Mapping(target = "restaurantPhone", ignore = true)
-    @Mapping(target = "subtotalPrice", ignore = true)
-    @Mapping(target = "discountAmount", ignore = true)
-    @Mapping(target = "totalPrice", ignore = true)
-    @Mapping(target = "paymentMethod", ignore = true)
-    @Mapping(target = "deliveryAddress", ignore = true)
-    @Mapping(target = "deliveryLat", ignore = true)
-    @Mapping(target = "deliveryLng", ignore = true)
-    @Mapping(target = "customerName", ignore = true)
-    @Mapping(target = "customerPhone", ignore = true)
-    @Mapping(target = "items", ignore = true)
-    @Mapping(target = "creatorId", ignore = true)
-    @Mapping(target = "pickupLat", ignore = true)
-    @Mapping(target = "pickupLng", ignore = true)
-    void updateOrderFromRequest(UpdateOrderRequest request, @MappingTarget Order order);
+    public OrderResponse orderToOrderResponse(Order order) {
+        if (order == null) {
+            return null;
+        }
 
-    @Mapping(target = "id", ignore = true)
-    @Mapping(target = "order", ignore = true)
-    @Mapping(target = "flashSaleItemId", source = "flashSaleItemId")
-    OrderItem orderItemRequestToOrderItem(CreateOrderRequest.OrderItemRequest request);
-    
-    OrderItemResponse orderItemToOrderItemResponse(OrderItem orderItem);
-    
-    List<OrderItemResponse> orderItemsToOrderItemResponses(List<OrderItem> orderItems);
+        OrderResponse response = new OrderResponse();
+        response.setId(order.getId());
+        response.setUserId(order.getUserId());
+        response.setRestaurantId(order.getRestaurantId());
+        response.setRestaurantName(order.getRestaurantName());
+        response.setRestaurantAddress(order.getRestaurantAddress());
+        response.setRestaurantPhone(order.getRestaurantPhone());
+        response.setShipperId(order.getShipperId());
+        response.setSubtotalPrice(order.getSubtotalPrice());
+        response.setDiscountAmount(order.getDiscountAmount());
+        response.setShippingFee(order.getShippingFee());
+        response.setTotalPrice(order.getTotalPrice());
+        response.setStatus(order.getStatus() == null ? null : order.getStatus().name());
+        response.setPaymentMethod(order.getPaymentMethod());
+        response.setDeliveryAddress(order.getDeliveryAddress());
+        response.setDeliveryLat(order.getDeliveryLat());
+        response.setDeliveryLng(order.getDeliveryLng());
+        response.setPickupLat(order.getPickupLat());
+        response.setPickupLng(order.getPickupLng());
+        response.setCustomerName(order.getCustomerName());
+        response.setCustomerPhone(order.getCustomerPhone());
+        response.setNotes(order.getNotes());
+        response.setCreatedAt(order.getCreatedAt());
+        response.setUpdatedAt(order.getUpdatedAt());
+        response.setCreatorId(order.getCreatorId());
+        response.setCancelReason(order.getCancelReason());
+        response.setItems(orderItemsToOrderItemResponses(order.getItems()));
+        return response;
+    }
+
+    public OrderItem orderItemRequestToOrderItem(CreateOrderRequest.OrderItemRequest request) {
+        if (request == null) {
+            return null;
+        }
+        OrderItem item = new OrderItem();
+        item.setFlashSaleItemId(request.getFlashSaleItemId());
+        item.setMenuItemId(request.getMenuItemId());
+        item.setMenuItemName(request.getMenuItemName());
+        item.setQuantity(request.getQuantity());
+        item.setPrice(request.getPrice());
+        item.setNotes(request.getNotes());
+        return item;
+    }
+
+    public OrderItemResponse orderItemToOrderItemResponse(OrderItem item) {
+        if (item == null) {
+            return null;
+        }
+        OrderItemResponse response = new OrderItemResponse();
+        response.setId(item.getId());
+        response.setMenuItemId(item.getMenuItemId());
+        response.setMenuItemName(item.getMenuItemName());
+        response.setQuantity(item.getQuantity());
+        response.setPrice(item.getPrice());
+        response.setNotes(item.getNotes());
+        return response;
+    }
+
+    public List<OrderItemResponse> orderItemsToOrderItemResponses(List<OrderItem> items) {
+        if (items == null) {
+            return null;
+        }
+        List<OrderItemResponse> responses = new ArrayList<>(items.size());
+        for (OrderItem item : items) {
+            responses.add(orderItemToOrderItemResponse(item));
+        }
+        return responses;
+    }
 }

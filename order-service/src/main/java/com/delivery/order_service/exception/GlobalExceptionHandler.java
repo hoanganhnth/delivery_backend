@@ -6,6 +6,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+
+import java.util.stream.Collectors;
 
 /**
  * ✅ Global Exception Handler cho Order Service theo Backend Instructions
@@ -23,6 +26,16 @@ public class GlobalExceptionHandler {
         
         BaseResponse<Object> response = new BaseResponse<>(0, null, ex.getMessage());
         return ResponseEntity.badRequest().body(response);
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<BaseResponse<Object>> handleBeanValidation(MethodArgumentNotValidException ex) {
+        String message = ex.getBindingResult().getFieldErrors().stream()
+                .map(error -> error.getField() + ": " + error.getDefaultMessage())
+                .distinct()
+                .collect(Collectors.joining(", "));
+        return ResponseEntity.badRequest()
+                .body(new BaseResponse<>(0, null, message));
     }
 
     /**

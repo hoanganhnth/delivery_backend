@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "user-service")
 public class UserServiceConfig {
     private String url;
+    private String internalSecret;
 
     public String getUrl() {
         return url;
@@ -27,5 +28,13 @@ public class UserServiceConfig {
 
     public void setUrl(String url) {
         this.url = url;
+    }
+
+    public String getInternalSecret() {
+        return internalSecret;
+    }
+
+    public void setInternalSecret(String internalSecret) {
+        this.internalSecret = internalSecret;
     }
 }

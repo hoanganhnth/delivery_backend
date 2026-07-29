@@ -3,10 +3,11 @@ package com.delivery.delivery_service.service;
 import com.delivery.delivery_service.dto.event.OrderCreatedEvent;
 import com.delivery.delivery_service.dto.event.OrderCancelledEvent;
 import com.delivery.delivery_service.dto.event.ShipperNotFoundEvent;
+import com.delivery.delivery_service.dto.event.ShipperFoundEvent;
+import com.delivery.delivery_service.dto.event.ExpireShipperOfferCommand;
 import com.delivery.delivery_service.dto.request.AcceptDeliveryRequest;
-import com.delivery.delivery_service.dto.request.AssignDeliveryRequest;
 import com.delivery.delivery_service.dto.response.DeliveryResponse;
-import com.delivery.delivery_service.dto.response.DeliveryTrackingResponse;
+import com.delivery.delivery_service.dto.response.DeliveryOfferResponse;
 import com.delivery.delivery_service.entity.DeliveryStatus;
 
 import java.util.List;
@@ -28,20 +29,23 @@ public interface DeliveryService {
      */
     void updateDeliveryStatusFromShipperNotFoundEvent(ShipperNotFoundEvent event);
 
-    /**
-     * Gán shipper cho đơn hàng
-     */
-    DeliveryResponse assignDelivery(AssignDeliveryRequest request, Long userId, String role);
-    
+    /** Persist the single active shipper offer before notifying the shipper. */
+    void cacheShipperOffer(ShipperFoundEvent event);
+
+    /** Clear only the exact expired offer generation before Saga rematches. */
+    void expireShipperOffer(ExpireShipperOfferCommand command);
+
     /**
      * ✅ Shipper accept delivery assignment
      */
     DeliveryResponse acceptDelivery(AcceptDeliveryRequest request, Long shipperId, String role);
 
     /**
-     * Lấy trạng thái và vị trí giao hàng
+     * ✅ Shipper huỷ đơn SAU khi đã accept (trước khi lấy hàng).
+     * Reset đơn về FINDING_SHIPPER, giải phóng shipper, và re-trigger tìm shipper
+     * mới (loại trừ shipper vừa huỷ) qua cùng cơ chế rematch của Saga.
      */
-    DeliveryTrackingResponse getDeliveryTracking(Long deliveryId, Long userId, String role);
+    DeliveryResponse cancelAssignedDelivery(Long orderId, Long shipperId, String role, String reason);
 
     /**
      * Cập nhật trạng thái giao hàng
@@ -67,11 +71,8 @@ public interface DeliveryService {
      * Lấy các delivery đang active của shipper
      */
     List<DeliveryResponse> getActiveDeliveriesByShipper(Long shipperId, Long userId, String role);
+
+    /** Return the selected shipper's single unexpired offer, or null when none exists. */
+    DeliveryOfferResponse getCurrentOffer(Long shipperId, String role);
     
-    /**
-     * ✅ ADMIN: Huỷ tất cả delivery chưa hoàn thành (PENDING, FINDING_SHIPPER, ASSIGNED, PICKED_UP, DELIVERING)
-     * Dùng để cleanup dữ liệu cũ bị lỗi. Gọi từ Postman.
-     * @return Map chứa thống kê: totalFound, cancelled, details
-     */
-    java.util.Map<String, Object> adminCancelAllNonTerminalDeliveries();
 }

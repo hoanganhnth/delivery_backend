@@ -2,6 +2,7 @@ package com.delivery.restaurant_service.service.impl;
 
 import com.delivery.restaurant_service.dto.request.OrderValidationRequest;
 import com.delivery.restaurant_service.dto.response.OrderValidationResultResponse;
+import com.delivery.restaurant_service.entity.MenuItem;
 import com.delivery.restaurant_service.service.OrderCacheValidationService;
 import com.delivery.restaurant_service.service.RestaurantCacheService;
 import lombok.RequiredArgsConstructor;
@@ -47,22 +48,8 @@ public class OrderCacheValidationServiceImpl implements OrderCacheValidationServ
                 errors.add(OrderValidationResultResponse.ValidationError.builder()
                         .field("menuItem")
                         .errorCode("MENU_ITEM_NOT_AVAILABLE")
-                        .message("Món ăn " + item.getMenuItemName() + " không khả dụng")
+                        .message("Món ăn " + itemValidation.getMenuItemName() + " không khả dụng")
                         .invalidValue(item.getMenuItemId())
-                        .build());
-            }
-            
-            if (!itemValidation.getPriceMatches()) {
-                // Create map with null-safe values for Map.of()
-                Map<String, Object> priceInfo = new HashMap<>();
-                priceInfo.put("expected", itemValidation.getExpectedPrice());
-                priceInfo.put("actual", itemValidation.getActualPrice());
-                
-                errors.add(OrderValidationResultResponse.ValidationError.builder()
-                        .field("price")
-                        .errorCode("PRICE_MISMATCH")
-                        .message("Giá món " + item.getMenuItemName() + " đã thay đổi")
-                        .invalidValue(priceInfo)
                         .build());
             }
             
@@ -75,7 +62,7 @@ public class OrderCacheValidationServiceImpl implements OrderCacheValidationServ
                 errors.add(OrderValidationResultResponse.ValidationError.builder()
                         .field("stock")
                         .errorCode("INSUFFICIENT_STOCK")
-                        .message("Không đủ hàng cho món " + item.getMenuItemName())
+                        .message("Không đủ hàng cho món " + itemValidation.getMenuItemName())
                         .invalidValue(stockInfo)
                         .build());
             }
@@ -99,27 +86,7 @@ public class OrderCacheValidationServiceImpl implements OrderCacheValidationServ
                 .build();
     }
     
-    @Override
-    public boolean isRestaurantAvailable(Long restaurantId) {
-        return restaurantCacheService.isRestaurantAvailable(restaurantId);
-    }
-    
-    @Override
-    public Double calculateTotalFromItems(OrderValidationRequest request) {
-        double total = 0.0;
-        
-        for (OrderValidationRequest.OrderItemRequest item : request.getItems()) {
-            Double actualPrice = restaurantCacheService.getMenuItemPrice(item.getMenuItemId());
-            if (actualPrice != null) {
-                total += actualPrice * item.getQuantity();
-            }
-        }
-        
-        return total;
-    }
-    
-    @Override
-    public OrderValidationResultResponse.ItemValidationInfo validateMenuItem(
+    private OrderValidationResultResponse.ItemValidationInfo validateMenuItem(
             Long restaurantId, OrderValidationRequest.OrderItemRequest item) {
         
         // Lấy thông tin từ cache với null check
@@ -130,10 +97,10 @@ public class OrderCacheValidationServiceImpl implements OrderCacheValidationServ
             log.warn("⚠️ Menu item {} not found in cache", item.getMenuItemId());
             return OrderValidationResultResponse.ItemValidationInfo.builder()
                     .menuItemId(item.getMenuItemId())
-                    .menuItemName(item.getMenuItemName())
+                    .menuItemName(null)
                     .isAvailable(false)
                     .actualPrice(null)
-                    .expectedPrice(item.getPrice())
+                    .expectedPrice(null)
                     .priceMatches(false)
                     .requestedQuantity(item.getQuantity())
                     .availableStock(0)
@@ -153,7 +120,7 @@ public class OrderCacheValidationServiceImpl implements OrderCacheValidationServ
         }
         
         // Null-safe validation cho restaurant ownership
-        boolean belongsToRestaurant = true;
+        boolean belongsToRestaurant = false;
         Object restaurantIdObj = menuItemData.get("restaurantId");
         if (restaurantIdObj != null) {
             try {
@@ -168,20 +135,22 @@ public class OrderCacheValidationServiceImpl implements OrderCacheValidationServ
             }
         }
         
-        // Null-safe status check
-        boolean statusAvailable = true;
+        // The canonical entity enum has AVAILABLE/SOLD_OUT/DISCONTINUED.
+        // Missing or any non-AVAILABLE value fails closed.
         Object statusObj = menuItemData.get("status");
-        if (statusObj != null) {
-            String statusStr = statusObj.toString();
-            statusAvailable = !"SOLD_OUT".equals(statusStr) && !"UNAVAILABLE".equals(statusStr);
-        }
+        boolean statusAvailable = statusObj != null
+                && MenuItem.Status.AVAILABLE.name().equals(statusObj.toString());
         
-        // Overall availability check
-        boolean isAvailable = belongsToRestaurant && statusAvailable && 
-                             restaurantCacheService.isRestaurantAvailable(restaurantId);
-        
-        // Kiểm tra price match với null-safe operation
-        boolean priceMatches = actualPrice != null && actualPrice.equals(item.getPrice());
+        Object nameObj = menuItemData.get("name");
+        String canonicalName = nameObj != null ? nameObj.toString() : null;
+        boolean hasCanonicalPrice = actualPrice != null
+                && Double.isFinite(actualPrice) && actualPrice > 0;
+
+        // Overall availability check. Missing canonical identity data fails closed.
+        boolean isAvailable = belongsToRestaurant && statusAvailable
+                             && canonicalName != null && !canonicalName.isBlank()
+                             && hasCanonicalPrice
+                             && restaurantCacheService.isRestaurantAvailable(restaurantId);
         
         // Kiểm tra stock với null-safe operation - Note: current cache structure doesn't include stock
         // but we keep this for future compatibility
@@ -207,11 +176,11 @@ public class OrderCacheValidationServiceImpl implements OrderCacheValidationServ
         
         return OrderValidationResultResponse.ItemValidationInfo.builder()
                 .menuItemId(item.getMenuItemId())
-                .menuItemName(item.getMenuItemName())
+                .menuItemName(canonicalName)
                 .isAvailable(isAvailable)
                 .actualPrice(actualPrice)
-                .expectedPrice(item.getPrice())
-                .priceMatches(priceMatches)
+                .expectedPrice(null)
+                .priceMatches(hasCanonicalPrice)
                 .requestedQuantity(item.getQuantity())
                 .availableStock(availableStock)
                 .hasEnoughStock(hasEnoughStock)
@@ -235,22 +204,32 @@ public class OrderCacheValidationServiceImpl implements OrderCacheValidationServ
             
             return OrderValidationResultResponse.RestaurantInfo.builder()
                     .restaurantId(restaurantId)
-                    .restaurantName("Unknown Restaurant")
+                    .restaurantName(null)
                     .restaurantAddress(null)
                     .restaurantPhone(null)
                     .latitude(null)
                     .longitude(null)
                     .isAvailable(false)
                     .isOpen(false)
-                    .operatingHours("N/A")
+                    .operatingHours(null)
                     .build();
         }
         
         boolean isAvailable = restaurantCacheService.isRestaurantAvailable(restaurantId);
         
         // Null-safe extraction of fields from cache
-        String restaurantName = restaurant.get("name") != null ?
-                (String) restaurant.get("name") : "Unknown Restaurant";
+        String restaurantName = restaurant.get("name") == null
+                ? null : restaurant.get("name").toString().trim();
+        boolean hasCanonicalName = restaurantName != null && !restaurantName.isBlank();
+        if (!hasCanonicalName) {
+            errors.add(OrderValidationResultResponse.ValidationError.builder()
+                    .field("restaurantName")
+                    .errorCode("RESTAURANT_NAME_MISSING")
+                    .message("Restaurant cache thiếu canonical name")
+                    .invalidValue(null)
+                    .build());
+            restaurantName = null;
+        }
 
         String restaurantAddress = restaurant.get("address") != null ?
                 (String) restaurant.get("address") : null;
@@ -276,7 +255,7 @@ public class OrderCacheValidationServiceImpl implements OrderCacheValidationServ
             catch (NumberFormatException e) { log.warn("⚠️ Invalid longitude for restaurant {}", restaurantId); }
         }
 
-        String operatingHours = "N/A";
+        String operatingHours = null;
         if (restaurant.get("openingHour") != null && restaurant.get("closingHour") != null) {
             operatingHours = restaurant.get("openingHour") + " - " + restaurant.get("closingHour");
         }
@@ -289,8 +268,8 @@ public class OrderCacheValidationServiceImpl implements OrderCacheValidationServ
                 .latitude(latitude)
                 .longitude(longitude)
                 .creatorId(creatorId)
-                .isAvailable(isAvailable)
-                .isOpen(isAvailable)
+                .isAvailable(isAvailable && hasCanonicalName)
+                .isOpen(isAvailable && hasCanonicalName)
                 .operatingHours(operatingHours)
                 .build();
     }

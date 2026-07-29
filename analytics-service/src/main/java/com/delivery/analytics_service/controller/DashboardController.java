@@ -5,6 +5,7 @@ import com.delivery.analytics_service.payload.BaseResponse;
 import com.delivery.analytics_service.scheduler.StatsReconciliationJob;
 import com.delivery.analytics_service.service.DashboardQueryService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -22,6 +23,7 @@ import java.time.LocalDate;
 @RestController
 @RequestMapping("/api/analytics")
 @RequiredArgsConstructor
+@ConditionalOnProperty(name = "app.analytics.processing-enabled", havingValue = "true")
 public class DashboardController {
 
     private final DashboardQueryService queryService;

@@ -28,10 +28,13 @@ public class SagaInstance {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @Version
+    private Long version;
+
     @Column(nullable = false)
     private String sagaType; // ORDER_CREATION, ORDER_CANCELLATION
 
-    @Column(nullable = false)
+    @Column(nullable = false, unique = true)
     private Long orderId;
 
     private Long deliveryId;

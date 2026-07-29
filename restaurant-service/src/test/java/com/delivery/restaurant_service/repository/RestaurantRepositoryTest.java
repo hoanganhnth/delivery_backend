@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.util.List;
@@ -76,7 +77,8 @@ class RestaurantRepositoryTest {
     @Test
     void findByNameContainingIgnoreCase_ShouldReturnMatchingRestaurants() {
         // When
-        List<Restaurant> results = restaurantRepository.findByNameContainingIgnoreCase("pizza");
+        List<Restaurant> results = restaurantRepository.findByNameContainingIgnoreCase(
+                "pizza", PageRequest.of(0, 100));
 
         // Then
         assertNotNull(results);
@@ -87,7 +89,8 @@ class RestaurantRepositoryTest {
     @Test
     void findByNameContainingIgnoreCase_ShouldBeCaseInsensitive() {
         // When
-        List<Restaurant> results = restaurantRepository.findByNameContainingIgnoreCase("PIZZA");
+        List<Restaurant> results = restaurantRepository.findByNameContainingIgnoreCase(
+                "PIZZA", PageRequest.of(0, 100));
 
         // Then
         assertNotNull(results);
@@ -98,7 +101,8 @@ class RestaurantRepositoryTest {
     @Test
     void findByNameContainingIgnoreCase_ShouldReturnEmptyList_WhenNoMatch() {
         // When
-        List<Restaurant> results = restaurantRepository.findByNameContainingIgnoreCase("NonExistent");
+        List<Restaurant> results = restaurantRepository.findByNameContainingIgnoreCase(
+                "NonExistent", PageRequest.of(0, 100));
 
         // Then
         assertNotNull(results);

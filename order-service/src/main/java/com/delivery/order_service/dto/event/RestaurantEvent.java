@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 /**
  * ✅ Restaurant Event DTO theo AI Coding Instructions
@@ -13,8 +14,11 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class RestaurantEvent {
+
+    private UUID eventId;
     
     private Long restaurantId;
+    private Long actorUserId;
     private Long orderId;
     private String status; // CONFIRMED, REJECTED, PREPARING, READY
     private String action; // CONFIRM, REJECT, START_PREPARATION, MARK_READY

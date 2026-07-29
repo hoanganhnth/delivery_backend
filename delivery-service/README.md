@@ -1,331 +1,87 @@
-# 📦 **Delivery Service - Delivery Lifecycle Management**
+# Delivery Service
 
-## 🎯 **Service Overview**
+Delivery Service owns the canonical delivery aggregate for the COD MVP. It
+creates deliveries from Saga commands, persists exactly one shipper offer,
+serializes accept/status/cancel transitions and writes integration events through
+the transactional outbox.
 
-**Port**: `8085`  
-**Database**: `delivery_db`  
-**Primary Purpose**: Manages complete delivery lifecycle with real-time tracking capabilities
+## Runtime contract
 
-## 🏗️ **Core Architecture**
+- Port: `8085`
+- Persistence: PostgreSQL `delivery_db`, Flyway V1-V10, Hibernate `validate`
+- Messaging: Kafka consumers plus a PostgreSQL transactional outbox relay
+- No Redis dependency: offer expiry/rematch is coordinated by Saga with an exact
+  delivery/shipper/deadline generation
+- No gRPC: realtime location belongs to Tracking raw WebSocket
+- No STOMP graph: delivery status uses REST reads plus Kafka/durable notification;
+  realtime location belongs exclusively to Tracking raw WebSocket.
 
-### Service Responsibilities
-- **Delivery Status Management**: PENDING → IN_PROGRESS → DELIVERED
-- **Shipper Assignment & Communication**: Accept/Reject delivery requests
-- **Event-Driven Integration**: Publishes events to Match & Notification services
-- **Real-time WebSocket Updates**: Delivery status tracking for customers
-- **Service Integration**: Consumes events from Order and Match services
+## Canonical lifecycle
 
-### Clean Architecture Pattern
-```
-📁 controller/          # REST API & WebSocket endpoints
-📁 service/            # Business logic layer
-📁 repository/         # Data access layer
-📁 entity/             # JPA entities
-📁 dto/                # Data transfer objects
-📁 constants/          # API paths & headers
-📁 config/             # WebSocket & Kafka configuration
-📁 exception/          # Custom exception handling
-```
-
-## 🔌 **WebSocket Infrastructure**
-
-### Real-time Delivery Tracking
-```javascript
-// Customer connects to track delivery
-const socket = new SockJS('/ws');
-const stompClient = Stomp.over(socket);
-
-// Subscribe to delivery updates
-stompClient.subscribe('/topic/delivery/123/status', (message) => {
-    const delivery = JSON.parse(message.body);
-    console.log('Delivery status:', delivery.status);
-});
-
-// Request current status
-stompClient.send('/app/delivery/123/status', {}, '{}');
+```text
+FINDING_SHIPPER
+  -> WAIT_SHIPPER_CONFIRM
+  -> ASSIGNED
+  -> PICKED_UP
+  -> DELIVERING
+  -> DELIVERED
 ```
 
-### WebSocket Endpoints
-- `ws://localhost:8085/ws` - Main WebSocket connection
-- `/topic/delivery/{deliveryId}/status` - Delivery status updates
-- `/app/delivery/{deliveryId}/status` - Request status inquiry
-- `/app/delivery/ping` - Heartbeat/connectivity check
+Offer rejection, timeout or shipper cancellation before pickup returns the
+aggregate to `FINDING_SHIPPER`. Order/Saga cancellation can move a pre-pickup
+delivery to `CANCELLED`; exhausted matching moves it to `SHIPPER_NOT_FOUND`.
 
-## 🔄 **Event-Driven Architecture**
+`POST /api/deliveries/assign` does not exist. Assignment only occurs when the
+single shipper selected by Match accepts a persisted, unexpired offer.
 
-### Kafka Topics Integration
+## Public HTTP API
 
-#### **Consumes Events:**
-```yaml
-# From Order Service - New delivery creation
-delivery.find-shipper:
-  event: FindShipperEvent
-  action: Create new delivery & publish to Match Service
-  
-# From Match Service - Shipper found
-match.shipper-matched:
-  event: ShipperMatchedEvent  
-  action: Update delivery with shipper assignment
-```
+All public calls go through the API Gateway. `X-User-Id` and `X-Role` are trusted
+headers recreated from the JWT by the Gateway, not client inputs.
 
-#### **Publishes Events:**
-```yaml
-# To Match Service - Request shipper search
-delivery.find-shipper:
-  event: FindShipperEvent
-  data: { deliveryId, pickupLocation, deliveryLocation, orderValue }
-  
-# To Notification Service - Shipper accepted/rejected
-delivery.shipper-accepted:
-  event: ShipperAcceptedEvent
-  data: { deliveryId, shipperId, action, estimatedTime }
-```
+| Method | Path | Actor and behavior |
+|---|---|---|
+| POST | `/api/deliveries/accept` | Offered SHIPPER accepts or rejects by `orderId` |
+| POST | `/api/deliveries/cancel-assignment` | Assigned SHIPPER cancels before pickup and triggers rematch |
+| GET | `/api/deliveries/offers/current` | SHIPPER self recovers one unexpired offer |
+| PUT | `/api/deliveries/{id}/status?status=...` | Assigned SHIPPER advances `PICKED_UP -> DELIVERING -> DELIVERED`; exact retry is idempotent |
+| GET | `/api/deliveries/{id}` | Owned USER/SHIPPER/SHOP_OWNER or ADMIN |
+| GET | `/api/deliveries/order/{orderId}` | Same ownership rule as delivery ID read |
+| GET | `/api/deliveries/shipper/{shipperId}` | SHIPPER self or ADMIN, capped at 100 |
+| GET | `/api/deliveries/shipper/{shipperId}/active` | SHIPPER self or ADMIN, capped at 100 |
 
-## 📋 **API Endpoints**
+Tracking Service alone calls
+`GET /api/deliveries/internal/{deliveryId}/tracking-access` with the shared
+`Internal-Token`; this endpoint has no public Gateway route.
 
-### Core Delivery Management
-```http
-# Get delivery by ID
-GET /api/deliveries/{id}
-Headers: X-User-Id, X-Role
+## Kafka boundaries
 
-# Shipper accept/reject delivery
-POST /api/deliveries/accept
-Content-Type: application/json
-Headers: X-User-Id: {shipperId}, X-Role: SHIPPER
-{
-  "deliveryId": 123,
-  "action": "ACCEPT|REJECT",
-  "estimatedPickupTime": "2024-01-20T15:30:00",
-  "rejectReason": "Too far from pickup location"
-}
+Consumed Saga commands:
 
-# Update delivery status
-PUT /api/deliveries/{id}/status
-Headers: X-User-Id, X-Role: SHIPPER
-{
-  "status": "PICKED_UP|DELIVERED",
-  "notes": "Package delivered to customer"
-}
-```
+- `saga.command.create-delivery`
+- `saga.command.cancel-delivery`
+- `saga.command.cache-shipper-found`
+- `saga.command.expire-shipper-offer`
 
-### WebSocket Health & Testing
-```http
-# WebSocket connectivity test
-WS /ws
-Message: /app/delivery/ping → Response: /topic/delivery/pong
-```
+Core outbox topics:
 
-## 🗂️ **Key Components**
+- `delivery.created.result` / `delivery.created.failed`
+- `delivery.shipper-offered`
+- `delivery.shipper-accepted`
+- `delivery.shipper-rejected`
+- `delivery.status-updated`
+- `delivery.completed`
+- `shipper.status-change`
 
-### 1. **DeliveryService & Implementation**
-```java
-@Service
-public class DeliveryServiceImpl implements DeliveryService {
-    
-    // ✅ Constructor Injection (MANDATORY)
-    public DeliveryServiceImpl(DeliveryRepository deliveryRepository,
-                               DeliveryMapper deliveryMapper,
-                               DeliveryEventPublisher eventPublisher,
-                               DeliveryWebSocketService webSocketService) {
-        // Business logic for delivery lifecycle
-    }
-    
-    // Accept/Reject delivery with WebSocket updates
-    public DeliveryResponse acceptDelivery(AcceptDeliveryRequest request, Long shipperId) {
-        // Handle ACCEPT/REJECT actions + real-time updates
-    }
-}
-```
+See `../docs/system-contract-inventory.md` for producer/consumer, replay and
+runtime-proof status. H2/static tests do not replace PostgreSQL/Kafka Gate B8.
 
-### 2. **Event Publishing & Consumption**
-```java
-@Component
-public class DeliveryEventPublisher {
-    
-    // Publish to Match Service
-    public void publishFindShipperEvent(FindShipperEvent event) {
-        kafkaTemplate.send("delivery.find-shipper", event);
-    }
-    
-    // Publish to Notification Service  
-    public void publishShipperAcceptedEvent(ShipperAcceptedEvent event) {
-        kafkaTemplate.send("delivery.shipper-accepted", event);
-    }
-}
+## Verification
 
-@EventListener
-public class MatchEventListener {
-    
-    // Consume shipper matched events
-    @KafkaListener(topics = "match.shipper-matched")
-    public void handleShipperMatched(ShipperMatchedEvent event) {
-        matchEventService.processShipperMatched(event);
-    }
-}
-```
-
-### 3. **Real-time WebSocket Updates**
-```java
-@Service
-public class DeliveryWebSocketService {
-    
-    // Send delivery updates to customers
-    public void sendDeliveryUpdateToCustomer(Long customerId, DeliveryResponse delivery) {
-        messagingTemplate.convertAndSend("/topic/delivery/" + delivery.getId() + "/status", delivery);
-    }
-    
-    // Broadcast to all subscribers
-    public void broadcastDeliveryUpdate(DeliveryResponse delivery) {
-        messagingTemplate.convertAndSend("/topic/delivery/" + delivery.getId() + "/updates", delivery);
-    }
-}
-```
-
-## 🎛️ **Configuration**
-
-### Database Configuration
-```properties
-# application.properties
-spring.application.name=delivery-service
-server.port=8085
-spring.datasource.url=jdbc:postgresql://localhost:5432/delivery_db
-spring.datasource.username=postgres
-spring.datasource.password=123456
-spring.jpa.hibernate.ddl-auto=update
-```
-
-### Kafka Configuration  
-```properties
-# Kafka settings
-spring.kafka.bootstrap-servers=localhost:9092
-spring.kafka.consumer.group-id=delivery-service-group
-spring.kafka.consumer.key-deserializer=org.apache.kafka.common.serialization.StringDeserializer
-spring.kafka.consumer.value-deserializer=org.springframework.kafka.support.serializer.JsonDeserializer
-```
-
-### WebSocket Configuration
-```java
-@Configuration
-@EnableWebSocketMessageBroker
-public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
-    
-    @Override
-    public void configureMessageBroker(MessageBrokerRegistry config) {
-        config.enableSimpleBroker("/topic");
-        config.setApplicationDestinationPrefixes("/app");
-    }
-    
-    @Override  
-    public void registerStompEndpoints(StompEndpointRegistry registry) {
-        registry.addEndpoint("/ws").withSockJS();
-    }
-}
-```
-
-## 🔄 **Business Flow**
-
-### Complete Delivery Lifecycle
-```mermaid
-sequenceDiagram
-    participant O as Order Service
-    participant D as Delivery Service  
-    participant M as Match Service
-    participant N as Notification Service
-    participant S as Shipper
-    participant C as Customer
-    
-    O->>D: Create Delivery (FindShipperEvent)
-    D->>M: Publish FindShipperEvent
-    M->>D: ShipperMatchedEvent
-    D->>N: Notify Shipper (ShipperAcceptedEvent)
-    S->>D: Accept/Reject Delivery
-    D->>C: WebSocket Status Update
-    S->>D: Update Status (PICKED_UP)
-    D->>C: WebSocket Update
-    S->>D: Update Status (DELIVERED)
-    D->>C: WebSocket Final Update
-```
-
-## 🧪 **Testing & Development**
-
-### Build & Run Service
 ```bash
-cd delivery-service
-mvn clean compile
-mvn spring-boot:run
+env JAVA_HOME=/opt/homebrew/Cellar/openjdk@17/17.0.16/libexec/openjdk.jdk/Contents/Home \
+  mvn clean test
 ```
 
-### Service Health Check
-```bash
-# Basic health check
-curl http://localhost:8085/actuator/health
-
-# WebSocket connectivity test
-curl -H "Upgrade: websocket" http://localhost:8085/ws
-```
-
-### Testing WebSocket Integration
-```bash
-# Use wscat for WebSocket testing
-npm install -g wscat
-wscat -c ws://localhost:8085/ws
-```
-
-## 📊 **Monitoring & Observability**
-
-### Key Metrics to Monitor
-- **Delivery Creation Rate**: Events consumed from Order Service
-- **Shipper Response Time**: Time from assignment to accept/reject
-- **WebSocket Connections**: Active real-time tracking sessions  
-- **Event Publishing Success**: Kafka publish success rate
-- **Status Update Frequency**: Delivery status change patterns
-
-### Logging Pattern
-```java
-log.info("📦 Creating delivery for order {} at {}", orderId, LocalDateTime.now());
-log.info("🚚 Shipper {} {} delivery {} at {}", shipperId, action, deliveryId, timestamp);
-log.info("📡 Broadcasting delivery {} update: {}", deliveryId, status);
-```
-
-## 🏆 **Production Readiness**
-
-### ✅ **Completed Features**
-- Constructor injection pattern implementation
-- BaseResponse wrapper for all APIs  
-- Event-driven Kafka integration
-- Real-time WebSocket delivery tracking
-- Accept/Reject delivery functionality
-- Global exception handling
-- Service layer architecture
-- Clean separation of concerns
-
-### 🔧 **Configuration Notes**  
-- **Port 8085**: Fixed allocation for delivery service
-- **Database**: Separate `delivery_db` for data isolation
-- **WebSocket**: `/ws` endpoint with SockJS fallback
-- **Kafka Topics**: Clear event publishing/consuming pattern
-- **Authentication**: X-User-Id & X-Role header-based
-
----
-
-**🎯 Reference Implementation**: This service follows the platform's golden standard architecture established in restaurant-service with enhancements for real-time tracking and event-driven integration.
-
-**🚨 Critical Dependencies**: Ensure Order Service, Match Service, and Notification Service are running for full functionality. WebSocket requires SockJS support for production deployment.**
-
-## 🎯 **Service Boundaries & Separation of Concerns**
-
-### ✅ **What Delivery Service Handles:**
-- Delivery lifecycle management (PENDING → IN_PROGRESS → DELIVERED)
-- Shipper accept/reject functionality 
-- Real-time delivery status updates via WebSocket
-- Event publishing to Match & Notification services
-- Delivery-related business logic and validation
-
-### ❌ **What Delivery Service Does NOT Handle:**
-- **Shipper Location Management**: Handled by Tracking Service
-- **Location Storage & GEO Operations**: Redis GEO managed by Tracking Service  
-- **Real-time Location Updates**: Direct from Tracking Service to clients
-- **Location-based Matching**: Handled by Match Service + Tracking Service integration
-
-This ensures clean separation of concerns where each service manages its own domain expertise.
+Repository-wide gates live under `../scripts/`. Docker runtime rehearsal remains
+required before backend contract freeze.

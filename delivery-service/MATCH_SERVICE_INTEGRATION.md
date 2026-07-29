@@ -1,5 +1,9 @@
 # 🚀 **Kafka Integration Documentation - Match Service Integration**
 
+> Historical document: direct `delivery.find-shipper` publishing has been
+> removed. Saga now emits `saga.command.find-shipper`; see
+> `docs/workflows/delivery_matching_tracking.md`.
+
 ## 📋 **Event Flow Architecture**
 
 ```mermaid

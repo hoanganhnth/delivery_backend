@@ -20,12 +20,6 @@ public interface BalanceService {
     BalanceResponse getBalance(Long entityId, EntityType entityType);
 
     /**
-     * Recalculate balance from transaction history
-     * Use when balance is suspected to be incorrect
-     */
-    Balance recalculateBalance(Long entityId, EntityType entityType);
-
-    /**
      * Get all balances (for admin)
      */
     List<BalanceResponse> getAllBalances();

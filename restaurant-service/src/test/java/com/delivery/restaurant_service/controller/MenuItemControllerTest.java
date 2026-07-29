@@ -24,8 +24,11 @@ import java.util.List;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import org.springframework.security.access.AccessDeniedException;
 
 @ExtendWith(MockitoExtension.class)
 class MenuItemControllerTest {
@@ -92,13 +95,15 @@ class MenuItemControllerTest {
         response.setName("Updated Pizza");
         response.setPrice(BigDecimal.valueOf(29.99));
 
-        when(menuItemService.updateMenuItem(eq(menuItemId), any(UpdateMenuItemRequest.class), anyLong()))
+        when(menuItemService.updateMenuItem(eq(menuItemId), any(UpdateMenuItemRequest.class), anyLong(),
+                eq(RoleConstants.OWNER)))
                 .thenReturn(response);
 
         // When & Then
         mockMvc.perform(put("/api/menu-items/{id}", menuItemId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .header(HttpHeaderConstants.X_USER_ID, "1")
+                        .header(HttpHeaderConstants.X_ROLE, RoleConstants.OWNER)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value(1))
@@ -106,7 +111,8 @@ class MenuItemControllerTest {
                 .andExpect(jsonPath("$.data.name").value("Updated Pizza"))
                 .andExpect(jsonPath("$.data.price").value(29.99));
 
-        verify(menuItemService).updateMenuItem(eq(menuItemId), any(UpdateMenuItemRequest.class), eq(1L));
+        verify(menuItemService).updateMenuItem(eq(menuItemId), any(UpdateMenuItemRequest.class), eq(1L),
+                eq(RoleConstants.OWNER));
     }
 
     @Test
@@ -117,12 +123,13 @@ class MenuItemControllerTest {
 
         // When & Then
         mockMvc.perform(delete("/api/menu-items/{id}", menuItemId)
-                        .header(HttpHeaderConstants.X_USER_ID, userId.toString()))
+                        .header(HttpHeaderConstants.X_USER_ID, userId.toString())
+                        .header(HttpHeaderConstants.X_ROLE, RoleConstants.OWNER))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value(1))
                 .andExpect(jsonPath("$.data").isEmpty());
 
-        verify(menuItemService).deleteMenuItem(eq(menuItemId), eq(userId));
+        verify(menuItemService).deleteMenuItem(eq(menuItemId), eq(userId), eq(RoleConstants.OWNER));
     }
 
     @Test
@@ -173,9 +180,18 @@ class MenuItemControllerTest {
     }
 
     @Test
+    void myMenuItemsRejectsNonOwnerRole() {
+        assertThatThrownBy(() -> menuItemController.getMyMenuItems(7L, RoleConstants.SHIPPER))
+                .isInstanceOf(AccessDeniedException.class);
+
+        verifyNoInteractions(menuItemService);
+    }
+
+    @Test
     void create_ShouldWork_WithoutHeaders() throws Exception {
         // Given
         CreateMenuItemRequest request = new CreateMenuItemRequest();
+        request.setRestaurantId(1L);
         request.setName("Pizza");
         request.setPrice(BigDecimal.valueOf(25.99));
 
@@ -193,6 +209,21 @@ class MenuItemControllerTest {
                 .andExpect(jsonPath("$.data.name").value("Pizza"));
 
         verify(menuItemService).createMenuItem(any(CreateMenuItemRequest.class), isNull(), isNull());
+    }
+
+    @Test
+    void create_InvalidPayloadReturnsBadRequestBeforeServiceCall() throws Exception {
+        CreateMenuItemRequest request = new CreateMenuItemRequest();
+        request.setRestaurantId(0L);
+        request.setName(" ");
+        request.setPrice(BigDecimal.ZERO);
+
+        mockMvc.perform(post("/api/menu-items")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(menuItemService);
     }
 
     private MenuItemResponse createMenuItemResponse(Long id, String name, BigDecimal price) {

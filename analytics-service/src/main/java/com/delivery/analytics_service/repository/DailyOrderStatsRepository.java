@@ -68,6 +68,4 @@ public interface DailyOrderStatsRepository extends JpaRepository<DailyOrderStats
            "GROUP BY d.restaurantId ORDER BY SUM(d.totalRevenue) DESC")
     List<Object[]> topRestaurantsByRevenue();
 
-    /** Tất cả bản ghi trong khoảng ngày (cho scheduled job reconciliation) */
-    List<DailyOrderStats> findByStatDateBetween(LocalDate start, LocalDate end);
 }

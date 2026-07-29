@@ -15,7 +15,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class ShipperFoundEvent {
-    
+    private String eventId;
     private Long deliveryId;
     private Long orderId;
     private List<ShipperMatchResult> availableShippers;

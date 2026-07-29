@@ -1,0 +1,201 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+command -v docker >/dev/null
+command -v jq >/dev/null
+
+# Contract rendering needs a non-blank placeholder because internal endpoints are
+# intentionally fail-closed. This value is local to the verifier, never a runtime default.
+if [[ -z "${INTERNAL_SECRET:-}" ]]; then
+  INTERNAL_SECRET="compose-contract-test-secret"
+  export INTERNAL_SECRET
+fi
+if [[ -z "${POSTGRES_PASSWORD:-}" ]]; then
+  POSTGRES_PASSWORD="compose-contract-test-db-password"
+  export POSTGRES_PASSWORD
+fi
+
+docker compose config --quiet
+rendered_config="$(docker compose config --format json)"
+docker compose -f docker-compose.yml -f docker-compose.secrets.yml config --quiet
+rendered_secret_config="$(docker compose -f docker-compose.yml -f docker-compose.secrets.yml config --format json)"
+expected_kafka_volume_name="${KAFKA_VOLUME_NAME:-backend_delivery_kafka_data}"
+
+printf '%s' "$rendered_config" | jq -e \
+  --arg expectedKafkaVolumeName "$expected_kafka_volume_name" '
+  . as $root
+  | .services["promotion-service"].environment.SPRING_DATASOURCE_URL
+      == "jdbc:postgresql://postgres:5432/promotion_db"
+    and .services.kafka.environment.KAFKA_AUTO_CREATE_TOPICS_ENABLE == "true"
+    and .services.kafka.environment.KAFKA_HEAP_OPTS == "-Xms256m -Xmx384m"
+    and (.services.kafka.volumes | length == 1)
+    and .services.kafka.volumes[0].type == "volume"
+    and .services.kafka.volumes[0].target == "/var/lib/kafka/data"
+    and .volumes.kafka_data.name == $expectedKafkaVolumeName
+    and (.services.postgres.environment.POSTGRES_PASSWORD | length > 20)
+    and ([
+      "auth-service", "user-service", "restaurant-service", "order-service",
+      "delivery-service", "shipper-service", "settlement-service",
+      "notification-service", "livestream-service", "saga-orchestrator-service",
+      "promotion-service", "analytics-service", "flashsale-service"
+    ] | all(. as $service |
+      $root.services[$service].environment.SPRING_DATASOURCE_PASSWORD
+        == $root.services.postgres.environment.POSTGRES_PASSWORD))
+    and (.services["auth-service"].environment.INTERNAL_SECRET | length > 0)
+    and .services["auth-service"].environment.INTERNAL_SECRET
+      == .services["user-service"].environment.INTERNAL_SECRET
+    and (.services["user-service"].environment | has("USER_LEGACY_DELETE_API_ENABLED") | not)
+    and .services["auth-service"].environment.JWT_ACCESS_TOKEN_TTL_SECONDS == "900"
+    and .services["auth-service"].environment.INTERNAL_SECRET
+      == .services["restaurant-service"].environment.INTERNAL_SECRET
+    and .services["restaurant-service"].environment.ORDER_SERVICE_URL
+      == "http://order-service:8084"
+    and .services["restaurant-service"].environment.SPRING_DATA_REDIS_HOST == "redis"
+    and (.services["restaurant-service"].depends_on | has("redis"))
+    and .services["auth-service"].environment.INTERNAL_SECRET
+      == .services["order-service"].environment.INTERNAL_SECRET
+    and .services["auth-service"].environment.INTERNAL_SECRET
+      == .services["flashsale-service"].environment.INTERNAL_SECRET
+    and .services["promotion-service"].environment.PROMOTION_CHECKOUT_ENABLED == "false"
+    and .services["promotion-service"].environment.PROMOTION_MERCHANT_CREATE_API_ENABLED == "false"
+    and .services["flashsale-service"].environment.FLASHSALE_CHECKOUT_ENABLED == "false"
+    and .services["flashsale-service"].environment.FLASHSALE_MERCHANT_REGISTRATION_ENABLED == "false"
+    and (.services["restaurant-service"].environment | has("RESTAURANT_OPS_API_ENABLED") | not)
+    and (.services["restaurant-service"].environment | has("RESTAURANT_LOCATION_API_ENABLED") | not)
+    and (.services["order-service"].environment | has("ORDER_LEGACY_DASHBOARD_ENABLED") | not)
+    and (.services["order-service"].environment | has("ORDER_LEGACY_MUTATION_API_ENABLED") | not)
+    and (.services["order-service"].environment | has("ORDER_LEGACY_READ_API_ENABLED") | not)
+    and .services["order-service"].environment.ORDER_PAYMENT_EVENT_PROCESSING_ENABLED == "false"
+    and (.services["delivery-service"].environment | has("DELIVERY_LEGACY_ASSIGNMENT_API_ENABLED") | not)
+    and (.services["delivery-service"].environment | has("SPRING_DATA_REDIS_HOST") | not)
+    and (.services["delivery-service"].depends_on | has("redis") | not)
+    and (.services["delivery-service"].environment
+      | has("DELIVERY_WEBSOCKET_ENABLED") | not)
+    and .services["settlement-service"].environment.PAYMENT_PROCESSING_ENABLED == "false"
+    and .services["settlement-service"].environment.FAKE_PAYMENT_PROVIDER_ENABLED == "false"
+    and .services["settlement-service"].environment.SETTLEMENT_SELF_SERVICE_API_ENABLED == "false"
+    and .services["settlement-service"].environment.SETTLEMENT_ADMIN_MUTATION_API_ENABLED == "false"
+    and .services["shipper-service"].environment.SHIPPER_LEGACY_RATING_WRITE_API_ENABLED == "false"
+    and .services["shipper-service"].environment.SHIPPER_LEGACY_DELETE_API_ENABLED == "false"
+    and (.services["search-service"].environment | has("SPRING_DATA_REDIS_HOST") | not)
+    and (.services["search-service"].depends_on | has("redis") | not)
+    and .services["livestream-service"].environment.LIVESTREAM_API_ENABLED == "false"
+    and .services["analytics-service"].environment.ANALYTICS_PROCESSING_ENABLED == "false"
+    and (.services["notification-service"].environment
+      | has("NOTIFICATION_WEBSOCKET_ENABLED") | not)
+    and .services["flashsale-service"].environment.RESTAURANT_SERVICE_URL
+      == "http://restaurant-service:8083"
+    and .services["auth-service"].environment.INTERNAL_SECRET
+      == .services["promotion-service"].environment.INTERNAL_SECRET
+    and .services["auth-service"].environment.USER_SERVICE_URL
+      == "http://user-service:8082"
+    and (.services["api-gateway"].environment
+      | has("APP_SAGA_ORCHESTRATOR_SERVICE_URI") | not)
+    and (.services["api-gateway"].environment.APP_CORS_ALLOWED_ORIGINS | length > 0)
+    and (.services["api-gateway"].environment.APP_CORS_ALLOWED_ORIGINS
+      | contains("http://localhost:4173"))
+    and (.services["api-gateway"].environment.APP_CORS_ALLOWED_ORIGINS
+      | contains("http://127.0.0.1:4173"))
+    and .services["tracking-service"].environment.DELIVERY_SERVICE_URL
+      == "http://delivery-service:8085"
+    and .services["tracking-service"].environment.TRACKING_PUBLISHER_DISCONNECT_GRACE_SECONDS == "30"
+    and .services["tracking-service"].environment.TRACKING_PUBLISHER_LEASE_TTL_SECONDS == "120"
+    and .services["tracking-service"].environment.TRACKING_PUBLISHER_EXPIRY_SWEEP_INTERVAL_MS == "5000"
+    and .services["tracking-service"].environment.TRACKING_PUBLISHER_EXPIRY_SWEEP_BATCH_SIZE == "100"
+    and .services["tracking-service"].environment.TRACKING_PUBLISHER_EXPIRY_CLAIM_SECONDS == "30"
+    and .services["auth-service"].environment.INTERNAL_SECRET
+      == .services["delivery-service"].environment.INTERNAL_SECRET
+    and .services["auth-service"].environment.INTERNAL_SECRET
+      == .services["tracking-service"].environment.INTERNAL_SECRET
+    and ([
+      "notification-service",
+      "match-service",
+      "tracking-service",
+      "flashsale-service"
+    ] | all(. as $service |
+      $root.services[$service].environment.SPRING_DATA_REDIS_HOST == "redis"))
+    and ([
+      "order-service",
+      "delivery-service",
+      "match-service",
+      "saga-orchestrator-service",
+      "analytics-service"
+    ] | all(. as $service |
+      $root.services[$service].environment.SPRING_KAFKA_BOOTSTRAP_SERVERS == "kafka:9092"))
+    and (["postgres", "redis", "kafka", "elasticsearch"]
+      | all(. as $service | $root.services[$service].healthcheck != null))
+    and ([
+      "api-gateway",
+      "auth-service",
+      "user-service",
+      "restaurant-service",
+      "order-service",
+      "delivery-service",
+      "search-service",
+      "shipper-service",
+      "settlement-service",
+      "notification-service",
+      "match-service",
+      "tracking-service",
+      "livestream-service",
+      "saga-orchestrator-service",
+      "promotion-service",
+      "analytics-service",
+      "flashsale-service"
+    ] | all(. as $service |
+      $root.services[$service].environment.JAVA_TOOL_OPTIONS == "-Xmx384m -Xms256m"))
+    and ([
+      "auth-service",
+      "user-service",
+      "restaurant-service",
+      "order-service",
+      "delivery-service",
+      "search-service",
+      "shipper-service",
+      "settlement-service",
+      "notification-service",
+      "match-service",
+      "tracking-service",
+      "livestream-service",
+      "saga-orchestrator-service",
+      "promotion-service",
+      "analytics-service",
+      "flashsale-service"
+    ] | all(. as $service | ($root.services[$service].ports // []) | length == 0))
+    and ([
+      "api-gateway",
+      "auth-service",
+      "user-service",
+      "restaurant-service",
+      "order-service",
+      "delivery-service",
+      "search-service",
+      "shipper-service",
+      "settlement-service",
+      "notification-service",
+      "match-service",
+      "tracking-service",
+      "livestream-service",
+      "saga-orchestrator-service",
+      "promotion-service",
+      "analytics-service",
+      "flashsale-service"
+    ] | all(. as $service |
+      (($root.services[$service].environment // {}) | to_entries | all(
+        ((.key | test("^(APP_.*_SERVICE_(URI|WS_URI)|[A-Z_]+_SERVICE_URL|SPRING_DATASOURCE_URL|SPRING_KAFKA_BOOTSTRAP_SERVERS|SPRING_DATA_REDIS_HOST|SPRING_ELASTICSEARCH_URIS)$")) | not)
+        or (((.value // "") | tostring | test("localhost|127\\.0\\.0\\.1")) | not)
+      ))))
+' >/dev/null
+
+printf '%s' "$rendered_secret_config" | jq -e '
+  .services["api-gateway"].environment.JWT_PUBLIC_KEY_PATH
+      == "/run/secrets/jwt-public.pem"
+    and .services["auth-service"].environment.JWT_PRIVATE_KEY_PATH
+      == "/run/secrets/jwt-private.pem"
+    and .services["auth-service"].environment.JWT_PUBLIC_KEY_PATH
+      == "/run/secrets/jwt-public.pem"
+    and ([.services["api-gateway"].volumes[], .services["auth-service"].volumes[]]
+      | all(.read_only == true))
+' >/dev/null
+
+printf '%s\n' "Compose configuration contract is valid."

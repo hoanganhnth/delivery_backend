@@ -1,76 +1,135 @@
 package com.delivery.auth_service.service;
 
 import io.jsonwebtoken.*;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import com.delivery.auth_service.exception.InvalidTokenException;
 
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.KeyFactory;
 import java.security.PrivateKey;
 import java.security.PublicKey;
+import java.security.Signature;
 import java.security.spec.*;
 import java.util.Base64;
 import java.util.Date;
+import java.time.Duration;
+import java.time.Instant;
 
 @Service
 public class TokenService {
 
+    static final Duration REFRESH_TOKEN_TTL = Duration.ofDays(7);
+
     private final PrivateKey privateKey;
     private final PublicKey publicKey;
+    private final Duration accessTokenTtl;
 
-    public TokenService() {
+    @Autowired
+    public TokenService(
+            @Value("${jwt.private-key.path:}") String privateKeyLocation,
+            @Value("${jwt.public-key.path:}") String publicKeyLocation,
+            @Value("${jwt.access-token-ttl-seconds:900}") long accessTokenTtlSeconds) {
         try {
-            this.privateKey = loadPrivateKey();
-            this.publicKey = loadPublicKey();
+            this.privateKey = loadPrivateKey(privateKeyLocation);
+            this.publicKey = loadPublicKey(publicKeyLocation);
+            verifyKeyPair(this.privateKey, this.publicKey);
+            if (accessTokenTtlSeconds <= 0) {
+                throw new IllegalArgumentException("JWT access token TTL must be positive");
+            }
+            this.accessTokenTtl = Duration.ofSeconds(accessTokenTtlSeconds);
         } catch (Exception e) {
-            throw new RuntimeException("Failed to load RSA keys", e);
+            throw new IllegalStateException(
+                    "Failed to initialize JWT RSA keys from configured locations", e);
         }
     }
 
-    private PrivateKey loadPrivateKey() throws Exception {
-        InputStream is = getClass().getClassLoader().getResourceAsStream("private.pem");
-        String key = new String(is.readAllBytes())
-                .replaceAll("-----BEGIN (.*)-----", "")
-                .replaceAll("-----END (.*)-----", "")
-                .replaceAll("\\s", "");
+    TokenService(String privateKeyLocation, String publicKeyLocation) {
+        this(privateKeyLocation, publicKeyLocation, 900L);
+    }
 
-        byte[] keyBytes = Base64.getDecoder().decode(key);
+    private PrivateKey loadPrivateKey(String location) throws Exception {
+        byte[] keyBytes = Base64.getDecoder().decode(readKeyMaterial(location));
         PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(keyBytes);
         return KeyFactory.getInstance("RSA").generatePrivate(spec);
     }
 
-    private PublicKey loadPublicKey() throws Exception {
-        InputStream is = getClass().getClassLoader().getResourceAsStream("public.pem");
-        String key = new String(is.readAllBytes())
-                .replaceAll("-----BEGIN (.*)-----", "")
-                .replaceAll("-----END (.*)-----", "")
-                .replaceAll("\\s", "");
-
-        byte[] keyBytes = Base64.getDecoder().decode(key);
+    private PublicKey loadPublicKey(String location) throws Exception {
+        byte[] keyBytes = Base64.getDecoder().decode(readKeyMaterial(location));
         X509EncodedKeySpec spec = new X509EncodedKeySpec(keyBytes);
         return KeyFactory.getInstance("RSA").generatePublic(spec);
     }
 
+    /**
+     * Đọc nội dung PEM từ Spring-configured location. Hỗ trợ classpath resource,
+     * file URI và filesystem path tuyệt đối để secret manager có thể mount file.
+     */
+    private String readKeyMaterial(String location) throws Exception {
+        if (location == null || location.isBlank()) {
+            throw new IllegalArgumentException("JWT key location must not be blank");
+        }
+        String raw;
+        if (location.startsWith("classpath:")) {
+            String classpathName = location.substring("classpath:".length());
+            while (classpathName.startsWith("/")) {
+                classpathName = classpathName.substring(1);
+            }
+            try (InputStream is = getClass().getClassLoader().getResourceAsStream(classpathName)) {
+                if (is == null) {
+                    throw new IllegalStateException("JWT key resource not found: " + location);
+                }
+                raw = new String(is.readAllBytes(), StandardCharsets.UTF_8);
+            }
+        } else {
+            String filesystemPath = location.startsWith("file:")
+                    ? location.substring("file:".length())
+                    : location;
+            raw = Files.readString(Path.of(filesystemPath), StandardCharsets.UTF_8);
+        }
+        return raw.replaceAll("-----BEGIN [^-]+-----", "")
+                .replaceAll("-----END [^-]+-----", "")
+                .replaceAll("\\s", "");
+    }
+
+    private void verifyKeyPair(PrivateKey signingKey, PublicKey verificationKey) throws Exception {
+        byte[] probe = "delivery-jwt-key-preflight".getBytes(StandardCharsets.UTF_8);
+        Signature signer = Signature.getInstance("SHA256withRSA");
+        signer.initSign(signingKey);
+        signer.update(probe);
+
+        Signature verifier = Signature.getInstance("SHA256withRSA");
+        verifier.initVerify(verificationKey);
+        verifier.update(probe);
+        if (!verifier.verify(signer.sign())) {
+            throw new InvalidKeySpecException("JWT private and public keys do not form a pair");
+        }
+    }
+
     public String generateToken(Long userId, String email, String role) {
+        Instant issuedAt = Instant.now();
         return Jwts.builder()
                 .setSubject(String.valueOf(userId)) // có thể dùng userId làm subject
                 .claim("email", email)
                 .claim("role", role)
-                .setIssuedAt(new Date())
-                .setExpiration("ADMIN".equals(role) ? new Date(System.currentTimeMillis() + 1000L * 60 * 60 * 24 * 100)
-                        : new Date(System.currentTimeMillis() + 1000L * 60 * 60 * 24 * 100)) // 100 days for debug
+                .setIssuedAt(Date.from(issuedAt))
+                .setExpiration(Date.from(issuedAt.plus(accessTokenTtl)))
                 .signWith(privateKey, SignatureAlgorithm.RS256)
                 .compact();
     }
 
     public String generateRefreshToken(Long userId, String email, String role) {
+        Instant issuedAt = Instant.now();
         return Jwts.builder()
                 .setSubject(String.valueOf(userId)) // có thể dùng userId làm subject
                 .claim("email", email)
                 .claim("role", role)
-                .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + 1000L * 60 * 60 * 24 * 7 * 10)) // 7 ngày
+                .setIssuedAt(Date.from(issuedAt))
+                .setExpiration(Date.from(issuedAt.plus(REFRESH_TOKEN_TTL)))
                 .signWith(privateKey, SignatureAlgorithm.RS256)
                 .compact();
     }

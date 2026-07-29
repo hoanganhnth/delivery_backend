@@ -6,17 +6,10 @@ import com.delivery.tracking_service.common.constants.RedisConstants;
 import com.delivery.tracking_service.dto.response.ShipperLocationResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.geo.Circle;
-import org.springframework.data.geo.Distance;
-import org.springframework.data.geo.Metrics;
 import org.springframework.data.geo.Point;
-import org.springframework.data.redis.connection.RedisGeoCommands;
 import org.springframework.data.redis.core.GeoOperations;
 import org.springframework.data.redis.core.RedisTemplate;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 @Repository
@@ -26,19 +19,21 @@ public class RedisGeoRepository implements ShipperLocationRepository {
     private final RedisTemplate<String, Object> redisTemplate;
     private static final String GEO_KEY = "shippers:geo:locations";
     private static final String ONLINE_SHIPPERS_SET = "shippers:online:set";
-    private static final String BUSY_SHIPPER_PREFIX = "shipper:busy:";
 
     // --- BEGIN: Method implement từ RedisGeoService ---
     public void cacheShipperLocation(Long shipperId, ShipperLocationResponse location) {
         try {
             String detailKey = RedisConstants.SHIPPER_LOCATION_KEY_PREFIX + shipperId;
             redisTemplate.opsForValue().set(detailKey, location, RedisConstants.SHIPPER_LOCATION_TTL, TimeUnit.SECONDS);
-            if (location.getLatitude() != null && location.getLongitude() != null) {
-                GeoOperations<String, Object> geoOps = redisTemplate.opsForGeo();
+            GeoOperations<String, Object> geoOps = redisTemplate.opsForGeo();
+            if (Boolean.TRUE.equals(location.getIsOnline())
+                    && location.getLatitude() != null && location.getLongitude() != null) {
                 Point point = new Point(location.getLongitude(), location.getLatitude());
                 geoOps.add(GEO_KEY, point, shipperId.toString());
                 redisTemplate.expire(GEO_KEY, RedisConstants.SHIPPER_LOCATION_TTL, TimeUnit.SECONDS);
                 log.debug("✅ Cached GEO location for shipper: {} at ({}, {})", shipperId, location.getLatitude(), location.getLongitude());
+            } else if (!Boolean.TRUE.equals(location.getIsOnline())) {
+                geoOps.remove(GEO_KEY, shipperId.toString());
             }
             if (Boolean.TRUE.equals(location.getIsOnline())) {
                 redisTemplate.opsForSet().add(ONLINE_SHIPPERS_SET, shipperId.toString());
@@ -48,6 +43,7 @@ public class RedisGeoRepository implements ShipperLocationRepository {
             }
         } catch (Exception e) {
             log.error("💥 Error caching shipper location with GEO: {}", e.getMessage(), e);
+            throw new IllegalStateException("Cannot persist shipper location in Redis", e);
         }
     }
 
@@ -63,97 +59,8 @@ public class RedisGeoRepository implements ShipperLocationRepository {
             return null;
         } catch (Exception e) {
             log.error("💥 Error getting cached location: {}", e.getMessage(), e);
-            return null;
+            throw new IllegalStateException("Cannot read shipper location from Redis", e);
         }
-    }
-
-    public List<ShipperLocationResponse> findShippersWithinRadius(Double centerLat, Double centerLng, Double radiusKm, Integer limit) {
-        List<ShipperLocationResponse> nearbyShippers = new ArrayList<>();
-        try {
-            GeoOperations<String, Object> geoOps = redisTemplate.opsForGeo();
-            Point center = new Point(centerLng, centerLat);
-            Distance radius = new Distance(radiusKm, Metrics.KILOMETERS);
-            Circle circle = new Circle(center, radius);
-            RedisGeoCommands.GeoRadiusCommandArgs args = RedisGeoCommands.GeoRadiusCommandArgs
-                    .newGeoRadiusArgs()
-                    .includeDistance()
-                    .includeCoordinates()
-                    .sortAscending()
-                    .limit(limit != null ? limit : 10);
-            org.springframework.data.geo.GeoResults<RedisGeoCommands.GeoLocation<Object>> geoResults = geoOps.radius(GEO_KEY, circle, args);
-            if (geoResults != null && geoResults.getContent() != null) {
-                for (var geoResult : geoResults.getContent()) {
-                    try {
-                        String shipperIdStr = geoResult.getContent().getName().toString();
-                        Long shipperId = Long.parseLong(shipperIdStr);
-                        boolean isOnline = redisTemplate.opsForSet().isMember(ONLINE_SHIPPERS_SET, shipperIdStr);
-                        boolean isBusy = Boolean.TRUE.equals(
-                                redisTemplate.hasKey(BUSY_SHIPPER_PREFIX + shipperIdStr));
-                        if (isOnline && !isBusy) {
-                            ShipperLocationResponse location = getCachedShipperLocation(shipperId);
-                            if (location != null) {
-                                location.setDistance(geoResult.getDistance().getValue());
-                                nearbyShippers.add(location);
-                            }
-                        } else if (isBusy) {
-                            log.debug("🚫 Skipping busy shipper {} in nearby results", shipperId);
-                        }
-                    } catch (NumberFormatException e) {
-                        log.warn("Invalid shipper ID in GEO results: {}", geoResult.getContent().getName());
-                    }
-                }
-            }
-            log.info("🔍 Found {} online shippers within {}km from ({}, {}) using Redis GEO", nearbyShippers.size(), radiusKm, centerLat, centerLng);
-        } catch (Exception e) {
-            log.error("💥 Error finding shippers with Redis GEO: {}", e.getMessage(), e);
-        }
-        return nearbyShippers;
-    }
-
-    public Double getDistanceBetweenShippers(Long shipperId1, Long shipperId2) {
-        try {
-            GeoOperations<String, Object> geoOps = redisTemplate.opsForGeo();
-            Distance distance = geoOps.distance(GEO_KEY, shipperId1.toString(), shipperId2.toString(), Metrics.KILOMETERS);
-            return distance != null ? distance.getValue() : null;
-        } catch (Exception e) {
-            log.error("💥 Error calculating distance between shippers: {}", e.getMessage(), e);
-            return null;
-        }
-    }
-
-    public Point getShipperGeoPosition(Long shipperId) {
-        try {
-            GeoOperations<String, Object> geoOps = redisTemplate.opsForGeo();
-            List<Point> positions = geoOps.position(GEO_KEY, shipperId.toString());
-            return (positions != null && !positions.isEmpty()) ? positions.get(0) : null;
-        } catch (Exception e) {
-            log.error("💥 Error getting shipper GEO position: {}", e.getMessage(), e);
-            return null;
-        }
-    }
-
-    public List<ShipperLocationResponse> getAllOnlineShippers() {
-        List<ShipperLocationResponse> onlineShippers = new ArrayList<>();
-        try {
-            Set<Object> onlineShipperIds = redisTemplate.opsForSet().members(ONLINE_SHIPPERS_SET);
-            if (onlineShipperIds != null && !onlineShipperIds.isEmpty()) {
-                for (Object shipperIdObj : onlineShipperIds) {
-                    try {
-                        Long shipperId = Long.parseLong(shipperIdObj.toString());
-                        ShipperLocationResponse location = getCachedShipperLocation(shipperId);
-                        if (location != null && Boolean.TRUE.equals(location.getIsOnline())) {
-                            onlineShippers.add(location);
-                        }
-                    } catch (NumberFormatException e) {
-                        log.warn("Invalid shipper ID in online set: {}", shipperIdObj);
-                    }
-                }
-            }
-            log.debug("📋 Retrieved {} online shippers from Redis SET", onlineShippers.size());
-        } catch (Exception e) {
-            log.error("💥 Error retrieving online shippers: {}", e.getMessage(), e);
-        }
-        return onlineShippers;
     }
 
     public void removeShipperLocationCache(Long shipperId) {
@@ -166,87 +73,8 @@ public class RedisGeoRepository implements ShipperLocationRepository {
             log.debug("🗑️ Removed shipper {} from all Redis caches", shipperId);
         } catch (Exception e) {
             log.error("💥 Error removing shipper from cache: {}", e.getMessage(), e);
+            throw new IllegalStateException("Cannot remove shipper location from Redis", e);
         }
     }
 
-    public boolean isRedisAvailable() {
-        try {
-            redisTemplate.opsForValue().set("health:check", "OK", 5, TimeUnit.SECONDS);
-            return "OK".equals(redisTemplate.opsForValue().get("health:check"));
-        } catch (Exception e) {
-            log.error("Redis health check failed", e);
-            return false;
-        }
-    }
-
-    public int getActiveConnections() {
-        try {
-            return redisTemplate.getConnectionFactory() != null ? 1 : 0;
-        } catch (Exception e) {
-            return 0;
-        }
-    }
-
-    public int getTotalConnections() {
-        try {
-            return redisTemplate.getConnectionFactory() != null ? 1 : 0;
-        } catch (Exception e) {
-            return 0;
-        }
-    }
-
-    public int getCachedShippersCount() {
-        try {
-            Set<Object> onlineShippers = redisTemplate.opsForSet().members(ONLINE_SHIPPERS_SET);
-            return onlineShippers != null ? onlineShippers.size() : 0;
-        } catch (Exception e) {
-            log.error("Error getting cached shippers count: {}", e.getMessage());
-            return 0;
-        }
-    }
-    // --- Busy Shippers Management ---
-
-    /**
-     * ✅ Đánh dấu shipper đang bận (đang có đơn hàng) với TTL 2 tiếng an toàn
-     */
-    public void markShipperBusy(Long shipperId) {
-        try {
-            redisTemplate.opsForValue().set(
-                BUSY_SHIPPER_PREFIX + shipperId.toString(), 
-                "BUSY", 
-                2, 
-                TimeUnit.HOURS
-            );
-            log.info("🔴 Marked shipper {} as BUSY (TTL: 2 hours)", shipperId);
-        } catch (Exception e) {
-            log.error("💥 Error marking shipper {} as busy: {}", shipperId, e.getMessage(), e);
-        }
-    }
-
-    /**
-     * ✅ Đánh dấu shipper rảnh (đã hoàn thành hoặc huỷ đơn)
-     */
-    public void markShipperAvailable(Long shipperId) {
-        try {
-            redisTemplate.delete(BUSY_SHIPPER_PREFIX + shipperId.toString());
-            log.info("🟢 Marked shipper {} as AVAILABLE", shipperId);
-        } catch (Exception e) {
-            log.error("💥 Error marking shipper {} as available: {}", shipperId, e.getMessage(), e);
-        }
-    }
-
-    /**
-     * ✅ Kiểm tra shipper có đang bận không
-     */
-    public boolean isShipperBusy(Long shipperId) {
-        try {
-            return Boolean.TRUE.equals(
-                    redisTemplate.hasKey(BUSY_SHIPPER_PREFIX + shipperId.toString()));
-        } catch (Exception e) {
-            log.error("💥 Error checking busy status for shipper {}: {}", shipperId, e.getMessage(), e);
-            return false;
-        }
-    }
-
-    // --- END ---
 }

@@ -3,10 +3,15 @@ package com.delivery.notification_service.service;
 import com.delivery.notification_service.common.constants.NotificationConstants;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
+import java.util.List;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 
 /**
  * ✅ Redis Service để manage user sessions và cache theo Backend Instructions
@@ -15,6 +20,25 @@ import java.util.concurrent.TimeUnit;
 @Service
 public class RedisService {
 
+    private static final DefaultRedisScript<Long> REGISTER_FCM_TOKEN = new DefaultRedisScript<>("""
+            local owner = redis.call('GET', KEYS[1])
+            if owner and owner ~= ARGV[1] then
+              return 0
+            end
+            redis.call('SET', KEYS[1], ARGV[1])
+            redis.call('SADD', KEYS[2], ARGV[2])
+            return 1
+            """, Long.class);
+    private static final DefaultRedisScript<Long> REMOVE_FCM_TOKEN = new DefaultRedisScript<>("""
+            local owner = redis.call('GET', KEYS[1])
+            if not owner or owner ~= ARGV[1] then
+              return 0
+            end
+            redis.call('SREM', KEYS[2], ARGV[2])
+            redis.call('DEL', KEYS[1])
+            return 1
+            """, Long.class);
+
     private final RedisTemplate<String, Object> redisTemplate;
 
     public RedisService(RedisTemplate<String, Object> redisTemplate) {
@@ -22,48 +46,20 @@ public class RedisService {
     }
 
     /**
-     * Store user session (WebSocket connection)
-     */
-    public void storeUserSession(Long userId, String sessionId) {
-        String key = NotificationConstants.REDIS_USER_SESSIONS + userId;
-        redisTemplate.opsForSet().add(key, sessionId);
-        redisTemplate.expire(key, 24, TimeUnit.HOURS);
-        log.debug("📝 Stored session {} for user {}", sessionId, userId);
-    }
-
-    /**
-     * Remove user session
-     */
-    public void removeUserSession(Long userId, String sessionId) {
-        String key = NotificationConstants.REDIS_USER_SESSIONS + userId;
-        redisTemplate.opsForSet().remove(key, sessionId);
-        log.debug("🗑️ Removed session {} for user {}", sessionId, userId);
-    }
-
-    /**
-     * Get all active sessions for user
-     */
-    public Set<Object> getUserSessions(Long userId) {
-        String key = NotificationConstants.REDIS_USER_SESSIONS + userId;
-        return redisTemplate.opsForSet().members(key);
-    }
-
-    /**
-     * Check if user is online (has active sessions)
-     */
-    public boolean isUserOnline(Long userId) {
-        String key = NotificationConstants.REDIS_USER_SESSIONS + userId;
-        Long sessionCount = redisTemplate.opsForSet().size(key);
-        return sessionCount != null && sessionCount > 0;
-    }
-
-    /**
      * Store FCM token for user
      */
     public void storeFcmToken(Long userId, String fcmToken) {
-        String key = NotificationConstants.REDIS_FCM_TOKENS + userId;
-        redisTemplate.opsForSet().add(key, fcmToken);
-        redisTemplate.expire(key, 30, TimeUnit.DAYS);
+        requirePositiveId(userId, "userId");
+        requireNonBlank(fcmToken, "fcmToken");
+        String userKey = NotificationConstants.REDIS_FCM_TOKENS + userId;
+        String ownerKey = NotificationConstants.REDIS_FCM_TOKEN_OWNER + hashToken(fcmToken);
+        Long registered = redisTemplate.execute(
+                REGISTER_FCM_TOKEN,
+                List.of(ownerKey, userKey),
+                userId.toString(), fcmToken);
+        if (registered == null || registered != 1L) {
+            throw new IllegalArgumentException("FCM token is already registered to another account");
+        }
         log.debug("📱 Stored FCM token for user {}", userId);
     }
 
@@ -71,8 +67,14 @@ public class RedisService {
      * Remove FCM token for user
      */
     public void removeFcmToken(Long userId, String fcmToken) {
-        String key = NotificationConstants.REDIS_FCM_TOKENS + userId;
-        redisTemplate.opsForSet().remove(key, fcmToken);
+        requirePositiveId(userId, "userId");
+        requireNonBlank(fcmToken, "fcmToken");
+        String userKey = NotificationConstants.REDIS_FCM_TOKENS + userId;
+        String ownerKey = NotificationConstants.REDIS_FCM_TOKEN_OWNER + hashToken(fcmToken);
+        redisTemplate.execute(
+                REMOVE_FCM_TOKEN,
+                List.of(ownerKey, userKey),
+                userId.toString(), fcmToken);
         log.debug("🗑️ Removed FCM token for user {}", userId);
     }
 
@@ -80,31 +82,30 @@ public class RedisService {
      * Get all FCM tokens for user
      */
     public Set<Object> getUserFcmTokens(Long userId) {
+        requirePositiveId(userId, "userId");
         String key = NotificationConstants.REDIS_FCM_TOKENS + userId;
         return redisTemplate.opsForSet().members(key);
     }
 
-    /**
-     * Cache notification for quick access
-     */
-    public void cacheNotification(Long notificationId, Object notification) {
-        String key = NotificationConstants.REDIS_NOTIFICATION_CACHE + notificationId;
-        redisTemplate.opsForValue().set(key, notification, 1, TimeUnit.HOURS);
+    private void requirePositiveId(Long value, String fieldName) {
+        if (value == null || value <= 0) {
+            throw new IllegalArgumentException(fieldName + " must be positive");
+        }
     }
 
-    /**
-     * Get cached notification
-     */
-    public Object getCachedNotification(Long notificationId) {
-        String key = NotificationConstants.REDIS_NOTIFICATION_CACHE + notificationId;
-        return redisTemplate.opsForValue().get(key);
+    private void requireNonBlank(String value, String fieldName) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException(fieldName + " is required");
+        }
     }
 
-    /**
-     * Remove cached notification
-     */
-    public void removeCachedNotification(Long notificationId) {
-        String key = NotificationConstants.REDIS_NOTIFICATION_CACHE + notificationId;
-        redisTemplate.delete(key);
+    private String hashToken(String token) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(token.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is unavailable", e);
+        }
     }
 }

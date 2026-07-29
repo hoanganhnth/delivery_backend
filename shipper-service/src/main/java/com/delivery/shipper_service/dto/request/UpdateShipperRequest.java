@@ -1,11 +1,17 @@
 package com.delivery.shipper_service.dto.request;
 
+import jakarta.validation.constraints.Size;
+
 public class UpdateShipperRequest {
+    @Size(max = 50)
     private String vehicleType;
+    @Size(max = 50)
     private String licenseNumber;
+    @Size(max = 20)
     private String idCard;
     private String driverImage;
     private Boolean isOnline;
+    @Size(max = 15)
     private String phone;
     private String idCardFrontImage;
     private String idCardBackImage;

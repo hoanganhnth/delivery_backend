@@ -10,14 +10,14 @@ import com.delivery.restaurant_service.mapper.RestaurantMapper;
 import com.delivery.restaurant_service.repository.RestaurantRepository;
 import com.delivery.restaurant_service.service.RestaurantService;
 import com.delivery.restaurant_service.service.RestaurantCacheService;
-import com.delivery.restaurant_service.service.RestaurantCatalogService;
 import com.delivery.restaurant_service.service.SearchSyncPublisher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -29,10 +29,10 @@ public class RestaurantServiceImpl implements RestaurantService {
     private final RestaurantRepository restaurantRepository;
     private final RestaurantMapper restaurantMapper;
     private final RestaurantCacheService restaurantCacheService;
-    private final RestaurantCatalogService restaurantCatalogService;
     private final SearchSyncPublisher searchSyncPublisher;
 
     @Override
+    @Transactional
     public RestaurantResponse createRestaurant(CreateRestaurantRequest request,
             Long creatorId,
             String role) {
@@ -60,7 +60,6 @@ public class RestaurantServiceImpl implements RestaurantService {
         // 🔥 Cache restaurant data after creation
         try {
             restaurantCacheService.cacheRestaurant(saved);
-            restaurantCatalogService.cacheRestaurantForHomeFeed(saved, Collections.emptyList());
             log.info("✅ Cached new restaurant: {} (ID: {})", saved.getName(), saved.getId());
         } catch (Exception e) {
             log.warn("⚠️ Failed to cache restaurant after creation: {}", e.getMessage());
@@ -73,10 +72,11 @@ public class RestaurantServiceImpl implements RestaurantService {
     }
 
     @Override
-    public RestaurantResponse updateRestaurant(Long id, UpdateRestaurantRequest request, Long creatorId) {
+    @Transactional
+    public RestaurantResponse updateRestaurant(Long id, UpdateRestaurantRequest request, Long creatorId, String role) {
         Restaurant existingRestaurant = restaurantRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Restaurant not found"));
-        if (!existingRestaurant.getCreatorId().equals(creatorId)) {
+        if (!canManage(existingRestaurant, creatorId, role)) {
             throw new AccessDeniedException("You are not allowed to update this restaurant");
         }
 
@@ -86,7 +86,6 @@ public class RestaurantServiceImpl implements RestaurantService {
         // 🔥 Update cache after modification
         try {
             restaurantCacheService.cacheRestaurant(updated);
-            restaurantCatalogService.cacheRestaurantForHomeFeed(updated, Collections.emptyList());
             log.info("🔄 Updated cache for restaurant: {} (ID: {})", updated.getName(), updated.getId());
         } catch (Exception e) {
             log.warn("⚠️ Failed to update cache after restaurant update: {}", e.getMessage());
@@ -99,18 +98,18 @@ public class RestaurantServiceImpl implements RestaurantService {
     }
 
     @Override
-    public void deleteRestaurant(Long id, Long creatorId) {
+    @Transactional
+    public void deleteRestaurant(Long id, Long creatorId, String role) {
         Restaurant restaurant = restaurantRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Restaurant not found"));
 
-        if (!restaurant.getCreatorId().equals(creatorId)) {
+        if (!canManage(restaurant, creatorId, role)) {
             throw new AccessDeniedException("You are not allowed to delete this restaurant");
         }
 
         // 🔥 Remove from cache before deletion
         try {
             restaurantCacheService.removeRestaurantFromCache(id);
-            restaurantCatalogService.removeRestaurantFromCatalog(id);
             log.info("🗑️ Removed restaurant from cache: {} (ID: {})", restaurant.getName(), id);
         } catch (Exception e) {
             log.warn("⚠️ Failed to remove restaurant from cache: {}", e.getMessage());
@@ -131,16 +130,24 @@ public class RestaurantServiceImpl implements RestaurantService {
 
     @Override
     public List<RestaurantResponse> getAllRestaurants() {
-        List<Restaurant> list = restaurantRepository.findAll();
+        List<Restaurant> list = restaurantRepository.findAll(PageRequest.of(0, 100)).getContent();
         return list.stream()
                 .map(restaurantMapper::toResponse)
                 .collect(Collectors.toList());
     }
 
+    private boolean canManage(Restaurant restaurant, Long creatorId, String role) {
+        return RoleConstants.ADMIN.equals(role)
+                || (RoleConstants.OWNER.equals(role)
+                        && creatorId != null
+                        && creatorId.equals(restaurant.getCreatorId()));
+    }
+
     @Override
     public List<RestaurantResponse> findByName(String keyword) {
 
-        List<Restaurant> restaurants = restaurantRepository.findByNameContainingIgnoreCase(keyword);
+        List<Restaurant> restaurants = restaurantRepository.findByNameContainingIgnoreCase(
+                keyword, PageRequest.of(0, 100));
         return restaurants.stream()
                 .map(restaurantMapper::toResponse)
                 .collect(Collectors.toList());
@@ -148,30 +155,11 @@ public class RestaurantServiceImpl implements RestaurantService {
 
     @Override
     public List<RestaurantResponse> getRestaurantsByCreatorId(Long creatorId) {
-        List<Restaurant> restaurants = restaurantRepository.findByCreatorId(creatorId);
+        List<Restaurant> restaurants = restaurantRepository.findByCreatorId(
+                creatorId, PageRequest.of(0, 100)).getContent();
         return restaurants.stream()
                 .map(restaurantMapper::toResponse)
                 .collect(Collectors.toList());
     }
 
-    /**
-     * Update restaurant availability và cache
-     */
-    public void updateRestaurantAvailability(Long restaurantId, boolean isAvailable, Long creatorId) {
-        Restaurant restaurant = restaurantRepository.findById(restaurantId)
-                .orElseThrow(() -> new ResourceNotFoundException("Restaurant not found"));
-
-        if (!restaurant.getCreatorId().equals(creatorId)) {
-            throw new AccessDeniedException("You are not allowed to update this restaurant availability");
-        }
-
-        // 🔥 Update cache availability
-        try {
-            restaurantCacheService.updateRestaurantAvailability(restaurantId, isAvailable);
-            restaurantCatalogService.updateRestaurantAvailability(restaurantId, isAvailable, true);
-            log.info("🔄 Updated availability for restaurant: {} -> {}", restaurant.getName(), isAvailable);
-        } catch (Exception e) {
-            log.warn("⚠️ Failed to update restaurant availability in cache: {}", e.getMessage());
-        }
-    }
 }

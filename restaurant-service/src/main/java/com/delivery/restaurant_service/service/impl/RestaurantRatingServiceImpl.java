@@ -4,11 +4,14 @@ import com.delivery.restaurant_service.dto.request.RestaurantRatingRequest;
 import com.delivery.restaurant_service.dto.response.RestaurantRatingResponse;
 import com.delivery.restaurant_service.entity.Restaurant;
 import com.delivery.restaurant_service.entity.RestaurantRating;
+import com.delivery.restaurant_service.exception.RestaurantRatingConflictException;
 import com.delivery.restaurant_service.repository.RestaurantRatingRepository;
 import com.delivery.restaurant_service.repository.RestaurantRepository;
 import com.delivery.restaurant_service.service.RestaurantRatingService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -28,7 +31,7 @@ public class RestaurantRatingServiceImpl implements RestaurantRatingService {
                 .orElseThrow(() -> new IllegalArgumentException("Restaurant not found with ID: " + restaurantId));
 
         if (ratingRepository.existsByOrderId(request.getOrderId())) {
-            throw new IllegalStateException("Order has already been rated for this restaurant");
+            throw new RestaurantRatingConflictException("Order has already been rated for this restaurant");
         }
 
         RestaurantRating rating = new RestaurantRating();
@@ -38,7 +41,12 @@ public class RestaurantRatingServiceImpl implements RestaurantRatingService {
         rating.setRating(request.getRating());
         rating.setComment(request.getComment());
 
-        rating = ratingRepository.save(rating);
+        try {
+            rating = ratingRepository.saveAndFlush(rating);
+        } catch (DataIntegrityViolationException duplicate) {
+            throw new RestaurantRatingConflictException(
+                    "Order has already been rated for this restaurant");
+        }
 
         updateRestaurantAverageRating(restaurant);
 
@@ -48,21 +56,23 @@ public class RestaurantRatingServiceImpl implements RestaurantRatingService {
 
     @Override
     public List<RestaurantRatingResponse> getRestaurantRatings(Long restaurantId) {
-        return ratingRepository.findByRestaurantIdAndStatus(restaurantId, com.delivery.restaurant_service.entity.RatingStatus.APPROVED).stream()
+        return ratingRepository.findByRestaurantIdAndStatus(
+                        restaurantId, com.delivery.restaurant_service.entity.RatingStatus.APPROVED,
+                        PageRequest.of(0, 100)).stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
 
     @Override
     public List<RestaurantRatingResponse> getMyRatings(Long customerId) {
-        return ratingRepository.findByCustomerId(customerId).stream()
+        return ratingRepository.findByCustomerId(customerId, PageRequest.of(0, 100)).stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
 
     @Override
     public List<RestaurantRatingResponse> getAllRatings() {
-        return ratingRepository.findAll().stream()
+        return ratingRepository.findAll(PageRequest.of(0, 100)).stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
@@ -86,15 +96,11 @@ public class RestaurantRatingServiceImpl implements RestaurantRatingService {
     }
 
     private void updateRestaurantAverageRating(Restaurant restaurant) {
-        List<RestaurantRating> approvedRatings = ratingRepository.findByRestaurantIdAndStatus(restaurant.getId(), com.delivery.restaurant_service.entity.RatingStatus.APPROVED);
-        if (approvedRatings.isEmpty()) {
-            restaurant.setRating(0.0);
-            restaurant.setRatingCount(0);
-        } else {
-            double sum = approvedRatings.stream().mapToInt(RestaurantRating::getRating).sum();
-            restaurant.setRating(sum / approvedRatings.size());
-            restaurant.setRatingCount(approvedRatings.size());
-        }
+        var approved = com.delivery.restaurant_service.entity.RatingStatus.APPROVED;
+        long count = ratingRepository.countByRestaurantIdAndStatus(restaurant.getId(), approved);
+        Double average = ratingRepository.averageRatingByRestaurantAndStatus(restaurant.getId(), approved);
+        restaurant.setRating(count == 0 ? 0.0 : average);
+        restaurant.setRatingCount(Math.toIntExact(count));
         restaurantRepository.save(restaurant);
     }
 

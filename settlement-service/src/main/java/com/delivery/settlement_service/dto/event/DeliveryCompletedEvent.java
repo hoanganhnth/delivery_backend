@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 /**
  * Event received from Kafka when delivery is completed.
@@ -17,6 +18,9 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Builder
 public class DeliveryCompletedEvent {
+    private UUID eventId;
+    private String eventType;
+    private LocalDateTime occurredAt;
     private Long deliveryId;
     private Long orderId;
     private Long restaurantId;

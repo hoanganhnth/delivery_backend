@@ -64,6 +64,9 @@ public class Notification {
     @Column(name = "creator_id")
     private Long creatorId;
 
+    @Column(name = "deduplication_key", unique = true, length = 200)
+    private String deduplicationKey;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();

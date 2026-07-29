@@ -1,116 +1,61 @@
-# Saga Orchestrator Service — Architecture Design (PostgreSQL + Existing Topics)
+# Saga Orchestrator — Canonical MVP Contract
 
-## Bối cảnh hiện tại
+> Cập nhật: 2026-07-25. Source, tests và
+> `../docs/system-contract-inventory.md` là executable truth. Tài liệu này không
+> mô tả các topic legacy `shipper.matched`, `no.shipper.available` hay
+> `delivery.find-shipper`; chúng đã bị xóa khỏi runtime contract.
 
-Hệ thống microservices gồm **13 services** sử dụng **Kafka** làm event bus. Saga orchestrator hiện tại là **stub**.
-Theo yêu cầu của bạn, kiến trúc mới sẽ tuân thủ:
-1. **Database**: Sử dụng **PostgreSQL** để đảm bảo tính bền vững (Persistence) của Saga state.
-2. **Kafka Strategy**: **Giữ nguyên các topics hiện có** của các service (order, delivery, match...). Orchestrator sẽ đóng vai trò là Subscriber để lắng nghe và điều phối trạng thái.
-3. **Port Fix**: Đổi port của `saga-orchestrator-service` từ `8090` sang **`8089`** để tránh conflict với `tracking-service`.
+## Vai trò
 
----
+Saga Orchestrator chạy cổng `8095`, persist state/step/outbox trong PostgreSQL và
+điều phối order bằng Kafka. Service không tạo order qua REST và không có public
+controller. Mọi command được ghi transactional outbox theo aggregate order trước
+khi relay sang Kafka.
 
-## 1. Kiến trúc tổng quan
+## Luồng canonical
 
-Saga Orchestrator sẽ theo dõi vòng đời của một đơn hàng bằng cách lắng nghe các sự kiện (Events) được phát ra từ các microservices khác và lưu trữ trạng thái hiện tại vào PostgreSQL.
+1. Nhận `order.created`, tạo hoặc replay-safe load Saga.
+2. Ghi `saga.command.create-delivery`; Delivery trả
+   `delivery.created.result` hoặc `delivery.created.failed`.
+3. Chờ nhà hàng quyết định. Chỉ `restaurant.order-confirmed` mới cho phép ghi
+   `saga.command.find-shipper`; reject/cancel đi compensation.
+4. Match đọc Redis GEO replica và trả đúng một `shipper.found`, hoặc
+   `shipper.not-found` sau retry policy.
+5. Với `shipper.found`, Saga ghi `saga.command.cache-shipper-found`; Delivery
+   persist offer/expiry rồi phát `delivery.shipper-offered` cho Notification.
+6. `delivery.shipper-accepted` gắn shipper vào Saga/Order. Reject, timeout hoặc
+   cancel-assignment phát `delivery.shipper-rejected` và rematch có exclusion.
+7. `delivery.status-updated` hội tụ state. Terminal success đến từ
+   `delivery.completed`; COD settlement do Settlement service xử lý.
 
-```mermaid
-graph TB
-    subgraph "Saga Orchestrator Service (Port 8089)"
-        SC[SagaController] --> SM[SagaManager]
-        SM --> DB[(PostgreSQL)]
-        SM --> KL[KafkaEventListeners]
-    end
+## Cancellation và failure
 
-    subgraph "Existing Kafka Topics"
-        T1[order-created]
-        T2[order-cancelled]
-        T3[find-shipper]
-        T4[shipper-found]
-        T5[shipper-not-found]
-        T6[delivery-status-updated]
-    end
+- `order.cancelled` dừng matching bằng `saga.command.stop-matching` và yêu cầu
+  Delivery cancel bằng `saga.command.cancel-delivery`.
+- Cancel sau pickup phải fail-closed qua `delivery.cancel.failed`; không được báo
+  Saga đã cancel trong khi Delivery vẫn giao.
+- Không tìm thấy shipper hội tụ Order/Delivery về `SHIPPER_NOT_FOUND` theo state
+  guard qua command riêng `saga.command.mark-shipper-not-found`; stale not-found
+  không được thắng accept/in-flight state.
+- Timeout scheduler đọc batch có giới hạn và xử lý lỗi theo từng aggregate; một
+  saga lỗi không được chặn các saga timeout phía sau trong cùng poll.
 
-    OS[order-service] -- Publish T1/T2 --> T1 & T2
-    DS[delivery-service] -- Listen T1, Publish T6 --> T6
-    MS[match-service] -- Listen T3, Publish T4/T5 --> T4 & T5
-    
-    T1 & T2 & T4 & T5 & T6 -- Subscribe --> KL
-```
+## Replay boundary
 
----
+- Event/command active bắt buộc UUID `eventId` và positive aggregate IDs.
+- `saga.command.update-order-status` giữ top-level `orderId` và raw
+  `originalEvent` cùng correlation; Order từ chối inner orderId mâu thuẫn, JSON
+  lỗi, hoặc `SHIPPER_NOT_FOUND` thiếu positive `deliveryId`. Compensation dùng
+  delivery identity đã persist trong Saga, không phụ thuộc payload lỗi ban đầu.
+- Saga state được pessimistic-lock; exact replay là idempotent, event ID hoặc
+  payload mâu thuẫn fail-closed để Kafka retry/DLT.
+- Outbox giữ ordering theo order. H2/static tests không thay thế PostgreSQL/Kafka
+  duplicate, crash-after-commit, restart và DLT rehearsal ở Gate B8.
 
-## 2. Các luồng xử lý chính
+## Verification
 
-### A. Luồng Đặt hàng (Order Creation)
-1. **User** gọi `POST /api/create-order` tới Orchestrator.
-2. **Orchestrator** gọi REST sang `order-service` để tạo đơn (PENDING).
-3. **Orchestrator** tạo bản ghi Saga trong PostgreSQL với trạng thái `ORDER_CREATED`.
-4. **Orchestrator** lắng nghe Topic `order.created` (hoặc reply từ service).
-5. Khi nhận được event, Orchestrator cập nhật bước tiếp theo: Thông báo cho `delivery-service`.
-
-### B. Luồng Tìm Shipper (Matching)
-1. **Orchestrator** lắng nghe Topic `shipper.matched` từ `match-service`.
-2. Nếu nhận được `shipper.matched`: Cập nhật Saga -> Chuyển sang bước gán đơn (Assign).
-3. Nếu nhận được `no-shipper-available`: Thực hiện **Compensation** (Huỷ đơn hàng, hoàn tiền nếu có).
-
----
-
-## 3. Database Schema (PostgreSQL)
-
-Sử dụng JPA để quản lý các bảng sau:
-
-```sql
--- Lưu thông tin tổng quát của một chuỗi Saga
-CREATE TABLE saga_instances (
-    id              UUID PRIMARY KEY,
-    type            VARCHAR(50), -- ORDER_CREATION, CANCELLATION
-    status          VARCHAR(50), -- STARTED, COMPLETED, FAILED, COMPENSATING
-    order_id        BIGINT,
-    payload         JSONB,       -- Dữ liệu context của đơn hàng
-    created_at      TIMESTAMP DEFAULT NOW(),
-    updated_at      TIMESTAMP DEFAULT NOW()
-);
-
--- Lưu lịch sử chi tiết từng bước (Step)
-CREATE TABLE saga_steps (
-    id              SERIAL PRIMARY KEY,
-    saga_id         UUID REFERENCES saga_instances(id),
-    step_name       VARCHAR(100),
-    status          VARCHAR(30), -- SUCCESS, FAILURE, COMPENSATED
-    executed_at     TIMESTAMP
-);
-```
-
----
-
-## 4. Kế hoạch triển khai (Phased)
-
-### Phase 1: Infrastructure & Port Fix
-- Đổi port sang `8089`.
-- Cấu hình kết nối PostgreSQL trong `application.properties`.
-- Định nghĩa Entity `SagaInstance` và `SagaStep`.
-
-### Phase 2: Listener Integration (Sử dụng Topic có sẵn)
-- Kết nối `KafkaEventListener` với các topic hiện có: `order-created`, `shipper-matched`, v.v.
-- Viết logic cập nhật trạng thái vào DB khi nhận Event.
-
-### Phase 3: Orchestration Logic
-- Triển khai `SagaManager` để quyết định bước tiếp theo dựa trên trạng thái hiện tại trong DB.
-- Xử lý các trường hợp timeout (ví dụ: chờ shipper accept quá lâu).
-
-### Phase 4: Compensation (Rollback)
-- Viết logic tự động gọi REST huỷ đơn (`order-service/cancel`) nếu các bước sau thất bại.
-
----
-
-## 5. Verification Plan
-- Kiểm tra logs của Saga Orchestrator khi thực hiện đặt hàng trên App.
-- Truy vấn DB PostgreSQL để xác nhận trạng thái các bước được lưu đúng.
-1. **Order Creation Flow**: Đặt 1 đơn hàng từ delivery_app → Kiểm tra `saga_instances` table → Xác nhận tất cả steps completed.
-2. **Cancellation Flow**: Huỷ đơn đang có shipper → Kiểm tra shipper được release, delivery cancelled, order cancelled.
-3. **Shipper Not Found**: Đặt đơn khi không có shipper online → Kiểm tra retry logic + compensation sau max retries.
-4. **Kafka Monitoring**: Dùng `kafka-console-consumer` để verify messages trên từng topic.
-
-> [!TIP]
-> Bạn nên bắt đầu từ **Phase 1 + Phase 2** trước vì Order Creation là luồng quan trọng nhất và sẽ thiết lập nền tảng cho các saga khác.
+- Focused: listener validation/ACK, SagaManager transitions, outbox transaction,
+  Flyway clean/legacy/fail-closed.
+- Runtime Gate B8: restaurant-confirm-before-match, one-shipper offer,
+  reject/timeout/rematch, cancel before/after pickup, duplicate/crash/restart và
+  poison-message DLT trên PostgreSQL/Kafka thật.

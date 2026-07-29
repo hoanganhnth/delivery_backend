@@ -5,8 +5,8 @@ import com.google.firebase.messaging.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -19,8 +19,8 @@ public class FirebaseService {
     private final FirebaseApp firebaseApp;
     private final RedisService redisService;
 
-    public FirebaseService(FirebaseApp firebaseApp, RedisService redisService) {
-        this.firebaseApp = firebaseApp;
+    public FirebaseService(Optional<FirebaseApp> firebaseApp, RedisService redisService) {
+        this.firebaseApp = firebaseApp.orElse(null);
         this.redisService = redisService;
     }
 
@@ -28,43 +28,32 @@ public class FirebaseService {
      * Send push notification to specific user
      */
     public void sendPushNotificationToUser(Long userId, String title, String body, Map<String, String> data) {
+        requirePositiveId(userId, "userId");
+        requireNonBlank(title, "title");
+        requireNonBlank(body, "body");
         if (firebaseApp == null) {
             log.warn("⚠️ Firebase not initialized, skipping push notification");
             return;
         }
 
-        try {
-            // Get user's FCM tokens
-            Set<Object> fcmTokens = redisService.getUserFcmTokens(userId);
-            
-            if (fcmTokens.isEmpty()) {
-                log.debug("📱 No FCM tokens found for user {}", userId);
-                return;
-            }
+        // Once Firebase is explicitly configured, Redis/provider failures must
+        // propagate. NotificationService keeps the durable row PENDING and Kafka
+        // retries the same deduplication key; swallowing here would mark it SENT.
+        Set<Object> fcmTokens = redisService.getUserFcmTokens(userId);
 
-            // Build notification
-            Notification notification = Notification.builder()
-                    .setTitle(title)
-                    .setBody(body)
-                    .build();
-
-            // Send to each token
-            for (Object tokenObj : fcmTokens) {
-                String token = tokenObj.toString();
-                sendToToken(token, notification, data, userId);
-            }
-
-        } catch (Exception e) {
-            log.error("💥 Failed to send push notification to user {}: {}", userId, e.getMessage(), e);
+        if (fcmTokens.isEmpty()) {
+            log.debug("📱 No FCM tokens found for user {}", userId);
+            return;
         }
-    }
 
-    /**
-     * Send push notification to multiple users
-     */
-    public void sendPushNotificationToUsers(List<Long> userIds, String title, String body, Map<String, String> data) {
-        for (Long userId : userIds) {
-            sendPushNotificationToUser(userId, title, body, data);
+        Notification notification = Notification.builder()
+                .setTitle(title)
+                .setBody(body)
+                .build();
+
+        for (Object tokenObj : fcmTokens) {
+            String token = tokenObj.toString();
+            sendToToken(token, notification, data, userId);
         }
     }
 
@@ -109,6 +98,7 @@ public class FirebaseService {
                 log.warn("🗑️ Removed invalid FCM token for user {}", userId);
             } else {
                 log.error("💥 Failed to send push notification: {}", e.getMessage(), e);
+                throw new IllegalStateException("Firebase push delivery failed", e);
             }
         }
     }
@@ -117,6 +107,8 @@ public class FirebaseService {
      * Register FCM token for user
      */
     public void registerFcmToken(Long userId, String fcmToken) {
+        requirePositiveId(userId, "userId");
+        requireNonBlank(fcmToken, "fcmToken");
         redisService.storeFcmToken(userId, fcmToken);
         log.info("📱 Registered FCM token for user {}", userId);
     }
@@ -125,38 +117,22 @@ public class FirebaseService {
      * Unregister FCM token for user
      */
     public void unregisterFcmToken(Long userId, String fcmToken) {
+        requirePositiveId(userId, "userId");
+        requireNonBlank(fcmToken, "fcmToken");
         redisService.removeFcmToken(userId, fcmToken);
         log.info("🗑️ Unregistered FCM token for user {}", userId);
     }
 
-    /**
-     * Send topic-based notification (for broadcast messages)
-     */
-    public void sendToTopic(String topic, String title, String body, Map<String, String> data) {
-        if (firebaseApp == null) {
-            log.warn("⚠️ Firebase not initialized, skipping topic notification");
-            return;
-        }
-
-        try {
-            Message.Builder messageBuilder = Message.builder()
-                    .setNotification(Notification.builder()
-                            .setTitle(title)
-                            .setBody(body)
-                            .build())
-                    .setTopic(topic);
-
-            if (data != null && !data.isEmpty()) {
-                messageBuilder.putAllData(data);
-            }
-
-            Message message = messageBuilder.build();
-            String response = FirebaseMessaging.getInstance(firebaseApp).send(message);
-            
-            log.info("📢 Successfully sent topic notification to {}: {}", topic, response);
-
-        } catch (FirebaseMessagingException e) {
-            log.error("💥 Failed to send topic notification: {}", e.getMessage(), e);
+    private void requirePositiveId(Long value, String fieldName) {
+        if (value == null || value <= 0) {
+            throw new IllegalArgumentException(fieldName + " must be positive");
         }
     }
+
+    private void requireNonBlank(String value, String fieldName) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException(fieldName + " is required");
+        }
+    }
+
 }

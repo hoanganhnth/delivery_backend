@@ -5,18 +5,34 @@ import java.time.LocalTime;
 
 import lombok.Getter;
 import lombok.Setter;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 @Getter
 @Setter
 public class CreateRestaurantRequest {
+    @NotBlank
+    @Size(max = 255)
     private String name;
+    @Size(max = 2000)
     private String address;
+    @Size(max = 20)
     private String phone;
     private LocalTime openingHour;
     private LocalTime closingHour;
     private String image;
+    @NotNull
+    @DecimalMin("8.0")
+    @DecimalMax("24.0")
     private Double addressLat;
+    @NotNull
+    @DecimalMin("102.0")
+    @DecimalMax("110.0")
     private Double addressLng; 
+    @Size(max = 4000)
     private String description;
 
 }

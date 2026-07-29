@@ -18,6 +18,7 @@ import com.delivery.livestream_service.repository.LivestreamRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.PageRequest;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -28,6 +29,8 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 public class LivestreamService {
+
+    private static final int COMPATIBILITY_LIST_LIMIT = 100;
 
     private final LivestreamRepository livestreamRepository;
     private final LivestreamEventPublisher eventPublisher;
@@ -152,7 +155,8 @@ public class LivestreamService {
     @Transactional(readOnly = true)
     public List<LivestreamResponse> getActiveLivestreams() {
         log.info("Getting all active livestreams (sorted by newest)");
-        return livestreamRepository.findByStatusOrderByCreatedAtDesc(LivestreamStatus.LIVE)
+        return livestreamRepository.findByStatusOrderByCreatedAtDesc(
+                        LivestreamStatus.LIVE, PageRequest.of(0, COMPATIBILITY_LIST_LIMIT))
                 .stream()
                 .map(mapper::toResponse)
                 .collect(Collectors.toList());
@@ -182,6 +186,10 @@ public class LivestreamService {
                     "Livestream chưa bắt đầu hoặc đã kết thúc. Trạng thái: " + livestream.getStatus());
         }
 
+        // ✅ Tăng tổng lượt xem (cumulative). Mỗi lần join tính 1 view.
+        livestream.setViewCount((livestream.getViewCount() != null ? livestream.getViewCount() : 0L) + 1);
+        livestream = livestreamRepository.save(livestream);
+
         // Generate Agora token for VIEWER
         int expireSeconds = 3600; // 1 hour
         var tokenResponse = streamTokenService.generateToken(id, viewerId, TokenRole.VIEWER, expireSeconds);
@@ -200,7 +208,8 @@ public class LivestreamService {
         response.setTokenExpiresAt(tokenResponse.getExpiresAt());
         response.setSellerId(livestream.getSellerId());
         response.setStartedAt(livestream.getStartedAt());
-        // response.setCurrentViewers(0); // TODO: Implement viewer counting
+        // Số viewer đồng thời (concurrent) cần heartbeat/leave hoặc Agora RTM API —
+        // chưa triển khai. Tổng lượt xem tích luỹ có ở LivestreamResponse.viewCount.
 
         return response;
     }
@@ -208,7 +217,8 @@ public class LivestreamService {
     @Transactional(readOnly = true)
     public List<LivestreamResponse> getLivestreamsBySeller(Long sellerId) {
         log.info("Getting livestreams by seller: {} (sorted by newest)", sellerId);
-        return livestreamRepository.findBySellerIdOrderByCreatedAtDesc(sellerId)
+        return livestreamRepository.findBySellerIdOrderByCreatedAtDesc(
+                        sellerId, PageRequest.of(0, COMPATIBILITY_LIST_LIMIT))
                 .stream()
                 .map(mapper::toResponse)
                 .collect(Collectors.toList());
@@ -217,7 +227,8 @@ public class LivestreamService {
     @Transactional(readOnly = true)
     public List<LivestreamResponse> getLivestreamsByRestaurant(Long restaurantId) {
         log.info("Getting livestreams by restaurant: {} (sorted by newest)", restaurantId);
-        return livestreamRepository.findByRestaurantIdOrderByCreatedAtDesc(restaurantId)
+        return livestreamRepository.findByRestaurantIdOrderByCreatedAtDesc(
+                        restaurantId, PageRequest.of(0, COMPATIBILITY_LIST_LIMIT))
                 .stream()
                 .map(mapper::toResponse)
                 .collect(Collectors.toList());

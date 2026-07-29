@@ -1,5 +1,6 @@
 package com.delivery.restaurant_service.service;
 
+import com.delivery.restaurant_service.common.constants.RoleConstants;
 import com.delivery.restaurant_service.dto.request.CreateMenuItemRequest;
 import com.delivery.restaurant_service.dto.request.UpdateMenuItemRequest;
 import com.delivery.restaurant_service.dto.response.MenuItemResponse;
@@ -37,6 +38,10 @@ class MenuItemServiceTest {
     private RestaurantRepository restaurantRepository;
     @Mock
     private MenuItemMapper menuItemMapper;
+    @Mock
+    private RestaurantCacheService restaurantCacheService;
+    @Mock
+    private SearchSyncPublisher searchSyncPublisher;
 
     @InjectMocks
     private MenuItemServiceImpl menuItemService;
@@ -117,7 +122,7 @@ class MenuItemServiceTest {
     void getItemsByRestaurant_ShouldReturnList_WhenRestaurantExists() {
         // Given
         List<MenuItem> menuItems = Collections.singletonList(menuItem);
-        when(menuItemRepository.findByRestaurantId(1L)).thenReturn(menuItems);
+        when(menuItemRepository.findByRestaurantId(eq(1L), any())).thenReturn(menuItems);
         when(menuItemMapper.toResponse(any(MenuItem.class))).thenReturn(menuItemResponse);
 
         // When
@@ -127,7 +132,7 @@ class MenuItemServiceTest {
         assertNotNull(responses);
         assertEquals(1, responses.size());
         assertEquals("Pizza", responses.get(0).getName());
-        verify(menuItemRepository).findByRestaurantId(1L);
+        verify(menuItemRepository).findByRestaurantId(eq(1L), any());
     }
 
     @Test
@@ -136,7 +141,7 @@ class MenuItemServiceTest {
         when(menuItemRepository.findById(1L)).thenReturn(Optional.of(menuItem));
 
         // When
-        menuItemService.deleteMenuItem(1L, 1L);
+        menuItemService.deleteMenuItem(1L, 1L, RoleConstants.OWNER);
 
         // Then
         verify(menuItemRepository).findById(1L);
@@ -151,9 +156,29 @@ class MenuItemServiceTest {
 
         // When & Then
         assertThrows(AccessDeniedException.class, () ->
-                menuItemService.deleteMenuItem(1L, 1L));
+                menuItemService.deleteMenuItem(1L, 1L, RoleConstants.OWNER));
 
         verify(menuItemRepository).findById(1L);
+        verify(menuItemRepository, never()).delete(any());
+    }
+
+    @Test
+    void deleteMenuItem_ShouldAllowAdmin_WhenAdminIsNotOwner() {
+        restaurant.setCreatorId(2L);
+        when(menuItemRepository.findById(1L)).thenReturn(Optional.of(menuItem));
+
+        menuItemService.deleteMenuItem(1L, 99L, RoleConstants.ADMIN);
+
+        verify(menuItemRepository).delete(menuItem);
+    }
+
+    @Test
+    void deleteMenuItem_ShouldRejectMissingRole_EvenWhenIdentityMatchesOwner() {
+        when(menuItemRepository.findById(1L)).thenReturn(Optional.of(menuItem));
+
+        assertThrows(AccessDeniedException.class, () ->
+                menuItemService.deleteMenuItem(1L, 1L, null));
+
         verify(menuItemRepository, never()).delete(any());
     }
 
@@ -180,7 +205,7 @@ class MenuItemServiceTest {
         when(menuItemRepository.save(any(MenuItem.class))).thenReturn(updatedMenuItem);
         when(menuItemMapper.toResponse(any(MenuItem.class))).thenReturn(expectedResponse);
         // When
-        MenuItemResponse response = menuItemService.updateMenuItem(1L, updateRequest, 1L);
+        MenuItemResponse response = menuItemService.updateMenuItem(1L, updateRequest, 1L, RoleConstants.OWNER);
 
         // Then
         assertNotNull(response);
@@ -208,7 +233,8 @@ class MenuItemServiceTest {
 
 
         List<MenuItem> availableItems = List.of(availableItem);
-        when(menuItemRepository.findByRestaurantIdAndStatus(1L, MenuItem.Status.AVAILABLE)).thenReturn(availableItems);
+        when(menuItemRepository.findByRestaurantIdAndStatus(eq(1L), eq(MenuItem.Status.AVAILABLE), any()))
+                .thenReturn(availableItems);
         when(menuItemMapper.toResponse(any(MenuItem.class))).thenReturn(expectedResponse);
         // When
         List<MenuItemResponse> responses = menuItemService.getAvailableItems(1L);
@@ -217,6 +243,6 @@ class MenuItemServiceTest {
         assertNotNull(responses);
         assertEquals(1, responses.size());
         assertEquals("Available Pizza", responses.get(0).getName());
-        verify(menuItemRepository).findByRestaurantIdAndStatus(1L, MenuItem.Status.AVAILABLE);
+        verify(menuItemRepository).findByRestaurantIdAndStatus(eq(1L), eq(MenuItem.Status.AVAILABLE), any());
     }
 }

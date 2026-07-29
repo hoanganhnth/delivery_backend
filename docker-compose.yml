@@ -5,13 +5,18 @@ services:
     image: postgres:16-alpine
     container_name: delivery-postgres
     ports:
-      - "5432:5432"
+      - "${POSTGRES_HOST_PORT:-5432}:5432"
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: 123456
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
     volumes:
       - ./docker/postgres/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
     deploy:
       resources:
         limits:
@@ -24,6 +29,11 @@ services:
     container_name: delivery-redis
     ports:
       - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
     deploy:
       resources:
         limits:
@@ -51,8 +61,20 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_HEAP_OPTS: '-Xms256m -Xmx384m'
+      # MVP local/runtime rehearsal: retry and DLT topics are created on first use.
+      # Production hardening must replace this with explicit topic provisioning.
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
       # UUID định danh Cluster (đã tạo sẵn cho bạn)
       CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server kafka:9092 >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 20s
     deploy:
       resources:
         limits:
@@ -69,6 +91,12 @@ services:
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
     ports:
       - "9200:9200"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9200/_cluster/health >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
     deploy:
       resources:
         limits:
@@ -82,7 +110,7 @@ services:
     container_name: api-gateway
     ports: ["8079:8079"]
     environment:
-      JAVA_OPTS: "-Xmx384m -Xms256m"
+      JAVA_TOOL_OPTIONS: "-Xmx384m -Xms256m"
       APP_AUTH_SERVICE_URI: http://auth-service:8081
       APP_USER_SERVICE_URI: http://user-service:8082
       APP_RESTAURANT_SERVICE_URI: http://restaurant-service:8083
@@ -91,219 +119,320 @@ services:
       APP_SEARCH_SERVICE_URI: http://search-service:8088
       APP_SHIPPER_SERVICE_URI: http://shipper-service:8089
       APP_NOTIFICATION_SERVICE_URI: http://notification-service:8091
-      APP_SAGA_ORCHESTRATOR_SERVICE_URI: http://saga-orchestrator-service:8095
       APP_TRACKING_SERVICE_URI: http://tracking-service:8093
       APP_TRACKING_SERVICE_WS_URI: ws://tracking-service:8093
-      APP_MATCH_SERVICE_URI: http://match-service:8092
       APP_LIVESTREAM_SERVICE_URI: http://livestream-service:8094
       APP_SETTLEMENT_SERVICE_URI: http://settlement-service:8090
       APP_PROMOTION_SERVICE_URI: http://promotion-service:8096
       APP_ANALYTICS_SERVICE_URI: http://analytics-service:8097
+      APP_FLASHSALE_SERVICE_URI: http://flashsale-service:8092
+      APP_CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:3000,http://localhost:4173,http://127.0.0.1:5173,http://127.0.0.1:3000,http://127.0.0.1:4173}
     deploy: { resources: { limits: { memory: 512M } } }
     networks: [delivery-network]
 
   auth-service:
     build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: auth-service } }
     container_name: auth-service
-    ports: ["8081:8081"]
+    expose: ["8081"]
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/auth_db
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: 123456
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      JAVA_OPTS: "-Xmx384m -Xms256m"
+      USER_SERVICE_URL: http://user-service:8082
+      INTERNAL_SECRET: ${INTERNAL_SECRET:-}
+      GOOGLE_OAUTH_CLIENT_IDS: ${GOOGLE_OAUTH_CLIENT_IDS:-}
+      JWT_ACCESS_TOKEN_TTL_SECONDS: "900"
+      JAVA_TOOL_OPTIONS: "-Xmx384m -Xms256m"
     deploy: { resources: { limits: { memory: 512M } } }
-    depends_on: [postgres, kafka]
+    depends_on:
+      postgres: { condition: service_healthy }
+      kafka: { condition: service_healthy }
     networks: [delivery-network]
 
   user-service:
     build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: user-service } }
     container_name: user-service
-    ports: ["8082:8082"]
+    expose: ["8082"]
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/user_db
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: 123456
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      JAVA_OPTS: "-Xmx384m -Xms256m"
+      INTERNAL_SECRET: ${INTERNAL_SECRET:-}
+      JAVA_TOOL_OPTIONS: "-Xmx384m -Xms256m"
     deploy: { resources: { limits: { memory: 512M } } }
-    depends_on: [postgres, kafka]
+    depends_on:
+      postgres: { condition: service_healthy }
+      kafka: { condition: service_healthy }
     networks: [delivery-network]
 
   restaurant-service:
     build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: restaurant-service } }
     container_name: restaurant-service
-    ports: ["8083:8083"]
+    expose: ["8083"]
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/restaurant_db
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: 123456
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      JAVA_OPTS: "-Xmx384m -Xms256m"
+      SPRING_DATA_REDIS_HOST: redis
+      INTERNAL_SECRET: ${INTERNAL_SECRET:-}
+      ORDER_SERVICE_URL: http://order-service:8084
+      JAVA_TOOL_OPTIONS: "-Xmx384m -Xms256m"
     deploy: { resources: { limits: { memory: 512M } } }
-    depends_on: [postgres, kafka]
+    depends_on:
+      postgres: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+      redis: { condition: service_healthy }
     networks: [delivery-network]
 
   order-service:
     build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: order-service } }
     container_name: order-service
-    ports: ["8084:8084"]
+    expose: ["8084"]
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/order_db
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: 123456
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      JAVA_OPTS: "-Xmx384m -Xms256m"
+      # ✅ URL các service order gọi qua HTTP (mặc định localhost sẽ fail trong container)
+      RESTAURANT_SERVICE_URL: http://restaurant-service:8083
+      INTERNAL_SECRET: ${INTERNAL_SECRET:-}
+      ORDER_PAYMENT_EVENT_PROCESSING_ENABLED: "false"
+      JAVA_TOOL_OPTIONS: "-Xmx384m -Xms256m"
     deploy: { resources: { limits: { memory: 512M } } }
-    depends_on: [postgres, kafka]
+    depends_on:
+      postgres: { condition: service_healthy }
+      kafka: { condition: service_healthy }
     networks: [delivery-network]
 
   delivery-service:
     build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: delivery-service } }
     container_name: delivery-service
-    ports: ["8085:8085"]
+    expose: ["8085"]
     environment:
+      INTERNAL_SECRET: ${INTERNAL_SECRET:-}
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/delivery_db
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: 123456
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      SPRING_REDIS_HOST: redis
-      JAVA_OPTS: "-Xmx384m -Xms256m"
+      JAVA_TOOL_OPTIONS: "-Xmx384m -Xms256m"
     deploy: { resources: { limits: { memory: 512M } } }
-    depends_on: [postgres, kafka, redis]
+    depends_on:
+      postgres: { condition: service_healthy }
+      kafka: { condition: service_healthy }
     networks: [delivery-network]
 
   search-service:
     build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: search-service } }
     container_name: search-service
-    ports: ["8088:8088"]
+    expose: ["8088"]
     environment:
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       SPRING_ELASTICSEARCH_URIS: http://elasticsearch:9200
-      SPRING_REDIS_HOST: redis
       APP_ELASTICSEARCH_ENABLED: "true"
-      JAVA_OPTS: "-Xmx384m -Xms256m"
+      JAVA_TOOL_OPTIONS: "-Xmx384m -Xms256m"
     deploy: { resources: { limits: { memory: 512M } } }
-    depends_on: [kafka, elasticsearch, redis]
+    depends_on:
+      kafka: { condition: service_healthy }
+      elasticsearch: { condition: service_healthy }
     networks: [delivery-network]
 
   shipper-service:
     build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: shipper-service } }
     container_name: shipper-service
-    ports: ["8089:8089"]
+    expose: ["8089"]
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/shipper_db
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: 123456
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      JAVA_OPTS: "-Xmx384m -Xms256m"
+      SHIPPER_LEGACY_RATING_WRITE_API_ENABLED: "false"
+      SHIPPER_LEGACY_DELETE_API_ENABLED: "false"
+      JAVA_TOOL_OPTIONS: "-Xmx384m -Xms256m"
     deploy: { resources: { limits: { memory: 512M } } }
-    depends_on: [postgres, kafka]
+    depends_on:
+      postgres: { condition: service_healthy }
+      kafka: { condition: service_healthy }
     networks: [delivery-network]
 
   settlement-service:
     build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: settlement-service } }
     container_name: settlement-service
-    ports: ["8090:8090"]
+    expose: ["8090"]
     environment:
+      INTERNAL_SECRET: ${INTERNAL_SECRET:-}
+      PAYMENT_PROCESSING_ENABLED: "false"
+      FAKE_PAYMENT_PROVIDER_ENABLED: "false"
+      SETTLEMENT_SELF_SERVICE_API_ENABLED: "false"
+      SETTLEMENT_ADMIN_MUTATION_API_ENABLED: "false"
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/settlement_db
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: 123456
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      JAVA_OPTS: "-Xmx384m -Xms256m"
+      JAVA_TOOL_OPTIONS: "-Xmx384m -Xms256m"
     deploy: { resources: { limits: { memory: 512M } } }
-    depends_on: [postgres, kafka]
+    depends_on:
+      postgres: { condition: service_healthy }
+      kafka: { condition: service_healthy }
     networks: [delivery-network]
 
   notification-service:
     build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: notification-service } }
     container_name: notification-service
-    ports: ["8091:8091"]
+    expose: ["8091"]
     environment:
+      INTERNAL_SECRET: ${INTERNAL_SECRET:-}
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/notification_service_db
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: 123456
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      JAVA_OPTS: "-Xmx384m -Xms256m"
+      SPRING_DATA_REDIS_HOST: redis
+      JAVA_TOOL_OPTIONS: "-Xmx384m -Xms256m"
     deploy: { resources: { limits: { memory: 512M } } }
-    depends_on: [postgres, kafka]
+    depends_on:
+      postgres: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+      redis: { condition: service_healthy }
     networks: [delivery-network]
 
   match-service:
     build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: match-service } }
     container_name: match-service
-    ports: ["8092:8092"]
+    expose: ["8092"]
     environment:
+      INTERNAL_SECRET: ${INTERNAL_SECRET:-}
+      SETTLEMENT_SERVICE_URL: http://settlement-service:8090
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      JAVA_OPTS: "-Xmx384m -Xms256m"
+      SPRING_DATA_REDIS_HOST: redis
+      JAVA_TOOL_OPTIONS: "-Xmx384m -Xms256m"
     deploy: { resources: { limits: { memory: 512M } } }
-    depends_on: [kafka]
+    depends_on:
+      kafka: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      settlement-service: { condition: service_started }
     networks: [delivery-network]
 
   tracking-service:
     build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: tracking-service } }
     container_name: tracking-service
-    ports: ["8093:8093"]
+    expose: ["8093"]
     environment:
+      INTERNAL_SECRET: ${INTERNAL_SECRET:-}
+      DELIVERY_SERVICE_URL: http://delivery-service:8085
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      JAVA_OPTS: "-Xmx384m -Xms256m"
+      SPRING_DATA_REDIS_HOST: redis
+      TRACKING_PUBLISHER_DISCONNECT_GRACE_SECONDS: "30"
+      TRACKING_PUBLISHER_LEASE_TTL_SECONDS: "120"
+      TRACKING_PUBLISHER_EXPIRY_SWEEP_INTERVAL_MS: "5000"
+      TRACKING_PUBLISHER_EXPIRY_SWEEP_BATCH_SIZE: "100"
+      TRACKING_PUBLISHER_EXPIRY_CLAIM_SECONDS: "30"
+      JAVA_TOOL_OPTIONS: "-Xmx384m -Xms256m"
     deploy: { resources: { limits: { memory: 512M } } }
-    depends_on: [kafka]
+    depends_on:
+      kafka: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      delivery-service: { condition: service_started }
     networks: [delivery-network]
 
   livestream-service:
     build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: livestream-service } }
     container_name: livestream-service
-    ports: ["8094:8094"]
+    expose: ["8094"]
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/livestream_db
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: 123456
-      JAVA_OPTS: "-Xmx384m -Xms256m"
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      AGORA_APP_ID: ${AGORA_APP_ID:-}
+      AGORA_APP_CERTIFICATE: ${AGORA_APP_CERTIFICATE:-}
+      LIVESTREAM_API_ENABLED: "false"
+      JAVA_TOOL_OPTIONS: "-Xmx384m -Xms256m"
     deploy: { resources: { limits: { memory: 512M } } }
-    depends_on: [postgres]
+    depends_on:
+      postgres: { condition: service_healthy }
+      kafka: { condition: service_healthy }
     networks: [delivery-network]
 
   saga-orchestrator-service:
     build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: saga-orchestrator-service } }
     container_name: saga-orchestrator-service
-    ports: ["8095:8095"]
+    expose: ["8095"]
     environment:
+      MATCHING_INITIAL_MAX_RETRY_ATTEMPTS: ${MATCHING_INITIAL_MAX_RETRY_ATTEMPTS:-10}
+      MATCHING_INITIAL_DELAY_SECONDS: ${MATCHING_INITIAL_DELAY_SECONDS:-30}
+      MATCHING_INITIAL_MAX_DELAY_SECONDS: ${MATCHING_INITIAL_MAX_DELAY_SECONDS:-300}
+      MATCHING_INITIAL_BACKOFF_MULTIPLIER: ${MATCHING_INITIAL_BACKOFF_MULTIPLIER:-1.5}
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/saga_db
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: 123456
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      JAVA_OPTS: "-Xmx384m -Xms256m"
+      SAGA_OUTBOX_RELAY_ENABLED: "true"
+      JAVA_TOOL_OPTIONS: "-Xmx384m -Xms256m"
     deploy: { resources: { limits: { memory: 512M } } }
-    depends_on: [postgres, kafka]
+    depends_on:
+      postgres: { condition: service_healthy }
+      kafka: { condition: service_healthy }
     networks: [delivery-network]
 
   promotion-service:
     build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: promotion-service } }
     container_name: promotion-service
-    ports: ["8096:8096"]
+    expose: ["8096"]
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/delivery_db
+      INTERNAL_SECRET: ${INTERNAL_SECRET:-}
+      PROMOTION_CHECKOUT_ENABLED: "false"
+      PROMOTION_MERCHANT_CREATE_API_ENABLED: "false"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/promotion_db
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: 123456
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      JAVA_OPTS: "-Xmx384m -Xms256m"
+      JAVA_TOOL_OPTIONS: "-Xmx384m -Xms256m"
     deploy: { resources: { limits: { memory: 512M } } }
-    depends_on: [postgres, kafka]
+    depends_on:
+      postgres: { condition: service_healthy }
+      kafka: { condition: service_healthy }
     networks: [delivery-network]
 
   analytics-service:
     build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: analytics-service } }
     container_name: analytics-service
-    ports: ["8097:8097"]
+    expose: ["8097"]
     environment:
+      ANALYTICS_PROCESSING_ENABLED: "false"
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/analytics_db
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: 123456
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      JAVA_OPTS: "-Xmx384m -Xms256m"
+      JAVA_TOOL_OPTIONS: "-Xmx384m -Xms256m"
     deploy: { resources: { limits: { memory: 512M } } }
-    depends_on: [postgres, kafka]
+    depends_on:
+      postgres: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+    networks: [delivery-network]
+
+  flashsale-service:
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: flashsale-service } }
+    container_name: flashsale-service
+    expose: ["8092"]
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/flashsale_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+      SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      SPRING_DATA_REDIS_HOST: redis
+      INTERNAL_SECRET: ${INTERNAL_SECRET:-}
+      FLASHSALE_CHECKOUT_ENABLED: "false"
+      FLASHSALE_MERCHANT_REGISTRATION_ENABLED: "false"
+      RESTAURANT_SERVICE_URL: http://restaurant-service:8083
+      JAVA_TOOL_OPTIONS: "-Xmx384m -Xms256m"
+    deploy: { resources: { limits: { memory: 512M } } }
+    depends_on:
+      postgres: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+      redis: { condition: service_healthy }
     networks: [delivery-network]
 
 networks:
@@ -312,5 +441,7 @@ networks:
 
 volumes:
   postgres_data:
+    name: ${POSTGRES_VOLUME_NAME:-backend_delivery_postgres_data}
   kafka_data:
+    name: ${KAFKA_VOLUME_NAME:-backend_delivery_kafka_data}
   elasticsearch_data:

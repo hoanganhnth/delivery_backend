@@ -2,6 +2,8 @@ package com.delivery.analytics_service.repository;
 
 import com.delivery.analytics_service.entity.AnalyticsEvent;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -12,10 +14,13 @@ import java.util.List;
 @Repository
 public interface AnalyticsEventRepository extends JpaRepository<AnalyticsEvent, Long> {
 
+    boolean existsByDeduplicationKey(String deduplicationKey);
+
     /**
      * Lấy tất cả events trong khoảng thời gian (cho Scheduled Job re-computation)
      */
-    List<AnalyticsEvent> findByEventTimeBetween(LocalDateTime start, LocalDateTime end);
+    Page<AnalyticsEvent> findByEventTimeBetween(
+            LocalDateTime start, LocalDateTime end, Pageable pageable);
 
     /**
      * Đếm events theo loại trong khoảng thời gian

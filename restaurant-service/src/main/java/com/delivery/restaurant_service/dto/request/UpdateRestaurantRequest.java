@@ -1,15 +1,28 @@
 package com.delivery.restaurant_service.dto.request;
 
 import java.time.LocalTime;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 
 public class UpdateRestaurantRequest {
+    @Size(max = 255)
+    @Pattern(regexp = ".*\\S.*", message = "name must contain a non-whitespace character")
     private String name;
+    @Size(max = 2000)
     private String address;
+    @Size(max = 20)
     private String phone;
     private LocalTime openingHour;
     private LocalTime closingHour;
+    @Size(max = 4000)
     private String description;
+    @DecimalMin("8.0")
+    @DecimalMax("24.0")
     private Double addressLat;
+    @DecimalMin("102.0")
+    @DecimalMax("110.0")
     private Double addressLng;
     private String image;
 

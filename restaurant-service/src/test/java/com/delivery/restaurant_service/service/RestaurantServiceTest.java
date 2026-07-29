@@ -29,6 +29,10 @@ class RestaurantServiceTest {
 
     @Mock
     private RestaurantRepository restaurantRepository;
+    @Mock
+    private RestaurantCacheService restaurantCacheService;
+    @Mock
+    private SearchSyncPublisher searchSyncPublisher;
 
     @InjectMocks
     private RestaurantServiceImpl restaurantService;
@@ -111,7 +115,7 @@ class RestaurantServiceTest {
     void findByName_ShouldReturnMatchingRestaurants() {
         // Given
         List<Restaurant> restaurants = Collections.singletonList(restaurant);
-        when(restaurantRepository.findByNameContainingIgnoreCase("Test")).thenReturn(restaurants);
+        when(restaurantRepository.findByNameContainingIgnoreCase(eq("Test"), any())).thenReturn(restaurants);
         when(menuItemMapper.toResponse(any(Restaurant.class))).thenReturn(restaurantResponse);
         // When
         List<RestaurantResponse> responses = restaurantService.findByName("Test");
@@ -120,7 +124,7 @@ class RestaurantServiceTest {
         assertNotNull(responses);
         assertEquals(1, responses.size());
         assertEquals("Test Restaurant", responses.get(0).getName());
-        verify(restaurantRepository).findByNameContainingIgnoreCase("Test");
+        verify(restaurantRepository).findByNameContainingIgnoreCase(eq("Test"), any());
         verify(menuItemMapper).toResponse(any(Restaurant.class));
     }
 
@@ -130,7 +134,7 @@ class RestaurantServiceTest {
         when(restaurantRepository.findById(1L)).thenReturn(Optional.of(restaurant));
 
         // When
-        restaurantService.deleteRestaurant(1L, 1L);
+        restaurantService.deleteRestaurant(1L, 1L, RoleConstants.OWNER);
 
         // Then
         verify(restaurantRepository).findById(1L);
@@ -145,9 +149,29 @@ class RestaurantServiceTest {
 
         // When & Then
         assertThrows(AccessDeniedException.class, () ->
-                restaurantService.deleteRestaurant(1L, 1L));
+                restaurantService.deleteRestaurant(1L, 1L, RoleConstants.OWNER));
 
         verify(restaurantRepository).findById(1L);
         verify(restaurantRepository, never()).delete(any());
+    }
+
+    @Test
+    void deleteRestaurant_ShouldAllowAdmin_WhenAdminIsNotOwner() {
+        restaurant.setCreatorId(2L);
+        when(restaurantRepository.findById(1L)).thenReturn(Optional.of(restaurant));
+
+        restaurantService.deleteRestaurant(1L, 99L, RoleConstants.ADMIN);
+
+        verify(restaurantRepository).deleteById(1L);
+    }
+
+    @Test
+    void deleteRestaurant_ShouldRejectMissingRole_EvenWhenIdentityMatchesOwner() {
+        when(restaurantRepository.findById(1L)).thenReturn(Optional.of(restaurant));
+
+        assertThrows(AccessDeniedException.class, () ->
+                restaurantService.deleteRestaurant(1L, 1L, null));
+
+        verify(restaurantRepository, never()).deleteById(anyLong());
     }
 }

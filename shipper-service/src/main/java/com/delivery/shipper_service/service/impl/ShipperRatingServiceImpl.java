@@ -17,6 +17,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
 import java.util.stream.Collectors;
+import org.springframework.data.domain.PageRequest;
 
 @Service
 @RequiredArgsConstructor
@@ -29,6 +30,17 @@ public class ShipperRatingServiceImpl implements IShipperRatingService {
     @Override
     @Transactional
     public ShipperRatingResponse submitRating(Long shipperId, Long customerId, ShipperRatingRequest request) {
+        requirePositiveId(shipperId, "shipperId");
+        requirePositiveId(customerId, "customerId");
+        if (request == null) {
+            throw new IllegalArgumentException("Rating request is required");
+        }
+        if (request.getOrderId() == null || request.getOrderId() <= 0) {
+            throw new IllegalArgumentException("orderId must be positive");
+        }
+        if (request.getRating() == null || request.getRating() < 1 || request.getRating() > 5) {
+            throw new IllegalArgumentException("rating must be between 1 and 5");
+        }
         Shipper shipper = shipperRepository.findById(shipperId)
                 .orElseThrow(() -> new ResourceNotFoundException("Shipper not found with id: " + shipperId));
 
@@ -46,11 +58,10 @@ public class ShipperRatingServiceImpl implements IShipperRatingService {
         rating = shipperRatingRepository.save(rating);
 
         // Cập nhật điểm trung bình của shipper
-        List<ShipperRating> allRatings = shipperRatingRepository.findByShipperIdOrderByCreatedAtDesc(shipperId);
-        double averageRating = allRatings.stream()
-                .mapToInt(ShipperRating::getRating)
-                .average()
-                .orElse(5.0);
+        double averageRating = java.util.Optional.ofNullable(
+                        shipperRatingRepository.findAverageRatingByShipperId(shipperId))
+                .orElseThrow(() -> new IllegalStateException(
+                        "Rating aggregate is missing after persistence"));
         
         shipper.setRating(BigDecimal.valueOf(averageRating).setScale(1, RoundingMode.HALF_UP));
         shipperRepository.save(shipper);
@@ -59,25 +70,21 @@ public class ShipperRatingServiceImpl implements IShipperRatingService {
     }
 
     @Override
-    public List<ShipperRatingResponse> getShipperRatings(Long shipperId) {
-        if (!shipperRepository.existsById(shipperId)) {
-            throw new ResourceNotFoundException("Shipper not found with id: " + shipperId);
-        }
+    public List<ShipperRatingResponse> getMyRatings(Long userId) {
+        requirePositiveId(userId, "userId");
+        Shipper shipper = shipperRepository.findByUserId(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Shipper not found for user id: " + userId));
 
-        return shipperRatingRepository.findByShipperIdOrderByCreatedAtDesc(shipperId)
+        return shipperRatingRepository.findByShipperIdOrderByCreatedAtDesc(
+                        shipper.getId(), PageRequest.of(0, 100))
                 .stream()
                 .map(shipperRatingMapper::toResponse)
                 .collect(Collectors.toList());
     }
 
-    @Override
-    public List<ShipperRatingResponse> getMyRatings(Long userId) {
-        Shipper shipper = shipperRepository.findByUserId(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Shipper not found for user id: " + userId));
-
-        return shipperRatingRepository.findByShipperIdOrderByCreatedAtDesc(shipper.getId())
-                .stream()
-                .map(shipperRatingMapper::toResponse)
-                .collect(Collectors.toList());
+    private void requirePositiveId(Long value, String fieldName) {
+        if (value == null || value <= 0) {
+            throw new IllegalArgumentException(fieldName + " must be positive");
+        }
     }
 }

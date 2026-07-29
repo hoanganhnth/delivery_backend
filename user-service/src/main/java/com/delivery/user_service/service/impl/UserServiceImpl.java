@@ -1,7 +1,10 @@
 package com.delivery.user_service.service.impl;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.delivery.user_service.dto.UserRequest;
@@ -37,6 +40,14 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public UserResponse createUser(UserRequest request) {
+        validateProvisioningRequest(request);
+        var existing = userRepository.findByAuthId(request.getAuthId());
+        if (existing.isPresent()) {
+            return toDto(requireSameProvisioningIdentity(existing.get(), request));
+        }
+        userRepository.findByEmailIgnoreCase(request.getEmail())
+                .ifPresent(conflict -> rejectEmailRebinding(conflict, request));
+
         User user = User.builder()
                 .authId(request.getAuthId())
                 .email(request.getEmail())
@@ -47,7 +58,15 @@ public class UserServiceImpl implements UserService {
                 .avatarUrl(request.getAvatarUrl())
                 .address(request.getAddress())
                 .build();
-        return toDto(userRepository.save(user));
+        try {
+            return toDto(userRepository.saveAndFlush(user));
+        } catch (DataIntegrityViolationException race) {
+            return userRepository.findByAuthId(request.getAuthId())
+                    .map(concurrent -> toDto(requireSameProvisioningIdentity(concurrent, request)))
+                    .or(() -> userRepository.findByEmailIgnoreCase(request.getEmail())
+                            .map(conflict -> toDto(rejectEmailRebinding(conflict, request))))
+                    .orElseThrow(() -> race);
+        }
     }
 
     @Override
@@ -65,14 +84,6 @@ public class UserServiceImpl implements UserService {
         return toDto(userRepository.save(user));
     }
 
-    @Override
-    public void deleteUser(Long id) {
-        if (!userRepository.existsById(id)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
-        }
-        userRepository.deleteById(id);
-    }
-
     private UserResponse toDto(User user) {
         return UserResponse.builder()
                 .id(user.getId())
@@ -87,6 +98,34 @@ public class UserServiceImpl implements UserService {
                 .createdAt(user.getCreatedAt())
                 .updatedAt(user.getUpdatedAt())
                 .build();
+    }
+
+    private void validateProvisioningRequest(UserRequest request) {
+        if (request.getAuthId() == null || request.getEmail() == null || request.getEmail().isBlank()
+                || request.getRole() == null || request.getRole().isBlank()) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "authId, email and role are required for user provisioning");
+        }
+    }
+
+    private User requireSameProvisioningIdentity(User existing, UserRequest request) {
+        if (!existing.getEmail().equalsIgnoreCase(request.getEmail())
+                || !existing.getRole().equals(request.getRole())) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "authId is already linked to a different user identity");
+        }
+        return existing;
+    }
+
+    private User rejectEmailRebinding(User existing, UserRequest request) {
+        if (!request.getAuthId().equals(existing.getAuthId())) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "email is already linked to a different auth identity");
+        }
+        return requireSameProvisioningIdentity(existing, request);
     }
 
     @Override
@@ -112,18 +151,19 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public List<UserResponse> getAllUsers() {
-        return userRepository.findAllByOrderByCreatedAtDesc().stream()
+        return userRepository.findAllByOrderByCreatedAtDesc(PageRequest.of(0, 100)).stream()
                 .map(this::toDto)
                 .collect(java.util.stream.Collectors.toList());
     }
 
     @Override
+    @Transactional
     public void blockUser(Long userId, Long adminId, String reason) {
-        User user = userRepository.findById(userId)
+        User user = userRepository.findByIdForUpdate(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
 
-        if (user.getIsBlocked()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "User is already blocked");
+        if (Boolean.TRUE.equals(user.getIsBlocked())) {
+            return;
         }
 
         user.setIsBlocked(true);
@@ -136,12 +176,13 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Transactional
     public void unblockUser(Long userId, Long adminId) {
-        User user = userRepository.findById(userId)
+        User user = userRepository.findByIdForUpdate(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
 
-        if (!user.getIsBlocked()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "User is not blocked");
+        if (!Boolean.TRUE.equals(user.getIsBlocked())) {
+            return;
         }
 
         user.setIsBlocked(false);

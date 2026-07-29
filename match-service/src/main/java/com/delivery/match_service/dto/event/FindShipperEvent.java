@@ -5,6 +5,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.math.BigDecimal;
+import java.util.UUID;
 
 /**
  * ✅ Event nhận từ Delivery Service để tự động tìm shipper theo AI Instructions
@@ -14,6 +16,8 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class FindShipperEvent {
+
+    private UUID eventId;
     
     private Long deliveryId;
     private Long orderId;
@@ -31,10 +35,15 @@ public class FindShipperEvent {
     private LocalDateTime estimatedDeliveryTime;
     private String notes;
     private LocalDateTime createdAt;
+
+    // Canonical COD eligibility data copied from order.created by Saga.
+    private BigDecimal totalPrice;
+    private String paymentMethod;
     
     // Event metadata
     private String eventType;
     private LocalDateTime timestamp;
+    private LocalDateTime occurredAt;
     
     // Saga Match Configuration (Syncing timeout & retry from Orchestrator)
     private Integer maxRetryAttempts;

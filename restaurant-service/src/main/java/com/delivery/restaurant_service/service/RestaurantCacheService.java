@@ -31,16 +31,6 @@ public interface RestaurantCacheService {
      */
     void removeMenuItemFromCache(Long menuItemId);
     
-    /**
-     * Update restaurant availability trong cache
-     */
-    void updateRestaurantAvailability(Long restaurantId, boolean isAvailable);
-    
-    /**
-     * Update menu item availability trong cache
-     */
-    void updateMenuItemAvailability(Long menuItemId, boolean isAvailable);
-    
     // ===============================
     // GETTER METHODS FOR VALIDATION
     // ===============================

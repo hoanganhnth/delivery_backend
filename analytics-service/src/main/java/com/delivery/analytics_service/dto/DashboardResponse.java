@@ -44,13 +44,6 @@ public class DashboardResponse {
         private BigDecimal revenue;
     }
 
-    @Data @Builder @NoArgsConstructor @AllArgsConstructor
-    public static class TopMenuItem {
-        private String itemName;
-        private long quantity;
-        private BigDecimal revenue;
-    }
-
     // ==================== AGGREGATE RESPONSES ====================
 
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
@@ -68,6 +61,5 @@ public class DashboardResponse {
         private List<TimeSeriesPoint> revenueTimeSeries;
         private List<TimeSeriesPoint> orderTimeSeries;
         private List<StatusBreakdown> statusBreakdown;
-        private List<TopMenuItem> topMenuItems;
     }
 }

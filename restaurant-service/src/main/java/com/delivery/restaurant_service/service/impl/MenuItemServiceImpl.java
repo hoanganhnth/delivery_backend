@@ -17,6 +17,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -33,6 +35,7 @@ public class MenuItemServiceImpl implements MenuItemService {
     private final SearchSyncPublisher searchSyncPublisher;
 
     @Override
+    @Transactional
     public MenuItemResponse createMenuItem(CreateMenuItemRequest request, Long creatorId, String role) {
         // Check if the creatorId matches the restaurant's creatorId
 
@@ -68,10 +71,11 @@ public class MenuItemServiceImpl implements MenuItemService {
     }
 
     @Override
-    public MenuItemResponse updateMenuItem(Long id, UpdateMenuItemRequest request, Long creatorId) {
+    @Transactional
+    public MenuItemResponse updateMenuItem(Long id, UpdateMenuItemRequest request, Long creatorId, String role) {
         MenuItem item = menuItemRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("MenuItem not found"));
-        checkPermission(item, creatorId);
+        checkPermission(item, creatorId, role);
         
         menuItemMapper.updateEntityFromDto(request, item);
         MenuItem updated = menuItemRepository.save(item);
@@ -91,11 +95,12 @@ public class MenuItemServiceImpl implements MenuItemService {
     }
 
     @Override
-    public void deleteMenuItem(Long id, Long creatorId) {
+    @Transactional
+    public void deleteMenuItem(Long id, Long creatorId, String role) {
         MenuItem item = menuItemRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("MenuItem not found"));
 
-        checkPermission(item, creatorId);
+        checkPermission(item, creatorId, role);
 
         // 🔥 Remove from cache before deletion
         try {
@@ -113,52 +118,33 @@ public class MenuItemServiceImpl implements MenuItemService {
 
     @Override
     public List<MenuItemResponse> getItemsByRestaurant(Long restaurantId) {
-        return menuItemRepository.findByRestaurantId(restaurantId).stream().map(menuItemMapper::toResponse)
+        return menuItemRepository.findByRestaurantId(restaurantId, PageRequest.of(0, 100)).stream()
+                .map(menuItemMapper::toResponse)
                 .collect(Collectors.toList());
     }
 
     @Override
     public List<MenuItemResponse> getAvailableItems(Long restaurantId) {
-        return menuItemRepository.findByRestaurantIdAndStatus(restaurantId, MenuItem.Status.AVAILABLE).stream()
+        return menuItemRepository.findByRestaurantIdAndStatus(
+                        restaurantId, MenuItem.Status.AVAILABLE, PageRequest.of(0, 100)).stream()
                 .map(menuItemMapper::toResponse).collect(Collectors.toList());
     }
     
     @Override
     public List<MenuItemResponse> getMenuItemsByCreatorId(Long creatorId) {
-        List<MenuItem> menuItems = menuItemRepository.findByRestaurantCreatorId(creatorId);
+        List<MenuItem> menuItems = menuItemRepository.findByRestaurantCreatorId(
+                creatorId, PageRequest.of(0, 100));
         return menuItems.stream()
                 .map(menuItemMapper::toResponse)
                 .collect(Collectors.toList());
     }
     
-    /**
-     * Update menu item availability và cache
-     */
-    public void updateMenuItemAvailability(Long menuItemId, boolean isAvailable, Long creatorId) {
-        MenuItem item = menuItemRepository.findById(menuItemId)
-                .orElseThrow(() -> new ResourceNotFoundException("MenuItem not found"));
-        
-        checkPermission(item, creatorId);
-        
-        // Update status in database
-        MenuItem.Status newStatus = isAvailable ? MenuItem.Status.AVAILABLE : MenuItem.Status.SOLD_OUT;
-        item.setStatus(newStatus);
-        menuItemRepository.save(item);
-        
-        // 🔥 Update cache
-        try {
-            restaurantCacheService.updateMenuItemAvailability(menuItemId, isAvailable);
-            log.info("🔄 Updated availability for menu item: {} -> {}", item.getName(), isAvailable);
-        } catch (Exception e) {
-            log.warn("⚠️ Failed to update menu item availability in cache: {}", e.getMessage());
-        }
-        
-        // 🔥 Publish sync event for search service
-        searchSyncPublisher.publishDishChange(item, "UPDATE");
-    }
-
-    private void checkPermission(MenuItem item, Long creatorId) {
-        if (!item.getRestaurant().getCreatorId().equals(creatorId)) {
+    private void checkPermission(MenuItem item, Long creatorId, String role) {
+        boolean isAdmin = RoleConstants.ADMIN.equals(role);
+        boolean isOwner = RoleConstants.OWNER.equals(role)
+                && creatorId != null
+                && creatorId.equals(item.getRestaurant().getCreatorId());
+        if (!isAdmin && !isOwner) {
             throw new AccessDeniedException("Creator does not have permission to modify this menu item");
         }
     }

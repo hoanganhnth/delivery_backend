@@ -15,6 +15,8 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * Service xử lý events từ Kafka và cập nhật bảng thống kê
@@ -29,6 +31,8 @@ import java.time.LocalDateTime;
 @Slf4j
 public class EventProcessingService {
 
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
     private final AnalyticsEventRepository eventRepo;
     private final DailyOrderStatsRepository orderStatsRepo;
     private final DailyRevenueStatsRepository revenueStatsRepo;
@@ -42,10 +46,16 @@ public class EventProcessingService {
     public void processOrderCreated(Long orderId, Long userId, Long restaurantId,
                                      String restaurantName, BigDecimal totalPrice,
                                      String paymentMethod, String rawPayload) {
+        String deduplicationKey = resolveDeduplicationKey("ORDER_CREATED", orderId, rawPayload);
+        if (eventRepo.existsByDeduplicationKey(deduplicationKey)) {
+            log.info("Skipping duplicate analytics event {}", deduplicationKey);
+            return;
+        }
         LocalDate today = LocalDate.now();
 
         // 1. Lưu raw event
         eventRepo.save(AnalyticsEvent.builder()
+                .deduplicationKey(deduplicationKey)
                 .eventType("ORDER_CREATED")
                 .eventTime(LocalDateTime.now())
                 .orderId(orderId)
@@ -81,9 +91,15 @@ public class EventProcessingService {
     @Transactional
     public void processOrderDelivered(Long orderId, Long restaurantId, String restaurantName,
                                        BigDecimal totalPrice, String rawPayload) {
+        String deduplicationKey = resolveDeduplicationKey("ORDER_DELIVERED", orderId, rawPayload);
+        if (eventRepo.existsByDeduplicationKey(deduplicationKey)) {
+            log.info("Skipping duplicate analytics event {}", deduplicationKey);
+            return;
+        }
         LocalDate today = LocalDate.now();
 
         eventRepo.save(AnalyticsEvent.builder()
+                .deduplicationKey(deduplicationKey)
                 .eventType("ORDER_DELIVERED")
                 .eventTime(LocalDateTime.now())
                 .orderId(orderId)
@@ -126,9 +142,15 @@ public class EventProcessingService {
      */
     @Transactional
     public void processOrderCancelled(Long orderId, Long restaurantId, String rawPayload) {
+        String deduplicationKey = resolveDeduplicationKey("ORDER_CANCELLED", orderId, rawPayload);
+        if (eventRepo.existsByDeduplicationKey(deduplicationKey)) {
+            log.info("Skipping duplicate analytics event {}", deduplicationKey);
+            return;
+        }
         LocalDate today = LocalDate.now();
 
         eventRepo.save(AnalyticsEvent.builder()
+                .deduplicationKey(deduplicationKey)
                 .eventType("ORDER_CANCELLED")
                 .eventTime(LocalDateTime.now())
                 .orderId(orderId)
@@ -166,9 +188,15 @@ public class EventProcessingService {
     @Transactional
     public void processPaymentCompleted(Long orderId, Long userId, Double amount,
                                          String paymentMethod, String rawPayload) {
+        String deduplicationKey = resolveDeduplicationKey("PAYMENT_COMPLETED", orderId, rawPayload);
+        if (eventRepo.existsByDeduplicationKey(deduplicationKey)) {
+            log.info("Skipping duplicate analytics event {}", deduplicationKey);
+            return;
+        }
         LocalDate today = LocalDate.now();
 
         eventRepo.save(AnalyticsEvent.builder()
+                .deduplicationKey(deduplicationKey)
                 .eventType("PAYMENT_COMPLETED")
                 .eventTime(LocalDateTime.now())
                 .orderId(orderId)
@@ -193,9 +221,15 @@ public class EventProcessingService {
      */
     @Transactional
     public void processPaymentFailed(Long orderId, String rawPayload) {
+        String deduplicationKey = resolveDeduplicationKey("PAYMENT_FAILED", orderId, rawPayload);
+        if (eventRepo.existsByDeduplicationKey(deduplicationKey)) {
+            log.info("Skipping duplicate analytics event {}", deduplicationKey);
+            return;
+        }
         LocalDate today = LocalDate.now();
 
         eventRepo.save(AnalyticsEvent.builder()
+                .deduplicationKey(deduplicationKey)
                 .eventType("PAYMENT_FAILED")
                 .eventTime(LocalDateTime.now())
                 .orderId(orderId)
@@ -210,6 +244,23 @@ public class EventProcessingService {
     }
 
     // ==================== HELPERS ====================
+
+    static String resolveDeduplicationKey(String eventType, Long orderId, String rawPayload) {
+        if (rawPayload != null && !rawPayload.isBlank()) {
+            try {
+                JsonNode eventId = OBJECT_MAPPER.readTree(rawPayload).path("eventId");
+                if (eventId.isTextual() && !eventId.asText().isBlank()) {
+                    return eventType + ":event:" + eventId.asText();
+                }
+            } catch (Exception ignored) {
+                // Listener owns payload validation; legacy producers may not carry eventId.
+            }
+        }
+        if (orderId == null || orderId <= 0) {
+            throw new IllegalArgumentException("Analytics event requires a positive orderId");
+        }
+        return eventType + ":order:" + orderId;
+    }
 
     private DailyOrderStats getOrCreateOrderStats(LocalDate date, Long restaurantId) {
         if (restaurantId == null) {

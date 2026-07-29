@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 /**
  * ✅ Event DTO nhận từ Kafka khi order bị hủy từ Order Service
@@ -13,6 +14,8 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class OrderCancelledEvent {
+
+    private UUID eventId;
     
     // Order basic info
     private Long orderId;

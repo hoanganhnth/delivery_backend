@@ -12,16 +12,19 @@ public class Shipper {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "user_id", nullable = false)
+    @Column(name = "user_id", nullable = false, unique = true)
     private Long userId;
+
+    @Column(name = "full_name", length = 100)
+    private String fullName;
 
     @Column(name = "vehicle_type", length = 50)
     private String vehicleType;
 
-    @Column(name = "license_number", length = 50)
+    @Column(name = "license_number", length = 50, unique = true)
     private String licenseNumber;
 
-    @Column(name = "id_card", length = 20)
+    @Column(name = "id_card", length = 20, unique = true)
     private String idCard;
 
     @Column(name = "phone", length = 15)
@@ -46,7 +49,7 @@ public class Shipper {
     private Boolean isOnline = false;
 
     @Column(name = "rating", precision = 2, scale = 1)
-    private BigDecimal rating = BigDecimal.valueOf(5.0);
+    private BigDecimal rating;
 
     @Column(name = "completed_deliveries")
     private Integer completedDeliveries = 0;
@@ -93,6 +96,14 @@ public class Shipper {
 
     public void setUserId(Long userId) {
         this.userId = userId;
+    }
+
+    public String getFullName() {
+        return fullName;
+    }
+
+    public void setFullName(String fullName) {
+        this.fullName = fullName;
     }
 
     public String getVehicleType() {

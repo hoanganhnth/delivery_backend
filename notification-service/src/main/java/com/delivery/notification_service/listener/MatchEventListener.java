@@ -1,6 +1,5 @@
 package com.delivery.notification_service.listener;
 
-import com.delivery.notification_service.common.constants.KafkaTopicConstants;
 import com.delivery.notification_service.dto.event.ShipperFoundEvent;
 import com.delivery.notification_service.service.NotificationService;
 import lombok.extern.slf4j.Slf4j;
@@ -10,8 +9,6 @@ import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Component;
-
-import java.math.BigDecimal;
 
 /**
  * ✅ Match Event Listener để nhận events từ Match Service theo Backend Instructions
@@ -32,9 +29,9 @@ public class MatchEventListener {
     }
 
     /**
-     * ✅ Lắng nghe ShipperFoundEvent từ match-service để notify shippers
+     * Delivery publishes this only after persisting the active offer.
      */
-    @KafkaListener(topics = KafkaTopicConstants.SHIPPER_FOUND_TOPIC)
+    @KafkaListener(topics = "${app.kafka.topics.shipper-offered:delivery.shipper-offered}")
     public void handleShipperFoundEvent(
             String message,
             @Header(KafkaHeaders.RECEIVED_TOPIC) String topic,
@@ -45,37 +42,46 @@ public class MatchEventListener {
         try {
             ShipperFoundEvent event = objectMapper.readValue(message, ShipperFoundEvent.class);
 
-            log.info("📥 Received ShipperFoundEvent from topic '{}': deliveryId={}, orderId={}, {} shippers found",
-                    topic, event.getDeliveryId(), event.getOrderId(), event.getAvailableShippers().size());
-
-            // ✅ Validate event data
-            if (event.getAvailableShippers() == null || event.getAvailableShippers().isEmpty()) {
-                log.warn("⚠️ No shippers in ShipperFoundEvent for delivery: {}", event.getDeliveryId());
-                acknowledgment.acknowledge();
-                return;
+            if (event.getAvailableShippers() == null || event.getAvailableShippers().size() != 1) {
+                throw new IllegalArgumentException("Invalid single-shipper offer for delivery: "
+                        + event.getDeliveryId());
+            }
+            if (event.getEventId() == null || event.getEventId().isBlank()) {
+                throw new IllegalArgumentException("Persisted shipper offer is missing eventId");
+            }
+            if (event.getDeliveryId() == null || event.getDeliveryId() <= 0
+                    || event.getOrderId() == null || event.getOrderId() <= 0) {
+                throw new IllegalArgumentException("Persisted shipper offer requires positive delivery/order IDs");
+            }
+            if (!hasText(event.getRestaurantName()) || !hasText(event.getPickupAddress())
+                    || !hasText(event.getDeliveryAddress())) {
+                throw new IllegalArgumentException(
+                        "Persisted shipper offer requires canonical restaurant and address text");
+            }
+            ShipperFoundEvent.ShipperMatchResult selected = event.getAvailableShippers().get(0);
+            if (selected.getShipperId() == null || selected.getShipperId() <= 0
+                    || selected.getDistanceKm() == null || !Double.isFinite(selected.getDistanceKm())
+                    || selected.getDistanceKm() < 0) {
+                throw new IllegalArgumentException("Persisted shipper offer has invalid shipper/distance identity");
             }
 
-            // ✅ Notify each available shipper về order mới
+            log.info("📥 Received persisted shipper offer from topic '{}': deliveryId={}, orderId={}",
+                    topic, event.getDeliveryId(), event.getOrderId());
+
+            // The persisted-offer contract contains exactly one shipper.
             for (ShipperFoundEvent.ShipperMatchResult shipper : event.getAvailableShippers()) {
-                try {
-                    notificationService.sendShipperMatchFoundNotification(
+                notificationService.sendShipperMatchFoundNotification(
                             shipper.getShipperId(),
                             event.getOrderId(),
-                            event.getRestaurantName() != null ? event.getRestaurantName() : "Restaurant",
-                            event.getPickupAddress() != null ? event.getPickupAddress() : "Pickup location",
-                            event.getDeliveryAddress() != null ? event.getDeliveryAddress() : "Delivery location",
+                            event.getRestaurantName(),
+                            event.getPickupAddress(),
+                            event.getDeliveryAddress(),
                             shipper.getDistanceKm(),
-                            calculateEstimatedPrice(shipper.getDistanceKm()).doubleValue(),
-                            calculateEstimatedTime(shipper.getDistanceKm())
+                            event.getEventId()
                     );
-                    
-                    log.info("✅ Sent notification to shipper: {} for order: {} (distance: {}km)", 
-                            shipper.getShipperId(), event.getOrderId(), shipper.getDistanceKm());
-                    
-                } catch (Exception e) {
-                    log.error("💥 Failed to notify shipper: {} for order: {} - Error: {}", 
-                             shipper.getShipperId(), event.getOrderId(), e.getMessage(), e);
-                }
+
+                log.info("✅ Sent notification to shipper: {} for order: {} (distance: {}km)",
+                        shipper.getShipperId(), event.getOrderId(), shipper.getDistanceKm());
             }
 
             log.info("✅ Successfully processed ShipperFoundEvent for delivery: {} - notified {} shippers", 
@@ -84,41 +90,14 @@ public class MatchEventListener {
             acknowledgment.acknowledge();
 
         } catch (Exception e) {
-            log.error("💥 Error processing ShipperFoundEvent - Raw Message: {} - Error: {}", 
-                     message, e.getMessage(), e);
-            acknowledgment.acknowledge();
+            log.error("💥 Error processing ShipperFoundEvent - topic={}, partition={}, error={}",
+                    topic, partition, e.getMessage(), e);
+            throw new IllegalStateException("Failed to process persisted shipper offer", e);
         }
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
     
-    /**
-     * ✅ Calculate estimated delivery price based on distance
-     */
-    private BigDecimal calculateEstimatedPrice(Double distanceKm) {
-        if (distanceKm == null || distanceKm <= 0) {
-            return BigDecimal.valueOf(20000); // Default 20k VND
-        }
-        
-        // Simple pricing: 15k base + 5k per km
-        double basePrice = 15000;
-        double pricePerKm = 5000;
-        double totalPrice = basePrice + (distanceKm * pricePerKm);
-        
-        return BigDecimal.valueOf(Math.ceil(totalPrice / 1000) * 1000); // Round up to nearest 1k
-    }
-    
-    /**
-     * ✅ Calculate estimated delivery time based on distance
-     */
-    private Integer calculateEstimatedTime(Double distanceKm) {
-        if (distanceKm == null || distanceKm <= 0) {
-            return 30; // Default 30 minutes
-        }
-        
-        // Simple estimation: 15 minutes base + 5 minutes per km (assuming city traffic)
-        int baseTime = 15;
-        int timePerKm = 5;
-        int totalTime = baseTime + (int) Math.ceil(distanceKm * timePerKm);
-        
-        return Math.max(totalTime, 20); // Minimum 20 minutes
-    }
 }

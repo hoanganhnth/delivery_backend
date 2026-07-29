@@ -53,6 +53,11 @@ public class Livestream {
     @Column(name = "ended_at")
     private LocalDateTime endedAt;
 
+    // Tổng lượt xem tích luỹ (tăng mỗi lần viewer join). KHÁC với số viewer đồng
+    // thời (concurrent) — cái đó cần heartbeat/Agora, xem TODO ở joinLivestream.
+    @Column(name = "view_count", nullable = false)
+    private Long viewCount = 0L;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

@@ -3,7 +3,6 @@ package com.delivery.order_service.service;
 import com.delivery.order_service.dto.internal.ValidatedOrderData;
 import com.delivery.order_service.dto.request.CreateOrderRequest;
 import com.delivery.order_service.exception.ValidationException;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -13,6 +12,8 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * ✅ Service validation cho Order theo Backend Instructions
@@ -20,13 +21,20 @@ import java.util.Map;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class OrderValidationService {
 
     private final WebClient webClient;
+    private final String restaurantServiceUrl;
+    private final String internalSecret;
 
-    @Value("${restaurant.service.url:http://localhost:8083}")
-    private String restaurantServiceUrl;
+    public OrderValidationService(
+            WebClient webClient,
+            @Value("${restaurant.service.url}") String restaurantServiceUrl,
+            @Value("${app.internal.secret:}") String internalSecret) {
+        this.webClient = webClient;
+        this.restaurantServiceUrl = restaurantServiceUrl;
+        this.internalSecret = internalSecret;
+    }
 
     /**
      * Validate toàn bộ CreateOrderRequest.
@@ -46,11 +54,14 @@ public class OrderValidationService {
         // 3. Validate coordinates (delivery coords mà client cung cấp)
         validateDeliveryCoordinates(request, errors);
 
-        // 4. Validate financial data
-        validateFinancialData(request, errors);
-
-        // 5. Validate user context
+        // 4. Validate user context. Prices are resolved by restaurant-service and
+        // must never be trusted or required from the client.
         validateUserContext(request, userId, errors);
+
+        // Không gọi service khác khi request đã sai ngay tại boundary HTTP.
+        if (!errors.isEmpty()) {
+            throwValidation(userId, errors);
+        }
 
         // 6. Validate với restaurant service — LẦN GỌI DUY NHẤT đến restaurant-service.
         // Thu canonical restaurant data (name, address, phone, lat, lng, creatorId) từ
@@ -58,14 +69,18 @@ public class OrderValidationService {
         ValidatedOrderData validatedData = validateWithRestaurantService(request, userId, errors);
 
         if (!errors.isEmpty()) {
-            String errorMessage = "Dữ liệu đơn hàng không hợp lệ: " + String.join(", ", errors);
-            log.error("🚨 Order validation failed for user {}: {}", userId, errorMessage);
-            throw new ValidationException(errorMessage);
+            throwValidation(userId, errors);
         }
 
         log.info("✅ Order validation passed for user: {}, creatorId: {}", userId,
                 validatedData != null ? validatedData.creatorId() : null);
         return validatedData;
+    }
+
+    private void throwValidation(Long userId, List<String> errors) {
+        String errorMessage = "Dữ liệu đơn hàng không hợp lệ: " + String.join(", ", errors);
+        log.error("🚨 Order validation failed for user {}: {}", userId, errorMessage);
+        throw new ValidationException(errorMessage);
     }
 
     /**
@@ -101,8 +116,8 @@ public class OrderValidationService {
         // Payment method
         if (request.getPaymentMethod() == null || request.getPaymentMethod().trim().isEmpty()) {
             errors.add("Phương thức thanh toán không được để trống");
-        } else if (!request.getPaymentMethod().matches("^(COD|ONLINE)$")) {
-            errors.add("Phương thức thanh toán phải là COD hoặc ONLINE");
+        } else if (!"COD".equals(request.getPaymentMethod())) {
+            errors.add("MVP hiện chỉ hỗ trợ thanh toán COD");
         }
 
         // Notes (optional)
@@ -115,6 +130,10 @@ public class OrderValidationService {
      * Validate business rules
      */
     private void validateBusinessRules(CreateOrderRequest request, List<String> errors) {
+        if (request.getVoucherIds() != null && !request.getVoucherIds().isEmpty()) {
+            errors.add("Voucher checkout chưa được mở trong MVP cho tới khi có discount và compensation proof");
+        }
+
         // Minimum order validation
         if (request.getItems() == null || request.getItems().isEmpty()) {
             errors.add("Đơn hàng phải có ít nhất một sản phẩm");
@@ -127,9 +146,17 @@ public class OrderValidationService {
         }
 
         // Validate each item
+        Set<Long> menuItemIds = new HashSet<>();
         for (int i = 0; i < request.getItems().size(); i++) {
             CreateOrderRequest.OrderItemRequest item = request.getItems().get(i);
             validateOrderItem(item, i + 1, errors);
+            if (item.getMenuItemId() != null && !menuItemIds.add(item.getMenuItemId())) {
+                errors.add("Sản phẩm " + (i + 1) + ": Menu Item ID bị trùng");
+            }
+            if (item.getFlashSaleItemId() != null) {
+                errors.add("Sản phẩm " + (i + 1)
+                        + ": Flash Sale checkout chưa được mở trong MVP cho tới khi reservation có idempotency/compensation proof");
+            }
         }
 
         // Phone number format validation (more strict)
@@ -151,13 +178,6 @@ public class OrderValidationService {
             errors.add(prefix + "Menu Item ID phải là số dương");
         }
 
-        // Menu Item Name validation
-        if (item.getMenuItemName() == null || item.getMenuItemName().trim().isEmpty()) {
-            errors.add(prefix + "Tên sản phẩm không được để trống");
-        } else if (item.getMenuItemName().length() > 255) {
-            errors.add(prefix + "Tên sản phẩm không được vượt quá 255 ký tự");
-        }
-
         // Quantity validation
         if (item.getQuantity() == null) {
             errors.add(prefix + "Số lượng không được để trống");
@@ -167,29 +187,9 @@ public class OrderValidationService {
             errors.add(prefix + "Số lượng không được vượt quá 99");
         }
 
-        // Price validation
-        if (item.getPrice() == null) {
-            errors.add(prefix + "Giá sản phẩm không được để trống");
-        } else if (item.getPrice().compareTo(BigDecimal.ZERO) <= 0) {
-            errors.add(prefix + "Giá sản phẩm phải lớn hơn 0");
-        } else if (item.getPrice().compareTo(new BigDecimal("10000000")) > 0) {
-            errors.add(prefix + "Giá sản phẩm không được vượt quá 10,000,000 VND");
-        }
-
         // Notes validation (optional but with size limit)
         if (item.getNotes() != null && item.getNotes().length() > 500) {
             errors.add(prefix + "Ghi chú sản phẩm không được vượt quá 500 ký tự");
-        }
-
-        // Calculate total price for this item (only if both price and quantity are
-        // valid)
-        if (item.getPrice() != null && item.getQuantity() != null &&
-                item.getPrice().compareTo(BigDecimal.ZERO) > 0 && item.getQuantity() > 0) {
-
-            BigDecimal itemTotal = item.getPrice().multiply(BigDecimal.valueOf(item.getQuantity()));
-            if (itemTotal.compareTo(new BigDecimal("50000000")) > 0) {
-                errors.add(prefix + "Tổng giá trị sản phẩm không được vượt quá 50,000,000 VND");
-            }
         }
     }
 
@@ -210,31 +210,6 @@ public class OrderValidationService {
             if (request.getDeliveryLng() < MIN_LNG || request.getDeliveryLng() > MAX_LNG) {
                 errors.add("Tọa độ giao hàng (longitude) phải trong phạm vi Việt Nam (102.0 - 110.0)");
             }
-        }
-    }
-
-    /**
-     * Validate financial data consistency
-     */
-    private void validateFinancialData(CreateOrderRequest request, List<String> errors) {
-        if (request.getItems() == null || request.getItems().isEmpty()) {
-            return;
-        }
-
-        // Calculate total order value
-        BigDecimal totalValue = request.getItems().stream()
-                .filter(item -> item.getPrice() != null && item.getQuantity() != null)
-                .map(item -> item.getPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        // Minimum order value
-        if (totalValue.compareTo(new BigDecimal("10000")) < 0) {
-            errors.add("Giá trị đơn hàng tối thiểu là 10,000 VND");
-        }
-
-        // Maximum order value
-        if (totalValue.compareTo(new BigDecimal("100000000")) > 0) {
-            errors.add("Giá trị đơn hàng không được vượt quá 100,000,000 VND");
         }
     }
 
@@ -264,23 +239,6 @@ public class OrderValidationService {
     }
 
     /**
-     * Calculate distance between two coordinates using Haversine formula
-     */
-    private double calculateDistance(double lat1, double lng1, double lat2, double lng2) {
-        final int R = 6371; // Radius of the earth in km
-
-        double latDistance = Math.toRadians(lat2 - lat1);
-        double lonDistance = Math.toRadians(lng2 - lng1);
-        double a = Math.sin(latDistance / 2) * Math.sin(latDistance / 2)
-                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
-                        * Math.sin(lonDistance / 2) * Math.sin(lonDistance / 2);
-        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        double distance = R * c;
-
-        return distance;
-    }
-
-    /**
      * Validate với restaurant service — LẦN GỌI DUY NHẤT đến restaurant-service
      * trong luồng createOrder.
      * Trả về ValidatedOrderData chứa canonical restaurant data từ server.
@@ -296,18 +254,21 @@ public class OrderValidationService {
                     "items", request.getItems().stream()
                             .map(item -> Map.of(
                                     "menuItemId", item.getMenuItemId(),
-                                    "menuItemName", item.getMenuItemName(),
-                                    "quantity", item.getQuantity(),
-                                    "price", item.getPrice()))
+                                    "quantity", item.getQuantity()))
                             .toList());
 
             String url = restaurantServiceUrl + "/api/restaurants/validate/order";
+
+            if (internalSecret == null || internalSecret.isBlank()) {
+                errors.add("Order/restaurant internal credential chưa được cấu hình");
+                return null;
+            }
 
             Map<String, Object> responseBody = webClient
                     .post()
                     .uri(url)
                     .header("Content-Type", "application/json")
-                    .header("X-User-Id", userId.toString())
+                    .header("Internal-Token", internalSecret)
                     .bodyValue(orderValidationRequest)
                     .retrieve()
                     .bodyToMono(Map.class)
@@ -336,7 +297,7 @@ public class OrderValidationService {
                 return null;
             }
 
-            ValidatedOrderData validatedData = buildValidatedOrderData(restaurantInfo);
+            ValidatedOrderData validatedData = buildValidatedOrderData(restaurantInfo, data, errors);
 
             // Thu thập errors từ validation items
             if (status != null && status != 1) {
@@ -366,7 +327,10 @@ public class OrderValidationService {
      * Không có side-effect, không chạm vào request.
      */
     @SuppressWarnings("unchecked")
-    private ValidatedOrderData buildValidatedOrderData(Map<String, Object> restaurantInfo) {
+    private ValidatedOrderData buildValidatedOrderData(
+            Map<String, Object> restaurantInfo,
+            Map<String, Object> validationData,
+            List<String> errors) {
         String name = restaurantInfo.get("restaurantName") != null
                 ? restaurantInfo.get("restaurantName").toString()
                 : null;
@@ -404,7 +368,54 @@ public class OrderValidationService {
             }
         }
 
-        log.info("✅ Server-validated restaurant data: name={}, creatorId={}", name, creatorId);
-        return new ValidatedOrderData(creatorId, name, address, phone, lat, lng);
+        if (name == null || name.isBlank()) {
+            errors.add("Restaurant service thiếu tên nhà hàng canonical");
+        }
+        if (address == null || address.isBlank()) {
+            errors.add("Restaurant service thiếu địa chỉ nhà hàng canonical");
+        }
+        if (creatorId == null || creatorId <= 0) {
+            errors.add("Restaurant service thiếu owner ID canonical");
+        }
+        if (!isFiniteInRange(lat, 8.0, 24.0) || !isFiniteInRange(lng, 102.0, 110.0)) {
+            errors.add("Restaurant service thiếu tọa độ nhà hàng canonical trong phạm vi Việt Nam");
+        }
+
+        List<ValidatedOrderData.ValidatedItemData> items = new ArrayList<>();
+        Object rawItems = validationData.get("itemValidations");
+        if (rawItems instanceof List<?> itemValidations) {
+            for (Object rawItem : itemValidations) {
+                if (!(rawItem instanceof Map<?, ?> item)) {
+                    errors.add("Restaurant service trả item validation không hợp lệ");
+                    continue;
+                }
+                try {
+                    Long menuItemId = Long.valueOf(item.get("menuItemId").toString());
+                    String menuItemName = item.get("menuItemName") != null
+                            ? item.get("menuItemName").toString() : null;
+                    BigDecimal price = item.get("actualPrice") != null
+                            ? new BigDecimal(item.get("actualPrice").toString()) : null;
+                    if (menuItemName == null || menuItemName.isBlank()
+                            || price == null || price.signum() <= 0) {
+                        errors.add("Restaurant service thiếu dữ liệu canonical cho món " + menuItemId);
+                    } else {
+                        items.add(new ValidatedOrderData.ValidatedItemData(
+                                menuItemId, menuItemName, price));
+                    }
+                } catch (RuntimeException e) {
+                    errors.add("Restaurant service trả item validation không hợp lệ");
+                }
+            }
+        } else {
+            errors.add("Restaurant service không trả dữ liệu canonical của món ăn");
+        }
+
+        log.info("✅ Server-validated restaurant data: name={}, creatorId={}, items={}",
+                name, creatorId, items.size());
+        return new ValidatedOrderData(creatorId, name, address, phone, lat, lng, List.copyOf(items));
+    }
+
+    private boolean isFiniteInRange(Double value, double min, double max) {
+        return value != null && Double.isFinite(value) && value >= min && value <= max;
     }
 }

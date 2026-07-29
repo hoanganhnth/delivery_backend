@@ -3,7 +3,6 @@ package com.delivery.match_service.service.impl;
 import com.delivery.match_service.dto.request.FindNearbyShippersRequest;
 import com.delivery.match_service.dto.response.NearbyShipperResponse;
 import com.delivery.match_service.repository.MatchRedisGeoRepository;
-import com.delivery.match_service.service.MatchCancellationService;
 import com.delivery.match_service.service.MatchService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -22,12 +21,9 @@ import java.util.stream.Collectors;
 public class MatchServiceImpl implements MatchService {
 
     private final MatchRedisGeoRepository matchRedisGeoRepository;
-    private final MatchCancellationService matchCancellationService;
 
-    public MatchServiceImpl(MatchRedisGeoRepository matchRedisGeoRepository,
-            MatchCancellationService matchCancellationService) {
+    public MatchServiceImpl(MatchRedisGeoRepository matchRedisGeoRepository) {
         this.matchRedisGeoRepository = matchRedisGeoRepository;
-        this.matchCancellationService = matchCancellationService;
     }
 
     /**
@@ -52,7 +48,7 @@ public class MatchServiceImpl implements MatchService {
             List<NearbyShipperResponse> responses = results.stream()
                     .map(r -> new NearbyShipperResponse(
                             r.shipperId,
-                            "Shipper " + r.shipperId,  // Tên tạm (match chỉ cần ID)
+                            null, // Match owns location/availability, not profile identity.
                             null,
                             r.latitude,
                             r.longitude,
@@ -64,28 +60,17 @@ public class MatchServiceImpl implements MatchService {
             log.info("✅ [Local Geo] Found {} available shippers (no REST call)", responses.size());
             return responses;
 
-        }).subscribeOn(Schedulers.boundedElastic()) // Redis IO trên thread pool riêng
-          .onErrorReturn(List.of());
+        }).subscribeOn(Schedulers.boundedElastic()); // Redis IO trên thread pool riêng
     }
 
-    /**
-     * ✅ Dừng quá trình matching cho delivery bị hủy
-     */
     @Override
-    public void stopMatchingProcess(Long deliveryId, Long orderId, String reason) {
-        try {
-            log.info("🛑 Stopping matching process for delivery: {}, order: {}, reason: {}",
-                    deliveryId, orderId, reason);
-
-            matchCancellationService.markCancelled(deliveryId);
-            log.info("🧹 Marked delivery as cancelled in Redis for delivery: {}", deliveryId);
-
-            String matchingSessionId = "delivery_" + deliveryId;
-            log.info("✅ Successfully stopped matching process for delivery: {} with session: {}",
-                    deliveryId, matchingSessionId);
-
-        } catch (Exception e) {
-            log.error("💥 Error stopping matching process for delivery: {}: {}", deliveryId, e.getMessage(), e);
-        }
+    public boolean tryReserveShipperOffer(Long shipperId, Long deliveryId, int timeoutSeconds) {
+        return matchRedisGeoRepository.tryReserveShipperOffer(shipperId, deliveryId, timeoutSeconds);
     }
+
+    @Override
+    public boolean releaseShipperOffer(Long shipperId, Long deliveryId) {
+        return matchRedisGeoRepository.releaseShipperOffer(shipperId, deliveryId);
+    }
+
 }

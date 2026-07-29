@@ -1,50 +1,33 @@
-# 🎯 Quick Test Commands for Notification Service
+# Notification Service — Quick Verification
 
-# Build and run
-mvn clean compile spring-boot:run
+Notification Service chạy nội bộ ở cổng `8091`; client chỉ đi qua Gateway
+`http://localhost:8079`. Không có Notification WebSocket/STOMP endpoint.
 
-# Or with Docker
-./start.bat
+## Unit/integration tests
 
-# Test WebSocket connection
-curl -X GET http://localhost:8087/ws
+```bash
+env JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home \
+  PATH=/opt/homebrew/opt/openjdk@17/bin:$PATH \
+  mvn test
+```
 
-# Send test notification
-curl -X POST http://localhost:8087/api/notifications/send \
-  -H "Content-Type: application/json" \
-  -H "X-User-Id: 1" \
-  -H "X-Role: ADMIN" \
-  -d '{
-    "userId": 123,
-    "title": "Test Notification",
-    "message": "This is a test message",
-    "type": "ORDER_CREATED",
-    "priority": "HIGH"
-  }'
+## Runtime reads qua Gateway
 
-# Get user notifications
-curl -H "X-User-Id: 123" http://localhost:8087/api/notifications/user/123
+Thay `<JWT>` bằng access token của chính user đang đọc:
 
-# Register FCM token
-curl -X POST http://localhost:8087/api/firebase/register-token \
-  -H "Content-Type: application/json" \
-  -H "X-User-Id: 123" \
-  -d '{"token": "test_fcm_token"}'
+```bash
+curl -fsS http://localhost:8079/api/notifications/unread-count \
+  -H 'Authorization: Bearer <JWT>'
 
-# Check Redis data
-redis-cli
-> KEYS "*"
-> GET "user_session:123"
+curl -fsS 'http://localhost:8079/api/notifications/unread?page=0&size=20' \
+  -H 'Authorization: Bearer <JWT>'
+```
 
-# Send Kafka test event
-bin/kafka-console-producer.bat --topic order.created --bootstrap-server localhost:9092
-{
-  "orderId": 123,
-  "userId": 456, 
-  "restaurantName": "Test Restaurant",
-  "totalAmount": 100000,
-  "status": "CREATED"
-}
+Không tự gửi `X-User-Id` hoặc `X-Role`; Gateway strip và derive identity từ JWT.
+Internal send API cần `Internal-Token` và không được public route qua Gateway.
 
-# Health check
-curl http://localhost:8087/actuator/health
+## Canonical cross-service proof
+
+Từ thư mục `backend_delivery/`, dùng harness COD để kiểm
+`delivery.shipper-offered` → durable `MATCH_FOUND` inbox → self current-offer
+recovery. FCM chỉ là wake-up optional; PostgreSQL inbox là recovery authority.

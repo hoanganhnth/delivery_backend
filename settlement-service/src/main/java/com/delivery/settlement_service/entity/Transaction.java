@@ -20,6 +20,10 @@ import java.time.LocalDateTime;
     @Index(name = "idx_transactions_reason", columnList = "reason"),
     @Index(name = "idx_transactions_created_at", columnList = "created_at"),
     @Index(name = "idx_transactions_entity_status", columnList = "entity_id, entity_type, status")
+}, uniqueConstraints = {
+    @UniqueConstraint(
+            name = "uk_transactions_order_ledger_entry",
+            columnNames = {"order_id", "entity_id", "entity_type", "reason", "wallet_type", "direction"})
 })
 @Getter
 @Setter

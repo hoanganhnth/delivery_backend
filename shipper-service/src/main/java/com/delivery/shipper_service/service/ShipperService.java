@@ -3,6 +3,8 @@ package com.delivery.shipper_service.service;
 import com.delivery.shipper_service.dto.request.CreateShipperRequest;
 import com.delivery.shipper_service.dto.request.UpdateShipperRequest;
 import com.delivery.shipper_service.dto.response.ShipperResponse;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 
@@ -16,6 +18,6 @@ public interface ShipperService {
     // Read operations
     ShipperResponse getShipperById(Long id);
     ShipperResponse getShipperByUserId(Long userId);
-    List<ShipperResponse> getAllShippers();
+    Page<ShipperResponse> getAllShippers(Pageable pageable);
     List<ShipperResponse> getOnlineShippers();
 }

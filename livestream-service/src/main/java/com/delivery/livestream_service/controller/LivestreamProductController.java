@@ -8,12 +8,14 @@ import com.delivery.livestream_service.payload.BaseResponse;
 import com.delivery.livestream_service.service.LivestreamProductService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.UUID;
 
 @RestController
+@ConditionalOnProperty(name = "app.livestream.api-enabled", havingValue = "true")
 @RequestMapping(ApiPathConstants.LIVESTREAMS)
 public class LivestreamProductController {
 

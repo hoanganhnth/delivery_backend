@@ -4,14 +4,25 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.delivery.restaurant_service.entity.MenuItem;
 
 import java.math.BigDecimal;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class UpdateMenuItemRequest {
+    @Size(max = 255)
+    @Pattern(regexp = ".*\\S.*", message = "name must contain a non-whitespace character")
     private String name;
+    @Size(max = 4000)
     private String description;
+    @DecimalMin("0.01")
+    @DecimalMax("10000000")
     private BigDecimal price;
     private MenuItem.Status status; // AVAILABLE, SOLD_OUT, DISCONTINUED
     private String image;
+    @Positive
     private Long restaurantId;
 
     public Long getRestaurantId() {

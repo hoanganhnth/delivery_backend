@@ -158,6 +158,10 @@ public class Restaurant {
         return image;
     }
 
+    public void setImage(String image) {
+        this.image = image;
+    }
+
     // public void setStatus(Status status) {
     // this.status = status;
     // }

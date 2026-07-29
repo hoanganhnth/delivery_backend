@@ -6,18 +6,22 @@ import com.delivery.analytics_service.repository.AnalyticsEventRepository;
 import com.delivery.analytics_service.repository.DailyOrderStatsRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.util.List;
+import java.util.HashMap;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * Scheduled Job — Chạy hàng đêm lúc 00:05 để chuẩn hóa dữ liệu thống kê
@@ -34,7 +38,10 @@ import java.util.stream.Collectors;
 @Component
 @RequiredArgsConstructor
 @Slf4j
+@ConditionalOnProperty(name = "app.analytics.processing-enabled", havingValue = "true")
 public class StatsReconciliationJob {
+
+    private static final int RECONCILIATION_PAGE_SIZE = 500;
 
     private final AnalyticsEventRepository eventRepo;
     private final DailyOrderStatsRepository orderStatsRepo;
@@ -63,71 +70,88 @@ public class StatsReconciliationJob {
         LocalDateTime startOfDay = date.atStartOfDay();
         LocalDateTime endOfDay = date.atTime(LocalTime.MAX);
 
-        List<AnalyticsEvent> events = eventRepo.findByEventTimeBetween(startOfDay, endOfDay);
+        EventCounts platform = new EventCounts();
+        Map<Long, EventCounts> byRestaurant = new HashMap<>();
+        long processed = 0;
+        Pageable pageable = PageRequest.of(
+                0, RECONCILIATION_PAGE_SIZE, Sort.by(Sort.Direction.ASC, "id"));
 
-        if (events.isEmpty()) {
+        while (true) {
+            Page<AnalyticsEvent> page = eventRepo.findByEventTimeBetween(
+                    startOfDay, endOfDay, pageable);
+            for (AnalyticsEvent event : page.getContent()) {
+                platform.accept(event);
+                if (event.getRestaurantId() != null) {
+                    byRestaurant.computeIfAbsent(event.getRestaurantId(), ignored -> new EventCounts())
+                            .accept(event);
+                }
+                processed++;
+            }
+            if (!page.hasNext()) {
+                break;
+            }
+            pageable = page.nextPageable();
+        }
+
+        if (processed == 0) {
             log.info("📊 No events found for date: {}", date);
             return;
         }
 
         // ============ PLATFORM-WIDE STATS ============
-        long totalCreated = events.stream().filter(e -> "ORDER_CREATED".equals(e.getEventType())).count();
-        long totalDelivered = events.stream().filter(e -> "ORDER_DELIVERED".equals(e.getEventType())).count();
-        long totalCancelled = events.stream().filter(e -> "ORDER_CANCELLED".equals(e.getEventType())).count();
-        BigDecimal totalRevenue = events.stream()
-                .filter(e -> "ORDER_DELIVERED".equals(e.getEventType()) && e.getAmount() != null)
-                .map(AnalyticsEvent::getAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
         DailyOrderStats platformStats = orderStatsRepo.findByStatDateAndRestaurantIdIsNull(date)
                 .orElse(DailyOrderStats.builder().statDate(date).restaurantId(null).build());
-        platformStats.setTotalOrders(totalCreated);
-        platformStats.setDeliveredOrders(totalDelivered);
-        platformStats.setCancelledOrders(totalCancelled);
-        platformStats.setPendingOrders(Math.max(0, totalCreated - totalDelivered - totalCancelled));
-        platformStats.setTotalRevenue(totalRevenue);
-        platformStats.setTotalShippingFee(BigDecimal.ZERO);
-        platformStats.setTotalDiscount(BigDecimal.ZERO);
-        platformStats.setAvgOrderValue(totalDelivered > 0
-                ? totalRevenue.divide(BigDecimal.valueOf(totalDelivered), 0, RoundingMode.HALF_UP)
-                : BigDecimal.ZERO);
-        platformStats.setNewCustomers(0);
+        applyCounts(platformStats, platform);
         orderStatsRepo.save(platformStats);
 
         // ============ PER-RESTAURANT STATS ============
-        Map<Long, List<AnalyticsEvent>> byRestaurant = events.stream()
-                .filter(e -> e.getRestaurantId() != null)
-                .collect(Collectors.groupingBy(AnalyticsEvent::getRestaurantId));
-
-        for (Map.Entry<Long, List<AnalyticsEvent>> entry : byRestaurant.entrySet()) {
+        for (Map.Entry<Long, EventCounts> entry : byRestaurant.entrySet()) {
             Long restaurantId = entry.getKey();
-            List<AnalyticsEvent> rEvents = entry.getValue();
-
-            long rCreated = rEvents.stream().filter(e -> "ORDER_CREATED".equals(e.getEventType())).count();
-            long rDelivered = rEvents.stream().filter(e -> "ORDER_DELIVERED".equals(e.getEventType())).count();
-            long rCancelled = rEvents.stream().filter(e -> "ORDER_CANCELLED".equals(e.getEventType())).count();
-            BigDecimal rRevenue = rEvents.stream()
-                    .filter(e -> "ORDER_DELIVERED".equals(e.getEventType()) && e.getAmount() != null)
-                    .map(AnalyticsEvent::getAmount)
-                    .reduce(BigDecimal.ZERO, BigDecimal::add);
-
             DailyOrderStats rStats = orderStatsRepo.findByStatDateAndRestaurantId(date, restaurantId)
                     .orElse(DailyOrderStats.builder().statDate(date).restaurantId(restaurantId).build());
-            rStats.setTotalOrders(rCreated);
-            rStats.setDeliveredOrders(rDelivered);
-            rStats.setCancelledOrders(rCancelled);
-            rStats.setPendingOrders(Math.max(0, rCreated - rDelivered - rCancelled));
-            rStats.setTotalRevenue(rRevenue);
-            rStats.setTotalShippingFee(BigDecimal.ZERO);
-            rStats.setTotalDiscount(BigDecimal.ZERO);
-            rStats.setAvgOrderValue(rDelivered > 0
-                    ? rRevenue.divide(BigDecimal.valueOf(rDelivered), 0, RoundingMode.HALF_UP)
-                    : BigDecimal.ZERO);
-            rStats.setNewCustomers(0);
+            applyCounts(rStats, entry.getValue());
             orderStatsRepo.save(rStats);
         }
 
         log.info("📊 Reconciled {} events for date {} → Platform: {} orders, {} delivered, {} revenue | {} restaurants processed",
-                events.size(), date, totalCreated, totalDelivered, totalRevenue, byRestaurant.size());
+                processed, date, platform.created, platform.delivered,
+                platform.revenue, byRestaurant.size());
+    }
+
+    private void applyCounts(DailyOrderStats stats, EventCounts counts) {
+        stats.setTotalOrders(counts.created);
+        stats.setDeliveredOrders(counts.delivered);
+        stats.setCancelledOrders(counts.cancelled);
+        stats.setPendingOrders(Math.max(0, counts.created - counts.delivered - counts.cancelled));
+        stats.setTotalRevenue(counts.revenue);
+        stats.setTotalShippingFee(BigDecimal.ZERO);
+        stats.setTotalDiscount(BigDecimal.ZERO);
+        stats.setAvgOrderValue(counts.delivered > 0
+                ? counts.revenue.divide(BigDecimal.valueOf(counts.delivered), 0, RoundingMode.HALF_UP)
+                : BigDecimal.ZERO);
+        stats.setNewCustomers(0);
+    }
+
+    private static final class EventCounts {
+        private long created;
+        private long delivered;
+        private long cancelled;
+        private BigDecimal revenue = BigDecimal.ZERO;
+
+        private void accept(AnalyticsEvent event) {
+            switch (event.getEventType()) {
+                case "ORDER_CREATED" -> created++;
+                case "ORDER_DELIVERED" -> {
+                    delivered++;
+                    if (event.getAmount() != null) {
+                        revenue = revenue.add(event.getAmount());
+                    }
+                }
+                case "ORDER_CANCELLED" -> cancelled++;
+                default -> {
+                    // Other raw event types do not affect order reconciliation totals.
+                }
+            }
+        }
     }
 }

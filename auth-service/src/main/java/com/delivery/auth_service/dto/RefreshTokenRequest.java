@@ -1,6 +1,9 @@
 package com.delivery.auth_service.dto;
 
+import jakarta.validation.constraints.NotBlank;
+
 public class RefreshTokenRequest {
+    @NotBlank
     private String refreshToken;
 
     public String getRefreshToken() {

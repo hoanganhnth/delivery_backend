@@ -40,34 +40,8 @@ public class RestaurantCacheServiceImpl implements RestaurantCacheService {
     public void cacheRestaurant(Restaurant restaurant) {
         try {
             String key = RESTAURANT_KEY_PREFIX + restaurant.getId();
-
-            Map<String, Object> restaurantData = new HashMap<>();
-            restaurantData.put("id", restaurant.getId());
-            restaurantData.put("name", restaurant.getName());
-            restaurantData.put("address", restaurant.getAddress());
-            restaurantData.put("phone", restaurant.getPhone());
-            restaurantData.put("creatorId", restaurant.getCreatorId());
-            // restaurantData.put("openingHour", restaurant.getOpeningHour());
-            // restaurantData.put("closingHour", restaurant.getClosingHour());
-            restaurantData.put("image", restaurant.getImage());
-
-            restaurantData.put("openingHour",
-                    restaurant.getOpeningHour() != null ? restaurant.getOpeningHour().toString() : null);
-            restaurantData.put("closingHour",
-                    restaurant.getClosingHour() != null ? restaurant.getClosingHour().toString() : null);
-
-            // restaurantData.put("createdAt", restaurant.getCreatedAt());
-            // restaurantData.put("updatedAt", restaurant.getUpdatedAt());
-
-            restaurantData.put("createdAt",
-                    restaurant.getCreatedAt() != null ? restaurant.getCreatedAt().toString() : null);
-            restaurantData.put("updatedAt",
-                    restaurant.getUpdatedAt() != null ? restaurant.getUpdatedAt().toString() : null);
-
-            restaurantData.put("latitude", restaurant.getAddressLat());
-            restaurantData.put("longitude", restaurant.getAddressLng());
-
-            redisTemplate.opsForValue().set(key, restaurantData, CACHE_TTL_HOURS, TimeUnit.HOURS);
+            redisTemplate.opsForValue().set(
+                    key, toRestaurantData(restaurant), CACHE_TTL_HOURS, TimeUnit.HOURS);
 
             log.info("✅ Cached restaurant: {} -> {}", restaurant.getId(), restaurant.getName());
 
@@ -80,21 +54,8 @@ public class RestaurantCacheServiceImpl implements RestaurantCacheService {
     public void cacheMenuItem(MenuItem menuItem) {
         try {
             String key = MENU_ITEM_KEY_PREFIX + menuItem.getId();
-
-            Map<String, Object> menuItemData = new HashMap<>();
-            menuItemData.put("id", menuItem.getId());
-            menuItemData.put("restaurantId", menuItem.getRestaurant() != null ? menuItem.getRestaurant().getId() : null);
-            menuItemData.put("name", menuItem.getName());
-            menuItemData.put("description", menuItem.getDescription());
-            menuItemData.put("price", menuItem.getPrice());
-            menuItemData.put("status", menuItem.getStatus());
-            menuItemData.put("image", menuItem.getImage());
-            menuItemData.put("createdAt",
-                    menuItem.getCreatedAt() != null ? menuItem.getCreatedAt().toString() : null);
-            menuItemData.put("updatedAt",
-                    menuItem.getUpdatedAt() != null ? menuItem.getUpdatedAt().toString() : null);
-
-            redisTemplate.opsForValue().set(key, menuItemData, CACHE_TTL_HOURS, TimeUnit.HOURS);
+            redisTemplate.opsForValue().set(
+                    key, toMenuItemData(menuItem), CACHE_TTL_HOURS, TimeUnit.HOURS);
 
             log.info("✅ Cached menu item: {} -> {}", menuItem.getId(), menuItem.getName());
 
@@ -130,46 +91,6 @@ public class RestaurantCacheServiceImpl implements RestaurantCacheService {
         }
     }
 
-    @Override
-    public void updateRestaurantAvailability(Long restaurantId, boolean isAvailable) {
-        try {
-            String key = RESTAURANT_KEY_PREFIX + restaurantId;
-            Map<String, Object> restaurant = (Map<String, Object>) redisTemplate.opsForValue().get(key);
-
-            if (restaurant != null) {
-                // Since Restaurant entity doesn't have isAvailable field,
-                // we'll add a custom field for cache purposes
-                restaurant.put("cacheIsAvailable", isAvailable);
-                redisTemplate.opsForValue().set(key, restaurant, CACHE_TTL_HOURS, TimeUnit.HOURS);
-
-                log.info("🔄 Updated restaurant {} availability: {}", restaurantId, isAvailable);
-            }
-
-        } catch (Exception e) {
-            log.error("💥 Error updating restaurant {} availability: {}", restaurantId, e.getMessage());
-        }
-    }
-
-    @Override
-    public void updateMenuItemAvailability(Long menuItemId, boolean isAvailable) {
-        try {
-            String key = MENU_ITEM_KEY_PREFIX + menuItemId;
-            Map<String, Object> menuItem = (Map<String, Object>) redisTemplate.opsForValue().get(key);
-
-            if (menuItem != null) {
-                // MenuItem has status field, so we'll update based on availability
-                MenuItem.Status newStatus = isAvailable ? MenuItem.Status.AVAILABLE : MenuItem.Status.SOLD_OUT;
-                menuItem.put("status", newStatus);
-                redisTemplate.opsForValue().set(key, menuItem, CACHE_TTL_HOURS, TimeUnit.HOURS);
-
-                log.info("🔄 Updated menu item {} availability: {} (status: {})", menuItemId, isAvailable, newStatus);
-            }
-
-        } catch (Exception e) {
-            log.error("💥 Error updating menu item {} availability: {}", menuItemId, e.getMessage());
-        }
-    }
-
     // ===============================
     // GETTER METHODS FOR VALIDATION
     // ===============================
@@ -180,24 +101,24 @@ public class RestaurantCacheServiceImpl implements RestaurantCacheService {
         try {
             String key = RESTAURANT_KEY_PREFIX + restaurantId;
             Map<String, Object> cachedData = (Map<String, Object>) redisTemplate.opsForValue().get(key);
-            
-            if (cachedData == null) {
-                log.info("⚠️ Cache miss for restaurant {}. Falling back to DB...", restaurantId);
-                return restaurantRepository.findById(restaurantId)
-                        .map(restaurant -> {
-                            cacheRestaurant(restaurant); // Cache it
-                            return (Map<String, Object>) redisTemplate.opsForValue().get(key); // Return cached version
-                        })
-                        .orElseGet(() -> {
-                            log.error("❌ Restaurant {} not found in DB either.", restaurantId);
-                            return null;
-                        });
+            if (cachedData != null) {
+                return cachedData;
             }
-            return cachedData;
         } catch (Exception e) {
-            log.error("💥 Error getting restaurant {} from cache/db: {}", restaurantId, e.getMessage());
-            return null;
+            log.warn("Restaurant cache read failed for {}; falling back to DB: {}",
+                    restaurantId, e.getMessage());
         }
+        log.info("Cache miss for restaurant {}. Falling back to DB", restaurantId);
+        return restaurantRepository.findById(restaurantId)
+                .map(restaurant -> {
+                    Map<String, Object> data = toRestaurantData(restaurant);
+                    cacheRestaurant(restaurant);
+                    return data;
+                })
+                .orElseGet(() -> {
+                    log.warn("Restaurant {} not found in DB", restaurantId);
+                    return null;
+                });
     }
 
     @Override
@@ -206,24 +127,28 @@ public class RestaurantCacheServiceImpl implements RestaurantCacheService {
         try {
             String key = MENU_ITEM_KEY_PREFIX + menuItemId;
             Map<String, Object> cachedData = (Map<String, Object>) redisTemplate.opsForValue().get(key);
-            
-            if (cachedData == null) {
-                log.info("⚠️ Cache miss for menu item {}. Falling back to DB...", menuItemId);
-                return menuItemRepository.findById(menuItemId)
-                        .map(menuItem -> {
-                            cacheMenuItem(menuItem); // Cache it
-                            return (Map<String, Object>) redisTemplate.opsForValue().get(key); // Return cached version
-                        })
-                        .orElseGet(() -> {
-                            log.error("❌ Menu item {} not found in DB either.", menuItemId);
-                            return null;
-                        });
+            if (cachedData != null) {
+                return cachedData;
             }
-            return cachedData;
         } catch (Exception e) {
-            log.error("💥 Error getting menu item {} from cache/db: {}", menuItemId, e.getMessage());
-            return null;
+            log.warn("Menu-item cache read failed for {}; falling back to DB: {}",
+                    menuItemId, e.getMessage());
         }
+        log.info("Cache miss for menu item {}. Falling back to DB", menuItemId);
+        return menuItemRepository.findById(menuItemId)
+                .map(menuItem -> {
+                    Map<String, Object> data = toMenuItemData(menuItem);
+                    try {
+                        cacheMenuItem(menuItem);
+                    } catch (RuntimeException e) {
+                        log.warn("Menu-item cache warm failed for {}: {}", menuItemId, e.getMessage());
+                    }
+                    return data;
+                })
+                .orElseGet(() -> {
+                    log.warn("Menu item {} not found in DB", menuItemId);
+                    return null;
+                });
     }
 
     @Override
@@ -313,10 +238,11 @@ public class RestaurantCacheServiceImpl implements RestaurantCacheService {
                 return false;
             }
 
-            // Kiểm tra available
-            Boolean isAvailable = (Boolean) menuItem.get("isAvailable");
-            if (Boolean.FALSE.equals(isAvailable)) {
-                log.warn("❌ Menu item {} is not available", menuItemId);
+            // The persisted enum is the canonical availability source. Missing or
+            // non-AVAILABLE status must fail closed; there is no UNAVAILABLE enum.
+            if (!isAvailableMenuItemStatus(menuItem.get("status"))) {
+                log.warn("❌ Menu item {} is not available (status={})",
+                        menuItemId, menuItem.get("status"));
                 return false;
             }
 
@@ -342,22 +268,69 @@ public class RestaurantCacheServiceImpl implements RestaurantCacheService {
     // Private helper method để check operating hours
     private boolean checkOperatingHours(Map<String, Object> restaurant) {
         try {
-            String openTime = (String) restaurant.get("openTime");
-            String closeTime = (String) restaurant.get("closeTime");
-
-            if (openTime != null && closeTime != null) {
-                LocalTime now = LocalTime.now();
-                LocalTime open = LocalTime.parse(openTime, DateTimeFormatter.ofPattern("HH:mm"));
-                LocalTime close = LocalTime.parse(closeTime, DateTimeFormatter.ofPattern("HH:mm"));
-
-                return now.isAfter(open) && now.isBefore(close);
-            }
-
-            return true; // Nếu không có thời gian hoạt động thì coi như luôn mở
-
+            return isWithinOperatingHours(restaurant, LocalTime.now());
         } catch (Exception e) {
             log.error("💥 Error checking operating hours: {}", e.getMessage());
             return false;
         }
+    }
+
+    static boolean isWithinOperatingHours(Map<String, Object> restaurant, LocalTime now) {
+        Object openingHour = restaurant.get("openingHour");
+        Object closingHour = restaurant.get("closingHour");
+
+        if (openingHour != null && closingHour != null) {
+            LocalTime open = LocalTime.parse(openingHour.toString(), DateTimeFormatter.ISO_LOCAL_TIME);
+            LocalTime close = LocalTime.parse(closingHour.toString(), DateTimeFormatter.ISO_LOCAL_TIME);
+
+            return now.isAfter(open) && now.isBefore(close);
+        }
+
+        // Preserve the existing MVP policy for restaurants that do not configure
+        // an operating-hours pair. A separate product decision is required before
+        // changing those restaurants to fail closed.
+        return true;
+    }
+
+    static boolean isAvailableMenuItemStatus(Object status) {
+        return status != null && MenuItem.Status.AVAILABLE.name().equals(status.toString());
+    }
+
+    private Map<String, Object> toRestaurantData(Restaurant restaurant) {
+        Map<String, Object> data = new HashMap<>();
+        data.put("id", restaurant.getId());
+        data.put("name", restaurant.getName());
+        data.put("address", restaurant.getAddress());
+        data.put("phone", restaurant.getPhone());
+        data.put("creatorId", restaurant.getCreatorId());
+        data.put("image", restaurant.getImage());
+        data.put("openingHour", restaurant.getOpeningHour() != null
+                ? restaurant.getOpeningHour().toString() : null);
+        data.put("closingHour", restaurant.getClosingHour() != null
+                ? restaurant.getClosingHour().toString() : null);
+        data.put("createdAt", restaurant.getCreatedAt() != null
+                ? restaurant.getCreatedAt().toString() : null);
+        data.put("updatedAt", restaurant.getUpdatedAt() != null
+                ? restaurant.getUpdatedAt().toString() : null);
+        data.put("latitude", restaurant.getAddressLat());
+        data.put("longitude", restaurant.getAddressLng());
+        return data;
+    }
+
+    private Map<String, Object> toMenuItemData(MenuItem menuItem) {
+        Map<String, Object> data = new HashMap<>();
+        data.put("id", menuItem.getId());
+        data.put("restaurantId",
+                menuItem.getRestaurant() != null ? menuItem.getRestaurant().getId() : null);
+        data.put("name", menuItem.getName());
+        data.put("description", menuItem.getDescription());
+        data.put("price", menuItem.getPrice());
+        data.put("status", menuItem.getStatus());
+        data.put("image", menuItem.getImage());
+        data.put("createdAt", menuItem.getCreatedAt() != null
+                ? menuItem.getCreatedAt().toString() : null);
+        data.put("updatedAt", menuItem.getUpdatedAt() != null
+                ? menuItem.getUpdatedAt().toString() : null);
+        return data;
     }
 }

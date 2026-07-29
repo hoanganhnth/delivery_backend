@@ -1,92 +1,68 @@
 package com.delivery.delivery_service.service;
 
 import com.delivery.delivery_service.entity.OutboxEvent;
-import com.delivery.delivery_service.entity.OutboxEvent.OutboxStatus;
 import com.delivery.delivery_service.repository.OutboxEventRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.kafka.clients.producer.ProducerRecord;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
-import java.util.List;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.concurrent.TimeUnit;
 
-/**
- * ✅ Outbox Message Relay — Poll DB mỗi 1 giây, gửi event lên Kafka
- *
- * Flow:
- * 1. Poll bảng outbox_events WHERE status = PENDING (FIFO, max 100)
- * 2. Gửi lên Kafka
- * 3. Nếu thành công → đánh dấu SENT
- * 4. Nếu thất bại → tăng retryCount, giữ PENDING (retry lần sau)
- * 5. Nếu retry > 10 → đánh dấu FAILED (cần xử lý thủ công)
- */
+@Component
+@RequiredArgsConstructor
 @Slf4j
-//@Component
+@ConditionalOnProperty(name = "app.outbox.relay-enabled", havingValue = "true", matchIfMissing = true)
 public class OutboxMessageRelay {
-
-    private static final int MAX_RETRY = 10;
-
-    private final OutboxEventRepository outboxEventRepository;
+    private final OutboxEventRepository repository;
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final ObjectMapper objectMapper;
+    @Value("${app.outbox.batch-size:50}") private int batchSize;
+    @Value("${app.outbox.send-timeout-seconds:10}") private long sendTimeoutSeconds;
+    @Value("${app.outbox.max-attempts:10}") private int maxAttempts;
 
-    public OutboxMessageRelay(OutboxEventRepository outboxEventRepository,
-                              KafkaTemplate<String, Object> kafkaTemplate,
-                              ObjectMapper objectMapper) {
-        this.outboxEventRepository = outboxEventRepository;
-        this.kafkaTemplate = kafkaTemplate;
-        this.objectMapper = objectMapper;
+    @Scheduled(fixedDelayString = "${app.outbox.poll-delay-ms:1000}")
+    @Transactional
+    public void relayMessages() {
+        for (OutboxEvent event : repository.lockNextBatch(Math.max(1, Math.min(batchSize, 500)))) {
+            try {
+                ProducerRecord<String, Object> record = new ProducerRecord<>(event.getTopic(), event.getEventKey(),
+                        objectMapper.readTree(event.getPayload()));
+                record.headers().add("eventId", bytes(event.getEventId().toString()));
+                record.headers().add("eventType", bytes(event.getEventType()));
+                record.headers().add("aggregateId", bytes(event.getAggregateId()));
+                kafkaTemplate.send(record).get(Math.max(1, Math.min(sendTimeoutSeconds, 60)), TimeUnit.SECONDS);
+                event.setStatus(OutboxEvent.OutboxStatus.SENT);
+                event.setSentAt(LocalDateTime.now());
+                event.setLastError(null);
+            } catch (Exception e) {
+                int attempts = event.getAttempts() + 1;
+                event.setAttempts(attempts);
+                event.setLastError(abbreviate(e.getMessage()));
+                if (attempts >= Math.max(1, Math.min(maxAttempts, 100))) {
+                    event.setStatus(OutboxEvent.OutboxStatus.DEAD);
+                    log.error("Delivery outbox event {} is DEAD after {} attempts", event.getEventId(), attempts, e);
+                } else {
+                    long delay = Math.min(300L, 1L << Math.min(Math.max(attempts - 1, 0), 8));
+                    event.setNextAttemptAt(LocalDateTime.now().plusSeconds(delay));
+                    log.warn("Delivery outbox event {} retry {} scheduled in {}s", event.getEventId(), attempts, delay);
+                }
+            }
+            repository.save(event);
+        }
     }
 
-    /**
-     * Poll outbox mỗi 1 giây
-     */
-    @Scheduled(fixedRate = 1000)
-    public void relayMessages() {
-        List<OutboxEvent> pendingEvents =
-                outboxEventRepository.findTop100ByStatusOrderByCreatedAtAsc(OutboxStatus.PENDING);
-
-        if (pendingEvents.isEmpty()) return;
-
-        log.debug("📤 [Outbox Relay] Found {} pending events", pendingEvents.size());
-
-        for (OutboxEvent event : pendingEvents) {
-            try {
-                // Parse payload string back to JsonNode to avoid double-serialization
-                JsonNode jsonPayload = objectMapper.readTree(event.getPayload());
-
-                // Gửi lên Kafka (sync để đảm bảo thành công)
-                kafkaTemplate.send(event.getTopic(), event.getEventKey(), jsonPayload).get();
-
-                // Thành công → SENT
-                event.setStatus(OutboxStatus.SENT);
-                event.setSentAt(LocalDateTime.now());
-                outboxEventRepository.save(event);
-
-                log.info("✅ [Outbox Relay] Sent event #{} to topic={}, key={}",
-                        event.getId(), event.getTopic(), event.getEventKey());
-
-            } catch (Exception e) {
-                // Thất bại → tăng retry
-                event.setRetryCount(event.getRetryCount() + 1);
-                event.setErrorMessage(e.getMessage());
-
-                if (event.getRetryCount() >= MAX_RETRY) {
-                    event.setStatus(OutboxStatus.FAILED);
-                    log.error("🚨 [Outbox Relay] Event #{} FAILED after {} retries: topic={}, error={}",
-                            event.getId(), MAX_RETRY, event.getTopic(), e.getMessage());
-                } else {
-                    log.warn("⚠️ [Outbox Relay] Event #{} retry {}/{}: topic={}, error={}",
-                            event.getId(), event.getRetryCount(), MAX_RETRY,
-                            event.getTopic(), e.getMessage());
-                }
-
-                outboxEventRepository.save(event);
-            }
-        }
+    private byte[] bytes(String value) { return value.getBytes(StandardCharsets.UTF_8); }
+    private String abbreviate(String message) {
+        if (message == null) return "Unknown Kafka publish failure";
+        return message.length() <= 2000 ? message : message.substring(0, 2000);
     }
 }

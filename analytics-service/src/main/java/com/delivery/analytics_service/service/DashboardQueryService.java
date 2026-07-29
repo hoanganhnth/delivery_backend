@@ -95,7 +95,6 @@ public class DashboardQueryService {
                 .revenueTimeSeries(timeSeries)
                 .orderTimeSeries(timeSeries)
                 .statusBreakdown(statusBreakdown)
-                .topMenuItems(List.of()) // TODO: implement when menu item data is available
                 .build();
     }
 

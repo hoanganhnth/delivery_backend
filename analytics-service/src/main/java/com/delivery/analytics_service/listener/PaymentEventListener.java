@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.messaging.handler.annotation.Payload;
@@ -21,6 +22,7 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 @Slf4j
+@ConditionalOnProperty(name = "app.analytics.processing-enabled", havingValue = "true")
 public class PaymentEventListener {
 
     private final EventProcessingService eventService;
@@ -42,7 +44,7 @@ public class PaymentEventListener {
             ack.acknowledge();
         } catch (Exception e) {
             log.error("❌ [Analytics] Failed to process PAYMENT_COMPLETED: {}", e.getMessage(), e);
-            ack.acknowledge();
+            throw new IllegalStateException("Failed to process PAYMENT_COMPLETED event", e);
         }
     }
 
@@ -59,7 +61,7 @@ public class PaymentEventListener {
             ack.acknowledge();
         } catch (Exception e) {
             log.error("❌ [Analytics] Failed to process PAYMENT_FAILED: {}", e.getMessage(), e);
-            ack.acknowledge();
+            throw new IllegalStateException("Failed to process PAYMENT_FAILED event", e);
         }
     }
 }

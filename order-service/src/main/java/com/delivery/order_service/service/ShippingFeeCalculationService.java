@@ -35,10 +35,4 @@ public interface ShippingFeeCalculationService {
         double lng2
     );
     
-    /**
-     * Estimate thu nhập shipper (shipping fee - platform commission)
-     * @param shippingFee Phí ship
-     * @return Thu nhập ước tính cho shipper
-     */
-    BigDecimal estimateShipperEarnings(BigDecimal shippingFee);
 }

@@ -7,6 +7,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * ✅ Redis configuration cho Match Service
@@ -15,6 +16,7 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
  * Dựa theo RedisConfig cũ của delivery-service để đồng bộ cách serialize.
  */
 @Configuration
+@Slf4j
 public class RedisConfig {
 
     @Bean
@@ -44,8 +46,7 @@ public class RedisConfig {
         try {
             connectionFactory.getConnection().serverCommands().setConfig("notify-keyspace-events", "Ex");
         } catch (Exception e) {
-            System.out.println("⚠️ Warning: Could not set Redis notify-keyspace-events config. " +
-                    "Please ensure Redis is configured with 'notify-keyspace-events Ex'");
+            log.warn("Could not set Redis notify-keyspace-events=Ex; configure it on the Redis server", e);
         }
 
         return container;

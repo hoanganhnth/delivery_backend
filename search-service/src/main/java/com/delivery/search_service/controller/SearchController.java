@@ -1,46 +1,53 @@
 package com.delivery.search_service.controller;
 
-import com.delivery.search_service.document.DishDocument;
-import com.delivery.search_service.document.RestaurantDocument;
-import com.delivery.search_service.document.ShipperDocument;
+import com.delivery.search_service.dto.DishSearchResponse;
+import com.delivery.search_service.dto.RestaurantSearchResponse;
 import com.delivery.search_service.service.SearchService;
+import com.delivery.search_service.payload.BaseResponse;
+import com.delivery.search_service.payload.PageResponse;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.validation.annotation.Validated;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 @RestController
 @RequestMapping("/api/search")
 @RequiredArgsConstructor
+@Validated
 public class SearchController {
 
     private final SearchService searchService;
 
     @GetMapping("/restaurants")
-    public ResponseEntity<Page<RestaurantDocument>> searchRestaurants(
-            @RequestParam String q,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
-        return ResponseEntity.ok(searchService.searchRestaurants(q, PageRequest.of(page, size)));
+    public ResponseEntity<BaseResponse<PageResponse<RestaurantSearchResponse>>> searchRestaurants(
+            @RequestParam @NotBlank @Size(max = 100) String q,
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
+        return ResponseEntity.ok(new BaseResponse<>(
+                1,
+                PageResponse.from(searchService.searchRestaurants(
+                        q.trim(), PageRequest.of(page, size))
+                        .map(RestaurantSearchResponse::from))));
     }
 
     @GetMapping("/dishes")
-    public ResponseEntity<Page<DishDocument>> searchDishes(
-            @RequestParam String q,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
-        return ResponseEntity.ok(searchService.searchDishes(q, PageRequest.of(page, size)));
+    public ResponseEntity<BaseResponse<PageResponse<DishSearchResponse>>> searchDishes(
+            @RequestParam @NotBlank @Size(max = 100) String q,
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
+        return ResponseEntity.ok(new BaseResponse<>(
+                1,
+                PageResponse.from(searchService.searchDishes(
+                        q.trim(), PageRequest.of(page, size))
+                        .map(DishSearchResponse::from))));
     }
 
-    @GetMapping("/shippers")
-    public ResponseEntity<Page<ShipperDocument>> searchShippers(
-            @RequestParam String q,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
-        return ResponseEntity.ok(searchService.searchShippers(q, PageRequest.of(page, size)));
-    }
 }

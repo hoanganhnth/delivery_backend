@@ -9,6 +9,8 @@ import org.springframework.data.elasticsearch.annotations.Document;
 import org.springframework.data.elasticsearch.annotations.Field;
 import org.springframework.data.elasticsearch.annotations.FieldType;
 
+import java.math.BigDecimal;
+
 @Data
 @Builder
 @NoArgsConstructor
@@ -25,7 +27,7 @@ public class DishDocument {
     private String description;
     
     @Field(type = FieldType.Double)
-    private Double price;
+    private BigDecimal price;
     
     @Field(type = FieldType.Keyword)
     private String restaurantId;

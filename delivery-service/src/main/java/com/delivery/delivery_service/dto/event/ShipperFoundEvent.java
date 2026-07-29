@@ -6,6 +6,7 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * ✅ Event nhận từ match-service khi tìm được shipper
@@ -15,6 +16,8 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class ShipperFoundEvent {
+
+    private UUID eventId;
     
     private Long deliveryId;
     private Long orderId;

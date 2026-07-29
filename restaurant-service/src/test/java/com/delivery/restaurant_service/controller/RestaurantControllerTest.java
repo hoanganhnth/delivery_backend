@@ -22,10 +22,13 @@ import java.util.List;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import org.springframework.security.access.AccessDeniedException;
 
 @ExtendWith(MockitoExtension.class)
 class RestaurantControllerTest {
@@ -52,6 +55,8 @@ class RestaurantControllerTest {
         request.setName("Pizza Palace");
         request.setAddress("123 Main Street");
         request.setPhone("0123456789");
+        request.setAddressLat(10.78);
+        request.setAddressLng(106.69);
 //        request.setDescription("Best pizza in town");
 
         RestaurantResponse response = new RestaurantResponse();
@@ -93,13 +98,15 @@ class RestaurantControllerTest {
         response.setName("Updated Pizza Palace");
         response.setAddress("456 New Street");
 
-        when(restaurantService.updateRestaurant(eq(restaurantId), any(UpdateRestaurantRequest.class), anyLong()))
+        when(restaurantService.updateRestaurant(eq(restaurantId), any(UpdateRestaurantRequest.class), anyLong(),
+                eq(RoleConstants.OWNER)))
                 .thenReturn(response);
 
         // When & Then
         mockMvc.perform(put("/api/restaurants/{id}", restaurantId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .header(HttpHeaderConstants.X_USER_ID, "1")
+                        .header(HttpHeaderConstants.X_ROLE, RoleConstants.OWNER)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value(1))
@@ -107,7 +114,8 @@ class RestaurantControllerTest {
                 .andExpect(jsonPath("$.data.name").value("Updated Pizza Palace"))
                 .andExpect(jsonPath("$.data.address").value("456 New Street"));
 
-        verify(restaurantService).updateRestaurant(eq(restaurantId), any(UpdateRestaurantRequest.class), eq(1L));
+        verify(restaurantService).updateRestaurant(eq(restaurantId), any(UpdateRestaurantRequest.class), eq(1L),
+                eq(RoleConstants.OWNER));
     }
 
     @Test
@@ -118,12 +126,13 @@ class RestaurantControllerTest {
 
         // When & Then
         mockMvc.perform(delete("/api/restaurants/{id}", restaurantId)
-                        .header(HttpHeaderConstants.X_USER_ID, userId.toString()))
+                        .header(HttpHeaderConstants.X_USER_ID, userId.toString())
+                        .header(HttpHeaderConstants.X_ROLE, RoleConstants.OWNER))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value(1))
                 .andExpect(jsonPath("$.data").isEmpty());
 
-        verify(restaurantService).deleteRestaurant(eq(restaurantId), eq(userId));
+        verify(restaurantService).deleteRestaurant(eq(restaurantId), eq(userId), eq(RoleConstants.OWNER));
     }
 
     @Test
@@ -214,11 +223,21 @@ class RestaurantControllerTest {
     }
 
     @Test
+    void myRestaurantsRejectsNonOwnerRole() {
+        assertThatThrownBy(() -> restaurantController.getMyRestaurants(7L, RoleConstants.CUSTOMER))
+                .isInstanceOf(AccessDeniedException.class);
+
+        verifyNoInteractions(restaurantService);
+    }
+
+    @Test
     void create_ShouldWork_WithoutHeaders() throws Exception {
         // Given
         CreateRestaurantRequest request = new CreateRestaurantRequest();
         request.setName("Test Restaurant");
         request.setAddress("Test Address");
+        request.setAddressLat(10.78);
+        request.setAddressLng(106.69);
 
         RestaurantResponse response = createRestaurantResponse(1L, "Test Restaurant", "Test Address");
 
@@ -245,7 +264,7 @@ class RestaurantControllerTest {
 
         RestaurantResponse response = createRestaurantResponse(restaurantId, "Updated Name", "Address");
 
-        when(restaurantService.updateRestaurant(eq(restaurantId), any(UpdateRestaurantRequest.class), isNull()))
+        when(restaurantService.updateRestaurant(eq(restaurantId), any(UpdateRestaurantRequest.class), isNull(), isNull()))
                 .thenReturn(response);
 
         // When & Then
@@ -256,7 +275,7 @@ class RestaurantControllerTest {
                 .andExpect(jsonPath("$.status").value(1))
                 .andExpect(jsonPath("$.data.name").value("Updated Name"));
 
-        verify(restaurantService).updateRestaurant(eq(restaurantId), any(UpdateRestaurantRequest.class), isNull());
+        verify(restaurantService).updateRestaurant(eq(restaurantId), any(UpdateRestaurantRequest.class), isNull(), isNull());
     }
 
     private RestaurantResponse createRestaurantResponse(Long id, String name, String address) {

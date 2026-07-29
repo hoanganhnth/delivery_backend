@@ -37,6 +37,8 @@ class RestaurantControllerIntegrationTest {
 		request.setName("Integration Test Restaurant");
 		request.setAddress("123 Test Street");
 		request.setPhone("0123456789");
+		request.setAddressLat(10.78);
+		request.setAddressLng(106.69);
 
 		// When & Then
 		mockMvc.perform(post(ApiPathConstants.RESTAURANTS)
@@ -57,6 +59,8 @@ class RestaurantControllerIntegrationTest {
 		createRequest.setName("Test Restaurant");
 		createRequest.setAddress("Test Address");
 		createRequest.setPhone("0123456789");
+		createRequest.setAddressLat(10.78);
+		createRequest.setAddressLng(106.69);
 
 		// Create
 		String responseString = mockMvc.perform(post(ApiPathConstants.RESTAURANTS)

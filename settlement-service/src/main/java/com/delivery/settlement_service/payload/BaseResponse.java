@@ -7,7 +7,7 @@ public class BaseResponse<T> {
     private final String message;
     private final T data;
 
-    public BaseResponse(int status, String message, T data) {
+    public BaseResponse(int status, T data, String message) {
         this.status = status;
         this.message = message;
         this.data = data;
@@ -17,6 +17,22 @@ public class BaseResponse<T> {
         this.status = status;
         this.data = data;
         this.message = status == 1 ? "Thành công" : "Thất bại";
+    }
+
+    public static <T> BaseResponse<T> success(T data) {
+        return new BaseResponse<>(1, data);
+    }
+
+    public static <T> BaseResponse<T> success(T data, String message) {
+        return new BaseResponse<>(1, data, message);
+    }
+
+    public static <T> BaseResponse<T> failure(String message) {
+        return new BaseResponse<>(0, null, message);
+    }
+
+    public static <T> BaseResponse<T> failure(T data, String message) {
+        return new BaseResponse<>(0, data, message);
     }
 
     public int getStatus() {

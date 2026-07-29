@@ -9,11 +9,11 @@ Base Path: `/api/auth`
 |---|---|---|---|
 | `/register` | POST | Public | Register a new account |
 | `/login` | POST | Public | User login |
+| `/social-login` | POST | Public | Google login |
 | `/refresh-token` | POST | Public | Refresh JWT token |
 | `/logout` | POST | Public | Logout and invalidate token |
 | `/sessions` | GET | USER/ADMIN | Get active sessions for current user |
-| `/accounts/{id}` | GET | USER/ADMIN | Get account details by ID |
-| `/accounts/email/{email}` | GET | Internal | Get account details by email (Internal use) |
+| `/accounts/{id}` | GET | ADMIN | Get account details by ID |
 | `/admin/accounts` | GET | ADMIN | Get all accounts |
 | `/admin/accounts/{id}/block` | POST | ADMIN | Block an account |
 | `/admin/accounts/{id}/unblock` | POST | ADMIN | Unblock an account |
@@ -26,15 +26,15 @@ Base Paths: `/api/users`, `/api/addresses`
 ### Users API (`/api/users`)
 | Endpoint | Method | Role | Description |
 |---|---|---|---|
-| `/` | POST | USER | Create user profile |
+| `/` | POST | Internal | Provision user profile from auth-service |
 | `/` | GET | USER | Get current user profile |
 | `/by-auth/{authId}` | GET | Internal | Get user profile by Auth account ID |
-| `/{id}` | PUT | USER | Update user profile |
-| `/{id}` | DELETE | USER/ADMIN | Delete user profile |
+| `/` | PUT | USER | Update current user profile |
+| `/{id}` | DELETE | Hidden | Legacy delete API disabled pending deactivate/delete policy |
 | `/admin/statistics` | GET | ADMIN | Get user statistics |
 | `/admin/all` | GET | ADMIN | List all users |
-| `/admin/{userId}/block` | POST | ADMIN | Block a user |
-| `/admin/{userId}/unblock` | POST | ADMIN | Unblock a user |
+| `/admin/{userId}/block` | POST | Internal | Idempotent profile projection from auth-service |
+| `/admin/{userId}/unblock` | POST | Internal | Idempotent profile projection from auth-service |
 
 ### Addresses API (`/api/addresses`)
 | Endpoint | Method | Role | Description |
@@ -88,11 +88,10 @@ Base Path: `/api/orders`
 | `/my-orders` | GET | USER | List current user's orders |
 | `/restaurant/{restaurantId}` | GET | PARTNER/ADMIN | List orders for a restaurant |
 | `/my-restaurant-orders` | GET | PARTNER | List orders for current user's restaurants |
-| `/shipper/{shipperId}` | GET | SHIPPER/ADMIN | List orders assigned to a shipper |
 | `/status/{status}` | GET | ADMIN | Filter orders by status |
 | `/all` | GET | ADMIN | List all orders |
-| `/{id}/status` | PUT | PARTNER/SHIPPER/ADMIN | Update order status |
-| `/{orderId}/assign-shipper/{shipperId}` | PUT | ADMIN/Internal | Assign a shipper to an order |
+| `/{id}/status` | PUT | Disabled compatibility | Generic status mutation is not routed in the MVP |
+| `/{orderId}/assign-shipper/{shipperId}` | PUT | Disabled compatibility | Matching is owned by Saga/Kafka |
 | `/{id}/cancel` | PUT | USER/ADMIN | Cancel an order |
 
 ---
@@ -102,13 +101,14 @@ Base Path: `/api/deliveries`
 
 | Endpoint | Method | Role | Description |
 |---|---|---|---|
-| `/assign` | POST | Internal/ADMIN | Assign a delivery to a shipper |
 | `/accept` | POST | SHIPPER | Shipper accepts a delivery task |
+| `/cancel-assignment` | POST | SHIPPER | Cancel an accepted assignment before pickup and rematch |
+| `/offers/current` | GET | SHIPPER | Recover the authenticated shipper's single unexpired offer |
 | `/{id}` | GET | USER/SHIPPER/ADMIN | Get delivery details |
-| `/{id}/status` | PUT | SHIPPER/ADMIN | Update delivery status |
+| `/{id}/status` | PUT | SHIPPER self | Advance only `ASSIGNED -> PICKED_UP -> DELIVERING -> DELIVERED`; exact same-state retry is idempotent |
 | `/shipper/{shipperId}` | GET | SHIPPER/ADMIN | Get deliveries for a shipper |
-| `/shipper/{shipperId}/active` | GET | SHIPPER | Get active deliveries for a shipper |
-| `/order/{orderId}` | GET | Internal | Get delivery info by order ID |
+| `/shipper/{shipperId}/active` | GET | SHIPPER self/ADMIN | Get active deliveries for a shipper |
+| `/order/{orderId}` | GET | Owned USER/SHIPPER/SHOP_OWNER or ADMIN | Get delivery info by order ID |
 
 ---
 
@@ -183,8 +183,12 @@ Base Path: `/api/livestreams`
 
 ---
 
-## 11. Settlement Service (Port 8095)
+## 11. Settlement Service (Port 8090)
 Base Path: `/api/settlement`
+
+> COD MVP chỉ mở internal COD eligibility, Kafka `delivery.completed` và bốn
+> admin GET read-only qua Gateway. Các balance/transaction/payment endpoint bên
+> dưới là compatibility surface đang disabled mặc định, không phải public MVP API.
 
 ### Balances (`/api/settlement/balances`)
 | Endpoint | Method | Role | Description |

@@ -3,14 +3,15 @@ package com.delivery.delivery_service.controller;
 import com.delivery.delivery_service.common.constants.ApiPathConstants;
 import com.delivery.delivery_service.common.constants.HttpHeaderConstants;
 import com.delivery.delivery_service.dto.request.AcceptDeliveryRequest;
-import com.delivery.delivery_service.dto.request.AssignDeliveryRequest;
+import com.delivery.delivery_service.dto.request.CancelDeliveryAssignmentRequest;
 import com.delivery.delivery_service.dto.response.DeliveryResponse;
-import com.delivery.delivery_service.dto.response.DeliveryTrackingResponse;
+import com.delivery.delivery_service.dto.response.DeliveryOfferResponse;
 import com.delivery.delivery_service.entity.DeliveryStatus;
 import com.delivery.delivery_service.payload.BaseResponse;
 import com.delivery.delivery_service.service.DeliveryService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import jakarta.validation.Valid;
 
 import java.util.List;
 
@@ -25,35 +26,11 @@ public class DeliveryController {
     }
 
     /**
-     * POST /findNearbyShippers- Tìm shipper gần nhất
-     */
-    // @PostMapping("/findNearbyShippers")
-    // public ResponseEntity<BaseResponse<List<Long>>> findNearbyShippers(
-    //         @RequestBody AssignDeliveryRequest request,
-    //         @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId,
-    //         @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
-    //     List<Long> shipperIds = deliveryService.findNearbyShippers(request, userId, role);
-    //     return ResponseEntity.ok(new BaseResponse<>(1, shipperIds, "Tìm shipper gần nhất thành công"));
-    // }
-
-    /**
-     * POST /assign - Giao shipper với đơn hàng
-     */
-    @PostMapping("/assign")
-    public ResponseEntity<BaseResponse<DeliveryResponse>> assignDelivery(
-            @RequestBody AssignDeliveryRequest request,
-            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId,
-            @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
-        DeliveryResponse response = deliveryService.assignDelivery(request, userId, role);
-        return ResponseEntity.ok(new BaseResponse<>(1, response, "Phân công giao hàng thành công"));
-    }
-    
-    /**
      * ✅ POST /accept - Shipper nhận đơn hàng
      */
     @PostMapping("/accept")
     public ResponseEntity<BaseResponse<DeliveryResponse>> acceptDelivery(
-            @RequestBody AcceptDeliveryRequest request,
+            @Valid @RequestBody AcceptDeliveryRequest request,
             @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long shipperId,
             @RequestHeader(value = HttpHeaderConstants.X_ROLE) String role) {
         DeliveryResponse response = deliveryService.acceptDelivery(request, shipperId, role);
@@ -61,16 +38,29 @@ public class DeliveryController {
     }
 
     /**
-     * GET /delivery/:id/track - Lấy trạng thái đơn, vị trí shipper
+     * POST /deliveries/cancel-assignment - Shipper huỷ đơn SAU khi đã accept
+     * (chỉ khi chưa lấy hàng). Đơn được reset để tìm shipper mới.
+     * Body cần orderId và reason tuỳ chọn.
      */
-    // @GetMapping("/{id}/track")
-    // public ResponseEntity<BaseResponse<DeliveryTrackingResponse>> trackDelivery(
-    //         @PathVariable Long id,
-    //         @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId,
-    //         @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
-    //     DeliveryTrackingResponse response = deliveryService.getDeliveryTracking(id, userId, role);
-    //     return ResponseEntity.ok(new BaseResponse<>(1, response, "Lấy thông tin tracking thành công"));
-    // }
+    @PostMapping("/cancel-assignment")
+    public ResponseEntity<BaseResponse<DeliveryResponse>> cancelAssignedDelivery(
+            @Valid @RequestBody CancelDeliveryAssignmentRequest request,
+            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long shipperId,
+            @RequestHeader(value = HttpHeaderConstants.X_ROLE) String role) {
+        DeliveryResponse response = deliveryService.cancelAssignedDelivery(
+                request.getOrderId(), shipperId, role, request.getReason());
+        return ResponseEntity.ok(new BaseResponse<>(1, response, "Đã huỷ đơn, đang tìm shipper mới"));
+    }
+
+    /** Recover the authenticated shipper's single unexpired offer after reconnect. */
+    @GetMapping("/offers/current")
+    public ResponseEntity<BaseResponse<DeliveryOfferResponse>> getCurrentOffer(
+            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long shipperId,
+            @RequestHeader(value = HttpHeaderConstants.X_ROLE) String role) {
+        DeliveryOfferResponse response = deliveryService.getCurrentOffer(shipperId, role);
+        return ResponseEntity.ok(new BaseResponse<>(1, response,
+                response == null ? "Không có offer đang hoạt động" : "Lấy offer hiện tại thành công"));
+    }
 
     /**
      * GET /:id - Lấy thông tin delivery
@@ -83,19 +73,6 @@ public class DeliveryController {
         DeliveryResponse response = deliveryService.getDeliveryById(id, userId, role);
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Lấy thông tin delivery thành công"));
     }
-
-    /**
-     * PUT /:id/location - Cập nhật vị trí shipper
-     */
-    // @PutMapping("/{id}/location")
-    // public ResponseEntity<BaseResponse<DeliveryResponse>> updateLocation(
-    //         @PathVariable Long id,
-    //         @RequestBody UpdateLocationRequest request,
-    //         @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId,
-    //         @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
-    //     DeliveryResponse response = deliveryService.updateShipperLocation(id, request, userId, role);
-    //     return ResponseEntity.ok(new BaseResponse<>(1, response, "Cập nhật vị trí shipper thành công"));
-    // }
 
     /**
      * PUT /:id/status - Cập nhật trạng thái delivery
@@ -146,22 +123,4 @@ public class DeliveryController {
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Lấy thông tin delivery theo order thành công"));
     }
 
-    /**
-     * ✅ ADMIN: POST /admin/cancel-all-pending
-     * Huỷ tất cả delivery chưa hoàn thành (không phải DELIVERED/CANCELLED).
-     * Dùng để đồng bộ/cleanup dữ liệu cũ. Gọi thẳng từ Postman.
-     *
-     * Cách dùng:
-     * POST http://localhost:8085/api/deliveries/admin/cancel-all-pending
-     * Headers: (không cần)
-     * Body: (không cần)
-     *
-     * Response:
-     * { "totalFound": 5, "cancelled": 5, "details": ["ID 1 (ASSIGNED)", ...] }
-     */
-    @PostMapping("/admin/cancel-all-pending")
-    public ResponseEntity<BaseResponse<java.util.Map<String, Object>>> adminCancelAllPending() {
-        var result = deliveryService.adminCancelAllNonTerminalDeliveries();
-        return ResponseEntity.ok(new BaseResponse<>(1, result, "Đồng bộ hoàn tất"));
-    }
 }

@@ -25,5 +25,7 @@
         <module>livestream-service</module>
         <module>settlement-service</module>
         <module>flashsale-service</module>
+        <module>analytics-service</module>
+        <module>promotion-service</module>
     </modules>
 </project>

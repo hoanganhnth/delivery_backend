@@ -2,9 +2,16 @@ package com.delivery.auth_service.dto;
 
 import com.delivery.auth_service.entity.AuthSession.DeviceType;
 
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+
 public class LoginRequest {
+    @NotBlank
+    @Email
     private String email;
+    @NotBlank
     private String password;
+    @NotBlank
     private String deviceId;
     private String deviceName;
     private DeviceType deviceType; // giữ enum luôn

@@ -33,7 +33,7 @@ public class User {
     @Column(name = "auth_id", nullable = false, unique = true)
     private Long authId;
 
-    @Column(nullable = false)
+    @Column(nullable = false, unique = true)
     private String email;
 
     @Column(nullable = false)

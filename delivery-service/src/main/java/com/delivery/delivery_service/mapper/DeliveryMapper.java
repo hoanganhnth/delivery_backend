@@ -1,56 +1,92 @@
 package com.delivery.delivery_service.mapper;
 
 import com.delivery.delivery_service.common.constants.PricingConstants;
-import com.delivery.delivery_service.dto.request.AssignDeliveryRequest;
 import com.delivery.delivery_service.dto.response.DeliveryResponse;
-import com.delivery.delivery_service.dto.response.DeliveryTrackingResponse;
+import com.delivery.delivery_service.dto.response.DeliveryOfferResponse;
 import com.delivery.delivery_service.entity.Delivery;
-import org.mapstruct.Mapper;
-import org.mapstruct.Mapping;
-import org.mapstruct.Named;
-import org.mapstruct.NullValuePropertyMappingStrategy;
+import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 
-@Mapper(componentModel = "spring", nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
-public interface DeliveryMapper {
+@Component
+public class DeliveryMapper {
 
-    @Mapping(target = "id", ignore = true)
-    @Mapping(target = "createdAt", ignore = true)
-    @Mapping(target = "updatedAt", ignore = true)
-    @Mapping(target = "creatorId", ignore = true)
-    @Mapping(target = "assignedAt", ignore = true)
-    @Mapping(target = "pickedUpAt", ignore = true)
-    @Mapping(target = "deliveredAt", ignore = true)
-    @Mapping(target = "estimatedDeliveryTime", ignore = true)
-    @Mapping(target = "shipperCurrentLat", ignore = true)
-    @Mapping(target = "shipperCurrentLng", ignore = true)
-    @Mapping(target = "rejectReason", ignore = true)
-    @Mapping(target = "shippingFee", ignore = true)
-    @Mapping(target = "totalPrice", ignore = true)
-    @Mapping(target = "paymentMethod", ignore = true)
-    @Mapping(target = "restaurantId", ignore = true)
-    @Mapping(target = "status", expression = "java(com.delivery.delivery_service.entity.DeliveryStatus.ASSIGNED)")
-    Delivery assignRequestToDelivery(AssignDeliveryRequest request);
+    public DeliveryResponse deliveryToDeliveryResponse(Delivery delivery) {
+        if (delivery == null) {
+            return null;
+        }
 
-    @Mapping(target = "estimatedEarnings", source = "shippingFee", qualifiedByName = "calculateShipperEarnings")
-    @Mapping(target = "platformCommission", source = "shippingFee", qualifiedByName = "calculatePlatformCommission")
-    DeliveryResponse deliveryToDeliveryResponse(Delivery delivery);
+        DeliveryResponse response = new DeliveryResponse();
+        response.setEstimatedEarnings(calculateShipperEarnings(delivery.getShippingFee()));
+        response.setPlatformCommission(calculatePlatformCommission(delivery.getShippingFee()));
+        response.setId(delivery.getId());
+        response.setOrderId(delivery.getOrderId());
+        response.setShipperId(delivery.getShipperId());
+        response.setStatus(delivery.getStatus() == null ? null : delivery.getStatus().name());
+        response.setPickupAddress(delivery.getPickupAddress());
+        response.setPickupLat(delivery.getPickupLat());
+        response.setPickupLng(delivery.getPickupLng());
+        response.setDeliveryAddress(delivery.getDeliveryAddress());
+        response.setDeliveryLat(delivery.getDeliveryLat());
+        response.setDeliveryLng(delivery.getDeliveryLng());
+        response.setShipperCurrentLat(delivery.getShipperCurrentLat());
+        response.setShipperCurrentLng(delivery.getShipperCurrentLng());
+        response.setAssignedAt(delivery.getAssignedAt());
+        response.setPickedUpAt(delivery.getPickedUpAt());
+        response.setDeliveredAt(delivery.getDeliveredAt());
+        response.setEstimatedDeliveryTime(delivery.getEstimatedDeliveryTime());
+        response.setNotes(delivery.getNotes());
+        response.setCreatedAt(delivery.getCreatedAt());
+        response.setUpdatedAt(delivery.getUpdatedAt());
+        response.setShippingFee(delivery.getShippingFee());
+        response.setTotalPrice(delivery.getTotalPrice());
+        response.setPaymentMethod(delivery.getPaymentMethod());
+        response.setRestaurantId(delivery.getRestaurantId());
+        return response;
+    }
 
-    List<DeliveryResponse> deliveriesToDeliveryResponses(List<Delivery> deliveries);
+    public List<DeliveryResponse> deliveriesToDeliveryResponses(List<Delivery> deliveries) {
+        if (deliveries == null) {
+            return null;
+        }
 
-    @Mapping(source = "id", target = "deliveryId")
-    @Mapping(target = "distanceToDestination", ignore = true)
-    @Mapping(target = "estimatedMinutes", ignore = true)
-    @Mapping(target = "statusMessage", ignore = true)
-    DeliveryTrackingResponse deliveryToTrackingResponse(Delivery delivery);
+        List<DeliveryResponse> responses = new ArrayList<>(deliveries.size());
+        for (Delivery delivery : deliveries) {
+            responses.add(deliveryToDeliveryResponse(delivery));
+        }
+        return responses;
+    }
+
+    public DeliveryOfferResponse deliveryToOfferResponse(Delivery delivery) {
+        if (delivery == null) {
+            return null;
+        }
+
+        DeliveryOfferResponse response = new DeliveryOfferResponse();
+        response.setDeliveryId(delivery.getId());
+        response.setOrderId(delivery.getOrderId());
+        response.setStatus(delivery.getStatus() == null ? null : delivery.getStatus().name());
+        response.setExpiresAt(delivery.getOfferExpiresAt());
+        response.setPickupAddress(delivery.getPickupAddress());
+        response.setPickupLat(delivery.getPickupLat());
+        response.setPickupLng(delivery.getPickupLng());
+        response.setDeliveryAddress(delivery.getDeliveryAddress());
+        response.setDeliveryLat(delivery.getDeliveryLat());
+        response.setDeliveryLng(delivery.getDeliveryLng());
+        response.setShippingFee(delivery.getShippingFee());
+        response.setEstimatedEarnings(calculateShipperEarnings(delivery.getShippingFee()));
+        response.setTotalPrice(delivery.getTotalPrice());
+        response.setPaymentMethod(delivery.getPaymentMethod());
+        response.setRestaurantId(delivery.getRestaurantId());
+        return response;
+    }
 
     /**
      * ✅ Tính thu nhập shipper (85% của shipping fee)
      */
-    @Named("calculateShipperEarnings")
-    default BigDecimal calculateShipperEarnings(BigDecimal shippingFee) {
+    public BigDecimal calculateShipperEarnings(BigDecimal shippingFee) {
         if (shippingFee == null) {
             return BigDecimal.ZERO;
         }
@@ -60,8 +96,7 @@ public interface DeliveryMapper {
     /**
      * ✅ Tính hoa hồng platform (15% của shipping fee)
      */
-    @Named("calculatePlatformCommission")
-    default BigDecimal calculatePlatformCommission(BigDecimal shippingFee) {
+    public BigDecimal calculatePlatformCommission(BigDecimal shippingFee) {
         if (shippingFee == null) {
             return BigDecimal.ZERO;
         }

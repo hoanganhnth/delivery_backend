@@ -9,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 import java.time.LocalTime;
 import java.util.Collections;
@@ -17,6 +18,7 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 @Slf4j
+@ConditionalOnProperty(name = "app.flashsale.checkout-enabled", havingValue = "true")
 public class FlashSaleStockService {
     private final RedisTemplate<String, Object> redisTemplate;
     private final FlashSaleItemRepository itemRepo;
@@ -35,34 +37,25 @@ public class FlashSaleStockService {
             "    return 0\n" + // Not enough stock or not initialized
             "end";
 
-    // Lua script to atomically increment stock (release)
-    private static final String RELEASE_STOCK_SCRIPT =
-            "local stockKey = KEYS[1]\n" +
-            "local quantity = tonumber(ARGV[1])\n" +
-            "if redis.call('exists', stockKey) == 1 then\n" +
-            "    redis.call('incrby', stockKey, quantity)\n" +
-            "end\n" +
-            "return 1";
-
     public void reserveStock(List<ReserveItemRequest> requests) {
         for (ReserveItemRequest req : requests) {
             FlashSaleItem item = itemRepo.findById(req.getFlashSaleItemId())
-                    .orElseThrow(() -> new RuntimeException("Flash sale item not found"));
+                    .orElseThrow(() -> new IllegalArgumentException("Flash sale item not found"));
 
             // 1. Verify Price
             if (item.getFlashSalePrice().compareTo(req.getPrice()) != 0) {
-                throw new RuntimeException("Price mismatch for flash sale item");
+                throw new IllegalArgumentException("Price mismatch for flash sale item");
             }
 
             // 2. Verify Campaign Status and Time
             FlashSaleCampaign campaign = item.getCampaign();
             if (campaign.getStatus() != FlashSaleCampaign.CampaignStatus.ACTIVE) {
-                throw new RuntimeException("Flash sale campaign is not active");
+                throw new IllegalArgumentException("Flash sale campaign is not active");
             }
 
             LocalTime now = LocalTime.now();
             if (now.isBefore(campaign.getStartTime()) || now.isAfter(campaign.getEndTime())) {
-                throw new RuntimeException("Flash sale is outside active hours");
+                throw new IllegalArgumentException("Flash sale is outside active hours");
             }
 
             // 3. Atomically Reserve in Redis
@@ -74,7 +67,7 @@ public class FlashSaleStockService {
             Long result = redisTemplate.execute(redisScript, Collections.singletonList(key), String.valueOf(req.getQuantity()));
 
             if (result == null || result == 0) {
-                throw new RuntimeException("Out of stock for flash sale item " + item.getId());
+                throw new IllegalArgumentException("Out of stock for flash sale item " + item.getId());
             }
 
             // (Optional in real high scale) Send to Kafka to decrement DB asynchronously
@@ -85,18 +78,4 @@ public class FlashSaleStockService {
         }
     }
 
-    public void releaseStock(Long flashSaleItemId, Integer quantity) {
-        String key = STOCK_KEY_PREFIX + flashSaleItemId;
-        DefaultRedisScript<Long> redisScript = new DefaultRedisScript<>();
-        redisScript.setScriptText(RELEASE_STOCK_SCRIPT);
-        redisScript.setResultType(Long.class);
-
-        redisTemplate.execute(redisScript, Collections.singletonList(key), String.valueOf(quantity));
-
-        itemRepo.findById(flashSaleItemId).ifPresent(item -> {
-            item.setSoldQuantity(Math.max(0, item.getSoldQuantity() - quantity));
-            itemRepo.save(item);
-            log.info("Released {} stock for item {} in Redis and DB", quantity, flashSaleItemId);
-        });
-    }
 }

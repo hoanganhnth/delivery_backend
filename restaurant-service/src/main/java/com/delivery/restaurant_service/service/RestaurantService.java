@@ -14,9 +14,10 @@ public interface RestaurantService {
 
     RestaurantResponse updateRestaurant(Long id,
                                         UpdateRestaurantRequest restaurant,
-                                        Long creatorId);
+                                        Long creatorId,
+                                        String role);
 
-    void deleteRestaurant(Long id, Long creatorId);
+    void deleteRestaurant(Long id, Long creatorId, String role);
 
     RestaurantResponse getRestaurantById(Long id);
 

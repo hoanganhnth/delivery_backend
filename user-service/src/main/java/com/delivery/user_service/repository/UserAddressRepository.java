@@ -6,14 +6,15 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 import java.util.Optional;
 
 public interface UserAddressRepository extends JpaRepository<UserAddress, Long> {
-    List<UserAddress> findByUserIdOrderByCreatedAtDesc(Long userId);
-    
-    Optional<UserAddress> findByUserIdAndIsDefaultTrue(Long userId);
+    List<UserAddress> findByUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable);
+
+    Optional<UserAddress> findFirstByUserIdOrderByCreatedAtDesc(Long userId);
     
     @Modifying
     @Transactional

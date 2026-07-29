@@ -2,13 +2,26 @@ package com.delivery.shipper_service.dto.request;
 
 import lombok.Getter;
 import lombok.Setter;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 public class CreateShipperRequest {
     // private Long userId;
+    @NotBlank
+    @Size(max = 100)
+    private String fullName;
+    @NotBlank
+    @Size(max = 50)
     private String vehicleType;
+    @NotBlank
+    @Size(max = 50)
     private String licenseNumber;
+    @NotBlank
+    @Size(max = 20)
     private String idCard;
     private String driverImage;
+    @NotBlank
+    @Size(max = 15)
     private String phone;
     private String idCardFrontImage;
     private String idCardBackImage;
@@ -27,6 +40,14 @@ public class CreateShipperRequest {
     }
 
     // Getters and Setters
+    public String getFullName() {
+        return fullName;
+    }
+
+    public void setFullName(String fullName) {
+        this.fullName = fullName;
+    }
+
     public String getVehicleType() {
         return vehicleType;
     }

@@ -33,10 +33,12 @@ public class ShipperControllerTest {
     @Test
     public void testCreateShipper() throws Exception {
         CreateShipperRequest request = new CreateShipperRequest();
+        request.setFullName("Test Shipper");
         // request.setUserId(1L);
         request.setVehicleType("MOTORBIKE");
         request.setLicenseNumber("B1-123456");
         request.setIdCard("123456789");
+        request.setPhone("0901234567");
 
         ShipperResponse response = new ShipperResponse();
         response.setId(1L);
@@ -55,7 +57,7 @@ public class ShipperControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request))
                 .header("X-User-Id", "1")
-                .header("X-Role", "USER"))
+                .header("X-Role", "SHIPPER"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value(1))
                 .andExpect(jsonPath("$.data.userId").value(1))
@@ -72,7 +74,8 @@ public class ShipperControllerTest {
 
         when(shipperService.getShipperById(1L)).thenReturn(response);
 
-        mockMvc.perform(get("/api/shippers/1"))
+        mockMvc.perform(get("/api/shippers/1")
+                .header("X-Role", "ADMIN"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value(1))
                 .andExpect(jsonPath("$.data.id").value(1))

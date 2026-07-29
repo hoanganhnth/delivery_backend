@@ -3,6 +3,8 @@ package com.delivery.tracking_service.websocket;
 import com.delivery.tracking_service.dto.response.ShipperLocationResponse;
 import com.delivery.tracking_service.repository.RedisGeoRepository;
 import com.delivery.tracking_service.service.ShipperLocationEventPublisher;
+import com.delivery.tracking_service.service.DeliveryTrackingAccessClient;
+import com.delivery.tracking_service.service.ShipperPublisherSessionManager;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,6 +17,7 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.time.LocalDateTime;
 
 @Component
 public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
@@ -26,30 +29,62 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
 
     // Lưu trữ session theo shipper đang theo dõi
     private final Map<String, Set<String>> shipperSubscriptions = new ConcurrentHashMap<>();
+    private final Map<String, PublisherLease> publisherLeases = new ConcurrentHashMap<>();
+    private final Map<Long, String> localPublisherSessions = new ConcurrentHashMap<>();
 
     private final ObjectMapper objectMapper;
     private final RedisGeoRepository redisGeoRepository;
     private final ShipperLocationEventPublisher eventPublisher;
+    private final DeliveryTrackingAccessClient trackingAccessClient;
+    private final ShipperPublisherSessionManager publisherSessionManager;
 
     public ShipperLocationWebSocketHandler(ObjectMapper objectMapper, 
                                            RedisGeoRepository redisGeoRepository,
-                                           ShipperLocationEventPublisher eventPublisher) {
+                                           ShipperLocationEventPublisher eventPublisher,
+                                           DeliveryTrackingAccessClient trackingAccessClient,
+                                           ShipperPublisherSessionManager publisherSessionManager) {
         this.objectMapper = objectMapper;
         this.redisGeoRepository = redisGeoRepository;
         this.eventPublisher = eventPublisher;
+        this.trackingAccessClient = trackingAccessClient;
+        this.publisherSessionManager = publisherSessionManager;
     }
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws Exception {
+        if (authenticatedUserId(session) == null || authenticatedRole(session) == null) {
+            session.close(CloseStatus.POLICY_VIOLATION.withReason("Authentication required"));
+            return;
+        }
         String sessionId = session.getId();
         activeSessions.put(sessionId, session);
+        Long userId = authenticatedUserId(session);
+        PublisherLease lease = null;
+        if ("SHIPPER".equals(authenticatedRole(session))) {
+            try {
+                lease = publisherSessionManager.acquire(userId, sessionId);
+                publisherLeases.put(sessionId, lease);
+                String previousSessionId = localPublisherSessions.put(userId, sessionId);
+                if (previousSessionId != null && !previousSessionId.equals(sessionId)) {
+                    supersedeLocalPublisher(previousSessionId);
+                }
+            } catch (Exception exception) {
+                activeSessions.remove(sessionId);
+                log.error("Cannot acquire publisher generation for shipper {}", userId, exception);
+                session.close(CloseStatus.SERVER_ERROR.withReason("Publisher lease unavailable"));
+                return;
+            }
+        }
         log.info("✅ WebSocket connected: sessionId={}", sessionId);
 
         // Gửi thông báo kết nối thành công
-        Map<String, Object> welcomeMessage = Map.of(
-                "type", "connection_established",
-                "sessionId", sessionId,
-                "message", "Connected to shipper location tracking");
+        Map<String, Object> welcomeMessage = new java.util.HashMap<>();
+        welcomeMessage.put("type", "connection_established");
+        welcomeMessage.put("sessionId", sessionId);
+        welcomeMessage.put("message", "Connected to shipper location tracking");
+        if (lease != null) {
+            welcomeMessage.put("publisherGeneration", lease.generation());
+        }
 
         session.sendMessage(new TextMessage(objectMapper.writeValueAsString(welcomeMessage)));
     }
@@ -66,7 +101,7 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
             String action = (String) clientMessage.get("action");
 
             if (action == null) {
-                log.warn("⚠️ Received message without 'action' field from session {}: {}", sessionId, payload);
+                log.warn("⚠️ Received WebSocket message without 'action' field from session {}", sessionId);
                 return;
             }
 
@@ -78,12 +113,20 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
                     handleUnsubscribeShipper(session, clientMessage);
                     break;
                 case "subscribe_area":
-                    handleSubscribeArea(session, clientMessage);
+                    sendError(session, "FORBIDDEN", "Area tracking is not available in MVP");
                     break;
                 case "update_location":
-                    handleUpdateLocation(session, clientMessage);
+                    if ("SHIPPER".equals(authenticatedRole(session))) {
+                        handleUpdateLocation(session, clientMessage);
+                    } else {
+                        sendError(session, "FORBIDDEN", "Only shippers can update location");
+                    }
                     break;
                 case "ping":
+                    if ("SHIPPER".equals(authenticatedRole(session))
+                            && !ensureCurrentPublisher(session)) {
+                        return;
+                    }
                     // Respond to heartbeat ping from clients
                     Map<String, Object> pongResponse = Map.of(
                             "type", "pong",
@@ -94,40 +137,49 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
                     log.warn("⚠️ Unknown action: {} from session: {}", action, sessionId);
             }
 
+        } catch (IllegalArgumentException e) {
+            log.warn("⚠️ Invalid WebSocket message from session {}: {}", sessionId, e.getMessage());
+            if (session.isOpen()) {
+                sendError(session, "MESSAGE_PROCESSING_FAILED", "Unable to process message");
+            }
         } catch (Exception e) {
             log.error("💥 Error processing WebSocket message from session {}: {}", sessionId, e.getMessage(), e);
+            if (session.isOpen()) {
+                sendError(session, "MESSAGE_PROCESSING_FAILED", "Unable to process message");
+            }
         }
     }
 
     private void handleUpdateLocation(WebSocketSession session, Map<String, Object> message) throws Exception {
-        Long shipperId = ((Number) message.get("shipperId")).longValue();
+        if (!ensureCurrentPublisher(session)) {
+            return;
+        }
+        Long shipperId = authenticatedUserId(session);
+        Double latitude = requiredFiniteNumberInRange(message, "latitude", -90.0, 90.0);
+        Double longitude = requiredFiniteNumberInRange(message, "longitude", -180.0, 180.0);
 
         ShipperLocationResponse response = new ShipperLocationResponse();
         response.setShipperId(shipperId);
-        response.setLatitude((Double) message.get("latitude"));
-        response.setLongitude((Double) message.get("longitude"));
-        response.setAccuracy((Double) message.getOrDefault("accuracy", 0.0));
-        response.setSpeed((Double) message.getOrDefault("speed", 0.0));
-        response.setHeading((Double) message.getOrDefault("heading", 0.0));
-        response.setIsOnline((Boolean) message.getOrDefault("isOnline", true));
-        response.setUpdatedAt((String) message.get("timestamp"));
-        response.setLastPing((String) message.get("timestamp"));
+        response.setLatitude(latitude);
+        response.setLongitude(longitude);
+        response.setAccuracy(optionalFiniteNumber(message, "accuracy"));
+        response.setSpeed(optionalFiniteNumber(message, "speed"));
+        response.setHeading(optionalFiniteNumber(message, "heading"));
+        response.setIsOnline(optionalBoolean(message, "isOnline", true));
+        String serverTimestamp = LocalDateTime.now().toString();
+        response.setUpdatedAt(serverTimestamp);
+        response.setLastPing(serverTimestamp);
 
         // Lưu vào Redis
         redisGeoRepository.cacheShipperLocation(shipperId, response);
 
         // Publish qua Kafka cho Match Service
-        try {
-            eventPublisher.publishLocationUpdate(
-                    shipperId, response.getLatitude(), response.getLongitude(), response.getIsOnline());
-            log.debug("📤 [WS] Published location to Kafka `shipper.location-updated` for shipper {}", shipperId);
-        } catch (Exception e) {
-            log.error("💥 Failed to publish shipper location via Kafka: {}", e.getMessage());
-        }
+        eventPublisher.publishLocationUpdate(
+                shipperId, response.getLatitude(), response.getLongitude(), response.getIsOnline());
+        log.debug("📤 [WS] Published location to Kafka `shipper.location-updated` for shipper {}", shipperId);
 
         // Broadcast tới subscribers
         broadcastShipperLocation(response);
-        broadcastAreaLocationUpdate(response);
 
         log.info("📍 [WS] Updated location for shipper {}: ({}, {}) + broadcasted",
                 shipperId, response.getLatitude(), response.getLongitude());
@@ -135,24 +187,36 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
 
     private void handleSubscribeShipper(WebSocketSession session, Map<String, Object> message) throws Exception {
         String sessionId = session.getId();
-        Object shipperIdObj = message.get("shipperId");
+        Long shipperIdValue = requiredLong(message, "shipperId");
+        Long deliveryId = requiredLong(message, "deliveryId");
+        Long userId = authenticatedUserId(session);
+        String role = authenticatedRole(session);
+        boolean allowed;
+        try {
+            allowed = trackingAccessClient.canTrack(deliveryId, userId, role, shipperIdValue);
+        } catch (Exception e) {
+            log.error("Tracking authorization unavailable for delivery {}", deliveryId, e);
+            sendError(session, "AUTHORIZATION_UNAVAILABLE", "Cannot verify delivery participant");
+            return;
+        }
+        if (!allowed) {
+            sendError(session, "FORBIDDEN", "Not a participant of this active delivery");
+            return;
+        }
+        String shipperId = shipperIdValue.toString();
 
-        if (shipperIdObj != null) {
-            String shipperId = String.valueOf(shipperIdObj);
+        // Thêm session vào danh sách theo dõi shipper này
+        shipperSubscriptions.computeIfAbsent(shipperId, k -> ConcurrentHashMap.newKeySet()).add(sessionId);
 
-            // Thêm session vào danh sách theo dõi shipper này
-            shipperSubscriptions.computeIfAbsent(shipperId, k -> ConcurrentHashMap.newKeySet()).add(sessionId);
-
-            log.info("📍 Session {} subscribed to shipper {}", sessionId, shipperId);
+        log.info("📍 Session {} subscribed to shipper {}", sessionId, shipperId);
 
             // Gửi phản hồi xác nhận
-            Map<String, Object> response = Map.of(
-                    "type", "subscription_confirmed",
-                    "shipperId", shipperId,
-                    "message", "Subscribed to shipper " + shipperId);
+        Map<String, Object> response = Map.of(
+                "type", "subscription_confirmed",
+                "shipperId", shipperId,
+                "message", "Subscribed to shipper " + shipperId);
 
-            session.sendMessage(new TextMessage(objectMapper.writeValueAsString(response)));
-        }
+        session.sendMessage(new TextMessage(objectMapper.writeValueAsString(response)));
     }
 
     private void handleUnsubscribeShipper(WebSocketSession session, Map<String, Object> message) throws Exception {
@@ -183,30 +247,96 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
         }
     }
 
-    private void handleSubscribeArea(WebSocketSession session, Map<String, Object> message) throws Exception {
-        String sessionId = session.getId();
-        Double latitude = (Double) message.get("latitude");
-        Double longitude = (Double) message.get("longitude");
-        Double radius = (Double) message.get("radius");
+    private Long authenticatedUserId(WebSocketSession session) {
+        Object value = session.getAttributes().get("authenticatedUserId");
+        return value instanceof Number number ? number.longValue() : null;
+    }
 
-        if (latitude != null && longitude != null && radius != null) {
-            // Lưu thông tin area subscription cho session này
-            session.getAttributes().put("area_lat", latitude);
-            session.getAttributes().put("area_lng", longitude);
-            session.getAttributes().put("area_radius", radius);
+    private String authenticatedRole(WebSocketSession session) {
+        Object value = session.getAttributes().get("authenticatedRole");
+        return value instanceof String role ? role : null;
+    }
 
-            log.info("🌍 Session {} subscribed to area: ({}, {}) radius {}km",
-                    sessionId, latitude, longitude, radius);
+    private Double requiredNumber(Map<String, Object> message, String field) {
+        Object value = message.get(field);
+        if (!(value instanceof Number number)) {
+            throw new IllegalArgumentException(field + " must be numeric");
+        }
+        return number.doubleValue();
+    }
 
-            // Gửi phản hồi xác nhận
-            Map<String, Object> response = Map.of(
-                    "type", "area_subscription_confirmed",
-                    "latitude", latitude,
-                    "longitude", longitude,
-                    "radius", radius,
-                    "message", "Subscribed to area tracking");
+    private Double requiredFiniteNumberInRange(Map<String, Object> message, String field, double min, double max) {
+        Double value = requiredNumber(message, field);
+        if (!Double.isFinite(value) || value < min || value > max) {
+            throw new IllegalArgumentException(field + " is invalid");
+        }
+        return value;
+    }
 
-            session.sendMessage(new TextMessage(objectMapper.writeValueAsString(response)));
+    private Long requiredLong(Map<String, Object> message, String field) {
+        Object value = message.get(field);
+        if (!(value instanceof Number number)) {
+            throw new IllegalArgumentException(field + " must be numeric");
+        }
+        long parsed = number.longValue();
+        if (parsed <= 0) {
+            throw new IllegalArgumentException(field + " must be positive");
+        }
+        return parsed;
+    }
+
+    private Double optionalFiniteNumber(Map<String, Object> message, String field) {
+        Object value = message.get(field);
+        if (value == null) {
+            return null;
+        }
+        Double parsed = requiredNumber(message, field);
+        if (!Double.isFinite(parsed)) {
+            throw new IllegalArgumentException(field + " is invalid");
+        }
+        return parsed;
+    }
+
+    private Boolean optionalBoolean(Map<String, Object> message, String field, boolean defaultValue) {
+        if (!message.containsKey(field)) {
+            return defaultValue;
+        }
+        Object value = message.get(field);
+        if (value instanceof Boolean booleanValue) {
+            return booleanValue;
+        }
+        throw new IllegalArgumentException(field + " must be boolean");
+    }
+
+    private void sendError(WebSocketSession session, String code, String message) throws Exception {
+        session.sendMessage(new TextMessage(objectMapper.writeValueAsString(Map.of(
+                "type", "error", "code", code, "message", message))));
+    }
+
+    private boolean ensureCurrentPublisher(WebSocketSession session) throws Exception {
+        PublisherLease lease = publisherLeases.get(session.getId());
+        if (lease != null && publisherSessionManager.refreshIfCurrent(lease)) {
+            return true;
+        }
+        sendError(session, "PUBLISHER_SUPERSEDED", "A newer shipper location session is active");
+        session.close(CloseStatus.POLICY_VIOLATION.withReason("Publisher superseded"));
+        return false;
+    }
+
+    private void supersedeLocalPublisher(String previousSessionId) {
+        WebSocketSession previous = activeSessions.get(previousSessionId);
+        if (previous == null || !previous.isOpen()) {
+            return;
+        }
+        try {
+            sendError(previous, "PUBLISHER_SUPERSEDED", "A newer shipper location session is active");
+        } catch (Exception exception) {
+            log.debug("Cannot notify superseded publisher session {}", previousSessionId, exception);
+        }
+        try {
+            previous.close(CloseStatus.POLICY_VIOLATION.withReason("Publisher superseded"));
+        } catch (Exception exception) {
+            log.debug("Cannot close superseded publisher session {}", previousSessionId, exception);
         }
     }
 
@@ -214,6 +344,13 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) throws Exception {
         String sessionId = session.getId();
         activeSessions.remove(sessionId);
+        PublisherLease lease = publisherLeases.remove(sessionId);
+        if (lease != null) {
+            localPublisherSessions.remove(lease.shipperId(), sessionId);
+            publisherSessionManager.disconnected(lease, offline -> {
+                broadcastShipperLocation(offline);
+            });
+        }
 
         // Xóa tất cả subscription của session này
         shipperSubscriptions.values().forEach(subscribers -> subscribers.remove(sessionId));
@@ -238,9 +375,10 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
                 locationUpdate.put("latitude", location.getLatitude());
                 locationUpdate.put("longitude", location.getLongitude());
                 locationUpdate.put("isOnline", location.getIsOnline() != null ? location.getIsOnline() : false);
-                locationUpdate.put("speed", location.getSpeed() != null ? location.getSpeed() : 0.0);
-                locationUpdate.put("heading", location.getHeading() != null ? location.getHeading() : 0.0);
-                locationUpdate.put("timestamp", location.getUpdatedAt() != null ? location.getUpdatedAt() : "");
+                locationUpdate.put("accuracy", location.getAccuracy());
+                locationUpdate.put("speed", location.getSpeed());
+                locationUpdate.put("heading", location.getHeading());
+                locationUpdate.put("timestamp", location.getUpdatedAt());
 
                 String message = objectMapper.writeValueAsString(locationUpdate);
 
@@ -265,74 +403,4 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
         }
     }
 
-    /**
-     * Broadcast tới tất cả client đang theo dõi area
-     */
-    public void broadcastAreaLocationUpdate(ShipperLocationResponse location) {
-        if (location.getLatitude() == null || location.getLongitude() == null) {
-            return;
-        }
-
-        try {
-            // Sử dụng HashMap thay vì Map.of() để tránh NullPointerException
-            Map<String, Object> locationUpdate = new java.util.HashMap<>();
-            locationUpdate.put("type", "area_location_update");
-            locationUpdate.put("shipperId", location.getShipperId());
-            locationUpdate.put("latitude", location.getLatitude());
-            locationUpdate.put("longitude", location.getLongitude());
-            locationUpdate.put("isOnline", location.getIsOnline() != null ? location.getIsOnline() : false);
-            locationUpdate.put("speed", location.getSpeed() != null ? location.getSpeed() : 0.0);
-            locationUpdate.put("heading", location.getHeading() != null ? location.getHeading() : 0.0);
-            locationUpdate.put("timestamp", location.getUpdatedAt() != null ? location.getUpdatedAt() : "");
-
-            String message = objectMapper.writeValueAsString(locationUpdate);
-
-            // Gửi tới các session có area subscription và shipper nằm trong vùng
-            activeSessions.values().forEach(session -> {
-                if (session.isOpen() && isLocationInSessionArea(session, location)) {
-                    try {
-                        session.sendMessage(new TextMessage(message));
-                    } catch (Exception e) {
-                        log.error("💥 Error sending area location update to session {}: {}",
-                                session.getId(), e.getMessage());
-                    }
-                }
-            });
-
-        } catch (Exception e) {
-            log.error("💥 Error broadcasting area location update: {}", e.getMessage(), e);
-        }
-    }
-
-    private boolean isLocationInSessionArea(WebSocketSession session, ShipperLocationResponse location) {
-        Map<String, Object> attributes = session.getAttributes();
-
-        Double areaLat = (Double) attributes.get("area_lat");
-        Double areaLng = (Double) attributes.get("area_lng");
-        Double areaRadius = (Double) attributes.get("area_radius");
-
-        if (areaLat != null && areaLng != null && areaRadius != null) {
-            // Tính khoảng cách đơn giản (có thể dùng formula chính xác hơn)
-            double distance = calculateDistance(areaLat, areaLng, location.getLatitude(), location.getLongitude());
-            return distance <= areaRadius;
-        }
-
-        return false;
-    }
-
-    private double calculateDistance(double lat1, double lng1, double lat2, double lng2) {
-        // Haversine formula để tính khoảng cách
-        final int R = 6371; // Radius của trái đất (km)
-
-        double latDistance = Math.toRadians(lat2 - lat1);
-        double lngDistance = Math.toRadians(lng2 - lng1);
-
-        double a = Math.sin(latDistance / 2) * Math.sin(latDistance / 2)
-                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
-                        * Math.sin(lngDistance / 2) * Math.sin(lngDistance / 2);
-
-        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-        return R * c;
-    }
 }

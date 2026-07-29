@@ -10,6 +10,7 @@ import com.delivery.livestream_service.payload.BaseResponse;
 import com.delivery.livestream_service.service.LivestreamService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -17,6 +18,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping(ApiPathConstants.LIVESTREAMS)
+@ConditionalOnProperty(name = "app.livestream.api-enabled", havingValue = "true")
 public class LivestreamController {
 
     private final LivestreamService livestreamService;

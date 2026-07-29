@@ -7,6 +7,7 @@ import com.delivery.settlement_service.payment.dto.PaymentVerifyResult;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -21,13 +22,14 @@ import java.util.*;
  * Docs: https://sandbox.vnpayment.vn/apis/docs/thanh-toan-pay/pay.html
  */
 @Component
+@ConditionalOnProperty(name = "app.payment.processing-enabled", havingValue = "true")
 @Slf4j
 public class VnPayProvider implements PaymentProvider {
 
-    @Value("${payment.vnpay.tmn-code:DEMO_TMN_CODE}")
+    @Value("${payment.vnpay.tmn-code:}")
     private String tmnCode;
 
-    @Value("${payment.vnpay.hash-secret:DEMO_HASH_SECRET}")
+    @Value("${payment.vnpay.hash-secret:}")
     private String hashSecret;
 
     @Value("${payment.vnpay.pay-url:https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}")
@@ -45,6 +47,7 @@ public class VnPayProvider implements PaymentProvider {
     @Override
     public PaymentResult createPayment(PaymentRequest request) {
         try {
+            requireCredentials();
             log.info("🏦 [VNPay] Creating payment: ref={}, amount={}", request.getPaymentRef(), request.getAmount());
 
             Map<String, String> vnpParams = new TreeMap<>();
@@ -78,9 +81,16 @@ public class VnPayProvider implements PaymentProvider {
         }
     }
 
+    private void requireCredentials() {
+        if (tmnCode == null || tmnCode.isBlank() || hashSecret == null || hashSecret.isBlank()) {
+            throw new IllegalStateException("VNPay credentials are not configured");
+        }
+    }
+
     @Override
     public PaymentVerifyResult verifyPayment(Map<String, String> params) {
         try {
+            requireCredentials();
             log.info("🔍 [VNPay] Verifying callback params...");
 
             String vnpSecureHash = params.get("vnp_SecureHash");

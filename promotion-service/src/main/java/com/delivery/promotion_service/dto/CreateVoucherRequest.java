@@ -18,7 +18,6 @@ public class CreateVoucherRequest {
     private String name;
     private String description;
 
-    @NotNull
     private Voucher.CreatorType creatorType;
     private Long creatorId;
 

@@ -10,11 +10,14 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.core.*;
 import org.springframework.kafka.listener.ContainerProperties;
-import org.springframework.kafka.support.serializer.JsonDeserializer;
+import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
+import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.kafka.support.serializer.JsonSerializer;
 
 import java.util.HashMap;
 import java.util.Map;
+import org.apache.kafka.common.TopicPartition;
+import org.springframework.util.backoff.FixedBackOff;
 
 /**
  * ✅ Kafka Configuration cho Notification Service theo Backend Instructions
@@ -22,11 +25,18 @@ import java.util.Map;
 @Configuration
 public class KafkaConfig {
 
-    @Value("${spring.kafka.bootstrap-servers}")
-    private String bootstrapServers;
+    private final String bootstrapServers;
+    private final String groupId;
+    private final boolean listenerAutoStartup;
 
-    @Value("${spring.kafka.consumer.group-id}")
-    private String groupId;
+    public KafkaConfig(
+            @Value("${spring.kafka.bootstrap-servers:localhost:9092}") String bootstrapServers,
+            @Value("${spring.kafka.consumer.group-id:notification-service}") String groupId,
+            @Value("${spring.kafka.listener.auto-startup:true}") boolean listenerAutoStartup) {
+        this.bootstrapServers = bootstrapServers;
+        this.groupId = groupId;
+        this.listenerAutoStartup = listenerAutoStartup;
+    }
 
     @Bean
     public ProducerFactory<String, Object> producerFactory() {
@@ -56,19 +66,42 @@ public class KafkaConfig {
         props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+        props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
 
         return new DefaultKafkaConsumerFactory<>(props);
     }
 
     @Bean
-    public ConcurrentKafkaListenerContainerFactory<String, Object> kafkaListenerContainerFactory() {
+    public ConcurrentKafkaListenerContainerFactory<String, Object> kafkaListenerContainerFactory(
+            DefaultErrorHandler notificationKafkaErrorHandler) {
         ConcurrentKafkaListenerContainerFactory<String, Object> factory = new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(consumerFactory());
-        // factory.setAutoStartup(false); //NEED REMOVE
+        factory.setAutoStartup(listenerAutoStartup);
 
         // Enable manual acknowledgment for better control
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
 
+        factory.setCommonErrorHandler(notificationKafkaErrorHandler);
+
         return factory;
+    }
+
+    @Bean
+    public DeadLetterPublishingRecoverer notificationDeadLetterRecoverer(
+            KafkaTemplate<String, Object> kafkaTemplate) {
+        DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(
+                kafkaTemplate,
+                (record, exception) -> new TopicPartition(
+                        record.topic() + ".DLT", record.partition()));
+        recoverer.setFailIfSendResultIsError(true);
+        return recoverer;
+    }
+
+    @Bean
+    public DefaultErrorHandler notificationKafkaErrorHandler(
+            DeadLetterPublishingRecoverer recoverer) {
+        DefaultErrorHandler handler = new DefaultErrorHandler(recoverer, new FixedBackOff(1000L, 2));
+        handler.setCommitRecovered(true);
+        return handler;
     }
 }

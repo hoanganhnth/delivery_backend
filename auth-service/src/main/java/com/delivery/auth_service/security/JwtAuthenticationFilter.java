@@ -1,7 +1,6 @@
 package com.delivery.auth_service.security;
 
 import java.io.IOException;
-import java.util.Enumeration;
 import java.util.Set;
 
 import org.springframework.lang.NonNull;
@@ -30,6 +29,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private static final Set<String> PUBLIC_PATHS = Set.of(
             "/api/auth/login",
             "/api/auth/register",
+            "/api/auth/social-login",
             "/api/auth/refresh-token",
             "/api/auth/logout",
             "/error");
@@ -44,11 +44,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             @NonNull HttpServletRequest request,
             @NonNull HttpServletResponse response,
             @NonNull FilterChain filterChain) throws ServletException, IOException {
-        Enumeration<String> headerNames = request.getHeaderNames();
-        while (headerNames.hasMoreElements()) {
-            String name = headerNames.nextElement();
-            System.out.println(name + ": " + request.getHeader(name));
-        }
         String path = request.getRequestURI();
 
         if (PUBLIC_PATHS.contains(path)) {
@@ -57,10 +52,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         String authHeader = request.getHeader("Authorization");
-        logger.info("Authorization header: " + authHeader);
 
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            logger.warn("No Bearer token found, skipping filter");
             filterChain.doFilter(request, response);
             return;
         }

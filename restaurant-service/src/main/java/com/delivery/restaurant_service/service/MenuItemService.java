@@ -12,9 +12,9 @@ public interface MenuItemService {
                                     Long creatorId,
                                     String role);
 
-    MenuItemResponse updateMenuItem(Long id, UpdateMenuItemRequest request, Long creatorId);
+    MenuItemResponse updateMenuItem(Long id, UpdateMenuItemRequest request, Long creatorId, String role);
 
-    void deleteMenuItem(Long id, Long creatorId);
+    void deleteMenuItem(Long id, Long creatorId, String role);
 
     List<MenuItemResponse> getItemsByRestaurant(Long restaurantId);
 

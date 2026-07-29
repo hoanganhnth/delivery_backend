@@ -19,6 +19,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -26,6 +27,7 @@ import java.util.Map;
 import java.util.UUID;
 
 @Service
+@ConditionalOnProperty(name = "app.payment.processing-enabled", havingValue = "true")
 @RequiredArgsConstructor
 @Slf4j
 public class PaymentServiceImpl implements PaymentService {
@@ -35,7 +37,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final TransactionService transactionService;
     private final com.delivery.settlement_service.service.PaymentEventPublisher paymentEventPublisher;
 
-    @Value("${payment.default-provider:FAKE}")
+    @Value("${payment.default-provider:VNPAY}")
     private String defaultProvider;
 
     @Value("${payment.order-expiry-minutes:15}")

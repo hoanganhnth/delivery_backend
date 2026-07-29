@@ -9,6 +9,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -20,6 +21,7 @@ import java.util.Set;
 @RequestMapping("/api/settlement/payments")
 @RequiredArgsConstructor
 @Slf4j
+@ConditionalOnProperty(name = "app.payment.processing-enabled", havingValue = "true")
 public class PaymentController {
 
     private final PaymentService paymentService;
@@ -44,7 +46,7 @@ public class PaymentController {
         }
 
         PaymentOrderResponse response = paymentService.createPayment(request);
-        return ResponseEntity.ok(new BaseResponse<>(1, "Payment created", response));
+        return ResponseEntity.ok(BaseResponse.success(response, "Payment created"));
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -60,10 +62,10 @@ public class PaymentController {
 
         log.info("📨 VNPay callback received: {}", params.get("vnp_TxnRef"));
         PaymentOrderResponse response = paymentService.handleCallback("VNPAY", params);
-        return ResponseEntity.ok(new BaseResponse<>(
-                "SUCCESS".equals(response.getStatus()) ? 1 : 0,
-                "SUCCESS".equals(response.getStatus()) ? "Thanh toán thành công" : "Thanh toán thất bại",
-                response));
+        String message = "SUCCESS".equals(response.getStatus())
+                ? "Thanh toán thành công"
+                : "Thanh toán thất bại";
+        return ResponseEntity.ok(BaseResponse.success(response, message));
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -95,22 +97,6 @@ public class PaymentController {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // FAKE PAYMENT CONFIRM (dev/test)
-    // ═══════════════════════════════════════════════════════════════
-
-    /**
-     * Auto-confirm fake payment — gọi endpoint này để simulate thanh toán thành công
-     */
-    @GetMapping("/fake-confirm/{paymentRef}")
-    public ResponseEntity<BaseResponse<PaymentOrderResponse>> fakeConfirm(
-            @PathVariable String paymentRef) {
-
-        log.info("🎭 Fake confirm: ref={}", paymentRef);
-        PaymentOrderResponse response = paymentService.confirmFakePayment(paymentRef);
-        return ResponseEntity.ok(new BaseResponse<>(1, "Fake payment confirmed", response));
-    }
-
-    // ═══════════════════════════════════════════════════════════════
     // QUERY
     // ═══════════════════════════════════════════════════════════════
 
@@ -122,7 +108,7 @@ public class PaymentController {
             @PathVariable Long paymentId) {
 
         PaymentOrderResponse response = paymentService.getPaymentStatus(paymentId);
-        return ResponseEntity.ok(new BaseResponse<>(1, response));
+        return ResponseEntity.ok(BaseResponse.success(response));
     }
 
     /**
@@ -133,7 +119,7 @@ public class PaymentController {
             @PathVariable String paymentRef) {
 
         PaymentOrderResponse response = paymentService.getPaymentByRef(paymentRef);
-        return ResponseEntity.ok(new BaseResponse<>(1, response));
+        return ResponseEntity.ok(BaseResponse.success(response));
     }
 
     /**
@@ -142,7 +128,7 @@ public class PaymentController {
     @GetMapping("/providers")
     public ResponseEntity<BaseResponse<Set<String>>> getAvailableProviders() {
         Set<String> providers = providerRegistry.getAvailableProviders();
-        return ResponseEntity.ok(new BaseResponse<>(1, "Available providers", providers));
+        return ResponseEntity.ok(BaseResponse.success(providers, "Available providers"));
     }
 
     // ═══════════════════════════════════════════════════════════════

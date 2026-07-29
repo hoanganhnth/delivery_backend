@@ -1,5 +1,9 @@
 # 🚀 **Match Service - Event-Driven Integration**
 
+> Historical document: examples using `delivery.find-shipper` are obsolete.
+> Canonical matching input is `saga.command.find-shipper`; see
+> `docs/workflows/delivery_matching_tracking.md`.
+
 ## 📋 **Architecture Overview**
 
 ```mermaid

@@ -28,12 +28,6 @@ public interface TransactionService {
                                  BigDecimal amount, String description, WalletType walletType);
 
     /**
-     * Helper: Earn from order (creates CREDIT transaction with ORDER_EARNING/DELIVERY_FEE reason)
-     */
-    Transaction earnFromOrder(Long entityId, EntityType entityType, Long orderId,
-                             BigDecimal amount, String description);
-
-    /**
      * Request withdrawal from EARNINGS wallet (creates PENDING DEBIT transaction)
      */
     Transaction requestWithdrawal(Long entityId, EntityType entityType,

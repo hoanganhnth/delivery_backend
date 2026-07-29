@@ -1,0 +1,177 @@
+package com.delivery.order_service.service;
+
+import com.delivery.order_service.dto.event.RestaurantEvent;
+import com.delivery.order_service.entity.Order;
+import com.delivery.order_service.entity.OrderItem;
+import com.delivery.order_service.entity.OrderStatus;
+import com.delivery.order_service.repository.OrderItemRepository;
+import com.delivery.order_service.repository.OrderRepository;
+import com.delivery.order_service.repository.RestaurantDecisionReceiptRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.transaction.support.TransactionTemplate;
+
+import java.math.BigDecimal;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+@SpringBootTest
+@ActiveProfiles("test")
+class OrderOutboxTransactionIntegrationTest {
+
+    @Autowired OrderRepository orderRepository;
+    @Autowired OrderItemRepository orderItemRepository;
+    @Autowired com.delivery.order_service.repository.OutboxEventRepository outboxRepository;
+    @Autowired RestaurantDecisionReceiptRepository restaurantDecisionReceiptRepository;
+    @Autowired OrderEventPublisher eventPublisher;
+    @Autowired OrderEventService orderEventService;
+    @Autowired OrderService orderService;
+    @Autowired TransactionTemplate transactionTemplate;
+    @Autowired ObjectMapper objectMapper;
+
+    @BeforeEach
+    void clean() {
+        outboxRepository.deleteAll();
+        restaurantDecisionReceiptRepository.deleteAll();
+        orderItemRepository.deleteAll();
+        orderRepository.deleteAll();
+    }
+
+    @Test
+    void readOrderMapsLazyItemsInsideReadOnlyServiceTransaction() {
+        Order order = transactionTemplate.execute(status -> {
+            Order stored = orderRepository.save(newOrder());
+            OrderItem item = new OrderItem();
+            item.setOrder(stored);
+            item.setMenuItemId(99L);
+            item.setMenuItemName("Canonical item");
+            item.setQuantity(2);
+            item.setPrice(new BigDecimal("50000"));
+            orderItemRepository.save(item);
+            return stored;
+        });
+
+        var response = orderService.getOrderById(order.getId(), order.getUserId(), "USER");
+
+        assertThat(response.getItems()).singleElement().satisfies(item -> {
+            assertThat(item.getMenuItemId()).isEqualTo(99L);
+            assertThat(item.getMenuItemName()).isEqualTo("Canonical item");
+            assertThat(item.getQuantity()).isEqualTo(2);
+        });
+    }
+
+    @Test
+    void orderAndEventCommitAtomically() throws Exception {
+        transactionTemplate.executeWithoutResult(status -> {
+            Order order = orderRepository.save(newOrder());
+            eventPublisher.publishOrderCreatedEvent(order);
+        });
+
+        assertThat(orderRepository.count()).isEqualTo(1);
+        assertThat(outboxRepository.count()).isEqualTo(1);
+        var outbox = outboxRepository.findAll().get(0);
+        var payload = objectMapper.readTree(outbox.getPayload());
+        assertThat(outbox.getEventType()).isEqualTo("ORDER_CREATED");
+        assertThat(payload.path("eventId").asText()).isEqualTo(outbox.getEventId().toString());
+        assertThat(payload.path("orderId").asLong()).isPositive();
+    }
+
+    @Test
+    void rollbackRemovesBothOrderAndOutboxEvent() {
+        assertThatThrownBy(() -> transactionTemplate.executeWithoutResult(status -> {
+            Order order = orderRepository.save(newOrder());
+            eventPublisher.publishOrderCreatedEvent(order);
+            throw new DeliberateRollback();
+        })).isInstanceOf(DeliberateRollback.class);
+
+        assertThat(orderRepository.count()).isZero();
+        assertThat(outboxRepository.count()).isZero();
+    }
+
+    @Test
+    void restaurantRejectionCommitsReceiptOrderAndCancellationOutboxAtomically() throws Exception {
+        Order order = orderRepository.save(newOrder());
+        RestaurantEvent event = restaurantRejection(order, UUID.randomUUID());
+
+        orderEventService.handleRestaurantRejected(event);
+        orderEventService.handleRestaurantRejected(event);
+
+        Order stored = orderRepository.findById(order.getId()).orElseThrow();
+        assertThat(stored.getStatus()).isEqualTo(OrderStatus.CANCELLED);
+        assertThat(stored.getCancelReason()).isEqualTo("Rejected by restaurant: Kitchen closed");
+        var receipt = restaurantDecisionReceiptRepository.findById(event.getEventId()).orElseThrow();
+        assertThat(receipt.getOrderId()).isEqualTo(order.getId());
+        assertThat(receipt.getDecision()).isEqualTo("REJECTED");
+        assertThat(outboxRepository.findAll()).singleElement().satisfies(outbox -> {
+            assertThat(outbox.getTopic()).isEqualTo("order.cancelled");
+            try {
+                var payload = objectMapper.readTree(outbox.getPayload());
+                assertThat(payload.path("orderId").asLong()).isEqualTo(order.getId());
+                assertThat(payload.path("cancelledBy").asLong()).isEqualTo(event.getActorUserId());
+                assertThat(payload.path("cancelledBy").asLong()).isNotEqualTo(order.getRestaurantId());
+            } catch (Exception e) {
+                throw new AssertionError(e);
+            }
+        });
+    }
+
+    @Test
+    void lateRestaurantConfirmationRecordsReceiptWithoutRegressingSagaAdvancedOrder() {
+        Order candidate = newOrder();
+        candidate.setStatus(OrderStatus.FINDING_SHIPPER);
+        Order order = orderRepository.save(candidate);
+        RestaurantEvent event = new RestaurantEvent();
+        event.setEventId(UUID.randomUUID());
+        event.setOrderId(order.getId());
+        event.setRestaurantId(order.getRestaurantId());
+        event.setActorUserId(70L);
+        event.setStatus("CONFIRMED");
+        event.setAction("CONFIRM");
+
+        orderEventService.handleRestaurantConfirmed(event);
+
+        assertThat(restaurantDecisionReceiptRepository.findById(event.getEventId()))
+                .hasValueSatisfying(receipt -> {
+                    assertThat(receipt.getOrderId()).isEqualTo(order.getId());
+                    assertThat(receipt.getDecision()).isEqualTo("CONFIRMED");
+                });
+        assertThat(orderRepository.findById(order.getId()).orElseThrow().getStatus())
+                .isEqualTo(OrderStatus.FINDING_SHIPPER);
+        assertThat(outboxRepository.count()).isZero();
+    }
+
+    private Order newOrder() {
+        Order order = new Order();
+        order.setUserId(10L);
+        order.setCreatorId(20L);
+        order.setRestaurantId(30L);
+        order.setStatus(OrderStatus.PENDING);
+        order.setPaymentMethod("COD");
+        order.setSubtotalPrice(new BigDecimal("100000"));
+        order.setDiscountAmount(BigDecimal.ZERO);
+        order.setShippingFee(new BigDecimal("15000"));
+        order.setTotalPrice(new BigDecimal("115000"));
+        return order;
+    }
+
+    private RestaurantEvent restaurantRejection(Order order, UUID eventId) {
+        RestaurantEvent event = new RestaurantEvent();
+        event.setEventId(eventId);
+        event.setOrderId(order.getId());
+        event.setRestaurantId(order.getRestaurantId());
+        event.setActorUserId(70L);
+        event.setStatus("REJECTED");
+        event.setAction("REJECT");
+        event.setRejectionReason("Kitchen closed");
+        return event;
+    }
+
+    private static final class DeliberateRollback extends RuntimeException {
+    }
+}

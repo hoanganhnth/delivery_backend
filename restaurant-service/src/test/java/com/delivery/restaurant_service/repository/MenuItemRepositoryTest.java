@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.math.BigDecimal;
@@ -60,7 +61,8 @@ class MenuItemRepositoryTest {
     @Test
     void findByRestaurantId_ShouldReturnAllMenuItems_WhenRestaurantExists() {
         // When
-        List<MenuItem> menuItems = menuItemRepository.findByRestaurantId(restaurant.getId());
+        List<MenuItem> menuItems = menuItemRepository.findByRestaurantId(
+                restaurant.getId(), PageRequest.of(0, 100));
 
         // Then
         assertNotNull(menuItems);
@@ -72,7 +74,8 @@ class MenuItemRepositoryTest {
     @Test
     void findByRestaurantId_ShouldReturnEmptyList_WhenRestaurantNotExists() {
         // When
-        List<MenuItem> menuItems = menuItemRepository.findByRestaurantId(999L);
+        List<MenuItem> menuItems = menuItemRepository.findByRestaurantId(
+                999L, PageRequest.of(0, 100));
 
         // Then
         assertNotNull(menuItems);
@@ -82,7 +85,8 @@ class MenuItemRepositoryTest {
     @Test
     void findByRestaurantIdAndAvailableTrue_ShouldReturnOnlyAvailableItems() {
         // When
-        List<MenuItem> availableItems = menuItemRepository.findByRestaurantIdAndStatus(restaurant.getId(), MenuItem.Status.AVAILABLE);
+        List<MenuItem> availableItems = menuItemRepository.findByRestaurantIdAndStatus(
+                restaurant.getId(), MenuItem.Status.AVAILABLE, PageRequest.of(0, 100));
 
         // Then
         assertNotNull(availableItems);
@@ -98,7 +102,8 @@ class MenuItemRepositoryTest {
         entityManager.persistAndFlush(menuItem1);
 
         // When
-        List<MenuItem> availableItems = menuItemRepository.findByRestaurantIdAndStatus(restaurant.getId(), MenuItem.Status.AVAILABLE);
+        List<MenuItem> availableItems = menuItemRepository.findByRestaurantIdAndStatus(
+                restaurant.getId(), MenuItem.Status.AVAILABLE, PageRequest.of(0, 100));
 
         // Then
         assertNotNull(availableItems);

@@ -27,6 +27,10 @@ public class EventValidationService {
         List<String> errors = new ArrayList<>();
         
         // Validate required fields
+        if (event.getEventId() == null) {
+            errors.add("Event ID không được null");
+        }
+
         if (event.getOrderId() == null || event.getOrderId() <= 0) {
             errors.add("Order ID không được null hoặc <= 0");
         }
@@ -37,6 +41,10 @@ public class EventValidationService {
         
         if (event.getRestaurantId() == null || event.getRestaurantId() <= 0) {
             errors.add("Restaurant ID không được null hoặc <= 0");
+        }
+
+        if (event.getCreatorId() == null || event.getCreatorId() <= 0) {
+            errors.add("Restaurant owner ID không được null hoặc <= 0");
         }
         
         if (event.getStatus() == null || event.getStatus().trim().isEmpty()) {
@@ -51,9 +59,24 @@ public class EventValidationService {
         if (event.getTotalPrice() == null || event.getTotalPrice().compareTo(BigDecimal.ZERO) <= 0) {
             errors.add("Total price phải lớn hơn 0");
         }
+
+        if (event.getShippingFee() == null || event.getShippingFee().compareTo(BigDecimal.ZERO) <= 0) {
+            errors.add("Shipping fee phải lớn hơn 0");
+        }
+
+        if (event.getDiscountAmount() == null || event.getDiscountAmount().compareTo(BigDecimal.ZERO) != 0) {
+            errors.add("Discount amount phải bằng 0 trong COD MVP");
+        }
         
-        if (event.getPaymentMethod() == null || event.getPaymentMethod().trim().isEmpty()) {
-            errors.add("Payment method không được null hoặc rỗng");
+        if (!"COD".equals(event.getPaymentMethod())) {
+            errors.add("Payment method phải là COD trong MVP");
+        }
+
+        if (event.getSubtotalPrice() != null && event.getShippingFee() != null
+                && event.getDiscountAmount() != null && event.getTotalPrice() != null
+                && event.getTotalPrice().compareTo(event.getSubtotalPrice()
+                        .add(event.getShippingFee()).subtract(event.getDiscountAmount())) != 0) {
+            errors.add("Total price không khớp subtotal + shipping fee - discount");
         }
         
         // Validate address fields
@@ -78,21 +101,11 @@ public class EventValidationService {
         //     errors.add("Customer phone phải là 10-11 chữ số");
         // }
         
-        // Validate coordinates if present
-        if (event.getDeliveryLat() != null && (event.getDeliveryLat() < -90 || event.getDeliveryLat() > 90)) {
-            errors.add("Delivery latitude phải trong khoảng -90 đến 90");
-        }
-        
-        if (event.getDeliveryLng() != null && (event.getDeliveryLng() < -180 || event.getDeliveryLng() > 180)) {
-            errors.add("Delivery longitude phải trong khoảng -180 đến 180");
-        }
-        
-        if (event.getPickupLat() != null && (event.getPickupLat() < -90 || event.getPickupLat() > 90)) {
-            errors.add("Pickup latitude phải trong khoảng -90 đến 90");
-        }
-        
-        if (event.getPickupLng() != null && (event.getPickupLng() < -180 || event.getPickupLng() > 180)) {
-            errors.add("Pickup longitude phải trong khoảng -180 đến 180");
+        if (!isFiniteInRange(event.getDeliveryLat(), 8.0, 24.0)
+                || !isFiniteInRange(event.getPickupLat(), 8.0, 24.0)
+                || !isFiniteInRange(event.getDeliveryLng(), 102.0, 110.0)
+                || !isFiniteInRange(event.getPickupLng(), 102.0, 110.0)) {
+            errors.add("Pickup/delivery coordinates phải có đủ và nằm trong phạm vi Việt Nam");
         }
         
         // if (event.getCreatedAt() == null) {
@@ -110,19 +123,9 @@ public class EventValidationService {
         
         return ValidationResult.invalid(errorMessage);
     }
-    
-    /**
-     * Validate critical fields only (for fallback processing)
-     */
-    public boolean hasMinimumRequiredFields(OrderCreatedEvent event) {
-        if (event == null) return false;
-        
-        return event.getOrderId() != null 
-            && event.getUserId() != null 
-            && event.getRestaurantId() != null
-            && event.getDeliveryAddress() != null
-            && event.getCustomerName() != null
-            && event.getCustomerPhone() != null;
+
+    private boolean isFiniteInRange(Double value, double min, double max) {
+        return value != null && Double.isFinite(value) && value >= min && value <= max;
     }
     
     /**

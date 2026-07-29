@@ -14,6 +14,7 @@ import com.delivery.settlement_service.service.TransactionService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -21,6 +22,7 @@ import java.math.BigDecimal;
 @RestController
 @RequestMapping("/api/settlement/balances")
 @RequiredArgsConstructor
+@ConditionalOnProperty(name = "app.settlement.self-service-api-enabled", havingValue = "true")
 public class BalanceController {
 
     private final BalanceService balanceService;
@@ -33,7 +35,7 @@ public class BalanceController {
     @GetMapping("/restaurant/{entityId}")
     public ResponseEntity<BaseResponse<BalanceResponse>> getRestaurantBalance(@PathVariable Long entityId) {
         BalanceResponse balance = balanceService.getBalance(entityId, EntityType.RESTAURANT);
-        return ResponseEntity.ok(new BaseResponse<>(1, balance));
+        return ResponseEntity.ok(BaseResponse.success(balance));
     }
 
     /**
@@ -42,7 +44,7 @@ public class BalanceController {
     @GetMapping("/shipper/{entityId}")
     public ResponseEntity<BaseResponse<BalanceResponse>> getShipperBalance(@PathVariable Long entityId) {
         BalanceResponse balance = balanceService.getBalance(entityId, EntityType.SHIPPER);
-        return ResponseEntity.ok(new BaseResponse<>(1, balance));
+        return ResponseEntity.ok(BaseResponse.success(balance));
     }
 
     /**
@@ -51,7 +53,7 @@ public class BalanceController {
     @GetMapping("/restaurant/{entityId}/earnings")
     public ResponseEntity<BaseResponse<BigDecimal>> getRestaurantEarnings(@PathVariable Long entityId) {
         BigDecimal earnings = balanceService.getTotalEarnings(entityId, EntityType.RESTAURANT);
-        return ResponseEntity.ok(new BaseResponse<>(1, earnings));
+        return ResponseEntity.ok(BaseResponse.success(earnings));
     }
 
     /**
@@ -60,7 +62,7 @@ public class BalanceController {
     @GetMapping("/shipper/{entityId}/earnings")
     public ResponseEntity<BaseResponse<BigDecimal>> getShipperEarnings(@PathVariable Long entityId) {
         BigDecimal earnings = balanceService.getTotalEarnings(entityId, EntityType.SHIPPER);
-        return ResponseEntity.ok(new BaseResponse<>(1, earnings));
+        return ResponseEntity.ok(BaseResponse.success(earnings));
     }
 
     /**
@@ -75,8 +77,8 @@ public class BalanceController {
         Transaction transaction = transactionService.requestWithdrawal(
                 entityId, EntityType.RESTAURANT, request.getAmount(), userId);
 
-        return ResponseEntity.ok(new BaseResponse<>(1, "Withdrawal request submitted",
-                transactionMapper.toResponse(transaction)));
+        return ResponseEntity.ok(BaseResponse.success(
+                transactionMapper.toResponse(transaction), "Withdrawal request submitted"));
     }
 
     /**
@@ -91,8 +93,8 @@ public class BalanceController {
         Transaction transaction = transactionService.requestWithdrawal(
                 entityId, EntityType.SHIPPER, request.getAmount(), userId);
 
-        return ResponseEntity.ok(new BaseResponse<>(1, "Withdrawal request submitted",
-                transactionMapper.toResponse(transaction)));
+        return ResponseEntity.ok(BaseResponse.success(
+                transactionMapper.toResponse(transaction), "Withdrawal request submitted"));
     }
 
     /**
@@ -106,8 +108,8 @@ public class BalanceController {
         Transaction transaction = transactionService.holdBalance(
                 entityId, request.getAmount(), request.getDescription());
 
-        return ResponseEntity.ok(new BaseResponse<>(1, "Balance held successfully",
-                transactionMapper.toResponse(transaction)));
+        return ResponseEntity.ok(BaseResponse.success(
+                transactionMapper.toResponse(transaction), "Balance held successfully"));
     }
 
     /**
@@ -121,8 +123,8 @@ public class BalanceController {
         Transaction transaction = transactionService.releaseBalance(
                 entityId, request.getAmount(), request.getDescription());
 
-        return ResponseEntity.ok(new BaseResponse<>(1, "Balance released successfully",
-                transactionMapper.toResponse(transaction)));
+        return ResponseEntity.ok(BaseResponse.success(
+                transactionMapper.toResponse(transaction), "Balance released successfully"));
     }
 
     /**
@@ -136,8 +138,8 @@ public class BalanceController {
         Transaction transaction = transactionService.topUpDeposit(
                 entityId, EntityType.SHIPPER, request.getAmount(), request.getPaymentMethod());
 
-        return ResponseEntity.ok(new BaseResponse<>(1, "Deposit topped up successfully",
-                transactionMapper.toResponse(transaction)));
+        return ResponseEntity.ok(BaseResponse.success(
+                transactionMapper.toResponse(transaction), "Deposit topped up successfully"));
     }
 
     /**
@@ -154,44 +156,7 @@ public class BalanceController {
                 ? "Shipper eligible for COD order"
                 : "Insufficient deposit balance for COD order";
 
-        return ResponseEntity.ok(new BaseResponse<>(eligible ? 1 : 0, message, eligible));
+        return ResponseEntity.ok(BaseResponse.success(eligible, message));
     }
 
-    /**
-     * Recalculate balance from transactions (admin/debug)
-     */
-    @PostMapping("/restaurant/{entityId}/recalculate")
-    public ResponseEntity<BaseResponse<BalanceResponse>> recalculateRestaurantBalance(
-            @PathVariable Long entityId,
-            @RequestHeader(value = "X-Role", required = false) String role) {
-
-        if (!"ADMIN".equals(role)) {
-            return ResponseEntity.status(403)
-                    .body(new BaseResponse<>(0, "Only ADMIN can recalculate balances", null));
-        }
-
-        balanceService.recalculateBalance(entityId, EntityType.RESTAURANT);
-        BalanceResponse balance = balanceService.getBalance(entityId, EntityType.RESTAURANT);
-
-        return ResponseEntity.ok(new BaseResponse<>(1, "Balance recalculated", balance));
-    }
-
-    /**
-     * Recalculate shipper balance from transactions (admin/debug)
-     */
-    @PostMapping("/shipper/{entityId}/recalculate")
-    public ResponseEntity<BaseResponse<BalanceResponse>> recalculateShipperBalance(
-            @PathVariable Long entityId,
-            @RequestHeader(value = "X-Role", required = false) String role) {
-
-        if (!"ADMIN".equals(role)) {
-            return ResponseEntity.status(403)
-                    .body(new BaseResponse<>(0, "Only ADMIN can recalculate balances", null));
-        }
-
-        balanceService.recalculateBalance(entityId, EntityType.SHIPPER);
-        BalanceResponse balance = balanceService.getBalance(entityId, EntityType.SHIPPER);
-
-        return ResponseEntity.ok(new BaseResponse<>(1, "Balance recalculated", balance));
-    }
 }

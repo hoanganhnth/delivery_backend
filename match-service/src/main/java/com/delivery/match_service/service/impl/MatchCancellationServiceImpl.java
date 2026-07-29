@@ -1,6 +1,7 @@
 package com.delivery.match_service.service.impl;
 
 import com.delivery.match_service.service.MatchCancellationService;
+import com.delivery.match_service.repository.MatchRedisGeoRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
@@ -15,9 +16,12 @@ public class MatchCancellationServiceImpl implements MatchCancellationService {
     private static final Duration CANCEL_TTL = Duration.ofHours(2);
 
     private final RedisTemplate<String, Object> redisTemplate;
+    private final MatchRedisGeoRepository matchRedisGeoRepository;
 
-    public MatchCancellationServiceImpl(RedisTemplate<String, Object> redisTemplate) {
+    public MatchCancellationServiceImpl(RedisTemplate<String, Object> redisTemplate,
+                                        MatchRedisGeoRepository matchRedisGeoRepository) {
         this.redisTemplate = redisTemplate;
+        this.matchRedisGeoRepository = matchRedisGeoRepository;
     }
 
     @Override
@@ -29,22 +33,9 @@ public class MatchCancellationServiceImpl implements MatchCancellationService {
         String key = CANCEL_KEY_PREFIX + deliveryId;
         try {
             redisTemplate.opsForValue().set(key, Boolean.TRUE, CANCEL_TTL);
+            matchRedisGeoRepository.releaseOfferForDelivery(deliveryId);
         } catch (Exception e) {
-            log.warn("⚠️ Could not write cancel flag to Redis for deliveryId={}: {}", deliveryId, e.getMessage());
-        }
-    }
-
-    @Override
-    public void clearCancelled(Long deliveryId) {
-        if (deliveryId == null) {
-            return;
-        }
-
-        String key = CANCEL_KEY_PREFIX + deliveryId;
-        try {
-            redisTemplate.delete(key);
-        } catch (Exception e) {
-            log.warn("⚠️ Could not clear cancel flag in Redis for deliveryId={}: {}", deliveryId, e.getMessage());
+            throw new IllegalStateException("Cannot persist matching cancellation", e);
         }
     }
 
@@ -65,9 +56,7 @@ public class MatchCancellationServiceImpl implements MatchCancellationService {
             }
             return Boolean.parseBoolean(String.valueOf(v));
         } catch (Exception e) {
-            // Fail-open: nếu Redis lỗi, vẫn tiếp tục matching (tránh block hệ thống)
-            log.warn("⚠️ Could not read cancel flag from Redis for deliveryId={}: {}", deliveryId, e.getMessage());
-            return false;
+            throw new IllegalStateException("Cannot verify matching cancellation", e);
         }
     }
 }

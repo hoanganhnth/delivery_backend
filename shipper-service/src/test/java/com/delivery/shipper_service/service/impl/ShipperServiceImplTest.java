@@ -9,11 +9,19 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.ArgumentCaptor;
+import org.springframework.data.domain.Pageable;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 
 @ExtendWith(MockitoExtension.class)
 public class ShipperServiceImplTest {
@@ -52,5 +60,33 @@ public class ShipperServiceImplTest {
         assertEquals(shipperId, result.getId());
         assertEquals("MOTORBIKE", result.getVehicleType());
         assertTrue(result.getIsOnline());
+    }
+
+    @Test
+    void onlineCompatibilityListUsesBoundedRepositoryQuery() {
+        when(shipperRepository.findByIsOnline(eq(true), any(Pageable.class))).thenReturn(List.of());
+
+        assertTrue(shipperService.getOnlineShippers().isEmpty());
+
+        ArgumentCaptor<Pageable> pageable = ArgumentCaptor.forClass(Pageable.class);
+        verify(shipperRepository).findByIsOnline(eq(true), pageable.capture());
+        assertEquals(0, pageable.getValue().getPageNumber());
+        assertEquals(100, pageable.getValue().getPageSize());
+    }
+
+    @Test
+    void createShipperRejectsNullIdentityBeforeRepositoryAccess() {
+        assertThrows(IllegalArgumentException.class,
+                () -> shipperService.createShipper(null, null, "SHIPPER"));
+
+        verifyNoInteractions(shipperRepository, shipperMapper);
+    }
+
+    @Test
+    void updateOnlineStatusRejectsNullFlagBeforeRepositoryAccess() {
+        assertThrows(IllegalArgumentException.class,
+                () -> shipperService.updateOnlineStatusByUserId(7L, null));
+
+        verifyNoInteractions(shipperRepository, shipperMapper);
     }
 }

@@ -35,38 +35,40 @@ public class SagaCommandListener {
         this.orderEventService = orderEventService;
         this.orderService = orderService;
         this.objectMapper = new ObjectMapper()
-                .registerModule(com.fasterxml.jackson.datatype.jsr310.JavaTimeModule.class.getName().equals("") ? null : new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule())
+                .registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule())
                 .configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     }
 
-    @KafkaListener(topics = "saga.command.update-order-status", groupId = "order-service")
-    public void handleUpdateOrderStatusCommand(String message, Acknowledgment acknowledgment) {
+    @KafkaListener(topics = "${app.kafka.input-topics.saga-update-order-status:saga.command.update-order-status}")
+    public void handleUpdateOrderStatusCommand(JsonNode json, Acknowledgment acknowledgment) {
         try {
-            JsonNode json = objectMapper.readTree(message);
+            if (json == null || !json.isObject()) {
+                throw new IllegalArgumentException("Saga command must be a JSON object");
+            }
             Long orderId = json.has("orderId") ? json.get("orderId").asLong() : null;
+            String eventId = json.hasNonNull("eventId") ? json.get("eventId").asText() : null;
             String sagaStatus = json.has("sagaStatus") ? json.get("sagaStatus").asText() : "";
             String originalEvent = json.has("originalEvent") ? json.get("originalEvent").asText() : "{}";
 
             log.info("📥 [Order] Saga command: update-order-status — orderId={}, sagaStatus={}",
                     orderId, sagaStatus);
 
-            if (orderId == null) {
-                log.error("💥 Invalid command: orderId is null");
-                acknowledgment.acknowledge();
-                return;
+            if (orderId == null || orderId <= 0 || eventId == null) {
+                throw new IllegalArgumentException(
+                        "Invalid command: stable eventId and positive orderId are required");
             }
+            java.util.UUID.fromString(eventId);
+            JsonNode originalJson = parseOriginalEventTree(originalEvent);
+            requireMatchingOrderIdentity(originalJson, orderId);
 
             // Delegate thẳng vào service dựa trên sagaStatus
             switch (sagaStatus) {
                 // ===== Delivery status updates =====
-                case "PICKED_UP", "DELIVERING", "DELIVERED", "CANCELLED" -> {
-                    DeliveryStatusUpdatedEvent deliveryEvent = parseOriginalEvent(originalEvent,
-                            DeliveryStatusUpdatedEvent.class);
-                    if (deliveryEvent != null) {
-                        deliveryEvent.setOrderId(orderId);
-                        deliveryEvent.setStatus(sagaStatus);
-                        orderEventService.handleDeliveryStatusUpdate(deliveryEvent);
-                    }
+                case "FINDING_SHIPPER", "WAIT_SHIPPER_CONFIRM",
+                        "PICKED_UP", "DELIVERING", "DELIVERED", "CANCELLED" -> {
+                    DeliveryStatusUpdatedEvent deliveryEvent = deliveryStatusEvent(
+                            originalJson, orderId, sagaStatus);
+                    orderEventService.handleDeliveryStatusUpdate(deliveryEvent);
                 }
 
                 // ===== Shipper events =====
@@ -79,25 +81,24 @@ public class SagaCommandListener {
                 }
 
                 case "SHIPPER_FOUND" -> {
-                    // Update order status to reflect shipper found
-                    log.info("✅ [Order] Order {} — shipper found, status update handled", orderId);
+                    DeliveryStatusUpdatedEvent deliveryEvent = deliveryStatusEvent(
+                            originalJson, orderId, "WAIT_SHIPPER_CONFIRM");
+                    orderEventService.handleDeliveryStatusUpdate(deliveryEvent);
                 }
 
                 case "SHIPPER_NOT_FOUND" -> {
-                    ShipperNotFoundEvent notFoundEvent = new ShipperNotFoundEvent();
-                    notFoundEvent.setOrderId(orderId);
-                    // Parse deliveryId from original event
-                    try {
-                        JsonNode origJson = objectMapper.readTree(originalEvent);
-                        if (origJson.has("deliveryId") && !origJson.get("deliveryId").isNull()) {
-                            notFoundEvent.setDeliveryId(origJson.get("deliveryId").asLong());
-                        }
-                    } catch (Exception ignored) {
+                    ShipperNotFoundEvent notFoundEvent = parseOriginalEvent(
+                            originalEvent, ShipperNotFoundEvent.class);
+                    if (notFoundEvent.getDeliveryId() == null || notFoundEvent.getDeliveryId() <= 0) {
+                        throw new IllegalArgumentException(
+                                "SHIPPER_NOT_FOUND command requires a positive deliveryId");
                     }
+                    notFoundEvent.setOrderId(orderId);
                     orderService.updateOrderStatusFromShipperNotFoundEvent(notFoundEvent);
                 }
 
-                default -> log.warn("⚠️ [Order] Unknown sagaStatus: {} for orderId={}", sagaStatus, orderId);
+                default -> throw new IllegalArgumentException(
+                        "Unknown sagaStatus: " + sagaStatus + " for orderId=" + orderId);
             }
 
             log.info("✅ [Order] Processed saga command for orderId={}, sagaStatus={}", orderId, sagaStatus);
@@ -105,7 +106,7 @@ public class SagaCommandListener {
 
         } catch (Exception e) {
             log.error("💥 [Order] Error processing saga command: {}", e.getMessage(), e);
-            acknowledgment.acknowledge();
+            throw new IllegalStateException("Failed to process saga order command", e);
         }
     }
 
@@ -114,7 +115,65 @@ public class SagaCommandListener {
             return objectMapper.readValue(json, clazz);
         } catch (Exception e) {
             log.warn("⚠️ [Order] Could not parse originalEvent into {}: {}", clazz.getSimpleName(), e.getMessage());
-            return null;
+            throw new IllegalArgumentException(
+                    "Could not parse originalEvent into " + clazz.getSimpleName(), e);
+        }
+    }
+
+    private JsonNode parseOriginalEventTree(String json) {
+        try {
+            JsonNode parsed = objectMapper.readTree(json);
+            if (parsed == null || !parsed.isObject()) {
+                throw new IllegalArgumentException("originalEvent must be a JSON object");
+            }
+            return parsed;
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Could not parse originalEvent JSON", e);
+        }
+    }
+
+    private DeliveryStatusUpdatedEvent deliveryStatusEvent(
+            JsonNode originalEvent, Long orderId, String status) {
+        DeliveryStatusUpdatedEvent event = new DeliveryStatusUpdatedEvent();
+        event.setOrderId(orderId);
+        event.setDeliveryId(optionalPositiveLong(originalEvent, "deliveryId"));
+        event.setShipperId(optionalPositiveLong(originalEvent, "shipperId"));
+        event.setNotes(optionalText(originalEvent, "notes"));
+        event.setStatus(status);
+        return event;
+    }
+
+    private Long optionalPositiveLong(JsonNode source, String field) {
+        JsonNode value = source.get(field);
+        if (value == null || value.isNull()) return null;
+        if (!value.isIntegralNumber() || !value.canConvertToLong() || value.longValue() <= 0) {
+            throw new IllegalArgumentException(field + " must be a positive integer when present");
+        }
+        return value.longValue();
+    }
+
+    private String optionalText(JsonNode source, String field) {
+        JsonNode value = source.get(field);
+        if (value == null || value.isNull()) return null;
+        if (!value.isTextual()) {
+            throw new IllegalArgumentException(field + " must be text when present");
+        }
+        return value.textValue();
+    }
+
+    private void requireMatchingOrderIdentity(JsonNode originalEvent, Long commandOrderId) {
+        if (!originalEvent.has("orderId")) {
+            return;
+        }
+        JsonNode originalOrderId = originalEvent.get("orderId");
+        if (originalOrderId == null || !originalOrderId.isIntegralNumber()
+                || !originalOrderId.canConvertToLong()
+                || originalOrderId.longValue() <= 0
+                || !commandOrderId.equals(originalOrderId.longValue())) {
+            throw new IllegalArgumentException(
+                    "originalEvent orderId does not match saga command orderId");
         }
     }
 }

@@ -2,6 +2,7 @@ package com.delivery.livestream_service.repository;
 
 import com.delivery.livestream_service.entity.LivestreamProduct;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -11,9 +12,10 @@ import java.util.UUID;
 @Repository
 public interface LivestreamProductRepository extends JpaRepository<LivestreamProduct, Long> {
     
-    List<LivestreamProduct> findByLivestreamId(UUID livestreamId);
+    List<LivestreamProduct> findByLivestreamId(UUID livestreamId, Pageable pageable);
     
     Optional<LivestreamProduct> findByLivestreamIdAndProductId(UUID livestreamId, Long productId);
     
-    List<LivestreamProduct> findByLivestreamIdAndIsPinned(UUID livestreamId, Boolean isPinned);
+    List<LivestreamProduct> findByLivestreamIdAndIsPinned(
+            UUID livestreamId, Boolean isPinned, Pageable pageable);
 }

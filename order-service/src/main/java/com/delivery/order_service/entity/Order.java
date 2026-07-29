@@ -40,8 +40,9 @@ public class Order {
     @Column(name = "total_price", precision = 12, scale = 2)
     private BigDecimal totalPrice;
 
-    @Column(name = "status")
-    private String status = "PENDING";
+    @Convert(converter = OrderStatusConverter.class)
+    @Column(name = "status", nullable = false, length = 32)
+    private OrderStatus status = OrderStatus.PENDING;
 
     @Column(name = "payment_method")
     private String paymentMethod;

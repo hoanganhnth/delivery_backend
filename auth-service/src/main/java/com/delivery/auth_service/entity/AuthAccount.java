@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "auth_account", uniqueConstraints = @UniqueConstraint(columnNames = { "email", "role" }))
+@Table(name = "auth_account", uniqueConstraints = @UniqueConstraint(columnNames = "email"))
 public class AuthAccount {
 
     public enum Role {
@@ -33,6 +33,27 @@ public class AuthAccount {
 
     @Column(name = "is_active")
     private Boolean isActive = true;
+
+    @Column(name = "user_status_sync_pending", nullable = false)
+    private Boolean userStatusSyncPending = false;
+
+    @Column(name = "user_status_sync_version", nullable = false)
+    private Long userStatusSyncVersion = 0L;
+
+    @Column(name = "user_status_sync_admin_id")
+    private Long userStatusSyncAdminId;
+
+    @Column(name = "user_status_sync_block_reason", columnDefinition = "TEXT")
+    private String userStatusSyncBlockReason;
+
+    @Column(name = "user_status_sync_attempts", nullable = false)
+    private Integer userStatusSyncAttempts = 0;
+
+    @Column(name = "user_status_sync_last_error", columnDefinition = "TEXT")
+    private String userStatusSyncLastError;
+
+    @Column(name = "user_status_sync_updated_at")
+    private LocalDateTime userStatusSyncUpdatedAt;
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
@@ -87,6 +108,62 @@ public class AuthAccount {
 
     public void setIsActive(Boolean isActive) {
         this.isActive = isActive;
+    }
+
+    public Boolean getUserStatusSyncPending() {
+        return userStatusSyncPending;
+    }
+
+    public void setUserStatusSyncPending(Boolean userStatusSyncPending) {
+        this.userStatusSyncPending = userStatusSyncPending;
+    }
+
+    public Long getUserStatusSyncVersion() {
+        return userStatusSyncVersion;
+    }
+
+    public void setUserStatusSyncVersion(Long userStatusSyncVersion) {
+        this.userStatusSyncVersion = userStatusSyncVersion;
+    }
+
+    public Long getUserStatusSyncAdminId() {
+        return userStatusSyncAdminId;
+    }
+
+    public void setUserStatusSyncAdminId(Long userStatusSyncAdminId) {
+        this.userStatusSyncAdminId = userStatusSyncAdminId;
+    }
+
+    public String getUserStatusSyncBlockReason() {
+        return userStatusSyncBlockReason;
+    }
+
+    public void setUserStatusSyncBlockReason(String userStatusSyncBlockReason) {
+        this.userStatusSyncBlockReason = userStatusSyncBlockReason;
+    }
+
+    public Integer getUserStatusSyncAttempts() {
+        return userStatusSyncAttempts;
+    }
+
+    public void setUserStatusSyncAttempts(Integer userStatusSyncAttempts) {
+        this.userStatusSyncAttempts = userStatusSyncAttempts;
+    }
+
+    public String getUserStatusSyncLastError() {
+        return userStatusSyncLastError;
+    }
+
+    public void setUserStatusSyncLastError(String userStatusSyncLastError) {
+        this.userStatusSyncLastError = userStatusSyncLastError;
+    }
+
+    public LocalDateTime getUserStatusSyncUpdatedAt() {
+        return userStatusSyncUpdatedAt;
+    }
+
+    public void setUserStatusSyncUpdatedAt(LocalDateTime userStatusSyncUpdatedAt) {
+        this.userStatusSyncUpdatedAt = userStatusSyncUpdatedAt;
     }
 
     public LocalDateTime getCreatedAt() {

@@ -1,51 +1,71 @@
-# 🛵 Delivery Matching & Tracking Flow
+# Delivery Matching & Tracking Flow
 
-## 1. Đặc tả luồng
-Giải quyết bài toán làm sao để tìm được Shipper phù hợp nhất (gần nhà hàng nhất, đang rảnh) và cách thức duy trì vị trí của Shipper trên bản đồ của Khách hàng theo thời gian thực.
-Sử dụng **Redis GEO** cho tính toán tọa độ siêu tốc và **WebSocket** cho Real-time communication.
+## Contract MVP hiện tại
 
-## 2. Biểu đồ tuần tự (Sequence Diagram)
+Luồng matching đi qua Saga/Kafka, offer được lưu bền vững trong Delivery trước
+khi Notification đánh thức shipper. Tracking dùng Redis GEO + raw WebSocket qua
+Gateway; không dùng gRPC và Notification STOMP đã bị xóa khỏi service.
 
 ```mermaid
 sequenceDiagram
     autonumber
-    participant Order as Order Service
-    participant Match as Match Service
-    participant Redis as Redis (GEO)
-    participant Ship as Shipper App
-    participant Cust as Customer App
-    participant WS as WebSocket Broker
+    participant R as Restaurant
+    participant S as Saga
+    participant D as Delivery
+    participant M as Match
+    participant T as Tracking/Redis GEO
+    participant N as Notification
+    participant A as Shipper app
+    participant O as Order
 
-    %% Luồng Tìm Shipper
-    Note over Order, Redis: Giai đoạn 1: Match Shipper
-    Order->>Match: Yêu cầu tìm Shipper (Kèm Lat/Lng của nhà hàng)
-    Match->>Redis: GEORADIUS (Tìm shipper trong bán kính 3km)
-    Redis-->>Match: Danh sách Shipper gần nhất (S1, S2, S3...)
-    Match->>Match: Lọc bỏ các Shipper đang bận (Kiểm tra Redis Key 'shipper:busy')
-    
-    %% Phát đơn & Chờ nhận
-    Note over Match, Ship: Giai đoạn 2: Phát đơn
-    Match->>WS: Push notification (FCM + Socket) tới Shipper #1
-    WS-->>Ship: Hiển thị Popup nhận đơn (Đếm ngược 15s)
-    
-    alt Shipper Bỏ qua / Từ chối
-        Ship->>Match: Reject hoặc Timeout
-        Match->>Match: Loại Shipper #1, lấy Shipper #2 tiếp tục gửi Push
-    else Shipper Nhận đơn
-        Ship->>Match: Bấm Accept
-        Match->>Redis: Khóa Shipper (Set Redis Key 'shipper:busy:1' = true)
-        Match->>Order: Cập nhật trạng thái đơn thành ASSIGNED
+    R-->>S: restaurant.order-confirmed
+    S-->>M: saga.command.find-shipper
+    M->>T: nearest online/available shipper
+    alt found one eligible shipper
+        M-->>S: shipper.found
+        S-->>D: saga.command.cache-shipper-found
+        D->>D: persist offeredShipperId + expiry
+        D-->>N: delivery.shipper-offered (outbox)
+        N-->>A: durable inbox + FCM wake-up
+        A->>D: GET /api/deliveries/offers/current
+        A->>D: POST /api/deliveries/accept
+        D-->>O: delivery.shipper-accepted
+    else exhausted business retries
+        M-->>S: shipper.not-found
+        S-->>D: saga.command.mark-shipper-not-found
+        S-->>O: saga.command.update-order-status(SHIPPER_NOT_FOUND)
+        D->>D: FINDING_SHIPPER -> SHIPPER_NOT_FOUND
     end
-
-    %% Real-time Tracking
-    Note over Ship, Cust: Giai đoạn 3: Realtime GPS Tracking
-    loop Cứ mỗi 5 giây
-        Ship->>WS: Gửi tọa độ GPS hiện tại qua Websocket
-        WS->>Cust: Broadcast payload trực tiếp tới Customer App
-        Cust->>Cust: Di chuyển marker Shipper trên Bản đồ UI
-    end
-    
-    Note over Ship, Order: Giai đoạn 4: Giao hàng
-    Ship->>Order: Cập nhật Status (PICKED_UP -> DELIVERING -> DELIVERED)
-    Order->>WS: Push thông báo cho Customer
 ```
+
+## Location realtime
+
+- Shipper publish vị trí qua raw WebSocket `/ws/shipper-locations` tại Gateway.
+- JWT xác định shipper; client không được tự khai `X-User-Id` hoặc shipper ID.
+- Tracking lưu heartbeat/location vào Redis và phát `shipper.location-updated`.
+- Match duy trì GEO replica riêng từ event, chỉ chọn heartbeat online còn mới.
+- Customer/restaurant/shipper/admin chỉ subscribe delivery mà mình có quyền xem;
+  Tracking kiểm participant qua internal Delivery endpoint.
+- Offer recovery dùng REST `GET /api/deliveries/offers/current`, không dùng raw
+  location socket hoặc Delivery/Notification STOMP.
+
+## Nhánh rematch và terminal
+
+- Offer reject hoặc exact-generation timeout: Delivery quay lại
+  `FINDING_SHIPPER`; Saga rematch và loại shipper vừa từ chối.
+- Shipper hủy assignment trước pickup: giải phóng availability rồi rematch.
+- Order cancellation: `saga.command.cancel-delivery` đưa Delivery về `CANCELLED`
+  và `saga.command.stop-matching` ghi cancellation tombstone rồi giải phóng exact
+  Redis offer ownership. Reserve kiểm tombstone atomically nên in-flight find
+  không thể giữ lại shipper sau cancel; stale release không xoá offer mới.
+- Hết retry/candidate: command riêng `saga.command.mark-shipper-not-found` đưa
+  Delivery về `SHIPPER_NOT_FOUND`; không dùng cancellation command.
+
+## Proof còn mở
+
+Gate B8 vẫn phải chứng minh bằng PostgreSQL/Kafka/Redis/raw WebSocket thật:
+duplicate/replay, crash sau commit, offer expiry, concurrent accept, Redis
+reorder/failure, token revocation và COD failure matrix. Publisher authority đã
+chốt một active connection/shipper, new-generation supersession và disconnect
+grace 30 giây; live same/cross-instance reconnect, hard-crash và crash-during-grace
+recovery đã PASS.

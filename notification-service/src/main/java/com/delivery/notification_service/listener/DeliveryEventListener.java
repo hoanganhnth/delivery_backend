@@ -1,6 +1,5 @@
 package com.delivery.notification_service.listener;
 
-import com.delivery.notification_service.common.constants.KafkaTopicConstants;
 import com.delivery.notification_service.dto.event.DeliveryEvent;
 import com.delivery.notification_service.service.NotificationService;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -12,6 +11,7 @@ import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
+import java.util.Set;
 
 /**
  * ✅ Delivery Event Listener — nhận events từ Delivery Service qua Kafka
@@ -21,6 +21,10 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 public class DeliveryEventListener {
+
+    private static final Set<String> CANONICAL_STATUSES = Set.of(
+            "PENDING", "FINDING_SHIPPER", "WAIT_SHIPPER_CONFIRM", "SHIPPER_NOT_FOUND",
+            "ASSIGNED", "PICKED_UP", "DELIVERING", "DELIVERED", "CANCELLED");
 
     private final NotificationService notificationService;
     private final ObjectMapper objectMapper;
@@ -32,7 +36,7 @@ public class DeliveryEventListener {
                 .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     }
 
-    @KafkaListener(topics = KafkaTopicConstants.DELIVERY_STATUS_UPDATED_TOPIC)
+    @KafkaListener(topics = "${app.kafka.topics.delivery-status-updated:delivery.status-updated}")
     public void handleDeliveryStatusUpdatedEvent(
             String message,
             @Header(KafkaHeaders.RECEIVED_TOPIC) String topic,
@@ -42,32 +46,37 @@ public class DeliveryEventListener {
 
         try {
             DeliveryEvent event = objectMapper.readValue(message, DeliveryEvent.class);
+            if (event.getEventId() == null || event.getDeliveryId() == null || event.getDeliveryId() <= 0
+                    || event.getOrderId() == null || event.getOrderId() <= 0
+                    || event.getUserId() == null || event.getUserId() <= 0
+                    || event.getStatus() == null || !CANONICAL_STATUSES.contains(event.getStatus())) {
+                throw new IllegalArgumentException(
+                        "stable eventId, positive delivery/order/user IDs and status are required");
+            }
 
             log.info("📥 Received DeliveryStatusUpdatedEvent from topic '{}': deliveryId={}, orderId={}, userId={}, status={}",
                     topic, event.getDeliveryId(), event.getOrderId(), event.getUserId(), event.getStatus());
 
             // Validate required fields
-            if (event.getUserId() == null) {
-                log.warn("⚠️ DeliveryEvent missing userId, skipping notification for delivery: {}", event.getDeliveryId());
-                acknowledgment.acknowledge();
-                return;
-            }
-
             // Send delivery status notification to customer
             notificationService.sendDeliveryStatusNotification(
                     event.getUserId(),
                     event.getDeliveryId(),
                     event.getStatus(),
-                    event.getShipperName() != null ? event.getShipperName() : "Shipper"
+                    hasText(event.getShipperName()) ? event.getShipperName() : null
             );
 
             log.info("✅ Successfully processed DeliveryStatusUpdatedEvent for delivery: {}", event.getDeliveryId());
             acknowledgment.acknowledge();
 
         } catch (Exception e) {
-            log.error("💥 Error processing DeliveryStatusUpdatedEvent - Raw: {} - Error: {}",
-                    message, e.getMessage(), e);
-            acknowledgment.acknowledge();
+            log.error("💥 Error processing DeliveryStatusUpdatedEvent - topic={}, partition={}, error={}",
+                    topic, partition, e.getMessage(), e);
+            throw new IllegalStateException("Failed to process delivery.status-updated notification", e);
         }
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 }

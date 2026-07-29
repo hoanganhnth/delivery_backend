@@ -7,6 +7,5 @@ import java.util.List;
 
 public interface IShipperRatingService {
     ShipperRatingResponse submitRating(Long shipperId, Long customerId, ShipperRatingRequest request);
-    List<ShipperRatingResponse> getShipperRatings(Long shipperId);
     List<ShipperRatingResponse> getMyRatings(Long userId);
 }

@@ -19,6 +19,12 @@ public interface MatchService {
      * @return Mono<List> các shipper gần nhất
      */
     Mono<List<NearbyShipperResponse>> findNearbyShippers(FindNearbyShippersRequest request, Long userId, String role);
+
+    /** Atomically reserve a shipper for one outstanding offer. */
+    boolean tryReserveShipperOffer(Long shipperId, Long deliveryId, int timeoutSeconds);
+
+    /** Release only the offer still owned by this shipper and delivery pair. */
+    boolean releaseShipperOffer(Long shipperId, Long deliveryId);
     
     /**
      * Dừng quá trình matching cho một delivery cụ thể
@@ -27,5 +33,4 @@ public interface MatchService {
      * @param orderId ID của order bị hủy
      * @param reason Lý do hủy
      */
-    void stopMatchingProcess(Long deliveryId, Long orderId, String reason);
 }

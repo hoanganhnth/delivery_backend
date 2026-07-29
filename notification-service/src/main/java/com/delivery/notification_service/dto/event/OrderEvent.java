@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 /**
  * ✅ Order Event DTO được nhận từ Kafka theo Backend Instructions
@@ -13,6 +14,8 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class OrderEvent {
+
+    private UUID eventId;
 
     private Long orderId;
     private Long userId;

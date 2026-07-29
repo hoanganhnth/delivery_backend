@@ -11,11 +11,6 @@ public interface MatchCancellationService {
     void markCancelled(Long deliveryId);
 
     /**
-     * Xoá cờ cancel khi bắt đầu matching mới (idempotent).
-     */
-    void clearCancelled(Long deliveryId);
-
-    /**
      * Kiểm tra deliveryId có bị cancel không.
      */
     boolean isCancelled(Long deliveryId);

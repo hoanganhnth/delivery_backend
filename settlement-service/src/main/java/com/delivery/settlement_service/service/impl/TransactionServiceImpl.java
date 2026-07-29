@@ -19,6 +19,7 @@ import com.delivery.settlement_service.service.TransactionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -31,15 +32,12 @@ import java.util.stream.Collectors;
 @Slf4j
 public class TransactionServiceImpl implements TransactionService {
 
+    private static final int COMPATIBILITY_LIST_LIMIT = 100;
+
     private final TransactionRepository transactionRepository;
     private final BalanceRepository balanceRepository;
     private final BalanceService balanceService;
     private final TransactionMapper transactionMapper;
-
-    /**
-     * Số tiền ký quỹ tối thiểu để bắt đầu nhận đơn (200,000 VND)
-     */
-    private static final BigDecimal MIN_DEPOSIT_BALANCE = new BigDecimal("200000");
 
     // ═══════════════════════════════════════════════════════════════
     // Core Transaction Methods
@@ -69,8 +67,7 @@ public class TransactionServiceImpl implements TransactionService {
         }
 
         // Get or create balance
-        Balance balance = balanceRepository.findByEntityIdAndEntityType(entityId, entityType)
-                .orElseGet(() -> balanceService.createBalance(entityId, entityType));
+        Balance balance = getOrCreateBalanceForUpdate(entityId, entityType);
 
         // Create transaction (append-only, immutable)
         Transaction transaction = Transaction.builder()
@@ -95,18 +92,6 @@ public class TransactionServiceImpl implements TransactionService {
         return saved;
     }
 
-    @Override
-    @Transactional
-    public Transaction earnFromOrder(Long entityId, EntityType entityType, Long orderId,
-                                    BigDecimal amount, String description) {
-        TransactionReason reason = entityType == EntityType.RESTAURANT 
-                ? TransactionReason.ORDER_EARNING 
-                : TransactionReason.DELIVERY_FEE;
-
-        return createTransaction(entityId, entityType, orderId,
-                TransactionDirection.CREDIT, reason, amount, description, WalletType.EARNINGS);
-    }
-
     // ═══════════════════════════════════════════════════════════════
     // Deposit Wallet Methods (Ví Ký quỹ)
     // ═══════════════════════════════════════════════════════════════
@@ -120,8 +105,7 @@ public class TransactionServiceImpl implements TransactionService {
             throw new IllegalArgumentException("Top-up amount must be greater than zero");
         }
 
-        Balance balance = balanceRepository.findByEntityIdAndEntityType(entityId, entityType)
-                .orElseGet(() -> balanceService.createBalance(entityId, entityType));
+        Balance balance = getOrCreateBalanceForUpdate(entityId, entityType);
 
         // Create CREDIT transaction on DEPOSIT wallet
         Transaction transaction = Transaction.builder()
@@ -151,6 +135,9 @@ public class TransactionServiceImpl implements TransactionService {
     @Override
     @Transactional(readOnly = true)
     public boolean checkCodEligibility(Long shipperId, BigDecimal codAmount) {
+        if (shipperId == null || shipperId <= 0 || codAmount == null || codAmount.signum() <= 0) {
+            throw new IllegalArgumentException("Shipper ID and COD amount must be positive");
+        }
         Balance balance = balanceRepository.findByEntityIdAndEntityType(shipperId, EntityType.SHIPPER)
                 .orElse(null);
 
@@ -182,7 +169,7 @@ public class TransactionServiceImpl implements TransactionService {
         }
 
         // Get balance
-        Balance balance = balanceRepository.findByEntityIdAndEntityType(entityId, entityType)
+        Balance balance = balanceRepository.findByEntityIdAndEntityTypeForUpdate(entityId, entityType)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Balance not found for entity: " + entityId + " (" + entityType + ")"));
 
@@ -241,7 +228,7 @@ public class TransactionServiceImpl implements TransactionService {
         Transaction saved = transactionRepository.save(transaction);
 
         // Update balance: remove from pending (money already deducted from available when request was created)
-        Balance balance = balanceRepository.findByEntityIdAndEntityType(
+        Balance balance = balanceRepository.findByEntityIdAndEntityTypeForUpdate(
                         transaction.getEntityId(), transaction.getEntityType())
                 .orElseThrow(() -> new ResourceNotFoundException("Balance not found"));
 
@@ -280,7 +267,7 @@ public class TransactionServiceImpl implements TransactionService {
         Transaction saved = transactionRepository.save(transaction);
 
         // Restore balance: move from pending back to available (Ví Thu nhập)
-        Balance balance = balanceRepository.findByEntityIdAndEntityType(
+        Balance balance = balanceRepository.findByEntityIdAndEntityTypeForUpdate(
                         transaction.getEntityId(), transaction.getEntityType())
                 .orElseThrow(() -> new ResourceNotFoundException("Balance not found"));
 
@@ -336,7 +323,7 @@ public class TransactionServiceImpl implements TransactionService {
         transactionRepository.save(original);
 
         // Update balance
-        Balance balance = balanceRepository.findByEntityIdAndEntityType(
+        Balance balance = balanceRepository.findByEntityIdAndEntityTypeForUpdate(
                         original.getEntityId(), original.getEntityType())
                 .orElseThrow(() -> new ResourceNotFoundException("Balance not found"));
 
@@ -359,7 +346,7 @@ public class TransactionServiceImpl implements TransactionService {
     @Transactional
     public Transaction releaseBalance(Long entityId, BigDecimal amount, String description) {
         // Get balance to check holding balance
-        Balance balance = balanceRepository.findByEntityIdAndEntityType(entityId, EntityType.SHIPPER)
+        Balance balance = balanceRepository.findByEntityIdAndEntityTypeForUpdate(entityId, EntityType.SHIPPER)
                 .orElseThrow(() -> new ResourceNotFoundException("Balance not found for shipper: " + entityId));
 
         if (balance.getHoldingBalance().compareTo(amount) < 0) {
@@ -381,7 +368,8 @@ public class TransactionServiceImpl implements TransactionService {
     @Transactional(readOnly = true)
     public List<TransactionResponse> getTransactions(Long entityId, EntityType entityType) {
         log.info("Getting transactions for entity: {} ({})", entityId, entityType);
-        return transactionRepository.findByEntityIdAndEntityTypeOrderByCreatedAtDesc(entityId, entityType)
+        return transactionRepository.findByEntityIdAndEntityTypeOrderByCreatedAtDesc(
+                        entityId, entityType, PageRequest.of(0, COMPATIBILITY_LIST_LIMIT))
                 .stream()
                 .map(transactionMapper::toResponse)
                 .collect(Collectors.toList());
@@ -399,7 +387,8 @@ public class TransactionServiceImpl implements TransactionService {
     @Transactional(readOnly = true)
     public List<TransactionResponse> getPendingWithdrawals() {
         log.info("Getting pending withdrawals");
-        return transactionRepository.findByStatusOrderByCreatedAtDesc(TransactionStatus.PENDING)
+        return transactionRepository.findByStatusOrderByCreatedAtDesc(
+                        TransactionStatus.PENDING, PageRequest.of(0, COMPATIBILITY_LIST_LIMIT))
                 .stream()
                 .filter(tx -> tx.getReason() == TransactionReason.WITHDRAW)
                 .map(transactionMapper::toResponse)
@@ -410,7 +399,8 @@ public class TransactionServiceImpl implements TransactionService {
     @Transactional(readOnly = true)
     public List<TransactionResponse> getAllTransactions() {
         log.info("Getting all transactions");
-        return transactionRepository.findAllByOrderByCreatedAtDesc()
+        return transactionRepository.findAllByOrderByCreatedAtDesc(
+                        PageRequest.of(0, COMPATIBILITY_LIST_LIMIT))
                 .stream()
                 .map(transactionMapper::toResponse)
                 .collect(Collectors.toList());
@@ -448,6 +438,11 @@ public class TransactionServiceImpl implements TransactionService {
             case COD_SETTLEMENT:
                 // ✅ Đối trừ COD — trừ từ Ví Ký quỹ
                 if (transaction.getDirection() == TransactionDirection.DEBIT) {
+                    if (balance.getDepositBalance().compareTo(transaction.getAmount()) < 0) {
+                        throw new InsufficientBalanceException(
+                                String.format("Insufficient COD deposit. Available: %s, Required: %s",
+                                        balance.getDepositBalance(), transaction.getAmount()));
+                    }
                     balance.setDepositBalance(balance.getDepositBalance().subtract(transaction.getAmount()));
                     balance.setTotalCodCollected(balance.getTotalCodCollected().add(transaction.getAmount()));
                 }
@@ -472,5 +467,15 @@ public class TransactionServiceImpl implements TransactionService {
         }
 
         balanceRepository.save(balance);
+    }
+
+    private Balance getOrCreateBalanceForUpdate(Long entityId, EntityType entityType) {
+        return balanceRepository.findByEntityIdAndEntityTypeForUpdate(entityId, entityType)
+                .orElseGet(() -> {
+                    balanceService.createBalance(entityId, entityType);
+                    return balanceRepository.findByEntityIdAndEntityTypeForUpdate(entityId, entityType)
+                            .orElseThrow(() -> new ResourceNotFoundException(
+                                    "Balance not found after creation for entity: " + entityId + " (" + entityType + ")"));
+                });
     }
 }

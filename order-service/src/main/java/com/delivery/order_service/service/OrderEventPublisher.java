@@ -1,16 +1,13 @@
 package com.delivery.order_service.service;
 
-import com.delivery.order_service.common.constants.KafkaTopicConstants;
 import com.delivery.order_service.dto.event.OrderCreatedEvent;
 import com.delivery.order_service.dto.event.OrderCancelledEvent;
 import com.delivery.order_service.entity.Order;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.kafka.support.SendResult;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.util.concurrent.CompletableFuture;
 
 /**
  * ✅ Event Publisher Service cho Order Service theo Backend Instructions
@@ -18,75 +15,55 @@ import java.util.concurrent.CompletableFuture;
 @Slf4j
 @Service
 public class OrderEventPublisher {
-    
-    private final KafkaTemplate<String, Object> kafkaTemplate;
-    
-    // ✅ Constructor Injection Pattern (MANDATORY)
-    public OrderEventPublisher(KafkaTemplate<String, Object> kafkaTemplate) {
-        this.kafkaTemplate = kafkaTemplate;
+
+    private static final String ORDER_CREATED_EVENT = "ORDER_CREATED";
+    private static final String ORDER_CANCELLED_EVENT = "ORDER_CANCELLED";
+
+    private final OrderOutboxService outboxService;
+
+    @Value("${app.kafka.topics.order-created:order.created}")
+    private String orderCreatedTopic;
+
+    @Value("${app.kafka.topics.order-cancelled:order.cancelled}")
+    private String orderCancelledTopic;
+
+    public OrderEventPublisher(OrderOutboxService outboxService) {
+        this.outboxService = outboxService;
     }
     
     /**
      * Publish OrderCreatedEvent khi order được tạo thành công
      */
     public void publishOrderCreatedEvent(Order order) {
-        try {
-            OrderCreatedEvent event = mapOrderToEvent(order);
-            
-            log.info("📤 Publishing OrderCreatedEvent for order: {}", order.getId());
-            
-            CompletableFuture<SendResult<String, Object>> future = kafkaTemplate.send(
-                KafkaTopicConstants.ORDER_CREATED_TOPIC,
-                order.getId().toString(), // Key: orderId
-                event
-            );
-            
-            // Async callback handling
-            future.whenComplete((result, throwable) -> {
-                if (throwable == null) {
-                    log.info("✅ Successfully published OrderCreatedEvent for order: {} to partition: {} with offset: {}",
-                            order.getId(),
-                            result.getRecordMetadata().partition(),
-                            result.getRecordMetadata().offset());
-                } else {
-                    log.error("💥 Failed to publish OrderCreatedEvent for order: {}", order.getId(), throwable);
-                }
-            });
-            
-        } catch (Exception e) {
-            log.error("🔥 Error publishing OrderCreatedEvent for order: {}", order.getId(), e);
-        }
+        requirePersistedOrder(order);
+        OrderCreatedEvent event = mapOrderToEvent(order);
+        outboxService.enqueue(
+                ORDER_CREATED_EVENT,
+                order.getId().toString(),
+                orderCreatedTopic,
+                order.getId().toString(),
+                event);
+        log.info("Queued OrderCreatedEvent in transactional outbox for order {}", order.getId());
     }
     
     /**
      * Publish OrderCancelledEvent khi order bị hủy
      */
     public void publishOrderCancelledEvent(Order order, String previousStatus, Long cancelledBy) {
-        try {
-            OrderCancelledEvent event = mapOrderToCancelledEvent(order, previousStatus, cancelledBy);
-            
-            log.info("📤 Publishing OrderCancelledEvent for order: {}", order.getId());
-            
-            CompletableFuture<SendResult<String, Object>> future = kafkaTemplate.send(
-                KafkaTopicConstants.ORDER_CANCELLED_TOPIC,
-                order.getId().toString(), // Key: orderId
-                event
-            );
-            
-            // Async callback handling
-            future.whenComplete((result, throwable) -> {
-                if (throwable == null) {
-                    log.info("✅ Successfully published OrderCancelledEvent for order: {} to partition: {} with offset: {}",
-                            order.getId(),
-                            result.getRecordMetadata().partition(),
-                            result.getRecordMetadata().offset());
-                } else {
-                    log.error("💥 Failed to publish OrderCancelledEvent for order: {}", order.getId(), throwable);
-                }
-            });
-            
-        } catch (Exception e) {
-            log.error("🔥 Error publishing OrderCancelledEvent for order: {}", order.getId(), e);
+        requirePersistedOrder(order);
+        OrderCancelledEvent event = mapOrderToCancelledEvent(order, previousStatus, cancelledBy);
+        outboxService.enqueue(
+                ORDER_CANCELLED_EVENT,
+                order.getId().toString(),
+                orderCancelledTopic,
+                order.getId().toString(),
+                event);
+        log.info("Queued OrderCancelledEvent in transactional outbox for order {}", order.getId());
+    }
+
+    private void requirePersistedOrder(Order order) {
+        if (order == null || order.getId() == null) {
+            throw new IllegalArgumentException("A persisted order is required before enqueueing an event");
         }
     }
     
@@ -132,7 +109,7 @@ public class OrderEventPublisher {
         event.setOrderId(order.getId());
         event.setUserId(order.getUserId());
         event.setRestaurantId(order.getRestaurantId());
-        event.setStatus(order.getStatus());
+        event.setStatus(order.getStatus().name());
         
         // Financial info
         event.setSubtotalPrice(order.getSubtotalPrice());

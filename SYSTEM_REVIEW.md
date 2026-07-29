@@ -1,6 +1,11 @@
 # 📋 Tổng Quan Hệ Thống - Delivery Backend
 
 > Ngày review: 2026-04-25
+>
+> **Tài liệu lịch sử, đã lỗi thời.** Không dùng file này làm contract triển khai;
+> xem `docs/product/overview.md`, `docs/system-contract-inventory.md` và master
+> plan ở `../docs/plans/active/priority-roadmap.md`. Tracking MVP hiện chỉ dùng
+> raw WebSocket; các mô tả gRPC bên dưới phản ánh thiết kế cũ.
 
 ## 1. Kiến Trúc Tổng Quan
 

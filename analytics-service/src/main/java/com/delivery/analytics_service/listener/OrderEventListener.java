@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.messaging.handler.annotation.Payload;
@@ -24,6 +25,7 @@ import java.math.BigDecimal;
 @Component
 @RequiredArgsConstructor
 @Slf4j
+@ConditionalOnProperty(name = "app.analytics.processing-enabled", havingValue = "true")
 public class OrderEventListener {
 
     private final EventProcessingService eventService;
@@ -50,7 +52,7 @@ public class OrderEventListener {
             ack.acknowledge();
         } catch (Exception e) {
             log.error("❌ [Analytics] Failed to process ORDER_CREATED event: {}", e.getMessage(), e);
-            ack.acknowledge(); // Don't block queue
+            throw new IllegalStateException("Failed to process ORDER_CREATED event", e);
         }
     }
 
@@ -76,7 +78,7 @@ public class OrderEventListener {
             ack.acknowledge();
         } catch (Exception e) {
             log.error("❌ [Analytics] Failed to process ORDER_STATUS_UPDATED event: {}", e.getMessage(), e);
-            ack.acknowledge();
+            throw new IllegalStateException("Failed to process ORDER_STATUS_UPDATED event", e);
         }
     }
 
@@ -94,7 +96,7 @@ public class OrderEventListener {
             ack.acknowledge();
         } catch (Exception e) {
             log.error("❌ [Analytics] Failed to process ORDER_CANCELLED event: {}", e.getMessage(), e);
-            ack.acknowledge();
+            throw new IllegalStateException("Failed to process ORDER_CANCELLED event", e);
         }
     }
 }

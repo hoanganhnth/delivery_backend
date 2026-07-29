@@ -3,8 +3,6 @@ package com.delivery.settlement_service.service.impl;
 import com.delivery.settlement_service.dto.response.BalanceResponse;
 import com.delivery.settlement_service.entity.Balance;
 import com.delivery.settlement_service.entity.EntityType;
-import com.delivery.settlement_service.entity.Transaction;
-import com.delivery.settlement_service.entity.Transaction.TransactionStatus;
 import com.delivery.settlement_service.exception.ResourceNotFoundException;
 import com.delivery.settlement_service.mapper.BalanceMapper;
 import com.delivery.settlement_service.repository.BalanceRepository;
@@ -13,6 +11,7 @@ import com.delivery.settlement_service.service.BalanceService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -33,10 +32,11 @@ public class BalanceServiceImpl implements BalanceService {
     public Balance createBalance(Long entityId, EntityType entityType) {
         log.info("Creating balance for entity: {} ({})", entityId, entityType);
 
-        if (balanceRepository.existsByEntityIdAndEntityType(entityId, entityType)) {
+        Balance existing = balanceRepository.findByEntityIdAndEntityType(entityId, entityType)
+                .orElse(null);
+        if (existing != null) {
             log.warn("Balance already exists for entity: {} ({})", entityId, entityType);
-            return balanceRepository.findByEntityIdAndEntityType(entityId, entityType)
-                    .orElseThrow(() -> new ResourceNotFoundException("Balance", "entityId", entityId));
+            return existing;
         }
 
         try {
@@ -73,96 +73,10 @@ public class BalanceServiceImpl implements BalanceService {
     }
 
     @Override
-    @Transactional
-    public Balance recalculateBalance(Long entityId, EntityType entityType) {
-        log.info("🔄 Recalculating balance from transactions for entity: {} ({})", entityId, entityType);
-
-        Balance balance = balanceRepository.findByEntityIdAndEntityType(entityId, entityType)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Balance not found for entity: " + entityId + " (" + entityType + ")"));
-
-        // Get all completed transactions
-        List<Transaction> transactions = transactionRepository
-                .findByEntityIdAndEntityTypeAndStatus(entityId, entityType, TransactionStatus.COMPLETED);
-
-        // Recalculate balances (dual wallet)
-        BigDecimal availableBalance = BigDecimal.ZERO;  // Ví Thu nhập
-        BigDecimal pendingBalance = BigDecimal.ZERO;
-        BigDecimal holdingBalance = BigDecimal.ZERO;
-        BigDecimal depositBalance = BigDecimal.ZERO;    // Ví Ký quỹ
-        BigDecimal totalDeposited = BigDecimal.ZERO;
-        BigDecimal totalCodCollected = BigDecimal.ZERO;
-
-        for (Transaction tx : transactions) {
-            switch (tx.getReason()) {
-                case WITHDRAW:
-                    if (tx.getDirection() == Transaction.TransactionDirection.DEBIT) {
-                        availableBalance = availableBalance.subtract(tx.getAmount());
-                        pendingBalance = pendingBalance.add(tx.getAmount());
-                    }
-                    break;
-                case HOLD:
-                    if (tx.getDirection() == Transaction.TransactionDirection.DEBIT) {
-                        availableBalance = availableBalance.subtract(tx.getAmount());
-                        holdingBalance = holdingBalance.add(tx.getAmount());
-                    }
-                    break;
-                case RELEASE:
-                    if (tx.getDirection() == Transaction.TransactionDirection.CREDIT) {
-                        holdingBalance = holdingBalance.subtract(tx.getAmount());
-                        availableBalance = availableBalance.add(tx.getAmount());
-                    }
-                    break;
-                case DEPOSIT_TOPUP:
-                    // Nạp tiền vào Ví Ký quỹ
-                    depositBalance = depositBalance.add(tx.getAmount());
-                    totalDeposited = totalDeposited.add(tx.getAmount());
-                    break;
-                case COD_SETTLEMENT:
-                    // Đối trừ COD — trừ từ Ví Ký quỹ
-                    if (tx.getDirection() == Transaction.TransactionDirection.DEBIT) {
-                        depositBalance = depositBalance.subtract(tx.getAmount());
-                        totalCodCollected = totalCodCollected.add(tx.getAmount());
-                    }
-                    break;
-                default:
-                    // Route based on wallet type
-                    if (tx.getWalletType() == Transaction.WalletType.DEPOSIT) {
-                        if (tx.getDirection() == Transaction.TransactionDirection.CREDIT) {
-                            depositBalance = depositBalance.add(tx.getAmount());
-                        } else {
-                            depositBalance = depositBalance.subtract(tx.getAmount());
-                        }
-                    } else {
-                        if (tx.getDirection() == Transaction.TransactionDirection.CREDIT) {
-                            availableBalance = availableBalance.add(tx.getAmount());
-                        } else {
-                            availableBalance = availableBalance.subtract(tx.getAmount());
-                        }
-                    }
-            }
-        }
-
-        // Update balance
-        balance.setAvailableBalance(availableBalance);
-        balance.setPendingBalance(pendingBalance);
-        balance.setHoldingBalance(holdingBalance);
-        balance.setDepositBalance(depositBalance);
-        balance.setTotalDeposited(totalDeposited);
-        balance.setTotalCodCollected(totalCodCollected);
-
-        Balance saved = balanceRepository.save(balance);
-        log.info("✅ Recalculated balance for entity: {} ({}) - Earnings: {}, Deposit: {}, Pending: {}, Holding: {}",
-                entityId, entityType, availableBalance, depositBalance, pendingBalance, holdingBalance);
-
-        return saved;
-    }
-
-    @Override
     @Transactional(readOnly = true)
     public List<BalanceResponse> getAllBalances() {
         log.info("Getting all balances");
-        return balanceRepository.findAll().stream()
+        return balanceRepository.findAll(PageRequest.of(0, 100)).stream()
                 .map(balanceMapper::toResponse)
                 .collect(Collectors.toList());
     }

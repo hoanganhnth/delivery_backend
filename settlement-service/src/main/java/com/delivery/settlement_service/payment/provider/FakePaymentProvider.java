@@ -7,6 +7,8 @@ import com.delivery.settlement_service.payment.dto.PaymentVerifyResult;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Profile;
 
 import java.util.Map;
 
@@ -15,6 +17,10 @@ import java.util.Map;
  * Dùng cho môi trường dev/test mà không cần cổng thanh toán thật.
  */
 @Component
+@ConditionalOnProperty(
+        name = {"app.payment.processing-enabled", "app.payment.fake-provider-enabled"},
+        havingValue = "true")
+@Profile({"dev", "test"})
 @Slf4j
 public class FakePaymentProvider implements PaymentProvider {
 

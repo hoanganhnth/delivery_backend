@@ -1,10 +1,7 @@
 package com.delivery.settlement_service.controller;
 
-import com.delivery.settlement_service.dto.request.RejectWithdrawalRequest;
 import com.delivery.settlement_service.dto.response.BalanceResponse;
 import com.delivery.settlement_service.dto.response.TransactionResponse;
-import com.delivery.settlement_service.entity.Transaction;
-import com.delivery.settlement_service.mapper.TransactionMapper;
 import com.delivery.settlement_service.payload.BaseResponse;
 import com.delivery.settlement_service.repository.TransactionRepository;
 import com.delivery.settlement_service.service.BalanceService;
@@ -24,7 +21,6 @@ public class AdminController {
     private final BalanceService balanceService;
     private final TransactionService transactionService;
     private final TransactionRepository transactionRepository;
-    private final TransactionMapper transactionMapper;
 
     /**
      * Get all balances
@@ -35,11 +31,11 @@ public class AdminController {
 
         if (!"ADMIN".equals(role)) {
             return ResponseEntity.status(403)
-                    .body(new BaseResponse<>(0, "Only ADMIN can access this endpoint", null));
+                    .body(BaseResponse.failure("Only ADMIN can access this endpoint"));
         }
 
         List<BalanceResponse> balances = balanceService.getAllBalances();
-        return ResponseEntity.ok(new BaseResponse<>(1, balances));
+        return ResponseEntity.ok(BaseResponse.success(balances));
     }
 
     /**
@@ -51,11 +47,11 @@ public class AdminController {
 
         if (!"ADMIN".equals(role)) {
             return ResponseEntity.status(403)
-                    .body(new BaseResponse<>(0, "Only ADMIN can access this endpoint", null));
+                    .body(BaseResponse.failure("Only ADMIN can access this endpoint"));
         }
 
         List<TransactionResponse> transactions = transactionService.getAllTransactions();
-        return ResponseEntity.ok(new BaseResponse<>(1, transactions));
+        return ResponseEntity.ok(BaseResponse.success(transactions));
     }
 
     /**
@@ -67,50 +63,11 @@ public class AdminController {
 
         if (!"ADMIN".equals(role)) {
             return ResponseEntity.status(403)
-                    .body(new BaseResponse<>(0, "Only ADMIN can access this endpoint", null));
+                    .body(BaseResponse.failure("Only ADMIN can access this endpoint"));
         }
 
         List<TransactionResponse> pendingWithdrawals = transactionService.getPendingWithdrawals();
-        return ResponseEntity.ok(new BaseResponse<>(1, pendingWithdrawals));
-    }
-
-    /**
-     * Approve withdrawal
-     */
-    @PostMapping("/transactions/{id}/approve")
-    public ResponseEntity<BaseResponse<TransactionResponse>> approveWithdrawal(
-            @PathVariable Long id,
-            @RequestHeader(value = "X-Role", required = false) String role,
-            @RequestHeader(value = "X-User-Id", required = false) Long adminId) {
-
-        if (!"ADMIN".equals(role)) {
-            return ResponseEntity.status(403)
-                    .body(new BaseResponse<>(0, "Only ADMIN can approve withdrawals", null));
-        }
-
-        Transaction transaction = transactionService.approveWithdrawal(id, adminId);
-        return ResponseEntity.ok(new BaseResponse<>(1, "Withdrawal approved",
-                transactionMapper.toResponse(transaction)));
-    }
-
-    /**
-     * Reject withdrawal
-     */
-    @PostMapping("/transactions/{id}/reject")
-    public ResponseEntity<BaseResponse<TransactionResponse>> rejectWithdrawal(
-            @PathVariable Long id,
-            @RequestBody(required = false) RejectWithdrawalRequest request,
-            @RequestHeader(value = "X-Role", required = false) String role,
-            @RequestHeader(value = "X-User-Id", required = false) Long adminId) {
-
-        if (!"ADMIN".equals(role)) {
-            return ResponseEntity.status(403)
-                    .body(new BaseResponse<>(0, "Only ADMIN can reject withdrawals", null));
-        }
-
-        Transaction transaction = transactionService.rejectWithdrawal(id, adminId, request);
-        return ResponseEntity.ok(new BaseResponse<>(1, "Withdrawal rejected",
-                transactionMapper.toResponse(transaction)));
+        return ResponseEntity.ok(BaseResponse.success(pendingWithdrawals));
     }
 
     /**
@@ -122,30 +79,11 @@ public class AdminController {
 
         if (!"ADMIN".equals(role)) {
             return ResponseEntity.status(403)
-                    .body(new BaseResponse<>(0, "Only ADMIN can access this endpoint", null));
+                    .body(BaseResponse.failure("Only ADMIN can access this endpoint"));
         }
 
         BigDecimal revenue = transactionRepository.calculateTotalPlatformRevenue();
-        return ResponseEntity.ok(new BaseResponse<>(1, "Total platform revenue", revenue));
+        return ResponseEntity.ok(BaseResponse.success(revenue, "Total platform revenue"));
     }
 
-    /**
-     * Reverse a transaction
-     */
-    @PostMapping("/transactions/{id}/reverse")
-    public ResponseEntity<BaseResponse<TransactionResponse>> reverseTransaction(
-            @PathVariable Long id,
-            @RequestParam(required = false) String reason,
-            @RequestHeader(value = "X-Role", required = false) String role,
-            @RequestHeader(value = "X-User-Id", required = false) Long adminId) {
-
-        if (!"ADMIN".equals(role)) {
-            return ResponseEntity.status(403)
-                    .body(new BaseResponse<>(0, "Only ADMIN can reverse transactions", null));
-        }
-
-        Transaction transaction = transactionService.reverseTransaction(id, adminId, reason);
-        return ResponseEntity.ok(new BaseResponse<>(1, "Transaction reversed",
-                transactionMapper.toResponse(transaction)));
-    }
 }

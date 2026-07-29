@@ -5,7 +5,9 @@ import static com.delivery.livestream_service.config.agora.Utils.crc32;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.TreeMap;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 public class AccessToken {
     public enum Privileges {
         kJoinChannel(1),
@@ -84,7 +86,7 @@ public class AccessToken {
             baos.write(uid.getBytes());
             baos.write(message);
         } catch (IOException e) {
-            e.printStackTrace();
+            throw new IllegalStateException("Unable to assemble Agora token signature input", e);
         }
         return Utils.hmacSign(appCertificate, baos.toByteArray());
     }
@@ -106,7 +108,7 @@ public class AccessToken {
             messageRawContent = packContent.rawMessage;
             Utils.unpack(messageRawContent, message);
         } catch (Exception e) {
-            e.printStackTrace();
+            log.debug("Invalid Agora access token", e);
             return false;
         }
 

@@ -1,11 +1,25 @@
 package com.delivery.restaurant_service.dto.request;
 
 import java.math.BigDecimal;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
 
 public class CreateMenuItemRequest {
+    @NotNull
+    @Positive
     private Long restaurantId;
+    @NotBlank
+    @Size(max = 255)
     private String name;
+    @Size(max = 4000)
     private String description;
+    @NotNull
+    @DecimalMin(value = "0.01")
+    @DecimalMax(value = "10000000")
     private BigDecimal price;
     private String image;
 

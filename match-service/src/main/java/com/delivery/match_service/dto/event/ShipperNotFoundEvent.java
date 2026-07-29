@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class ShipperNotFoundEvent {
-    
+    private String eventId;
     private Long deliveryId;
     private Long orderId;
     private String reason;

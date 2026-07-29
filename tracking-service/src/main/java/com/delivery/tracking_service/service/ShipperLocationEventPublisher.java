@@ -5,6 +5,7 @@ import com.delivery.tracking_service.dto.event.ShipperLocationUpdatedEvent;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
+import java.util.concurrent.TimeUnit;
 
 /**
  * ✅ Publisher gửi sự kiện vị trí shipper qua Kafka
@@ -30,21 +31,17 @@ public class ShipperLocationEventPublisher {
                     shipperId, latitude, longitude, isOnline, System.currentTimeMillis()
             );
 
-            kafkaTemplate.send(
+            var result = kafkaTemplate.send(
                     KafkaTopicConstants.SHIPPER_LOCATION_UPDATED_TOPIC,
                     shipperId.toString(),
                     event
-            ).thenAccept(result -> {
-                log.debug("📡 Published location update for shipper {} to partition {}",
-                        shipperId, result.getRecordMetadata().partition());
-            }).exceptionally(ex -> {
-                log.error("💥 Failed to publish location update for shipper {}: {}",
-                        shipperId, ex.getMessage());
-                return null;
-            });
+            ).get(5, TimeUnit.SECONDS);
+            log.debug("📡 Published location update for shipper {} to partition {}",
+                    shipperId, result.getRecordMetadata().partition());
 
         } catch (Exception e) {
             log.error("💥 Error publishing location update for shipper {}: {}", shipperId, e.getMessage());
+            throw new IllegalStateException("Cannot replicate shipper location", e);
         }
     }
 }

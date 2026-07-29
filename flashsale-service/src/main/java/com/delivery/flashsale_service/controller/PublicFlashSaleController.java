@@ -13,8 +13,13 @@ import java.util.List;
 public class PublicFlashSaleController {
     private final FlashSaleService service;
 
+    @GetMapping("/campaigns")
+    public ResponseEntity<BaseResponse<List<FlashSaleCampaignDto>>> getActiveCampaigns() {
+        return ResponseEntity.ok(BaseResponse.success(service.getActiveCampaigns()));
+    }
+
     @GetMapping("/campaigns/{campaignId}/items")
     public ResponseEntity<BaseResponse<List<FlashSaleItemDto>>> getItems(@PathVariable Long campaignId) {
-        return ResponseEntity.ok(new BaseResponse<>(200, service.getItemsByCampaign(campaignId), "Success"));
+        return ResponseEntity.ok(BaseResponse.success(service.getPublicItemsByCampaign(campaignId)));
     }
 }

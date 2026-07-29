@@ -2,6 +2,7 @@ package com.delivery.settlement_service.payment;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 import java.util.HashMap;
 import java.util.List;
@@ -12,6 +13,7 @@ import java.util.Map;
  * Spring auto-inject tất cả bean implement PaymentProvider.
  */
 @Component
+@ConditionalOnProperty(name = "app.payment.processing-enabled", havingValue = "true")
 @Slf4j
 public class PaymentProviderRegistry {
 

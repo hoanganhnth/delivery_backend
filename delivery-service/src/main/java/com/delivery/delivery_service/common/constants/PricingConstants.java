@@ -17,9 +17,6 @@ public class PricingConstants {
     // ✅ Shipper earnings rate (85% còn lại)
     public static final BigDecimal SHIPPER_EARNINGS_RATE = new BigDecimal("0.85");
     
-    // Minimum shipper earnings (đảm bảo shipper luôn có ít nhất số tiền này)
-    public static final BigDecimal MIN_SHIPPER_EARNINGS = new BigDecimal("10000");
-    
     private PricingConstants() {
         // Utility class
     }
@@ -30,13 +27,9 @@ public class PricingConstants {
      */
     public static BigDecimal calculateShipperEarnings(BigDecimal shippingFee) {
         if (shippingFee == null || shippingFee.compareTo(BigDecimal.ZERO) <= 0) {
-            return MIN_SHIPPER_EARNINGS;
+            throw new IllegalArgumentException("shippingFee must be positive");
         }
-        
-        BigDecimal earnings = shippingFee.multiply(SHIPPER_EARNINGS_RATE);
-        
-        // Đảm bảo không dưới minimum
-        return earnings.compareTo(MIN_SHIPPER_EARNINGS) < 0 ? MIN_SHIPPER_EARNINGS : earnings;
+        return shippingFee.multiply(SHIPPER_EARNINGS_RATE);
     }
     
     /**
@@ -45,9 +38,8 @@ public class PricingConstants {
      */
     public static BigDecimal calculatePlatformCommission(BigDecimal shippingFee) {
         if (shippingFee == null || shippingFee.compareTo(BigDecimal.ZERO) <= 0) {
-            return BigDecimal.ZERO;
+            throw new IllegalArgumentException("shippingFee must be positive");
         }
-        
         return shippingFee.multiply(PLATFORM_COMMISSION_RATE);
     }
 }

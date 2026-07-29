@@ -6,6 +6,7 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.math.BigDecimal;
 
 /**
  * ✅ Event được bắn khi tìm được shipper thành công
@@ -15,7 +16,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class ShipperFoundEvent {
-    
+    private String eventId;
     private Long deliveryId;
     private Long orderId;
     private List<ShipperMatchResult> availableShippers;
@@ -31,6 +32,8 @@ public class ShipperFoundEvent {
     private Double pickupLng;
     private Double deliveryLat;
     private Double deliveryLng;
+    private BigDecimal totalPrice;
+    private String paymentMethod;
     
     @Data
     @NoArgsConstructor
@@ -52,7 +55,7 @@ public class ShipperFoundEvent {
         this.orderId = orderId;
         this.availableShippers = shippers;
         this.foundAt = LocalDateTime.now();
-        this.waitingTimeoutSeconds = 300; // Default 5 minutes
+        this.waitingTimeoutSeconds = 180; // Keep aligned with the Saga SHIPPER_FOUND timeout
         this.matchingSessionId = "delivery_" + deliveryId;
     }
 }

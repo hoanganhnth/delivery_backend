@@ -1,11 +1,15 @@
 package com.delivery.notification_service.controller;
 
 import com.delivery.notification_service.common.constants.HttpHeaderConstants;
+import com.delivery.notification_service.exception.NotificationAccessDeniedException;
 import com.delivery.notification_service.payload.BaseResponse;
 import com.delivery.notification_service.service.FirebaseService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 /**
  * ✅ Firebase Token Controller để manage FCM tokens theo Backend Instructions
@@ -24,8 +28,10 @@ public class FirebaseController {
     @PostMapping("/register-token")
     public ResponseEntity<BaseResponse<Void>> registerFcmToken(
             @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId,
-            @RequestBody TokenRequest request) {
+            @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role,
+            @Valid @RequestBody TokenRequest request) {
 
+        requireRole(role, "USER");
         firebaseService.registerFcmToken(userId, request.getToken());
         return ResponseEntity.ok(new BaseResponse<>(1, null, "Đăng ký FCM token thành công"));
     }
@@ -33,13 +39,23 @@ public class FirebaseController {
     @PostMapping("/unregister-token")
     public ResponseEntity<BaseResponse<Void>> unregisterFcmToken(
             @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId,
-            @RequestBody TokenRequest request) {
+            @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role,
+            @Valid @RequestBody TokenRequest request) {
 
+        requireRole(role, "USER");
         firebaseService.unregisterFcmToken(userId, request.getToken());
         return ResponseEntity.ok(new BaseResponse<>(1, null, "Hủy đăng ký FCM token thành công"));
     }
 
+    private void requireRole(String actualRole, String requiredRole) {
+        if (!requiredRole.equals(actualRole)) {
+            throw new NotificationAccessDeniedException("Forbidden");
+        }
+    }
+
     public static class TokenRequest {
+        @NotBlank
+        @Size(max = 4096)
         private String token;
 
         public String getToken() {

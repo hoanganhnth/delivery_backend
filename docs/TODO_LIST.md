@@ -15,12 +15,12 @@ Dưới đây là danh sách toàn bộ các tính năng (Use Cases) chưa hoàn
 - [x] **[Customer App]** Tích hợp thanh toán Voucher:
   - ✅ `CreateOrderRequestDto` có `voucherIds`, `VoucherBottomSheet` gọi `/calculate`.
 - [x] **[Backend - Sync]** Tích hợp Kafka `entity-sync`:
-  - ✅ `SearchSyncPublisher` đã publish event trong cả `restaurant-service` + `shipper-service`.
+  - ✅ Restaurant/Menu publish qua transactional outbox; dead Shipper search sync đã xóa.
 
 ## 🟡 ƯU TIÊN CAO (Quản trị & Trải nghiệm cốt lõi)
 
 - [x] **[Customer App]** Tích hợp Elasticsearch:
-  - ✅ Module `features/search/` đã có đầy đủ: datasource gọi `/api/search/*`, models, providers, screens (tabs: Dishes/Restaurants/Shippers).
+  - ✅ Search MVP chỉ còn Dishes/Restaurants; Shipper discovery graph không có product contract đã xóa.
 - [x] **[Admin Web]** UI Flash Sale:
   - ✅ `AdminFlashSalePage.tsx` (337 dòng) — Tạo Campaign, set giờ, duyệt Item.
 - [x] **[Admin Web]** UI Promotion:
@@ -38,8 +38,9 @@ Dưới đây là danh sách toàn bộ các tính năng (Use Cases) chưa hoàn
 
 - [x] **[Admin Web]** Quản lý Nhà Hàng / Menu / User:
   - ✅ Có đầy đủ `RestaurantListPage`, `MenuManagement`, `AdminShippersPage`, `AdminOrdersPage`, `AdminRatingsPage`, `AdminWithdrawalsPage`.
-- [x] **[Admin Web]** Realtime Shipper Tracking: Hiển thị vị trí Shipper đang giao đơn lên bản đồ admin.
-  - ✅ Đã implement `ShipperLocationSocketService` dùng `@stomp/stompjs` + `react-leaflet` trên `AdminShipperTrackingPage.tsx`.
+- [x] **[Admin Web]** Fleet-wide realtime tracking đã loại khỏi MVP sau
+  zero-call-site/capability review. Web không còn STOMP/SockJS; raw Tracking
+  `/ws/shipper-locations` chỉ phục vụ participant của delivery qua Gateway.
 - [x] **[Customer App]** Ví Voucher:
   - ✅ Backend: Đã thêm `GET /api/promotions/my-vouchers` endpoint.
   - ✅ App: Đã thêm `getMyVouchers()` vào `PromotionDataSource`.
@@ -53,3 +54,12 @@ Dưới đây là danh sách toàn bộ các tính năng (Use Cases) chưa hoàn
   - ✅ Đã implement `onOrderReorder` trong `OrdersScreen` để đưa các món cũ vào Giỏ hàng và điều hướng tới CartScreen.
 - [x] **[Shipper App]** Hỗ trợ Đăng nhập Social (Google, Apple).
   - ✅ Đã implement `GoogleSignin` và `appleAuth` trên `LoginScreen.tsx` (React Native).
+
+## 🛡️ HỆ THỐNG & HIỆU NĂNG (Backend Fixes - Urgent)
+
+- [ ] **[Backend - Performance]** Chống tràn RAM (OOM): Chuyển toàn bộ `findAll()` sang `Pageable` tại `ShipperService` và `OrderService`.
+- [ ] **[Backend - DB Optimization]** Giảm tải MySQL cho Location: Thay thế việc ghi MySQL trực tiếp mỗi 5 giây bằng Redis GEO + Batch sync định kỳ.
+- [ ] **[Backend - Kafka]** Sửa lỗi nghẽn Thread: Thay thế `Thread.sleep()` trong Match Service bằng cơ chế Delayed Messages hoặc Scheduler.
+- [ ] **[Backend - WebSocket]** Tối ưu Broadcast: Áp dụng Geo-hashing hoặc Rooms để tránh vòng lặp `O(N)` trên hàng vạn kết nối.
+- [ ] **[Backend - Security]** Chặn Spoofing Identity: Xử lý chặt `JwtAuthenticationFilter` tại Gateway để strip/override header `X-User-Id`.
+- [ ] **[Backend - Bug]** Fix NPE: Kiểm tra `notes == null` trước khi xử lý chuỗi trong `OrderEventServiceImpl`.

@@ -5,6 +5,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Getter
 @Setter
@@ -16,11 +17,20 @@ public class Delivery {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "create_event_id", nullable = false, unique = true, updatable = false)
+    private UUID createEventId;
+
     @Column(name = "order_id", nullable = false, unique = true)
     private Long orderId;
 
     @Column(name = "shipper_id")
     private Long shipperId; // nullable - sẽ được set khi assign shipper
+
+    @Column(name = "offered_shipper_id")
+    private Long offeredShipperId;
+
+    @Column(name = "offer_expires_at")
+    private LocalDateTime offerExpiresAt;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status")
@@ -89,13 +99,13 @@ public class Delivery {
     @Column(name = "restaurant_id")
     private Long restaurantId;
 
+    @Column(name = "restaurant_owner_id")
+    private Long restaurantOwnerId;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
-        if (assignedAt == null) {
-            assignedAt = LocalDateTime.now();
-        }
     }
 
     @PreUpdate

@@ -1,0 +1,17 @@
+services:
+  auth-service: { ports: ["8081:8081"] }
+  user-service: { ports: ["8082:8082"] }
+  restaurant-service: { ports: ["8083:8083"] }
+  order-service: { ports: ["8084:8084"] }
+  delivery-service: { ports: ["8085:8085"] }
+  search-service: { ports: ["8088:8088"] }
+  shipper-service: { ports: ["8089:8089"] }
+  settlement-service: { ports: ["8090:8090"] }
+  notification-service: { ports: ["8091:8091"] }
+  match-service: { ports: ["8092:8092"] }
+  tracking-service: { ports: ["8093:8093"] }
+  livestream-service: { ports: ["8094:8094"] }
+  saga-orchestrator-service: { ports: ["8095:8095"] }
+  promotion-service: { ports: ["8096:8096"] }
+  analytics-service: { ports: ["8097:8097"] }
+  flashsale-service: { ports: ["8098:8092"] }

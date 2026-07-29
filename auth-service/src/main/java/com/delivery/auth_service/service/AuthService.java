@@ -4,15 +4,24 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
@@ -25,11 +34,6 @@ import com.delivery.auth_service.dto.RefreshTokenRequest;
 import com.delivery.auth_service.dto.RegisterRequest;
 import com.delivery.auth_service.dto.SessionInfoResponse;
 import com.delivery.auth_service.dto.SocialLoginRequest;
-import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
-import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
-import com.google.api.client.http.javanet.NetHttpTransport;
-import com.google.api.client.json.gson.GsonFactory;
-import java.util.Collections;
 import com.delivery.auth_service.dto.UserResponse;
 import com.delivery.auth_service.entity.AuthAccount;
 import com.delivery.auth_service.entity.AuthSession;
@@ -41,11 +45,14 @@ import com.delivery.auth_service.payload.BaseResponse;
 import com.delivery.auth_service.repository.AuthAccountRepository;
 import com.delivery.auth_service.repository.AuthSessionRepository;
 
-import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
-@RequiredArgsConstructor
+@Slf4j
 public class AuthService implements UserDetailsService {
+
+    private static final int USER_STATUS_SYNC_BATCH_SIZE = 50;
+    private static final int USER_STATUS_SYNC_ERROR_MAX_LENGTH = 500;
 
     private final AuthAccountRepository authAccountRepository;
     private final AuthSessionRepository authSessionRepository;
@@ -53,73 +60,112 @@ public class AuthService implements UserDetailsService {
     private final TokenService tokenService;
     private final UserServiceConfig userServiceConfig;
     private final RestTemplate restTemplate;
+    private final GoogleTokenVerifier googleTokenVerifier;
+    private final PlatformTransactionManager transactionManager;
+
+    public AuthService(
+            AuthAccountRepository authAccountRepository,
+            AuthSessionRepository authSessionRepository,
+            PasswordEncoder passwordEncoder,
+            TokenService tokenService,
+            UserServiceConfig userServiceConfig,
+            RestTemplate restTemplate,
+            GoogleTokenVerifier googleTokenVerifier) {
+        this(
+                authAccountRepository,
+                authSessionRepository,
+                passwordEncoder,
+                tokenService,
+                userServiceConfig,
+                restTemplate,
+                googleTokenVerifier,
+                null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public AuthService(
+            AuthAccountRepository authAccountRepository,
+            AuthSessionRepository authSessionRepository,
+            PasswordEncoder passwordEncoder,
+            TokenService tokenService,
+            UserServiceConfig userServiceConfig,
+            RestTemplate restTemplate,
+            GoogleTokenVerifier googleTokenVerifier,
+            PlatformTransactionManager transactionManager) {
+        this.authAccountRepository = authAccountRepository;
+        this.authSessionRepository = authSessionRepository;
+        this.passwordEncoder = passwordEncoder;
+        this.tokenService = tokenService;
+        this.userServiceConfig = userServiceConfig;
+        this.restTemplate = restTemplate;
+        this.googleTokenVerifier = googleTokenVerifier;
+        this.transactionManager = transactionManager;
+    }
 
     /**
      * Đăng ký tài khoản mới
      */
-    @Transactional
     public AuthAccount register(RegisterRequest request) {
-        // 1. Kiểm tra email đã tồn tại
-        if (authAccountRepository.findByEmail(request.getEmail()).isPresent()) {
-            throw new EmailAlreadyExistsException("Email already registered: " + request.getEmail());
-        }
-
-        // 2. Kiểm tra role
         if (request.getRole() == null || request.getRole().isBlank()) {
             throw new IllegalArgumentException("Role is required");
         }
 
-        AuthAccount.Role roleEnum;
-        try {
-            roleEnum = AuthAccount.Role.valueOf(request.getRole().toUpperCase());
-        } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("Invalid role: " + request.getRole());
+        AuthAccount.Role roleEnum = parsePublicRegistrationRole(request.getRole());
+
+        AuthAccount account = authAccountRepository.findByEmail(request.getEmail())
+                .map(existing -> resumePendingPasswordRegistration(existing, request, roleEnum))
+                .orElseGet(() -> createPasswordAccountOrResumeRace(request, roleEnum));
+
+        provisionUserProfile(account);
+
+        return account;
+    }
+
+    /**
+     * Local/operator provisioning path for SHIPPER accounts. This intentionally
+     * does not back public registration: SHIPPER still requires an operator-owned
+     * fixture/onboarding flow before the shipper profile can be created.
+     */
+    public AuthAccount operatorProvisionShipperAccount(String email, String password) {
+        if (email == null || email.isBlank()) {
+            throw new IllegalArgumentException("Operator-provisioned email is required");
+        }
+        if (password == null || password.isBlank()) {
+            throw new IllegalArgumentException("Operator-provisioned password is required");
         }
 
-        // 3. Tạo AuthAccount
-        AuthAccount account = new AuthAccount();
-        account.setEmail(request.getEmail());
-        account.setPasswordHash(passwordEncoder.encode(request.getPassword()));
-        account.setRole(roleEnum);
+        AuthAccount account = authAccountRepository.findByEmail(email)
+                .map(existing -> resumeOperatorPasswordAccount(
+                        existing, email, password, AuthAccount.Role.SHIPPER))
+                .orElseGet(() -> createOperatorPasswordAccount(email, password, AuthAccount.Role.SHIPPER));
 
-        authAccountRepository.save(account);
+        if (account.getUserId() == null) {
+            provisionUserProfile(account);
+        }
 
-        // 4. Gọi user-service để tạo user
-        CreateUserRequest userRequest = new CreateUserRequest(
-                account.getId(),
-                account.getEmail(),
-                account.getRole().name());
+        return account;
+    }
 
-        try {
-            ResponseEntity<BaseResponse<UserResponse>> responseEntity = restTemplate.exchange(
-                    userServiceConfig.getRegisterUrl(),
-                    HttpMethod.POST,
-                    new HttpEntity<>(userRequest),
-                    new ParameterizedTypeReference<BaseResponse<UserResponse>>() {
-                    });
+    /**
+     * Local/operator provisioning path for ADMIN accounts. This is intentionally
+     * isolated from public registration and is enabled only by the explicit
+     * operator one-shot runner used for local/runtime verification.
+     */
+    public AuthAccount operatorProvisionAdminAccount(String email, String password) {
+        if (email == null || email.isBlank()) {
+            throw new IllegalArgumentException("Operator-provisioned admin email is required");
+        }
+        if (password == null || password.isBlank()) {
+            throw new IllegalArgumentException("Operator-provisioned admin password is required");
+        }
 
-            BaseResponse<UserResponse> response = responseEntity.getBody();
+        AuthAccount account = authAccountRepository.findByEmail(email)
+                .map(existing -> resumeOperatorPasswordAccount(
+                        existing, email, password, AuthAccount.Role.ADMIN))
+                .orElseGet(() -> createOperatorPasswordAccount(email, password, AuthAccount.Role.ADMIN));
 
-            if (response == null || response.getStatus() != 1) {
-                String msg = (response != null) ? response.getMessage() : "Unknown error";
-                throw new RuntimeException("Failed to create user in user-service: " + msg);
-            }
-
-            UserResponse userResponse = response.getData();
-
-            // 5. Update userId lại cho AuthAccount
-            if (userResponse != null && userResponse.getId() != null) {
-                account.setUserId(userResponse.getId());
-                authAccountRepository.save(account);
-            } else {
-                throw new RuntimeException("Failed to create user in user-service: userId is null");
-            }
-
-            System.out.println("✅ User created in user-service with userId = " + userResponse.getId());
-
-        } catch (RestClientException e) {
-            System.err.println("❌ Failed to create user in user-service: " + e.getMessage());
-            throw new RuntimeException("Failed to create user in user-service", e);
+        if (account.getUserId() == null) {
+            provisionUserProfile(account);
         }
 
         return account;
@@ -142,6 +188,8 @@ public class AuthService implements UserDetailsService {
         if (request.getDeviceId() == null || request.getDeviceId().trim().isEmpty()) {
             throw new IllegalArgumentException("Device ID must not be empty");
         }
+
+        requireLinkedUser(account);
 
         deactivateSessions(account, request.getDeviceId());
 
@@ -171,110 +219,73 @@ public class AuthService implements UserDetailsService {
                 account.getRole().name());
     }
 
-    @Transactional
     public AuthResponse socialLogin(SocialLoginRequest request) {
         if (!"google".equalsIgnoreCase(request.getProvider())) {
             throw new IllegalArgumentException("Unsupported provider: " + request.getProvider());
         }
 
-        try {
-            // Xác thực token Google
-            GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(new NetHttpTransport(), new GsonFactory())
-                    .build(); // Add .setAudience(Collections.singletonList("YOUR_CLIENT_ID")) for production
+        var payload = googleTokenVerifier.verify(request.getToken());
+        String email = payload.getEmail();
 
-            // Dùng parse để bỏ qua check signature nếu cần (cho development linh hoạt)
-            GoogleIdToken idToken = null;
+        AuthAccount account = authAccountRepository.findByEmail(email).orElse(null);
+
+        if (account == null) {
+            account = new AuthAccount();
+            account.setEmail(email);
+            account.setPasswordHash(passwordEncoder.encode(java.util.UUID.randomUUID().toString()));
+
+            AuthAccount.Role role = request.getRole() == null || request.getRole().isBlank()
+                    ? AuthAccount.Role.USER
+                    : parsePublicRegistrationRole(request.getRole());
+            account.setRole(role);
             try {
-                idToken = verifier.verify(request.getToken());
-            } catch (Exception e) {}
-            
-            if (idToken == null) {
-                idToken = GoogleIdToken.parse(new GsonFactory(), request.getToken());
-                if (idToken == null) throw new InvalidCredentialsException("Invalid token format.");
-            }
-
-            GoogleIdToken.Payload payload = idToken.getPayload();
-            String email = payload.getEmail();
-
-            // Kiểm tra tài khoản
-            AuthAccount account = authAccountRepository.findByEmail(email).orElse(null);
-
-            if (account == null) {
-                // Auto-create tài khoản mới
-                account = new AuthAccount();
-                account.setEmail(email);
-                account.setPasswordHash(passwordEncoder.encode(java.util.UUID.randomUUID().toString()));
-                
-                AuthAccount.Role role = AuthAccount.Role.USER;
-                if (request.getRole() != null && !request.getRole().isBlank()) {
-                    try {
-                        role = AuthAccount.Role.valueOf(request.getRole().toUpperCase());
-                    } catch (Exception ignored) {
-                        if ("CUSTOMER".equalsIgnoreCase(request.getRole())) {
-                            role = AuthAccount.Role.USER;
-                        }
-                    }
-                }
-                account.setRole(role);
                 authAccountRepository.save(account);
-
-                // Tạo profile bên user-service
-                CreateUserRequest userRequest = new CreateUserRequest(
-                        account.getId(), account.getEmail(), account.getRole().name());
-                
-                try {
-                    ResponseEntity<BaseResponse<UserResponse>> responseEntity = restTemplate.exchange(
-                            userServiceConfig.getRegisterUrl(),
-                            HttpMethod.POST,
-                            new HttpEntity<>(userRequest),
-                            new ParameterizedTypeReference<BaseResponse<UserResponse>>() {}
-                    );
-                    BaseResponse<UserResponse> res = responseEntity.getBody();
-                    if (res != null && res.getStatus() == 1 && res.getData() != null) {
-                        account.setUserId(res.getData().getId());
-                        authAccountRepository.save(account);
-                    }
-                } catch (Exception e) {
-                    System.err.println("Failed to create user in user-service for social login: " + e.getMessage());
-                }
+            } catch (DataIntegrityViolationException race) {
+                account = authAccountRepository.findByEmail(email)
+                        .orElseThrow(() -> race);
             }
-
-            if (account.getIsActive() != null && !account.getIsActive()) {
-                throw new InvalidCredentialsException("Account is blocked or inactive");
-            }
-
-            // Quản lý session
-            String deviceId = request.getDeviceId() != null && !request.getDeviceId().isBlank() 
-                                ? request.getDeviceId() : "social-device";
-            deactivateSessions(account, deviceId);
-
-            String accessToken = tokenService.generateToken(account.getUserId(), account.getEmail(), account.getRole().name());
-            String refreshToken = tokenService.generateRefreshToken(account.getUserId(), account.getEmail(), account.getRole().name());
-
-            AuthSession session = new AuthSession();
-            session.setAuthAccount(account);
-            session.setDeviceId(deviceId);
-            session.setDeviceName(request.getDeviceName());
-            try {
-                session.setDeviceType(AuthSession.DeviceType.fromString(request.getDeviceType()));
-            } catch (Exception ignored) {
-                session.setDeviceType(AuthSession.DeviceType.MOBILE);
-            }
-            session.setIpAddress(request.getIpAddress());
-            session.setRefreshToken(refreshToken);
-            session.setLastLoginAt(LocalDateTime.now());
-            session.setExpiresAt(LocalDateTime.now().plusDays(7));
-            session.setIsActive(true);
-
-            authSessionRepository.save(session);
-
-            return new AuthResponse(accessToken, refreshToken, account.getId(), account.getEmail(), account.getRole().name());
-
-        } catch (Exception e) {
-            throw new InvalidCredentialsException("Social login failed: " + e.getMessage());
         }
+
+        if (account.getUserId() == null) {
+            provisionUserProfile(account);
+        }
+
+        if (account.getIsActive() != null && !account.getIsActive()) {
+            throw new InvalidCredentialsException("Account is blocked or inactive");
+        }
+        requireLinkedUser(account);
+
+        String deviceId = request.getDeviceId() != null && !request.getDeviceId().isBlank()
+                ? request.getDeviceId() : "social-device";
+        deactivateSessions(account, deviceId);
+
+        String accessToken = tokenService.generateToken(
+                account.getUserId(), account.getEmail(), account.getRole().name());
+        String refreshToken = tokenService.generateRefreshToken(
+                account.getUserId(), account.getEmail(), account.getRole().name());
+
+        AuthSession session = new AuthSession();
+        session.setAuthAccount(account);
+        session.setDeviceId(deviceId);
+        session.setDeviceName(request.getDeviceName());
+        try {
+            session.setDeviceType(AuthSession.DeviceType.fromString(request.getDeviceType()));
+        } catch (Exception ignored) {
+            session.setDeviceType(AuthSession.DeviceType.MOBILE);
+        }
+        session.setIpAddress(request.getIpAddress());
+        session.setRefreshToken(refreshToken);
+        session.setLastLoginAt(LocalDateTime.now());
+        session.setExpiresAt(LocalDateTime.now().plusDays(7));
+        session.setIsActive(true);
+
+        authSessionRepository.save(session);
+
+        return new AuthResponse(
+                accessToken, refreshToken, account.getId(), account.getEmail(), account.getRole().name());
     }
 
+    @Transactional
     public AuthResponse refreshToken(RefreshTokenRequest request) {
         String oldRefreshToken = request.getRefreshToken();
 
@@ -282,14 +293,20 @@ public class AuthService implements UserDetailsService {
             throw new InvalidTokenException("Invalid refresh token");
         }
 
-        AuthSession session = authSessionRepository.findByRefreshToken(oldRefreshToken)
+        AuthSession session = authSessionRepository.findByRefreshTokenForUpdate(oldRefreshToken)
                 .orElseThrow(() -> new InvalidTokenException("Refresh token not found or expired"));
 
-        if (!session.getIsActive()) {
+        if (!Boolean.TRUE.equals(session.getIsActive())
+                || session.getExpiresAt() == null
+                || !session.getExpiresAt().isAfter(LocalDateTime.now())) {
             throw new InvalidTokenException("Session is inactive");
         }
 
         AuthAccount account = session.getAuthAccount();
+        if (!Boolean.TRUE.equals(account.getIsActive())) {
+            throw new InvalidTokenException("Account is blocked or inactive");
+        }
+        requireLinkedUser(account);
 
         String newAccessToken = tokenService.generateToken(account.getUserId(), account.getEmail(),
                 account.getRole().name());
@@ -309,13 +326,15 @@ public class AuthService implements UserDetailsService {
                 account.getRole().name());
     }
 
+    @Transactional
     public void logout(String refreshToken) {
         if (!tokenService.isValid(refreshToken)) {
             throw new InvalidTokenException("Invalid refresh token");
         }
 
-        authSessionRepository.findByRefreshToken(refreshToken).ifPresent(session -> {
+        authSessionRepository.findByRefreshTokenForUpdate(refreshToken).ifPresent(session -> {
             session.setIsActive(false);
+            session.setExpiresAt(LocalDateTime.now());
             authSessionRepository.save(session);
         });
     }
@@ -324,11 +343,15 @@ public class AuthService implements UserDetailsService {
         AuthAccount account = authAccountRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("Account", "email", email));
 
-        return authSessionRepository.findByAuthAccount(account).stream()
+        return authSessionRepository.findActiveUnexpiredByAuthAccount(
+                        account,
+                        LocalDateTime.now(),
+                        org.springframework.data.domain.PageRequest.of(0, 100))
+                .stream()
                 .map(session -> new SessionInfoResponse(
                         session.getDeviceId(),
                         session.getDeviceName(),
-                        session.getDeviceType().toString(),
+                        session.getDeviceType() != null ? session.getDeviceType().toString() : null,
                         session.getIpAddress(),
                         session.getLastLoginAt(),
                         session.getExpiresAt(),
@@ -343,13 +366,8 @@ public class AuthService implements UserDetailsService {
     }
 
     private void deactivateSessions(AuthAccount account, String deviceId) {
-        String trimmed = deviceId.trim();
-        var sessions = authSessionRepository.findByAuthAccountAndDeviceIdAndIsActiveTrue(account, trimmed);
-        sessions.forEach(s -> {
-            s.setIsActive(false);
-            s.setExpiresAt(LocalDateTime.now());
-            authSessionRepository.save(s);
-        });
+        authSessionRepository.deactivateActiveSessionsForDevice(
+                account.getId(), deviceId.trim(), LocalDateTime.now());
     }
 
     @Override
@@ -364,12 +382,6 @@ public class AuthService implements UserDetailsService {
                 .build();
     }
 
-    public AuthAccountDto getAccountByEmailDto(String email) {
-        AuthAccount account = authAccountRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("Account", "email", email));
-        return new AuthAccountDto(account.getId(), account.getEmail(), account.getRole().name());
-    }
-
     // Admin methods
 
     /**
@@ -377,52 +389,19 @@ public class AuthService implements UserDetailsService {
      */
     @Transactional
     public void blockAccount(Long accountId, Long adminId, String reason) {
-        AuthAccount account = authAccountRepository.findById(accountId)
+        AuthAccount account = authAccountRepository.findByIdForUpdate(accountId)
                 .orElseThrow(() -> new ResourceNotFoundException("Account", "id", accountId));
 
         account.setIsActive(false);
+        if (account.getUserId() != null) {
+            markUserStatusSyncPending(account, adminId, reason);
+        }
         authAccountRepository.save(account);
 
-        // Deactivate all active sessions
-        List<AuthSession> activeSessions = authSessionRepository.findByAuthAccount(account).stream()
-                .filter(AuthSession::getIsActive)
-                .toList();
+        authSessionRepository.deactivateAllActiveSessions(accountId, LocalDateTime.now());
 
-        activeSessions.forEach(session -> {
-            session.setIsActive(false);
-            session.setExpiresAt(LocalDateTime.now());
-            authSessionRepository.save(session);
-        });
-
-        // 3. Call user-service to block user
         if (account.getUserId() != null) {
-            try {
-                String url = userServiceConfig.getBlockUserUrl(account.getUserId());
-
-                // Create request body
-                java.util.Map<String, String> requestBody = new java.util.HashMap<>();
-                requestBody.put("reason", reason != null ? reason : "Blocked by admin");
-
-                // Create headers with admin ID
-                org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
-                headers.set("X-User-Id", String.valueOf(adminId));
-                headers.set("X-Role", "ADMIN");
-                headers.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
-
-                HttpEntity<java.util.Map<String, String>> request = new HttpEntity<>(requestBody, headers);
-
-                restTemplate.exchange(
-                        url,
-                        HttpMethod.POST,
-                        request,
-                        new ParameterizedTypeReference<BaseResponse<Void>>() {
-                        });
-
-                System.out.println("✅ User blocked in user-service: userId=" + account.getUserId());
-            } catch (Exception e) {
-                System.err.println("⚠️ Failed to block user in user-service: " + e.getMessage());
-                // Don't fail the whole operation if user-service call fails
-            }
+            scheduleUserStatusSyncAfterCommit(account.getId());
         }
     }
 
@@ -430,20 +409,286 @@ public class AuthService implements UserDetailsService {
      * Unblock an account (set isActive = true)
      */
     @Transactional
-    public void unblockAccount(Long accountId) {
-        AuthAccount account = authAccountRepository.findById(accountId)
+    public void unblockAccount(Long accountId, Long adminId) {
+        AuthAccount account = authAccountRepository.findByIdForUpdate(accountId)
                 .orElseThrow(() -> new ResourceNotFoundException("Account", "id", accountId));
 
         account.setIsActive(true);
+        if (account.getUserId() != null) {
+            markUserStatusSyncPending(account, adminId, null);
+        }
         authAccountRepository.save(account);
+        if (account.getUserId() != null) {
+            scheduleUserStatusSyncAfterCommit(account.getId());
+        }
     }
 
-    /**
-     * Get all accounts (for admin)
-     */
-    public List<AuthAccountDto> getAllAccounts() {
-        return authAccountRepository.findAll().stream()
-                .map(account -> new AuthAccountDto(account.getId(), account.getEmail(), account.getRole().name()))
-                .toList();
+    @Scheduled(fixedDelayString = "${app.user-status-sync.poll-delay-ms:5000}")
+    void reconcilePendingUserStatusSync() {
+        List<AuthAccount> pendingAccounts = authAccountRepository.findPendingUserStatusSync(
+                PageRequest.of(0, USER_STATUS_SYNC_BATCH_SIZE));
+        for (AuthAccount account : pendingAccounts) {
+            try {
+                synchronizeUserStatusFromAuthSource(account);
+            } catch (RuntimeException e) {
+                log.warn("Pending user profile status sync failed for authAccountId={}",
+                        account.getId(), e);
+            }
+        }
+    }
+
+    private void markUserStatusSyncPending(AuthAccount account, Long adminId, String reason) {
+        account.setUserStatusSyncPending(true);
+        account.setUserStatusSyncVersion((account.getUserStatusSyncVersion() == null
+                ? 0L
+                : account.getUserStatusSyncVersion()) + 1);
+        account.setUserStatusSyncAdminId(adminId);
+        account.setUserStatusSyncBlockReason(Boolean.FALSE.equals(account.getIsActive())
+                ? reason
+                : null);
+        account.setUserStatusSyncAttempts(0);
+        account.setUserStatusSyncLastError(null);
+        account.setUserStatusSyncUpdatedAt(LocalDateTime.now());
+    }
+
+    private void scheduleUserStatusSyncAfterCommit(Long accountId) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            synchronizeUserStatusByAccountId(accountId);
+            return;
+        }
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                synchronizeUserStatusByAccountId(accountId);
+            }
+        });
+    }
+
+    private void synchronizeUserStatusByAccountId(Long accountId) {
+        authAccountRepository.findById(accountId)
+                .ifPresent(this::synchronizeUserStatusFromAuthSourceInNewTransaction);
+    }
+
+    private void synchronizeUserStatusFromAuthSourceInNewTransaction(AuthAccount account) {
+        executeInNewTransaction(() -> synchronizeUserStatusFromAuthSource(account));
+    }
+
+    private void synchronizeUserStatusFromAuthSource(AuthAccount account) {
+        if (!Boolean.TRUE.equals(account.getUserStatusSyncPending()) || account.getUserId() == null) {
+            return;
+        }
+
+        Long syncVersion = account.getUserStatusSyncVersion();
+        boolean blocked = !Boolean.TRUE.equals(account.getIsActive());
+        try {
+            syncUserBlockState(
+                    account.getUserId(),
+                    account.getUserStatusSyncAdminId(),
+                    account.getUserStatusSyncBlockReason(),
+                    blocked);
+            int cleared = authAccountRepository.clearUserStatusSyncPending(
+                    account.getId(), syncVersion, LocalDateTime.now());
+            if (cleared == 1) {
+                log.info("Synchronized user profile block state userId={}, blocked={}",
+                        account.getUserId(), blocked);
+            }
+        } catch (RuntimeException e) {
+            authAccountRepository.recordUserStatusSyncFailure(
+                    account.getId(),
+                    syncVersion,
+                    truncateSyncError(e),
+                    LocalDateTime.now());
+            throw e;
+        }
+    }
+
+    private void executeInNewTransaction(Runnable action) {
+        if (transactionManager == null) {
+            action.run();
+            return;
+        }
+
+        TransactionTemplate template = new TransactionTemplate(transactionManager);
+        template.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        template.executeWithoutResult(status -> action.run());
+    }
+
+    private void syncUserBlockState(Long userId, Long adminId, String reason, boolean blocked) {
+        String url = blocked
+                ? userServiceConfig.getBlockUserUrl(userId)
+                : userServiceConfig.getUnblockUserUrl(userId);
+        java.util.Map<String, String> requestBody = new java.util.HashMap<>();
+        if (blocked) {
+            requestBody.put("reason", reason != null ? reason : "Blocked by admin");
+        }
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("X-User-Id", String.valueOf(adminId));
+        headers.set("X-Role", "ADMIN");
+        headers.set("Internal-Token", requireInternalSecret());
+        headers.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
+
+        try {
+            ResponseEntity<BaseResponse<Void>> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.POST,
+                    new HttpEntity<>(requestBody, headers),
+                    new ParameterizedTypeReference<BaseResponse<Void>>() {
+                    });
+            if (!response.getStatusCode().is2xxSuccessful()
+                    || response.getBody() == null
+                    || response.getBody().getStatus() != 1) {
+                throw new IllegalStateException("User profile status synchronization was rejected");
+            }
+        } catch (RestClientException e) {
+            throw new IllegalStateException("Failed to synchronize user profile block state", e);
+        }
+    }
+
+    private String truncateSyncError(RuntimeException e) {
+        String message = e.getMessage();
+        if (message == null || message.isBlank()) {
+            message = e.getClass().getSimpleName();
+        }
+        return message.length() <= USER_STATUS_SYNC_ERROR_MAX_LENGTH
+                ? message
+                : message.substring(0, USER_STATUS_SYNC_ERROR_MAX_LENGTH);
+    }
+
+    private AuthAccount.Role parsePublicRegistrationRole(String role) {
+        String normalized = "CUSTOMER".equalsIgnoreCase(role) ? "USER" : role.toUpperCase();
+        AuthAccount.Role parsed;
+        try {
+            parsed = AuthAccount.Role.valueOf(normalized);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Invalid role: " + role);
+        }
+        if (parsed == AuthAccount.Role.ADMIN) {
+            throw new IllegalArgumentException("ADMIN accounts cannot be self-registered");
+        }
+        if (parsed == AuthAccount.Role.SHIPPER) {
+            throw new IllegalArgumentException(
+                    "SHIPPER accounts require operator provisioning and profile onboarding");
+        }
+        return parsed;
+    }
+
+    private void requireLinkedUser(AuthAccount account) {
+        if (account.getUserId() == null) {
+            throw new InvalidCredentialsException("Account profile is not provisioned");
+        }
+    }
+
+    private AuthAccount resumePendingPasswordRegistration(
+            AuthAccount existing,
+            RegisterRequest request,
+            AuthAccount.Role requestedRole) {
+        if (existing.getUserId() != null
+                || existing.getRole() != requestedRole
+                || !passwordEncoder.matches(request.getPassword(), existing.getPasswordHash())) {
+            throw new EmailAlreadyExistsException("Email already registered: " + request.getEmail());
+        }
+        if (!Boolean.TRUE.equals(existing.getIsActive())) {
+            throw new InvalidCredentialsException("Account is blocked or inactive");
+        }
+        log.info("Resuming user profile provisioning for authAccountId={}", existing.getId());
+        return existing;
+    }
+
+    private AuthAccount createPasswordAccountOrResumeRace(
+            RegisterRequest request,
+            AuthAccount.Role role) {
+        AuthAccount created = new AuthAccount();
+        created.setEmail(request.getEmail());
+        created.setPasswordHash(passwordEncoder.encode(request.getPassword()));
+        created.setRole(role);
+        try {
+            return authAccountRepository.save(created);
+        } catch (DataIntegrityViolationException race) {
+            AuthAccount concurrent = authAccountRepository.findByEmail(request.getEmail())
+                    .orElseThrow(() -> race);
+            return resumePendingPasswordRegistration(concurrent, request, role);
+        }
+    }
+
+    private AuthAccount createOperatorPasswordAccount(
+            String email,
+            String password,
+            AuthAccount.Role role) {
+        AuthAccount created = new AuthAccount();
+        created.setEmail(email);
+        created.setPasswordHash(passwordEncoder.encode(password));
+        created.setRole(role);
+        created.setIsActive(true);
+        try {
+            return authAccountRepository.save(created);
+        } catch (DataIntegrityViolationException race) {
+            AuthAccount concurrent = authAccountRepository.findByEmail(email)
+                    .orElseThrow(() -> race);
+            return resumeOperatorPasswordAccount(concurrent, email, password, role);
+        }
+    }
+
+    private AuthAccount resumeOperatorPasswordAccount(
+            AuthAccount existing,
+            String email,
+            String password,
+            AuthAccount.Role requestedRole) {
+        if (existing.getRole() != requestedRole
+                || !passwordEncoder.matches(password, existing.getPasswordHash())) {
+            throw new EmailAlreadyExistsException("Email already registered: " + email);
+        }
+        if (!Boolean.TRUE.equals(existing.getIsActive())) {
+            throw new InvalidCredentialsException("Account is blocked or inactive");
+        }
+        return existing;
+    }
+
+    private void provisionUserProfile(AuthAccount account) {
+        CreateUserRequest userRequest = new CreateUserRequest(
+                account.getId(), account.getEmail(), account.getRole().name());
+
+        try {
+            ResponseEntity<BaseResponse<UserResponse>> responseEntity = restTemplate.exchange(
+                    userServiceConfig.getRegisterUrl(),
+                    HttpMethod.POST,
+                    internalUserRequest(userRequest),
+                    new ParameterizedTypeReference<BaseResponse<UserResponse>>() {
+                    });
+            BaseResponse<UserResponse> response = responseEntity.getBody();
+            UserResponse user = response != null ? response.getData() : null;
+            if (response == null || response.getStatus() != 1 || user == null || user.getId() == null) {
+                String message = response != null ? response.getMessage() : "empty response";
+                throw new IllegalStateException("User service did not provision profile: " + message);
+            }
+            if (!account.getId().equals(user.getAuthId())
+                    || user.getEmail() == null
+                    || !account.getEmail().equalsIgnoreCase(user.getEmail())
+                    || !account.getRole().name().equals(user.getRole())) {
+                throw new IllegalStateException(
+                        "User service returned a conflicting provisioning identity");
+            }
+            account.setUserId(user.getId());
+            authAccountRepository.save(account);
+            log.info("Provisioned user profile for authAccountId={}, userId={}", account.getId(), user.getId());
+        } catch (RestClientException e) {
+            log.error("User profile provisioning failed for authAccountId={}", account.getId(), e);
+            throw new IllegalStateException("Failed to provision user profile", e);
+        }
+    }
+
+    private HttpEntity<CreateUserRequest> internalUserRequest(CreateUserRequest request) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Internal-Token", requireInternalSecret());
+        return new HttpEntity<>(request, headers);
+    }
+
+    private String requireInternalSecret() {
+        String secret = userServiceConfig.getInternalSecret();
+        if (secret == null || secret.isBlank()) {
+            throw new IllegalStateException("INTERNAL_SECRET is required for auth/user linkage");
+        }
+        return secret;
     }
 }

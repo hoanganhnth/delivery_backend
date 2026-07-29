@@ -9,8 +9,10 @@ import com.delivery.match_service.dto.response.NearbyShipperResponse;
 import com.delivery.match_service.service.MatchCancellationService;
 import com.delivery.match_service.service.MatchService;
 import com.delivery.match_service.service.MatchEventPublisher;
+import com.delivery.match_service.service.SettlementEligibilityClient;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.annotation.RetryableTopic;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.messaging.handler.annotation.Header;
@@ -18,11 +20,15 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
+import reactor.core.publisher.Flux;
 import reactor.util.retry.Retry;
 
 import java.time.Duration;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.List;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.retry.annotation.Backoff;
 
 /**
  * ✅ Kafka Event Listener cho Match Service theo Backend Instructions
@@ -38,6 +44,8 @@ public class FindShipperEventListener {
         private final MatchService matchService;
         private final MatchEventPublisher matchEventPublisher;
         private final MatchCancellationService matchCancellationService;
+        private final SettlementEligibilityClient settlementEligibilityClient;
+        private final int candidatePoolSize;
         private final ObjectMapper objectMapper;
 
         // ✅ Default retry configuration (nếu Saga không gửi)
@@ -50,10 +58,14 @@ public class FindShipperEventListener {
         public FindShipperEventListener(
                         MatchService matchService,
                         MatchEventPublisher matchEventPublisher,
-                        MatchCancellationService matchCancellationService) {
+                        MatchCancellationService matchCancellationService,
+                        SettlementEligibilityClient settlementEligibilityClient,
+                        @Value("${matching.candidate-pool-size:20}") int candidatePoolSize) {
                 this.matchService = matchService;
                 this.matchEventPublisher = matchEventPublisher;
                 this.matchCancellationService = matchCancellationService;
+                this.settlementEligibilityClient = settlementEligibilityClient;
+                this.candidatePoolSize = candidatePoolSize;
                 this.objectMapper = new ObjectMapper()
                                 .registerModule(new JavaTimeModule())
                                 .configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
@@ -61,16 +73,22 @@ public class FindShipperEventListener {
 
         /**
          * ✅ Nhận lệnh từ Saga Orchestrator: Tìm shipper
-         * TRƯỚC: delivery.find-shipper (từ delivery-service)
-         * SAU:   saga.command.find-shipper (từ Saga)
+         * Canonical topic: saga.command.find-shipper
          */
-        @KafkaListener(topics = "saga.command.find-shipper")
-        public void handleFindShipperEvent(
+        @RetryableTopic(
+                        attempts = "4",
+                        backoff = @Backoff(delay = 1000, multiplier = 2.0, maxDelay = 10000),
+                        retryTopicSuffix = ".retry",
+                        dltTopicSuffix = ".DLT",
+                        autoCreateTopics = "false")
+        @KafkaListener(
+                        topics = "saga.command.find-shipper",
+                        containerFactory = "reactiveKafkaListenerContainerFactory")
+        public Mono<Void> handleFindShipperEvent(
                         String message,
                         @Header(KafkaHeaders.RECEIVED_TOPIC) String topic,
                         @Header(KafkaHeaders.RECEIVED_PARTITION) Integer partition,
-                        @Header(KafkaHeaders.RECEIVED_TIMESTAMP) Long timestamp,
-                        Acknowledgment acknowledgment) {
+                        @Header(KafkaHeaders.RECEIVED_TIMESTAMP) Long timestamp) {
 
                 FindShipperEvent event = null;
                 try {
@@ -79,22 +97,37 @@ public class FindShipperEventListener {
                                         event.getDeliveryId(), topic, partition, timestamp);
 
                         // ✅ Validate event data
-                        if (event.getDeliveryId() == null) {
-                                log.error("💥 Invalid FindShipperEvent: deliveryId is null");
-                                acknowledgment.acknowledge();
-                                return;
+                        if (event.getEventId() == null || event.getDeliveryId() == null
+                                        || event.getDeliveryId() <= 0) {
+                                throw new IllegalArgumentException(
+                                                "Invalid FindShipperEvent: stable eventId and positive deliveryId are required");
+                        }
+                        if (event.getOrderId() == null || event.getOrderId() <= 0
+                                        || event.getTotalPrice() == null
+                                        || event.getTotalPrice().signum() <= 0
+                                        || !"COD".equalsIgnoreCase(event.getPaymentMethod())) {
+                                throw new IllegalArgumentException(
+                                                "Invalid COD match contract: orderId, positive totalPrice and paymentMethod=COD are required");
+                        }
+                        if (!validVietnamCoordinate(event.getPickupLat(), event.getPickupLng())) {
+                                throw new IllegalArgumentException(
+                                                "Invalid match contract: canonical Vietnam pickup coordinates are required");
+                        }
+                        if (!hasText(event.getRestaurantName()) || !hasText(event.getPickupAddress())
+                                        || !hasText(event.getDeliveryAddress())) {
+                                throw new IllegalArgumentException(
+                                                "Invalid match contract: canonical restaurant and address text are required");
                         }
 
                         // ✅ Start continuous shipper search with retry mechanism
-                        startContinuousShipperSearch(event, acknowledgment);
+                        return startContinuousShipperSearch(event);
 
                 } catch (Exception e) {
                         Long deliveryId = (event != null) ? event.getDeliveryId() : null;
                         log.error("🔥 Unexpected error processing FindShipperEvent for delivery: {} - Error: {}",
                                         deliveryId, e.getMessage(), e);
 
-                        // ✅ Acknowledge to prevent blocking
-                        acknowledgment.acknowledge();
+                        throw new IllegalStateException("Failed to process find-shipper command", e);
                 }
         }
 
@@ -112,30 +145,44 @@ public class FindShipperEventListener {
                         // Tuy nhiên matchCancellationService đang dùng deliveryId
                         
                         com.fasterxml.jackson.databind.JsonNode node = objectMapper.readTree(message);
+                        if (!node.hasNonNull("eventId")) {
+                                throw new IllegalArgumentException("stop-matching eventId is required");
+                        }
+                        java.util.UUID.fromString(node.get("eventId").asText());
                         Long deliveryId = node.has("deliveryId") ? node.get("deliveryId").asLong() : null;
+                        Long orderId = node.has("orderId") ? node.get("orderId").asLong() : null;
+                        if (orderId == null || orderId <= 0) {
+                                throw new IllegalArgumentException("stop-matching orderId must be positive");
+                        }
                         
-                        if (deliveryId != null) {
+                        if (deliveryId != null && deliveryId > 0) {
                                 log.warn("🛑 Received STOP_MATCHING command from Saga for delivery: {}", deliveryId);
                                 matchCancellationService.markCancelled(deliveryId);
                         } else {
-                                log.warn("⚠️ Received STOP_MATCHING command but could not find deliveryId in payload: {}", message);
+                                log.info("STOP_MATCHING for order {} has no delivery yet; nothing to cancel", orderId);
                         }
                         
                 } catch (Exception e) {
                         log.error("💥 Error processing STOP_MATCHING command: {}", e.getMessage());
-                } finally {
-                        acknowledgment.acknowledge();
+                        throw new IllegalStateException("Failed to process stop-matching command", e);
                 }
+                acknowledgment.acknowledge();
         }
 
         /**
          * ✅ Tìm shipper liên tục với exponential backoff retry
          */
-        private void startContinuousShipperSearch(FindShipperEvent event, Acknowledgment acknowledgment) {
+        private Mono<Void> startContinuousShipperSearch(FindShipperEvent event) {
                 AtomicInteger attemptCount = new AtomicInteger(0);
 
-                // ✅ New search session => clear cancel flag (idempotent)
-                matchCancellationService.clearCancelled(event.getDeliveryId());
+                // A cancellation tombstone is monotonic for a delivery ID. Never
+                // clear it here: a delayed/retried find command must not resurrect
+                // matching after order cancellation.
+                if (matchCancellationService.isCancelled(event.getDeliveryId())) {
+                        log.info("Matching command {} ignored because delivery {} is cancelled",
+                                        event.getEventId(), event.getDeliveryId());
+                        return Mono.empty();
+                }
 
                 // ✅ Convert event to request một lần
                 FindNearbyShippersRequest request = createFindShippersRequest(event);
@@ -149,11 +196,11 @@ public class FindShipperEventListener {
                 final double backoffMulti = event.getBackoffMultiplier() != null ? event.getBackoffMultiplier() : DEFAULT_BACKOFF_MULTIPLIER;
 
                 // ✅ Reactive retry với exponential backoff
-                matchService.findNearbyShippers(request, systemUserId, systemRole)
+                return matchService.findNearbyShippers(request, systemUserId, systemRole)
                                 // ✅ Cancel fast: if delivery already cancelled, stop chain immediately
                                 .flatMap(shippers -> {
                                         if (matchCancellationService.isCancelled(event.getDeliveryId())) {
-                                                return Mono.error(new RuntimeException("DELIVERY_CANCELLED"));
+                                                return Mono.error(new MatchingCancelledException());
                                         }
                                         return Mono.just(shippers);
                                 })
@@ -170,8 +217,8 @@ public class FindShipperEventListener {
                                                 shippers.size(), excluded.size(), filtered.size(), event.getDeliveryId());
                                         
                                         if (filtered.isEmpty()) {
-                                                return Mono.error(
-                                                        new RuntimeException("No shippers found for delivery: "
+                                                        return Mono.error(
+                                                        new NoShipperAvailableException("No shippers found for delivery: "
                                                                 + event.getDeliveryId() + " (all filtered by exclusion list)"));
                                         }
                                         return Mono.just(filtered);
@@ -181,10 +228,21 @@ public class FindShipperEventListener {
                         } else {
                                 // ✅ Không tìm thấy shipper, trigger retry
                                 return Mono.error(
-                                                new RuntimeException("No shippers found for delivery: "
+                                                new NoShipperAvailableException("No shippers found for delivery: "
                                                                 + event.getDeliveryId()));
                         }
                 })
+                                .flatMap(shippers -> selectEligibleShipper(event, shippers))
+                                .flatMap(shippers -> {
+                                        NearbyShipperResponse selected = shippers.get(0);
+                                        if (matchService.tryReserveShipperOffer(
+                                                        selected.getShipperId(), event.getDeliveryId(), 180)) {
+                                                return Mono.just(List.of(selected));
+                                        }
+                                        return Mono.error(new NoShipperAvailableException(
+                                                        "No shippers found for delivery: " + event.getDeliveryId()
+                                                                        + " (reservation race)"));
+                                })
                                 .retryWhen(Retry.backoff(maxRetries, Duration.ofSeconds(initialDelay))
                                                 .maxBackoff(Duration.ofSeconds(maxDelay))
                                                 .multiplier(backoffMulti)
@@ -192,7 +250,7 @@ public class FindShipperEventListener {
                                                         // ✅ Nếu đã cancel thì đừng schedule retry nữa
                                                         if (matchCancellationService
                                                                         .isCancelled(event.getDeliveryId())) {
-                                                                throw new RuntimeException("DELIVERY_CANCELLED");
+                                                                throw new MatchingCancelledException();
                                                         }
 
                                                         int attempt = attemptCount.incrementAndGet();
@@ -212,79 +270,76 @@ public class FindShipperEventListener {
                                                 .filter(throwable -> {
                                                         // ✅ Chỉ retry nếu không tìm thấy shipper (empty result)
                                                         // Không retry nếu có lỗi system khác
-                                                        if (!(throwable instanceof RuntimeException)) {
-                                                                return false;
-                                                        }
-
-                                                        String msg = throwable.getMessage();
-                                                        if (msg == null) {
-                                                                return false;
-                                                        }
-
-                                                        // ✅ never retry when cancelled
-                                                        if (msg.contains("DELIVERY_CANCELLED")) {
-                                                                return false;
-                                                        }
-
-                                                        return msg.contains("No shippers found");
+                                                        return throwable instanceof NoShipperAvailableException;
                                                 }))
-                                .subscribe(
-                                                shippers -> {
-                                                        if (matchCancellationService
-                                                                        .isCancelled(event.getDeliveryId())) {
-                                                                log.info("🛑 Delivery {} cancelled while matching; skip publish found event",
-                                                                                event.getDeliveryId());
-                                                                acknowledgment.acknowledge();
-                                                                return;
-                                                        }
+                                .flatMap(shippers -> {
+                                        if (matchCancellationService.isCancelled(event.getDeliveryId())) {
+                                                NearbyShipperResponse selected = shippers.get(0);
+                                                matchService.releaseShipperOffer(
+                                                                selected.getShipperId(), event.getDeliveryId());
+                                                log.info("🛑 Delivery {} cancelled while matching; skip publish found event",
+                                                                event.getDeliveryId());
+                                                return Mono.<Void>empty();
+                                        }
 
-                                                        log.info("✅ Found {} nearby shippers for delivery: {} after {} attempts",
-                                                                        shippers.size(), event.getDeliveryId(),
-                                                                        attemptCount.get() + 1);
+                                        log.info("✅ Selected nearest shipper from {} candidates for delivery: {} after {} attempts",
+                                                        shippers.size(), event.getDeliveryId(), attemptCount.get() + 1);
+                                        matchEventPublisher.publishShipperFoundEvent(
+                                                        createShipperFoundEvent(event, shippers));
+                                        log.info("✅ Published single-shipper offer candidate for delivery: {}",
+                                                        event.getDeliveryId());
+                                        return Mono.<Void>empty();
+                                })
+                                .onErrorResume(error -> {
+                                        if (hasCause(error, MatchingCancelledException.class)) {
+                                                log.info("🛑 Matching stopped because delivery {} was cancelled",
+                                                                event.getDeliveryId());
+                                                return Mono.<Void>empty();
+                                        }
 
-                                                        // ✅ Chỉ bắn ShipperFoundEvent - cả delivery-service và
-                                                        // notification-service sẽ listen
-                                                        ShipperFoundEvent foundEvent = createShipperFoundEvent(event,
-                                                                        shippers);
-                                                        matchEventPublisher.publishShipperFoundEvent(foundEvent);
+                                        log.error("💥 Failed to find shippers for delivery: {} after {} attempts - Error: {}",
+                                                        event.getDeliveryId(), maxRetries, error.getMessage());
+                                        if (!hasCause(error, NoShipperAvailableException.class)) {
+                                                // Propagate infrastructure failures to @RetryableTopic. The
+                                                // adapter moves exhausted records to saga.command.find-shipper.DLT.
+                                                return Mono.<Void>error(error);
+                                        }
 
-                                                        log.info("✅ Published ShipperFoundEvent for delivery: {} with {} shippers - both delivery-service and notification-service will handle",
-                                                                        event.getDeliveryId(), shippers.size());
+                                        ShipperNotFoundEvent notFoundEvent = new ShipperNotFoundEvent(
+                                                        event.getDeliveryId(), event.getOrderId(), maxRetries);
+                                        notFoundEvent.setEventId(outcomeEventId(
+                                                        "shipper-not-found", event.getEventId()).toString());
+                                        notFoundEvent.setSearchRadius(request.getRadiusKm());
+                                        notFoundEvent.setPickupLat(request.getLatitude());
+                                        notFoundEvent.setPickupLng(request.getLongitude());
+                                        matchEventPublisher.publishShipperNotFoundEvent(notFoundEvent);
+                                        log.info("✅ Published ShipperNotFoundEvent for delivery: {} after {} failed attempts",
+                                                        event.getDeliveryId(), maxRetries);
+                                        return Mono.<Void>empty();
+                                });
+        }
 
-                                                        // ✅ Acknowledge after successful processing
-                                                        acknowledgment.acknowledge();
-                                                },
-                                                error -> {
-                                                        if (error != null && error.getMessage() != null && error
-                                                                        .getMessage().contains("DELIVERY_CANCELLED")) {
-                                                                log.info("🛑 Matching stopped because delivery {} was cancelled",
-                                                                                event.getDeliveryId());
-                                                                acknowledgment.acknowledge();
-                                                                return;
-                                                        }
+        private boolean hasCause(Throwable error, Class<? extends Throwable> causeType) {
+                Throwable current = error;
+                while (current != null) {
+                        if (causeType.isInstance(current)) {
+                                return true;
+                        }
+                        current = current.getCause();
+                }
+                return false;
+        }
 
-                                                        log.error("💥 Failed to find shippers for delivery: {} after {} attempts - Error: {}",
-                                                                        event.getDeliveryId(), maxRetries,
-                                                                        error.getMessage());
+        private static final class NoShipperAvailableException extends RuntimeException {
+                private NoShipperAvailableException(String message) {
+                        super(message);
+                }
+        }
 
-                                                        // ✅ Bắn ShipperNotFoundEvent cho delivery-service và
-                                                        // order-service
-                                                        ShipperNotFoundEvent notFoundEvent = new ShipperNotFoundEvent(
-                                                                        event.getDeliveryId(),
-                                                                        event.getOrderId(),
-                                                                        maxRetries);
-                                                        notFoundEvent.setSearchRadius(request.getRadiusKm());
-                                                        notFoundEvent.setPickupLat(request.getLatitude());
-                                                        notFoundEvent.setPickupLng(request.getLongitude());
-
-                                                        matchEventPublisher.publishShipperNotFoundEvent(notFoundEvent);
-
-                                                        log.info("✅ Published ShipperNotFoundEvent for delivery: {} after {} failed attempts",
-                                                                        event.getDeliveryId(), maxRetries);
-
-                                                        // ✅ Acknowledge even after failure to avoid infinite processing
-                                                        acknowledgment.acknowledge();
-                                                });
+        private static final class MatchingCancelledException extends RuntimeException {
+                private MatchingCancelledException() {
+                        super("DELIVERY_CANCELLED");
+                }
         }
 
         /**
@@ -293,35 +348,33 @@ public class FindShipperEventListener {
         private FindNearbyShippersRequest createFindShippersRequest(FindShipperEvent event) {
                 FindNearbyShippersRequest request = new FindNearbyShippersRequest();
 
-                // ✅ Null safety check for pickup coordinates
-                if (event.getPickupLat() != null && event.getPickupLng() != null) {
-                        // Sử dụng pickup location để tìm shipper gần restaurant
-                        request.setLatitude(event.getPickupLat());
-                        request.setLongitude(event.getPickupLng());
+                // Pickup is server-owned canonical restaurant data. Missing or
+                // invalid coordinates are rejected before this method; never
+                // match around the delivery address or a synthetic city center.
+                request.setLatitude(event.getPickupLat());
+                request.setLongitude(event.getPickupLng());
 
-                        log.debug("🎯 Using pickup location: {}, {} for delivery: {}",
-                                        event.getPickupLat(), event.getPickupLng(), event.getDeliveryId());
-                } else if (event.getDeliveryLat() != null && event.getDeliveryLng() != null) {
-                        // Fallback: sử dụng delivery location nếu pickup location null
-                        request.setLatitude(event.getDeliveryLat());
-                        request.setLongitude(event.getDeliveryLng());
-
-                        log.warn("⚠️ Pickup location null, using delivery location: {}, {} for delivery: {}",
-                                        event.getDeliveryLat(), event.getDeliveryLng(), event.getDeliveryId());
-                } else {
-                        // Default location (TP.HCM center) nếu cả 2 đều null
-                        request.setLatitude(10.762622); // Landmark 81 coordinates
-                        request.setLongitude(106.660172);
-
-                        log.error("🔥 Both pickup and delivery coordinates are null for delivery: {}, using default location",
-                                        event.getDeliveryId());
-                }
+                log.debug("🎯 Using canonical pickup location: {}, {} for delivery: {}",
+                                event.getPickupLat(), event.getPickupLng(), event.getDeliveryId());
 
                 // Default search parameters
                 request.setRadiusKm(5.0); // 5km radius
-                request.setMaxShippers(10); // Tối đa 10 shippers
+                // Inspect a bounded nearest-candidate pool for COD eligibility, then
+                // reserve and publish only one offer.
+                request.setMaxShippers(candidatePoolSize);
 
                 return request;
+        }
+
+        private boolean validVietnamCoordinate(Double latitude, Double longitude) {
+                return latitude != null && longitude != null
+                                && Double.isFinite(latitude) && Double.isFinite(longitude)
+                                && latitude >= 8.0 && latitude <= 24.0
+                                && longitude >= 102.0 && longitude <= 110.0;
+        }
+
+        private boolean hasText(String value) {
+                return value != null && !value.isBlank();
         }
 
         /**
@@ -330,15 +383,15 @@ public class FindShipperEventListener {
         private ShipperFoundEvent createShipperFoundEvent(FindShipperEvent event,
                         List<NearbyShipperResponse> shippers) {
                 List<ShipperFoundEvent.ShipperMatchResult> matchResults = shippers.stream()
+                                .limit(1)
                                 .map(shipper -> new ShipperFoundEvent.ShipperMatchResult(
                                                 shipper.getShipperId(),
-                                                shipper.getShipperName() != null ? shipper.getShipperName()
-                                                                : "Shipper " + shipper.getShipperId(),
-                                                shipper.getShipperPhone() != null ? shipper.getShipperPhone() : "N/A",
+                                                shipper.getShipperName(),
+                                                shipper.getShipperPhone(),
                                                 shipper.getDistanceKm(),
                                                 shipper.getLatitude(),
                                                 shipper.getLongitude(),
-                                                5.0, // Default rating
+                                                null,
                                                 shipper.isOnline()))
                                 .collect(java.util.stream.Collectors.toList());
 
@@ -346,6 +399,8 @@ public class FindShipperEventListener {
                 // notification-service
                 ShipperFoundEvent foundEvent = new ShipperFoundEvent(event.getDeliveryId(), event.getOrderId(),
                                 matchResults);
+                foundEvent.setEventId(outcomeEventId("shipper-found", event.getEventId()).toString());
+                foundEvent.setMatchingSessionId(event.getEventId().toString());
 
                 // ✅ Set additional info từ FindShipperEvent
                 foundEvent.setRestaurantName(event.getRestaurantName());
@@ -355,7 +410,28 @@ public class FindShipperEventListener {
                 foundEvent.setPickupLng(event.getPickupLng());
                 foundEvent.setDeliveryLat(event.getDeliveryLat());
                 foundEvent.setDeliveryLng(event.getDeliveryLng());
+                foundEvent.setTotalPrice(event.getTotalPrice());
+                foundEvent.setPaymentMethod(event.getPaymentMethod());
 
                 return foundEvent;
+        }
+
+        private java.util.UUID outcomeEventId(String outcome, java.util.UUID commandEventId) {
+                String identity = "match:" + outcome + ":" + commandEventId;
+                return java.util.UUID.nameUUIDFromBytes(identity.getBytes(StandardCharsets.UTF_8));
+        }
+
+        private Mono<List<NearbyShipperResponse>> selectEligibleShipper(
+                        FindShipperEvent event,
+                        List<NearbyShipperResponse> shippers) {
+                return Flux.fromIterable(shippers)
+                                .concatMap(shipper -> settlementEligibilityClient
+                                                .isCodEligible(shipper.getShipperId(), event.getTotalPrice())
+                                                .filter(Boolean::booleanValue)
+                                                .map(ignored -> shipper))
+                                .next()
+                                .map(List::of)
+                                .switchIfEmpty(Mono.error(new NoShipperAvailableException(
+                                                "No COD-eligible shipper found for delivery: " + event.getDeliveryId())));
         }
 }

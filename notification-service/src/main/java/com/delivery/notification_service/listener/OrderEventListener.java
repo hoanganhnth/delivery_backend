@@ -1,6 +1,5 @@
 package com.delivery.notification_service.listener;
 
-import com.delivery.notification_service.common.constants.KafkaTopicConstants;
 import com.delivery.notification_service.dto.event.OrderEvent;
 import com.delivery.notification_service.service.NotificationService;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -31,7 +30,7 @@ public class OrderEventListener {
                 .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     }
 
-    @KafkaListener(topics = KafkaTopicConstants.ORDER_CREATED_TOPIC)
+    @KafkaListener(topics = "${app.kafka.topics.order-created:order.created}")
     public void handleOrderCreatedEvent(
             String message,
             @Header(KafkaHeaders.RECEIVED_TOPIC) String topic,
@@ -41,6 +40,7 @@ public class OrderEventListener {
 
         try {
             OrderEvent event = objectMapper.readValue(message, OrderEvent.class);
+            validateIdentity(event);
 
             log.info("📥 Received OrderCreatedEvent from topic '{}': orderId={}, userId={}, restaurant={}",
                     topic, event.getOrderId(), event.getUserId(), event.getRestaurantName());
@@ -49,48 +49,25 @@ public class OrderEventListener {
             notificationService.sendOrderCreatedNotification(
                     event.getUserId(),
                     event.getOrderId(),
-                    event.getRestaurantName() != null ? event.getRestaurantName() : "Nhà hàng"
+                    event.getRestaurantName()
             );
 
             log.info("✅ Successfully processed OrderCreatedEvent for order: {}", event.getOrderId());
             acknowledgment.acknowledge();
 
         } catch (Exception e) {
-            log.error("💥 Error processing OrderCreatedEvent - Raw: {} - Error: {}",
-                    message, e.getMessage(), e);
-            acknowledgment.acknowledge();
+            log.error("💥 Error processing OrderCreatedEvent - topic={}, partition={}, error={}",
+                    topic, partition, e.getMessage(), e);
+            throw new IllegalStateException("Failed to process order.created notification", e);
         }
     }
 
-    @KafkaListener(topics = KafkaTopicConstants.ORDER_STATUS_UPDATED_TOPIC)
-    public void handleOrderStatusUpdatedEvent(
-            String message,
-            @Header(KafkaHeaders.RECEIVED_TOPIC) String topic,
-            @Header(KafkaHeaders.RECEIVED_PARTITION) Integer partition,
-            @Header(KafkaHeaders.RECEIVED_TIMESTAMP) Long timestamp,
-            Acknowledgment acknowledgment) {
-
-        try {
-            OrderEvent event = objectMapper.readValue(message, OrderEvent.class);
-
-            log.info("📥 Received OrderStatusUpdatedEvent from topic '{}': orderId={}, userId={}, status={}, restaurant={}",
-                    topic, event.getOrderId(), event.getUserId(), event.getStatus(), event.getRestaurantName());
-
-            // Send status update notification to customer
-            notificationService.sendOrderStatusNotification(
-                    event.getUserId(),
-                    event.getOrderId(),
-                    event.getStatus(),
-                    event.getRestaurantName() != null ? event.getRestaurantName() : "Nhà hàng"
-            );
-
-            log.info("✅ Successfully processed OrderStatusUpdatedEvent for order: {}", event.getOrderId());
-            acknowledgment.acknowledge();
-
-        } catch (Exception e) {
-            log.error("💥 Error processing OrderStatusUpdatedEvent - Raw: {} - Error: {}",
-                    message, e.getMessage(), e);
-            acknowledgment.acknowledge();
+    private void validateIdentity(OrderEvent event) {
+        if (event.getEventId() == null || event.getOrderId() == null || event.getOrderId() <= 0
+                || event.getUserId() == null || event.getUserId() <= 0
+                || event.getRestaurantName() == null || event.getRestaurantName().isBlank()) {
+            throw new IllegalArgumentException(
+                    "stable eventId, positive order/user IDs and canonical restaurantName are required");
         }
     }
 }

@@ -7,15 +7,24 @@ import lombok.AllArgsConstructor;
 
 import java.math.BigDecimal;
 import java.util.List;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class CartContextRequest {
+    @NotNull
+    @Positive
     private Long shopId;
     private Long userId;
+    @NotNull
+    @DecimalMin("0.0")
     private BigDecimal subTotal;
+    @NotNull
+    @DecimalMin("0.0")
     private BigDecimal shippingFee;
     // Assuming a simplified cart representation
     // private List<CartItem> items; 

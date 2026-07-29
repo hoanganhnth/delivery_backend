@@ -2,48 +2,101 @@ package com.delivery.delivery_service.service;
 
 import com.delivery.delivery_service.entity.OutboxEvent;
 import com.delivery.delivery_service.repository.OutboxEventRepository;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.extern.slf4j.Slf4j;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-/**
- * ✅ Outbox Service — Lưu event vào bảng outbox (gọi trong cùng @Transactional)
- *
- * TRƯỚC: kafkaTemplate.send(topic, key, event)  ← Mất event nếu server sập
- * SAU:   outboxService.saveEvent(topic, key, event)  ← Atomic với business logic
- */
-@Slf4j
-//@Service
+import java.time.LocalDateTime;
+import java.util.UUID;
+
+@Service
+@RequiredArgsConstructor
 public class OutboxService {
-
-    private final OutboxEventRepository outboxEventRepository;
+    private final OutboxEventRepository repository;
     private final ObjectMapper objectMapper;
 
-    public OutboxService(OutboxEventRepository outboxEventRepository) {
-        this.outboxEventRepository = outboxEventRepository;
-        this.objectMapper = new ObjectMapper();
-        this.objectMapper.findAndRegisterModules(); // Support LocalDateTime
+    @Transactional
+    public UUID saveEvent(String aggregateType, String aggregateId, String eventType,
+                          String topic, String key, Object payload) {
+        return saveEvent(UUID.randomUUID(), aggregateType, aggregateId, eventType, topic, key, payload);
     }
 
-    /**
-     * Lưu event vào outbox table — PHẢI được gọi trong cùng @Transactional với business logic
-     */
-    public void saveEvent(String topic, String key, Object payload) {
-        try {
-            String json = objectMapper.writeValueAsString(payload);
-
-            OutboxEvent event = OutboxEvent.builder()
-                    .topic(topic)
-                    .eventKey(key)
-                    .payload(json)
-                    .build();
-
-            outboxEventRepository.save(event);
-            log.debug("📦 [Outbox] Saved event to outbox: topic={}, key={}", topic, key);
-
-        } catch (Exception e) {
-            log.error("💥 [Outbox] Failed to save event: topic={}, error={}", topic, e.getMessage(), e);
-            throw new RuntimeException("Failed to save outbox event", e);
+    @Transactional
+    public UUID saveEvent(UUID eventId, String aggregateType, String aggregateId, String eventType,
+                          String topic, String key, Object payload) {
+        if (eventId == null) throw new IllegalArgumentException("eventId is required");
+        LocalDateTime now = LocalDateTime.now();
+        JsonNode tree = objectMapper.valueToTree(payload);
+        if (!(tree instanceof ObjectNode objectPayload)) {
+            throw new IllegalArgumentException("Outbox payload must serialize to a JSON object");
         }
+        objectPayload.put("eventId", eventId.toString());
+        if (!objectPayload.hasNonNull("eventType")) objectPayload.put("eventType", eventType);
+
+        OutboxEvent existing = repository.findByEventId(eventId).orElse(null);
+        if (existing != null) {
+            requireExactReplay(existing, aggregateType, aggregateId, eventType, topic, key, objectPayload);
+            return eventId;
+        }
+        if (!objectPayload.hasNonNull("occurredAt")) objectPayload.put("occurredAt", now.toString());
+
+        OutboxEvent event = new OutboxEvent();
+        event.setEventId(eventId);
+        event.setAggregateType(requireText(aggregateType, "aggregateType"));
+        event.setAggregateId(requireText(aggregateId, "aggregateId"));
+        event.setEventType(requireText(eventType, "eventType"));
+        event.setTopic(requireText(topic, "topic"));
+        event.setEventKey(requireText(key, "key"));
+        event.setPayload(objectPayload.toString());
+        event.setStatus(OutboxEvent.OutboxStatus.PENDING);
+        event.setAttempts(0);
+        event.setNextAttemptAt(now);
+        event.setCreatedAt(now);
+        repository.save(event);
+        return eventId;
+    }
+
+    private void requireExactReplay(
+            OutboxEvent existing,
+            String aggregateType,
+            String aggregateId,
+            String eventType,
+            String topic,
+            String key,
+            ObjectNode incomingPayload) {
+        try {
+            JsonNode storedTree = objectMapper.readTree(existing.getPayload());
+            if (!(storedTree instanceof ObjectNode storedPayload)) {
+                throw new IllegalStateException("Stored outbox payload is not a JSON object");
+            }
+            ObjectNode storedCanonical = storedPayload.deepCopy();
+            // Reparse so numerically equal values do not differ only because one
+            // side was constructed as a LongNode and persisted JSON reads as IntNode.
+            ObjectNode incomingCanonical = (ObjectNode) objectMapper.readTree(
+                    objectMapper.writeValueAsBytes(incomingPayload));
+            storedCanonical.remove("occurredAt");
+            incomingCanonical.remove("occurredAt");
+            if (!existing.getAggregateType().equals(aggregateType)
+                    || !existing.getAggregateId().equals(aggregateId)
+                    || !existing.getEventType().equals(eventType)
+                    || !existing.getTopic().equals(topic)
+                    || !existing.getEventKey().equals(key)
+                    || !storedCanonical.equals(incomingCanonical)) {
+                throw new IllegalArgumentException(
+                        "outbox eventId replay has contradictory metadata or payload");
+            }
+        } catch (IllegalArgumentException | IllegalStateException exception) {
+            throw exception;
+        } catch (Exception exception) {
+            throw new IllegalStateException("Cannot validate outbox event replay", exception);
+        }
+    }
+
+    private String requireText(String value, String field) {
+        if (value == null || value.isBlank()) throw new IllegalArgumentException(field + " is required");
+        return value;
     }
 }

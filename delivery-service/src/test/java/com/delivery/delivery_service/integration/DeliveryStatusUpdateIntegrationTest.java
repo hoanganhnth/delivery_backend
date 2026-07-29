@@ -1,18 +1,16 @@
 package com.delivery.delivery_service.integration;
 
 import com.delivery.delivery_service.service.DeliveryEventPublisher;
+import com.delivery.delivery_service.service.OutboxService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.kafka.support.SendResult;
-
-import java.util.concurrent.CompletableFuture;
 
 import static org.junit.jupiter.api.Assertions.*;
+import org.springframework.test.util.ReflectionTestUtils;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
@@ -22,8 +20,24 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class DeliveryStatusUpdateIntegrationTest {
 
+    @Test
+    void statusPathTopicsCanBeIsolatedWithoutChangingCanonicalDefaults() {
+        ReflectionTestUtils.setField(deliveryEventPublisher,
+                "deliveryStatusUpdatedTopic", "b8.delivery.status");
+        ReflectionTestUtils.setField(deliveryEventPublisher,
+                "deliveryCompletedTopic", "b8.delivery.completed");
+        ReflectionTestUtils.setField(deliveryEventPublisher,
+                "shipperStatusChangeTopic", "b8.shipper.status");
+
+        deliveryEventPublisher.publishDeliveryStatusUpdated(1L, 2L, 3L, 4L,
+                "PICKED_UP", "ASSIGNED");
+
+        verify(outboxService).saveEvent(eq("DELIVERY"), eq("1"),
+                eq("DELIVERY_STATUS_UPDATED"), eq("b8.delivery.status"), eq("1"), any());
+    }
+
     @Mock
-    private KafkaTemplate<String, Object> kafkaTemplate;
+    private OutboxService outboxService;
 
     @InjectMocks
     private DeliveryEventPublisher deliveryEventPublisher;
@@ -33,21 +47,22 @@ class DeliveryStatusUpdateIntegrationTest {
         // Given
         Long deliveryId = 123L;
         Long orderId = 456L;
+        Long userId = 654L;
+        Long shipperId = 987L;
         String newStatus = "DELIVERED";
         String oldStatus = "DELIVERING";
 
-        CompletableFuture<SendResult<String, Object>> mockFuture = CompletableFuture.completedFuture(null);
-        when(kafkaTemplate.send(anyString(), anyString(), any())).thenReturn(mockFuture);
-
         // When
-        deliveryEventPublisher.publishDeliveryStatusUpdated(deliveryId, orderId, newStatus, oldStatus);
+        deliveryEventPublisher.publishDeliveryStatusUpdated(
+                deliveryId, orderId, userId, shipperId, newStatus, oldStatus);
 
         // Then
         ArgumentCaptor<String> topicCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<String> keyCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<Object> eventCaptor = ArgumentCaptor.forClass(Object.class);
 
-        verify(kafkaTemplate, times(1)).send(topicCaptor.capture(), keyCaptor.capture(), eventCaptor.capture());
+        verify(outboxService).saveEvent(eq("DELIVERY"), eq(deliveryId.toString()),
+                eq("DELIVERY_STATUS_UPDATED"), topicCaptor.capture(), keyCaptor.capture(), eventCaptor.capture());
 
         // Verify topic
         assertEquals("delivery.status-updated", topicCaptor.getValue());
@@ -61,6 +76,9 @@ class DeliveryStatusUpdateIntegrationTest {
         
         assertEquals(deliveryId, event.deliveryId);
         assertEquals(orderId, event.orderId); // ✅ Verify orderId is included
+        assertEquals(userId, event.userId);
+        assertEquals(shipperId, event.shipperId);
+        assertEquals(newStatus, event.status);
         assertEquals(newStatus, event.newStatus);
         assertEquals(oldStatus, event.oldStatus);
         assertEquals("DELIVERY_STATUS_UPDATED", event.eventType);
@@ -75,15 +93,14 @@ class DeliveryStatusUpdateIntegrationTest {
         String newStatus = "ASSIGNED";
         String oldStatus = "PENDING";
 
-        CompletableFuture<SendResult<String, Object>> mockFuture = CompletableFuture.completedFuture(null);
-        when(kafkaTemplate.send(anyString(), anyString(), any())).thenReturn(mockFuture);
-
         // When
-        deliveryEventPublisher.publishDeliveryStatusUpdated(deliveryId, orderId, newStatus, oldStatus);
+        deliveryEventPublisher.publishDeliveryStatusUpdated(
+                deliveryId, orderId, 202L, 303L, newStatus, oldStatus);
 
         // Then
         ArgumentCaptor<Object> eventCaptor = ArgumentCaptor.forClass(Object.class);
-        verify(kafkaTemplate).send(anyString(), anyString(), eventCaptor.capture());
+        verify(outboxService).saveEvent(anyString(), anyString(), anyString(),
+                anyString(), anyString(), eventCaptor.capture());
 
         DeliveryEventPublisher.DeliveryStatusUpdateEvent event = 
             (DeliveryEventPublisher.DeliveryStatusUpdateEvent) eventCaptor.getValue();
@@ -91,6 +108,7 @@ class DeliveryStatusUpdateIntegrationTest {
         // ✅ Verify all required fields for Order Service
         assertNotNull(event.deliveryId, "deliveryId is required");
         assertNotNull(event.orderId, "orderId is required for order status update");
+        assertNotNull(event.userId, "userId is required for customer notification");
         assertNotNull(event.newStatus, "newStatus is required");
         assertNotNull(event.oldStatus, "oldStatus is required");
         assertNotNull(event.eventType, "eventType is required");
@@ -103,26 +121,24 @@ class DeliveryStatusUpdateIntegrationTest {
     @Test
     void testDeliveryStatusMappingScenarios() {
         // Test các scenario mapping delivery status → order status
-        CompletableFuture<SendResult<String, Object>> mockFuture = CompletableFuture.completedFuture(null);
-        when(kafkaTemplate.send(anyString(), anyString(), any())).thenReturn(mockFuture);
-
         Long deliveryId = 555L;
         Long orderId = 666L;
 
         // Scenario 1: PENDING → ASSIGNED
-        deliveryEventPublisher.publishDeliveryStatusUpdated(deliveryId, orderId, "ASSIGNED", "PENDING");
+        deliveryEventPublisher.publishDeliveryStatusUpdated(deliveryId, orderId, 1L, 2L, "ASSIGNED", "PENDING");
         
         // Scenario 2: ASSIGNED → PICKED_UP
-        deliveryEventPublisher.publishDeliveryStatusUpdated(deliveryId, orderId, "PICKED_UP", "ASSIGNED");
+        deliveryEventPublisher.publishDeliveryStatusUpdated(deliveryId, orderId, 1L, 2L, "PICKED_UP", "ASSIGNED");
         
         // Scenario 3: PICKED_UP → DELIVERING
-        deliveryEventPublisher.publishDeliveryStatusUpdated(deliveryId, orderId, "DELIVERING", "PICKED_UP");
+        deliveryEventPublisher.publishDeliveryStatusUpdated(deliveryId, orderId, 1L, 2L, "DELIVERING", "PICKED_UP");
         
         // Scenario 4: DELIVERING → DELIVERED
-        deliveryEventPublisher.publishDeliveryStatusUpdated(deliveryId, orderId, "DELIVERED", "DELIVERING");
+        deliveryEventPublisher.publishDeliveryStatusUpdated(deliveryId, orderId, 1L, 2L, "DELIVERED", "DELIVERING");
 
         // Verify all events were sent
-        verify(kafkaTemplate, times(4)).send(anyString(), anyString(), any());
+        verify(outboxService, times(4)).saveEvent(anyString(), anyString(), anyString(),
+                anyString(), anyString(), any());
     }
 }
 

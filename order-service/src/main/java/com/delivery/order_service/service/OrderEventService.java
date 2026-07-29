@@ -43,5 +43,4 @@ public interface OrderEventService {
     /**
      * Handle shipper rejected events
      */
-    void handleShipperRejected(ShipperEvent event);
 }

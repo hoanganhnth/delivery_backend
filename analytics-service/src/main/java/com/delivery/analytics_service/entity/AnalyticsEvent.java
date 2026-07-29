@@ -11,7 +11,9 @@ import java.time.LocalDateTime;
  * Đây là "source of truth" để Scheduled Job tính toán lại
  */
 @Entity
-@Table(name = "analytics_events", indexes = {
+@Table(name = "analytics_events", uniqueConstraints = {
+    @UniqueConstraint(name = "uk_analytics_event_dedup_key", columnNames = "deduplication_key")
+}, indexes = {
     @Index(name = "idx_event_type_time", columnList = "event_type, event_time"),
     @Index(name = "idx_restaurant_id", columnList = "restaurant_id"),
     @Index(name = "idx_event_time", columnList = "event_time")
@@ -23,6 +25,9 @@ public class AnalyticsEvent {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(name = "deduplication_key", nullable = false, length = 160)
+    private String deduplicationKey;
 
     @Column(name = "event_type", nullable = false, length = 50)
     private String eventType;
