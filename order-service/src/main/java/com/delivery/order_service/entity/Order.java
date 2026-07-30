@@ -3,6 +3,7 @@ package com.delivery.order_service.entity;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.BatchSize;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -96,6 +97,7 @@ public class Order {
     private Long creatorId;
 
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @BatchSize(size = 100)
     private List<OrderItem> items = new ArrayList<>();
 
     @PrePersist

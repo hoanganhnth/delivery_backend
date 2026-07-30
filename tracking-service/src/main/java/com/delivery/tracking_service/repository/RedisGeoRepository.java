@@ -31,7 +31,7 @@ public class RedisGeoRepository implements ShipperLocationRepository {
                 Point point = new Point(location.getLongitude(), location.getLatitude());
                 geoOps.add(GEO_KEY, point, shipperId.toString());
                 redisTemplate.expire(GEO_KEY, RedisConstants.SHIPPER_LOCATION_TTL, TimeUnit.SECONDS);
-                log.debug("✅ Cached GEO location for shipper: {} at ({}, {})", shipperId, location.getLatitude(), location.getLongitude());
+                log.debug("✅ Cached GEO location for shipper {}", shipperId);
             } else if (!Boolean.TRUE.equals(location.getIsOnline())) {
                 geoOps.remove(GEO_KEY, shipperId.toString());
             }

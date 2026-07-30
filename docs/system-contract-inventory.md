@@ -1,6 +1,6 @@
 # System Contract Inventory
 
-Ngày kiểm kê: 2026-07-29
+Ngày kiểm kê: 2026-07-30
 
 Tài liệu này là inventory thực thi cho Phase 0 của
 `../../docs/plans/active/priority-roadmap.md`. Source code, test và runtime vẫn là
@@ -23,7 +23,7 @@ hidden/disabled, không được hiểu là public contract chưa xác định.
 | settlement-service | 8090 | PostgreSQL `settlement_db`, Kafka | exact admin GET-only; client/payment/mutation hidden | ledger unique key + balance row lock; transactional MANUAL ACK + finite retry/same-partition DLT; PostgreSQL two-instance concurrent replay, offset-reset crash replay và poison/restart proof PASS |
 | notification-service | 8091 | PostgreSQL `notification_service_db`, Redis, Kafka, optional FCM; no STOMP graph | exact notification/FCM client routes | REST ownership + durable event dedup; two-instance `order.created` duplicate, PENDING row-lock delivery, configured-provider failure, DLT/operator replay và restart PASS; delivery status message không bịa `shipperName` nếu producer không gửi; offer dùng FCM best-effort wake-up, multi-token partial success còn at-least-once |
 | match-service | 8092 | Redis GEO replica, Kafka | không có HTTP controller | canonical Saga command pipeline; legacy/debug HTTP đã xóa; projection consumer finite retry + same-partition DLT fail-closed có config proof |
-| tracking-service | 8093 | Redis GEO, Kafka, raw WebSocket; internal Delivery access check | exact update/offline + `/ws/shipper-locations` | diagnostics/fleet/busy/read REST và orphan read-service wrapper đã xóa; one-publisher Redis generation fence + new-session supersede + Redis-backed 30s disconnect grace; live same/cross-instance reconnect, hard-crash và grace-crash recovery PASS |
+| tracking-service | 8093 | Redis GEO/routing, Kafka, raw WebSocket; PostgreSQL `tracking_db` async support history; internal Delivery access check | exact update/offline + `/ws/shipper-locations`; internal admin delivery-history only | delivery rooms + Redis Pub/Sub exact audience, bounded coalescing/backpressure and last-location reconnect; one-publisher Redis generation fence + new-session supersede + Redis-backed 30s disconnect grace; sampled 90-day support history stays off hot path and replay-idempotent |
 | livestream-service | 8094 | PostgreSQL `livestream_db`, Agora | hidden khỏi Gateway cho MVP | experimental: startup mapper đã sửa; compatibility lists cap 100 và dead JPA event graph đã xóa; restaurant ownership/token boundary chưa chứng minh |
 | saga-orchestrator-service | 8095 | PostgreSQL `saga_db`, Kafka | không có public controller | row lock/transition + ordered transactional command outbox có focused proof; finite retry + same-partition DLT fail-closed có config proof; `delivery.status-updated(SHIPPER_NOT_FOUND)` terminal echo được ACK/record sau `shipper.not-found` mà không phát duplicate order command; PostgreSQL/Kafka rehearsal còn OPEN |
 | promotion-service | 8096 | PostgreSQL `promotion_db`; Kafka | exact user/merchant/admin paths | reserve/calculate ẩn; discount/locking/compensation chưa đủ để mở checkout. Checkpoint 2026-07-29: Gateway không route calculate/reserve/merchant create; controller bắt `USER` trước checkout flag cho calculate, reserve bắt `Internal-Token` trước flag/validation và không gọi service khi disabled. Promotion `28/28`, Gateway route-security `13/13` PASS |
@@ -139,7 +139,7 @@ hidden/disabled, không phải public surface ngầm được phép mở.
 
 | Topic | Producer hiện tại | Consumer hiện tại | Tình trạng |
 |---|---|---|---|
-| `order.created` | order | saga, notification, analytics | active; Notification bắt buộc stable event ID, positive order/customer ID và canonical non-blank `restaurantName`; không tạo tên nhà hàng giả, malformed payload fail-closed trước dispatch/ACK. Notification clean `46/46`; cross-consumer schema compatibility và Kafka runtime poison/replay vẫn OPEN |
+| `order.created` | order | saga, notification, analytics | active; Notification bắt buộc stable event ID, positive order/customer ID và canonical non-blank `restaurantName`; không tạo tên nhà hàng giả, malformed payload fail-closed trước dispatch/ACK. Durable key là `order-created:<eventId>` trong cùng notification transaction; exact replay là no-op và cùng key/payload khác bị reject. Rehearsal PostgreSQL outage đã đưa cùng raw JSON qua source, ba retry topics và DLT; replay source hai lần sau recovery tạo đúng một notification row. Cross-consumer schema compatibility còn OPEN |
 | `order.cancelled` | order | saga; analytics disabled | active core cancellation; public cancel exact replay cùng actor/reason không enqueue duplicate event, còn replay khác actor/reason bị reject để giữ audit trail; Flash Sale consumer giả định payload có items đã xóa, compensation chỉ được bổ sung sau reservation record/outbox contract |
 | `order.status-updated` | none | analytics (disabled) | không có producer trong polyrepo; orphan Notification listener/service/constants đã xóa, không thuộc MVP runtime contract |
 | `restaurant.order-confirmed` | restaurant | order, saga | active; owner + order relation + producer decision/outbox guard; payload mang authenticated `actorUserId`, producer lưu SHA-256 `payload_fingerprint` ngay trên decision row để khóa actor/prep-time/notes và từ chối replay cùng decision nhưng khác payload kể cả khi outbox đã prune; legacy decision row chưa có fingerprint chỉ fallback sang retained outbox payload khi còn tồn tại để giữ compatibility; producer PostgreSQL two-instance duplicate/opposite-decision race, broker-down retry, restart và exact Kafka cardinality PASS; Order internal eligibility khóa order row trước pending check, consumer bắt buộc UUID `eventId`, positive `actorUserId`, khóa Order rồi ghi receipt unique theo event/order cùng payload SHA-256 trong transaction mutation; two-group concurrent duplicate, offset-0 replay, contradictory new-ID DLT/source-lag-0 và restart PASS |
@@ -164,14 +164,32 @@ hidden/disabled, không phải public surface ngầm được phép mở.
 | `delivery.picked-up` | none | none | **removed**; producer/listener/DTO/constants đã loại, COD chỉ chốt một lần tại completion |
 | `delivery.completed` | delivery | settlement | active; producer outbox gắn stable `eventId` và fail-closed với positive IDs, exact `COD`, positive canonical totals; shipper/platform split dùng đúng `85% + 15% = 100%` và không còn minimum giả; finance payload không bịa restaurant/customer display names; consumer kiểm lại IDs/fee/commission và split `shipperEarnings + shippingCommission = shippingFee`, lưu unique receipt `eventId` + order + delivery + payload fingerprint trong cùng transaction với restaurant/shipper/platform/COD entries; Flyway V1 tạo receipt/ledger business-key guard và dừng upgrade khi có duplicate hoặc settlement chưa đối soát receipt; ACK chỉ đăng ký sau DB commit; exact replay được ACK, event ID/payload hoặc order/event mâu thuẫn đi retry/DLT; concurrent duplicate qua Spring transaction integration, PostgreSQL hai peer trên topic recovery hai partition, offset-reset replay và read-only reconciliation PASS. True process-crash proof dùng JDI breakpoint tại `afterCommit`, xác nhận DB đã commit/offset chưa tăng, `SIGKILL`, restart cùng database/topic/group và exact redelivery bất biến với lag `0` PASS (`20260726-auto-1`). Topic canonical hiện có một partition; isolated proof không được mô tả là canonical multi-partition proof |
 | `delivery.find-shipper` | none | none | **removed**; publisher/DTO/constants đã loại, Saga dùng `saga.command.find-shipper` |
-| `shipper.status-change` | delivery | match | active; stable eventId + positive shipper/delivery/order/timestamp; Match atomically release đúng offer, mutate BUSY/AVAILABLE và lưu version fence; exact/stale replay no-op, same-timestamp contradictory event fail-closed; Tracking write-only consumer đã xóa |
-| `shipper.location-updated` | tracking | match | active; online update requires valid coordinates; explicit offline is an identity/timestamp tombstone and may omit coordinates, removes Match GEO/online membership, fences older updates during freshness TTL, and retries on Redis/Kafka failure; live Redis integration proof 2026-07-29 confirms offline tombstone removes candidate eligibility, older online replay stays fenced, and newer online update restores eligibility. Runtime Kafka broker replay/reorder proof `scripts/verify-match-location-replay.sh` PASS 2026-07-29: online event projected to Match Redis, newer offline tombstone removed GEO/online, older online replay did not resurrect, newer online update restored projection |
+| `shipper.status-change` | delivery | match, tracking routing projection | active; stable eventId + positive shipper/delivery/order/timestamp; Match atomically release đúng offer, mutate BUSY/AVAILABLE và lưu version fence; exact/stale replay no-op, same-timestamp contradictory event fail-closed. Tracking only projects active delivery into Redis and fences local delivery rooms, không sở hữu availability business state |
+| `shipper.location-updated` | tracking | match, tracking history | active; Match fields remain compatible; new producer adds stable eventId, nullable deliveryId, optional accuracy/speed/heading/source. Online update requires valid coordinates; explicit offline remains a tombstone; async history stores only assigned sampled support points with durable receipts. Match live replay/reorder proof remains PASS; history ordering/restart/replay/cleanup integration proof PASS |
 | `entity-sync` | restaurant | search | active for restaurant/dish; mutation + UUID/occurredAt outbox row commit atomically, existing relay retries/DEAD; Search checkpoints occurredAt/eventId/action + canonical SHA-256 payload fingerprint before document mutation, allows exact crash retry, rejects contradictory same-ID payload and fences stale replay; legacy checkpoint fingerprint upgrades on exact metadata replay; PostgreSQL/Kafka/Elasticsearch recovery/CAS rehearsal OPEN |
 | `payment.completed` | settlement payment graph (disabled) | order, analytics (disabled) | inactive trong COD MVP; producer/listeners đều feature-gated off |
 | `payment.failed` | settlement payment graph (disabled) | order, analytics, flashsale (disabled) | inactive trong COD MVP; không thuộc runtime contract hiện tại |
 | `shipper.matched` | none | none | **removed**; canonical result là `shipper.found` |
 | `no.shipper.available` | none | none | **removed**; canonical result là `shipper.not-found` |
 | livestream topics | publisher code bị comment | không có | inactive/experimental |
+
+## Phase 2 core-consumer idempotency audit
+
+| Consumer boundary | Stable identity | Durable dedup / conflict boundary | Current proof |
+|---|---|---|---|
+| Notification `order.created` | Producer `eventId` | `notifications.deduplication_key = order-created:<eventId>` unique; completed row compares the semantic notification payload before no-op | PostgreSQL/Kafka transient-DLT, restart and exact replay rehearsal PASS 2026-07-30 |
+| Notification `delivery.status-updated` | Producer `eventId` | `notifications.deduplication_key = delivery-status:<eventId>` unique; status payload conflict is rejected | Focused durable-dedup and payload-vocabulary proof PASS; same persistence boundary as order notification |
+| Order restaurant decisions | Restaurant `eventId`, `orderId` | `restaurant_decision_receipts` unique receipt + SHA-256 payload fingerprint in the order mutation transaction | Existing PostgreSQL two-group duplicate/offset-reset/restart proof recorded above |
+| Delivery Saga create command | Saga command `eventId`, delivery aggregate | `delivery.create_event_id` unique identity plus transactional delivery/outbox; contradictory replay fails validation | Focused proof plus PostgreSQL/Kafka exact command replay yielded one delivery and one created-result outbox row on 2026-07-30 |
+| Delivery Saga terminal commands | Saga command `eventId`, delivery/order aggregate | Row lock plus canonical transition/outbox identity; duplicate terminal command is a no-op, contradictory command rejects | Focused command proof; broader PostgreSQL crash/concurrency proof remains OPEN |
+| Saga inbound events | Producer `eventId`, order aggregate | `saga_inbound_receipts` primary-key receipt stores source topic, order and SHA-256 payload fingerprint before Saga mutation/outbox in the same transaction; exact replay no-ops and conflict rejects | Focused receipt/Flyway proof plus PostgreSQL/Kafka exact+conflicting replay rehearsal PASS 2026-07-30 |
+| Settlement `delivery.completed` | Delivery `eventId`, order/delivery aggregate | `settlement_receipts` event/order unique receipt + immutable SHA-256 fingerprint in the ledger transaction | PostgreSQL concurrent/restart/crash-window proof PASS |
+
+Saga receipt races are resolved by the receipt primary key before the handler
+performs a mutation or writes its command outbox. A concurrent loser rolls back
+and is retried by Kafka; it then observes the exact receipt as a no-op. A reused
+event ID with a different topic/order/payload remains a poison record and enters
+the configured DLT path.
 
 Cross-cutting Kafka issues:
 
@@ -190,6 +208,13 @@ Cross-cutting Kafka issues:
   service. Match lỗi hạ tầng tìm shipper đi qua retry topics rồi
   `saga.command.find-shipper.DLT`. Producer/outbox policy ở các service còn lại
   vẫn chưa thống nhất.
+- Các listener raw-JSON thuộc Notification, Saga, Delivery, Order Saga-command và
+  Settlement dùng `retryKafkaTemplate` với `StringSerializer`; retry/DLT không
+  được dùng `JsonSerializer` để tránh JSON bị quote lồng qua mỗi hop. Runtime
+  Notification rehearsal ngày 2026-07-30 đã xác nhận đúng cùng JSON object ở
+  source, `-retry-1000`, `-retry-2000`, `-retry-4000` và DLT khi PostgreSQL
+  unavailable; sau recovery replay source hai lần tạo đúng một durable
+  `order-created:<eventId>` notification.
 - Delivery, Saga và Match dùng `earliest` khi consumer group state không tồn tại;
   Match bỏ qua online-location replay cũ quá freshness 300 giây nhưng vẫn ACK,
   nên rebuild group không bỏ command durable hoặc resurrect shipper stale.
@@ -202,7 +227,7 @@ Cross-cutting Kafka issues:
 
 | Endpoint | Protocol | Producer/consumer | Tình trạng |
 |---|---|---|---|
-| `/ws/shipper-locations` | raw WebSocket JSON | shipper publish; delivery participant subscribe | canonical MVP; JWT Gateway + session identity; subscribe cần `deliveryId` và Delivery internal API xác nhận active participant + assigned shipper; arbitrary admin/area fleet subscription bị từ chối; mỗi shipper một publisher, connection mới tăng Redis generation/fence connection cũ; optional `accuracy/speed/heading` giữ null khi không có dữ liệu, không dùng zero placeholder và reject giá trị không hữu hạn trước khi ghi Redis/Kafka; `isOnline` thiếu mặc định online nhưng null/sai kiểu bị reject; clean disconnect và crash dùng Redis deadline để phát tombstone an toàn sau grace/lease expiry; log không ghi raw socket payload khi thiếu `action` |
+| `/ws/shipper-locations` | raw WebSocket JSON | shipper publish; delivery participant subscribe | canonical payload/actions unchanged; JWT Gateway + participant check; exact delivery rooms and Redis Pub/Sub prevent old-delivery/IDOR audience; bounded per-session coalescing preserves latest state and offline/online transition, reconnect sends final Redis location; publisher generation, grace/lease tombstone and stale fences unchanged |
 | `/ws/delivery-native` | STOMP | none | removed: client migration complete; Delivery config/notifier/dependency/properties/Compose flag đã xóa, lifecycle tiếp tục qua REST + Kafka/outbox |
 | `/ws-native` | STOMP | none | removed: zero polyrepo caller; Notification broker/config/service/DTO/dependency và Compose flag đã xóa, không phải compatibility surface MVP |
 | `/ws-test` | HTML test page | developer | phải `dev-only` |

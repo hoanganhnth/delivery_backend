@@ -1,6 +1,7 @@
 package com.delivery.tracking_service.config;
 
 import com.delivery.tracking_service.websocket.ShipperLocationWebSocketHandler;
+import com.delivery.observability.CorrelationId;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
@@ -52,6 +53,18 @@ public class WebSocketConfig implements WebSocketConfigurer {
                 }
                 attributes.put("authenticatedUserId", Long.parseLong(userId));
                 attributes.put("authenticatedRole", role);
+                try {
+                    attributes.put("correlationId",
+                            CorrelationId.requireValidOrCreate(headers.getFirst(CorrelationId.HEADER)));
+                } catch (IllegalArgumentException invalidCorrelationId) {
+                    response.setStatusCode(HttpStatus.BAD_REQUEST);
+                    return false;
+                }
+                String traceparent = headers.getFirst("traceparent");
+                if (isW3cTraceparent(traceparent)) {
+                    // Session metadata only: individual location messages remain untraced.
+                    attributes.put("traceparent", traceparent);
+                }
                 return true;
             }
 
@@ -61,5 +74,9 @@ public class WebSocketConfig implements WebSocketConfigurer {
                 // No-op.
             }
         };
+    }
+
+    private static boolean isW3cTraceparent(String value) {
+        return value != null && value.matches("^[\u0030-\u0039a-f]{2}-[\u0030-\u0039a-f]{32}-[\u0030-\u0039a-f]{16}-[\u0030-\u0039a-f]{2}$");
     }
 }

@@ -33,8 +33,7 @@ public class ShipperAvailabilityService {
             repository.cacheShipperLocation(shipperId, location);
         }
 
-        eventPublisher.publishLocationUpdate(
-                shipperId, location.getLatitude(), location.getLongitude(), false);
+        eventPublisher.publishLocationUpdate(location, "OFFLINE_TOMBSTONE");
         log.info("🔴 Marked shipper {} offline and published Match tombstone", shipperId);
         return location;
     }

@@ -30,6 +30,7 @@ class SettlementCoreFlywayMigrationTest {
             assertThat(count(statement, "SELECT count(*) FROM transactions")).isEqualTo(1);
             assertThat(count(statement, "SELECT count(*) FROM payment_orders")).isEqualTo(1);
             assertThat(indexExists(connection, "idx_transactions_entity_status")).isTrue();
+            assertThat(indexExists(connection, "idx_transactions_status_reason_created")).isTrue();
             assertThat(indexExists(connection, "idx_payment_entity")).isTrue();
         }
     }

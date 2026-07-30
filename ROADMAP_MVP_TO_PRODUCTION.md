@@ -85,10 +85,18 @@ Sau khi MVP chạy ổn, đây là các mảng đưa hệ thống từ "chạy �
 - [ ] Pipeline CI: build + test + security scan; CD với health-check rollout.
 
 ### 2.6 Data & scale
-- [ ] Chiến lược **DB per service** rõ ràng + backup/restore.
-- [ ] Index review cho các query nóng (orders theo creator/shipper/status).
-- [ ] Tối ưu WebSocket broadcast: geo-hashing / rooms thay vì vòng lặp O(N) trên toàn bộ kết nối.
-- [ ] Location history store (hiện chỉ cache realtime, không lưu lịch sử để đối soát/tranh chấp).
+- [x] Chiến lược **DB per service** rõ ràng + backup/restore — backup PostgreSQL
+  theo service được mã hóa/checksum, giữ Kafka recovery metadata, restore chỉ vào
+  database cô lập và có rehearsal fixture/reconciliation/smoke.
+- [x] Index review cho các query nóng (orders theo creator/shipper/status) — có
+  PostgreSQL `EXPLAIN ANALYZE` trước/sau, migration tối thiểu, query bounded và
+  regression N+1/outbox/settlement.
+- [x] Tối ưu WebSocket broadcast — exact room theo `deliveryId`, authorized
+  audience, Redis Pub/Sub cross-instance và bounded coalescing backpressure;
+  socket contract/generation fence/tombstone được giữ nguyên.
+- [x] Location history store — Kafka consumer ghi async vào `tracking_db`,
+  sampling 10 giây/25 m, idempotent replay, retention 90 ngày và chỉ có API
+  support/admin theo một delivery.
 
 ### 2.7 Hoàn thiện nghiệp vụ (nice-to-have production)
 - [ ] Rating & review shipper/restaurant, và dùng rating trong thuật toán match (hiện chỉ match theo khoảng cách).

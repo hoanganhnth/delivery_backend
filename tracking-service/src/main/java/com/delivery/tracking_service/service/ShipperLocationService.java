@@ -54,11 +54,10 @@ public class ShipperLocationService {
             webSocketHandler.broadcastShipperLocation(response);
 
             // ✅ Publish vị trí qua Kafka để match-service replicate
-            locationEventPublisher.publishLocationUpdate(
-                    shipperId, request.getLatitude(), request.getLongitude(), request.getIsOnline());
+            locationEventPublisher.publishLocationUpdate(response, "REST");
 
-            log.info("✅ Updated location for shipper: {} at ({}, {}) - Online: {} [Redis GEO + WebSocket + Kafka]",
-                    shipperId, request.getLatitude(), request.getLongitude(), request.getIsOnline());
+            log.info("✅ Updated location for shipper {} - online={} [Redis GEO + WebSocket + Kafka]",
+                    shipperId, request.getIsOnline());
 
             return response;
 

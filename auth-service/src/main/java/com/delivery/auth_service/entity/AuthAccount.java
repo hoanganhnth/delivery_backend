@@ -34,6 +34,12 @@ public class AuthAccount {
     @Column(name = "is_active")
     private Boolean isActive = true;
 
+    @Column(name = "email_verification_required", nullable = false)
+    private Boolean emailVerificationRequired = false;
+
+    @Column(name = "email_verified_at")
+    private LocalDateTime emailVerifiedAt;
+
     @Column(name = "user_status_sync_pending", nullable = false)
     private Boolean userStatusSyncPending = false;
 
@@ -108,6 +114,22 @@ public class AuthAccount {
 
     public void setIsActive(Boolean isActive) {
         this.isActive = isActive;
+    }
+
+    public Boolean getEmailVerificationRequired() {
+        return emailVerificationRequired;
+    }
+
+    public void setEmailVerificationRequired(Boolean emailVerificationRequired) {
+        this.emailVerificationRequired = emailVerificationRequired;
+    }
+
+    public LocalDateTime getEmailVerifiedAt() {
+        return emailVerifiedAt;
+    }
+
+    public void setEmailVerifiedAt(LocalDateTime emailVerifiedAt) {
+        this.emailVerifiedAt = emailVerifiedAt;
     }
 
     public Boolean getUserStatusSyncPending() {

@@ -10,6 +10,9 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestTemplate;
+import com.delivery.tracking_service.config.DeliveryCallResilienceProperties;
+import com.delivery.tracking_service.config.TrackingDeliveryCircuitBreaker;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -28,7 +31,8 @@ class DeliveryTrackingAccessClientTest {
 
     @BeforeEach
     void setUp() {
-        client = new DeliveryTrackingAccessClient(restTemplate, "http://delivery-service", "test-secret");
+        client = new DeliveryTrackingAccessClient(restTemplate, "http://delivery-service", "test-secret",
+                new TrackingDeliveryCircuitBreaker(new DeliveryCallResilienceProperties(), new SimpleMeterRegistry()));
     }
 
     @Test

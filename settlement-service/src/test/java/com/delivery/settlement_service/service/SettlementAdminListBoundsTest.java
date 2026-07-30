@@ -1,6 +1,7 @@
 package com.delivery.settlement_service.service;
 
 import com.delivery.settlement_service.entity.EntityType;
+import com.delivery.settlement_service.entity.Transaction.TransactionReason;
 import com.delivery.settlement_service.entity.Transaction.TransactionStatus;
 import com.delivery.settlement_service.mapper.BalanceMapper;
 import com.delivery.settlement_service.mapper.TransactionMapper;
@@ -28,7 +29,8 @@ class SettlementAdminListBoundsTest {
     void transactionCompatibilityQueriesAreBounded() {
         TransactionRepository transactions = mock(TransactionRepository.class);
         when(transactions.findAllByOrderByCreatedAtDesc(any(Pageable.class))).thenReturn(List.of());
-        when(transactions.findByStatusOrderByCreatedAtDesc(eq(TransactionStatus.PENDING), any(Pageable.class)))
+        when(transactions.findByStatusAndReasonOrderByCreatedAtDesc(
+                eq(TransactionStatus.PENDING), eq(TransactionReason.WITHDRAW), any(Pageable.class)))
                 .thenReturn(List.of());
         when(transactions.findByEntityIdAndEntityTypeOrderByCreatedAtDesc(
                 eq(7L), eq(EntityType.SHIPPER), any(Pageable.class))).thenReturn(List.of());
@@ -42,8 +44,8 @@ class SettlementAdminListBoundsTest {
         ArgumentCaptor<Pageable> allPage = ArgumentCaptor.forClass(Pageable.class);
         verify(transactions).findAllByOrderByCreatedAtDesc(allPage.capture());
         assertThat(allPage.getValue().getPageSize()).isEqualTo(100);
-        verify(transactions).findByStatusOrderByCreatedAtDesc(
-                eq(TransactionStatus.PENDING), any(Pageable.class));
+        verify(transactions).findByStatusAndReasonOrderByCreatedAtDesc(
+                eq(TransactionStatus.PENDING), eq(TransactionReason.WITHDRAW), any(Pageable.class));
         verify(transactions).findByEntityIdAndEntityTypeOrderByCreatedAtDesc(
                 eq(7L), eq(EntityType.SHIPPER), any(Pageable.class));
     }

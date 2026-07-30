@@ -55,7 +55,7 @@ class ShipperLocationWebSocketHandlerAuthorizationTest {
 
         ArgumentCaptor<ShipperLocationResponse> location = ArgumentCaptor.forClass(ShipperLocationResponse.class);
         verify(repository).cacheShipperLocation(eq(42L), location.capture());
-        verify(publisher).publishLocationUpdate(eq(42L), eq(10.75), eq(106.67), eq(true));
+        verify(publisher).publishLocationUpdate(any(ShipperLocationResponse.class), eq("WEBSOCKET"));
         assertThat(location.getValue().getShipperId()).isEqualTo(42L);
         assertThat(location.getValue().getAccuracy()).isNull();
         assertThat(location.getValue().getSpeed()).isNull();
@@ -108,7 +108,7 @@ class ShipperLocationWebSocketHandlerAuthorizationTest {
         when(session.isOpen()).thenReturn(true);
         establishPublisher();
         doThrow(new IllegalStateException("Cannot replicate shipper location"))
-                .when(publisher).publishLocationUpdate(42L, 10.75, 106.67, true);
+                .when(publisher).publishLocationUpdate(any(ShipperLocationResponse.class), eq("WEBSOCKET"));
 
         handler.handleTextMessage(session, new TextMessage(
                 "{\"action\":\"update_location\",\"latitude\":10.75,\"longitude\":106.67}"));
@@ -160,6 +160,29 @@ class ShipperLocationWebSocketHandlerAuthorizationTest {
         verify(trackingAccessClient).canTrack(100L, 7L, "USER", 42L);
         verify(session).sendMessage(argThat((TextMessage message) ->
                 message.getPayload().contains("subscription_confirmed")));
+    }
+
+    @Test
+    void subscriberRecoversLatestRedisLocationAfterReconnect() throws Exception {
+        attributes.put("authenticatedUserId", 7L);
+        attributes.put("authenticatedRole", "USER");
+        when(session.isOpen()).thenReturn(true);
+        when(trackingAccessClient.canTrack(100L, 7L, "USER", 42L)).thenReturn(true);
+        ShipperLocationResponse latest = new ShipperLocationResponse();
+        latest.setShipperId(42L);
+        latest.setLatitude(10.77);
+        latest.setLongitude(106.70);
+        latest.setIsOnline(true);
+        latest.setUpdatedAt("2026-07-30T04:00:00");
+        when(repository.getCachedShipperLocation(42L)).thenReturn(latest);
+        handler.afterConnectionEstablished(session);
+
+        handler.handleTextMessage(session, new TextMessage(
+                "{\"action\":\"subscribe_shipper\",\"deliveryId\":100,\"shipperId\":42}"));
+
+        verify(session).sendMessage(argThat((TextMessage message) ->
+                message.getPayload().contains("\"type\":\"location_update\"")
+                        && message.getPayload().contains("\"latitude\":10.77")));
     }
 
     @Test

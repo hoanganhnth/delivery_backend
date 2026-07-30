@@ -387,10 +387,10 @@ public class TransactionServiceImpl implements TransactionService {
     @Transactional(readOnly = true)
     public List<TransactionResponse> getPendingWithdrawals() {
         log.info("Getting pending withdrawals");
-        return transactionRepository.findByStatusOrderByCreatedAtDesc(
-                        TransactionStatus.PENDING, PageRequest.of(0, COMPATIBILITY_LIST_LIMIT))
+        return transactionRepository.findByStatusAndReasonOrderByCreatedAtDesc(
+                        TransactionStatus.PENDING, TransactionReason.WITHDRAW,
+                        PageRequest.of(0, COMPATIBILITY_LIST_LIMIT))
                 .stream()
-                .filter(tx -> tx.getReason() == TransactionReason.WITHDRAW)
                 .map(transactionMapper::toResponse)
                 .collect(Collectors.toList());
     }

@@ -1,10 +1,10 @@
 # HTTP API Inventory
 
-Ngày cập nhật inventory: 2026-07-29
+Ngày cập nhật inventory: 2026-07-30
 
 Tài liệu này liệt kê toàn bộ method có mapping trong 16 service có controller.
 `saga-orchestrator-service` không có HTTP controller. Danh sách được sinh trực
-tiếp từ annotation Java và hiện có **146 method**.
+tiếp từ annotation Java và hiện có **147 method**.
 
 Contract backend MVP được freeze ngày 2026-07-26 sau clean Gate B8, API surface
 classification và full reactor 602 test. Các capability ghi hidden/disabled hoặc
@@ -263,6 +263,7 @@ sửa.
 | shipper-service | ShipperRatingController | GET | `/api/shippers/me/ratings` | `getMyRatings` |
 | tracking-service | ShipperLocationController | POST | `/api/tracking/shipper-locations/update` | `updateLocation` |
 | tracking-service | ShipperLocationController | POST | `/api/tracking/shipper-locations/offline` | `markOffline` |
+| tracking-service | InternalLocationHistoryController | GET | `/internal/tracking/location-history/deliveries/{deliveryId}` | `byDelivery` |
 | user-service | UserAddressController | GET | `/api/addresses/users/{userId}/addresses` | `getUserAddresses` |
 | user-service | UserAddressController | GET | `/api/addresses/{id}` | `getAddress` |
 | user-service | UserAddressController | POST | `/api/addresses/users/{userId}/addresses` | `createAddress` |

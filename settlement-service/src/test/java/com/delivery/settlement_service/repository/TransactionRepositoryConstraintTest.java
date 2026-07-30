@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.data.domain.PageRequest;
 
 import java.math.BigDecimal;
 
@@ -47,6 +48,19 @@ class TransactionRepositoryConstraintTest {
                 .isPresent();
     }
 
+    @Test
+    void pendingWithdrawalQueryFiltersInDatabaseBeforeApplyingLimit() {
+        transactionRepository.saveAndFlush(entry(201L, TransactionReason.ADJUSTMENT_DEBIT));
+        transactionRepository.saveAndFlush(entry(202L, TransactionReason.WITHDRAW));
+
+        var withdrawals = transactionRepository.findByStatusAndReasonOrderByCreatedAtDesc(
+                TransactionStatus.PENDING, TransactionReason.WITHDRAW, PageRequest.of(0, 1));
+
+        assertThat(withdrawals).singleElement()
+                .satisfies(transaction -> assertThat(transaction.getReason())
+                        .isEqualTo(TransactionReason.WITHDRAW));
+    }
+
     private Transaction entry() {
         return Transaction.builder()
                 .entityId(22L)
@@ -57,6 +71,19 @@ class TransactionRepositoryConstraintTest {
                 .amount(new BigDecimal("120000"))
                 .status(TransactionStatus.COMPLETED)
                 .walletType(WalletType.DEPOSIT)
+                .build();
+    }
+
+    private Transaction entry(long orderId, TransactionReason reason) {
+        return Transaction.builder()
+                .entityId(22L)
+                .entityType(EntityType.SHIPPER)
+                .orderId(orderId)
+                .direction(TransactionDirection.DEBIT)
+                .reason(reason)
+                .amount(new BigDecimal("1000"))
+                .status(TransactionStatus.PENDING)
+                .walletType(WalletType.EARNINGS)
                 .build();
     }
 }

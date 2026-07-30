@@ -82,7 +82,7 @@ class ShipperLocationServiceFailureTest {
 
         verify(repository).cacheShipperLocation(eq(7L), eq(current));
         verify(repository, never()).removeShipperLocationCache(7L);
-        verify(publisher).publishLocationUpdate(7L, 10.77, 106.70, false);
+        verify(publisher).publishLocationUpdate(current, "OFFLINE_TOMBSTONE");
         verify(webSocketHandler).broadcastShipperLocation(current);
         org.assertj.core.api.Assertions.assertThat(current.getIsOnline()).isFalse();
         org.assertj.core.api.Assertions.assertThat(current.getUpdatedAt()).isNotBlank();
@@ -96,7 +96,7 @@ class ShipperLocationServiceFailureTest {
 
         verify(repository).removeShipperLocationCache(7L);
         verify(repository, never()).cacheShipperLocation(eq(7L), any());
-        verify(publisher).publishLocationUpdate(7L, null, null, false);
+        verify(publisher).publishLocationUpdate(any(ShipperLocationResponse.class), eq("OFFLINE_TOMBSTONE"));
         verify(webSocketHandler).broadcastShipperLocation(any(ShipperLocationResponse.class));
     }
 
@@ -111,7 +111,7 @@ class ShipperLocationServiceFailureTest {
         service.markShipperOffline(7L);
 
         verify(repository).cacheShipperLocation(7L, current);
-        verify(publisher).publishLocationUpdate(7L, 10.77, null, false);
+        verify(publisher).publishLocationUpdate(current, "OFFLINE_TOMBSTONE");
         org.assertj.core.api.Assertions.assertThat(current.getIsOnline()).isFalse();
     }
 
@@ -131,7 +131,7 @@ class ShipperLocationServiceFailureTest {
     void explicitOfflineReportsBrokerFailureAfterSafeRedisMutation() {
         when(repository.getCachedShipperLocation(7L)).thenReturn(null);
         doThrow(new IllegalStateException("broker unavailable"))
-                .when(publisher).publishLocationUpdate(7L, null, null, false);
+                .when(publisher).publishLocationUpdate(any(ShipperLocationResponse.class), eq("OFFLINE_TOMBSTONE"));
 
         assertThatThrownBy(() -> service.markShipperOffline(7L))
                 .isInstanceOf(IllegalStateException.class)

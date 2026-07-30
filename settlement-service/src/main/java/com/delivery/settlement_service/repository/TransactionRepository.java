@@ -21,6 +21,9 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
 
     List<Transaction> findByStatusOrderByCreatedAtDesc(TransactionStatus status, Pageable pageable);
 
+    List<Transaction> findByStatusAndReasonOrderByCreatedAtDesc(
+            TransactionStatus status, TransactionReason reason, Pageable pageable);
+
     List<Transaction> findAllByOrderByCreatedAtDesc(Pageable pageable);
 
     /**

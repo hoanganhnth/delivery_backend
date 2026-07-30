@@ -16,7 +16,7 @@ class FirebaseControllerAuthorizationTest {
     private final FirebaseController controller = new FirebaseController(firebaseService);
 
     @Test
-    void registerAndUnregisterRequireUserRole() {
+    void registerAndUnregisterRejectNonMobileRoles() {
         FirebaseController.TokenRequest request = validTokenRequest();
 
         assertThrows(NotificationAccessDeniedException.class,
@@ -28,16 +28,22 @@ class FirebaseControllerAuthorizationTest {
     }
 
     @Test
-    void registerAndUnregisterAcceptUserRole() {
+    void registerAndUnregisterAcceptCustomerAndShipperRoles() {
         FirebaseController.TokenRequest request = validTokenRequest();
 
-        var registerResponse = controller.registerFcmToken(42L, "USER", request);
-        var unregisterResponse = controller.unregisterFcmToken(42L, "USER", request);
+        var customerRegister = controller.registerFcmToken(42L, "USER", request);
+        var customerUnregister = controller.unregisterFcmToken(42L, "USER", request);
+        var shipperRegister = controller.registerFcmToken(84L, "SHIPPER", request);
+        var shipperUnregister = controller.unregisterFcmToken(84L, "SHIPPER", request);
 
         verify(firebaseService).registerFcmToken(42L, "device-token");
         verify(firebaseService).unregisterFcmToken(42L, "device-token");
-        assertThat(registerResponse.getStatusCode().is2xxSuccessful()).isTrue();
-        assertThat(unregisterResponse.getStatusCode().is2xxSuccessful()).isTrue();
+        verify(firebaseService).registerFcmToken(84L, "device-token");
+        verify(firebaseService).unregisterFcmToken(84L, "device-token");
+        assertThat(customerRegister.getStatusCode().is2xxSuccessful()).isTrue();
+        assertThat(customerUnregister.getStatusCode().is2xxSuccessful()).isTrue();
+        assertThat(shipperRegister.getStatusCode().is2xxSuccessful()).isTrue();
+        assertThat(shipperUnregister.getStatusCode().is2xxSuccessful()).isTrue();
     }
 
     private FirebaseController.TokenRequest validTokenRequest() {

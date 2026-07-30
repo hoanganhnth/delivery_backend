@@ -5,7 +5,9 @@ import com.delivery.tracking_service.repository.RedisGeoRepository;
 import com.delivery.tracking_service.service.ShipperLocationEventPublisher;
 import com.delivery.tracking_service.service.DeliveryTrackingAccessClient;
 import com.delivery.tracking_service.service.ShipperPublisherSessionManager;
+import com.delivery.tracking_service.service.LocationFanoutPublisher;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -15,7 +17,6 @@ import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.time.LocalDateTime;
 
@@ -27,8 +28,6 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
     // Lưu trữ các session WebSocket kết nối
     private final Map<String, WebSocketSession> activeSessions = new ConcurrentHashMap<>();
 
-    // Lưu trữ session theo shipper đang theo dõi
-    private final Map<String, Set<String>> shipperSubscriptions = new ConcurrentHashMap<>();
     private final Map<String, PublisherLease> publisherLeases = new ConcurrentHashMap<>();
     private final Map<Long, String> localPublisherSessions = new ConcurrentHashMap<>();
 
@@ -37,17 +36,38 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
     private final ShipperLocationEventPublisher eventPublisher;
     private final DeliveryTrackingAccessClient trackingAccessClient;
     private final ShipperPublisherSessionManager publisherSessionManager;
+    private final DeliveryRoomRegistry deliveryRooms;
+    private final LocationMessageDispatcher messageDispatcher;
+    private final LocationFanoutPublisher locationFanoutPublisher;
 
+    @Autowired
     public ShipperLocationWebSocketHandler(ObjectMapper objectMapper, 
                                            RedisGeoRepository redisGeoRepository,
                                            ShipperLocationEventPublisher eventPublisher,
                                            DeliveryTrackingAccessClient trackingAccessClient,
-                                           ShipperPublisherSessionManager publisherSessionManager) {
+                                           ShipperPublisherSessionManager publisherSessionManager,
+                                           DeliveryRoomRegistry deliveryRooms,
+                                           LocationMessageDispatcher messageDispatcher,
+                                           LocationFanoutPublisher locationFanoutPublisher) {
         this.objectMapper = objectMapper;
         this.redisGeoRepository = redisGeoRepository;
         this.eventPublisher = eventPublisher;
         this.trackingAccessClient = trackingAccessClient;
         this.publisherSessionManager = publisherSessionManager;
+        this.deliveryRooms = deliveryRooms;
+        this.messageDispatcher = messageDispatcher;
+        this.locationFanoutPublisher = locationFanoutPublisher;
+    }
+
+    /** Compatibility constructor retained for focused tests. */
+    public ShipperLocationWebSocketHandler(ObjectMapper objectMapper,
+                                           RedisGeoRepository redisGeoRepository,
+                                           ShipperLocationEventPublisher eventPublisher,
+                                           DeliveryTrackingAccessClient trackingAccessClient,
+                                           ShipperPublisherSessionManager publisherSessionManager) {
+        this(objectMapper, redisGeoRepository, eventPublisher, trackingAccessClient,
+                publisherSessionManager, new DeliveryRoomRegistry(),
+                new LocationMessageDispatcher(Runnable::run), null);
     }
 
     @Override
@@ -86,7 +106,7 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
             welcomeMessage.put("publisherGeneration", lease.generation());
         }
 
-        session.sendMessage(new TextMessage(objectMapper.writeValueAsString(welcomeMessage)));
+        send(session, welcomeMessage);
     }
 
     @Override
@@ -131,7 +151,7 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
                     Map<String, Object> pongResponse = Map.of(
                             "type", "pong",
                             "timestamp", java.time.Instant.now().toString());
-                    session.sendMessage(new TextMessage(objectMapper.writeValueAsString(pongResponse)));
+                    send(session, pongResponse);
                     break;
                 default:
                     log.warn("⚠️ Unknown action: {} from session: {}", action, sessionId);
@@ -174,15 +194,14 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
         redisGeoRepository.cacheShipperLocation(shipperId, response);
 
         // Publish qua Kafka cho Match Service
-        eventPublisher.publishLocationUpdate(
-                shipperId, response.getLatitude(), response.getLongitude(), response.getIsOnline());
+        eventPublisher.publishLocationUpdate(response, "WEBSOCKET");
         log.debug("📤 [WS] Published location to Kafka `shipper.location-updated` for shipper {}", shipperId);
 
         // Broadcast tới subscribers
-        broadcastShipperLocation(response);
+        fanout(response);
 
-        log.info("📍 [WS] Updated location for shipper {}: ({}, {}) + broadcasted",
-                shipperId, response.getLatitude(), response.getLongitude());
+        log.info("📍 [WS] Updated location for shipper {} and queued authorized fanout",
+                shipperId);
     }
 
     private void handleSubscribeShipper(WebSocketSession session, Map<String, Object> message) throws Exception {
@@ -204,9 +223,7 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
             return;
         }
         String shipperId = shipperIdValue.toString();
-
-        // Thêm session vào danh sách theo dõi shipper này
-        shipperSubscriptions.computeIfAbsent(shipperId, k -> ConcurrentHashMap.newKeySet()).add(sessionId);
+        deliveryRooms.subscribe(deliveryId, shipperIdValue, sessionId);
 
         log.info("📍 Session {} subscribed to shipper {}", sessionId, shipperId);
 
@@ -216,7 +233,14 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
                 "shipperId", shipperId,
                 "message", "Subscribed to shipper " + shipperId);
 
-        session.sendMessage(new TextMessage(objectMapper.writeValueAsString(response)));
+        send(session, response);
+
+        // A coalesced/broker message may have arrived before this subscriber.
+        // Send the Redis realtime source immediately so the last location is not lost.
+        ShipperLocationResponse latest = redisGeoRepository.getCachedShipperLocation(shipperIdValue);
+        if (latest != null) {
+            dispatchLocation(session, deliveryId, latest);
+        }
     }
 
     private void handleUnsubscribeShipper(WebSocketSession session, Map<String, Object> message) throws Exception {
@@ -224,16 +248,9 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
         Object shipperIdObj = message.get("shipperId");
 
         if (shipperIdObj != null) {
-            String shipperId = String.valueOf(shipperIdObj);
-
-            // Xóa session khỏi danh sách theo dõi shipper này
-            Set<String> subscribers = shipperSubscriptions.get(shipperId);
-            if (subscribers != null) {
-                subscribers.remove(sessionId);
-                if (subscribers.isEmpty()) {
-                    shipperSubscriptions.remove(shipperId);
-                }
-            }
+            Long shipperIdValue = requiredLong(message, "shipperId");
+            String shipperId = shipperIdValue.toString();
+            deliveryRooms.unsubscribe(sessionId, shipperIdValue);
 
             log.info("🔄 Session {} unsubscribed from shipper {}", sessionId, shipperId);
 
@@ -243,7 +260,7 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
                     "shipperId", shipperId,
                     "message", "Unsubscribed from shipper " + shipperId);
 
-            session.sendMessage(new TextMessage(objectMapper.writeValueAsString(response)));
+            send(session, response);
         }
     }
 
@@ -309,8 +326,12 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
     }
 
     private void sendError(WebSocketSession session, String code, String message) throws Exception {
-        session.sendMessage(new TextMessage(objectMapper.writeValueAsString(Map.of(
-                "type", "error", "code", code, "message", message))));
+        send(session, Map.of("type", "error", "code", code, "message", message));
+    }
+
+    private void send(WebSocketSession session, Map<String, Object> payload) throws Exception {
+        messageDispatcher.sendControl(
+                session, new TextMessage(objectMapper.writeValueAsString(payload)));
     }
 
     private boolean ensureCurrentPublisher(WebSocketSession session) throws Exception {
@@ -348,13 +369,12 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
         if (lease != null) {
             localPublisherSessions.remove(lease.shipperId(), sessionId);
             publisherSessionManager.disconnected(lease, offline -> {
-                broadcastShipperLocation(offline);
+                fanout(offline);
             });
         }
 
-        // Xóa tất cả subscription của session này
-        shipperSubscriptions.values().forEach(subscribers -> subscribers.remove(sessionId));
-        shipperSubscriptions.entrySet().removeIf(entry -> entry.getValue().isEmpty());
+        deliveryRooms.removeSession(sessionId);
+        messageDispatcher.remove(sessionId);
 
         log.info("❌ WebSocket disconnected: sessionId={}, status={}", sessionId, status);
     }
@@ -363,31 +383,23 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
      * Broadcast vị trí shipper mới tới tất cả client đang theo dõi
      */
     public void broadcastShipperLocation(ShipperLocationResponse location) {
-        String shipperId = String.valueOf(location.getShipperId());
-        Set<String> subscribers = shipperSubscriptions.get(shipperId);
+        Long shipperId = location == null ? null : location.getShipperId();
+        Long deliveryId = shipperId == null ? null : deliveryRooms.activeDelivery(shipperId);
+        if (deliveryId != null) broadcastDeliveryLocation(deliveryId, location);
+    }
 
-        if (subscribers != null && !subscribers.isEmpty()) {
+    public void broadcastDeliveryLocation(Long deliveryId, ShipperLocationResponse location) {
+        Long shipperId = location == null ? null : location.getShipperId();
+        var subscribers = deliveryId == null || shipperId == null ? java.util.List.<String>of()
+                : deliveryRooms.subscribers(deliveryId, shipperId);
+
+        if (deliveryId != null && !subscribers.isEmpty()) {
             try {
-                // Sử dụng HashMap thay vì Map.of() để tránh NullPointerException
-                Map<String, Object> locationUpdate = new java.util.HashMap<>();
-                locationUpdate.put("type", "location_update");
-                locationUpdate.put("shipperId", location.getShipperId());
-                locationUpdate.put("latitude", location.getLatitude());
-                locationUpdate.put("longitude", location.getLongitude());
-                locationUpdate.put("isOnline", location.getIsOnline() != null ? location.getIsOnline() : false);
-                locationUpdate.put("accuracy", location.getAccuracy());
-                locationUpdate.put("speed", location.getSpeed());
-                locationUpdate.put("heading", location.getHeading());
-                locationUpdate.put("timestamp", location.getUpdatedAt());
-
-                String message = objectMapper.writeValueAsString(locationUpdate);
-
-                // Gửi tới tất cả session đang subscribe shipper này
                 subscribers.forEach(sessionId -> {
                     WebSocketSession session = activeSessions.get(sessionId);
                     if (session != null && session.isOpen()) {
                         try {
-                            session.sendMessage(new TextMessage(message));
+                            dispatchLocation(session, deliveryId, location);
                         } catch (Exception e) {
                             log.error("💥 Error sending location update to session {}: {}", sessionId, e.getMessage());
                         }
@@ -401,6 +413,28 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
                 log.error("💥 Error broadcasting shipper location: {}", e.getMessage(), e);
             }
         }
+    }
+
+    private void fanout(ShipperLocationResponse location) {
+        if (locationFanoutPublisher == null) broadcastShipperLocation(location);
+        else locationFanoutPublisher.publish(location);
+    }
+
+    private void dispatchLocation(WebSocketSession session, long deliveryId,
+                                  ShipperLocationResponse location) throws Exception {
+        Map<String, Object> locationUpdate = new java.util.HashMap<>();
+        locationUpdate.put("type", "location_update");
+        locationUpdate.put("shipperId", location.getShipperId());
+        locationUpdate.put("latitude", location.getLatitude());
+        locationUpdate.put("longitude", location.getLongitude());
+        locationUpdate.put("isOnline", location.getIsOnline() != null ? location.getIsOnline() : false);
+        locationUpdate.put("accuracy", location.getAccuracy());
+        locationUpdate.put("speed", location.getSpeed());
+        locationUpdate.put("heading", location.getHeading());
+        locationUpdate.put("timestamp", location.getUpdatedAt());
+        messageDispatcher.dispatch(session, deliveryId,
+                new TextMessage(objectMapper.writeValueAsString(locationUpdate)),
+                Boolean.TRUE.equals(location.getIsOnline()));
     }
 
 }

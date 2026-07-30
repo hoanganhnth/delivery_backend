@@ -11,8 +11,9 @@ MVP.
   bảo vệ subscription. REST update dùng cùng policy fail-closed với socket:
   tọa độ phải hữu hạn trong range hợp lệ, optional `accuracy/speed/heading` nếu
   gửi phải hữu hạn, và `isOnline` không được null/sai kiểu.
-- Redis lưu location/online freshness của Tracking.
-- Kafka `shipper.location-updated` replicate vị trí sang Match.
+- Redis lưu location/online freshness và active-delivery routing projection của Tracking.
+- Kafka `shipper.location-updated` replicate vị trí sang Match và async history consumer.
+- PostgreSQL `tracking_db` chỉ lưu sampled audit/support history; không nằm trong hot path.
 - Tracking không sở hữu BUSY/AVAILABLE matching state và không consume
   `shipper.status-change`; Match là consumer duy nhất cần trạng thái đó.
 
@@ -42,6 +43,21 @@ Customer/restaurant/shipper/admin chỉ subscribe một `deliveryId` mà interna
 Delivery access check xác nhận họ là participant phù hợp. Tracking phát payload
 location raw WebSocket, không phát offer hoặc delivery state; shipper offer được
 khôi phục qua `GET /api/deliveries/offers/current`.
+
+Subscription nội bộ được index theo delivery room, không theo shipper đơn thuần.
+Assignment BUSY/AVAILABLE fence room cũ/mới; Redis Pub/Sub chuyển exact
+`deliveryId` giữa các Tracking instance. Slow session dùng bounded coalescing
+queue và subscribe/reconnect luôn đọc location cuối từ Redis nên không mất final
+state.
+
+## Location history support
+
+History là audit/support-only: giữ 90 ngày, tọa độ 5 chữ số thập phân, sample
+10 giây hoặc 25 m. Consumer `tracking-location-history` ghi PostgreSQL async với
+receipt unique theo event ID; replay không tạo duplicate và out-of-order được so
+với cả điểm trước/sau. Chỉ internal secret + ADMIN support được query bounded
+theo một delivery; không có public/client/fleet history API. Chi tiết vận hành:
+`../operations/location-history.md`.
 
 ## Trạng thái và proof còn mở
 

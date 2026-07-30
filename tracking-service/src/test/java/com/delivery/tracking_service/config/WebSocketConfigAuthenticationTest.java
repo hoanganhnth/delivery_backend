@@ -36,6 +36,27 @@ class WebSocketConfigAuthenticationTest {
     }
 
     @Test
+    void handshakeRetainsValidTraceContextWithoutTracingLocationMessages() throws Exception {
+        WebSocketConfig config = new WebSocketConfig(
+                mock(ShipperLocationWebSocketHandler.class), "http://localhost:5173");
+        ServerHttpRequest request = mock(ServerHttpRequest.class);
+        ServerHttpResponse response = mock(ServerHttpResponse.class);
+        HttpHeaders headers = new HttpHeaders();
+        headers.add("X-User-Id", "42");
+        headers.add("X-Role", "SHIPPER");
+        headers.add("X-Correlation-Id", "order-42");
+        headers.add("traceparent", "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01");
+        when(request.getHeaders()).thenReturn(headers);
+        var attributes = new HashMap<String, Object>();
+
+        assertThat(config.identityHeadersInterceptor().beforeHandshake(
+                request, response, mock(WebSocketHandler.class), attributes)).isTrue();
+
+        assertThat(attributes).containsEntry("correlationId", "order-42")
+                .containsEntry("traceparent", "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01");
+    }
+
+    @Test
     void handshakeRejectsMissingIdentity() throws Exception {
         WebSocketConfig config = new WebSocketConfig(
                 mock(ShipperLocationWebSocketHandler.class), "http://localhost:5173");

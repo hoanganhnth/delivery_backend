@@ -31,7 +31,7 @@ public class FirebaseController {
             @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role,
             @Valid @RequestBody TokenRequest request) {
 
-        requireRole(role, "USER");
+        requireMobileRole(role);
         firebaseService.registerFcmToken(userId, request.getToken());
         return ResponseEntity.ok(new BaseResponse<>(1, null, "Đăng ký FCM token thành công"));
     }
@@ -42,13 +42,13 @@ public class FirebaseController {
             @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role,
             @Valid @RequestBody TokenRequest request) {
 
-        requireRole(role, "USER");
+        requireMobileRole(role);
         firebaseService.unregisterFcmToken(userId, request.getToken());
         return ResponseEntity.ok(new BaseResponse<>(1, null, "Hủy đăng ký FCM token thành công"));
     }
 
-    private void requireRole(String actualRole, String requiredRole) {
-        if (!requiredRole.equals(actualRole)) {
+    private void requireMobileRole(String actualRole) {
+        if (!"USER".equals(actualRole) && !"SHIPPER".equals(actualRole)) {
             throw new NotificationAccessDeniedException("Forbidden");
         }
     }

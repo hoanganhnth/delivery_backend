@@ -28,6 +28,7 @@ class OrderFlywayMigrationTest {
             assertThat(count(statement, "SELECT count(*) FROM order_items")).isEqualTo(1);
             assertThat(indexExists(connection, "idx_orders_user_created")).isTrue();
             assertThat(indexExists(connection, "idx_orders_restaurant_creator_created")).isTrue();
+            assertThat(indexExists(connection, "idx_orders_created_id")).isTrue();
             assertThat(indexExists(connection, "idx_order_items_order_id")).isTrue();
         }
     }
