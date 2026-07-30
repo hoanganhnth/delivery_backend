@@ -10,6 +10,10 @@
     <packaging>pom</packaging>
 
     <modules>
+        <module>observability-starter</module>
+        <module>runtime-platform-starter</module>
+        <module>discovery-server</module>
+        <module>config-server</module>
         <module>auth-service</module>
         <module>user-service</module>
         <module>api-gateway</module>

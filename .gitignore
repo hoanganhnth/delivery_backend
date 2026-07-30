@@ -22,6 +22,8 @@ Thumbs.db
 
 # Environment
 .env
+.env.local
+.secrets/
 # JWT keys — KHÔNG commit (sinh bằng scripts/gen-keys.sh)
 *.pem
 # Provider credentials — mount them at runtime; never package or commit them.

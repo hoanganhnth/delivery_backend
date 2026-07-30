@@ -35,19 +35,19 @@
     </dependencyManagement>
 
     <dependencies>
+        <dependency><groupId>com.delivery</groupId><artifactId>runtime-platform-starter</artifactId><version>1.0.0-SNAPSHOT</version></dependency>
+        <dependency><groupId>com.delivery</groupId><artifactId>observability-starter</artifactId><version>1.0.0-SNAPSHOT</version></dependency>
+        <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-actuator</artifactId></dependency>
+        <dependency><groupId>io.micrometer</groupId><artifactId>micrometer-registry-prometheus</artifactId></dependency>
         <!-- Gateway core -->
         <dependency>
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-gateway-server-webflux</artifactId>
         </dependency>
-
-        <!-- Optional: Eureka discovery (commented out) -->
-        <!--
         <dependency>
-            <groupId>org.springframework.cloud</groupId>
-            <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis-reactive</artifactId>
         </dependency>
-        -->
 
         <!-- Spring Boot Starter -->
         <dependency>
@@ -59,6 +59,16 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers</artifactId>
             <scope>test</scope>
         </dependency>
 
@@ -94,6 +104,9 @@
             <scope>runtime</scope>
         </dependency>
 
+
+        <dependency><groupId>io.micrometer</groupId><artifactId>micrometer-tracing-bridge-otel</artifactId></dependency>
+        <dependency><groupId>io.opentelemetry</groupId><artifactId>opentelemetry-exporter-otlp</artifactId></dependency>
     </dependencies>
 
     <build>

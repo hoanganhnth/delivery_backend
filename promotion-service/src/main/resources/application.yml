@@ -3,12 +3,14 @@ server:
 
 app:
   internal:
-    secret: ${INTERNAL_SECRET:}
+    secret: ${internal-secret:${INTERNAL_SECRET:}}
   promotion:
     checkout-enabled: ${PROMOTION_CHECKOUT_ENABLED:false}
     merchant-create-api-enabled: ${PROMOTION_MERCHANT_CREATE_API_ENABLED:false}
 
 spring:
+  config:
+    import: optional:configtree:/run/secrets/
   application:
     name: promotion-service
   
@@ -48,3 +50,27 @@ logging:
   level:
     com.delivery.promotion_service: ${APP_LOG_LEVEL:INFO}
     org.springframework.kafka: INFO
+
+management:
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+  server:
+    port: ${MANAGEMENT_SERVER_PORT:9090}
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: "*"
+        liveness:
+          include: livenessState
+      show-details: never
+      show-components: never

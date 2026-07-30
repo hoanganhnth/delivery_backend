@@ -1,0 +1,64 @@
+# Emergency recovery only: retain the Gateway-only public boundary while a
+# registry incident is investigated. This overlay is versioned and exercised by
+# the Compose verifier; remove it after the discovered route is healthy again.
+services:
+  api-gateway:
+    environment:
+      SERVICE_DISCOVERY_ENABLED: "false"
+      SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8888,optional:configtree:/run/secrets/
+      CONFIG_SERVER_FAIL_FAST: "false"
+      APP_AUTH_SERVICE_URI: http://auth-service:8081
+      APP_USER_SERVICE_URI: http://user-service:8082
+      APP_RESTAURANT_SERVICE_URI: http://restaurant-service:8083
+      APP_ORDER_SERVICE_URI: http://order-service:8084
+      APP_DELIVERY_SERVICE_URI: http://delivery-service:8085
+      APP_SEARCH_SERVICE_URI: http://search-service:8088
+      APP_SHIPPER_SERVICE_URI: http://shipper-service:8089
+      APP_NOTIFICATION_SERVICE_URI: http://notification-service:8091
+      APP_TRACKING_SERVICE_URI: http://tracking-service:8093
+      APP_TRACKING_SERVICE_WS_URI: ws://tracking-service:8093
+      APP_LIVESTREAM_SERVICE_URI: http://livestream-service:8094
+      APP_SETTLEMENT_SERVICE_URI: http://settlement-service:8090
+      APP_PROMOTION_SERVICE_URI: http://promotion-service:8096
+      APP_ANALYTICS_SERVICE_URI: http://analytics-service:8097
+      APP_FLASHSALE_SERVICE_URI: http://flashsale-service:8092
+
+  auth-service:
+    environment:
+      SERVICE_DISCOVERY_ENABLED: "false"
+      SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8888,optional:configtree:/run/secrets/
+      CONFIG_SERVER_FAIL_FAST: "false"
+      PLATFORM_SECRETS_INTERNAL_SECRET_REQUIRED: "true"
+      USER_SERVICE_URL: http://user-service:8082
+
+  restaurant-service:
+    environment:
+      SERVICE_DISCOVERY_ENABLED: "false"
+      SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8888,optional:configtree:/run/secrets/
+      CONFIG_SERVER_FAIL_FAST: "false"
+      PLATFORM_SECRETS_INTERNAL_SECRET_REQUIRED: "true"
+      ORDER_SERVICE_URL: http://order-service:8084
+
+  order-service:
+    environment:
+      SERVICE_DISCOVERY_ENABLED: "false"
+      SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8888,optional:configtree:/run/secrets/
+      CONFIG_SERVER_FAIL_FAST: "false"
+      PLATFORM_SECRETS_INTERNAL_SECRET_REQUIRED: "true"
+      RESTAURANT_SERVICE_URL: http://restaurant-service:8083
+
+  match-service:
+    environment:
+      SERVICE_DISCOVERY_ENABLED: "false"
+      SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8888,optional:configtree:/run/secrets/
+      CONFIG_SERVER_FAIL_FAST: "false"
+      PLATFORM_SECRETS_INTERNAL_SECRET_REQUIRED: "true"
+      SETTLEMENT_SERVICE_URL: http://settlement-service:8090
+
+  tracking-service:
+    environment:
+      SERVICE_DISCOVERY_ENABLED: "false"
+      SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8888,optional:configtree:/run/secrets/
+      CONFIG_SERVER_FAIL_FAST: "false"
+      PLATFORM_SECRETS_INTERNAL_SECRET_REQUIRED: "true"
+      DELIVERY_SERVICE_URL: http://delivery-service:8085

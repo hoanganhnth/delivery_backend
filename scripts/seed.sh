@@ -18,6 +18,7 @@ SHIPPER_DEPOSIT="${SHIPPER_DEPOSIT:-500000}"
 RUN_ID="${RUN_ID:-$(date +%s)}"
 RUN_SUFFIX="${RUN_ID: -8}"
 SEED_OUTPUT_FILE="${SEED_OUTPUT_FILE:-}"
+SEED_SKIP_OFFLINE_PREVIOUS_SHIPPERS="${SEED_SKIP_OFFLINE_PREVIOUS_SHIPPERS:-false}"
 
 # ⚠️ Role: các service downstream kiểm tra theo các chuỗi này
 #   (USER = khách, SHOP_OWNER = chủ nhà hàng, SHIPPER = shipper).
@@ -128,7 +129,9 @@ MENU_ID="$(curl --fail-with-body --silent --show-error -X POST "$BASE/api/menu-i
 echo "✅ Menu item id=$MENU_ID"
 
 # --- 3. Shipper: hồ sơ + online + vị trí ---
-offline_previous_seed_shippers
+if [[ "$SEED_SKIP_OFFLINE_PREVIOUS_SHIPPERS" != "true" ]]; then
+  offline_previous_seed_shippers
+fi
 SHIPPER_EMAIL="shipper+$RUN_ID@test.dev"
 operator_provision_shipper "$SHIPPER_EMAIL"
 SHIPPER_TOKEN="$(login "$SHIPPER_EMAIL" "seed-$RUN_ID-shipper")"

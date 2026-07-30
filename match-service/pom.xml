@@ -30,18 +30,22 @@
 		<java.version>17</java.version>
 	</properties>
 	<dependencies>
+		<dependency><groupId>com.delivery</groupId><artifactId>runtime-platform-starter</artifactId><version>1.0.0-SNAPSHOT</version></dependency>
+		<dependency><groupId>com.delivery</groupId><artifactId>observability-starter</artifactId><version>1.0.0-SNAPSHOT</version></dependency>
+		<dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-actuator</artifactId></dependency>
+		<dependency><groupId>io.micrometer</groupId><artifactId>micrometer-registry-prometheus</artifactId></dependency>
 		<!-- Spring Boot Starters -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-web</artifactId>
 		</dependency>
-		
+
 		<!-- HTTP Client for calling other services -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-webflux</artifactId>
 		</dependency>
-		
+
 		<!-- Utilities -->
 		<dependency>
 			<groupId>org.projectlombok</groupId>
@@ -49,20 +53,20 @@
 			<version>1.18.32</version>
 			<scope>provided</scope>
 		</dependency>
-		
+
 		<!-- JSON Processing -->
 		<dependency>
 			<groupId>com.google.code.gson</groupId>
 			<artifactId>gson</artifactId>
 			<version>2.10.1</version>
 		</dependency>
-		
+
 		<!-- Jackson JSR310 for LocalDateTime -->
 		<dependency>
 			<groupId>com.fasterxml.jackson.datatype</groupId>
 			<artifactId>jackson-datatype-jsr310</artifactId>
 		</dependency>
-		
+
 		<!-- ✅ Kafka for event-driven communication -->
 		<dependency>
 			<groupId>org.springframework.kafka</groupId>
@@ -80,6 +84,19 @@
 			<artifactId>spring-boot-starter-test</artifactId>
 			<scope>test</scope>
 		</dependency>
+		<dependency>
+			<groupId>io.github.resilience4j</groupId>
+			<artifactId>resilience4j-circuitbreaker</artifactId>
+			<version>2.2.0</version>
+		</dependency>
+		<dependency>
+			<groupId>io.github.resilience4j</groupId>
+			<artifactId>resilience4j-reactor</artifactId>
+			<version>2.2.0</version>
+		</dependency>
+
+		<dependency><groupId>io.micrometer</groupId><artifactId>micrometer-tracing-bridge-otel</artifactId></dependency>
+		<dependency><groupId>io.opentelemetry</groupId><artifactId>opentelemetry-exporter-otlp</artifactId></dependency>
 	</dependencies>
 
 	<build>

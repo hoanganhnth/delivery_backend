@@ -1,0 +1,20 @@
+# Temporary JWT rotation overlay. Auth signs with the primary key while Auth and
+# Gateway accept tokens signed by this retiring public key. Remove after the
+# maximum refresh-token lifetime has elapsed and the retiring key is revoked.
+services:
+  api-gateway:
+    environment:
+      JWT_PREVIOUS_PUBLIC_KEY_PATH: /run/secrets/jwt-previous-public.pem
+    secrets:
+      - source: jwt-previous-public-key
+        target: jwt-previous-public.pem
+  auth-service:
+    environment:
+      JWT_PREVIOUS_PUBLIC_KEY_PATH: /run/secrets/jwt-previous-public.pem
+    secrets:
+      - source: jwt-previous-public-key
+        target: jwt-previous-public.pem
+
+secrets:
+  jwt-previous-public-key:
+    file: ${JWT_PREVIOUS_PUBLIC_KEY_FILE:?JWT_PREVIOUS_PUBLIC_KEY_FILE must point to the retiring public PEM file}

@@ -47,10 +47,10 @@ Compose; application containers still connect to `postgres:5432` internally.
 For an isolated clean-data rehearsal without deleting the existing local volume,
 also set `POSTGRES_VOLUME_NAME` to a new Docker volume name.
 
-`docker-compose.secrets.yml` mounts the ignored local JWT keypair read-only under
-`/run/secrets` and configures Auth/Gateway to load those files externally. This
-exercises the production-like key-loading path instead of relying on keys packaged
-inside the local JAR.
+`scripts/gen-keys.sh` creates an ignored `.secrets/` keypair and writes only its
+paths to ignored `.env`. `docker-compose.secrets.yml` injects those files as
+Docker secrets under `/run/secrets`; neither keys nor a secret fallback are
+packaged inside a JAR. Do not point those variables at a file in the source tree.
 
 For focused service debugging only, opt in to the port override:
 

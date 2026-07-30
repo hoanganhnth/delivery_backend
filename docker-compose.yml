@@ -1,5 +1,54 @@
 
+x-tracing-environment: &tracing-environment
+  OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://tracing-collector:4318/v1/traces
+  TRACING_SAMPLE_PROBABILITY: ${TRACING_SAMPLE_PROBABILITY:-1.0}
+
+# Every active MVP service receives configuration before booting and registers
+# itself with the private registry. Deployment environments make config import
+# non-optional; the optional direct-run defaults in application files exist only
+# for isolated JVM tests.
+x-runtime-platform-environment: &runtime-platform-environment
+  # SPRING_CONFIG_IMPORT is supplied directly because Config Data resolves this
+  # before ordinary application placeholders are available.
+  SPRING_CONFIG_IMPORT: configserver:http://config-server:8888,optional:configtree:/run/secrets/
+  CONFIG_SERVER_FAIL_FAST: "true"
+  SERVICE_DISCOVERY_ENABLED: "true"
+  EUREKA_DEFAULT_ZONE: http://discovery-server:8761/eureka/
+
 services:
+  tracing-collector:
+    image: otel/opentelemetry-collector-contrib:0.132.0
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    volumes:
+      - ./docker/otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml:ro
+    ports: ["4318:4318"]
+    networks: [delivery-network]
+
+  discovery-server:
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: discovery-server } }
+    expose: ["8761", "9090"]
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xmx256m -Xms128m"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -T 3 -O /dev/null http://localhost:9090/actuator/health/readiness"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks: [delivery-network]
+
+  config-server:
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: config-server } }
+    expose: ["8888", "9090"]
+    environment:
+      CONFIG_SERVER_BACKEND: native
+      JAVA_TOOL_OPTIONS: "-Xmx256m -Xms128m"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -T 3 -O /dev/null http://localhost:9090/actuator/health/readiness"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks: [delivery-network]
+
   # --- HẠ TẦNG (INFRASTRUCTURE) ---
   postgres:
     image: postgres:16-alpine
@@ -8,7 +57,10 @@ services:
       - "${POSTGRES_HOST_PORT:-5432}:5432"
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+      POSTGRES_PASSWORD_FILE: /run/secrets/db-password
+    secrets:
+      - source: db-password
+        target: db-password
     volumes:
       - ./docker/postgres/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
       - postgres_data:/var/lib/postgresql/data
@@ -109,23 +161,11 @@ services:
     build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: api-gateway } }
     container_name: api-gateway
     ports: ["8079:8079"]
+    expose: ["9090"]
     environment:
+      <<: [*tracing-environment, *runtime-platform-environment]
       JAVA_TOOL_OPTIONS: "-Xmx384m -Xms256m"
-      APP_AUTH_SERVICE_URI: http://auth-service:8081
-      APP_USER_SERVICE_URI: http://user-service:8082
-      APP_RESTAURANT_SERVICE_URI: http://restaurant-service:8083
-      APP_ORDER_SERVICE_URI: http://order-service:8084
-      APP_DELIVERY_SERVICE_URI: http://delivery-service:8085
-      APP_SEARCH_SERVICE_URI: http://search-service:8088
-      APP_SHIPPER_SERVICE_URI: http://shipper-service:8089
-      APP_NOTIFICATION_SERVICE_URI: http://notification-service:8091
-      APP_TRACKING_SERVICE_URI: http://tracking-service:8093
-      APP_TRACKING_SERVICE_WS_URI: ws://tracking-service:8093
-      APP_LIVESTREAM_SERVICE_URI: http://livestream-service:8094
-      APP_SETTLEMENT_SERVICE_URI: http://settlement-service:8090
-      APP_PROMOTION_SERVICE_URI: http://promotion-service:8096
-      APP_ANALYTICS_SERVICE_URI: http://analytics-service:8097
-      APP_FLASHSALE_SERVICE_URI: http://flashsale-service:8092
+      REDIS_HOST: redis
       APP_CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:3000,http://localhost:4173,http://127.0.0.1:5173,http://127.0.0.1:3000,http://127.0.0.1:4173}
     deploy: { resources: { limits: { memory: 512M } } }
     networks: [delivery-network]
@@ -133,18 +173,22 @@ services:
   auth-service:
     build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: auth-service } }
     container_name: auth-service
-    expose: ["8081"]
+    expose: ["8081", "9090"]
     environment:
+      <<: [*tracing-environment, *runtime-platform-environment]
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/auth_db
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      USER_SERVICE_URL: http://user-service:8082
-      INTERNAL_SECRET: ${INTERNAL_SECRET:-}
+      PLATFORM_SECRETS_INTERNAL_SECRET_REQUIRED: "true"
       GOOGLE_OAUTH_CLIENT_IDS: ${GOOGLE_OAUTH_CLIENT_IDS:-}
       JWT_ACCESS_TOKEN_TTL_SECONDS: "900"
       JAVA_TOOL_OPTIONS: "-Xmx384m -Xms256m"
     deploy: { resources: { limits: { memory: 512M } } }
+    secrets:
+      - source: internal-secret
+        target: internal-secret
+      - source: db-password
+        target: spring.datasource.password
     depends_on:
       postgres: { condition: service_healthy }
       kafka: { condition: service_healthy }
@@ -153,15 +197,20 @@ services:
   user-service:
     build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: user-service } }
     container_name: user-service
-    expose: ["8082"]
+    expose: ["8082", "9090"]
     environment:
+      <<: *runtime-platform-environment
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/user_db
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      INTERNAL_SECRET: ${INTERNAL_SECRET:-}
+      PLATFORM_SECRETS_INTERNAL_SECRET_REQUIRED: "true"
       JAVA_TOOL_OPTIONS: "-Xmx384m -Xms256m"
     deploy: { resources: { limits: { memory: 512M } } }
+    secrets:
+      - source: internal-secret
+        target: internal-secret
+      - source: db-password
+        target: spring.datasource.password
     depends_on:
       postgres: { condition: service_healthy }
       kafka: { condition: service_healthy }
@@ -170,17 +219,21 @@ services:
   restaurant-service:
     build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: restaurant-service } }
     container_name: restaurant-service
-    expose: ["8083"]
+    expose: ["8083", "9090"]
     environment:
+      <<: [*tracing-environment, *runtime-platform-environment]
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/restaurant_db
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       SPRING_DATA_REDIS_HOST: redis
-      INTERNAL_SECRET: ${INTERNAL_SECRET:-}
-      ORDER_SERVICE_URL: http://order-service:8084
+      PLATFORM_SECRETS_INTERNAL_SECRET_REQUIRED: "true"
       JAVA_TOOL_OPTIONS: "-Xmx384m -Xms256m"
     deploy: { resources: { limits: { memory: 512M } } }
+    secrets:
+      - source: internal-secret
+        target: internal-secret
+      - source: db-password
+        target: spring.datasource.password
     depends_on:
       postgres: { condition: service_healthy }
       kafka: { condition: service_healthy }
@@ -190,18 +243,21 @@ services:
   order-service:
     build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: order-service } }
     container_name: order-service
-    expose: ["8084"]
+    expose: ["8084", "9090"]
     environment:
+      <<: [*tracing-environment, *runtime-platform-environment]
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/order_db
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      # ✅ URL các service order gọi qua HTTP (mặc định localhost sẽ fail trong container)
-      RESTAURANT_SERVICE_URL: http://restaurant-service:8083
-      INTERNAL_SECRET: ${INTERNAL_SECRET:-}
+      PLATFORM_SECRETS_INTERNAL_SECRET_REQUIRED: "true"
       ORDER_PAYMENT_EVENT_PROCESSING_ENABLED: "false"
       JAVA_TOOL_OPTIONS: "-Xmx384m -Xms256m"
     deploy: { resources: { limits: { memory: 512M } } }
+    secrets:
+      - source: internal-secret
+        target: internal-secret
+      - source: db-password
+        target: spring.datasource.password
     depends_on:
       postgres: { condition: service_healthy }
       kafka: { condition: service_healthy }
@@ -210,15 +266,20 @@ services:
   delivery-service:
     build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: delivery-service } }
     container_name: delivery-service
-    expose: ["8085"]
+    expose: ["8085", "9090"]
     environment:
-      INTERNAL_SECRET: ${INTERNAL_SECRET:-}
+      <<: [*tracing-environment, *runtime-platform-environment]
+      PLATFORM_SECRETS_INTERNAL_SECRET_REQUIRED: "true"
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/delivery_db
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       JAVA_TOOL_OPTIONS: "-Xmx384m -Xms256m"
     deploy: { resources: { limits: { memory: 512M } } }
+    secrets:
+      - source: internal-secret
+        target: internal-secret
+      - source: db-password
+        target: spring.datasource.password
     depends_on:
       postgres: { condition: service_healthy }
       kafka: { condition: service_healthy }
@@ -227,14 +288,16 @@ services:
   search-service:
     build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: search-service } }
     container_name: search-service
-    expose: ["8088"]
+    expose: ["8088", "9090"]
     environment:
+      <<: *runtime-platform-environment
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       SPRING_ELASTICSEARCH_URIS: http://elasticsearch:9200
       APP_ELASTICSEARCH_ENABLED: "true"
       JAVA_TOOL_OPTIONS: "-Xmx384m -Xms256m"
     deploy: { resources: { limits: { memory: 512M } } }
     depends_on:
+      postgres: { condition: service_healthy }
       kafka: { condition: service_healthy }
       elasticsearch: { condition: service_healthy }
     networks: [delivery-network]
@@ -242,16 +305,19 @@ services:
   shipper-service:
     build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: shipper-service } }
     container_name: shipper-service
-    expose: ["8089"]
+    expose: ["8089", "9090"]
     environment:
+      <<: *runtime-platform-environment
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/shipper_db
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       SHIPPER_LEGACY_RATING_WRITE_API_ENABLED: "false"
       SHIPPER_LEGACY_DELETE_API_ENABLED: "false"
       JAVA_TOOL_OPTIONS: "-Xmx384m -Xms256m"
     deploy: { resources: { limits: { memory: 512M } } }
+    secrets:
+      - source: db-password
+        target: spring.datasource.password
     depends_on:
       postgres: { condition: service_healthy }
       kafka: { condition: service_healthy }
@@ -260,19 +326,24 @@ services:
   settlement-service:
     build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: settlement-service } }
     container_name: settlement-service
-    expose: ["8090"]
+    expose: ["8090", "9090"]
     environment:
-      INTERNAL_SECRET: ${INTERNAL_SECRET:-}
+      <<: [*tracing-environment, *runtime-platform-environment]
+      PLATFORM_SECRETS_INTERNAL_SECRET_REQUIRED: "true"
       PAYMENT_PROCESSING_ENABLED: "false"
       FAKE_PAYMENT_PROVIDER_ENABLED: "false"
       SETTLEMENT_SELF_SERVICE_API_ENABLED: "false"
       SETTLEMENT_ADMIN_MUTATION_API_ENABLED: "false"
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/settlement_db
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       JAVA_TOOL_OPTIONS: "-Xmx384m -Xms256m"
     deploy: { resources: { limits: { memory: 512M } } }
+    secrets:
+      - source: internal-secret
+        target: internal-secret
+      - source: db-password
+        target: spring.datasource.password
     depends_on:
       postgres: { condition: service_healthy }
       kafka: { condition: service_healthy }
@@ -281,16 +352,21 @@ services:
   notification-service:
     build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: notification-service } }
     container_name: notification-service
-    expose: ["8091"]
+    expose: ["8091", "9090"]
     environment:
-      INTERNAL_SECRET: ${INTERNAL_SECRET:-}
+      <<: [*tracing-environment, *runtime-platform-environment]
+      PLATFORM_SECRETS_INTERNAL_SECRET_REQUIRED: "true"
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/notification_service_db
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       SPRING_DATA_REDIS_HOST: redis
       JAVA_TOOL_OPTIONS: "-Xmx384m -Xms256m"
     deploy: { resources: { limits: { memory: 512M } } }
+    secrets:
+      - source: internal-secret
+        target: internal-secret
+      - source: db-password
+        target: spring.datasource.password
     depends_on:
       postgres: { condition: service_healthy }
       kafka: { condition: service_healthy }
@@ -300,14 +376,17 @@ services:
   match-service:
     build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: match-service } }
     container_name: match-service
-    expose: ["8092"]
+    expose: ["8092", "9090"]
     environment:
-      INTERNAL_SECRET: ${INTERNAL_SECRET:-}
-      SETTLEMENT_SERVICE_URL: http://settlement-service:8090
+      <<: [*tracing-environment, *runtime-platform-environment]
+      PLATFORM_SECRETS_INTERNAL_SECRET_REQUIRED: "true"
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       SPRING_DATA_REDIS_HOST: redis
       JAVA_TOOL_OPTIONS: "-Xmx384m -Xms256m"
     deploy: { resources: { limits: { memory: 512M } } }
+    secrets:
+      - source: internal-secret
+        target: internal-secret
     depends_on:
       kafka: { condition: service_healthy }
       redis: { condition: service_healthy }
@@ -317,12 +396,14 @@ services:
   tracking-service:
     build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: tracking-service } }
     container_name: tracking-service
-    expose: ["8093"]
+    expose: ["8093", "9090"]
     environment:
-      INTERNAL_SECRET: ${INTERNAL_SECRET:-}
-      DELIVERY_SERVICE_URL: http://delivery-service:8085
+      <<: [*tracing-environment, *runtime-platform-environment]
+      PLATFORM_SECRETS_INTERNAL_SECRET_REQUIRED: "true"
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/tracking_db
+      SPRING_DATASOURCE_USERNAME: postgres
       TRACKING_PUBLISHER_DISCONNECT_GRACE_SECONDS: "30"
       TRACKING_PUBLISHER_LEASE_TTL_SECONDS: "120"
       TRACKING_PUBLISHER_EXPIRY_SWEEP_INTERVAL_MS: "5000"
@@ -330,7 +411,13 @@ services:
       TRACKING_PUBLISHER_EXPIRY_CLAIM_SECONDS: "30"
       JAVA_TOOL_OPTIONS: "-Xmx384m -Xms256m"
     deploy: { resources: { limits: { memory: 512M } } }
+    secrets:
+      - source: internal-secret
+        target: internal-secret
+      - source: db-password
+        target: spring.datasource.password
     depends_on:
+      postgres: { condition: service_healthy }
       kafka: { condition: service_healthy }
       redis: { condition: service_healthy }
       delivery-service: { condition: service_started }
@@ -339,17 +426,19 @@ services:
   livestream-service:
     build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: livestream-service } }
     container_name: livestream-service
-    expose: ["8094"]
+    expose: ["8094", "9090"]
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/livestream_db
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       AGORA_APP_ID: ${AGORA_APP_ID:-}
       AGORA_APP_CERTIFICATE: ${AGORA_APP_CERTIFICATE:-}
       LIVESTREAM_API_ENABLED: "false"
       JAVA_TOOL_OPTIONS: "-Xmx384m -Xms256m"
     deploy: { resources: { limits: { memory: 512M } } }
+    secrets:
+      - source: db-password
+        target: spring.datasource.password
     depends_on:
       postgres: { condition: service_healthy }
       kafka: { condition: service_healthy }
@@ -358,19 +447,22 @@ services:
   saga-orchestrator-service:
     build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: saga-orchestrator-service } }
     container_name: saga-orchestrator-service
-    expose: ["8095"]
+    expose: ["8095", "9090"]
     environment:
+      <<: [*tracing-environment, *runtime-platform-environment]
       MATCHING_INITIAL_MAX_RETRY_ATTEMPTS: ${MATCHING_INITIAL_MAX_RETRY_ATTEMPTS:-10}
       MATCHING_INITIAL_DELAY_SECONDS: ${MATCHING_INITIAL_DELAY_SECONDS:-30}
       MATCHING_INITIAL_MAX_DELAY_SECONDS: ${MATCHING_INITIAL_MAX_DELAY_SECONDS:-300}
       MATCHING_INITIAL_BACKOFF_MULTIPLIER: ${MATCHING_INITIAL_BACKOFF_MULTIPLIER:-1.5}
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/saga_db
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       SAGA_OUTBOX_RELAY_ENABLED: "true"
       JAVA_TOOL_OPTIONS: "-Xmx384m -Xms256m"
     deploy: { resources: { limits: { memory: 512M } } }
+    secrets:
+      - source: db-password
+        target: spring.datasource.password
     depends_on:
       postgres: { condition: service_healthy }
       kafka: { condition: service_healthy }
@@ -379,17 +471,20 @@ services:
   promotion-service:
     build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: promotion-service } }
     container_name: promotion-service
-    expose: ["8096"]
+    expose: ["8096", "9090"]
     environment:
-      INTERNAL_SECRET: ${INTERNAL_SECRET:-}
       PROMOTION_CHECKOUT_ENABLED: "false"
       PROMOTION_MERCHANT_CREATE_API_ENABLED: "false"
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/promotion_db
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       JAVA_TOOL_OPTIONS: "-Xmx384m -Xms256m"
     deploy: { resources: { limits: { memory: 512M } } }
+    secrets:
+      - source: internal-secret
+        target: internal-secret
+      - source: db-password
+        target: spring.datasource.password
     depends_on:
       postgres: { condition: service_healthy }
       kafka: { condition: service_healthy }
@@ -398,15 +493,17 @@ services:
   analytics-service:
     build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: analytics-service } }
     container_name: analytics-service
-    expose: ["8097"]
+    expose: ["8097", "9090"]
     environment:
       ANALYTICS_PROCESSING_ENABLED: "false"
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/analytics_db
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       JAVA_TOOL_OPTIONS: "-Xmx384m -Xms256m"
     deploy: { resources: { limits: { memory: 512M } } }
+    secrets:
+      - source: db-password
+        target: spring.datasource.password
     depends_on:
       postgres: { condition: service_healthy }
       kafka: { condition: service_healthy }
@@ -415,24 +512,50 @@ services:
   flashsale-service:
     build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: flashsale-service } }
     container_name: flashsale-service
-    expose: ["8092"]
+    expose: ["8092", "9090"]
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/flashsale_db
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
       SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       SPRING_DATA_REDIS_HOST: redis
-      INTERNAL_SECRET: ${INTERNAL_SECRET:-}
       FLASHSALE_CHECKOUT_ENABLED: "false"
       FLASHSALE_MERCHANT_REGISTRATION_ENABLED: "false"
       RESTAURANT_SERVICE_URL: http://restaurant-service:8083
       JAVA_TOOL_OPTIONS: "-Xmx384m -Xms256m"
     deploy: { resources: { limits: { memory: 512M } } }
+    secrets:
+      - source: internal-secret
+        target: internal-secret
+      - source: db-password
+        target: spring.datasource.password
     depends_on:
       postgres: { condition: service_healthy }
       kafka: { condition: service_healthy }
       redis: { condition: service_healthy }
+    networks: [delivery-network]
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    container_name: delivery-prometheus
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.path=/prometheus"]
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/rules:/etc/prometheus/rules:ro
+    expose: ["9090"]
+    networks: [delivery-network]
+
+  grafana:
+    image: grafana/grafana:12.1.0
+    container_name: delivery-grafana
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD must be set}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    expose: ["3000"]
+    depends_on: [prometheus]
     networks: [delivery-network]
 
 networks:
@@ -445,3 +568,9 @@ volumes:
   kafka_data:
     name: ${KAFKA_VOLUME_NAME:-backend_delivery_kafka_data}
   elasticsearch_data:
+
+secrets:
+  internal-secret:
+    file: ${INTERNAL_SECRET_FILE:?INTERNAL_SECRET_FILE must point to an operator-owned secret file}
+  db-password:
+    file: ${DB_PASSWORD_FILE:?DB_PASSWORD_FILE must point to an operator-owned database password file}

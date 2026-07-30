@@ -21,3 +21,15 @@ Tài liệu đặc tả các luồng nghiệp vụ phức tạp, có sự giao t
 - [Promotion & Voucher Flow](workflows/promotion_voucher_flow.md)
 - [Delivery Matching & Tracking](workflows/delivery_matching_tracking.md)
 - [Settlement & Finance Flow](workflows/settlement_finance_flow.md)
+
+## 📍 Operations
+
+- [Health, liveness and readiness](operations/health-readiness.md)
+- [Service discovery and naming](operations/service-discovery.md)
+- [Centralized configuration](operations/centralized-configuration.md)
+- [Hot query and index audit](operations/hot-query-audit.md)
+- [Raw WebSocket scaling](operations/websocket-scaling.md)
+- [Shipper location history](operations/location-history.md)
+- [Data backup and restore](runbooks/data-backup-restore.md)
+- [Secrets management and rotation](runbooks/secrets-management.md)
+- [Rolling/canary rollout and rollback](runbooks/rollout-and-rollback.md)

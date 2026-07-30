@@ -1,0 +1,57 @@
+name: Backend CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  required:
+    name: required / build-contract-compose
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+      - name: Verify toolchain and dependency baseline
+        run: ./scripts/verify-build-baseline.sh
+      - name: Build and test
+        run: mvn -B clean test
+      - name: Verify HTTP and public-boundary contracts
+        run: ./scripts/verify-http-api-inventory.sh
+      - name: Verify discovery/config/secrets Compose topology
+        run: ./scripts/verify-compose-config.sh
+      - name: Secret scan
+        run: bash scripts/verify-secrets.sh
+      - name: Package deployment artifacts
+        run: mvn -B -DskipTests package
+      - name: Upload Maven reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-reports
+          path: |
+            **/target/surefire-reports/**
+            **/target/failsafe-reports/**
+          if-no-files-found: warn
+
+  advisory-security:
+    name: advisory / filesystem-security
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scan dependencies and configuration
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: table
+          exit-code: '0'
+          severity: HIGH,CRITICAL

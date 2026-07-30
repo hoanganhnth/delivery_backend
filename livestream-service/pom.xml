@@ -31,6 +31,9 @@
 		<java.version>17</java.version>
 	</properties>
 	<dependencies>
+		<dependency><groupId>com.delivery</groupId><artifactId>observability-starter</artifactId><version>1.0.0-SNAPSHOT</version></dependency>
+		<dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-actuator</artifactId></dependency>
+		<dependency><groupId>io.micrometer</groupId><artifactId>micrometer-registry-prometheus</artifactId></dependency>
 		<!-- Spring Boot Starters -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
@@ -86,14 +89,14 @@
 		</dependency>
 
 		<!-- Agora RTC SDK -->
-		<!-- 
+		<!--
 		Note: Agora SDK is not available on Maven Central.
 		To use Agora, add their Maven repository and dependency manually:
 		1. Add repository: https://jitpack.io
 		2. Add dependency: com.github.AgoraIO:RTC-SDK-Java:x.x.x
 		Or download the JAR from https://www.agora.io/en/download/
 		-->
-		<!-- 
+		<!--
 		<dependency>
 			<groupId>io.agora.rtc</groupId>
 			<artifactId>agora-rtc-sdk</artifactId>

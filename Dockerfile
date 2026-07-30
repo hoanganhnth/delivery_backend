@@ -24,5 +24,8 @@ RUN set -eu; \
 
 FROM amazoncorretto:17-alpine
 WORKDIR /app
+RUN apk add --no-cache wget
 COPY --from=artifact-check /build/service/target/*.jar app.jar
+HEALTHCHECK --interval=15s --timeout=3s --start-period=30s --retries=5 \
+  CMD wget -q -T 3 -O /dev/null "http://localhost:${MANAGEMENT_SERVER_PORT:-9090}/actuator/health/readiness" || exit 1
 ENTRYPOINT ["java", "-jar", "app.jar"]

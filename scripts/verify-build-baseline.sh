@@ -6,6 +6,9 @@ BOOT_VERSION="3.5.15"
 CLOUD_VERSION="2025.0.3"
 
 modules=(
+  runtime-platform-starter
+  discovery-server
+  config-server
   auth-service
   user-service
   api-gateway
@@ -88,6 +91,19 @@ if ! rg -q "<version>${CLOUD_VERSION//./\\.}</version>" "${gateway_pom}"; then
 fi
 if ! rg -q "<artifactId>spring-cloud-starter-gateway-server-webflux</artifactId>" "${gateway_pom}"; then
   echo "api-gateway: expected the WebFlux Gateway server starter." >&2
+  exit 1
+fi
+for platform_module in runtime-platform-starter discovery-server config-server; do
+  if ! rg -q "<version>${CLOUD_VERSION//./\\.}</version>" "${ROOT_DIR}/${platform_module}/pom.xml"; then
+    echo "${platform_module}: Spring Cloud BOM must be ${CLOUD_VERSION}." >&2
+    exit 1
+  fi
+done
+if ! rg -q 'spring-cloud-starter-netflix-eureka-client' "${ROOT_DIR}/runtime-platform-starter/pom.xml" \
+    || ! rg -q 'spring-cloud-starter-config' "${ROOT_DIR}/runtime-platform-starter/pom.xml" \
+    || ! rg -q 'spring-cloud-starter-netflix-eureka-server' "${ROOT_DIR}/discovery-server/pom.xml" \
+    || ! rg -q 'spring-cloud-config-server' "${ROOT_DIR}/config-server/pom.xml"; then
+  echo "Runtime platform must include Config client/server and Eureka client/server dependencies." >&2
   exit 1
 fi
 
@@ -644,5 +660,6 @@ if [[ -e "${ROOT_DIR}/user-service/src/main/java/com/delivery/user_service/contr
 fi
 
 "${ROOT_DIR}/scripts/verify-http-api-inventory.sh"
+bash "${ROOT_DIR}/scripts/verify-actuator-config.sh"
 
 echo "Build baseline is valid: Java and Maven use JDK 17, Spring Boot ${BOOT_VERSION}, Spring Cloud ${CLOUD_VERSION}."
