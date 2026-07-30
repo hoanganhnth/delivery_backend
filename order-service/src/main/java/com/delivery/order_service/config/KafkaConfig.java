@@ -14,6 +14,7 @@ import org.springframework.kafka.core.*;
 import org.springframework.kafka.listener.ContainerProperties;
 import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
+import com.delivery.order_service.metrics.BusinessMetrics;
 import org.springframework.kafka.support.converter.StringJsonMessageConverter;
 import org.springframework.kafka.support.serializer.JsonSerializer;
 
@@ -74,6 +75,20 @@ public class KafkaConfig {
         return new KafkaTemplate<>(producerFactory());
     }
 
+    /** Saga commands are consumed as raw JSON text; retry hops must not JSON-quote that text. */
+    @Bean("retryKafkaTemplate")
+    public KafkaTemplate<String, String> retryKafkaTemplate() {
+        Map<String, Object> configProps = new HashMap<>();
+        configProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        configProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+        configProps.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+        configProps.put(ProducerConfig.ACKS_CONFIG, "all");
+        configProps.put(ProducerConfig.RETRIES_CONFIG, 3);
+        configProps.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true);
+        configProps.put(ProducerConfig.MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION, 1);
+        return new KafkaTemplate<>(new DefaultKafkaProducerFactory<>(configProps));
+    }
+
     @Bean
     public DeadLetterPublishingRecoverer orderDeadLetterRecoverer(
             KafkaTemplate<String, Object> kafkaTemplate) {
@@ -87,8 +102,16 @@ public class KafkaConfig {
 
     @Bean
     public DefaultErrorHandler orderKafkaErrorHandler(
-            DeadLetterPublishingRecoverer recoverer) {
-        DefaultErrorHandler handler = new DefaultErrorHandler(recoverer, new FixedBackOff(1000L, 2));
+            DeadLetterPublishingRecoverer recoverer, BusinessMetrics businessMetrics) {
+        DefaultErrorHandler handler = new DefaultErrorHandler((record, error) -> {
+            businessMetrics.kafka("dlt");
+            recoverer.accept(record, error);
+        }, new FixedBackOff(1000L, 2));
+        handler.setRetryListeners(new org.springframework.kafka.listener.RetryListener() {
+            @Override public void failedDelivery(org.apache.kafka.clients.consumer.ConsumerRecord<?, ?> record,
+                                                 Exception error, int attempt) { businessMetrics.kafka("retry"); }
+        });
+        handler.addNotRetryableExceptions(IllegalArgumentException.class);
         handler.setCommitRecovered(true);
         return handler;
     }

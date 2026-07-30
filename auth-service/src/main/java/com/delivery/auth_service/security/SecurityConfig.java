@@ -34,6 +34,11 @@ public class SecurityConfig {
                                 "/api/auth/social-login",
                                 "/api/auth/refresh-token",
                                 "/api/auth/logout",
+                                // Management is bound to a private Compose/platform port;
+                                // Eureka and the orchestrator must be able to read genuine
+                                // health/readiness without a user JWT.
+                                "/actuator/health",
+                                "/actuator/health/**",
                                 "/error").permitAll()
                         .requestMatchers("/api/auth/admin/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/auth/accounts/*").hasRole("ADMIN")

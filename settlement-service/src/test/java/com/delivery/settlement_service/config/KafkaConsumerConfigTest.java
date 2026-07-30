@@ -38,16 +38,16 @@ class KafkaConsumerConfigTest {
     void poisonFinancialEventIsPublishedUnchangedToSamePartitionDlt() {
         KafkaConsumerConfig config = new KafkaConsumerConfig(
                 "kafka:19092", "settlement-test-group");
-        KafkaTemplate<String, Object> template = mock(KafkaTemplate.class);
+        KafkaTemplate<String, String> template = mock(KafkaTemplate.class);
         when(template.send(any(ProducerRecord.class)))
                 .thenReturn(CompletableFuture.completedFuture(mock(SendResult.class)));
         var recoverer = config.settlementDeadLetterRecoverer(template);
-        ConsumerRecord<String, Object> source = new ConsumerRecord<>(
+        ConsumerRecord<String, String> source = new ConsumerRecord<>(
                 "delivery.completed", 6, 12L, "order-101", "bad-json");
 
         recoverer.accept(source, new IllegalArgumentException("poison"));
 
-        ArgumentCaptor<ProducerRecord<String, Object>> sent =
+        ArgumentCaptor<ProducerRecord<String, String>> sent =
                 ArgumentCaptor.forClass(ProducerRecord.class);
         verify(template).send(sent.capture());
         assertThat(sent.getValue().topic()).isEqualTo("delivery.completed.DLT");

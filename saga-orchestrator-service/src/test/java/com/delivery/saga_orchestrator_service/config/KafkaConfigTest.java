@@ -45,16 +45,16 @@ class KafkaConfigTest {
     @SuppressWarnings("unchecked")
     void poisonSagaEventIsPublishedUnchangedToSamePartitionDlt() {
         KafkaConfig config = new KafkaConfig("kafka:19092", true);
-        KafkaTemplate<String, Object> template = mock(KafkaTemplate.class);
+        KafkaTemplate<String, String> template = mock(KafkaTemplate.class);
         when(template.send(any(ProducerRecord.class)))
                 .thenReturn(CompletableFuture.completedFuture(mock(SendResult.class)));
         var recoverer = config.sagaDeadLetterRecoverer(template);
-        ConsumerRecord<String, Object> source = new ConsumerRecord<>(
+        ConsumerRecord<String, String> source = new ConsumerRecord<>(
                 "delivery.created.result", 2, 9L, "order-101", "bad-json");
 
         recoverer.accept(source, new IllegalArgumentException("poison"));
 
-        ArgumentCaptor<ProducerRecord<String, Object>> sent =
+        ArgumentCaptor<ProducerRecord<String, String>> sent =
                 ArgumentCaptor.forClass(ProducerRecord.class);
         verify(template).send(sent.capture());
         assertThat(sent.getValue().topic()).isEqualTo("delivery.created.result.DLT");

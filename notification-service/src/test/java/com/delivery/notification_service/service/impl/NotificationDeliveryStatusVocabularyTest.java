@@ -8,6 +8,7 @@ import com.delivery.notification_service.repository.NotificationRepository;
 import com.delivery.notification_service.service.FirebaseService;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -25,7 +26,8 @@ class NotificationDeliveryStatusVocabularyTest {
                 mock(FirebaseService.class)));
         doReturn(new NotificationResponse()).when(service).sendNotification(any());
 
-        service.sendDeliveryStatusNotification(7L, 11L, "DELIVERING", "Shipper A");
+        UUID eventId = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+        service.sendDeliveryStatusNotification(eventId, 7L, 11L, "DELIVERING", "Shipper A");
 
         ArgumentCaptor<SendNotificationRequest> request =
                 ArgumentCaptor.forClass(SendNotificationRequest.class);
@@ -34,7 +36,7 @@ class NotificationDeliveryStatusVocabularyTest {
         assertThat(request.getValue().getTitle()).isEqualTo("Đơn hàng đang được giao");
         assertThat(request.getValue().getMessage()).contains("Shipper A", "đang trên đường giao hàng");
         assertThat(request.getValue().getDeduplicationKey())
-                .isEqualTo("delivery-status:11:DELIVERING:7");
+                .isEqualTo("delivery-status:" + eventId);
     }
 
     @Test
@@ -44,7 +46,8 @@ class NotificationDeliveryStatusVocabularyTest {
                 mock(FirebaseService.class)));
         doReturn(new NotificationResponse()).when(service).sendNotification(any());
 
-        service.sendDeliveryStatusNotification(7L, 11L, "DELIVERED", null);
+        service.sendDeliveryStatusNotification(
+                UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"), 7L, 11L, "DELIVERED", null);
 
         ArgumentCaptor<SendNotificationRequest> request =
                 ArgumentCaptor.forClass(SendNotificationRequest.class);

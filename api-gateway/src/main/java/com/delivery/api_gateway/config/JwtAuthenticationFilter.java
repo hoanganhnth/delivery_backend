@@ -3,6 +3,7 @@ package com.delivery.api_gateway.config;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.security.PublicKey;
 
 import org.springframework.cloud.gateway.filter.GatewayFilter;
 import org.springframework.cloud.gateway.filter.factory.AbstractGatewayFilterFactory;
@@ -62,11 +63,7 @@ public class JwtAuthenticationFilter extends AbstractGatewayFilterFactory<JwtAut
             String token = authHeader.substring(7);
 
             try {
-                Claims claims = Jwts.parserBuilder()
-                        .setSigningKey(keyProvider.getPublicKey())
-                        .build()
-                        .parseClaimsJws(token)
-                        .getBody();
+                Claims claims = parseClaimsDuringKeyOverlap(token);
                 String userId = claims.getSubject();
                 String role = claims.get("role", String.class);
 
@@ -100,5 +97,28 @@ public class JwtAuthenticationFilter extends AbstractGatewayFilterFactory<JwtAut
 
             return chain.filter(exchange);
         };
+    }
+
+    private Claims parseClaimsDuringKeyOverlap(String token) {
+        JwtException lastFailure = null;
+        for (PublicKey key : keysForVerification()) {
+            try {
+                return Jwts.parserBuilder()
+                        .setSigningKey(key)
+                        .build()
+                        .parseClaimsJws(token)
+                        .getBody();
+            } catch (JwtException failure) {
+                lastFailure = failure;
+            }
+        }
+        throw lastFailure == null ? new JwtException("No JWT verification key is configured") : lastFailure;
+    }
+
+    private Iterable<PublicKey> keysForVerification() {
+        Set<PublicKey> keys = new LinkedHashSet<>();
+        keys.add(keyProvider.getPublicKey());
+        keys.addAll(keyProvider.getPreviousPublicKeys());
+        return keys;
     }
 }

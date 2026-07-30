@@ -5,7 +5,10 @@ import com.delivery.delivery_service.repository.OutboxEventRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,6 +20,12 @@ import java.util.UUID;
 public class OutboxService {
     private final OutboxEventRepository repository;
     private final ObjectMapper objectMapper;
+    private Tracer tracer;
+
+    @Autowired
+    void setTracer(Tracer tracer) {
+        this.tracer = tracer;
+    }
 
     @Transactional
     public UUID saveEvent(String aggregateType, String aggregateId, String eventType,
@@ -51,6 +60,7 @@ public class OutboxService {
         event.setTopic(requireText(topic, "topic"));
         event.setEventKey(requireText(key, "key"));
         event.setPayload(objectPayload.toString());
+        event.setTraceparent(currentTraceparent());
         event.setStatus(OutboxEvent.OutboxStatus.PENDING);
         event.setAttempts(0);
         event.setNextAttemptAt(now);
@@ -98,5 +108,13 @@ public class OutboxService {
     private String requireText(String value, String field) {
         if (value == null || value.isBlank()) throw new IllegalArgumentException(field + " is required");
         return value;
+    }
+
+    private String currentTraceparent() {
+        if (tracer == null) return null;
+        Span span = tracer.currentSpan();
+        if (span == null || span.context() == null) return null;
+        return "00-" + span.context().traceId() + "-" + span.context().spanId()
+                + "-" + (Boolean.TRUE.equals(span.context().sampled()) ? "01" : "00");
     }
 }

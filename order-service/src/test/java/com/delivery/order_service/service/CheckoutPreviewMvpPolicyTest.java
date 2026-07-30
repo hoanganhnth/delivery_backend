@@ -18,6 +18,9 @@ import org.springframework.web.reactive.function.client.WebClient;
 
 import com.delivery.order_service.dto.request.CheckoutPreviewRequest;
 import com.delivery.order_service.exception.ValidationException;
+import com.delivery.order_service.config.OrderRestaurantCircuitBreaker;
+import com.delivery.order_service.config.RestaurantCallResilienceProperties;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 import reactor.core.publisher.Mono;
 
@@ -31,7 +34,7 @@ class CheckoutPreviewMvpPolicyTest {
                 webClient,
                 shippingFeeService,
                 "http://restaurant-service:8083",
-                "test-secret");
+                "test-secret", circuitBreaker());
 
         CheckoutPreviewRequest request = new CheckoutPreviewRequest();
         request.setCouponCode("WELCOME");
@@ -48,7 +51,7 @@ class CheckoutPreviewMvpPolicyTest {
                 webClient,
                 shippingFeeService,
                 "http://restaurant-service:8083",
-                "");
+                "", circuitBreaker());
 
         assertThatThrownBy(() -> service.calculatePreview(validRequest(), 21L))
                 .isInstanceOf(ValidationException.class)
@@ -74,7 +77,7 @@ class CheckoutPreviewMvpPolicyTest {
                         """),
                 shippingFeeService,
                 "http://restaurant-service:8083",
-                "test-secret");
+                "test-secret", circuitBreaker());
 
         var preview = service.calculatePreview(validRequest(), 21L);
 
@@ -104,7 +107,7 @@ class CheckoutPreviewMvpPolicyTest {
                         """),
                 shippingFeeService,
                 "http://restaurant-service:8083",
-                "test-secret");
+                "test-secret", circuitBreaker());
 
         assertThatThrownBy(() -> service.calculatePreview(validRequest(), 21L))
                 .isInstanceOf(ValidationException.class)
@@ -125,12 +128,16 @@ class CheckoutPreviewMvpPolicyTest {
                         """),
                 shippingFeeService,
                 "http://restaurant-service:8083",
-                "test-secret");
+                "test-secret", circuitBreaker());
 
         assertThatThrownBy(() -> service.calculatePreview(validRequest(), 21L))
                 .isInstanceOf(ValidationException.class)
                 .hasMessageContaining("Món ăn Cơm không khả dụng");
         verifyNoInteractions(shippingFeeService);
+    }
+
+    private OrderRestaurantCircuitBreaker circuitBreaker() {
+        return new OrderRestaurantCircuitBreaker(new RestaurantCallResilienceProperties(), new SimpleMeterRegistry());
     }
 
     private WebClient internalValidationWebClient(String json) {

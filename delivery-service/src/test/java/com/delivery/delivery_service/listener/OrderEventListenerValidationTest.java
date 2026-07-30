@@ -67,7 +67,7 @@ class OrderEventListenerValidationTest {
         OrderEventListener listener = new OrderEventListener(
                 deliveryService, new EventValidationService(), outboxService);
 
-        assertThrows(IllegalStateException.class,
+        assertThrows(IllegalArgumentException.class,
                 () -> listener.handleCreateDeliveryCommand("not-json", acknowledgment));
 
         verifyNoInteractions(deliveryService, outboxService, acknowledgment);
@@ -83,7 +83,7 @@ class OrderEventListenerValidationTest {
         OrderCancelledEvent event = new OrderCancelledEvent();
         event.setEventId(UUID.fromString("22222222-2222-2222-2222-222222222222"));
         event.setOrderId(101L);
-        doThrow(new IllegalStateException("already picked up"))
+        doThrow(new com.delivery.delivery_service.exception.InvalidStatusException("already picked up"))
                 .when(deliveryService).cancelDeliveryFromOrderCancelledEvent(any());
 
         listener.handleCancelDeliveryCommand(

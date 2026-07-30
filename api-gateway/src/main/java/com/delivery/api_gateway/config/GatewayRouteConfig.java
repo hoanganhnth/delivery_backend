@@ -29,21 +29,21 @@ public class GatewayRouteConfig {
 
         public GatewayRouteConfig(
                         JwtAuthenticationFilter jwtFilter,
-                        @Value("${app.auth-service.uri}") String authServiceUri,
-                        @Value("${app.user-service.uri}") String userServiceUri,
-                        @Value("${app.restaurant-service.uri}") String restaurantServiceUri,
-                        @Value("${app.order-service.uri}") String orderServiceUri,
-                        @Value("${app.delivery-service.uri}") String deliveryServiceUri,
-                        @Value("${app.search-service.uri}") String searchServiceUri,
-                        @Value("${app.shipper-service.uri}") String shipperServiceUri,
-                        @Value("${app.notification-service.uri}") String notificationServiceUri,
-                        @Value("${app.tracking-service.uri}") String trackingServiceUri,
-                        @Value("${app.tracking-service.ws-uri}") String trackingServiceWsUri,
-                        @Value("${app.livestream-service.uri}") String livestreamServiceUri,
-                        @Value("${app.settlement-service.uri}") String settlementServiceUri,
-                        @Value("${app.promotion-service.uri}") String promotionServiceUri,
-                        @Value("${app.analytics-service.uri}") String analyticsServiceUri,
-                        @Value("${app.flashsale-service.uri}") String flashsaleServiceUri) {
+                        @Value("${app.auth-service.uri:lb://auth-service}") String authServiceUri,
+                        @Value("${app.user-service.uri:lb://user-service}") String userServiceUri,
+                        @Value("${app.restaurant-service.uri:lb://restaurant-service}") String restaurantServiceUri,
+                        @Value("${app.order-service.uri:lb://order-service}") String orderServiceUri,
+                        @Value("${app.delivery-service.uri:lb://delivery-service}") String deliveryServiceUri,
+                        @Value("${app.search-service.uri:lb://search-service}") String searchServiceUri,
+                        @Value("${app.shipper-service.uri:lb://shipper-service}") String shipperServiceUri,
+                        @Value("${app.notification-service.uri:lb://notification-service}") String notificationServiceUri,
+                        @Value("${app.tracking-service.uri:lb://tracking-service}") String trackingServiceUri,
+                        @Value("${app.tracking-service.ws-uri:lb:ws://tracking-service}") String trackingServiceWsUri,
+                        @Value("${app.livestream-service.uri:lb://livestream-service}") String livestreamServiceUri,
+                        @Value("${app.settlement-service.uri:lb://settlement-service}") String settlementServiceUri,
+                        @Value("${app.promotion-service.uri:lb://promotion-service}") String promotionServiceUri,
+                        @Value("${app.analytics-service.uri:lb://analytics-service}") String analyticsServiceUri,
+                        @Value("${app.flashsale-service.uri:lb://flashsale-service}") String flashsaleServiceUri) {
                 this.jwtFilter = jwtFilter;
                 this.authServiceUri = authServiceUri;
                 this.userServiceUri = userServiceUri;

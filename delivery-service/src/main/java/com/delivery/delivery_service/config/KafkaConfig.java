@@ -7,12 +7,14 @@ import org.apache.kafka.common.serialization.StringSerializer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.kafka.annotation.EnableKafka;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.core.*;
 import org.springframework.kafka.listener.ContainerProperties;
 import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
+import com.delivery.delivery_service.metrics.BusinessMetrics;
 import org.apache.kafka.common.TopicPartition;
 import org.springframework.util.backoff.FixedBackOff;
 import org.springframework.kafka.support.serializer.JsonDeserializer;
@@ -76,7 +78,7 @@ public class KafkaConfig {
 
     @Bean
     public DeadLetterPublishingRecoverer deliveryDeadLetterRecoverer(
-            KafkaTemplate<String, Object> kafkaTemplate) {
+            @Qualifier("retryKafkaTemplate") KafkaTemplate<String, String> kafkaTemplate) {
         DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(
                 kafkaTemplate,
                 (record, exception) -> new TopicPartition(record.topic() + ".DLT", record.partition()));
@@ -86,8 +88,16 @@ public class KafkaConfig {
 
     @Bean
     public DefaultErrorHandler deliveryKafkaErrorHandler(
-            DeadLetterPublishingRecoverer recoverer) {
-        DefaultErrorHandler handler = new DefaultErrorHandler(recoverer, new FixedBackOff(1000L, 2));
+            DeadLetterPublishingRecoverer recoverer, BusinessMetrics businessMetrics) {
+        DefaultErrorHandler handler = new DefaultErrorHandler((record, error) -> {
+            businessMetrics.kafka("dlt");
+            recoverer.accept(record, error);
+        }, new FixedBackOff(1000L, 2));
+        handler.setRetryListeners(new org.springframework.kafka.listener.RetryListener() {
+            @Override public void failedDelivery(org.apache.kafka.clients.consumer.ConsumerRecord<?, ?> record,
+                                                 Exception error, int attempt) { businessMetrics.kafka("retry"); }
+        });
+        handler.addNotRetryableExceptions(IllegalArgumentException.class);
         handler.setCommitRecovered(true);
         return handler;
     }
@@ -113,5 +123,18 @@ public class KafkaConfig {
     @Bean
     public KafkaTemplate<String, Object> kafkaTemplate() {
         return new KafkaTemplate<>(producerFactory());
+    }
+
+    @Bean("retryKafkaTemplate")
+    public KafkaTemplate<String, String> retryKafkaTemplate() {
+        Map<String, Object> props = new HashMap<>();
+        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+        props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+        props.put(ProducerConfig.ACKS_CONFIG, "all");
+        props.put(ProducerConfig.RETRIES_CONFIG, 3);
+        props.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true);
+        props.put(ProducerConfig.MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION, 1);
+        return new KafkaTemplate<>(new DefaultKafkaProducerFactory<>(props));
     }
 }

@@ -3,17 +3,24 @@ package com.delivery.saga_orchestrator_service.service;
 import com.delivery.saga_orchestrator_service.entity.SagaInstance;
 import com.delivery.saga_orchestrator_service.entity.SagaInstance.SagaStatus;
 import com.delivery.saga_orchestrator_service.entity.SagaStep;
+import com.delivery.saga_orchestrator_service.entity.SagaInboundReceipt;
 import com.delivery.saga_orchestrator_service.repository.SagaInstanceRepository;
+import com.delivery.saga_orchestrator_service.repository.SagaInboundReceiptRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * ✅ Active Saga Manager — "Nhạc trưởng" phát lệnh điều phối luồng đặt hàng
@@ -34,6 +41,7 @@ public class SagaManager {
 
     private final SagaInstanceRepository sagaInstanceRepository;
     private final SagaOutboxService outboxService;
+    private final SagaInboundReceiptRepository inboundReceiptRepository;
     private final ObjectMapper objectMapper;
 
     // ======== Saga Command Topics ========
@@ -71,11 +79,19 @@ public class SagaManager {
     @Value("${matching.initial.backoff-multiplier:1.5}")
     private double initialMatchBackoffMultiplier = 1.5;
 
+    @Autowired
     public SagaManager(SagaInstanceRepository sagaInstanceRepository,
-                       SagaOutboxService outboxService) {
+                       SagaOutboxService outboxService,
+                       SagaInboundReceiptRepository inboundReceiptRepository) {
         this.sagaInstanceRepository = sagaInstanceRepository;
         this.outboxService = outboxService;
+        this.inboundReceiptRepository = inboundReceiptRepository;
         this.objectMapper = new ObjectMapper();
+    }
+
+    /** Compatibility constructor for focused tests that do not exercise the inbox boundary. */
+    public SagaManager(SagaInstanceRepository sagaInstanceRepository, SagaOutboxService outboxService) {
+        this(sagaInstanceRepository, outboxService, null);
     }
 
     // ==================== EVENT HANDLERS ====================
@@ -85,6 +101,7 @@ public class SagaManager {
      */
     @Transactional
     public void handleOrderCreated(Long orderId, String rawEvent) {
+        if (!claimInbound("order.created", orderId, rawEvent)) return;
         // Idempotent check
         SagaInstance existing = sagaInstanceRepository.findByOrderIdForUpdate(orderId).orElse(null);
         if (existing != null) {
@@ -118,6 +135,7 @@ public class SagaManager {
      */
     @Transactional
     public void handleDeliveryCreated(Long orderId, Long deliveryId, String rawEvent) {
+        if (!claimInbound("delivery.created.result", orderId, rawEvent)) return;
         SagaInstance saga = findSagaByOrderId(orderId);
 
         // An exact replay is harmless, but a second delivery identity for the
@@ -175,6 +193,7 @@ public class SagaManager {
      */
     @Transactional
     public void handleRestaurantConfirmed(Long orderId, String rawEvent) {
+        if (!claimInbound("restaurant.order-confirmed", orderId, rawEvent)) return;
         SagaInstance saga = findSagaByOrderId(orderId);
 
         // Chỉ chấp nhận confirm khi còn ở giai đoạn đầu (chưa tìm shipper / chưa kết thúc).
@@ -237,6 +256,7 @@ public class SagaManager {
      */
     @Transactional
     public void handleShipperFound(Long orderId, Long deliveryId, String rawEvent) {
+        if (!claimInbound("shipper.found", orderId, rawEvent)) return;
         SagaInstance saga = findSagaByOrderId(orderId);
         requireDeliveryIdentity(saga, deliveryId, orderId);
 
@@ -264,6 +284,7 @@ public class SagaManager {
      */
     @Transactional
     public void handleShipperNotFound(Long orderId, Long deliveryId, String rawEvent) {
+        if (!claimInbound("shipper.not-found", orderId, rawEvent)) return;
         SagaInstance saga = findSagaByOrderId(orderId);
         requireDeliveryIdentity(saga, deliveryId, orderId);
 
@@ -294,6 +315,7 @@ public class SagaManager {
      */
     @Transactional
     public void handleShipperAccepted(Long orderId, Long deliveryId, Long shipperId, String rawEvent) {
+        if (!claimInbound("delivery.shipper-accepted", orderId, rawEvent)) return;
         SagaInstance saga = findSagaByOrderId(orderId);
         requireDeliveryIdentity(saga, deliveryId, orderId);
 
@@ -349,6 +371,7 @@ public class SagaManager {
      */
     @Transactional
     public void handleShipperRejected(Long orderId, Long deliveryId, Long rejectedShipperId, String rawEvent) {
+        if (!claimInbound("delivery.shipper-rejected", orderId, rawEvent)) return;
         SagaInstance saga = findSagaByOrderId(orderId);
         requireDeliveryIdentity(saga, deliveryId, orderId);
 
@@ -571,6 +594,7 @@ public class SagaManager {
      */
     @Transactional
     public void handleDeliveryStatusUpdated(Long orderId, Long deliveryId, String newStatus, String rawEvent) {
+        if (!claimInbound("delivery.status-updated", orderId, rawEvent)) return;
         SagaInstance saga = findSagaByOrderId(orderId);
         requireDeliveryIdentity(saga, deliveryId, orderId);
 
@@ -648,6 +672,7 @@ public class SagaManager {
      */
     @Transactional
     public void handleOrderCancelled(Long orderId, String rawEvent) {
+        if (!claimInbound("order.cancelled", orderId, rawEvent)) return;
         SagaInstance saga = findSagaByOrderId(orderId);
 
         if (saga.getStatus() == SagaStatus.CANCELLED) {
@@ -706,6 +731,7 @@ public class SagaManager {
      */
     @Transactional
     public void handleDeliveryCreationFailed(Long orderId, String reason, String rawEvent) {
+        if (!claimInbound("delivery.created.failed", orderId, rawEvent)) return;
         SagaInstance saga = findSagaByOrderId(orderId);
 
         if (saga.getStatus() != SagaStatus.STARTED) {
@@ -733,6 +759,7 @@ public class SagaManager {
      */
     @Transactional
     public void handleStepFailed(String stepName, Long orderId, String reason, String rawEvent) {
+        if (!claimInbound(stepName + ".failed", orderId, rawEvent)) return;
         SagaInstance saga = findSagaByOrderId(orderId);
 
         if (saga.getStatus() == SagaStatus.FAILED || saga.getStatus() == SagaStatus.CANCELLED || saga.getStatus() == SagaStatus.COMPLETED) {
@@ -929,6 +956,52 @@ public class SagaManager {
             if (source.hasNonNull(field)) {
                 target.set(field, source.get(field));
             }
+        }
+    }
+
+    /**
+     * Claims a Kafka event before any Saga mutation or command-outbox write. The
+     * unique receipt is flushed first so a concurrent duplicate cannot perform a
+     * side effect and a conflicting replay is never silently acknowledged.
+     */
+    private boolean claimInbound(String topic, Long orderId, String rawEvent) {
+        if (inboundReceiptRepository == null) return true;
+        try {
+            JsonNode event = objectMapper.readTree(rawEvent);
+            JsonNode id = event.get("eventId");
+            if (id == null || !id.isTextual()) {
+                throw new IllegalArgumentException("Saga inbound eventId is required");
+            }
+            UUID eventId = UUID.fromString(id.asText());
+            String fingerprint = sha256(rawEvent);
+            SagaInboundReceipt existing = inboundReceiptRepository.findById(eventId).orElse(null);
+            if (existing != null) {
+                if (!existing.getTopic().equals(topic) || !existing.getOrderId().equals(orderId)
+                        || !existing.getPayloadFingerprint().equals(fingerprint)) {
+                    throw new IllegalArgumentException("Saga eventId replay has a contradictory payload");
+                }
+                log.info("[Saga] Exact inbound replay eventId={}, topic={}, orderId={}, skipping",
+                        eventId, topic, orderId);
+                return false;
+            }
+            inboundReceiptRepository.saveAndFlush(new SagaInboundReceipt(eventId, topic, orderId, fingerprint));
+            return true;
+        } catch (IllegalArgumentException exception) {
+            throw exception;
+        } catch (Exception exception) {
+            throw new IllegalStateException("Failed to claim Saga inbound event", exception);
+        }
+    }
+
+    private String sha256(String payload) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(payload.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hex = new StringBuilder(64);
+            for (byte value : digest) hex.append(String.format("%02x", value));
+            return hex.toString();
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 is unavailable", exception);
         }
     }
 

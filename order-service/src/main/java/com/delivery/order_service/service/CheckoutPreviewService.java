@@ -5,6 +5,7 @@ import com.delivery.order_service.dto.response.CheckoutPreviewResponse;
 import com.delivery.order_service.dto.response.CheckoutPreviewResponse.PreviewItemDetail;
 import com.delivery.order_service.dto.response.CheckoutPreviewResponse.PriceChangeInfo;
 import com.delivery.order_service.exception.ValidationException;
+import com.delivery.order_service.config.OrderRestaurantCircuitBreaker;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
@@ -26,15 +27,18 @@ public class CheckoutPreviewService {
     private final ShippingFeeCalculationService shippingFeeService;
     private final String restaurantServiceUrl;
     private final String internalSecret;
+    private final OrderRestaurantCircuitBreaker restaurantCircuitBreaker;
 
     public CheckoutPreviewService(WebClient webClient,
                                   ShippingFeeCalculationService shippingFeeService,
                                   @Value("${restaurant.service.url}") String restaurantServiceUrl,
-                                  @Value("${app.internal.secret:}") String internalSecret) {
+                                  @Value("${app.internal.secret:}") String internalSecret,
+                                  OrderRestaurantCircuitBreaker restaurantCircuitBreaker) {
         this.webClient = webClient;
         this.shippingFeeService = shippingFeeService;
         this.restaurantServiceUrl = restaurantServiceUrl;
         this.internalSecret = internalSecret;
+        this.restaurantCircuitBreaker = restaurantCircuitBreaker;
     }
 
     /**
@@ -165,13 +169,15 @@ public class CheckoutPreviewService {
                                     "quantity", item.getQuantity()))
                             .toList());
 
-            Map<String, Object> response = webClient
+            Map<String, Object> response = restaurantCircuitBreaker.execute(() -> webClient
                     .post()
                     .uri(restaurantServiceUrl + "/api/restaurants/validate/order")
                     .contentType(MediaType.APPLICATION_JSON)
                     .header("Internal-Token", internalSecret)
                     .bodyValue(orderValidationRequest)
-                    .retrieve().bodyToMono(Map.class).block();
+                    .retrieve().bodyToMono(Map.class)
+                    .timeout(restaurantCircuitBreaker.timeout())
+                    .block());
 
             if (response == null) {
                 throw new ValidationException("Không thể xác thực checkout với restaurant service");

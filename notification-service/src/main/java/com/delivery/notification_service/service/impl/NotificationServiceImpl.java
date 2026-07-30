@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
 
 /**
  * ✅ Notification Service Implementation theo Backend Instructions
@@ -197,7 +198,8 @@ public class NotificationServiceImpl implements NotificationService {
     }
 
     @Override
-    public void sendOrderCreatedNotification(Long userId, Long orderId, String restaurantName) {
+    public void sendOrderCreatedNotification(UUID eventId, Long userId, Long orderId, String restaurantName) {
+        requireEventId(eventId);
         requirePositiveId(userId, "userId");
         requirePositiveId(orderId, "orderId");
         if (restaurantName == null || restaurantName.isBlank()) {
@@ -211,13 +213,14 @@ public class NotificationServiceImpl implements NotificationService {
         request.setPriority(NotificationConstants.PRIORITY_MEDIUM);
         request.setRelatedEntityId(orderId);
         request.setRelatedEntityType("ORDER");
-        request.setDeduplicationKey("order-created:" + orderId + ":" + userId);
+        request.setDeduplicationKey("order-created:" + eventId);
 
         sendNotification(request);
     }
 
     @Override
-    public void sendDeliveryStatusNotification(Long userId, Long deliveryId, String status, String shipperName) {
+    public void sendDeliveryStatusNotification(UUID eventId, Long userId, Long deliveryId, String status, String shipperName) {
+        requireEventId(eventId);
         requirePositiveId(userId, "userId");
         requirePositiveId(deliveryId, "deliveryId");
         String title = getDeliveryStatusTitle(status);
@@ -231,7 +234,7 @@ public class NotificationServiceImpl implements NotificationService {
         request.setPriority(NotificationConstants.PRIORITY_HIGH);
         request.setRelatedEntityId(deliveryId);
         request.setRelatedEntityType("DELIVERY");
-        request.setDeduplicationKey("delivery-status:" + deliveryId + ":" + status + ":" + userId);
+        request.setDeduplicationKey("delivery-status:" + eventId);
 
         sendNotification(request);
     }
@@ -292,6 +295,12 @@ public class NotificationServiceImpl implements NotificationService {
     private void requirePositiveId(Long value, String fieldName) {
         if (value == null || value <= 0) {
             throw new IllegalArgumentException(fieldName + " must be positive");
+        }
+    }
+
+    private void requireEventId(UUID eventId) {
+        if (eventId == null) {
+            throw new IllegalArgumentException("stable eventId is required");
         }
     }
 

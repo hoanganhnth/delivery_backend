@@ -8,9 +8,12 @@ import com.delivery.delivery_service.dto.event.ExpireShipperOfferCommand;
 import com.delivery.delivery_service.dto.response.DeliveryResponse;
 import com.delivery.delivery_service.service.DeliveryService;
 import com.delivery.delivery_service.service.EventValidationService;
+import com.delivery.delivery_service.exception.InvalidStatusException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.annotation.RetryableTopic;
 import org.springframework.kafka.support.Acknowledgment;
+import org.springframework.retry.annotation.Backoff;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.springframework.stereotype.Component;
@@ -26,6 +29,15 @@ import java.util.Map;
  */
 @Slf4j
 @Component
+@RetryableTopic(
+        attempts = "${app.kafka.retry.attempts:4}",
+        backoff = @Backoff(delayExpression = "${app.kafka.retry.initial-delay-ms:1000}",
+                multiplierExpression = "${app.kafka.retry.multiplier:2.0}",
+                maxDelayExpression = "${app.kafka.retry.max-delay-ms:10000}"),
+        exclude = IllegalArgumentException.class,
+        kafkaTemplate = "retryKafkaTemplate",
+        autoCreateTopics = "${app.kafka.retry.auto-create-topics:false}",
+        dltTopicSuffix = ".DLT")
 public class OrderEventListener {
 
     private final DeliveryService deliveryService;
@@ -56,7 +68,7 @@ public class OrderEventListener {
         try {
             event = objectMapper.readValue(message, OrderCreatedEvent.class);
         } catch (Exception e) {
-            throw new IllegalStateException("Cannot parse create-delivery command", e);
+            throw new IllegalArgumentException("Cannot parse create-delivery command", e);
         }
         log.info("📥 [Delivery] Saga command: create-delivery for orderId={}", event.getOrderId());
 
@@ -79,10 +91,18 @@ public class OrderEventListener {
             DeliveryResponse response = deliveryService.createDeliveryFromOrderEvent(event);
             log.info("✅ [Delivery] Created delivery record for orderId={}, deliveryId={}",
                     event.getOrderId(), response.getId());
-        } catch (Exception e) {
-            log.error("💥 [Delivery] Error creating delivery for orderId={}: {}",
-                    event.getOrderId(), e.getMessage(), e);
-            publishFailure("delivery.created.failed", event.getEventId(), event.getOrderId(), e.getMessage());
+        } catch (IllegalArgumentException | InvalidStatusException businessFailure) {
+            // A validated, terminal business refusal has a durable compensation
+            // record. Only after that outbox write succeeds may this source
+            // command be acknowledged.
+            log.warn("[Delivery] Business refusal creating delivery for orderId={}: {}",
+                    event.getOrderId(), businessFailure.getMessage());
+            publishFailure("delivery.created.failed", event.getEventId(), event.getOrderId(),
+                    businessFailure.getMessage());
+        } catch (RuntimeException transientFailure) {
+            // Never turn an unavailable database/outbox/broker into a fabricated
+            // business result. Propagate so the configured retry/DLT path owns it.
+            throw transientFailure;
         }
         // ACK is deliberately outside the processing catch. An ACK failure after
         // a committed success must trigger redelivery, never a false Saga failure.
@@ -101,7 +121,7 @@ public class OrderEventListener {
         try {
             event = objectMapper.readValue(message, OrderCancelledEvent.class);
         } catch (Exception e) {
-            throw new IllegalStateException("Cannot parse cancel-delivery command", e);
+            throw new IllegalArgumentException("Cannot parse cancel-delivery command", e);
         }
         log.info("📥 [Delivery] Saga command: cancel-delivery for orderId={}", event.getOrderId());
 
@@ -112,10 +132,13 @@ public class OrderEventListener {
         try {
             deliveryService.cancelDeliveryFromOrderCancelledEvent(event);
             log.info("✅ [Delivery] Cancelled delivery for orderId={}", event.getOrderId());
-        } catch (Exception e) {
-            log.error("💥 [Delivery] Error cancelling delivery for orderId={}: {}",
-                    event.getOrderId(), e.getMessage(), e);
-            publishFailure("delivery.cancel.failed", event.getEventId(), event.getOrderId(), e.getMessage());
+        } catch (IllegalArgumentException | InvalidStatusException businessFailure) {
+            log.warn("[Delivery] Business refusal cancelling delivery for orderId={}: {}",
+                    event.getOrderId(), businessFailure.getMessage());
+            publishFailure("delivery.cancel.failed", event.getEventId(), event.getOrderId(),
+                    businessFailure.getMessage());
+        } catch (RuntimeException transientFailure) {
+            throw transientFailure;
         }
         // Keep ACK failures outside the business-failure mapping for the same
         // reason as create-delivery above.

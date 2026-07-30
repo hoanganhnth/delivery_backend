@@ -10,6 +10,7 @@ import com.delivery.match_service.service.MatchCancellationService;
 import com.delivery.match_service.service.MatchService;
 import com.delivery.match_service.service.MatchEventPublisher;
 import com.delivery.match_service.service.SettlementEligibilityClient;
+import com.delivery.match_service.metrics.BusinessMetrics;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.annotation.RetryableTopic;
@@ -28,6 +29,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.retry.annotation.Backoff;
 
 /**
@@ -47,6 +49,7 @@ public class FindShipperEventListener {
         private final SettlementEligibilityClient settlementEligibilityClient;
         private final int candidatePoolSize;
         private final ObjectMapper objectMapper;
+        private final BusinessMetrics businessMetrics;
 
         // ✅ Default retry configuration (nếu Saga không gửi)
         private static final int DEFAULT_MAX_RETRY_ATTEMPTS = 10;
@@ -55,20 +58,32 @@ public class FindShipperEventListener {
         private static final double DEFAULT_BACKOFF_MULTIPLIER = 1.5;
 
         // ✅ Constructor Injection Pattern (MANDATORY)
+        @Autowired
         public FindShipperEventListener(
                         MatchService matchService,
                         MatchEventPublisher matchEventPublisher,
                         MatchCancellationService matchCancellationService,
                         SettlementEligibilityClient settlementEligibilityClient,
+                        BusinessMetrics businessMetrics,
                         @Value("${matching.candidate-pool-size:20}") int candidatePoolSize) {
                 this.matchService = matchService;
                 this.matchEventPublisher = matchEventPublisher;
                 this.matchCancellationService = matchCancellationService;
                 this.settlementEligibilityClient = settlementEligibilityClient;
+                this.businessMetrics = businessMetrics;
                 this.candidatePoolSize = candidatePoolSize;
                 this.objectMapper = new ObjectMapper()
                                 .registerModule(new JavaTimeModule())
                                 .configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        }
+
+        /** Compatibility constructor for focused listener tests; application wiring uses MeterRegistry. */
+        FindShipperEventListener(MatchService matchService, MatchEventPublisher matchEventPublisher,
+                        MatchCancellationService matchCancellationService,
+                        SettlementEligibilityClient settlementEligibilityClient, int candidatePoolSize) {
+                this(matchService, matchEventPublisher, matchCancellationService, settlementEligibilityClient,
+                                new BusinessMetrics(new io.micrometer.core.instrument.simple.SimpleMeterRegistry()),
+                                candidatePoolSize);
         }
 
         /**
@@ -313,6 +328,7 @@ public class FindShipperEventListener {
                                         notFoundEvent.setPickupLat(request.getLatitude());
                                         notFoundEvent.setPickupLng(request.getLongitude());
                                         matchEventPublisher.publishShipperNotFoundEvent(notFoundEvent);
+                                        businessMetrics.record("shipper_not_found");
                                         log.info("✅ Published ShipperNotFoundEvent for delivery: {} after {} failed attempts",
                                                         event.getDeliveryId(), maxRetries);
                                         return Mono.<Void>empty();

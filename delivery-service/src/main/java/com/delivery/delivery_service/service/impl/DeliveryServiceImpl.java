@@ -4,6 +4,7 @@ import com.delivery.delivery_service.common.constants.KafkaTopicConstants;
 import com.delivery.delivery_service.common.constants.RoleConstants;
 import com.delivery.delivery_service.dto.event.ShipperAcceptedEvent;
 import com.delivery.delivery_service.dto.event.OrderCreatedEvent;
+import com.delivery.delivery_service.metrics.BusinessMetrics;
 import com.delivery.delivery_service.dto.event.OrderCancelledEvent;
 import com.delivery.delivery_service.dto.event.ShipperNotFoundEvent;
 import com.delivery.delivery_service.dto.event.ShipperFoundEvent;
@@ -36,6 +37,8 @@ import java.util.List;
 @Service
 public class DeliveryServiceImpl implements DeliveryService {
 
+    private final BusinessMetrics businessMetrics;
+
     private final DeliveryRepository deliveryRepository;
     private final DeliveryMapper deliveryMapper;
     private final DeliveryEventPublisher deliveryEventPublisher;
@@ -45,11 +48,13 @@ public class DeliveryServiceImpl implements DeliveryService {
     public DeliveryServiceImpl(DeliveryRepository deliveryRepository,
             DeliveryMapper deliveryMapper,
             DeliveryEventPublisher deliveryEventPublisher,
-            com.delivery.delivery_service.service.OutboxService outboxService) {
+            com.delivery.delivery_service.service.OutboxService outboxService,
+            BusinessMetrics businessMetrics) {
         this.deliveryRepository = deliveryRepository;
         this.deliveryMapper = deliveryMapper;
         this.deliveryEventPublisher = deliveryEventPublisher;
         this.outboxService = outboxService;
+        this.businessMetrics = businessMetrics;
     }
 
     @Override
@@ -260,6 +265,7 @@ public class DeliveryServiceImpl implements DeliveryService {
             // ACCEPT logic
             delivery.setShipperId(shipperId);
             delivery.setStatus(DeliveryStatus.ASSIGNED);
+            businessMetrics.record("delivery_assigned");
             delivery.setAssignedAt(LocalDateTime.now());
             delivery.setOfferExpiresAt(null);
             delivery.setUpdatedAt(LocalDateTime.now());
@@ -712,6 +718,7 @@ public class DeliveryServiceImpl implements DeliveryService {
                 break;
             case DELIVERED:
                 delivery.setDeliveredAt(LocalDateTime.now());
+                businessMetrics.record("delivery_completed");
 
                 // ✅ Publish DeliveryCompletedEvent để tự động cộng tiền cho shipper
                 publishDeliveryCompletedEvent(delivery);

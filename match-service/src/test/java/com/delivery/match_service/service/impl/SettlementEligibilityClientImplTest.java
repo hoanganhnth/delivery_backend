@@ -5,6 +5,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.WebClient;
+import com.delivery.match_service.config.MatchSettlementCircuitBreaker;
+import com.delivery.match_service.config.SettlementCallResilienceProperties;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
@@ -60,6 +63,8 @@ class SettlementEligibilityClientImplTest {
                 .baseUrl("http://settlement-service")
                 .exchangeFunction(request -> Mono.just(response))
                 .build();
-        return new SettlementEligibilityClientImpl(webClient);
+        SettlementCallResilienceProperties properties = new SettlementCallResilienceProperties();
+        return new SettlementEligibilityClientImpl(webClient,
+                new MatchSettlementCircuitBreaker(properties, new SimpleMeterRegistry()), properties);
     }
 }

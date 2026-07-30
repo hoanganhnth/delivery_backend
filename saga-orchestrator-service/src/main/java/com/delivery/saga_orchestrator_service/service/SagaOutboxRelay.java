@@ -2,10 +2,12 @@ package com.delivery.saga_orchestrator_service.service;
 
 import com.delivery.saga_orchestrator_service.entity.SagaOutboxEvent;
 import com.delivery.saga_orchestrator_service.repository.SagaOutboxEventRepository;
+import com.delivery.observability.OutboxTraceContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import io.opentelemetry.context.Scope;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -39,7 +41,9 @@ public class SagaOutboxRelay {
                 record.headers().add("eventId", bytes(event.getEventId().toString()));
                 record.headers().add("eventType", bytes(event.getEventType()));
                 record.headers().add("aggregateId", bytes(event.getAggregateId()));
-                kafkaTemplate.send(record).get(Math.max(1, Math.min(sendTimeoutSeconds, 60)), TimeUnit.SECONDS);
+                try (Scope ignored = OutboxTraceContext.open(event.getTraceparent())) {
+                    kafkaTemplate.send(record).get(Math.max(1, Math.min(sendTimeoutSeconds, 60)), TimeUnit.SECONDS);
+                }
                 event.setStatus(SagaOutboxEvent.Status.SENT);
                 event.setSentAt(LocalDateTime.now());
                 event.setLastError(null);

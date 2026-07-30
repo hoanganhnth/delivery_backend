@@ -8,6 +8,8 @@ import com.delivery.restaurant_service.repository.RestaurantOrderDecisionReposit
 import com.delivery.restaurant_service.repository.RestaurantOutboxEventRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -35,6 +37,7 @@ public class RestaurantOrderEventPublisher {
 
     private final RestaurantOrderDecisionRepository decisionRepository;
     private final RestaurantOutboxEventRepository outboxRepository;
+    private final Tracer tracer;
     private final ObjectMapper objectMapper;
     private final OrderDecisionEligibilityClient orderEligibilityClient;
     private final RestaurantDecisionLock decisionLock;
@@ -126,6 +129,7 @@ public class RestaurantOrderEventPublisher {
         event.setTopic(topic);
         event.setEventKey(orderId.toString());
         event.setPayload(eventPayload.toString());
+        event.setTraceparent(currentTraceparent());
         event.setStatus(RestaurantOutboxEvent.Status.PENDING);
         event.setAttempts(0);
         event.setNextAttemptAt(now);
@@ -145,6 +149,13 @@ public class RestaurantOrderEventPublisher {
         payload.put("action", action);
         payload.put("processedAt", LocalDateTime.now().toString());
         return payload;
+    }
+
+    private String currentTraceparent() {
+        Span span = tracer.currentSpan();
+        if (span == null || span.context() == null) return null;
+        return "00-" + span.context().traceId() + "-" + span.context().spanId()
+                + "-" + (Boolean.TRUE.equals(span.context().sampled()) ? "01" : "00");
     }
 
     private void requirePositiveId(Long value, String field) {

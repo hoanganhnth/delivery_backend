@@ -8,6 +8,7 @@ import com.delivery.notification_service.service.FirebaseService;
 import org.junit.jupiter.api.Test;
 
 import java.util.Optional;
+import java.util.UUID;
 import com.delivery.notification_service.common.constants.NotificationConstants;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -15,6 +16,24 @@ import static org.mockito.Mockito.*;
 import org.mockito.ArgumentCaptor;
 
 class NotificationServiceDeduplicationTest {
+
+    @Test
+    void orderAndDeliveryConsumersUseStableEventIdsAsTheirDeduplicationKeys() {
+        NotificationServiceImpl service = spy(new NotificationServiceImpl(
+                mock(NotificationRepository.class), new NotificationMapper(), mock(FirebaseService.class)));
+        doReturn(null).when(service).sendNotification(any());
+        UUID orderEventId = UUID.fromString("11111111-1111-1111-1111-111111111111");
+        UUID deliveryEventId = UUID.fromString("22222222-2222-2222-2222-222222222222");
+
+        service.sendOrderCreatedNotification(orderEventId, 42L, 7L, "Restaurant A");
+        service.sendDeliveryStatusNotification(deliveryEventId, 42L, 9L, "DELIVERING", null);
+
+        ArgumentCaptor<SendNotificationRequest> requests = ArgumentCaptor.forClass(SendNotificationRequest.class);
+        verify(service, times(2)).sendNotification(requests.capture());
+        org.assertj.core.api.Assertions.assertThat(requests.getAllValues())
+                .extracting(SendNotificationRequest::getDeduplicationKey)
+                .containsExactly("order-created:" + orderEventId, "delivery-status:" + deliveryEventId);
+    }
 
     @Test
     void separateOfferEventsForSameOrderAndShipperUseSeparateDeduplicationKeys() {

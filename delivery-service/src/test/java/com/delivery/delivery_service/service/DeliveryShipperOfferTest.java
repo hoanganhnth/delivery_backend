@@ -45,12 +45,13 @@ class DeliveryShipperOfferTest {
     @Mock DeliveryMapper mapper;
     @Mock DeliveryEventPublisher eventPublisher;
     @Mock OutboxService outboxService;
+    @Mock com.delivery.delivery_service.metrics.BusinessMetrics businessMetrics;
 
     private DeliveryServiceImpl service;
 
     @BeforeEach
     void setUp() {
-        service = new DeliveryServiceImpl(repository, mapper, eventPublisher, outboxService);
+        service = new DeliveryServiceImpl(repository, mapper, eventPublisher, outboxService, businessMetrics);
     }
 
     @Test

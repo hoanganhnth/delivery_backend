@@ -16,7 +16,7 @@ class NotificationListenerAcknowledgmentTest {
     @Test
     void orderFailureIsNotAcknowledged() {
         doThrow(new RuntimeException("database unavailable"))
-                .when(notificationService).sendOrderCreatedNotification(anyLong(), anyLong(), anyString());
+                .when(notificationService).sendOrderCreatedNotification(any(), anyLong(), anyLong(), anyString());
 
         assertThrows(IllegalStateException.class, () -> new OrderEventListener(notificationService)
                 .handleOrderCreatedEvent(
@@ -29,7 +29,7 @@ class NotificationListenerAcknowledgmentTest {
     @Test
     void deliveryFailureIsNotAcknowledged() {
         doThrow(new RuntimeException("database unavailable"))
-                .when(notificationService).sendDeliveryStatusNotification(anyLong(), anyLong(), anyString(), any());
+                .when(notificationService).sendDeliveryStatusNotification(any(), anyLong(), anyLong(), anyString(), any());
 
         assertThrows(IllegalStateException.class, () -> new DeliveryEventListener(notificationService)
                 .handleDeliveryStatusUpdatedEvent(
@@ -63,7 +63,7 @@ class NotificationListenerAcknowledgmentTest {
                  "deliveryAddress":"D","availableShippers":[{"shipperId":5,"distanceKm":1.2}]}
                 """;
 
-        assertThrows(IllegalStateException.class, () -> new MatchEventListener(notificationService)
+        assertThrows(IllegalArgumentException.class, () -> new MatchEventListener(notificationService)
                 .handleShipperFoundEvent(event, "delivery.shipper-offered", 0, 1L, acknowledgment));
 
         verifyNoInteractions(notificationService);
@@ -77,7 +77,7 @@ class NotificationListenerAcknowledgmentTest {
                  "availableShippers":[{"shipperId":5,"distanceKm":1.2}]}
                 """;
 
-        assertThrows(IllegalStateException.class, () -> new MatchEventListener(notificationService)
+        assertThrows(IllegalArgumentException.class, () -> new MatchEventListener(notificationService)
                 .handleShipperFoundEvent(event, "delivery.shipper-offered", 0, 1L, acknowledgment));
 
         verifyNoInteractions(notificationService);
@@ -91,7 +91,7 @@ class NotificationListenerAcknowledgmentTest {
                  "availableShippers":[{"shipperId":5,"distanceKm":1.2}]}
                 """;
 
-        assertThrows(IllegalStateException.class, () -> new MatchEventListener(notificationService)
+        assertThrows(IllegalArgumentException.class, () -> new MatchEventListener(notificationService)
                 .handleShipperFoundEvent(event, "delivery.shipper-offered", 0, 1L, acknowledgment));
 
         verifyNoInteractions(notificationService);
@@ -100,7 +100,7 @@ class NotificationListenerAcknowledgmentTest {
 
     @Test
     void orderEventWithoutStableIdentityIsNotAcknowledgedOrDispatched() {
-        assertThrows(IllegalStateException.class, () -> new OrderEventListener(notificationService)
+        assertThrows(IllegalArgumentException.class, () -> new OrderEventListener(notificationService)
                 .handleOrderCreatedEvent(
                         "{\"orderId\":7,\"userId\":42}",
                         "order.created", 0, 1L, acknowledgment));
@@ -111,7 +111,7 @@ class NotificationListenerAcknowledgmentTest {
 
     @Test
     void orderEventWithoutCanonicalRestaurantNameIsNotAcknowledgedOrDispatched() {
-        assertThrows(IllegalStateException.class, () -> new OrderEventListener(notificationService)
+        assertThrows(IllegalArgumentException.class, () -> new OrderEventListener(notificationService)
                 .handleOrderCreatedEvent(
                         "{\"eventId\":\"11111111-1111-1111-1111-111111111111\",\"orderId\":7,\"userId\":42}",
                         "order.created", 0, 1L, acknowledgment));
@@ -122,7 +122,7 @@ class NotificationListenerAcknowledgmentTest {
 
     @Test
     void legacyDeliveryStatusVocabularyIsNotAcknowledgedOrDispatched() {
-        assertThrows(IllegalStateException.class, () -> new DeliveryEventListener(notificationService)
+        assertThrows(IllegalArgumentException.class, () -> new DeliveryEventListener(notificationService)
                 .handleDeliveryStatusUpdatedEvent(
                         "{\"eventId\":\"33333333-3333-3333-3333-333333333333\","
                                 + "\"deliveryId\":8,\"orderId\":7,\"userId\":42,"

@@ -2,6 +2,9 @@ package com.delivery.order_service.service;
 
 import com.delivery.order_service.dto.request.CreateOrderRequest;
 import com.delivery.order_service.exception.ValidationException;
+import com.delivery.order_service.config.OrderRestaurantCircuitBreaker;
+import com.delivery.order_service.config.RestaurantCallResilienceProperties;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -27,7 +30,7 @@ class OrderValidationMvpPolicyTest {
         OrderValidationService service = new OrderValidationService(
                 webClient,
                 "http://restaurant-service:8083",
-                "test-secret");
+                "test-secret", circuitBreaker());
 
         assertThrows(ValidationException.class,
                 () -> service.validateCreateOrderRequest(request, 21L));
@@ -42,7 +45,7 @@ class OrderValidationMvpPolicyTest {
         OrderValidationService service = new OrderValidationService(
                 webClient,
                 "http://restaurant-service:8083",
-                "test-secret");
+                "test-secret", circuitBreaker());
 
         assertThrows(ValidationException.class,
                 () -> service.validateCreateOrderRequest(request, 21L));
@@ -57,11 +60,15 @@ class OrderValidationMvpPolicyTest {
         OrderValidationService service = new OrderValidationService(
                 webClient,
                 "http://restaurant-service:8083",
-                "test-secret");
+                "test-secret", circuitBreaker());
 
         assertThrows(ValidationException.class,
                 () -> service.validateCreateOrderRequest(request, 21L));
         verifyNoInteractions(webClient);
+    }
+
+    private OrderRestaurantCircuitBreaker circuitBreaker() {
+        return new OrderRestaurantCircuitBreaker(new RestaurantCallResilienceProperties(), new SimpleMeterRegistry());
     }
 
     private CreateOrderRequest validCodRequest() {

@@ -12,7 +12,7 @@ public interface OutboxEventRepository extends JpaRepository<OutboxEvent, Long> 
     @Query(value = """
             SELECT * FROM outbox_events
             WHERE status = 'PENDING' AND next_attempt_at <= CURRENT_TIMESTAMP
-            ORDER BY created_at, id
+            ORDER BY next_attempt_at, created_at, id
             LIMIT :batchSize
             FOR UPDATE SKIP LOCKED
             """, nativeQuery = true)

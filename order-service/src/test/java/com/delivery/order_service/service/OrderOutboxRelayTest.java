@@ -52,6 +52,8 @@ class OrderOutboxRelayTest {
         assertThat(record.topic()).isEqualTo("order.created");
         assertThat(record.key()).isEqualTo("42");
         assertThat(new String(record.headers().lastHeader("eventId").value())).isEqualTo(event.getEventId().toString());
+        assertThat(new String(record.headers().lastHeader("X-Correlation-Id").value()))
+                .isEqualTo("gateway-order-42");
         verify(repository).save(event);
     }
 
@@ -82,6 +84,7 @@ class OrderOutboxRelayTest {
         event.setTopic("order.created");
         event.setEventKey("42");
         event.setPayload("{\"orderId\":42}");
+        event.setCorrelationId("gateway-order-42");
         event.setStatus(OutboxEvent.Status.PENDING);
         event.setNextAttemptAt(LocalDateTime.now());
         event.setCreatedAt(LocalDateTime.now());

@@ -10,6 +10,9 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestTemplate;
+import com.delivery.restaurant_service.config.OrderCallResilienceProperties;
+import com.delivery.restaurant_service.config.RestaurantOrderCircuitBreaker;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -31,11 +34,11 @@ class OrderInternalClientsTest {
         ratingClient = new OrderEligibilityClient(
                 restTemplate,
                 "http://order-service",
-                "test-secret");
+                "test-secret", circuitBreaker());
         decisionClient = new OrderDecisionEligibilityClient(
                 restTemplate,
                 "http://order-service",
-                "test-secret");
+                "test-secret", circuitBreaker());
     }
 
     @Test
@@ -90,5 +93,9 @@ class OrderInternalClientsTest {
                 any(HttpEntity.class),
                 org.mockito.ArgumentMatchers
                         .<ParameterizedTypeReference<InternalBaseResponse<Boolean>>>any());
+    }
+
+    private RestaurantOrderCircuitBreaker circuitBreaker() {
+        return new RestaurantOrderCircuitBreaker(new OrderCallResilienceProperties(), new SimpleMeterRegistry());
     }
 }

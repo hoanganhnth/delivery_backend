@@ -17,6 +17,7 @@ import com.delivery.order_service.service.OrderEventPublisher;
 import com.delivery.order_service.service.OrderService;
 import com.delivery.order_service.service.OrderValidationService;
 import com.delivery.order_service.service.ShippingFeeCalculationService;
+import com.delivery.order_service.metrics.BusinessMetrics;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,19 +42,22 @@ public class OrderServiceImpl implements OrderService {
     private final OrderEventPublisher orderEventPublisher;
     private final OrderValidationService orderValidationService;
     private final ShippingFeeCalculationService shippingFeeCalculationService;
+    private final BusinessMetrics businessMetrics;
 
     public OrderServiceImpl(OrderRepository orderRepository,
                            OrderItemRepository orderItemRepository,
                            OrderMapper orderMapper,
                            OrderEventPublisher orderEventPublisher,
                            OrderValidationService orderValidationService,
-                           ShippingFeeCalculationService shippingFeeCalculationService) {
+                           ShippingFeeCalculationService shippingFeeCalculationService,
+                           BusinessMetrics businessMetrics) {
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
         this.orderMapper = orderMapper;
         this.orderEventPublisher = orderEventPublisher;
         this.orderValidationService = orderValidationService;
         this.shippingFeeCalculationService = shippingFeeCalculationService;
+        this.businessMetrics = businessMetrics;
     }
 
     @Override
@@ -141,6 +145,7 @@ public class OrderServiceImpl implements OrderService {
 
         // ✅ Publish OrderCreatedEvent to Kafka for Delivery Service
         orderEventPublisher.publishOrderCreatedEvent(savedOrder);
+        businessMetrics.record("order_created");
 
         return orderMapper.orderToOrderResponse(savedOrder);
     }
@@ -278,6 +283,7 @@ public class OrderServiceImpl implements OrderService {
         order.setCancelledBy(userId);
         order.setUpdatedAt(LocalDateTime.now());
         order = orderRepository.save(order);
+        businessMetrics.record("order_cancelled");
 
         // ✅ Publish OrderCancelledEvent để thông báo delivery service ngừng tìm shipper
         orderEventPublisher.publishOrderCancelledEvent(order, previousStatus, userId);

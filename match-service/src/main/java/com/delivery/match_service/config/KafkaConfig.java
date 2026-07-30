@@ -14,6 +14,7 @@ import org.springframework.kafka.core.*;
 import org.springframework.kafka.listener.ContainerProperties;
 import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
+import com.delivery.match_service.metrics.BusinessMetrics;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.util.backoff.FixedBackOff;
@@ -94,6 +95,19 @@ public class KafkaConfig {
         return factory;
     }
 
+    /** Location pings are a high-volume Redis projection, not an order trace boundary. */
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, Object> locationKafkaListenerContainerFactory(
+            DefaultErrorHandler matchKafkaErrorHandler) {
+        ConcurrentKafkaListenerContainerFactory<String, Object> factory =
+                new ConcurrentKafkaListenerContainerFactory<>();
+        factory.setConsumerFactory(consumerFactory());
+        factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
+        factory.getContainerProperties().setObservationEnabled(false);
+        factory.setCommonErrorHandler(matchKafkaErrorHandler);
+        return factory;
+    }
+
     @Bean
     public ConcurrentKafkaListenerContainerFactory<String, Object> reactiveKafkaListenerContainerFactory(
             DefaultErrorHandler matchKafkaErrorHandler) {
@@ -121,10 +135,23 @@ public class KafkaConfig {
 
     @Bean
     public DefaultErrorHandler matchKafkaErrorHandler(
-            DeadLetterPublishingRecoverer recoverer) {
-        DefaultErrorHandler handler = new DefaultErrorHandler(recoverer, new FixedBackOff(1000L, 3));
+            DeadLetterPublishingRecoverer recoverer, BusinessMetrics businessMetrics) {
+        DefaultErrorHandler handler = new DefaultErrorHandler((record, error) -> {
+            businessMetrics.kafka("dlt");
+            recoverer.accept(record, error);
+        }, new FixedBackOff(1000L, 3));
+        handler.setRetryListeners(new org.springframework.kafka.listener.RetryListener() {
+            @Override public void failedDelivery(org.apache.kafka.clients.consumer.ConsumerRecord<?, ?> record,
+                                                 Exception error, int attempt) { businessMetrics.kafka("retry"); }
+        });
         handler.setCommitRecovered(true);
         return handler;
+    }
+
+    /** Compatibility helper for direct configuration tests; Spring injection uses the overload above. */
+    DefaultErrorHandler matchKafkaErrorHandler(DeadLetterPublishingRecoverer recoverer) {
+        return matchKafkaErrorHandler(recoverer,
+                new BusinessMetrics(new io.micrometer.core.instrument.simple.SimpleMeterRegistry()));
     }
 
     @Bean

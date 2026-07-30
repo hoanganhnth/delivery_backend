@@ -9,16 +9,18 @@ import com.delivery.settlement_service.entity.Transaction.WalletType;
 import com.delivery.settlement_service.repository.TransactionRepository;
 import com.delivery.settlement_service.repository.SettlementReceiptRepository;
 import com.delivery.settlement_service.service.TransactionService;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.annotation.RetryableTopic;
 import org.springframework.kafka.support.Acknowledgment;
+import org.springframework.retry.annotation.Backoff;
 import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.messaging.handler.annotation.Header;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -28,6 +30,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.util.HexFormat;
+import com.delivery.settlement_service.metrics.BusinessMetrics;
 
 /**
  * ✅ Kafka listener: Tạo giao dịch khi đơn hàng giao thành công
@@ -41,15 +44,44 @@ import java.util.HexFormat;
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class DeliveryCompletedEventListener {
 
     private final TransactionService transactionService;
     private final TransactionRepository transactionRepository;
     private final SettlementReceiptRepository settlementReceiptRepository;
+    private final BusinessMetrics businessMetrics;
     private final ObjectMapper objectMapper = new ObjectMapper()
             .registerModule(new JavaTimeModule());
 
+    @Autowired
+    public DeliveryCompletedEventListener(TransactionService transactionService,
+                                          TransactionRepository transactionRepository,
+                                          SettlementReceiptRepository settlementReceiptRepository,
+                                          BusinessMetrics businessMetrics) {
+        this.transactionService = transactionService;
+        this.transactionRepository = transactionRepository;
+        this.settlementReceiptRepository = settlementReceiptRepository;
+        this.businessMetrics = businessMetrics;
+    }
+
+    // Retains the focused listener-test seam while production injection uses
+    // the MeterRegistry-backed BusinessMetrics bean.
+    DeliveryCompletedEventListener(TransactionService transactionService,
+                                   TransactionRepository transactionRepository,
+                                   SettlementReceiptRepository settlementReceiptRepository) {
+        this(transactionService, transactionRepository, settlementReceiptRepository,
+                new BusinessMetrics(new io.micrometer.core.instrument.simple.SimpleMeterRegistry()));
+    }
+
+    @RetryableTopic(
+            attempts = "${app.kafka.retry.attempts:4}",
+            backoff = @Backoff(delayExpression = "${app.kafka.retry.initial-delay-ms:1000}",
+                    multiplierExpression = "${app.kafka.retry.multiplier:2.0}",
+                    maxDelayExpression = "${app.kafka.retry.max-delay-ms:10000}"),
+            exclude = IllegalArgumentException.class,
+            kafkaTemplate = "retryKafkaTemplate",
+            autoCreateTopics = "${app.kafka.retry.auto-create-topics:false}",
+            dltTopicSuffix = ".DLT")
     @KafkaListener(topics = "${app.kafka.topics.delivery-completed:delivery.completed}")
     @Transactional
     public void handleDeliveryCompleted(
@@ -202,15 +234,16 @@ public class DeliveryCompletedEventListener {
 
             // Acknowledge after successful processing
             acknowledgeAfterCommit(acknowledgment);
+            businessMetrics.record("settlement_completed");
             log.info("✅ Successfully processed DeliveryCompletedEvent for delivery {}", event.getDeliveryId());
 
         } catch (IllegalArgumentException e) {
             log.error("💥 Invalid DeliveryCompletedEvent for delivery: {} - Error: {}",
                     event != null ? event.getDeliveryId() : "unknown", e.getMessage(), e);
-            throw new IllegalStateException("Invalid delivery.completed event", e);
+            throw e;
         } catch (JsonProcessingException e) {
             log.error("💥 Invalid DeliveryCompletedEvent JSON: {}", e.getMessage());
-            throw new IllegalStateException("Invalid delivery.completed JSON", e);
+            throw new IllegalArgumentException("Invalid delivery.completed JSON", e);
         } catch (Exception e) {
             log.error("💥 Settlement failed for delivery {}, record will be retried: {}",
                     event != null ? event.getDeliveryId() : "unknown", e.getMessage(), e);

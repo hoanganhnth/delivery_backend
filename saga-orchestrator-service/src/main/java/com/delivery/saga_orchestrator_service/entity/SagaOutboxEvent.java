@@ -34,6 +34,8 @@ public class SagaOutboxEvent {
     private String eventKey;
     @Column(nullable = false, updatable = false, columnDefinition = "TEXT")
     private String payload;
+    @Column(name = "traceparent", length = 55, updatable = false)
+    private String traceparent;
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 16)
     private Status status;

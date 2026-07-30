@@ -36,7 +36,7 @@ class SagaCommandListenerTest {
 
     @Test
     void invalidCommandIsNotAcknowledged() {
-        assertThrows(IllegalStateException.class,
+        assertThrows(IllegalArgumentException.class,
                 () -> listener.handleUpdateOrderStatusCommand(
                         json("{\"sagaStatus\":\"DELIVERED\"}"), acknowledgment));
 
@@ -58,7 +58,7 @@ class SagaCommandListenerTest {
 
     @Test
     void unknownStatusIsNotAcknowledgedAsSuccess() {
-        assertThrows(IllegalStateException.class,
+        assertThrows(IllegalArgumentException.class,
                 () -> listener.handleUpdateOrderStatusCommand(
                         json(command("TYPO_STATUS", 1L)),
                         acknowledgment));
@@ -68,7 +68,7 @@ class SagaCommandListenerTest {
 
     @Test
     void nonPositiveOrderIdentityIsNotAcknowledged() {
-        assertThrows(IllegalStateException.class,
+        assertThrows(IllegalArgumentException.class,
                 () -> listener.handleUpdateOrderStatusCommand(
                         json(command("DELIVERED", 0L)),
                         acknowledgment));
@@ -98,7 +98,7 @@ class SagaCommandListenerTest {
 
     @Test
     void malformedShipperNotFoundCorrelationIsNotAcknowledged() {
-        assertThrows(IllegalStateException.class,
+        assertThrows(IllegalArgumentException.class,
                 () -> listener.handleUpdateOrderStatusCommand(
                         json(command("SHIPPER_NOT_FOUND", 1L, "not-json")),
                         acknowledgment));
@@ -109,7 +109,7 @@ class SagaCommandListenerTest {
 
     @Test
     void shipperNotFoundWithoutDeliveryIdentityIsNotAcknowledged() {
-        assertThrows(IllegalStateException.class,
+        assertThrows(IllegalArgumentException.class,
                 () -> listener.handleUpdateOrderStatusCommand(
                         json(command("SHIPPER_NOT_FOUND", 1L, "{\"orderId\":1}")),
                         acknowledgment));
@@ -120,7 +120,7 @@ class SagaCommandListenerTest {
 
     @Test
     void contradictoryOriginalOrderIdentityIsNotAcknowledged() {
-        assertThrows(IllegalStateException.class,
+        assertThrows(IllegalArgumentException.class,
                 () -> listener.handleUpdateOrderStatusCommand(
                         json(command("FINDING_SHIPPER", 1L,
                                 "{\"orderId\":2,\"deliveryId\":8}")),

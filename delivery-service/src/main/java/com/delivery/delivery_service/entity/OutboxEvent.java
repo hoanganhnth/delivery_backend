@@ -10,7 +10,7 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "outbox_events", indexes = {
-        @Index(name = "idx_delivery_outbox_pending", columnList = "status,next_attempt_at,created_at"),
+        @Index(name = "idx_delivery_outbox_pending", columnList = "status,next_attempt_at,created_at,id"),
         @Index(name = "idx_delivery_outbox_aggregate", columnList = "aggregate_type,aggregate_id,created_at")
 }, uniqueConstraints = @UniqueConstraint(name = "uk_delivery_outbox_event_id", columnNames = "event_id"))
 @Getter
@@ -35,6 +35,8 @@ public class OutboxEvent {
     private String eventKey;
     @Column(nullable = false, updatable = false, columnDefinition = "TEXT")
     private String payload;
+    @Column(name = "traceparent", length = 55, updatable = false)
+    private String traceparent;
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 16)
     private OutboxStatus status;

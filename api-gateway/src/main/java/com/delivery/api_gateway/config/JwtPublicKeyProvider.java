@@ -8,8 +8,10 @@ import java.security.KeyFactory;
 import java.security.PublicKey;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.Base64;
+import java.util.List;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 
@@ -17,23 +19,34 @@ import org.springframework.stereotype.Component;
 public class JwtPublicKeyProvider {
 
     private final PublicKey publicKey;
+    private final List<PublicKey> previousPublicKeys;
 
+    @Autowired
     public JwtPublicKeyProvider(
-            @Value("${jwt.public-key.path:}") String publicKeyLocation) {
+            @Value("${jwt.public-key.path:}") String publicKeyLocation,
+            @Value("${jwt.previous-public-key.path:}") String previousPublicKeyLocation) {
         try {
-            String key = readKey(publicKeyLocation);
-            key = key.replaceAll("-----BEGIN [^-]+-----", "")
-                     .replaceAll("-----END [^-]+-----", "")
-                     .replaceAll("\\s", "");
-
-            byte[] decoded = Base64.getDecoder().decode(key);
-            X509EncodedKeySpec spec = new X509EncodedKeySpec(decoded);
-            KeyFactory kf = KeyFactory.getInstance("RSA");
-            this.publicKey = kf.generatePublic(spec);
+            this.publicKey = loadPublicKey(publicKeyLocation);
+            this.previousPublicKeys = previousPublicKeyLocation == null || previousPublicKeyLocation.isBlank()
+                    ? List.of()
+                    : List.of(loadPublicKey(previousPublicKeyLocation));
         } catch (Exception e) {
             throw new IllegalStateException(
                     "Failed to initialize JWT public key from configured location", e);
         }
+    }
+
+    JwtPublicKeyProvider(String publicKeyLocation) {
+        this(publicKeyLocation, "");
+    }
+
+    private PublicKey loadPublicKey(String location) throws Exception {
+        String key = readKey(location)
+                .replaceAll("-----BEGIN [^-]+-----", "")
+                .replaceAll("-----END [^-]+-----", "")
+                .replaceAll("\\s", "");
+        byte[] decoded = Base64.getDecoder().decode(key);
+        return KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(decoded));
     }
 
     private String readKey(String location) throws Exception {
@@ -61,5 +74,10 @@ public class JwtPublicKeyProvider {
 
     public PublicKey getPublicKey() {
         return publicKey;
+    }
+
+    /** Current signing key first, then an optional retiring key during rotation. */
+    public List<PublicKey> getPreviousPublicKeys() {
+        return previousPublicKeys;
     }
 }

@@ -1,6 +1,7 @@
 package com.delivery.api_gateway.config;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.nio.file.Files;
@@ -39,6 +40,22 @@ class JwtPublicKeyProviderTest {
     void rejectsBlankConfiguredPublicKey() {
         assertThrows(IllegalStateException.class,
                 () -> new JwtPublicKeyProvider(""));
+    }
+
+    @Test
+    void retainsOneRetiringPublicKeyForAControlledRotationWindow() throws Exception {
+        KeyPair current = generateKeyPair();
+        KeyPair previous = generateKeyPair();
+        Path currentPath = tempDir.resolve("current.pem");
+        Path previousPath = tempDir.resolve("previous.pem");
+        Files.writeString(currentPath, Base64.getEncoder().encodeToString(current.getPublic().getEncoded()));
+        Files.writeString(previousPath, Base64.getEncoder().encodeToString(previous.getPublic().getEncoded()));
+
+        JwtPublicKeyProvider provider = new JwtPublicKeyProvider(currentPath.toString(), previousPath.toString());
+
+        assertThat(provider.getPreviousPublicKeys()).singleElement()
+                .extracting(key -> key.getEncoded())
+                .isEqualTo(previous.getPublic().getEncoded());
     }
 
     private KeyPair generateKeyPair() throws Exception {

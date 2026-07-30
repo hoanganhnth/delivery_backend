@@ -33,6 +33,7 @@ class OrderServiceCanonicalPricingTest {
     @Mock OrderEventPublisher orderEventPublisher;
     @Mock OrderValidationService orderValidationService;
     @Mock ShippingFeeCalculationService shippingFeeCalculationService;
+    @Mock com.delivery.order_service.metrics.BusinessMetrics businessMetrics;
 
     @Test
     void customerCancellationLocksOrderBeforeTransitionAndOutbox() {
@@ -45,7 +46,7 @@ class OrderServiceCanonicalPricingTest {
         when(orderMapper.orderToOrderResponse(order)).thenReturn(new OrderResponse());
         OrderServiceImpl service = new OrderServiceImpl(
                 orderRepository, orderItemRepository, orderMapper, orderEventPublisher,
-                orderValidationService, shippingFeeCalculationService);
+                orderValidationService, shippingFeeCalculationService, businessMetrics);
 
         service.cancelOrder(101L, 21L, "USER", "changed mind");
 
@@ -205,6 +206,6 @@ class OrderServiceCanonicalPricingTest {
     private OrderServiceImpl service() {
         return new OrderServiceImpl(
                 orderRepository, orderItemRepository, orderMapper, orderEventPublisher,
-                orderValidationService, shippingFeeCalculationService);
+                orderValidationService, shippingFeeCalculationService, businessMetrics);
     }
 }

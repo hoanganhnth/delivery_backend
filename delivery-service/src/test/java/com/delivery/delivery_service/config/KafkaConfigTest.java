@@ -33,16 +33,16 @@ class KafkaConfigTest {
     @SuppressWarnings("unchecked")
     void poisonCommandIsPublishedToSamePartitionDeadLetterTopic() {
         KafkaConfig config = new KafkaConfig("kafka:19092");
-        KafkaTemplate<String, Object> template = mock(KafkaTemplate.class);
+        KafkaTemplate<String, String> template = mock(KafkaTemplate.class);
         when(template.send(any(ProducerRecord.class)))
                 .thenReturn(CompletableFuture.completedFuture(mock(SendResult.class)));
         var recoverer = config.deliveryDeadLetterRecoverer(template);
-        ConsumerRecord<String, Object> source = new ConsumerRecord<>(
+        ConsumerRecord<String, String> source = new ConsumerRecord<>(
                 "saga.command.create-delivery", 2, 9L, "order-101", "bad-json");
 
         recoverer.accept(source, new IllegalArgumentException("poison"));
 
-        ArgumentCaptor<ProducerRecord<String, Object>> sent =
+        ArgumentCaptor<ProducerRecord<String, String>> sent =
                 ArgumentCaptor.forClass(ProducerRecord.class);
         verify(template).send(sent.capture());
         assertThat(sent.getValue().topic()).isEqualTo("saga.command.create-delivery.DLT");
@@ -55,7 +55,8 @@ class KafkaConfigTest {
     void errorHandlerCommitsOnlyAfterFiniteRetryRecovery() {
         KafkaConfig config = new KafkaConfig("kafka:19092");
         var recoverer = config.deliveryDeadLetterRecoverer(mock(KafkaTemplate.class));
-        var handler = config.deliveryKafkaErrorHandler(recoverer);
+        var handler = config.deliveryKafkaErrorHandler(recoverer,
+                mock(com.delivery.delivery_service.metrics.BusinessMetrics.class));
 
         assertThat(handler.isAckAfterHandle()).isTrue();
         assertThat(handler.seeksAfterHandling()).isTrue();

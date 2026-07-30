@@ -2,10 +2,12 @@ package com.delivery.delivery_service.service;
 
 import com.delivery.delivery_service.entity.OutboxEvent;
 import com.delivery.delivery_service.repository.OutboxEventRepository;
+import com.delivery.observability.OutboxTraceContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import io.opentelemetry.context.Scope;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -39,7 +41,9 @@ public class OutboxMessageRelay {
                 record.headers().add("eventId", bytes(event.getEventId().toString()));
                 record.headers().add("eventType", bytes(event.getEventType()));
                 record.headers().add("aggregateId", bytes(event.getAggregateId()));
-                kafkaTemplate.send(record).get(Math.max(1, Math.min(sendTimeoutSeconds, 60)), TimeUnit.SECONDS);
+                try (Scope ignored = OutboxTraceContext.open(event.getTraceparent())) {
+                    kafkaTemplate.send(record).get(Math.max(1, Math.min(sendTimeoutSeconds, 60)), TimeUnit.SECONDS);
+                }
                 event.setStatus(OutboxEvent.OutboxStatus.SENT);
                 event.setSentAt(LocalDateTime.now());
                 event.setLastError(null);

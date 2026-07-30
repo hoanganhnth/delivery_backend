@@ -46,6 +46,8 @@ class KafkaConfigTest {
         assertThat(reactiveProperties.getAckMode())
                 .isEqualTo(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
         assertThat(reactiveProperties.isAsyncAcks()).isTrue();
+        assertThat(config.locationKafkaListenerContainerFactory(errorHandler)
+                .getContainerProperties().isObservationEnabled()).isFalse();
     }
 
     @Test

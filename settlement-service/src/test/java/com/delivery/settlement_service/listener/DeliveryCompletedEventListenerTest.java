@@ -114,7 +114,7 @@ class DeliveryCompletedEventListenerTest {
                 .thenReturn(Optional.of(receiptCaptor.getValue()));
         event.setRestaurantEarnings(new BigDecimal("70000"));
 
-        assertThrows(IllegalStateException.class, () -> listener.handleDeliveryCompleted(
+        assertThrows(IllegalArgumentException.class, () -> listener.handleDeliveryCompleted(
                 new ObjectMapper().findAndRegisterModules().writeValueAsString(event),
                 "delivery.completed", 0, 2L, acknowledgment));
         verify(acknowledgment, times(1)).acknowledge();
@@ -128,7 +128,7 @@ class DeliveryCompletedEventListenerTest {
                 .payloadFingerprint("existing").build();
         when(settlementReceiptRepository.findByOrderId(101L)).thenReturn(Optional.of(existing));
 
-        assertThrows(IllegalStateException.class, () -> listener.handleDeliveryCompleted(
+        assertThrows(IllegalArgumentException.class, () -> listener.handleDeliveryCompleted(
                 new ObjectMapper().findAndRegisterModules().writeValueAsString(event),
                 "delivery.completed", 0, 1L, acknowledgment));
 
@@ -142,10 +142,10 @@ class DeliveryCompletedEventListenerTest {
         DeliveryCompletedEvent inconsistent = validEvent("COD");
         inconsistent.setTotalPlatformEarnings(new BigDecimal("999"));
 
-        assertThrows(IllegalStateException.class, () -> listener.handleDeliveryCompleted(
+        assertThrows(IllegalArgumentException.class, () -> listener.handleDeliveryCompleted(
                 new ObjectMapper().findAndRegisterModules().writeValueAsString(online),
                 "delivery.completed", 0, 1L, acknowledgment));
-        assertThrows(IllegalStateException.class, () -> listener.handleDeliveryCompleted(
+        assertThrows(IllegalArgumentException.class, () -> listener.handleDeliveryCompleted(
                 new ObjectMapper().findAndRegisterModules().writeValueAsString(inconsistent),
                 "delivery.completed", 0, 2L, acknowledgment));
 
@@ -158,7 +158,7 @@ class DeliveryCompletedEventListenerTest {
         DeliveryCompletedEvent inconsistent = validEvent("COD");
         inconsistent.setShipperEarnings(new BigDecimal("16000"));
 
-        assertThrows(IllegalStateException.class, () -> listener.handleDeliveryCompleted(
+        assertThrows(IllegalArgumentException.class, () -> listener.handleDeliveryCompleted(
                 new ObjectMapper().findAndRegisterModules().writeValueAsString(inconsistent),
                 "delivery.completed", 0, 1L, acknowledgment));
 

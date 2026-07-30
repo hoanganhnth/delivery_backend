@@ -4,6 +4,8 @@ import com.delivery.order_service.dto.event.RestaurantEvent;
 import com.delivery.order_service.service.OrderEventService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.annotation.RetryableTopic;
+import org.springframework.retry.annotation.Backoff;
 import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.Payload;
@@ -15,6 +17,14 @@ import org.springframework.kafka.support.Acknowledgment;
  */
 @Slf4j
 @Component
+@RetryableTopic(
+        attempts = "${app.kafka.retry.attempts:4}",
+        backoff = @Backoff(delayExpression = "${app.kafka.retry.initial-delay-ms:1000}",
+                multiplierExpression = "${app.kafka.retry.multiplier:2.0}",
+                maxDelayExpression = "${app.kafka.retry.max-delay-ms:10000}"),
+        exclude = IllegalArgumentException.class,
+        autoCreateTopics = "${app.kafka.retry.auto-create-topics:false}",
+        dltTopicSuffix = ".DLT")
 public class RestaurantEventListener {
 
     private final OrderEventService orderEventService;

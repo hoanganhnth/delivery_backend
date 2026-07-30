@@ -6,6 +6,7 @@ import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
 
@@ -28,22 +29,25 @@ class KafkaConfigTest {
         assertThat(config.consumerFactory().getConfigurationProperties())
                 .containsEntry(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "kafka:19092")
                 .containsEntry(ConsumerConfig.GROUP_ID_CONFIG, "notification-test-group");
+        assertThat(config.retryKafkaTemplate().getProducerFactory().getConfigurationProperties())
+                .containsEntry(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG,
+                        org.apache.kafka.common.serialization.StringSerializer.class);
     }
 
     @Test
     @SuppressWarnings("unchecked")
     void poisonNotificationEventIsPublishedUnchangedToSamePartitionDlt() {
         KafkaConfig config = new KafkaConfig("kafka:19092", "notification-test-group", true);
-        KafkaTemplate<String, Object> template = mock(KafkaTemplate.class);
+        KafkaTemplate<String, String> template = mock(KafkaTemplate.class);
         when(template.send(any(ProducerRecord.class)))
                 .thenReturn(CompletableFuture.completedFuture(mock(SendResult.class)));
         var recoverer = config.notificationDeadLetterRecoverer(template);
-        ConsumerRecord<String, Object> source = new ConsumerRecord<>(
+        ConsumerRecord<String, String> source = new ConsumerRecord<>(
                 "delivery.status-updated", 4, 9L, "delivery-101", "bad-json");
 
         recoverer.accept(source, new IllegalArgumentException("poison"));
 
-        ArgumentCaptor<ProducerRecord<String, Object>> sent =
+        ArgumentCaptor<ProducerRecord<String, String>> sent =
                 ArgumentCaptor.forClass(ProducerRecord.class);
         verify(template).send(sent.capture());
         assertThat(sent.getValue().topic()).isEqualTo("delivery.status-updated.DLT");
@@ -56,7 +60,7 @@ class KafkaConfigTest {
     void errorHandlerCommitsOnlyAfterFiniteRetryRecovery() {
         KafkaConfig config = new KafkaConfig("kafka:19092", "notification-test-group", true);
         var recoverer = config.notificationDeadLetterRecoverer(mock(KafkaTemplate.class));
-        var handler = config.notificationKafkaErrorHandler(recoverer);
+        var handler = config.notificationKafkaErrorHandler(recoverer, mock(MeterRegistry.class));
 
         assertThat(handler.isAckAfterHandle()).isTrue();
         assertThat(handler.seeksAfterHandling()).isTrue();

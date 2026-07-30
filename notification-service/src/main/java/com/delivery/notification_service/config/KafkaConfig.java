@@ -5,6 +5,7 @@ import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
@@ -18,6 +19,7 @@ import java.util.HashMap;
 import java.util.Map;
 import org.apache.kafka.common.TopicPartition;
 import org.springframework.util.backoff.FixedBackOff;
+import io.micrometer.core.instrument.MeterRegistry;
 
 /**
  * ✅ Kafka Configuration cho Notification Service theo Backend Instructions
@@ -58,6 +60,19 @@ public class KafkaConfig {
         return new KafkaTemplate<>(producerFactory());
     }
 
+    /** Retry topics carry the listener's raw JSON text; JsonSerializer would quote it again. */
+    @Bean("retryKafkaTemplate")
+    public KafkaTemplate<String, String> retryKafkaTemplate() {
+        Map<String, Object> configProps = new HashMap<>();
+        configProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        configProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+        configProps.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+        configProps.put(ProducerConfig.ACKS_CONFIG, "all");
+        configProps.put(ProducerConfig.RETRIES_CONFIG, 3);
+        configProps.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true);
+        return new KafkaTemplate<>(new DefaultKafkaProducerFactory<>(configProps));
+    }
+
     @Bean
     public ConsumerFactory<String, Object> consumerFactory() {
         Map<String, Object> props = new HashMap<>();
@@ -88,7 +103,7 @@ public class KafkaConfig {
 
     @Bean
     public DeadLetterPublishingRecoverer notificationDeadLetterRecoverer(
-            KafkaTemplate<String, Object> kafkaTemplate) {
+            @Qualifier("retryKafkaTemplate") KafkaTemplate<String, String> kafkaTemplate) {
         DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(
                 kafkaTemplate,
                 (record, exception) -> new TopicPartition(
@@ -99,8 +114,18 @@ public class KafkaConfig {
 
     @Bean
     public DefaultErrorHandler notificationKafkaErrorHandler(
-            DeadLetterPublishingRecoverer recoverer) {
-        DefaultErrorHandler handler = new DefaultErrorHandler(recoverer, new FixedBackOff(1000L, 2));
+            DeadLetterPublishingRecoverer recoverer, MeterRegistry meterRegistry) {
+        DefaultErrorHandler handler = new DefaultErrorHandler((record, error) -> {
+            meterRegistry.counter("delivery.kafka.events", "event", "dlt").increment();
+            recoverer.accept(record, error);
+        }, new FixedBackOff(1000L, 2));
+        handler.addNotRetryableExceptions(IllegalArgumentException.class);
+        handler.setRetryListeners(new org.springframework.kafka.listener.RetryListener() {
+            @Override public void failedDelivery(org.apache.kafka.clients.consumer.ConsumerRecord<?, ?> record,
+                                                 Exception error, int attempt) {
+                meterRegistry.counter("delivery.kafka.events", "event", "retry").increment();
+            }
+        });
         handler.setCommitRecovered(true);
         return handler;
     }

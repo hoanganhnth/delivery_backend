@@ -7,6 +7,7 @@ import static org.mockito.Mockito.when;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.util.Date;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -23,6 +24,7 @@ import reactor.core.publisher.Mono;
 class JwtAuthenticationFilterTest {
 
     private KeyPair keyPair;
+    private KeyPair previousKeyPair;
     private JwtAuthenticationFilter filter;
 
     @BeforeEach
@@ -30,9 +32,11 @@ class JwtAuthenticationFilterTest {
         KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
         generator.initialize(2048);
         keyPair = generator.generateKeyPair();
+        previousKeyPair = generator.generateKeyPair();
 
         JwtPublicKeyProvider keyProvider = mock(JwtPublicKeyProvider.class);
         when(keyProvider.getPublicKey()).thenReturn(keyPair.getPublic());
+        when(keyProvider.getPreviousPublicKeys()).thenReturn(List.of(previousKeyPair.getPublic()));
         filter = new JwtAuthenticationFilter(keyProvider);
     }
 
@@ -90,6 +94,28 @@ class JwtAuthenticationFilterTest {
 
         assertThat(chainCalled).isTrue();
         assertThat(exchange.getResponse().getStatusCode()).isNull();
+    }
+
+    @Test
+    void acceptsAnUnexpiredTokenFromTheRetiringPublicKeyDuringRotation() {
+        long now = System.currentTimeMillis();
+        String previousToken = Jwts.builder()
+                .setSubject("42")
+                .claim("role", "USER")
+                .setIssuedAt(new Date(now))
+                .setExpiration(new Date(now + 60_000))
+                .signWith(previousKeyPair.getPrivate(), SignatureAlgorithm.RS256)
+                .compact();
+        AtomicBoolean chainCalled = new AtomicBoolean(false);
+
+        filter.apply(new JwtAuthenticationFilter.Config())
+                .filter(exchangeWithToken(previousToken), exchange -> {
+                    chainCalled.set(true);
+                    return Mono.empty();
+                })
+                .block();
+
+        assertThat(chainCalled).isTrue();
     }
 
     @Test

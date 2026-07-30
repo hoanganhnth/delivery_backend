@@ -2,10 +2,12 @@ package com.delivery.restaurant_service.service;
 
 import com.delivery.restaurant_service.entity.RestaurantOutboxEvent;
 import com.delivery.restaurant_service.repository.RestaurantOutboxEventRepository;
+import com.delivery.observability.OutboxTraceContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import io.opentelemetry.context.Scope;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -39,7 +41,9 @@ public class RestaurantOutboxRelay {
                         event.getEventKey(), objectMapper.readTree(event.getPayload()));
                 record.headers().add("eventId", event.getEventId().toString().getBytes(StandardCharsets.UTF_8));
                 record.headers().add("eventType", event.getEventType().getBytes(StandardCharsets.UTF_8));
-                kafkaTemplate.send(record).get(Math.max(1, Math.min(sendTimeoutSeconds, 60)), TimeUnit.SECONDS);
+                try (Scope ignored = OutboxTraceContext.open(event.getTraceparent())) {
+                    kafkaTemplate.send(record).get(Math.max(1, Math.min(sendTimeoutSeconds, 60)), TimeUnit.SECONDS);
+                }
                 event.setStatus(RestaurantOutboxEvent.Status.SENT);
                 event.setSentAt(LocalDateTime.now());
                 event.setLastError(null);
@@ -66,4 +70,5 @@ public class RestaurantOutboxRelay {
         if (message == null) return "Unknown Kafka publish failure";
         return message.length() <= 2000 ? message : message.substring(0, 2000);
     }
+
 }

@@ -21,7 +21,7 @@ import java.util.UUID;
 @Table(name = "outbox_events",
         indexes = {
                 @Index(name = "idx_order_outbox_pending",
-                        columnList = "status,next_attempt_at,created_at"),
+                        columnList = "status,next_attempt_at,created_at,id"),
                 @Index(name = "idx_order_outbox_aggregate",
                         columnList = "aggregate_type,aggregate_id,created_at")
         },
@@ -58,6 +58,12 @@ public class OutboxEvent {
 
     @Column(nullable = false, columnDefinition = "TEXT", updatable = false)
     private String payload;
+
+    @Column(name = "traceparent", length = 55, updatable = false)
+    private String traceparent;
+
+    @Column(name = "correlation_id", length = 64, updatable = false)
+    private String correlationId;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

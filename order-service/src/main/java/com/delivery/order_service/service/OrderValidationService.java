@@ -3,6 +3,7 @@ package com.delivery.order_service.service;
 import com.delivery.order_service.dto.internal.ValidatedOrderData;
 import com.delivery.order_service.dto.request.CreateOrderRequest;
 import com.delivery.order_service.exception.ValidationException;
+import com.delivery.order_service.config.OrderRestaurantCircuitBreaker;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -26,14 +27,17 @@ public class OrderValidationService {
     private final WebClient webClient;
     private final String restaurantServiceUrl;
     private final String internalSecret;
+    private final OrderRestaurantCircuitBreaker restaurantCircuitBreaker;
 
     public OrderValidationService(
             WebClient webClient,
             @Value("${restaurant.service.url}") String restaurantServiceUrl,
-            @Value("${app.internal.secret:}") String internalSecret) {
+            @Value("${app.internal.secret:}") String internalSecret,
+            OrderRestaurantCircuitBreaker restaurantCircuitBreaker) {
         this.webClient = webClient;
         this.restaurantServiceUrl = restaurantServiceUrl;
         this.internalSecret = internalSecret;
+        this.restaurantCircuitBreaker = restaurantCircuitBreaker;
     }
 
     /**
@@ -264,7 +268,7 @@ public class OrderValidationService {
                 return null;
             }
 
-            Map<String, Object> responseBody = webClient
+            Map<String, Object> responseBody = restaurantCircuitBreaker.execute(() -> webClient
                     .post()
                     .uri(url)
                     .header("Content-Type", "application/json")
@@ -272,7 +276,8 @@ public class OrderValidationService {
                     .bodyValue(orderValidationRequest)
                     .retrieve()
                     .bodyToMono(Map.class)
-                    .block();
+                    .timeout(restaurantCircuitBreaker.timeout())
+                    .block());
 
             if (responseBody == null) {
                 errors.add("Không thể xác thực đơn hàng với restaurant service");

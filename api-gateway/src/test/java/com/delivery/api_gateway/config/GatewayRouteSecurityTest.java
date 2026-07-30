@@ -60,6 +60,9 @@ class GatewayRouteSecurityTest {
         assertThat(matches(routes, HttpMethod.POST, "/api/auth/sessions")).isFalse();
         assertThat(matches(routes, HttpMethod.GET, "/api/auth/unknown")).isFalse();
         assertThat(matches(routes, HttpMethod.GET, "/api/orchestrator/sagas/42")).isFalse();
+        assertThat(matches(routes, HttpMethod.GET, "/actuator/health")).isFalse();
+        assertThat(matches(routes, HttpMethod.GET, "/actuator/health/liveness")).isFalse();
+        assertThat(matches(routes, HttpMethod.GET, "/actuator/health/readiness")).isFalse();
     }
 
     @Test

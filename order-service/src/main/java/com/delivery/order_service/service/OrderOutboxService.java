@@ -2,9 +2,12 @@ package com.delivery.order_service.service;
 
 import com.delivery.order_service.entity.OutboxEvent;
 import com.delivery.order_service.repository.OutboxEventRepository;
+import com.delivery.observability.CorrelationContext;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,10 +20,12 @@ public class OrderOutboxService {
 
     private final OutboxEventRepository repository;
     private final ObjectMapper objectMapper;
+    private final Tracer tracer;
 
-    public OrderOutboxService(OutboxEventRepository repository, ObjectMapper objectMapper) {
+    public OrderOutboxService(OutboxEventRepository repository, ObjectMapper objectMapper, Tracer tracer) {
         this.repository = repository;
         this.objectMapper = objectMapper;
+        this.tracer = tracer;
     }
 
     @Transactional(propagation = Propagation.MANDATORY)
@@ -46,6 +51,8 @@ public class OrderOutboxService {
         event.setTopic(requireText(topic, "topic"));
         event.setEventKey(requireText(key, "key"));
         event.setPayload(serialize(eventId, eventType, payload, now));
+        event.setTraceparent(currentTraceparent());
+        event.setCorrelationId(CorrelationContext.currentOrCreate());
         event.setStatus(OutboxEvent.Status.PENDING);
         event.setAttempts(0);
         event.setNextAttemptAt(now);
@@ -71,5 +78,12 @@ public class OrderOutboxService {
             throw new IllegalArgumentException(field + " is required");
         }
         return value;
+    }
+
+    private String currentTraceparent() {
+        Span span = tracer.currentSpan();
+        if (span == null || span.context() == null) return null;
+        return "00-" + span.context().traceId() + "-" + span.context().spanId()
+                + "-" + (Boolean.TRUE.equals(span.context().sampled()) ? "01" : "00");
     }
 }

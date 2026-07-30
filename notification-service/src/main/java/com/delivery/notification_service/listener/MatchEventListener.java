@@ -4,6 +4,8 @@ import com.delivery.notification_service.dto.event.ShipperFoundEvent;
 import com.delivery.notification_service.service.NotificationService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.annotation.RetryableTopic;
+import org.springframework.retry.annotation.Backoff;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.messaging.handler.annotation.Header;
@@ -31,6 +33,15 @@ public class MatchEventListener {
     /**
      * Delivery publishes this only after persisting the active offer.
      */
+    @RetryableTopic(
+            attempts = "${app.kafka.retry.attempts:4}",
+            backoff = @Backoff(delayExpression = "${app.kafka.retry.initial-delay-ms:1000}",
+                    multiplierExpression = "${app.kafka.retry.multiplier:2.0}",
+                    maxDelayExpression = "${app.kafka.retry.max-delay-ms:10000}"),
+            exclude = IllegalArgumentException.class,
+            kafkaTemplate = "retryKafkaTemplate",
+            autoCreateTopics = "${app.kafka.retry.auto-create-topics:false}",
+            dltTopicSuffix = ".DLT")
     @KafkaListener(topics = "${app.kafka.topics.shipper-offered:delivery.shipper-offered}")
     public void handleShipperFoundEvent(
             String message,
@@ -89,6 +100,10 @@ public class MatchEventListener {
 
             acknowledgment.acknowledge();
 
+        } catch (IllegalArgumentException poison) {
+            log.warn("Rejecting poison delivery.shipper-offered record: topic={}, partition={}, reason={}",
+                    topic, partition, poison.getMessage());
+            throw poison;
         } catch (Exception e) {
             log.error("💥 Error processing ShipperFoundEvent - topic={}, partition={}, error={}",
                     topic, partition, e.getMessage(), e);

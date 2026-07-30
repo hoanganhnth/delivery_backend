@@ -7,6 +7,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.annotation.RetryableTopic;
+import org.springframework.retry.annotation.Backoff;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.messaging.handler.annotation.Header;
@@ -36,6 +38,15 @@ public class DeliveryEventListener {
                 .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     }
 
+    @RetryableTopic(
+            attempts = "${app.kafka.retry.attempts:4}",
+            backoff = @Backoff(delayExpression = "${app.kafka.retry.initial-delay-ms:1000}",
+                    multiplierExpression = "${app.kafka.retry.multiplier:2.0}",
+                    maxDelayExpression = "${app.kafka.retry.max-delay-ms:10000}"),
+            exclude = IllegalArgumentException.class,
+            kafkaTemplate = "retryKafkaTemplate",
+            autoCreateTopics = "${app.kafka.retry.auto-create-topics:false}",
+            dltTopicSuffix = ".DLT")
     @KafkaListener(topics = "${app.kafka.topics.delivery-status-updated:delivery.status-updated}")
     public void handleDeliveryStatusUpdatedEvent(
             String message,
@@ -60,6 +71,7 @@ public class DeliveryEventListener {
             // Validate required fields
             // Send delivery status notification to customer
             notificationService.sendDeliveryStatusNotification(
+                    event.getEventId(),
                     event.getUserId(),
                     event.getDeliveryId(),
                     event.getStatus(),
@@ -69,6 +81,10 @@ public class DeliveryEventListener {
             log.info("✅ Successfully processed DeliveryStatusUpdatedEvent for delivery: {}", event.getDeliveryId());
             acknowledgment.acknowledge();
 
+        } catch (IllegalArgumentException poison) {
+            log.warn("Rejecting poison delivery.status-updated record: topic={}, partition={}, reason={}",
+                    topic, partition, poison.getMessage());
+            throw poison;
         } catch (Exception e) {
             log.error("💥 Error processing DeliveryStatusUpdatedEvent - topic={}, partition={}, error={}",
                     topic, partition, e.getMessage(), e);

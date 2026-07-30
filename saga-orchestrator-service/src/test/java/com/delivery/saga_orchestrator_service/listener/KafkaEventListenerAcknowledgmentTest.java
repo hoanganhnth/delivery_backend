@@ -53,7 +53,7 @@ class KafkaEventListenerAcknowledgmentTest {
         SagaManager sagaManager = mock(SagaManager.class);
         Acknowledgment acknowledgment = mock(Acknowledgment.class);
 
-        assertThrows(IllegalStateException.class,
+        assertThrows(IllegalArgumentException.class,
                 () -> new KafkaEventListener(sagaManager)
                         .handleOrderCreated("{}", acknowledgment));
 
@@ -66,7 +66,7 @@ class KafkaEventListenerAcknowledgmentTest {
         SagaManager sagaManager = mock(SagaManager.class);
         Acknowledgment acknowledgment = mock(Acknowledgment.class);
 
-        assertThrows(IllegalStateException.class,
+        assertThrows(IllegalArgumentException.class,
                 () -> new KafkaEventListener(sagaManager)
                         .handleShipperRejected(
                                 "{\"orderId\":7,\"deliveryId\":9,\"rejectedShipperId\":0}",
@@ -80,7 +80,7 @@ class KafkaEventListenerAcknowledgmentTest {
         SagaManager sagaManager = mock(SagaManager.class);
         Acknowledgment acknowledgment = mock(Acknowledgment.class);
 
-        assertThrows(IllegalStateException.class,
+        assertThrows(IllegalArgumentException.class,
                 () -> new KafkaEventListener(sagaManager)
                         .handleOrderCancelled("{\"orderId\":7}", acknowledgment));
 

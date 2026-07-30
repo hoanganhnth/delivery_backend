@@ -2,11 +2,14 @@ package com.delivery.notification_service.listener;
 
 import com.delivery.notification_service.dto.event.OrderEvent;
 import com.delivery.notification_service.service.NotificationService;
+import com.delivery.observability.SafeLog;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.annotation.RetryableTopic;
+import org.springframework.retry.annotation.Backoff;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.messaging.handler.annotation.Header;
@@ -30,6 +33,15 @@ public class OrderEventListener {
                 .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     }
 
+    @RetryableTopic(
+            attempts = "${app.kafka.retry.attempts:4}",
+            backoff = @Backoff(delayExpression = "${app.kafka.retry.initial-delay-ms:1000}",
+                    multiplierExpression = "${app.kafka.retry.multiplier:2.0}",
+                    maxDelayExpression = "${app.kafka.retry.max-delay-ms:10000}"),
+            exclude = IllegalArgumentException.class,
+            kafkaTemplate = "retryKafkaTemplate",
+            autoCreateTopics = "${app.kafka.retry.auto-create-topics:false}",
+            dltTopicSuffix = ".DLT")
     @KafkaListener(topics = "${app.kafka.topics.order-created:order.created}")
     public void handleOrderCreatedEvent(
             String message,
@@ -47,6 +59,7 @@ public class OrderEventListener {
 
             // Send notification to customer
             notificationService.sendOrderCreatedNotification(
+                    event.getEventId(),
                     event.getUserId(),
                     event.getOrderId(),
                     event.getRestaurantName()
@@ -55,9 +68,13 @@ public class OrderEventListener {
             log.info("✅ Successfully processed OrderCreatedEvent for order: {}", event.getOrderId());
             acknowledgment.acknowledge();
 
+        } catch (IllegalArgumentException poison) {
+            log.warn("Rejecting poison order.created record: topic={}, partition={}, reason={}",
+                    topic, partition, SafeLog.exceptionMessage(poison));
+            throw poison;
         } catch (Exception e) {
-            log.error("💥 Error processing OrderCreatedEvent - topic={}, partition={}, error={}",
-                    topic, partition, e.getMessage(), e);
+            log.error("Order-created notification failed: topic={}, partition={}, reason={}",
+                    topic, partition, SafeLog.exceptionMessage(e));
             throw new IllegalStateException("Failed to process order.created notification", e);
         }
     }

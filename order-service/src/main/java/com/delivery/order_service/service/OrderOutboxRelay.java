@@ -2,9 +2,12 @@ package com.delivery.order_service.service;
 
 import com.delivery.order_service.entity.OutboxEvent;
 import com.delivery.order_service.repository.OutboxEventRepository;
+import com.delivery.observability.OutboxTraceContext;
+import com.delivery.observability.SafeLog;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import io.opentelemetry.context.Scope;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -57,23 +60,26 @@ public class OrderOutboxRelay {
                 record.headers().add("eventId", bytes(event.getEventId().toString()));
                 record.headers().add("eventType", bytes(event.getEventType()));
                 record.headers().add("aggregateId", bytes(event.getAggregateId()));
-                kafkaTemplate.send(record).get(sendTimeoutSeconds, TimeUnit.SECONDS);
+                record.headers().add("X-Correlation-Id", bytes(event.getCorrelationId()));
+                try (Scope ignored = OutboxTraceContext.open(event.getTraceparent())) {
+                    kafkaTemplate.send(record).get(sendTimeoutSeconds, TimeUnit.SECONDS);
+                }
                 event.setStatus(OutboxEvent.Status.SENT);
                 event.setSentAt(LocalDateTime.now());
                 event.setLastError(null);
             } catch (Exception e) {
                 int attempts = event.getAttempts() + 1;
                 event.setAttempts(attempts);
-                event.setLastError(abbreviate(e.getMessage()));
+                event.setLastError(abbreviate(SafeLog.exceptionMessage(e)));
                 if (attempts >= maxAttempts) {
                     event.setStatus(OutboxEvent.Status.DEAD);
-                    log.error("Order outbox event {} is DEAD after {} attempts",
-                            event.getEventId(), attempts, e);
+                    log.error("Order outbox delivery failed: eventId={}, orderId={}, attempts={}, reason={}",
+                            event.getEventId(), event.getAggregateId(), attempts, e.getClass().getSimpleName());
                 } else {
                     long delaySeconds = Math.min(300L, 1L << Math.min(Math.max(attempts - 1, 0), 8));
                     event.setNextAttemptAt(LocalDateTime.now().plusSeconds(delaySeconds));
-                    log.warn("Order outbox event {} retry {} scheduled in {}s",
-                            event.getEventId(), attempts, delaySeconds, e);
+                    log.warn("Order outbox retry scheduled: eventId={}, orderId={}, attempt={}, delaySeconds={}, reason={}",
+                            event.getEventId(), event.getAggregateId(), attempts, delaySeconds, e.getClass().getSimpleName());
                 }
             }
             repository.save(event);
@@ -81,7 +87,7 @@ public class OrderOutboxRelay {
     }
 
     private byte[] bytes(String value) {
-        return value.getBytes(StandardCharsets.UTF_8);
+        return (value == null ? "" : value).getBytes(StandardCharsets.UTF_8);
     }
 
     private String abbreviate(String message) {

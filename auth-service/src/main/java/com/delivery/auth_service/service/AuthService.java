@@ -26,6 +26,7 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 import com.delivery.auth_service.config.UserServiceConfig;
+import com.delivery.auth_service.config.AuthUserCircuitBreaker;
 import com.delivery.auth_service.dto.AuthAccountDto;
 import com.delivery.auth_service.dto.AuthResponse;
 import com.delivery.auth_service.dto.CreateUserRequest;
@@ -62,6 +63,7 @@ public class AuthService implements UserDetailsService {
     private final RestTemplate restTemplate;
     private final GoogleTokenVerifier googleTokenVerifier;
     private final PlatformTransactionManager transactionManager;
+    private final AuthUserCircuitBreaker userCircuitBreaker;
 
     public AuthService(
             AuthAccountRepository authAccountRepository,
@@ -79,6 +81,28 @@ public class AuthService implements UserDetailsService {
                 userServiceConfig,
                 restTemplate,
                 googleTokenVerifier,
+                null,
+                null);
+    }
+
+    public AuthService(
+            AuthAccountRepository authAccountRepository,
+            AuthSessionRepository authSessionRepository,
+            PasswordEncoder passwordEncoder,
+            TokenService tokenService,
+            UserServiceConfig userServiceConfig,
+            RestTemplate restTemplate,
+            GoogleTokenVerifier googleTokenVerifier,
+            PlatformTransactionManager transactionManager) {
+        this(
+                authAccountRepository,
+                authSessionRepository,
+                passwordEncoder,
+                tokenService,
+                userServiceConfig,
+                restTemplate,
+                googleTokenVerifier,
+                transactionManager,
                 null);
     }
 
@@ -91,7 +115,8 @@ public class AuthService implements UserDetailsService {
             UserServiceConfig userServiceConfig,
             RestTemplate restTemplate,
             GoogleTokenVerifier googleTokenVerifier,
-            PlatformTransactionManager transactionManager) {
+            PlatformTransactionManager transactionManager,
+            AuthUserCircuitBreaker userCircuitBreaker) {
         this.authAccountRepository = authAccountRepository;
         this.authSessionRepository = authSessionRepository;
         this.passwordEncoder = passwordEncoder;
@@ -100,6 +125,7 @@ public class AuthService implements UserDetailsService {
         this.restTemplate = restTemplate;
         this.googleTokenVerifier = googleTokenVerifier;
         this.transactionManager = transactionManager;
+        this.userCircuitBreaker = userCircuitBreaker;
     }
 
     /**
@@ -530,12 +556,12 @@ public class AuthService implements UserDetailsService {
         headers.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
 
         try {
-            ResponseEntity<BaseResponse<Void>> response = restTemplate.exchange(
+            ResponseEntity<BaseResponse<Void>> response = callUserService(() -> restTemplate.exchange(
                     url,
                     HttpMethod.POST,
                     new HttpEntity<>(requestBody, headers),
                     new ParameterizedTypeReference<BaseResponse<Void>>() {
-                    });
+                    }));
             if (!response.getStatusCode().is2xxSuccessful()
                     || response.getBody() == null
                     || response.getBody().getStatus() != 1) {
@@ -650,12 +676,12 @@ public class AuthService implements UserDetailsService {
                 account.getId(), account.getEmail(), account.getRole().name());
 
         try {
-            ResponseEntity<BaseResponse<UserResponse>> responseEntity = restTemplate.exchange(
+            ResponseEntity<BaseResponse<UserResponse>> responseEntity = callUserService(() -> restTemplate.exchange(
                     userServiceConfig.getRegisterUrl(),
                     HttpMethod.POST,
                     internalUserRequest(userRequest),
                     new ParameterizedTypeReference<BaseResponse<UserResponse>>() {
-                    });
+                    }));
             BaseResponse<UserResponse> response = responseEntity.getBody();
             UserResponse user = response != null ? response.getData() : null;
             if (response == null || response.getStatus() != 1 || user == null || user.getId() == null) {
@@ -682,6 +708,10 @@ public class AuthService implements UserDetailsService {
         HttpHeaders headers = new HttpHeaders();
         headers.set("Internal-Token", requireInternalSecret());
         return new HttpEntity<>(request, headers);
+    }
+
+    private <T> T callUserService(java.util.function.Supplier<T> supplier) {
+        return userCircuitBreaker == null ? supplier.get() : userCircuitBreaker.execute(supplier);
     }
 
     private String requireInternalSecret() {

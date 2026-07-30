@@ -9,8 +9,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.annotation.RetryableTopic;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Component;
+import org.springframework.retry.annotation.Backoff;
 
 /**
  * ✅ Saga Command Listener — Nhận lệnh cập nhật order status từ Saga
@@ -25,6 +27,15 @@ import org.springframework.stereotype.Component;
  */
 @Slf4j
 @Component
+@RetryableTopic(
+        attempts = "${app.kafka.retry.attempts:4}",
+        backoff = @Backoff(delayExpression = "${app.kafka.retry.initial-delay-ms:1000}",
+                multiplierExpression = "${app.kafka.retry.multiplier:2.0}",
+                maxDelayExpression = "${app.kafka.retry.max-delay-ms:10000}"),
+        exclude = IllegalArgumentException.class,
+        kafkaTemplate = "retryKafkaTemplate",
+        autoCreateTopics = "${app.kafka.retry.auto-create-topics:false}",
+        dltTopicSuffix = ".DLT")
 public class SagaCommandListener {
 
     private final OrderEventService orderEventService;
@@ -104,6 +115,9 @@ public class SagaCommandListener {
             log.info("✅ [Order] Processed saga command for orderId={}, sagaStatus={}", orderId, sagaStatus);
             acknowledgment.acknowledge();
 
+        } catch (IllegalArgumentException poison) {
+            log.warn("Rejecting poison saga command: {}", poison.getMessage());
+            throw poison;
         } catch (Exception e) {
             log.error("💥 [Order] Error processing saga command: {}", e.getMessage(), e);
             throw new IllegalStateException("Failed to process saga order command", e);

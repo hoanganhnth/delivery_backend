@@ -8,6 +8,7 @@ import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
+import com.delivery.restaurant_service.config.RestaurantOrderCircuitBreaker;
 
 @Component
 public class OrderEligibilityClient {
@@ -15,14 +16,17 @@ public class OrderEligibilityClient {
     private final RestTemplate restTemplate;
     private final String orderServiceUrl;
     private final String internalSecret;
+    private final RestaurantOrderCircuitBreaker circuitBreaker;
 
     public OrderEligibilityClient(
             RestTemplate restTemplate,
             @Value("${order.service.url}") String orderServiceUrl,
-            @Value("${app.internal.secret:}") String internalSecret) {
+            @Value("${app.internal.secret:}") String internalSecret,
+            RestaurantOrderCircuitBreaker circuitBreaker) {
         this.restTemplate = restTemplate;
         this.orderServiceUrl = orderServiceUrl;
         this.internalSecret = internalSecret;
+        this.circuitBreaker = circuitBreaker;
     }
 
     public void requireDeliveredOrder(Long orderId, Long userId, Long restaurantId) {
@@ -41,12 +45,12 @@ public class OrderEligibilityClient {
                 .toUriString();
         HttpHeaders headers = new HttpHeaders();
         headers.set("Internal-Token", internalSecret);
-        InternalBaseResponse<Boolean> response = restTemplate.exchange(
+        InternalBaseResponse<Boolean> response = circuitBreaker.execute(() -> restTemplate.exchange(
                 url,
                 HttpMethod.GET,
                 new HttpEntity<>(headers),
                 new ParameterizedTypeReference<InternalBaseResponse<Boolean>>() {
-                }).getBody();
+                }).getBody());
         if (response == null || response.status() != 1 || !Boolean.TRUE.equals(response.data())) {
             throw new IllegalArgumentException("Only the customer of a delivered order may rate this restaurant");
         }

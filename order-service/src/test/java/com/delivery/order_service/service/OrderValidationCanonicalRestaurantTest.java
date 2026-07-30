@@ -3,6 +3,9 @@ package com.delivery.order_service.service;
 import com.delivery.order_service.dto.internal.ValidatedOrderData;
 import com.delivery.order_service.dto.request.CreateOrderRequest;
 import com.delivery.order_service.exception.ValidationException;
+import com.delivery.order_service.config.OrderRestaurantCircuitBreaker;
+import com.delivery.order_service.config.RestaurantCallResilienceProperties;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.reactive.function.client.ClientResponse;
@@ -74,7 +77,8 @@ class OrderValidationCanonicalRestaurantTest {
         return new OrderValidationService(
                 webClient,
                 "http://restaurant-service:8083",
-                "test-secret");
+                "test-secret", new OrderRestaurantCircuitBreaker(
+                        new RestaurantCallResilienceProperties(), new SimpleMeterRegistry()));
     }
 
     private CreateOrderRequest validRequest() {

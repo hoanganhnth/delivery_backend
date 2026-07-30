@@ -18,6 +18,7 @@ import java.security.Signature;
 import java.security.spec.*;
 import java.util.Base64;
 import java.util.Date;
+import java.util.List;
 import java.time.Duration;
 import java.time.Instant;
 
@@ -28,16 +29,21 @@ public class TokenService {
 
     private final PrivateKey privateKey;
     private final PublicKey publicKey;
+    private final List<PublicKey> previousPublicKeys;
     private final Duration accessTokenTtl;
 
     @Autowired
     public TokenService(
             @Value("${jwt.private-key.path:}") String privateKeyLocation,
             @Value("${jwt.public-key.path:}") String publicKeyLocation,
+            @Value("${jwt.previous-public-key.path:}") String previousPublicKeyLocation,
             @Value("${jwt.access-token-ttl-seconds:900}") long accessTokenTtlSeconds) {
         try {
             this.privateKey = loadPrivateKey(privateKeyLocation);
             this.publicKey = loadPublicKey(publicKeyLocation);
+            this.previousPublicKeys = previousPublicKeyLocation == null || previousPublicKeyLocation.isBlank()
+                    ? List.of()
+                    : List.of(loadPublicKey(previousPublicKeyLocation));
             verifyKeyPair(this.privateKey, this.publicKey);
             if (accessTokenTtlSeconds <= 0) {
                 throw new IllegalArgumentException("JWT access token TTL must be positive");
@@ -50,7 +56,7 @@ public class TokenService {
     }
 
     TokenService(String privateKeyLocation, String publicKeyLocation) {
-        this(privateKeyLocation, publicKeyLocation, 900L);
+        this(privateKeyLocation, publicKeyLocation, "", 900L);
     }
 
     private PrivateKey loadPrivateKey(String location) throws Exception {
@@ -135,20 +141,14 @@ public class TokenService {
     }
 
     public String extractEmail(String token) {
-        return Jwts.parserBuilder()
-                .setSigningKey(publicKey)
-                .build()
-                .parseClaimsJws(token)
+        return parseClaims(token)
                 .getBody()
                 .get("email", String.class);
     }
 
     public boolean isValid(String token) {
         try {
-            Jwts.parserBuilder()
-                    .setSigningKey(publicKey)
-                    .build()
-                    .parseClaimsJws(token);
+            parseClaims(token);
             return true;
         } catch (JwtException e) {
             return false;
@@ -174,15 +174,34 @@ public class TokenService {
 
     private boolean isTokenExpired(String token) {
         try {
-            Date expiration = Jwts.parserBuilder()
-                    .setSigningKey(publicKey)
-                    .build()
-                    .parseClaimsJws(token)
+            Date expiration = parseClaims(token)
                     .getBody()
                     .getExpiration();
             return expiration.before(new Date());
         } catch (JwtException e) {
             throw new InvalidTokenException("Token expired or invalid");
         }
+    }
+
+    private Jws<Claims> parseClaims(String token) {
+        JwtException lastFailure = null;
+        for (PublicKey verificationKey : verificationKeys()) {
+            try {
+                return Jwts.parserBuilder()
+                        .setSigningKey(verificationKey)
+                        .build()
+                        .parseClaimsJws(token);
+            } catch (JwtException failure) {
+                lastFailure = failure;
+            }
+        }
+        throw lastFailure == null ? new JwtException("No JWT verification key is configured") : lastFailure;
+    }
+
+    private List<PublicKey> verificationKeys() {
+        java.util.ArrayList<PublicKey> keys = new java.util.ArrayList<>();
+        keys.add(publicKey);
+        keys.addAll(previousPublicKeys);
+        return keys;
     }
 }
