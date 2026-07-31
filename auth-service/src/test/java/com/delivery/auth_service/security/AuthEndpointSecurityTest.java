@@ -3,8 +3,10 @@ package com.delivery.auth_service.security;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.mockito.Mockito.verify;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,7 +20,9 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.delivery.auth_service.controller.AuthController;
 import com.delivery.auth_service.dto.AuthResponse;
 import com.delivery.auth_service.service.AuthService;
+import com.delivery.auth_service.service.AccountSecurityService;
 import com.delivery.auth_service.service.TokenService;
+import org.springframework.web.client.RestTemplate;
 
 @WebMvcTest(
         controllers = AuthController.class,
@@ -34,6 +38,12 @@ class AuthEndpointSecurityTest {
 
     @MockitoBean
     private TokenService tokenService;
+
+    @MockitoBean
+    private AccountSecurityService accountSecurityService;
+
+    @MockitoBean
+    private RestTemplate restTemplate;
 
     @Test
     void socialLoginIsPublic() throws Exception {
@@ -53,9 +63,61 @@ class AuthEndpointSecurityTest {
     }
 
     @Test
+    void passwordResetAndVerificationEndpointsArePublicPostOnly() throws Exception {
+        mockMvc.perform(post("/api/auth/forgot-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"user@example.com\"}"))
+                .andExpect(status().isAccepted());
+        mockMvc.perform(post("/api/auth/email-verification/request")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"user@example.com\"}"))
+                .andExpect(status().isAccepted());
+        mockMvc.perform(post("/api/auth/reset-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"token":"abcdefghijklmnopqrstuvwxyzABCDEFGH",
+                                 "newPassword":"ChangedPassword1!"}
+                                """))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/auth/email-verification/confirm")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"token\":\"abcdefghijklmnopqrstuvwxyzABCDEFGH\"}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/auth/forgot-password"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void forgotPasswordResponseDoesNotRevealWhetherEmailExists() throws Exception {
+        String existing = mockMvc.perform(post("/api/auth/forgot-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"known@example.com\"}"))
+                .andExpect(status().isAccepted())
+                .andReturn().getResponse().getContentAsString();
+        String missing = mockMvc.perform(post("/api/auth/forgot-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"missing@example.com\"}"))
+                .andExpect(status().isAccepted())
+                .andReturn().getResponse().getContentAsString();
+
+        org.assertj.core.api.Assertions.assertThat(missing).isEqualTo(existing);
+    }
+
+    @Test
     void sessionsRequireAuthentication() throws Exception {
         mockMvc.perform(get("/api/auth/sessions"))
                 .andExpect(status().isUnauthorized());
+        mockMvc.perform(delete("/api/auth/sessions/phone-1"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void authenticatedAccountCanRevokeOneDeviceSession() throws Exception {
+        mockMvc.perform(delete("/api/auth/sessions/phone-1")
+                        .with(user("user@example.com").roles("USER")))
+                .andExpect(status().isOk());
+
+        verify(authService).revokeDeviceSession("user@example.com", "phone-1");
     }
 
     @Test

@@ -21,11 +21,18 @@ import java.util.Date;
 import java.util.List;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.util.UUID;
 
 @Service
 public class TokenService {
 
     static final Duration REFRESH_TOKEN_TTL = Duration.ofDays(7);
+    private static final String TOKEN_TYPE_CLAIM = "token_type";
+    private static final String TOKEN_FAMILY_CLAIM = "token_family";
+    private static final String ACCESS_TOKEN_TYPE = "access";
+    private static final String REFRESH_TOKEN_TYPE = "refresh";
 
     private final PrivateKey privateKey;
     private final PublicKey publicKey;
@@ -122,6 +129,7 @@ public class TokenService {
                 .setSubject(String.valueOf(userId)) // có thể dùng userId làm subject
                 .claim("email", email)
                 .claim("role", role)
+                .claim(TOKEN_TYPE_CLAIM, ACCESS_TOKEN_TYPE)
                 .setIssuedAt(Date.from(issuedAt))
                 .setExpiration(Date.from(issuedAt.plus(accessTokenTtl)))
                 .signWith(privateKey, SignatureAlgorithm.RS256)
@@ -129,11 +137,18 @@ public class TokenService {
     }
 
     public String generateRefreshToken(Long userId, String email, String role) {
+        return generateRefreshToken(userId, email, role, UUID.randomUUID().toString());
+    }
+
+    public String generateRefreshToken(Long userId, String email, String role, String tokenFamilyId) {
         Instant issuedAt = Instant.now();
         return Jwts.builder()
                 .setSubject(String.valueOf(userId)) // có thể dùng userId làm subject
                 .claim("email", email)
                 .claim("role", role)
+                .claim(TOKEN_TYPE_CLAIM, REFRESH_TOKEN_TYPE)
+                .claim(TOKEN_FAMILY_CLAIM, tokenFamilyId)
+                .setId(UUID.randomUUID().toString())
                 .setIssuedAt(Date.from(issuedAt))
                 .setExpiration(Date.from(issuedAt.plus(REFRESH_TOKEN_TTL)))
                 .signWith(privateKey, SignatureAlgorithm.RS256)
@@ -153,6 +168,25 @@ public class TokenService {
         } catch (JwtException e) {
             return false;
         }
+    }
+
+    public boolean isValidRefreshToken(String token) {
+        try {
+            String tokenType = parseClaims(token).getBody().get(TOKEN_TYPE_CLAIM, String.class);
+            // Tokens issued before rotation-family rollout had no explicit type.
+            // Their database fingerprint is still required before refresh.
+            return tokenType == null || REFRESH_TOKEN_TYPE.equals(tokenType);
+        } catch (JwtException | IllegalArgumentException e) {
+            return false;
+        }
+    }
+
+    public String extractRefreshTokenFamily(String token) {
+        return parseClaims(token).getBody().get(TOKEN_FAMILY_CLAIM, String.class);
+    }
+
+    public LocalDateTime refreshTokenExpiresAt() {
+        return LocalDateTime.ofInstant(Instant.now().plus(REFRESH_TOKEN_TTL), ZoneOffset.UTC);
     }
 
     public String extractUsername(String token) {

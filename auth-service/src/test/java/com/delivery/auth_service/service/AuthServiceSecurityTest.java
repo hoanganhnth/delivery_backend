@@ -23,10 +23,12 @@ import com.delivery.auth_service.dto.RefreshTokenRequest;
 import com.delivery.auth_service.dto.UserResponse;
 import com.delivery.auth_service.entity.AuthAccount;
 import com.delivery.auth_service.entity.AuthSession;
+import com.delivery.auth_service.entity.RefreshTokenRecord;
 import com.delivery.auth_service.exception.InvalidCredentialsException;
 import com.delivery.auth_service.exception.InvalidTokenException;
 import com.delivery.auth_service.repository.AuthAccountRepository;
 import com.delivery.auth_service.repository.AuthSessionRepository;
+import com.delivery.auth_service.repository.RefreshTokenRecordRepository;
 import com.delivery.auth_service.payload.BaseResponse;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -46,6 +48,7 @@ class AuthServiceSecurityTest {
 
     private final AuthAccountRepository accountRepository = mock(AuthAccountRepository.class);
     private final AuthSessionRepository sessionRepository = mock(AuthSessionRepository.class);
+    private final RefreshTokenRecordRepository refreshTokenRepository = mock(RefreshTokenRecordRepository.class);
     private final PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
     private final TokenService tokenService = mock(TokenService.class);
     private final RestTemplate restTemplate = mock(RestTemplate.class);
@@ -54,6 +57,7 @@ class AuthServiceSecurityTest {
     private final AuthService service = new AuthService(
             accountRepository,
             sessionRepository,
+            refreshTokenRepository,
             passwordEncoder,
             tokenService,
             userServiceConfig,
@@ -253,9 +257,14 @@ class AuthServiceSecurityTest {
         account.setPasswordHash("operator-hash");
         account.setRole(AuthAccount.Role.SHIPPER);
         account.setIsActive(true);
+        account.setEmailVerifiedAt(LocalDateTime.now());
+        account.setEmailVerificationRequired(false);
+        account.setEmailVerificationRequired(true);
         when(accountRepository.findByEmail(account.getEmail())).thenReturn(Optional.of(account));
         when(tokenService.generateToken(61L, account.getEmail(), "SHIPPER")).thenReturn("access");
-        when(tokenService.generateRefreshToken(61L, account.getEmail(), "SHIPPER")).thenReturn("refresh");
+        when(tokenService.generateRefreshToken(
+                eq(61L), eq(account.getEmail()), eq("SHIPPER"), anyString()))
+                .thenReturn("refresh");
 
         var request = com.delivery.auth_service.dto.SocialLoginRequest.builder()
                 .provider("google")
@@ -269,8 +278,10 @@ class AuthServiceSecurityTest {
 
         assertThat(response.getAuthId()).isEqualTo(51L);
         assertThat(response.getRole()).isEqualTo("SHIPPER");
+        assertThat(account.getEmailVerifiedAt()).isNotNull();
+        assertThat(account.getEmailVerificationRequired()).isFalse();
         verifyNoInteractions(restTemplate);
-        verify(accountRepository, never()).save(any(AuthAccount.class));
+        verify(accountRepository).save(account);
         verify(sessionRepository).save(any(AuthSession.class));
     }
 
@@ -286,12 +297,16 @@ class AuthServiceSecurityTest {
         winner.setPasswordHash("winner-hash");
         winner.setRole(AuthAccount.Role.USER);
         winner.setIsActive(true);
+        winner.setEmailVerifiedAt(LocalDateTime.now());
+        winner.setEmailVerificationRequired(false);
         when(accountRepository.findByEmail(winner.getEmail()))
                 .thenReturn(Optional.empty(), Optional.of(winner));
         when(accountRepository.save(any(AuthAccount.class)))
                 .thenThrow(new DataIntegrityViolationException("duplicate email"));
         when(tokenService.generateToken(81L, winner.getEmail(), "USER")).thenReturn("access");
-        when(tokenService.generateRefreshToken(81L, winner.getEmail(), "USER")).thenReturn("refresh");
+        when(tokenService.generateRefreshToken(
+                eq(81L), eq(winner.getEmail()), eq("USER"), anyString()))
+                .thenReturn("refresh");
 
         var request = com.delivery.auth_service.dto.SocialLoginRequest.builder()
                 .provider("google")
@@ -333,6 +348,32 @@ class AuthServiceSecurityTest {
     }
 
     @Test
+    void passwordLoginRejectsNewAccountUntilEmailIsVerified() {
+        AuthAccount account = new AuthAccount();
+        ReflectionTestUtils.setField(account, "id", 5L);
+        account.setUserId(15L);
+        account.setEmail("pending-verification@example.com");
+        account.setPasswordHash("hash");
+        account.setRole(AuthAccount.Role.USER);
+        account.setIsActive(true);
+        account.setEmailVerificationRequired(true);
+        account.setEmailVerifiedAt(null);
+        when(accountRepository.findByEmail(account.getEmail())).thenReturn(Optional.of(account));
+        when(passwordEncoder.matches("secret", "hash")).thenReturn(true);
+
+        LoginRequest request = new LoginRequest();
+        request.setEmail(account.getEmail());
+        request.setPassword("secret");
+        request.setDeviceId("device-1");
+
+        assertThatThrownBy(() -> service.login(request))
+                .isInstanceOf(InvalidCredentialsException.class)
+                .hasMessage("Email verification required");
+        verifyNoInteractions(tokenService);
+        verifyNoInteractions(sessionRepository);
+    }
+
+    @Test
     void loginUsesLinkedProfileIdAsTheTrustedJwtIdentity() {
         AuthAccount account = new AuthAccount();
         ReflectionTestUtils.setField(account, "id", 3L);
@@ -344,7 +385,9 @@ class AuthServiceSecurityTest {
         when(accountRepository.findByEmail(account.getEmail())).thenReturn(Optional.of(account));
         when(passwordEncoder.matches("secret", "hash")).thenReturn(true);
         when(tokenService.generateToken(17L, account.getEmail(), "USER")).thenReturn("access-token");
-        when(tokenService.generateRefreshToken(17L, account.getEmail(), "USER")).thenReturn("refresh-token");
+        when(tokenService.generateRefreshToken(
+                eq(17L), eq(account.getEmail()), eq("USER"), anyString()))
+                .thenReturn("refresh-token");
 
         LoginRequest request = new LoginRequest();
         request.setEmail(account.getEmail());
@@ -357,7 +400,8 @@ class AuthServiceSecurityTest {
         verify(sessionRepository).deactivateActiveSessionsForDevice(
                 eq(3L), eq("device-1"), any(LocalDateTime.class));
         verify(tokenService).generateToken(17L, account.getEmail(), "USER");
-        verify(tokenService).generateRefreshToken(17L, account.getEmail(), "USER");
+        verify(tokenService).generateRefreshToken(
+                eq(17L), eq(account.getEmail()), eq("USER"), anyString());
         verify(tokenService, never()).generateToken(3L, account.getEmail(), "USER");
     }
 
@@ -398,14 +442,19 @@ class AuthServiceSecurityTest {
         AuthSession session = new AuthSession();
         session.setIsActive(true);
         session.setExpiresAt(LocalDateTime.now().minusSeconds(1));
+        RefreshTokenRecord token = new RefreshTokenRecord();
+        token.setAuthSession(session);
+        token.setState(RefreshTokenRecord.State.CURRENT);
 
-        when(tokenService.isValid(refreshToken)).thenReturn(true);
-        when(sessionRepository.findByRefreshTokenForUpdate(refreshToken)).thenReturn(Optional.of(session));
+        when(tokenService.isValidRefreshToken(refreshToken)).thenReturn(true);
+        when(refreshTokenRepository.findByTokenHashForUpdate(AuthService.fingerprint(refreshToken)))
+                .thenReturn(Optional.of(token));
 
         assertThatThrownBy(() -> service.refreshToken(request))
                 .isInstanceOf(InvalidTokenException.class)
                 .hasMessageContaining("inactive");
         verify(tokenService, never()).generateRefreshToken(
+                org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any());
@@ -415,13 +464,20 @@ class AuthServiceSecurityTest {
     void logoutRevokesSessionAndItsServerSideExpiry() {
         String refreshToken = "refresh-token";
         AuthSession session = new AuthSession();
+        ReflectionTestUtils.setField(session, "id", 71L);
         session.setIsActive(true);
         session.setExpiresAt(LocalDateTime.now().plusDays(1));
-        when(tokenService.isValid(refreshToken)).thenReturn(true);
-        when(sessionRepository.findByRefreshTokenForUpdate(refreshToken)).thenReturn(Optional.of(session));
+        RefreshTokenRecord token = new RefreshTokenRecord();
+        token.setAuthSession(session);
+        token.setState(RefreshTokenRecord.State.CURRENT);
+        when(tokenService.isValidRefreshToken(refreshToken)).thenReturn(true);
+        when(refreshTokenRepository.findByTokenHashForUpdate(AuthService.fingerprint(refreshToken)))
+                .thenReturn(Optional.of(token));
 
         service.logout(refreshToken);
 
+        verify(refreshTokenRepository).revokeFamily(
+                eq(71L), eq(RefreshTokenRecord.State.REVOKED), any(LocalDateTime.class));
         verify(sessionRepository).save(session);
         org.assertj.core.api.Assertions.assertThat(session.getIsActive()).isFalse();
         org.assertj.core.api.Assertions.assertThat(session.getExpiresAt())

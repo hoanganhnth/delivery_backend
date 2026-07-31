@@ -87,7 +87,7 @@ class AuthServiceBlockAccountIntegrationTest {
         AuthSession session = new AuthSession();
         session.setAuthAccount(account);
         session.setDeviceId("admin-phone");
-        session.setRefreshToken("refresh-token");
+        session.setTokenFamilyId("11111111-1111-1111-1111-111111111111");
         session.setIsActive(true);
         session.setExpiresAt(LocalDateTime.now().plusDays(1));
         authSessionRepository.saveAndFlush(session);

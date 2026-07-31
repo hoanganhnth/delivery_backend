@@ -56,6 +56,11 @@ class GatewayRouteSecurityTest {
         assertThat(matches(routes, HttpMethod.DELETE, "/api/flashsales/admin/campaigns/42")).isFalse();
         assertThat(matches(routes, HttpMethod.GET, "/api/auth/login")).isFalse();
         assertThat(matches(routes, HttpMethod.POST, "/api/auth/login")).isTrue();
+        assertThat(matches(routes, HttpMethod.POST, "/api/auth/forgot-password")).isTrue();
+        assertThat(matches(routes, HttpMethod.POST, "/api/auth/reset-password")).isTrue();
+        assertThat(matches(routes, HttpMethod.POST, "/api/auth/email-verification/request")).isTrue();
+        assertThat(matches(routes, HttpMethod.POST, "/api/auth/email-verification/confirm")).isTrue();
+        assertThat(matches(routes, HttpMethod.GET, "/api/auth/forgot-password")).isFalse();
         assertThat(matches(routes, HttpMethod.GET, "/api/auth/sessions")).isTrue();
         assertThat(matches(routes, HttpMethod.POST, "/api/auth/sessions")).isFalse();
         assertThat(matches(routes, HttpMethod.GET, "/api/auth/unknown")).isFalse();

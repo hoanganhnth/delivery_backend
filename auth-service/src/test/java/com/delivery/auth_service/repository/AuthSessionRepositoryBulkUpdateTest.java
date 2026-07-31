@@ -2,9 +2,13 @@ package com.delivery.auth_service.repository;
 
 import com.delivery.auth_service.entity.AuthAccount;
 import com.delivery.auth_service.entity.AuthSession;
+import com.delivery.auth_service.config.UserServiceConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
+import org.springframework.boot.autoconfigure.web.client.RestTemplateAutoConfiguration;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.time.LocalDateTime;
@@ -12,6 +16,8 @@ import java.time.LocalDateTime;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @DataJpaTest(properties = "spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.H2Dialect")
+@ImportAutoConfiguration(RestTemplateAutoConfiguration.class)
+@Import(UserServiceConfig.class)
 @ActiveProfiles("test")
 class AuthSessionRepositoryBulkUpdateTest {
 
@@ -30,9 +36,9 @@ class AuthSessionRepositoryBulkUpdateTest {
         account.setIsActive(true);
         account = accountRepository.saveAndFlush(account);
 
-        sessionRepository.save(session(account, "phone", "refresh-1"));
-        sessionRepository.save(session(account, "phone", "refresh-2"));
-        sessionRepository.save(session(account, "web", "refresh-3"));
+        sessionRepository.save(session(account, "phone", "family-1"));
+        sessionRepository.save(session(account, "phone", "family-2"));
+        sessionRepository.save(session(account, "web", "family-3"));
         sessionRepository.flush();
 
         LocalDateTime deviceRevokedAt = LocalDateTime.now();
@@ -57,11 +63,11 @@ class AuthSessionRepositoryBulkUpdateTest {
                 assertThat(session.getIsActive()).isFalse());
     }
 
-    private AuthSession session(AuthAccount account, String deviceId, String refreshToken) {
+    private AuthSession session(AuthAccount account, String deviceId, String tokenFamilyId) {
         AuthSession session = new AuthSession();
         session.setAuthAccount(account);
         session.setDeviceId(deviceId);
-        session.setRefreshToken(refreshToken);
+        session.setTokenFamilyId(tokenFamilyId);
         session.setIsActive(true);
         session.setExpiresAt(LocalDateTime.now().plusDays(1));
         return session;

@@ -114,7 +114,11 @@ public class GatewayRateLimitFilter implements GlobalFilter, Ordered {
                 || "/api/auth/register".equals(path)
                 || "/api/auth/social-login".equals(path)
                 || "/api/auth/refresh-token".equals(path)
-                || "/api/auth/logout".equals(path));
+                || "/api/auth/logout".equals(path)
+                || "/api/auth/forgot-password".equals(path)
+                || "/api/auth/reset-password".equals(path)
+                || "/api/auth/email-verification/request".equals(path)
+                || "/api/auth/email-verification/confirm".equals(path));
     }
 
     private boolean isPublicCatalog(String path, HttpMethod method) {

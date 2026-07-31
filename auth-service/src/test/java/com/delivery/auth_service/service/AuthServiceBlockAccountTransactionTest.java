@@ -15,10 +15,12 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.web.client.RestTemplate;
 
 import com.delivery.auth_service.TestJwtKeyProperties;
+import com.delivery.auth_service.config.AuthUserCircuitBreaker;
 import com.delivery.auth_service.config.UserServiceConfig;
 import com.delivery.auth_service.entity.AuthAccount;
 import com.delivery.auth_service.repository.AuthAccountRepository;
 import com.delivery.auth_service.repository.AuthSessionRepository;
+import com.delivery.auth_service.repository.RefreshTokenRecordRepository;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
 
@@ -55,6 +57,9 @@ class AuthServiceBlockAccountTransactionTest {
     private AuthSessionRepository authSessionRepository;
 
     @MockBean
+    private RefreshTokenRecordRepository refreshTokenRecordRepository;
+
+    @MockBean
     private PasswordEncoder passwordEncoder;
 
     @MockBean
@@ -62,6 +67,9 @@ class AuthServiceBlockAccountTransactionTest {
 
     @MockBean
     private UserServiceConfig userServiceConfig;
+
+    @MockBean
+    private AuthUserCircuitBreaker authUserCircuitBreaker;
 
     @MockBean
     private RestTemplate restTemplate;

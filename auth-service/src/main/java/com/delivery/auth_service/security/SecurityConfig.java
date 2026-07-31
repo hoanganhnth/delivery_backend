@@ -28,12 +28,17 @@ public class SecurityConfig {
                         .accessDeniedHandler((request, response, exception) ->
                                 response.sendError(jakarta.servlet.http.HttpServletResponse.SC_FORBIDDEN)))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(
+                        .requestMatchers(HttpMethod.POST,
                                 "/api/auth/login",
                                 "/api/auth/register",
                                 "/api/auth/social-login",
                                 "/api/auth/refresh-token",
                                 "/api/auth/logout",
+                                "/api/auth/forgot-password",
+                                "/api/auth/reset-password",
+                                "/api/auth/email-verification/request",
+                                "/api/auth/email-verification/confirm").permitAll()
+                        .requestMatchers(
                                 // Management is bound to a private Compose/platform port;
                                 // Eureka and the orchestrator must be able to read genuine
                                 // health/readiness without a user JWT.

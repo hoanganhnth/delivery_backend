@@ -1,7 +1,6 @@
 package com.delivery.auth_service.repository;
 
 import java.util.List;
-import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -19,8 +18,11 @@ import com.delivery.auth_service.entity.AuthSession;
 public interface AuthSessionRepository extends JpaRepository<AuthSession, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select session from AuthSession session join fetch session.authAccount "
-            + "where session.refreshToken = :refreshToken")
-    Optional<AuthSession> findByRefreshTokenForUpdate(@Param("refreshToken") String refreshToken);
+            + "where session.authAccount.id = :accountId and session.deviceId = :deviceId "
+            + "order by session.id")
+    List<AuthSession> findAccountDeviceSessionsForUpdate(
+            @Param("accountId") Long accountId,
+            @Param("deviceId") String deviceId);
 
     @Query("select session from AuthSession session where session.authAccount = :account "
             + "and session.isActive = true and session.expiresAt > :now "

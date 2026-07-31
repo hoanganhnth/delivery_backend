@@ -1,7 +1,11 @@
 package com.delivery.auth_service.service;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.LocalDateTime;
+import java.util.HexFormat;
 import java.util.List;
+import java.util.UUID;
 
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -38,13 +42,16 @@ import com.delivery.auth_service.dto.SocialLoginRequest;
 import com.delivery.auth_service.dto.UserResponse;
 import com.delivery.auth_service.entity.AuthAccount;
 import com.delivery.auth_service.entity.AuthSession;
+import com.delivery.auth_service.entity.RefreshTokenRecord;
 import com.delivery.auth_service.exception.EmailAlreadyExistsException;
 import com.delivery.auth_service.exception.InvalidCredentialsException;
 import com.delivery.auth_service.exception.InvalidTokenException;
+import com.delivery.auth_service.exception.RefreshTokenReuseException;
 import com.delivery.auth_service.exception.ResourceNotFoundException;
 import com.delivery.auth_service.payload.BaseResponse;
 import com.delivery.auth_service.repository.AuthAccountRepository;
 import com.delivery.auth_service.repository.AuthSessionRepository;
+import com.delivery.auth_service.repository.RefreshTokenRecordRepository;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -57,6 +64,7 @@ public class AuthService implements UserDetailsService {
 
     private final AuthAccountRepository authAccountRepository;
     private final AuthSessionRepository authSessionRepository;
+    private final RefreshTokenRecordRepository refreshTokenRecordRepository;
     private final PasswordEncoder passwordEncoder;
     private final TokenService tokenService;
     private final UserServiceConfig userServiceConfig;
@@ -68,6 +76,7 @@ public class AuthService implements UserDetailsService {
     public AuthService(
             AuthAccountRepository authAccountRepository,
             AuthSessionRepository authSessionRepository,
+            RefreshTokenRecordRepository refreshTokenRecordRepository,
             PasswordEncoder passwordEncoder,
             TokenService tokenService,
             UserServiceConfig userServiceConfig,
@@ -76,6 +85,7 @@ public class AuthService implements UserDetailsService {
         this(
                 authAccountRepository,
                 authSessionRepository,
+                refreshTokenRecordRepository,
                 passwordEncoder,
                 tokenService,
                 userServiceConfig,
@@ -85,31 +95,11 @@ public class AuthService implements UserDetailsService {
                 null);
     }
 
-    public AuthService(
-            AuthAccountRepository authAccountRepository,
-            AuthSessionRepository authSessionRepository,
-            PasswordEncoder passwordEncoder,
-            TokenService tokenService,
-            UserServiceConfig userServiceConfig,
-            RestTemplate restTemplate,
-            GoogleTokenVerifier googleTokenVerifier,
-            PlatformTransactionManager transactionManager) {
-        this(
-                authAccountRepository,
-                authSessionRepository,
-                passwordEncoder,
-                tokenService,
-                userServiceConfig,
-                restTemplate,
-                googleTokenVerifier,
-                transactionManager,
-                null);
-    }
-
     @org.springframework.beans.factory.annotation.Autowired
     public AuthService(
             AuthAccountRepository authAccountRepository,
             AuthSessionRepository authSessionRepository,
+            RefreshTokenRecordRepository refreshTokenRecordRepository,
             PasswordEncoder passwordEncoder,
             TokenService tokenService,
             UserServiceConfig userServiceConfig,
@@ -119,6 +109,7 @@ public class AuthService implements UserDetailsService {
             AuthUserCircuitBreaker userCircuitBreaker) {
         this.authAccountRepository = authAccountRepository;
         this.authSessionRepository = authSessionRepository;
+        this.refreshTokenRecordRepository = refreshTokenRecordRepository;
         this.passwordEncoder = passwordEncoder;
         this.tokenService = tokenService;
         this.userServiceConfig = userServiceConfig;
@@ -210,6 +201,10 @@ public class AuthService implements UserDetailsService {
         if (account.getIsActive() == null || !account.getIsActive()) {
             throw new InvalidCredentialsException("Account is blocked or inactive");
         }
+        if (Boolean.TRUE.equals(account.getEmailVerificationRequired())
+                && account.getEmailVerifiedAt() == null) {
+            throw new InvalidCredentialsException("Email verification required");
+        }
 
         if (request.getDeviceId() == null || request.getDeviceId().trim().isEmpty()) {
             throw new IllegalArgumentException("Device ID must not be empty");
@@ -221,8 +216,10 @@ public class AuthService implements UserDetailsService {
 
         String accessToken = tokenService.generateToken(account.getUserId(), account.getEmail(),
                 account.getRole().name());
+        String tokenFamilyId = UUID.randomUUID().toString();
         String refreshToken = tokenService.generateRefreshToken(account.getUserId(), account.getEmail(),
-                account.getRole().name());
+                account.getRole().name(), tokenFamilyId);
+        LocalDateTime now = LocalDateTime.now();
 
         AuthSession session = new AuthSession();
         session.setAuthAccount(account);
@@ -230,12 +227,13 @@ public class AuthService implements UserDetailsService {
         session.setDeviceName(request.getDeviceName());
         session.setDeviceType(request.getDeviceType());
         session.setIpAddress(request.getIpAddress());
-        session.setRefreshToken(refreshToken);
-        session.setLastLoginAt(LocalDateTime.now());
-        session.setExpiresAt(LocalDateTime.now().plusDays(7));
+        session.setTokenFamilyId(tokenFamilyId);
+        session.setLastLoginAt(now);
+        session.setExpiresAt(now.plusDays(7));
         session.setIsActive(true);
 
         authSessionRepository.save(session);
+        saveCurrentRefreshToken(session, refreshToken, now, session.getExpiresAt());
 
         return new AuthResponse(
                 accessToken,
@@ -245,6 +243,7 @@ public class AuthService implements UserDetailsService {
                 account.getRole().name());
     }
 
+    @Transactional
     public AuthResponse socialLogin(SocialLoginRequest request) {
         if (!"google".equalsIgnoreCase(request.getProvider())) {
             throw new IllegalArgumentException("Unsupported provider: " + request.getProvider());
@@ -259,6 +258,8 @@ public class AuthService implements UserDetailsService {
             account = new AuthAccount();
             account.setEmail(email);
             account.setPasswordHash(passwordEncoder.encode(java.util.UUID.randomUUID().toString()));
+            account.setEmailVerifiedAt(LocalDateTime.now());
+            account.setEmailVerificationRequired(false);
 
             AuthAccount.Role role = request.getRole() == null || request.getRole().isBlank()
                     ? AuthAccount.Role.USER
@@ -270,6 +271,16 @@ public class AuthService implements UserDetailsService {
                 account = authAccountRepository.findByEmail(email)
                         .orElseThrow(() -> race);
             }
+        }
+
+        // GoogleTokenVerifier already requires Google's verified_email claim.
+        // This proves ownership for the exact AuthAccount email without changing
+        // the social-login contract.
+        if (account.getEmailVerifiedAt() == null
+                || Boolean.TRUE.equals(account.getEmailVerificationRequired())) {
+            account.setEmailVerifiedAt(LocalDateTime.now());
+            account.setEmailVerificationRequired(false);
+            authAccountRepository.save(account);
         }
 
         if (account.getUserId() == null) {
@@ -287,8 +298,10 @@ public class AuthService implements UserDetailsService {
 
         String accessToken = tokenService.generateToken(
                 account.getUserId(), account.getEmail(), account.getRole().name());
+        String tokenFamilyId = UUID.randomUUID().toString();
         String refreshToken = tokenService.generateRefreshToken(
-                account.getUserId(), account.getEmail(), account.getRole().name());
+                account.getUserId(), account.getEmail(), account.getRole().name(), tokenFamilyId);
+        LocalDateTime now = LocalDateTime.now();
 
         AuthSession session = new AuthSession();
         session.setAuthAccount(account);
@@ -300,31 +313,46 @@ public class AuthService implements UserDetailsService {
             session.setDeviceType(AuthSession.DeviceType.MOBILE);
         }
         session.setIpAddress(request.getIpAddress());
-        session.setRefreshToken(refreshToken);
-        session.setLastLoginAt(LocalDateTime.now());
-        session.setExpiresAt(LocalDateTime.now().plusDays(7));
+        session.setTokenFamilyId(tokenFamilyId);
+        session.setLastLoginAt(now);
+        session.setExpiresAt(now.plusDays(7));
         session.setIsActive(true);
 
         authSessionRepository.save(session);
+        saveCurrentRefreshToken(session, refreshToken, now, session.getExpiresAt());
 
         return new AuthResponse(
                 accessToken, refreshToken, account.getId(), account.getEmail(), account.getRole().name());
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = RefreshTokenReuseException.class)
     public AuthResponse refreshToken(RefreshTokenRequest request) {
         String oldRefreshToken = request.getRefreshToken();
 
-        if (!tokenService.isValid(oldRefreshToken)) {
+        if (!tokenService.isValidRefreshToken(oldRefreshToken)) {
             throw new InvalidTokenException("Invalid refresh token");
         }
 
-        AuthSession session = authSessionRepository.findByRefreshTokenForUpdate(oldRefreshToken)
+        RefreshTokenRecord currentToken = refreshTokenRecordRepository
+                .findByTokenHashForUpdate(fingerprint(oldRefreshToken))
                 .orElseThrow(() -> new InvalidTokenException("Refresh token not found or expired"));
+        AuthSession session = currentToken.getAuthSession();
+        LocalDateTime now = LocalDateTime.now();
+
+        if (currentToken.getState() != RefreshTokenRecord.State.CURRENT) {
+            revokeFamily(session, now);
+            throw new RefreshTokenReuseException("Refresh token reuse detected; device session revoked");
+        }
+
+        String claimedFamily = tokenService.extractRefreshTokenFamily(oldRefreshToken);
+        if (claimedFamily != null && !claimedFamily.equals(session.getTokenFamilyId())) {
+            revokeFamily(session, now);
+            throw new RefreshTokenReuseException("Refresh token family mismatch; device session revoked");
+        }
 
         if (!Boolean.TRUE.equals(session.getIsActive())
                 || session.getExpiresAt() == null
-                || !session.getExpiresAt().isAfter(LocalDateTime.now())) {
+                || !session.getExpiresAt().isAfter(now)) {
             throw new InvalidTokenException("Session is inactive");
         }
 
@@ -332,16 +360,24 @@ public class AuthService implements UserDetailsService {
         if (!Boolean.TRUE.equals(account.getIsActive())) {
             throw new InvalidTokenException("Account is blocked or inactive");
         }
+        if (Boolean.TRUE.equals(account.getEmailVerificationRequired())
+                && account.getEmailVerifiedAt() == null) {
+            throw new InvalidTokenException("Email verification required");
+        }
         requireLinkedUser(account);
 
         String newAccessToken = tokenService.generateToken(account.getUserId(), account.getEmail(),
                 account.getRole().name());
         String newRefreshToken = tokenService.generateRefreshToken(account.getUserId(), account.getEmail(),
-                account.getRole().name());
+                account.getRole().name(), session.getTokenFamilyId());
+        LocalDateTime newExpiry = now.plusDays(7);
 
-        session.setRefreshToken(newRefreshToken);
-        session.setLastLoginAt(LocalDateTime.now());
-        session.setExpiresAt(LocalDateTime.now().plusDays(7));
+        currentToken.setState(RefreshTokenRecord.State.ROTATED);
+        currentToken.setRotatedAt(now);
+        refreshTokenRecordRepository.save(currentToken);
+        saveCurrentRefreshToken(session, newRefreshToken, now, newExpiry);
+        session.setLastLoginAt(now);
+        session.setExpiresAt(newExpiry);
         authSessionRepository.save(session);
 
         return new AuthResponse(
@@ -354,15 +390,27 @@ public class AuthService implements UserDetailsService {
 
     @Transactional
     public void logout(String refreshToken) {
-        if (!tokenService.isValid(refreshToken)) {
+        if (!tokenService.isValidRefreshToken(refreshToken)) {
             throw new InvalidTokenException("Invalid refresh token");
         }
 
-        authSessionRepository.findByRefreshTokenForUpdate(refreshToken).ifPresent(session -> {
-            session.setIsActive(false);
-            session.setExpiresAt(LocalDateTime.now());
-            authSessionRepository.save(session);
-        });
+        refreshTokenRecordRepository.findByTokenHashForUpdate(fingerprint(refreshToken))
+                .ifPresent(token -> revokeFamily(token.getAuthSession(), LocalDateTime.now()));
+    }
+
+    @Transactional
+    public void revokeDeviceSession(String email, String deviceId) {
+        if (deviceId == null || deviceId.isBlank()) {
+            throw new IllegalArgumentException("Device ID must not be empty");
+        }
+        AuthAccount account = authAccountRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("Account", "email", email));
+        LocalDateTime now = LocalDateTime.now();
+        List<AuthSession> sessions = authSessionRepository.findAccountDeviceSessionsForUpdate(
+                account.getId(), deviceId.trim());
+        for (AuthSession session : sessions) {
+            revokeFamily(session, now);
+        }
     }
 
     public List<SessionInfoResponse> getActiveSessions(String email) {
@@ -392,8 +440,43 @@ public class AuthService implements UserDetailsService {
     }
 
     private void deactivateSessions(AuthAccount account, String deviceId) {
+        LocalDateTime now = LocalDateTime.now();
+        refreshTokenRecordRepository.revokeAccountDevice(
+                account.getId(), deviceId.trim(), RefreshTokenRecord.State.REVOKED, now);
         authSessionRepository.deactivateActiveSessionsForDevice(
-                account.getId(), deviceId.trim(), LocalDateTime.now());
+                account.getId(), deviceId.trim(), now);
+    }
+
+    private void saveCurrentRefreshToken(
+            AuthSession session,
+            String rawToken,
+            LocalDateTime issuedAt,
+            LocalDateTime expiresAt) {
+        RefreshTokenRecord record = new RefreshTokenRecord();
+        record.setAuthSession(session);
+        record.setTokenHash(fingerprint(rawToken));
+        record.setState(RefreshTokenRecord.State.CURRENT);
+        record.setIssuedAt(issuedAt);
+        record.setExpiresAt(expiresAt);
+        refreshTokenRecordRepository.save(record);
+    }
+
+    private void revokeFamily(AuthSession session, LocalDateTime revokedAt) {
+        refreshTokenRecordRepository.revokeFamily(
+                session.getId(), RefreshTokenRecord.State.REVOKED, revokedAt);
+        session.setIsActive(false);
+        session.setExpiresAt(revokedAt);
+        authSessionRepository.save(session);
+    }
+
+    static String fingerprint(String rawToken) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(rawToken.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest);
+        } catch (java.security.NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException("SHA-256 is unavailable", impossible);
+        }
     }
 
     @Override
@@ -424,7 +507,10 @@ public class AuthService implements UserDetailsService {
         }
         authAccountRepository.save(account);
 
-        authSessionRepository.deactivateAllActiveSessions(accountId, LocalDateTime.now());
+        LocalDateTime revokedAt = LocalDateTime.now();
+        refreshTokenRecordRepository.revokeAccount(
+                accountId, RefreshTokenRecord.State.REVOKED, revokedAt);
+        authSessionRepository.deactivateAllActiveSessions(accountId, revokedAt);
 
         if (account.getUserId() != null) {
             scheduleUserStatusSyncAfterCommit(account.getId());
@@ -629,6 +715,8 @@ public class AuthService implements UserDetailsService {
         created.setEmail(request.getEmail());
         created.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         created.setRole(role);
+        created.setEmailVerificationRequired(true);
+        created.setEmailVerifiedAt(null);
         try {
             return authAccountRepository.save(created);
         } catch (DataIntegrityViolationException race) {
@@ -647,6 +735,8 @@ public class AuthService implements UserDetailsService {
         created.setPasswordHash(passwordEncoder.encode(password));
         created.setRole(role);
         created.setIsActive(true);
+        created.setEmailVerificationRequired(false);
+        created.setEmailVerifiedAt(LocalDateTime.now());
         try {
             return authAccountRepository.save(created);
         } catch (DataIntegrityViolationException race) {

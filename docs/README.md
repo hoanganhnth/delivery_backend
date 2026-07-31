@@ -31,5 +31,6 @@ Tài liệu đặc tả các luồng nghiệp vụ phức tạp, có sự giao t
 - [Raw WebSocket scaling](operations/websocket-scaling.md)
 - [Shipper location history](operations/location-history.md)
 - [Data backup and restore](runbooks/data-backup-restore.md)
+- [Account recovery and email verification](runbooks/account-recovery-email-verification.md)
 - [Secrets management and rotation](runbooks/secrets-management.md)
 - [Rolling/canary rollout and rollback](runbooks/rollout-and-rollback.md)

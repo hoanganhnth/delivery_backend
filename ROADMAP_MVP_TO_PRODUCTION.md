@@ -75,7 +75,10 @@ Sau khi MVP chạy ổn, đây là các mảng đưa hệ thống từ "chạy �
 - [ ] **Secrets management** thật (Vault / AWS Secrets Manager / K8s Secrets) — không để secret trong repo.
 
 ### 2.4 Bảo mật nâng cao
-- [ ] Forgot/reset password, email verification, OAuth2 social login ở auth-service.
+- [x] Forgot/reset password và email verification ở auth-service — AWS SES SMTP,
+  one-time hashed token, uniform response, Gateway quota, security audit và
+  account-wide refresh-session revocation; Google social login hiện tại giữ
+  nguyên. OAuth2 social login đã có Google verification.
 - [ ] Refresh token rotation + revocation list.
 - [ ] Input validation & audit log cho các API quản trị (block user, duyệt withdrawal).
 

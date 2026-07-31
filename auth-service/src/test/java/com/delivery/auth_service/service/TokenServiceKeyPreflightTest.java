@@ -1,6 +1,9 @@
 package com.delivery.auth_service.service;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
@@ -51,6 +54,41 @@ class TokenServiceKeyPreflightTest {
     }
 
     @Test
+    void refreshTokensCarryFamilyTypeAndUniqueIdentity() throws Exception {
+        KeyPair keyPair = generateKeyPair();
+        Path privateKey = write("family-private.pem", keyPair.getPrivate().getEncoded());
+        Path publicKey = write("family-public.pem", keyPair.getPublic().getEncoded());
+        TokenService tokenService = new TokenService(privateKey.toString(), publicKey.toString());
+
+        String first = tokenService.generateRefreshToken(
+                7L, "user@example.test", "USER", "family-7");
+        String second = tokenService.generateRefreshToken(
+                7L, "user@example.test", "USER", "family-7");
+        Map<String, Object> firstClaims = claims(first);
+        Map<String, Object> secondClaims = claims(second);
+
+        assertEquals("refresh", firstClaims.get("token_type"));
+        assertEquals("family-7", firstClaims.get("token_family"));
+        assertNotEquals(firstClaims.get("jti"), secondClaims.get("jti"));
+        assertNotEquals(first, second);
+        assertTrue(tokenService.isValidRefreshToken(first));
+    }
+
+    @Test
+    void accessTokenExpiryIsEnforcedBeforeRefreshFlow() throws Exception {
+        KeyPair keyPair = generateKeyPair();
+        Path privateKey = write("expiring-private.pem", keyPair.getPrivate().getEncoded());
+        Path publicKey = write("expiring-public.pem", keyPair.getPublic().getEncoded());
+        TokenService tokenService = new TokenService(
+                privateKey.toString(), publicKey.toString(), "", 1L);
+
+        String token = tokenService.generateToken(7L, "user@example.test", "USER");
+        assertTrue(tokenService.isValid(token));
+        Thread.sleep(1_200L);
+        assertFalse(tokenService.isValid(token));
+    }
+
+    @Test
     void accessTokenUsesConfirmedFifteenMinuteDefault() throws Exception {
         KeyPair keyPair = generateKeyPair();
         Path privateKey = write("access-private.pem", keyPair.getPrivate().getEncoded());
@@ -97,6 +135,11 @@ class TokenServiceKeyPreflightTest {
         KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
         generator.initialize(2048);
         return generator.generateKeyPair();
+    }
+
+    private Map<String, Object> claims(String token) throws Exception {
+        return new ObjectMapper().readValue(
+                Base64.getUrlDecoder().decode(token.split("\\.")[1]), new TypeReference<>() {});
     }
 
     private Path write(String filename, byte[] encodedKey) throws Exception {

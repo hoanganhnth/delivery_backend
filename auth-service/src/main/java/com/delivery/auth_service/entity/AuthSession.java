@@ -57,8 +57,8 @@ public class AuthSession {
     @Column(name = "ip_address")
     private String ipAddress;
 
-    @Column(name = "refresh_token", columnDefinition = "TEXT")
-    private String refreshToken;
+    @Column(name = "token_family_id", nullable = false, unique = true, length = 36)
+    private String tokenFamilyId;
 
     @Column(name = "is_active")
     private Boolean isActive = true;
@@ -126,12 +126,12 @@ public class AuthSession {
         this.ipAddress = ipAddress;
     }
 
-    public String getRefreshToken() {
-        return refreshToken;
+    public String getTokenFamilyId() {
+        return tokenFamilyId;
     }
 
-    public void setRefreshToken(String refreshToken) {
-        this.refreshToken = refreshToken;
+    public void setTokenFamilyId(String tokenFamilyId) {
+        this.tokenFamilyId = tokenFamilyId;
     }
 
     public Boolean getIsActive() {

@@ -4,8 +4,11 @@ import java.util.List;
 
 import org.springframework.security.core.Authentication;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatus;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -21,26 +24,79 @@ import com.delivery.auth_service.dto.RefreshTokenRequest;
 import com.delivery.auth_service.dto.RegisterRequest;
 import com.delivery.auth_service.dto.SessionInfoResponse;
 import com.delivery.auth_service.dto.SocialLoginRequest;
+import com.delivery.auth_service.dto.SecurityEmailRequest;
+import com.delivery.auth_service.dto.SecurityTokenRequest;
+import com.delivery.auth_service.dto.ResetPasswordRequest;
 import com.delivery.auth_service.payload.BaseResponse;
 import com.delivery.auth_service.service.AuthService;
+import com.delivery.auth_service.service.AccountSecurityService;
 
 import jakarta.validation.Valid;
+import jakarta.servlet.http.HttpServletRequest;
 
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
 
     private final AuthService authService;
+    private final AccountSecurityService accountSecurityService;
 
     public AuthController(AuthService authService) {
+        this(authService, null);
+    }
+
+    @Autowired
+    public AuthController(AuthService authService, AccountSecurityService accountSecurityService) {
         this.authService = authService;
+        this.accountSecurityService = accountSecurityService;
     }
 
     @PostMapping("/register")
-    public ResponseEntity<BaseResponse<Boolean>> register(@Valid @RequestBody RegisterRequest request) {
-        authService.register(request);
-        BaseResponse<Boolean> response = BaseResponse.success(true, "Account registered successfully");
+    public ResponseEntity<BaseResponse<Boolean>> register(
+            @Valid @RequestBody RegisterRequest request,
+            HttpServletRequest servletRequest) {
+        var account = authService.register(request);
+        if (accountSecurityService != null) {
+            accountSecurityService.requestEmailVerification(account.getEmail(), clientIp(servletRequest));
+        }
+        BaseResponse<Boolean> response = BaseResponse.success(true,
+                "Account registered; check your email to verify it");
         return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<BaseResponse<Void>> forgotPassword(
+            @Valid @RequestBody SecurityEmailRequest request,
+            HttpServletRequest servletRequest) {
+        accountSecurityService.requestPasswordReset(request.getEmail(), clientIp(servletRequest));
+        return ResponseEntity.status(HttpStatus.ACCEPTED)
+                .body(BaseResponse.success(null, securityRequestMessage()));
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<BaseResponse<Void>> resetPassword(
+            @Valid @RequestBody ResetPasswordRequest request,
+            HttpServletRequest servletRequest) {
+        accountSecurityService.resetPassword(
+                request.getToken(), request.getNewPassword(), clientIp(servletRequest));
+        return ResponseEntity.ok(BaseResponse.success(null, "Password changed successfully"));
+    }
+
+    @PostMapping("/email-verification/request")
+    public ResponseEntity<BaseResponse<Void>> requestEmailVerification(
+            @Valid @RequestBody SecurityEmailRequest request,
+            HttpServletRequest servletRequest) {
+        accountSecurityService.requestEmailVerification(request.getEmail(), clientIp(servletRequest));
+        return ResponseEntity.status(HttpStatus.ACCEPTED)
+                .body(BaseResponse.success(null, securityRequestMessage()));
+    }
+
+    @PostMapping("/email-verification/confirm")
+    public ResponseEntity<BaseResponse<Void>> confirmEmailVerification(
+            @Valid @RequestBody SecurityTokenRequest request,
+            HttpServletRequest servletRequest) {
+        accountSecurityService.verifyEmail(request.getToken(), clientIp(servletRequest));
+        return ResponseEntity.ok(BaseResponse.success(null, "Email verified successfully"));
     }
 
     @PostMapping("/login")
@@ -82,6 +138,18 @@ public class AuthController {
         String email = authentication.getName();
         List<SessionInfoResponse> sessions = authService.getActiveSessions(email);
         return ResponseEntity.ok(BaseResponse.success(sessions));
+    }
+
+    @DeleteMapping("/sessions/{deviceId}")
+    public ResponseEntity<BaseResponse<Void>> revokeDeviceSession(@PathVariable String deviceId) {
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || authentication.getName() == null || authentication.getName().isBlank()) {
+            return ResponseEntity.status(401)
+                    .body(BaseResponse.failure("Unauthorized"));
+        }
+
+        authService.revokeDeviceSession(authentication.getName(), deviceId);
+        return ResponseEntity.ok(BaseResponse.success(null, "Device session revoked"));
     }
 
     @GetMapping("/accounts/{id}")
@@ -163,5 +231,13 @@ public class AuthController {
         return authentication != null && authentication.getAuthorities().stream()
                 .anyMatch(authority -> "ROLE_ADMIN".equals(authority.getAuthority())
                         || "ADMIN".equals(authority.getAuthority()));
+    }
+
+    private String clientIp(HttpServletRequest request) {
+        return request == null ? null : request.getRemoteAddr();
+    }
+
+    private String securityRequestMessage() {
+        return "If the account is eligible, an email will be sent";
     }
 }

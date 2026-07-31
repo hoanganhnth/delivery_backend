@@ -31,6 +31,17 @@ class AuthFlywayMigrationTest {
                     .isInstanceOf(Exception.class).hasMessageContaining("Unique");
             assertThat(indexExists(connection, "auth_session", "idx_auth_session_account_active_expiry")).isTrue();
             assertThat(indexExists(connection, "auth_session", "idx_auth_session_account_device_active")).isTrue();
+            assertThat(columnExists(connection, "auth_session", "token_family_id")).isTrue();
+            assertThat(tableExists(connection, "auth_refresh_token")).isTrue();
+            assertThat(indexExists(connection, "auth_refresh_token", "idx_auth_refresh_token_session_state")).isTrue();
+            assertThat(columnExists(connection, "auth_account", "email_verification_required")).isTrue();
+            assertThat(columnExists(connection, "auth_account", "email_verified_at")).isTrue();
+            assertThat(tableExists(connection, "auth_security_token")).isTrue();
+            assertThat(tableExists(connection, "auth_security_audit")).isTrue();
+            assertThat(indexExists(connection, "auth_security_token",
+                    "idx_auth_security_token_account_purpose")).isTrue();
+            assertThat(indexExists(connection, "auth_security_audit",
+                    "idx_auth_security_audit_account_time")).isTrue();
             assertThat(columnExists(connection, "auth_account", "user_status_sync_pending")).isTrue();
             assertThat(columnExists(connection, "auth_account", "user_status_sync_version")).isTrue();
             assertThat(columnExists(connection, "auth_account", "user_status_sync_admin_id")).isTrue();
@@ -58,6 +69,16 @@ class AuthFlywayMigrationTest {
              Statement statement = connection.createStatement()) {
             assertThat(count(statement, "SELECT count(*) FROM auth_account")).isEqualTo(1);
             assertThat(count(statement, "SELECT count(*) FROM auth_session")).isEqualTo(1);
+            assertThat(count(statement, "SELECT count(*) FROM auth_refresh_token")).isEqualTo(1);
+            assertThat(count(statement, "SELECT count(*) FROM auth_session WHERE refresh_token IS NULL"))
+                    .isEqualTo(1);
+            assertThat(count(statement, "SELECT count(*) FROM auth_session WHERE token_family_id IS NOT NULL"))
+                    .isEqualTo(1);
+            assertThat(count(statement, """
+                    SELECT count(*) FROM auth_account
+                    WHERE email_verification_required = false
+                      AND email_verified_at IS NOT NULL
+                    """)).isEqualTo(1);
             assertThat(count(statement, """
                     SELECT count(*) FROM auth_account
                     WHERE user_status_sync_pending = false
@@ -161,13 +182,23 @@ class AuthFlywayMigrationTest {
     }
 
     private void insertSession(Statement statement, long accountId, String refreshToken) throws Exception {
-        statement.executeUpdate("""
-                INSERT INTO auth_session
-                    (auth_id, device_id, device_type, refresh_token, is_active,
-                     last_login_at, expires_at, created_at)
-                VALUES (%d, 'device-1', 'mobile', '%s', true,
-                        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                """.formatted(accountId, refreshToken));
+        if (columnExists(statement.getConnection(), "auth_session", "token_family_id")) {
+            statement.executeUpdate("""
+                    INSERT INTO auth_session
+                        (auth_id, device_id, device_type, refresh_token, token_family_id, is_active,
+                         last_login_at, expires_at, created_at)
+                    VALUES (%d, 'device-1', 'mobile', '%s', '%s', true,
+                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                    """.formatted(accountId, refreshToken, UUID.randomUUID()));
+        } else {
+            statement.executeUpdate("""
+                    INSERT INTO auth_session
+                        (auth_id, device_id, device_type, refresh_token, is_active,
+                         last_login_at, expires_at, created_at)
+                    VALUES (%d, 'device-1', 'mobile', '%s', true,
+                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                    """.formatted(accountId, refreshToken));
+        }
     }
 
     private boolean columnExists(Connection connection, String tableName, String expectedName) throws Exception {
@@ -189,6 +220,17 @@ class AuthFlywayMigrationTest {
             while (indexes.next()) {
                 String name = indexes.getString("INDEX_NAME");
                 if (name != null && expectedName.equalsIgnoreCase(name)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean tableExists(Connection connection, String expectedName) throws Exception {
+        try (ResultSet tables = connection.getMetaData().getTables(null, null, "%", new String[]{"TABLE"})) {
+            while (tables.next()) {
+                if (expectedName.equalsIgnoreCase(tables.getString("TABLE_NAME"))) {
                     return true;
                 }
             }

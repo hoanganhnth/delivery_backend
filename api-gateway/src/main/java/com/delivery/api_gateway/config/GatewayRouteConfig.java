@@ -71,7 +71,11 @@ public class GatewayRouteConfig {
                                                 "/api/auth/register",
                                                 "/api/auth/social-login",
                                                 "/api/auth/refresh-token",
-                                                "/api/auth/logout")
+                                                "/api/auth/logout",
+                                                "/api/auth/forgot-password",
+                                                "/api/auth/reset-password",
+                                                "/api/auth/email-verification/request",
+                                                "/api/auth/email-verification/confirm")
                                                 .and().method(HttpMethod.POST)
                                                 .uri(authServiceUri))
                                 .route("search-service-public", r -> r.path(

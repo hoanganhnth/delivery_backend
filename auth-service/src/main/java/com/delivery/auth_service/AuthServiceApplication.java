@@ -9,6 +9,7 @@ import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.cloud.client.loadbalancer.LoadBalanced;
 import org.springframework.scheduling.annotation.EnableScheduling;
+import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.web.client.RestTemplate;
 
 import com.delivery.auth_service.config.UserServiceConfig;
@@ -16,6 +17,7 @@ import com.delivery.auth_service.config.UserServiceConfig;
 @SpringBootApplication
 @ConfigurationPropertiesScan
 @EnableScheduling
+@EnableAsync
 public class AuthServiceApplication {
 
 	public static void main(String[] args) {

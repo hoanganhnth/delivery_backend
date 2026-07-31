@@ -35,6 +35,18 @@ class GatewayRateLimitFilterTest {
     }
 
     @Test
+    void passwordResetRequestUsesTheApprovedPublicAuthIpQuota() {
+        StubStore store = new StubStore(Mono.just(new RateLimitStore.Decision(11, 17)));
+        var exchange = exchange("POST", "/api/auth/forgot-password", null, null);
+        var chain = mock(org.springframework.cloud.gateway.filter.GatewayFilterChain.class);
+
+        filter(store).filter(exchange, chain).block();
+
+        assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+        assertThat(store.key.get()).contains("public_auth:127.0.0.1");
+    }
+
+    @Test
     void usesVerifiedSubjectForAuthenticatedRead() {
         StubStore store = new StubStore(Mono.just(new RateLimitStore.Decision(1, 60)));
         var exchange = exchange("GET", "/api/orders/7", "44", "USER");

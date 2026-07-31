@@ -20,11 +20,18 @@
 | UC-1.5 | Quản lý sổ địa chỉ giao hàng | Customer App | ✅ Done |
 | UC-1.6 | Quản lý Users (Khóa tài khoản, Phân quyền) | Admin Web | 🔧 Partial |
 | UC-1.7 | Tự động Refresh Token (Silent Login) | Mobile Apps | ✅ Done |
+| UC-1.8 | Forgot/reset password và email verification | All | ✅ Done |
 
 Public registration chỉ tạo `USER` hoặc `SHOP_OWNER`. `ADMIN` và `SHIPPER` cần
 operator provisioning; SHIPPER chỉ được mở self-registration sau khi có luồng
 tạo Auth + User + Shipper profile atomic/recoverable. Existing SHIPPER đã được
 provision vẫn có thể dùng password/social login bình thường.
+
+Password account mới phải xác minh email trước khi login. Existing account được
+grandfather khi migration; Google login chỉ đánh dấu verified sau khi Google đã
+xác nhận đúng email. Reset/verification dùng token one-time có expiry và chỉ lưu
+digest. Provider, threat model, rate limit, session revocation và incident flow:
+`../runbooks/account-recovery-email-verification.md`.
 
 Local runtime harness dùng one-shot runner trong auth-service để tạo fixture đặc
 quyền bằng AuthService + User internal provisioning, không qua public
@@ -45,8 +52,11 @@ fail-closed. Public self-registration vẫn không được tạo `ADMIN` hoặc
 
 ### 3.1. Phân quyền và Routing tại Gateway
 1. Khi user đăng nhập thành công, `auth-service` trả về Access Token TTL 15 phút
-   và Refresh Token/session TTL 7 ngày. Logout/rotation vô hiệu refresh token
-   phía server; access token đã cấp hiện stateless-valid tới khi hết 15 phút.
+   và Refresh Token/session TTL 7 ngày. Mỗi device session có một token family
+   độc lập. Mỗi refresh bắt buộc trả cả access token và refresh token mới; token
+   cũ chuyển sang `ROTATED` và mọi reuse sẽ revoke toàn family của device đó.
+   Logout/device revoke vô hiệu family phía server; access token đã cấp hiện
+   stateless-valid tới khi hết 15 phút.
 2. Các request tiếp theo từ App phải đính kèm header `Authorization: Bearer <Access_Token>`.
 3. `api-gateway` chặn request lại, tự động parse JWT và kiểm tra chữ ký (Signature). 
 4. Nếu hợp lệ, Gateway forward request vào các service bên trong, đồng thời strip header identity từ client rồi inject `X-User-Id` và `X-Role` lấy từ JWT.
@@ -104,8 +114,10 @@ sequenceDiagram
         Note right of App: Interceptor bắt lỗi 401
         App->>GW: POST /api/auth/refresh-token (Refresh Token)
         GW->>Auth: Verify Refresh Token
-        Auth-->>GW: New Access Token
-        GW-->>App: 200 OK (New Token)
+        Auth->>Auth: Row-lock current fingerprint, rotate family token
+        Auth-->>GW: New Access Token + New Refresh Token
+        GW-->>App: 200 OK (Rotated Token Pair)
+        Note right of App: Lưu refresh mới trước/đồng thời với access mới
         
         %% Retry request ban đầu
         Note right of App: Interceptor retry request cũ
@@ -114,3 +126,20 @@ sequenceDiagram
         User-->>App: 200 OK
     end
 ```
+
+### 4.2. Refresh-token family và reuse
+
+- `auth_session.token_family_id` là boundary theo device. Đăng nhập cùng account
+  trên device khác tạo family khác; login lại cùng device revoke family cũ.
+- `auth_refresh_token` chỉ lưu SHA-256 fingerprint, không lưu raw bearer token.
+  Row hiện tại có state `CURRENT`; refresh thành công đổi nó sang `ROTATED` và
+  insert đúng một successor `CURRENT` trong cùng transaction.
+- Refresh bằng token `ROTATED`/`REVOKED` là reuse: Auth lock row, revoke mọi token
+  trong family và deactivate session, commit revocation rồi trả 401. Hai refresh
+  đồng thời vì vậy không thể tạo hai descendant còn valid.
+- `POST /api/auth/logout` revoke family tìm được từ current hoặc historical token.
+  `DELETE /api/auth/sessions/{deviceId}` cho account đã xác thực revoke riêng
+  device được chọn; các device khác tiếp tục refresh độc lập.
+- Web, Flutter và Shipper chỉ refresh protected request 401, dùng một in-flight
+  promise/queue, retry mỗi request đúng một lần và phát session-expired một lần
+  khi refresh bị revoke/invalid. Login, refresh và logout 401 không tự refresh.
