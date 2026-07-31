@@ -4,7 +4,7 @@ Ngày cập nhật inventory: 2026-07-30
 
 Tài liệu này liệt kê toàn bộ method có mapping trong 16 service có controller.
 `saga-orchestrator-service` không có HTTP controller. Danh sách được sinh trực
-tiếp từ annotation Java và hiện có **147 method**.
+tiếp từ annotation Java và hiện có **157 method**.
 
 Contract backend MVP được freeze ngày 2026-07-26 sau clean Gate B8, API surface
 classification và full reactor 602 test. Các capability ghi hidden/disabled hoặc
@@ -55,8 +55,9 @@ sửa.
 
 | Service/surface | Target actor and ownership | Known consumer | Class/disposition | Current gap |
 |---|---|---|---|---|
-| auth register/login/social/refresh | anonymous; refresh token rotation | cả 3 client | public-client/keep | Google verify/audience, social Gateway route và refresh lock đã sửa; runtime claim proof xác nhận access 900 giây, refresh 604800 giây; invalid refresh và rotated refresh replay đều 401 |
-| auth logout/sessions | authenticated account, own sessions | Flutter/web | public-client/keep | Gateway strip identity header toàn cục, JWT cần subject+role; controller fail-closed nếu security context thiếu; session list chỉ trả active + unexpired, cap 100; runtime logout revoke refresh PASS. Product authority ngày 2026-07-26 chấp nhận contract MVP: logout/admin block revoke refresh/session ngay; access token đã cấp vẫn stateless-valid tối đa 15 phút. Immediate access invalidation không thuộc MVP. |
+| auth register/login/social/refresh | anonymous; refresh token rotation | cả 3 client | public-client/keep | Mỗi device là một token family; refresh token chỉ lưu SHA-256 fingerprint, rotate dưới row lock và consumed-token reuse revoke toàn family trước khi trả 401; ba client single-flight và bắt buộc lưu cặp token mới |
+| auth forgot/reset + email verification | anonymous; exact one-time token owns account | all clients | public-client/keep | uniform request response; AWS SES SMTP async after commit; token digest/expiry/consumption persisted; public-auth Gateway quota 10/min/IP; password reset revokes all refresh families/sessions |
+| auth logout/sessions | authenticated account, own sessions | Flutter/web | public-client/keep | Logout bằng current/rotated refresh token và authenticated `DELETE /sessions/{deviceId}` revoke đúng device family; session khác không bị ảnh hưởng. Access token đã cấp vẫn stateless-valid tối đa 15 phút; immediate access invalidation không thuộc MVP. |
 | auth account by id/admin actions | ADMIN | web admin | public-admin/keep | Gateway + service bắt `ADMIN`; block/unblock dùng account row lock transaction, revoke active sessions và ghi durable pending projection trước commit; User projection sync chạy after-commit + scheduled retry bằng internal credential với version guard; block reason bound 500 và typed admin identity; compatibility list hard-cap 100, paginated envelope chờ client migration |
 | auth account by email | authenticated service identity | auth→user/internal admin lookup | internal/keep | đã ẩn khỏi Gateway và fail-closed bằng shared secret; rotation/integration proof còn OPEN |
 | user create/by-auth | auth-service only | auth registration | internal/keep | đã ẩn khỏi Gateway và bắt shared secret; create idempotent theo authId, từ chối rebinding theo authId hoặc email khác auth identity, DB migration khóa unique email case-insensitive và auth có resume sau lỗi; PostgreSQL concurrent proof còn OPEN |
@@ -140,7 +141,12 @@ sửa.
 | auth-service | AuthController | POST | `/api/auth/social-login` | `socialLogin` |
 | auth-service | AuthController | POST | `/api/auth/refresh-token` | `refreshToken` |
 | auth-service | AuthController | POST | `/api/auth/logout` | `logout` |
+| auth-service | AuthController | POST | `/api/auth/forgot-password` | `forgotPassword` |
+| auth-service | AuthController | POST | `/api/auth/reset-password` | `resetPassword` |
+| auth-service | AuthController | POST | `/api/auth/email-verification/request` | `requestEmailVerification` |
+| auth-service | AuthController | POST | `/api/auth/email-verification/confirm` | `confirmEmailVerification` |
 | auth-service | AuthController | GET | `/api/auth/sessions` | `getSessions` |
+| auth-service | AuthController | DELETE | `/api/auth/sessions/{deviceId}` | `revokeDeviceSession` |
 | auth-service | AuthController | GET | `/api/auth/accounts/{id}` | `getAccountById` |
 | auth-service | AuthController | POST | `/api/auth/admin/accounts/{id}/block` | `blockAccount` |
 | auth-service | AuthController | POST | `/api/auth/admin/accounts/{id}/unblock` | `unblockAccount` |
@@ -159,6 +165,9 @@ sửa.
 | flashsale-service | AdminFlashSaleController | PUT | `/api/flashsales/admin/campaigns/{id}/status` | `updateStatus` |
 | flashsale-service | AdminFlashSaleController | PUT | `/api/flashsales/admin/items/{id}/approve` | `approveItem` |
 | flashsale-service | InternalFlashSaleController | POST | `/api/flashsales/internal/reserve` | `reserveStock` |
+| flashsale-service | InternalFlashSaleController | POST | `/api/flashsales/internal/quote` | `quote` |
+| flashsale-service | InternalFlashSaleController | POST | `/api/flashsales/internal/reservations/{reservationId}/commit` | `commit` |
+| flashsale-service | InternalFlashSaleController | POST | `/api/flashsales/internal/reservations/{reservationId}/release` | `release` |
 | flashsale-service | MerchantFlashSaleController | POST | `/api/flashsales/merchant/items` | `registerItem` |
 | flashsale-service | PublicFlashSaleController | GET | `/api/flashsales/public/campaigns` | `getActiveCampaigns` |
 | flashsale-service | PublicFlashSaleController | GET | `/api/flashsales/public/campaigns/{campaignId}/items` | `getItems` |
@@ -204,6 +213,8 @@ sửa.
 | promotion-service | PromotionController | DELETE | `/api/promotions/{id}` | `deleteVoucher` |
 | promotion-service | PromotionController | POST | `/api/promotions/calculate` | `calculate` |
 | promotion-service | PromotionController | POST | `/api/promotions/reserve` | `reserve` |
+| promotion-service | PromotionController | POST | `/api/promotions/reservations/{reservationId}/commit` | `commit` |
+| promotion-service | PromotionController | POST | `/api/promotions/reservations/{reservationId}/release` | `release` |
 | restaurant-service | MenuItemController | POST | `/api/menu-items` | `create` |
 | restaurant-service | MenuItemController | PUT | `/api/menu-items/{id}` | `update` |
 | restaurant-service | MenuItemController | DELETE | `/api/menu-items/{id}` | `delete` |

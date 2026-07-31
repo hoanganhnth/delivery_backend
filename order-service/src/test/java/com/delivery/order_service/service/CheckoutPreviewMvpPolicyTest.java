@@ -13,6 +13,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.WebClient;
 
@@ -95,6 +96,72 @@ class CheckoutPreviewMvpPolicyTest {
     }
 
     @Test
+    void enabledVoucherPreviewUsesServerQuoteAndReturnsCanonicalTotal() {
+        ShippingFeeCalculationService shippingFeeService = mock(ShippingFeeCalculationService.class);
+        when(shippingFeeService.calculateShippingFee(
+                10.76, 106.66, 10.78, 106.68, new BigDecimal("100000")))
+                .thenReturn(new BigDecimal("15000"));
+        CheckoutReservationClient reservationClient = mock(CheckoutReservationClient.class);
+        when(reservationClient.quoteVoucher(21L, 55L, 7L,
+                new BigDecimal("100000"), new BigDecimal("15000")))
+                .thenReturn(new CheckoutReservationClient.VoucherQuote(new BigDecimal("20000")));
+        CheckoutPreviewService service = serviceWithCanonicalMenu(shippingFeeService);
+        ReflectionTestUtils.setField(service, "voucherCheckoutEnabled", true);
+        ReflectionTestUtils.setField(service, "reservationClient", reservationClient);
+        CheckoutPreviewRequest request = validRequest();
+        request.setVoucherId(55L);
+
+        var preview = service.calculatePreview(request, 21L);
+
+        assertThat(preview.getVoucherId()).isEqualTo(55L);
+        assertThat(preview.getDiscountAmount()).isEqualByComparingTo("20000");
+        assertThat(preview.getTotalPrice()).isEqualByComparingTo("95000");
+    }
+
+    @Test
+    void enabledFlashPreviewUsesServerFlashPrice() {
+        ShippingFeeCalculationService shippingFeeService = mock(ShippingFeeCalculationService.class);
+        when(shippingFeeService.calculateShippingFee(
+                10.76, 106.66, 10.78, 106.68, new BigDecimal("120000")))
+                .thenReturn(new BigDecimal("15000"));
+        CheckoutReservationClient reservationClient = mock(CheckoutReservationClient.class);
+        when(reservationClient.quoteFlash(org.mockito.ArgumentMatchers.eq(7L), org.mockito.ArgumentMatchers.anyList()))
+                .thenReturn(new CheckoutReservationClient.FlashQuote(java.util.Map.of(88L,
+                        new CheckoutReservationClient.FlashLine(88L, 5L, 2, new BigDecimal("60000")))));
+        CheckoutPreviewService service = serviceWithCanonicalMenu(shippingFeeService);
+        ReflectionTestUtils.setField(service, "flashSaleCheckoutEnabled", true);
+        ReflectionTestUtils.setField(service, "reservationClient", reservationClient);
+        CheckoutPreviewRequest request = validRequest();
+        request.getItems().get(0).setFlashSaleItemId(88L);
+
+        var preview = service.calculatePreview(request, 21L);
+
+        assertThat(preview.getItems()).singleElement()
+                .satisfies(item -> assertThat(item.getUnitPrice()).isEqualByComparingTo("60000"));
+        assertThat(preview.getSubtotal()).isEqualByComparingTo("120000");
+        assertThat(preview.getTotalPrice()).isEqualByComparingTo("135000");
+    }
+
+    @Test
+    void voucherAndFlashSelectionIsRejectedBeforeAnyDependencyCall() {
+        WebClient webClient = mock(WebClient.class);
+        ShippingFeeCalculationService shippingFeeService = mock(ShippingFeeCalculationService.class);
+        CheckoutPreviewService service = new CheckoutPreviewService(webClient, shippingFeeService,
+                "http://restaurant-service:8083", "test-secret", circuitBreaker());
+        ReflectionTestUtils.setField(service, "voucherCheckoutEnabled", true);
+        ReflectionTestUtils.setField(service, "flashSaleCheckoutEnabled", true);
+        ReflectionTestUtils.setField(service, "reservationClient", mock(CheckoutReservationClient.class));
+        CheckoutPreviewRequest request = validRequest();
+        request.setVoucherId(55L);
+        request.getItems().get(0).setFlashSaleItemId(88L);
+
+        assertThatThrownBy(() -> service.calculatePreview(request, 21L))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("không được áp dụng cùng");
+        verifyNoInteractions(webClient, shippingFeeService);
+    }
+
+    @Test
     void missingCanonicalPickupCoordinatesFailClosedInsteadOfZeroShippingFee() {
         ShippingFeeCalculationService shippingFeeService = mock(ShippingFeeCalculationService.class);
         CheckoutPreviewService service = new CheckoutPreviewService(
@@ -153,6 +220,17 @@ class CheckoutPreviewMvpPolicyTest {
                             .build());
                 })
                 .build();
+    }
+
+    private CheckoutPreviewService serviceWithCanonicalMenu(ShippingFeeCalculationService shippingFeeService) {
+        return new CheckoutPreviewService(internalValidationWebClient("""
+                {"status":1,"data":{
+                  "restaurantInfo":{"restaurantName":"Quán A","restaurantAddress":"123 Đường A",
+                    "restaurantPhone":"0900000000","latitude":10.76,"longitude":106.66,"creatorId":11,
+                    "isAvailable":true},
+                  "itemValidations":[{"menuItemId":5,"menuItemName":"Cơm","actualPrice":50000,
+                    "isAvailable":true,"hasEnoughStock":true}]}}
+                """), shippingFeeService, "http://restaurant-service:8083", "test-secret", circuitBreaker());
     }
 
     private CheckoutPreviewRequest validRequest() {

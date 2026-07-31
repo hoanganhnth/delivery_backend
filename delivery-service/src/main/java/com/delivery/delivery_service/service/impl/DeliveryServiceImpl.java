@@ -823,6 +823,7 @@ public class DeliveryServiceImpl implements DeliveryService {
                     .shipperId(delivery.getShipperId())
                     .restaurantId(delivery.getRestaurantId())
                     .shippingFee(delivery.getShippingFee())
+                    .totalPrice(delivery.getTotalPrice())
                     .shipperEarnings(shipperEarnings)
                     .restaurantEarnings(restaurantEarnings)
                     .restaurantCommission(restaurantCommission)

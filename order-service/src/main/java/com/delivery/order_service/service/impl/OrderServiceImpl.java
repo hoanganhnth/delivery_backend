@@ -17,6 +17,7 @@ import com.delivery.order_service.service.OrderEventPublisher;
 import com.delivery.order_service.service.OrderService;
 import com.delivery.order_service.service.OrderValidationService;
 import com.delivery.order_service.service.ShippingFeeCalculationService;
+import com.delivery.order_service.service.CheckoutReservationClient;
 import com.delivery.order_service.metrics.BusinessMetrics;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -31,6 +32,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.UUID;
 
 @Service
 @Slf4j
@@ -43,6 +45,7 @@ public class OrderServiceImpl implements OrderService {
     private final OrderValidationService orderValidationService;
     private final ShippingFeeCalculationService shippingFeeCalculationService;
     private final BusinessMetrics businessMetrics;
+    private final CheckoutReservationClient reservationClient;
 
     public OrderServiceImpl(OrderRepository orderRepository,
                            OrderItemRepository orderItemRepository,
@@ -50,7 +53,8 @@ public class OrderServiceImpl implements OrderService {
                            OrderEventPublisher orderEventPublisher,
                            OrderValidationService orderValidationService,
                            ShippingFeeCalculationService shippingFeeCalculationService,
-                           BusinessMetrics businessMetrics) {
+                           BusinessMetrics businessMetrics,
+                           CheckoutReservationClient reservationClient) {
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
         this.orderMapper = orderMapper;
@@ -58,6 +62,7 @@ public class OrderServiceImpl implements OrderService {
         this.orderValidationService = orderValidationService;
         this.shippingFeeCalculationService = shippingFeeCalculationService;
         this.businessMetrics = businessMetrics;
+        this.reservationClient = reservationClient;
     }
 
     @Override
@@ -100,54 +105,90 @@ public class OrderServiceImpl implements OrderService {
             throw new IllegalStateException("Restaurant service không trả đủ dữ liệu canonical của món ăn");
         }
 
-        // Tính toán giá trị hoàn toàn từ giá canonical của restaurant-service.
-        BigDecimal subtotal = request.getItems().stream()
+        BigDecimal regularSubtotal = request.getItems().stream()
                 .map(item -> requireCanonicalItem(canonicalItems, item.getMenuItemId()).price()
                         .multiply(BigDecimal.valueOf(item.getQuantity())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        order.setSubtotalPrice(subtotal);
+        order.setSubtotalPrice(BigDecimal.ZERO);
         order.setDiscountAmount(BigDecimal.ZERO);
+        order.setShippingFee(BigDecimal.ZERO);
+        order.setTotalPrice(BigDecimal.ZERO);
+        Order savedOrder = orderRepository.saveAndFlush(order);
 
-        // ✅ Tính phí ship động theo khoảng cách
-        BigDecimal shippingFee = shippingFeeCalculationService.calculateShippingFee(
-            validated.pickupLat(),
-            validated.pickupLng(),
-            request.getDeliveryLat(),
-            request.getDeliveryLng(),
-            subtotal
-        );
-        order.setShippingFee(shippingFee);
+        UUID voucherReservationId = null;
+        UUID flashReservationId = null;
+        try {
+            boolean hasFlash = request.getItems().stream().anyMatch(item -> item.getFlashSaleItemId() != null);
+            CheckoutReservationClient.FlashQuote flashQuote = null;
+            if (hasFlash) {
+                flashReservationId = UUID.randomUUID();
+                flashQuote = reservationClient.reserveFlash(flashReservationId, savedOrder.getId(), userId,
+                        request.getRestaurantId(), request.getItems());
+                savedOrder.setFlashSaleReservationId(flashReservationId);
+            }
 
-        order.setTotalPrice(subtotal.add(shippingFee).subtract(order.getDiscountAmount()));
+            CheckoutReservationClient.FlashQuote canonicalFlashQuote = flashQuote;
+            BigDecimal subtotal = request.getItems().stream().map(item -> {
+                BigDecimal unitPrice = requireCanonicalItem(canonicalItems, item.getMenuItemId()).price();
+                if (item.getFlashSaleItemId() != null) {
+                    CheckoutReservationClient.FlashLine line = canonicalFlashQuote.byFlashSaleItemId()
+                            .get(item.getFlashSaleItemId());
+                    if (line == null || !item.getMenuItemId().equals(line.menuItemId())
+                            || !item.getQuantity().equals(line.quantity()))
+                        throw new IllegalStateException("Flash-sale canonical item mismatch");
+                    unitPrice = line.unitPrice();
+                }
+                return unitPrice.multiply(BigDecimal.valueOf(item.getQuantity()));
+            }).reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        // Lưu order
-        Order savedOrder = orderRepository.save(order);
+            BigDecimal shippingFee = shippingFeeCalculationService.calculateShippingFee(
+                    validated.pickupLat(), validated.pickupLng(), request.getDeliveryLat(),
+                    request.getDeliveryLng(), subtotal);
+            BigDecimal discount = BigDecimal.ZERO;
+            if (request.getVoucherIds() != null && request.getVoucherIds().size() == 1) {
+                voucherReservationId = UUID.randomUUID();
+                discount = reservationClient.reserveVoucher(voucherReservationId, savedOrder.getId(), userId,
+                        request.getVoucherIds().get(0), request.getRestaurantId(), subtotal, shippingFee)
+                        .discountAmount();
+                savedOrder.setVoucherReservationId(voucherReservationId);
+            }
+            if (discount.signum() < 0 || discount.compareTo(subtotal.add(shippingFee)) > 0)
+                throw new IllegalStateException("Reservation service returned an invalid discount");
 
-        log.info("✅ Order created: id={}, restaurantId={}, creatorId={}, totalPrice={}",
-                savedOrder.getId(), savedOrder.getRestaurantId(),
-                savedOrder.getCreatorId(), savedOrder.getTotalPrice());
+            savedOrder.setSubtotalPrice(subtotal);
+            savedOrder.setShippingFee(shippingFee);
+            savedOrder.setDiscountAmount(discount);
+            savedOrder.setTotalPrice(subtotal.add(shippingFee).subtract(discount));
 
-        // Tạo order items
-        List<OrderItem> orderItems = request.getItems().stream()
-            .map(itemRequest -> {
-                ValidatedOrderData.ValidatedItemData canonicalItem =
-                        requireCanonicalItem(canonicalItems, itemRequest.getMenuItemId());
-                OrderItem orderItem = orderMapper.orderItemRequestToOrderItem(itemRequest);
-                orderItem.setMenuItemName(canonicalItem.menuItemName());
-                orderItem.setPrice(canonicalItem.price());
-                orderItem.setOrder(savedOrder);
-                return orderItem;
-            })
-            .toList();
+            List<OrderItem> orderItems = request.getItems().stream().map(itemRequest -> {
+                ValidatedOrderData.ValidatedItemData canonical = requireCanonicalItem(canonicalItems,
+                        itemRequest.getMenuItemId());
+                OrderItem item = orderMapper.orderItemRequestToOrderItem(itemRequest);
+                item.setMenuItemName(canonical.menuItemName());
+                item.setPrice(itemRequest.getFlashSaleItemId() == null ? canonical.price()
+                        : canonicalFlashQuote.byFlashSaleItemId().get(itemRequest.getFlashSaleItemId()).unitPrice());
+                item.setOrder(savedOrder);
+                return item;
+            }).toList();
+            orderItemRepository.saveAll(orderItems);
+            savedOrder.setItems(orderItems);
+            orderRepository.save(savedOrder);
+            orderEventPublisher.publishOrderCreatedEvent(savedOrder);
+            businessMetrics.record("order_created");
+            log.info("Order created id={}, subtotal={}, discount={}, shipping={}, total={}", savedOrder.getId(),
+                    subtotal, discount, shippingFee, savedOrder.getTotalPrice());
+            return orderMapper.orderToOrderResponse(savedOrder);
+        } catch (RuntimeException failure) {
+            compensateReservation(voucherReservationId, flashReservationId, savedOrder.getId(), failure);
+            throw failure;
+        }
+    }
 
-        orderItemRepository.saveAll(orderItems);
-        savedOrder.setItems(orderItems);
-
-        // ✅ Publish OrderCreatedEvent to Kafka for Delivery Service
-        orderEventPublisher.publishOrderCreatedEvent(savedOrder);
-        businessMetrics.record("order_created");
-
-        return orderMapper.orderToOrderResponse(savedOrder);
+    private void compensateReservation(UUID voucherId, UUID flashId, Long orderId, RuntimeException failure) {
+        if (voucherId != null) try { reservationClient.releaseVoucher(voucherId, orderId); }
+        catch (RuntimeException releaseFailure) { failure.addSuppressed(releaseFailure); }
+        if (flashId != null) try { reservationClient.releaseFlash(flashId, orderId); }
+        catch (RuntimeException releaseFailure) { failure.addSuppressed(releaseFailure); }
     }
 
     @Override

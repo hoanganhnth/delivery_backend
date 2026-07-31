@@ -9,6 +9,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 @Getter
 @Setter
@@ -40,6 +41,12 @@ public class Order {
 
     @Column(name = "total_price", precision = 12, scale = 2)
     private BigDecimal totalPrice;
+
+    @Column(name = "voucher_reservation_id", unique = true)
+    private UUID voucherReservationId;
+
+    @Column(name = "flash_sale_reservation_id", unique = true)
+    private UUID flashSaleReservationId;
 
     @Convert(converter = OrderStatusConverter.class)
     @Column(name = "status", nullable = false, length = 32)

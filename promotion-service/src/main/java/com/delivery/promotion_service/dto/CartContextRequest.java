@@ -26,6 +26,8 @@ public class CartContextRequest {
     @NotNull
     @DecimalMin("0.0")
     private BigDecimal shippingFee;
+    @Positive
+    private Long selectedVoucherId;
     // Assuming a simplified cart representation
     // private List<CartItem> items; 
 }

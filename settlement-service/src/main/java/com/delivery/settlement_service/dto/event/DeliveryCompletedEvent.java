@@ -31,6 +31,7 @@ public class DeliveryCompletedEvent {
     private BigDecimal shippingCommission;
     private BigDecimal totalPlatformEarnings;
     private BigDecimal shippingFee;
+    private BigDecimal totalPrice;
     private LocalDateTime deliveredAt;
     private String deliveryAddress;
     private String paymentMethod;     // "COD" or "ONLINE"

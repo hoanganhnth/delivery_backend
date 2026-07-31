@@ -6,7 +6,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
-import java.util.List;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -38,16 +38,20 @@ class PromotionRequestValidationTest {
     }
 
     @Test
-    void reserveRequiresPositiveIdentityAndVoucherIds() {
+    void reserveRequiresStableIdentityAndCanonicalAmounts() {
         ReserveRequest invalid = ReserveRequest.builder()
                 .userId(0L)
                 .orderId(null)
-                .voucherIds(List.of(-1L))
+                .voucherId(-1L)
                 .build();
         ReserveRequest valid = ReserveRequest.builder()
+                .reservationId(UUID.randomUUID())
                 .userId(3L)
                 .orderId(9L)
-                .voucherIds(List.of(11L))
+                .voucherId(11L)
+                .restaurantId(12L)
+                .subtotal(new BigDecimal("100000"))
+                .shippingFee(new BigDecimal("15000"))
                 .build();
 
         assertFalse(validator.validate(invalid).isEmpty());

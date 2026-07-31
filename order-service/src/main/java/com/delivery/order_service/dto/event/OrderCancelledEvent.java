@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 /**
  * ✅ Event DTO được gửi qua Kafka khi order bị hủy theo Backend Instructions
@@ -29,6 +30,8 @@ public class OrderCancelledEvent {
     // Delivery related
     private Long shipperId; // null if no shipper assigned
     private Boolean hasActiveDelivery;
+    private UUID voucherReservationId;
+    private UUID flashSaleReservationId;
     
     // Items
     private java.util.List<java.util.Map<String, Object>> items;

@@ -288,9 +288,12 @@ fi
 hidden_capability_defaults=(
   'analytics-service/src/main/resources/application.properties|app.analytics.processing-enabled=${ANALYTICS_PROCESSING_ENABLED:false}'
   'flashsale-service/src/main/resources/application.properties|app.flashsale.checkout-enabled=${FLASHSALE_CHECKOUT_ENABLED:false}'
+  'flashsale-service/src/main/resources/application.properties|app.flashsale.outbox-relay-enabled=${FLASHSALE_OUTBOX_RELAY_ENABLED:false}'
   'flashsale-service/src/main/resources/application.properties|app.flashsale.merchant-registration-enabled=${FLASHSALE_MERCHANT_REGISTRATION_ENABLED:false}'
   'livestream-service/src/main/resources/application.properties|app.livestream.api-enabled=${LIVESTREAM_API_ENABLED:false}'
   'order-service/src/main/resources/application.properties|app.order.payment-event-processing-enabled=${ORDER_PAYMENT_EVENT_PROCESSING_ENABLED:false}'
+  'order-service/src/main/resources/application.properties|app.order.voucher-checkout-enabled=${ORDER_VOUCHER_CHECKOUT_ENABLED:false}'
+  'order-service/src/main/resources/application.properties|app.order.flashsale-checkout-enabled=${ORDER_FLASHSALE_CHECKOUT_ENABLED:false}'
   'settlement-service/src/main/resources/application.properties|app.payment.processing-enabled=${PAYMENT_PROCESSING_ENABLED:false}'
   'settlement-service/src/main/resources/application.properties|app.payment.fake-provider-enabled=${FAKE_PAYMENT_PROVIDER_ENABLED:false}'
   'settlement-service/src/main/resources/application.properties|app.settlement.self-service-api-enabled=${SETTLEMENT_SELF_SERVICE_API_ENABLED:false}'
@@ -298,6 +301,8 @@ hidden_capability_defaults=(
   'shipper-service/src/main/resources/application.properties|app.shipper.legacy-rating-write-api-enabled=${SHIPPER_LEGACY_RATING_WRITE_API_ENABLED:false}'
   'shipper-service/src/main/resources/application.properties|app.shipper.legacy-delete-api-enabled=${SHIPPER_LEGACY_DELETE_API_ENABLED:false}'
   'promotion-service/src/main/resources/application.yml|merchant-create-api-enabled: ${PROMOTION_MERCHANT_CREATE_API_ENABLED:false}'
+  'promotion-service/src/main/resources/application.yml|checkout-enabled: ${PROMOTION_CHECKOUT_ENABLED:false}'
+  'promotion-service/src/main/resources/application.yml|outbox-relay-enabled: ${PROMOTION_OUTBOX_RELAY_ENABLED:false}'
 )
 for entry in "${hidden_capability_defaults[@]}"; do
   relative_file="${entry%%|*}"

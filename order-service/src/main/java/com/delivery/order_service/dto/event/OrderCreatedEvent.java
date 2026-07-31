@@ -6,6 +6,7 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 /**
  * ✅ Event DTO được gửi qua Kafka khi order được tạo theo Backend Instructions
@@ -50,6 +51,8 @@ public class OrderCreatedEvent {
     // Timestamps
     private LocalDateTime createdAt;
     private Long creatorId;
+    private UUID voucherReservationId;
+    private UUID flashSaleReservationId;
     
     // Event metadata
     private String eventType = "ORDER_CREATED";

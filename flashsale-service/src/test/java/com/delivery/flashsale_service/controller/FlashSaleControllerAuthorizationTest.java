@@ -16,7 +16,9 @@ import org.springframework.web.server.ResponseStatusException;
 import org.springframework.beans.factory.ObjectProvider;
 
 import java.util.List;
-import java.math.BigDecimal;
+import java.util.UUID;
+import com.delivery.flashsale_service.dto.FlashSaleReservationRequest;
+import com.delivery.flashsale_service.dto.ReserveItemRequest;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -86,8 +88,8 @@ class FlashSaleControllerAuthorizationTest {
         ReflectionTestUtils.setField(controller, "internalSecret", "test-secret");
         ReflectionTestUtils.setField(controller, "checkoutEnabled", false);
 
-        var missing = controller.reserveStock(List.of(), null);
-        var wrong = controller.reserveStock(List.of(), "wrong-secret");
+        var missing = controller.reserveStock(null, null);
+        var wrong = controller.reserveStock(null, "wrong-secret");
 
         assertEquals(HttpStatus.FORBIDDEN, missing.getStatusCode());
         assertEquals(HttpStatus.FORBIDDEN, wrong.getStatusCode());
@@ -100,7 +102,7 @@ class FlashSaleControllerAuthorizationTest {
         ReflectionTestUtils.setField(controller, "internalSecret", "test-secret");
         ReflectionTestUtils.setField(controller, "checkoutEnabled", false);
 
-        var response = controller.reserveStock(List.of(), "test-secret");
+        var response = controller.reserveStock(null, "test-secret");
 
         assertEquals(HttpStatus.SERVICE_UNAVAILABLE, response.getStatusCode());
         assertEquals(0, response.getBody().getStatus());
@@ -113,8 +115,7 @@ class FlashSaleControllerAuthorizationTest {
         ReflectionTestUtils.setField(controller, "internalSecret", "test-secret");
         ReflectionTestUtils.setField(controller, "checkoutEnabled", true);
 
-        var response = controller.reserveStock(List.of(new com.delivery.flashsale_service.dto.ReserveItemRequest()),
-                "test-secret");
+        var response = controller.reserveStock(new FlashSaleReservationRequest(), "test-secret");
 
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
         verifyNoInteractions(stockServiceProvider, stockService);
@@ -125,13 +126,18 @@ class FlashSaleControllerAuthorizationTest {
         InternalFlashSaleController controller = new InternalFlashSaleController(stockServiceProvider, validator);
         ReflectionTestUtils.setField(controller, "internalSecret", "test-secret");
         ReflectionTestUtils.setField(controller, "checkoutEnabled", true);
-        var request = new com.delivery.flashsale_service.dto.ReserveItemRequest();
-        request.setFlashSaleItemId(1L);
-        request.setQuantity(1);
-        request.setPrice(BigDecimal.ONE);
+        var item = new ReserveItemRequest();
+        item.setFlashSaleItemId(1L);
+        item.setQuantity(1);
+        var request = new FlashSaleReservationRequest();
+        request.setReservationId(UUID.randomUUID());
+        request.setOrderId(2L);
+        request.setUserId(3L);
+        request.setRestaurantId(4L);
+        request.setItems(List.of(item));
         when(stockServiceProvider.getIfAvailable()).thenReturn(null);
 
-        var response = controller.reserveStock(List.of(request), "test-secret");
+        var response = controller.reserveStock(request, "test-secret");
 
         assertEquals(HttpStatus.SERVICE_UNAVAILABLE, response.getStatusCode());
         verify(stockServiceProvider).getIfAvailable();

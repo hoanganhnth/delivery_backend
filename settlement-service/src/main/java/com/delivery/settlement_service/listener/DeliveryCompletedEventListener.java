@@ -141,6 +141,12 @@ public class DeliveryCompletedEventListener {
                 throw new IllegalArgumentException("shippingFee does not match shipper earnings and commission");
             }
 
+            BigDecimal reconciledOrderTotal = event.getRestaurantEarnings()
+                    .add(event.getRestaurantCommission()).add(event.getShippingFee());
+            if (!positive(event.getTotalPrice()) || event.getTotalPrice().compareTo(reconciledOrderTotal) != 0) {
+                throw new IllegalArgumentException("totalPrice does not reconcile with restaurant and shipping amounts");
+            }
+
             if (registerReceiptOrIdentifyExactReplay(event)) {
                 log.info("[Idempotent] Settlement event {} already applied, skipping", event.getEventId());
                 acknowledgeAfterCommit(acknowledgment);
@@ -199,9 +205,7 @@ public class DeliveryCompletedEventListener {
             // Debit that total from deposit exactly once, at completion.
             // ══════════════════════════════════════════════════
 
-            BigDecimal totalCollected = event.getRestaurantEarnings()
-                    .add(event.getRestaurantCommission())
-                    .add(event.getShippingFee());
+            BigDecimal totalCollected = event.getTotalPrice();
 
             transactionService.createTransaction(
                     event.getShipperId(),

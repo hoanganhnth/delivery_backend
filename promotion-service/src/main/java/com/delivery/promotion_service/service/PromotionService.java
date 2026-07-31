@@ -6,9 +6,12 @@ import com.delivery.promotion_service.dto.ReserveRequest;
 import com.delivery.promotion_service.entity.UserVoucher;
 import com.delivery.promotion_service.entity.Voucher;
 import com.delivery.promotion_service.entity.VoucherGroup;
+import com.delivery.promotion_service.entity.VoucherReservation;
 import com.delivery.promotion_service.repository.UserVoucherRepository;
 import com.delivery.promotion_service.repository.VoucherGroupRepository;
 import com.delivery.promotion_service.repository.VoucherRepository;
+import com.delivery.promotion_service.repository.VoucherReservationRepository;
+import com.delivery.promotion_service.dto.VoucherReservationResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -19,6 +22,7 @@ import com.delivery.promotion_service.exception.PromotionConflictException;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 import com.delivery.promotion_service.dto.CreateVoucherRequest;
@@ -33,6 +37,8 @@ public class PromotionService {
     private final VoucherRepository voucherRepository;
     private final UserVoucherRepository userVoucherRepository;
     private final VoucherGroupRepository voucherGroupRepository;
+    private final VoucherReservationRepository voucherReservationRepository;
+    private final PromotionOutboxService outboxService;
 
     @Transactional
     public Voucher createVoucher(CreateVoucherRequest request) {
@@ -146,19 +152,37 @@ public class PromotionService {
             }
         }
 
+        BigDecimal discount = BigDecimal.ZERO;
+        if (request.getSelectedVoucherId() != null) {
+            Voucher selected = vouchersById.get(request.getSelectedVoucherId());
+            if (selected == null) throw new IllegalArgumentException("Selected voucher is not saved in this wallet");
+            String unavailableReason = checkVoucherAvailability(selected, request);
+            if (unavailableReason != null) throw new IllegalArgumentException(unavailableReason);
+            discount = calculateDiscount(selected, request.getSubTotal(), request.getShippingFee());
+        }
+        BigDecimal total = request.getSubTotal().add(request.getShippingFee()).subtract(discount);
         return CalculateResponse.builder()
                 .availableVouchers(available)
                 .unavailableVouchers(unavailable)
                 .finalSubTotal(request.getSubTotal())
                 .finalShippingFee(request.getShippingFee())
-                .totalDiscount(BigDecimal.ZERO)
-                .totalAmount(request.getSubTotal().add(request.getShippingFee()))
+                .totalDiscount(discount)
+                .totalAmount(total)
                 .build();
     }
 
     private String checkVoucherAvailability(Voucher voucher, CartContextRequest request) {
+        if (voucher.getCreatorType() != Voucher.CreatorType.PLATFORM) {
+            return "Voucher ownership is not supported for checkout";
+        }
+        if (voucher.getScopeType() != Voucher.ScopeType.ALL
+                && voucher.getScopeType() != Voucher.ScopeType.SHOP) {
+            return "Voucher scope is not supported for checkout";
+        }
         if (!Boolean.TRUE.equals(voucher.getActive())) return "Voucher is inactive";
-        if (voucher.getEndTime() != null && voucher.getEndTime().isBefore(LocalDateTime.now())) return "Voucher expired";
+        LocalDateTime now = LocalDateTime.now();
+        if (voucher.getStartTime() != null && now.isBefore(voucher.getStartTime())) return "Voucher is not active yet";
+        if (voucher.getEndTime() != null && voucher.getEndTime().isBefore(now)) return "Voucher expired";
         if (voucher.getUsedQuantity() >= voucher.getTotalQuantity()) return "Out of stock";
         BigDecimal minOrderValue = voucher.getMinOrderValue() == null ? BigDecimal.ZERO : voucher.getMinOrderValue();
         if (request.getSubTotal().compareTo(minOrderValue) < 0) {
@@ -172,56 +196,166 @@ public class PromotionService {
     }
 
     @Transactional
-    public void reserveVouchers(ReserveRequest request) {
+    public VoucherReservationResponse reserveVoucher(ReserveRequest request) {
         validateReserveRequest(request);
-        List<Voucher> vouchersToApply = new ArrayList<>();
-        Set<Long> appliedGroupIds = new HashSet<>();
-
-        // Validate all vouchers first
-        for (Long voucherId : request.getVoucherIds()) {
-            UserVoucher uv = userVoucherRepository.findByUserIdAndVoucherId(request.getUserId(), voucherId)
-                    .orElseThrow(() -> new IllegalArgumentException("User has not collected voucher " + voucherId));
-            
-            if (uv.getStatus() != UserVoucher.Status.SAVED) {
-                throw new IllegalArgumentException("Voucher " + voucherId + " is not in SAVED state");
-            }
-
-            Voucher voucher = voucherRepository.findById(voucherId)
-                    .orElseThrow(() -> new IllegalArgumentException("Voucher not found"));
-
-            // Check availability again
-            if (voucher.getUsedQuantity() >= voucher.getTotalQuantity()) {
-                throw new IllegalArgumentException("Voucher " + voucher.getCode() + " is out of stock");
-            }
-
-            // Stacking validation
-            if (voucher.getVoucherGroupId() != null) {
-                VoucherGroup group = voucherGroupRepository.findById(voucher.getVoucherGroupId()).orElse(null);
-                if (group != null) {
-                    if (appliedGroupIds.contains(group.getId())) {
-                         throw new IllegalArgumentException("Cannot apply multiple vouchers from group: " + group.getName());
-                    }
-                    // Check mutual exclusions
-                    for (Long exclId : group.getExcludedGroupIds()) {
-                        if (appliedGroupIds.contains(exclId)) {
-                             throw new IllegalArgumentException("Cannot combine voucher " + voucher.getCode() + " with other selected vouchers");
-                        }
-                    }
-                    appliedGroupIds.add(group.getId());
-                }
-            }
-
-            vouchersToApply.add(voucher);
-            uv.setStatus(UserVoucher.Status.RESERVED);
-            uv.setOrderId(request.getOrderId());
-            uv.setUsedAt(LocalDateTime.now());
-            userVoucherRepository.save(uv);
+        Optional<VoucherReservation> sameId = voucherReservationRepository.findById(request.getReservationId());
+        if (sameId.isPresent()) {
+            requireSameReservation(sameId.get(), request);
+            return VoucherReservationResponse.from(sameId.get());
+        }
+        Optional<VoucherReservation> sameOrder = voucherReservationRepository.findByOrderId(request.getOrderId());
+        if (sameOrder.isPresent()) {
+            requireSameReservation(sameOrder.get(), request);
+            return VoucherReservationResponse.from(sameOrder.get());
         }
 
-        // Lock quantities
-        for (Voucher voucher : vouchersToApply) {
-            voucher.setUsedQuantity(voucher.getUsedQuantity() + 1);
-            voucherRepository.save(voucher);
+        UserVoucher userVoucher = userVoucherRepository.findByUserIdAndVoucherIdForUpdate(
+                        request.getUserId(), request.getVoucherId())
+                .orElseThrow(() -> new IllegalArgumentException("User has not collected voucher "
+                        + request.getVoucherId()));
+        if (userVoucher.getStatus() != UserVoucher.Status.SAVED) {
+            throw new PromotionConflictException("Voucher is already reserved or used");
+        }
+
+        Voucher voucher = voucherRepository.findByIdForUpdate(request.getVoucherId())
+                .orElseThrow(() -> new IllegalArgumentException("Voucher not found"));
+        String unavailable = checkVoucherAvailability(voucher,
+                CartContextRequest.builder()
+                        .userId(request.getUserId())
+                        .shopId(request.getRestaurantId())
+                        .subTotal(request.getSubtotal())
+                        .shippingFee(request.getShippingFee())
+                        .build());
+        if (unavailable != null) throw new IllegalArgumentException(unavailable);
+
+        BigDecimal discount = calculateDiscount(voucher, request.getSubtotal(), request.getShippingFee());
+        LocalDateTime now = LocalDateTime.now();
+        VoucherReservation reservation = VoucherReservation.builder()
+                .reservationId(request.getReservationId())
+                .orderId(request.getOrderId())
+                .userId(request.getUserId())
+                .voucherId(request.getVoucherId())
+                .restaurantId(request.getRestaurantId())
+                .subtotal(request.getSubtotal())
+                .shippingFee(request.getShippingFee())
+                .discountAmount(discount)
+                .state(VoucherReservation.State.RESERVED)
+                .expiresAt(now.plus(15, ChronoUnit.MINUTES))
+                .createdAt(now)
+                .updatedAt(now)
+                .build();
+
+        userVoucher.setStatus(UserVoucher.Status.RESERVED);
+        userVoucher.setOrderId(request.getOrderId());
+        userVoucher.setUsedAt(null);
+        voucher.setUsedQuantity(voucher.getUsedQuantity() + 1);
+        try {
+            voucherReservationRepository.saveAndFlush(reservation);
+        } catch (DataIntegrityViolationException ex) {
+            throw new PromotionConflictException("Conflicting voucher reservation", ex);
+        }
+        outboxService.enqueue(reservation);
+        return VoucherReservationResponse.from(reservation);
+    }
+
+    @Transactional
+    public VoucherReservationResponse commitReservation(UUID reservationId, Long orderId) {
+        VoucherReservation reservation = lockedReservation(reservationId, orderId);
+        if (reservation.getState() == VoucherReservation.State.RESERVED
+                && !LocalDateTime.now().isBefore(reservation.getExpiresAt())) {
+            expireReservation(reservation);
+        } else if (reservation.getState() == VoucherReservation.State.RESERVED) {
+            UserVoucher userVoucher = userVoucherRepository.findByUserIdAndVoucherIdForUpdate(
+                            reservation.getUserId(), reservation.getVoucherId())
+                    .orElseThrow(() -> new IllegalStateException("Reserved wallet voucher is missing"));
+            userVoucher.setStatus(UserVoucher.Status.USED);
+            userVoucher.setUsedAt(LocalDateTime.now());
+            reservation.setState(VoucherReservation.State.COMMITTED);
+            outboxService.enqueue(reservation);
+        }
+        return VoucherReservationResponse.from(reservation);
+    }
+
+    @Transactional
+    public VoucherReservationResponse releaseReservation(UUID reservationId, Long orderId) {
+        VoucherReservation reservation = lockedReservation(reservationId, orderId);
+        if (reservation.getState() == VoucherReservation.State.RESERVED
+                || reservation.getState() == VoucherReservation.State.COMMITTED) {
+            releaseCapacity(reservation, VoucherReservation.State.RELEASED);
+        }
+        return VoucherReservationResponse.from(reservation);
+    }
+
+    @Transactional
+    public int expireReservations() {
+        List<VoucherReservation> expired = voucherReservationRepository
+                .findTop100ByStateAndExpiresAtLessThanEqualOrderByExpiresAtAsc(
+                        VoucherReservation.State.RESERVED, LocalDateTime.now());
+        int count = 0;
+        for (VoucherReservation candidate : expired) {
+            VoucherReservation reservation = voucherReservationRepository
+                    .findByIdForUpdate(candidate.getReservationId()).orElse(null);
+            if (reservation != null && reservation.getState() == VoucherReservation.State.RESERVED
+                    && !LocalDateTime.now().isBefore(reservation.getExpiresAt())) {
+                expireReservation(reservation);
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private VoucherReservation lockedReservation(UUID reservationId, Long orderId) {
+        if (reservationId == null) throw new IllegalArgumentException("reservationId is required");
+        validatePositiveId(orderId, "orderId");
+        VoucherReservation reservation = voucherReservationRepository.findByIdForUpdate(reservationId)
+                .orElseThrow(() -> new IllegalArgumentException("Voucher reservation not found"));
+        if (!reservation.getOrderId().equals(orderId)) {
+            throw new PromotionConflictException("reservationId is bound to another order");
+        }
+        return reservation;
+    }
+
+    private void expireReservation(VoucherReservation reservation) {
+        releaseCapacity(reservation, VoucherReservation.State.EXPIRED);
+    }
+
+    private void releaseCapacity(VoucherReservation reservation, VoucherReservation.State state) {
+        UserVoucher userVoucher = userVoucherRepository.findByUserIdAndVoucherIdForUpdate(
+                        reservation.getUserId(), reservation.getVoucherId())
+                .orElseThrow(() -> new IllegalStateException("Reserved wallet voucher is missing"));
+        Voucher voucher = voucherRepository.findByIdForUpdate(reservation.getVoucherId())
+                .orElseThrow(() -> new IllegalStateException("Reserved voucher is missing"));
+        if (voucher.getUsedQuantity() <= 0) {
+            throw new IllegalStateException("Voucher usage counter is inconsistent");
+        }
+        voucher.setUsedQuantity(voucher.getUsedQuantity() - 1);
+        userVoucher.setStatus(UserVoucher.Status.SAVED);
+        userVoucher.setOrderId(null);
+        userVoucher.setUsedAt(null);
+        reservation.setState(state);
+        outboxService.enqueue(reservation);
+    }
+
+    private BigDecimal calculateDiscount(Voucher voucher, BigDecimal subtotal, BigDecimal shippingFee) {
+        BigDecimal discount = switch (voucher.getRewardType()) {
+            case FIXED -> voucher.getDiscountValue().min(subtotal);
+            case PERCENTAGE -> subtotal.multiply(voucher.getDiscountValue())
+                    .divide(BigDecimal.valueOf(100)).min(subtotal);
+            case FREESHIP -> shippingFee.min(voucher.getDiscountValue());
+        };
+        if (voucher.getMaxDiscountValue() != null) discount = discount.min(voucher.getMaxDiscountValue());
+        return discount.max(BigDecimal.ZERO).setScale(2, java.math.RoundingMode.HALF_UP);
+    }
+
+    private void requireSameReservation(VoucherReservation reservation, ReserveRequest request) {
+        if (!reservation.getReservationId().equals(request.getReservationId())
+                || !reservation.getOrderId().equals(request.getOrderId())
+                || !reservation.getUserId().equals(request.getUserId())
+                || !reservation.getVoucherId().equals(request.getVoucherId())
+                || !reservation.getRestaurantId().equals(request.getRestaurantId())
+                || reservation.getSubtotal().compareTo(request.getSubtotal()) != 0
+                || reservation.getShippingFee().compareTo(request.getShippingFee()) != 0) {
+            throw new PromotionConflictException("Reservation replay payload does not match");
         }
     }
 
@@ -297,13 +431,19 @@ public class PromotionService {
         if (request.getMinOrderValue() == null || request.getMinOrderValue().compareTo(BigDecimal.ZERO) < 0) {
             throw new IllegalArgumentException("Voucher minOrderValue must be non-negative");
         }
-        if (request.getCreatorType() == Voucher.CreatorType.MERCHANT
-                && (request.getCreatorId() == null || request.getCreatorId() <= 0)) {
-            throw new IllegalArgumentException("Voucher creatorId must be positive for merchant vouchers");
+        if (request.getCreatorType() != Voucher.CreatorType.PLATFORM) {
+            throw new IllegalArgumentException("Voucher campaigns must be owned by ADMIN");
         }
         if (request.getScopeType() != Voucher.ScopeType.ALL
+                && request.getScopeType() != Voucher.ScopeType.SHOP) {
+            throw new IllegalArgumentException("Voucher scope must be ALL or SHOP");
+        }
+        if (request.getScopeType() == Voucher.ScopeType.SHOP
                 && (request.getScopeRefId() == null || request.getScopeRefId() <= 0)) {
-            throw new IllegalArgumentException("Voucher scopeRefId must be positive for scoped vouchers");
+            throw new IllegalArgumentException("Voucher scopeRefId must identify a restaurant");
+        }
+        if (request.getScopeType() == Voucher.ScopeType.ALL && request.getScopeRefId() != null) {
+            throw new IllegalArgumentException("Platform voucher must not carry scopeRefId");
         }
     }
 
@@ -327,16 +467,13 @@ public class PromotionService {
         }
         validatePositiveId(request.getUserId(), "userId");
         validatePositiveId(request.getOrderId(), "orderId");
-        if (request.getVoucherIds() == null || request.getVoucherIds().isEmpty()) {
-            throw new IllegalArgumentException("At least one voucherId is required");
-        }
-        Set<Long> uniqueIds = new HashSet<>();
-        for (Long voucherId : request.getVoucherIds()) {
-            validatePositiveId(voucherId, "voucherId");
-            if (!uniqueIds.add(voucherId)) {
-                throw new IllegalArgumentException("Duplicate voucherIds are not allowed");
-            }
-        }
+        if (request.getReservationId() == null) throw new IllegalArgumentException("reservationId is required");
+        validatePositiveId(request.getVoucherId(), "voucherId");
+        validatePositiveId(request.getRestaurantId(), "restaurantId");
+        if (request.getSubtotal() == null || request.getSubtotal().compareTo(BigDecimal.ZERO) < 0)
+            throw new IllegalArgumentException("subtotal must be non-negative");
+        if (request.getShippingFee() == null || request.getShippingFee().compareTo(BigDecimal.ZERO) < 0)
+            throw new IllegalArgumentException("shippingFee must be non-negative");
     }
 
     private void validatePositiveId(Long value, String fieldName) {

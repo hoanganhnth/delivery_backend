@@ -68,8 +68,10 @@ printf '%s' "$rendered_config" | jq -e \
     and .services["restaurant-service"].environment.SPRING_DATA_REDIS_HOST == "redis"
     and (.services["restaurant-service"].depends_on | has("redis"))
     and .services["promotion-service"].environment.PROMOTION_CHECKOUT_ENABLED == "false"
+    and .services["promotion-service"].environment.PROMOTION_OUTBOX_RELAY_ENABLED == "false"
     and .services["promotion-service"].environment.PROMOTION_MERCHANT_CREATE_API_ENABLED == "false"
     and .services["flashsale-service"].environment.FLASHSALE_CHECKOUT_ENABLED == "false"
+    and .services["flashsale-service"].environment.FLASHSALE_OUTBOX_RELAY_ENABLED == "false"
     and .services["flashsale-service"].environment.FLASHSALE_MERCHANT_REGISTRATION_ENABLED == "false"
     and (.services["restaurant-service"].environment | has("RESTAURANT_OPS_API_ENABLED") | not)
     and (.services["restaurant-service"].environment | has("RESTAURANT_LOCATION_API_ENABLED") | not)
@@ -77,6 +79,12 @@ printf '%s' "$rendered_config" | jq -e \
     and (.services["order-service"].environment | has("ORDER_LEGACY_MUTATION_API_ENABLED") | not)
     and (.services["order-service"].environment | has("ORDER_LEGACY_READ_API_ENABLED") | not)
     and .services["order-service"].environment.ORDER_PAYMENT_EVENT_PROCESSING_ENABLED == "false"
+    and .services["order-service"].environment.ORDER_VOUCHER_CHECKOUT_ENABLED == "false"
+    and .services["order-service"].environment.ORDER_FLASHSALE_CHECKOUT_ENABLED == "false"
+    and .services["order-service"].environment.PROMOTION_SERVICE_URL
+      == "http://promotion-service:8096"
+    and .services["order-service"].environment.FLASHSALE_SERVICE_URL
+      == "http://flashsale-service:8092"
     and (.services["delivery-service"].environment | has("DELIVERY_LEGACY_ASSIGNMENT_API_ENABLED") | not)
     and (.services["delivery-service"].environment | has("SPRING_DATA_REDIS_HOST") | not)
     and (.services["delivery-service"].depends_on | has("redis") | not)

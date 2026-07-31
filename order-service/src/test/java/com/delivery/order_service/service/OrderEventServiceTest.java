@@ -405,6 +405,45 @@ class OrderEventServiceTest {
         assertEquals(OrderStatus.PENDING, testOrder.getStatus());
     }
 
+    @Test
+    void onlinePaymentFailurePublishesCompensationWithReservationIdentities() {
+        testOrder.setPaymentMethod("ONLINE");
+        testOrder.setVoucherReservationId(UUID.randomUUID());
+        when(orderRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(testOrder));
+        when(orderRepository.save(testOrder)).thenReturn(testOrder);
+        PaymentEvent event = new PaymentEvent();
+        event.setOrderId(1L);
+        event.setStatus("FAILED");
+        event.setFailureReason("Gateway timeout");
+
+        orderEventService.handlePaymentFailed(event);
+
+        assertEquals(OrderStatus.CANCELLED, testOrder.getStatus());
+        verify(orderEventPublisher).publishOrderCancelledEvent(testOrder, "PENDING", 123L);
+        assertEquals("Gateway timeout", testOrder.getCancelReason());
+    }
+
+    @Test
+    void restaurantRejectionPublishesCompensationWithoutDroppingReservationIdentities() {
+        UUID flashId = UUID.randomUUID();
+        testOrder.setFlashSaleReservationId(flashId);
+        when(orderRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(testOrder));
+        when(orderRepository.save(testOrder)).thenReturn(testOrder);
+        RestaurantEvent event = new RestaurantEvent();
+        event.setEventId(decisionEventId());
+        event.setOrderId(1L);
+        event.setRestaurantId(456L);
+        event.setActorUserId(70L);
+        event.setRejectionReason("Kitchen closed");
+
+        orderEventService.handleRestaurantRejected(event);
+
+        assertEquals(OrderStatus.CANCELLED, testOrder.getStatus());
+        assertEquals(null, testOrder.getVoucherReservationId());
+        assertEquals(flashId, testOrder.getFlashSaleReservationId());
+        verify(orderEventPublisher).publishOrderCancelledEvent(testOrder, "PENDING", 70L);
+    }
+
     private UUID decisionEventId() {
         return UUID.fromString("11111111-1111-1111-1111-111111111111");
     }

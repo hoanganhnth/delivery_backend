@@ -10,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import java.math.BigDecimal;
@@ -28,6 +29,10 @@ public class CheckoutPreviewService {
     private final String restaurantServiceUrl;
     private final String internalSecret;
     private final OrderRestaurantCircuitBreaker restaurantCircuitBreaker;
+    @Autowired(required = false)
+    private CheckoutReservationClient reservationClient;
+    @Value("${app.order.voucher-checkout-enabled:false}") private boolean voucherCheckoutEnabled;
+    @Value("${app.order.flashsale-checkout-enabled:false}") private boolean flashSaleCheckoutEnabled;
 
     public CheckoutPreviewService(WebClient webClient,
                                   ShippingFeeCalculationService shippingFeeService,
@@ -60,6 +65,15 @@ public class CheckoutPreviewService {
             throw new ValidationException(
                     "Voucher checkout chưa được mở trong MVP cho tới khi có discount và compensation proof");
         }
+        boolean hasFlashSale = request.getItems().stream().anyMatch(item -> item.getFlashSaleItemId() != null);
+        if (request.getVoucherId() != null && !voucherCheckoutEnabled)
+            throw new ValidationException("Voucher checkout is disabled");
+        if (hasFlashSale && !flashSaleCheckoutEnabled)
+            throw new ValidationException("Flash-sale checkout is disabled");
+        if (request.getVoucherId() != null && hasFlashSale)
+            throw new ValidationException("Voucher và Flash Sale không được áp dụng cùng một đơn");
+        if ((request.getVoucherId() != null || hasFlashSale) && reservationClient == null)
+            throw new ValidationException("Checkout reservation capability is unavailable");
 
         validateDuplicateItems(request);
 
@@ -86,6 +100,13 @@ public class CheckoutPreviewService {
                 "Restaurant service thiếu tọa độ pickup longitude canonical");
 
         Map<Long, ValidatedPreviewItem> menuItemMap = parseValidatedItems(validationData);
+        CheckoutReservationClient.FlashQuote flashQuote = hasFlashSale
+                ? reservationClient.quoteFlash(request.getRestaurantId(), request.getItems().stream().map(item -> {
+                    com.delivery.order_service.dto.request.CreateOrderRequest.OrderItemRequest mapped =
+                            new com.delivery.order_service.dto.request.CreateOrderRequest.OrderItemRequest();
+                    mapped.setMenuItemId(item.getMenuItemId()); mapped.setFlashSaleItemId(item.getFlashSaleItemId());
+                    mapped.setQuantity(item.getQuantity()); return mapped;
+                }).toList()) : null;
 
         // 3. Map từng item trong request → giá server
         List<PreviewItemDetail> previewItems = new ArrayList<>();
@@ -106,14 +127,23 @@ public class CheckoutPreviewService {
                 continue;
             }
 
-            BigDecimal lineTotal = serverItem.price().multiply(BigDecimal.valueOf(reqItem.getQuantity()));
+            BigDecimal unitPrice = serverItem.price();
+            if (reqItem.getFlashSaleItemId() != null) {
+                CheckoutReservationClient.FlashLine line = flashQuote.byFlashSaleItemId()
+                        .get(reqItem.getFlashSaleItemId());
+                if (line == null || !reqItem.getMenuItemId().equals(line.menuItemId())
+                        || !reqItem.getQuantity().equals(line.quantity()))
+                    throw new ValidationException("Flash-sale quote does not match checkout item");
+                unitPrice = line.unitPrice();
+            }
+            BigDecimal lineTotal = unitPrice.multiply(BigDecimal.valueOf(reqItem.getQuantity()));
             subtotal = subtotal.add(lineTotal);
 
             previewItems.add(PreviewItemDetail.builder()
                     .menuItemId(reqItem.getMenuItemId())
                     .menuItemName(serverItem.name())
                     .imageUrl(null)
-                    .unitPrice(serverItem.price())
+                    .unitPrice(unitPrice)
                     .quantity(reqItem.getQuantity())
                     .lineTotal(lineTotal)
                     .build());
@@ -130,7 +160,11 @@ public class CheckoutPreviewService {
                 subtotal);
 
         // 5. Discount remains zero because coupon input was rejected at the boundary.
-        BigDecimal discountAmount = BigDecimal.ZERO;
+        BigDecimal discountAmount = request.getVoucherId() == null ? BigDecimal.ZERO
+                : reservationClient.quoteVoucher(userId, request.getVoucherId(), request.getRestaurantId(),
+                        subtotal, shippingFee).discountAmount();
+        if (discountAmount.signum() < 0 || discountAmount.compareTo(subtotal.add(shippingFee)) > 0)
+            throw new ValidationException("Voucher quote returned an invalid discount");
 
         BigDecimal totalPrice = subtotal.add(shippingFee).subtract(discountAmount);
 
@@ -147,6 +181,7 @@ public class CheckoutPreviewService {
                 .totalPrice(totalPrice)
                 .couponCode(request.getCouponCode())
                 .couponMessage(null)
+                .voucherId(request.getVoucherId())
                 .priceChanges(priceChanges)
                 .unavailableItemIds(unavailableIds)
                 .build();
@@ -231,10 +266,13 @@ public class CheckoutPreviewService {
 
     private void validateDuplicateItems(CheckoutPreviewRequest request) {
         Set<Long> menuItemIds = new HashSet<>();
+        Set<Long> flashSaleItemIds = new HashSet<>();
         for (CheckoutPreviewRequest.PreviewItem item : request.getItems()) {
             if (!menuItemIds.add(item.getMenuItemId())) {
                 throw new ValidationException("Menu Item ID bị trùng trong checkout preview");
             }
+            if (item.getFlashSaleItemId() != null && !flashSaleItemIds.add(item.getFlashSaleItemId()))
+                throw new ValidationException("Flash Sale Item ID bị trùng trong checkout preview");
         }
     }
 

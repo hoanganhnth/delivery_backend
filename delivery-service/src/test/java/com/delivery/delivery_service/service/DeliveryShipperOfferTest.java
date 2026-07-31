@@ -346,6 +346,7 @@ class DeliveryShipperOfferTest {
 
         ArgumentCaptor<DeliveryCompletedEvent> event = ArgumentCaptor.forClass(DeliveryCompletedEvent.class);
         verify(eventPublisher).publishDeliveryCompletedEvent(event.capture());
+        assertThat(event.getValue().getTotalPrice()).isEqualByComparingTo(delivery.getTotalPrice());
         assertThat(event.getValue().getRestaurantName()).isNull();
         assertThat(event.getValue().getCustomerName()).isNull();
     }

@@ -1,47 +1,73 @@
-# ⚡ Flash Sale & Stock Reservation Flow
+# Flash-sale checkout and stock reservation
 
-> **Trạng thái COD MVP:** toàn bộ flash-sale checkout đang tắt. Internal reserve
-> trả `503` khi `FLASHSALE_CHECKOUT_ENABLED=false`; không có cancellation consumer
-> đang hoạt động. Canonical `order.cancelled` không mang item list, nên không đủ
-> dữ liệu để hoàn stock an toàn. Sequence bên dưới là **target contract**, chỉ được
-> triển khai sau khi có reservation record, stable identity, outbox và replay proof.
-> Redis reservation config/service không được tạo trong runtime mặc định khi flag
-> checkout tắt. Recurring campaign reset dùng một bounded database update thay vì
-> load toàn bộ item vào JVM.
+## Runtime status
 
-## 1. Đặc tả luồng
-Flash sale là tính năng đòi hỏi hiệu năng cực cao và rủi ro quá bán (Over-selling) lớn nhất do lượng truy cập đột biến. Vì vậy, số lượng tồn kho (Stock) được quản lý trực tiếp bằng **Redis Atomic Counters** kết hợp Lua scripts. Database quan hệ (PostgreSQL) chỉ lưu thông tin hiển thị chứ không dùng để xử lý trừ kho realtime.
+The durable implementation is rollout-ready but disabled by default.
 
-## 2. Biểu đồ tuần tự (Sequence Diagram)
+- `FLASHSALE_CHECKOUT_ENABLED=false`
+- `FLASHSALE_OUTBOX_RELAY_ENABLED=false`
+- `ORDER_FLASHSALE_CHECKOUT_ENABLED=false`
+- `FLASHSALE_MERCHANT_REGISTRATION_ENABLED=false`
+- Flutter `FLASHSALE_CHECKOUT_ENABLED=false`
+
+Public active-campaign/item reads and admin campaign/approval routes remain
+available. Gateway never routes internal quote/reserve/commit/release. Merchant
+item registration remains hidden until its separate rollout is approved.
+
+## Authority and price contract
+
+- Campaigns are owned by `ADMIN`.
+- A flash-sale item belongs to a canonical restaurant. Registration verifies
+  the authenticated shop owner against `restaurantId`; activation requires
+  admin approval.
+- The client obtains `flashSaleItemId` only from the public approved catalog.
+  It never submits a flash price.
+- Order verifies the returned `flashSaleItemId`, menu item, quantity, and price,
+  then snapshots that server price. Voucher and flash sale do not stack.
+
+## Durable atomic lifecycle
+
+PostgreSQL is the stock authority. Redis is not used for reservation truth.
+Every requested item row is locked in sorted order; ownership, approval,
+campaign window, and remaining stock for every line are validated before any
+counter changes. The cart then updates counters, persists reservation lines,
+and enqueues the deterministic outbox event in one transaction.
+
+```text
+RESERVED -> COMMITTED | RELEASED | EXPIRED
+COMMITTED -> RELEASED   (compensation before fulfilment only)
+```
+
+Reservation identity is stable `reservationId + orderId`; `orderId` is unique.
+Exact replay returns the stored line fingerprint and terminal state. A changed
+line, quantity, restaurant, user, order, or reservation identity fails closed.
+`order.created` commits; `order.cancelled` releases; a 15-minute sweep expires.
 
 ```mermaid
 sequenceDiagram
-    autonumber
-    participant App as Customer App
-    participant Order as Order Service
-    participant FS as FlashSale Service
-    participant Redis as Redis Server
-    participant Kafka as Kafka
-
-    App->>Order: Khách hàng nhấn Checkout Order
-    Note over Order, FS: Validate giỏ hàng có Item Flash Sale
-    Order->>FS: Gọi Internal API: POST /internal/reserve (Item=A, Qty=1)
-    
-    Note over FS, Redis: Xử lý Redis Atomic (Thread-safe)
-    FS->>Redis: Thực thi Lua Script (Check Stock >= Qty)
-    alt Còn hàng
-        Redis-->>FS: Trừ tồn kho, Trả về True
-        FS-->>Order: 200 OK (Reserve Success)
-        Order->>Order: Lưu đơn hàng tiếp tục
-    else Hết hàng
-        Redis-->>FS: Trả về False
-        FS-->>Order: 400 Bad Request (Lỗi hết suất)
-        Order-->>App: UI báo lỗi: "Sản phẩm Flash Sale đã hết!"
-    end
-
-    Note over FS, Kafka: Target: hồi phục reservation nếu đơn bị huỷ
-    Kafka->>FS: Consume compensation command có reservation identity
-    FS->>FS: Load canonical reservation record
-    FS->>Redis: Cộng lại số lượng đã trừ (Release Stock)
-    FS->>FS: Ghi log khôi phục kho vào DB
+    participant A as Flutter
+    participant O as Order
+    participant F as Flash sale
+    participant D as Flash-sale DB
+    participant K as Kafka
+    A->>F: GET approved campaign items
+    A->>O: preview(menuItemId, flashSaleItemId, quantity)
+    O->>F: internal quote (IDs + quantities only)
+    F-->>O: canonical menu IDs and unit prices
+    A->>O: create order with same selection
+    O->>F: reserve(reservationId, orderId, restaurantId, lines)
+    F->>D: sorted row locks; validate all; counters+reservation+outbox
+    O->>O: immutable monetary snapshot + order.created outbox
+    K->>F: order.created / order.cancelled
+    F->>D: idempotent commit / release
 ```
+
+## Proof
+
+- PostgreSQL 16 last-stock race: exactly one checkout succeeds.
+- Multi-item request with an exhausted second line changes no counter and
+  creates no reservation/outbox row.
+- Exact terminal replay, expiry, compensating release, outbox cardinality, and
+  malformed-event no-ACK tests.
+- Flutter catalog contract rejects malformed or duplicate active selections and
+  persists the authoritative `flashSaleItemId` through preview/create.

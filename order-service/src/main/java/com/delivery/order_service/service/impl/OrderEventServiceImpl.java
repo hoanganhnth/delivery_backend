@@ -118,13 +118,17 @@ public class OrderEventServiceImpl implements OrderEventService {
             log.warn("Ignoring payment failure for COD order {}", order.getId());
             return;
         }
+        String previousStatus = order.getStatus().name();
         transition(order, OrderStatus.CANCELLED);
         order.setUpdatedAt(LocalDateTime.now());
+        order.setCancelReason(event.getFailureReason() == null ? "Payment failed" : event.getFailureReason());
+        order.setCancelledBy(order.getUserId());
         if (event.getFailureReason() != null) {
             appendNotes(order, "Payment failed: " + event.getFailureReason());
         }
 
         orderRepository.save(order);
+        orderEventPublisher.publishOrderCancelledEvent(order, previousStatus, order.getUserId());
         
         log.info("✅ Order {} marked as PAYMENT_FAILED", order.getId());
     }

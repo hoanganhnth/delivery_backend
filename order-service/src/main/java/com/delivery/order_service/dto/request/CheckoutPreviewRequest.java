@@ -38,6 +38,9 @@ public class CheckoutPreviewRequest {
     @Size(max = 50)
     private String couponCode; // Nullable — dùng khi áp mã giảm giá
 
+    @Positive
+    private Long voucherId;
+
     @NotEmpty
     @Size(max = 50)
     @Valid
@@ -49,6 +52,9 @@ public class CheckoutPreviewRequest {
         @NotNull
         @Positive
         private Long menuItemId;
+
+        @Positive
+        private Long flashSaleItemId;
 
         @NotNull
         @Min(1)

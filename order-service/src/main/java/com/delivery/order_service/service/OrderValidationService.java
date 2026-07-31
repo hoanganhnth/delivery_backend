@@ -28,6 +28,10 @@ public class OrderValidationService {
     private final String restaurantServiceUrl;
     private final String internalSecret;
     private final OrderRestaurantCircuitBreaker restaurantCircuitBreaker;
+    @Value("${app.order.voucher-checkout-enabled:false}")
+    private boolean voucherCheckoutEnabled;
+    @Value("${app.order.flashsale-checkout-enabled:false}")
+    private boolean flashSaleCheckoutEnabled;
 
     public OrderValidationService(
             WebClient webClient,
@@ -134,7 +138,10 @@ public class OrderValidationService {
      * Validate business rules
      */
     private void validateBusinessRules(CreateOrderRequest request, List<String> errors) {
-        if (request.getVoucherIds() != null && !request.getVoucherIds().isEmpty()) {
+        int voucherCount = request.getVoucherIds() == null ? 0 : request.getVoucherIds().size();
+        if (voucherCount > 1) {
+            errors.add("Mỗi đơn chỉ được dùng một voucher");
+        } else if (voucherCount == 1 && !voucherCheckoutEnabled) {
             errors.add("Voucher checkout chưa được mở trong MVP cho tới khi có discount và compensation proof");
         }
 
@@ -157,10 +164,15 @@ public class OrderValidationService {
             if (item.getMenuItemId() != null && !menuItemIds.add(item.getMenuItemId())) {
                 errors.add("Sản phẩm " + (i + 1) + ": Menu Item ID bị trùng");
             }
-            if (item.getFlashSaleItemId() != null) {
+            if (item.getFlashSaleItemId() != null && !flashSaleCheckoutEnabled) {
                 errors.add("Sản phẩm " + (i + 1)
                         + ": Flash Sale checkout chưa được mở trong MVP cho tới khi reservation có idempotency/compensation proof");
             }
+        }
+
+        boolean hasFlashSale = request.getItems().stream().anyMatch(item -> item.getFlashSaleItemId() != null);
+        if (voucherCount == 1 && hasFlashSale) {
+            errors.add("Voucher và Flash Sale không được áp dụng cùng một đơn");
         }
 
         // Phone number format validation (more strict)

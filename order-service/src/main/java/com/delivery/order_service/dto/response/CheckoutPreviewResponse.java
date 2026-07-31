@@ -28,6 +28,7 @@ public class CheckoutPreviewResponse {
 
     private String couponCode;          // Coupon đã áp dụng (null nếu không có)
     private String couponMessage;       // "Giảm 20k" hoặc "Mã không hợp lệ"
+    private Long voucherId;
 
     private List<PriceChangeInfo> priceChanges;     // Danh sách giá thay đổi
     private List<Long> unavailableItemIds;           // Món đã hết hàng

@@ -83,6 +83,8 @@ public class OrderEventPublisher {
         cancelEvent.setCancelledAt(order.getUpdatedAt() != null ? order.getUpdatedAt() : LocalDateTime.now());
         cancelEvent.setShipperId(order.getShipperId());
         cancelEvent.setHasActiveDelivery(order.getShipperId() != null);
+        cancelEvent.setVoucherReservationId(order.getVoucherReservationId());
+        cancelEvent.setFlashSaleReservationId(order.getFlashSaleReservationId());
         cancelEvent.setCreatedAt(order.getCreatedAt());
         cancelEvent.setUpdatedAt(order.getUpdatedAt());
 
@@ -140,6 +142,8 @@ public class OrderEventPublisher {
         // Timestamps
         event.setCreatedAt(order.getCreatedAt());
         event.setCreatorId(order.getCreatorId());
+        event.setVoucherReservationId(order.getVoucherReservationId());
+        event.setFlashSaleReservationId(order.getFlashSaleReservationId());
         
         return event;
     }

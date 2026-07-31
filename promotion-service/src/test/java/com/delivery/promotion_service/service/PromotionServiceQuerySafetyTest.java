@@ -7,6 +7,7 @@ import com.delivery.promotion_service.dto.CreateVoucherRequest;
 import com.delivery.promotion_service.repository.UserVoucherRepository;
 import com.delivery.promotion_service.repository.VoucherGroupRepository;
 import com.delivery.promotion_service.repository.VoucherRepository;
+import com.delivery.promotion_service.repository.VoucherReservationRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -35,11 +36,13 @@ class PromotionServiceQuerySafetyTest {
     @Mock VoucherRepository voucherRepository;
     @Mock UserVoucherRepository userVoucherRepository;
     @Mock VoucherGroupRepository voucherGroupRepository;
+    @Mock VoucherReservationRepository voucherReservationRepository;
+    @Mock PromotionOutboxService outboxService;
 
     @Test
     void compatibilityListsCapRepositoryQueriesAtOneHundred() {
         PromotionService service = new PromotionService(
-                voucherRepository, userVoucherRepository, voucherGroupRepository);
+                voucherRepository, userVoucherRepository, voucherGroupRepository, voucherReservationRepository, outboxService);
         Pageable firstHundred = Pageable.ofSize(100);
         when(voucherRepository.findAll(firstHundred)).thenReturn(new PageImpl<>(List.of()));
         when(voucherRepository.findByCreatorTypeAndCreatorId(
@@ -57,7 +60,7 @@ class PromotionServiceQuerySafetyTest {
     @Test
     void userVoucherListsAreBoundedAndCalculateUsesOneBatchLookup() {
         PromotionService service = new PromotionService(
-                voucherRepository, userVoucherRepository, voucherGroupRepository);
+                voucherRepository, userVoucherRepository, voucherGroupRepository, voucherReservationRepository, outboxService);
         Pageable firstHundred = Pageable.ofSize(100);
         UserVoucher collected = UserVoucher.builder()
                 .userId(7L)
@@ -66,6 +69,7 @@ class PromotionServiceQuerySafetyTest {
                 .build();
         Voucher voucher = Voucher.builder()
                 .id(11L)
+                .creatorType(Voucher.CreatorType.PLATFORM)
                 .active(true)
                 .endTime(LocalDateTime.now().plusDays(1))
                 .totalQuantity(10)
@@ -96,7 +100,7 @@ class PromotionServiceQuerySafetyTest {
     @Test
     void collectRejectsVoucherBeforeStartTime() {
         PromotionService service = new PromotionService(
-                voucherRepository, userVoucherRepository, voucherGroupRepository);
+                voucherRepository, userVoucherRepository, voucherGroupRepository, voucherReservationRepository, outboxService);
         Voucher voucher = Voucher.builder()
                 .id(11L).active(true)
                 .startTime(LocalDateTime.now().plusHours(1))
@@ -113,7 +117,7 @@ class PromotionServiceQuerySafetyTest {
     @Test
     void concurrentCollectUniqueViolationBecomesConflict() {
         PromotionService service = new PromotionService(
-                voucherRepository, userVoucherRepository, voucherGroupRepository);
+                voucherRepository, userVoucherRepository, voucherGroupRepository, voucherReservationRepository, outboxService);
         Voucher voucher = Voucher.builder()
                 .id(11L).active(true)
                 .startTime(LocalDateTime.now().minusHours(1))
@@ -133,7 +137,7 @@ class PromotionServiceQuerySafetyTest {
     @Test
     void concurrentVoucherCodeViolationBecomesConflict() {
         PromotionService service = new PromotionService(
-                voucherRepository, userVoucherRepository, voucherGroupRepository);
+                voucherRepository, userVoucherRepository, voucherGroupRepository, voucherReservationRepository, outboxService);
         CreateVoucherRequest request = validPlatformVoucherRequest();
         when(voucherRepository.findByCode("WELCOME")).thenReturn(java.util.Optional.empty());
         when(voucherRepository.saveAndFlush(any(Voucher.class)))
@@ -145,7 +149,7 @@ class PromotionServiceQuerySafetyTest {
     @Test
     void voucherCreationRejectsInvertedTimeWindowBeforeRepositoryAccess() {
         PromotionService service = new PromotionService(
-                voucherRepository, userVoucherRepository, voucherGroupRepository);
+                voucherRepository, userVoucherRepository, voucherGroupRepository, voucherReservationRepository, outboxService);
         CreateVoucherRequest request = validPlatformVoucherRequest();
         request.setStartTime(LocalDateTime.now().plusDays(2));
         request.setEndTime(LocalDateTime.now().plusDays(1));
@@ -153,6 +157,44 @@ class PromotionServiceQuerySafetyTest {
         assertThrows(IllegalArgumentException.class, () -> service.createVoucher(request));
 
         verifyNoInteractions(voucherRepository, userVoucherRepository, voucherGroupRepository);
+    }
+
+    @Test
+    void voucherCreationRejectsLegacyMerchantAndCategoryOwnership() {
+        PromotionService service = new PromotionService(
+                voucherRepository, userVoucherRepository, voucherGroupRepository,
+                voucherReservationRepository, outboxService);
+        CreateVoucherRequest request = validPlatformVoucherRequest();
+        request.setCreatorType(Voucher.CreatorType.MERCHANT);
+        request.setCreatorId(7L);
+
+        assertThrows(IllegalArgumentException.class, () -> service.createVoucher(request));
+
+        request.setCreatorType(Voucher.CreatorType.PLATFORM);
+        request.setCreatorId(null);
+        request.setScopeType(Voucher.ScopeType.CATEGORY);
+        request.setScopeRefId(12L);
+        assertThrows(IllegalArgumentException.class, () -> service.createVoucher(request));
+        verifyNoInteractions(voucherRepository);
+    }
+
+    @Test
+    void restaurantScopedVoucherRequiresCanonicalRestaurantIdentity() {
+        PromotionService service = new PromotionService(
+                voucherRepository, userVoucherRepository, voucherGroupRepository,
+                voucherReservationRepository, outboxService);
+        CreateVoucherRequest request = validPlatformVoucherRequest();
+        request.setScopeType(Voucher.ScopeType.SHOP);
+
+        assertThrows(IllegalArgumentException.class, () -> service.createVoucher(request));
+
+        request.setScopeRefId(9L);
+        when(voucherRepository.findByCode("WELCOME")).thenReturn(java.util.Optional.empty());
+        when(voucherRepository.saveAndFlush(any(Voucher.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        Voucher created = service.createVoucher(request);
+        org.assertj.core.api.Assertions.assertThat(created.getScopeType()).isEqualTo(Voucher.ScopeType.SHOP);
+        org.assertj.core.api.Assertions.assertThat(created.getScopeRefId()).isEqualTo(9L);
     }
 
     private CreateVoucherRequest validPlatformVoucherRequest() {

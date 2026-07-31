@@ -112,7 +112,7 @@ class DeliveryCompletedEventListenerTest {
         verify(settlementReceiptRepository).saveAndFlush(receiptCaptor.capture());
         when(settlementReceiptRepository.findById(event.getEventId()))
                 .thenReturn(Optional.of(receiptCaptor.getValue()));
-        event.setRestaurantEarnings(new BigDecimal("70000"));
+        event.setRestaurantName("Contradictory restaurant");
 
         assertThrows(IllegalArgumentException.class, () -> listener.handleDeliveryCompleted(
                 new ObjectMapper().findAndRegisterModules().writeValueAsString(event),
@@ -166,6 +166,19 @@ class DeliveryCompletedEventListenerTest {
         verifyNoInteractions(acknowledgment);
     }
 
+    @Test
+    void orderTotalMismatchIsRejectedBeforeReceiptOrLedgerAccess() throws Exception {
+        DeliveryCompletedEvent inconsistent = validEvent("COD");
+        inconsistent.setTotalPrice(new BigDecimal("120001"));
+
+        assertThrows(IllegalArgumentException.class, () -> listener.handleDeliveryCompleted(
+                new ObjectMapper().findAndRegisterModules().writeValueAsString(inconsistent),
+                "delivery.completed", 0, 1L, acknowledgment));
+
+        verifyNoInteractions(transactionService, transactionRepository, settlementReceiptRepository);
+        verifyNoInteractions(acknowledgment);
+    }
+
     private DeliveryCompletedEvent validEvent(String paymentMethod) {
         return DeliveryCompletedEvent.builder()
                 .eventId(UUID.fromString("11111111-1111-1111-1111-111111111111"))
@@ -177,6 +190,7 @@ class DeliveryCompletedEventListenerTest {
                 .restaurantEarnings(new BigDecimal("80000"))
                 .restaurantCommission(new BigDecimal("20000"))
                 .shippingFee(new BigDecimal("20000"))
+                .totalPrice(new BigDecimal("120000"))
                 .shipperEarnings(new BigDecimal("17000"))
                 .shippingCommission(new BigDecimal("3000"))
                 .totalPlatformEarnings(new BigDecimal("23000"))

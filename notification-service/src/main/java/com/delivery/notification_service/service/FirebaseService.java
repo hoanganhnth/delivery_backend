@@ -3,6 +3,7 @@ package com.delivery.notification_service.service;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.messaging.*;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
@@ -18,10 +19,20 @@ public class FirebaseService {
 
     private final FirebaseApp firebaseApp;
     private final RedisService redisService;
+    private final FirebaseWakeMessageFactory messageFactory;
 
+    @Autowired
     public FirebaseService(Optional<FirebaseApp> firebaseApp, RedisService redisService) {
+        this(firebaseApp, redisService, new FirebaseWakeMessageFactory());
+    }
+
+    FirebaseService(
+            Optional<FirebaseApp> firebaseApp,
+            RedisService redisService,
+            FirebaseWakeMessageFactory messageFactory) {
         this.firebaseApp = firebaseApp.orElse(null);
         this.redisService = redisService;
+        this.messageFactory = messageFactory;
     }
 
     /**
@@ -62,34 +73,11 @@ public class FirebaseService {
      */
     private void sendToToken(String token, Notification notification, Map<String, String> data, Long userId) {
         try {
-            // Build message
-            Message.Builder messageBuilder = Message.builder()
-                    .setNotification(notification)
-                    .setToken(token);
-
-            // Add data if provided
-            if (data != null && !data.isEmpty()) {
-                messageBuilder.putAllData(data);
-            }
-
-            // Add Android and iOS specific configurations
-            messageBuilder.setAndroidConfig(AndroidConfig.builder()
-                    .setNotification(AndroidNotification.builder()
-                            .setClickAction("FLUTTER_NOTIFICATION_CLICK")
-                            .build())
-                    .build());
-
-            messageBuilder.setApnsConfig(ApnsConfig.builder()
-                    .setAps(Aps.builder()
-                            .setCategory("DELIVERY_NOTIFICATION")
-                            .build())
-                    .build());
-
-            Message message = messageBuilder.build();
+            Message message = messageFactory.create(token, notification, data);
 
             // Send message
-            String response = FirebaseMessaging.getInstance(firebaseApp).send(message);
-            log.info("📱 Successfully sent push notification to user {}: {}", userId, response);
+            FirebaseMessaging.getInstance(firebaseApp).send(message);
+            log.info("📱 Successfully sent push notification to user {}", userId);
 
         } catch (FirebaseMessagingException e) {
             if (e.getMessagingErrorCode() == MessagingErrorCode.UNREGISTERED) {
@@ -97,8 +85,14 @@ public class FirebaseService {
                 redisService.removeFcmToken(userId, token);
                 log.warn("🗑️ Removed invalid FCM token for user {}", userId);
             } else {
-                log.error("💥 Failed to send push notification: {}", e.getMessage(), e);
-                throw new IllegalStateException("Firebase push delivery failed", e);
+                log.error(
+                        "💥 Firebase push delivery failed for user {} with code {}",
+                        userId,
+                        e.getMessagingErrorCode());
+                // Do not attach the provider exception: Kafka/HTTP boundaries may
+                // log the propagated stack, and provider messages can contain
+                // request metadata. The stable message still triggers retry.
+                throw new IllegalStateException("Firebase push delivery failed");
             }
         }
     }

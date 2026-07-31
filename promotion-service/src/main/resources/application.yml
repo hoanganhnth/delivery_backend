@@ -7,6 +7,14 @@ app:
   promotion:
     checkout-enabled: ${PROMOTION_CHECKOUT_ENABLED:false}
     merchant-create-api-enabled: ${PROMOTION_MERCHANT_CREATE_API_ENABLED:false}
+    reservation-expiry-scan-ms: ${PROMOTION_RESERVATION_EXPIRY_SCAN_MS:30000}
+    outbox-relay-enabled: ${PROMOTION_OUTBOX_RELAY_ENABLED:false}
+    outbox-relay-ms: ${PROMOTION_OUTBOX_RELAY_MS:500}
+  kafka:
+    topics:
+      voucher-reservation-events: ${VOUCHER_RESERVATION_EVENTS_TOPIC:voucher.reservation.events}
+      order-created: ${ORDER_CREATED_TOPIC:order.created}
+      order-cancelled: ${ORDER_CANCELLED_TOPIC:order.cancelled}
 
 spring:
   config:
@@ -39,12 +47,15 @@ spring:
       group-id: promotion-service-group
       auto-offset-reset: earliest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      enable-auto-commit: false
       properties:
         spring.json.trusted.packages: "*"
+    listener:
+      ack-mode: manual_immediate
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
 
 logging:
   level:
