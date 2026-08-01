@@ -100,6 +100,44 @@ wait_for_container() {
   fail "$service did not become healthy"
 }
 
+wait_for_gateway_registration_route() {
+  local deadline=$((SECONDS + FLOW_TIMEOUT_SECONDS))
+  local status=""
+  while (( SECONDS < deadline )); do
+    status="$(curl --silent --show-error -o "$response_file" -w '%{http_code}' \
+      -X POST "$BASE/api/users/registrations" \
+      -H 'Content-Type: application/json' -d '{}' || true)"
+    # The validation response proves both the Gateway route and the
+    # load-balanced User-service instance are available without consuming a
+    # real provisioning token.
+    [[ "$status" == "400" ]] && return 0
+    sleep 10
+  done
+  sed -n '1,80p' "$response_file" >&2 || true
+  fail "Gateway/User registration route did not become ready (last HTTP ${status:-<empty>})"
+}
+
+wait_for_current_eureka_instance() {
+  local service="$1"
+  local application="$2"
+  local deadline=$((SECONDS + FLOW_TIMEOUT_SECONDS))
+  local container_id current_hostname registry registered_hostname=""
+  container_id="$("${COMPOSE[@]}" ps -q "$service")"
+  current_hostname="$(docker inspect -f '{{.Config.Hostname}}' "$container_id")"
+  while (( SECONDS < deadline )); do
+    registry="$("${COMPOSE[@]}" exec -T discovery-server wget -q -O - \
+      --header='Accept: application/json' \
+      "http://localhost:8761/eureka/apps/$application" 2>/dev/null || true)"
+    registered_hostname="$(jq -r \
+      '[.application.instance] | flatten | map(select(.status == "UP"))
+       | if length == 1 then .[0].hostName else "" end' \
+      <<<"$registry" 2>/dev/null || true)"
+    [[ "$registered_hostname" == "$current_hostname" ]] && return 0
+    sleep 10
+  done
+  fail "Eureka did not converge to the current $service instance $current_hostname"
+}
+
 wait_sql_equals() {
   local database="$1"
   local sql="$2"
@@ -123,7 +161,8 @@ decimal_equal() {
 login() {
   local email="$1"
   local device="$2"
-  curl --fail-with-body --silent --show-error -X POST "$BASE/api/auth/login" \
+  curl --retry 4 --retry-all-errors --retry-max-time 240 \
+    --fail-with-body --silent --show-error -X POST "$BASE/api/auth/login" \
     -H 'Content-Type: application/json' \
     -d "{\"email\":\"$email\",\"password\":\"$PASS\",\"deviceId\":\"$device\",\"deviceName\":\"Task 21 runtime\",\"deviceType\":\"WEB\"}" \
     | jq -er '.accessToken // .data.accessToken'
@@ -133,9 +172,18 @@ api_post() {
   local path="$1"
   local token="$2"
   local payload="$3"
-  curl --fail-with-body --silent --show-error -X POST "$BASE$path" \
+  local status
+  : > "$response_file"
+  status="$(curl --silent --show-error -o "$response_file" -w '%{http_code}' \
+    -X POST "$BASE$path" \
     -H "Authorization: Bearer $token" -H 'Content-Type: application/json' \
-    -d "$payload"
+    -d "$payload" || true)"
+  if [[ ! "$status" =~ ^2 ]]; then
+    sed -n '1,100p' "$response_file" >&2
+    fail "$path returned HTTP ${status:-<empty>}"
+    return 1
+  fi
+  cat "$response_file"
 }
 
 expect_post_failure() {
@@ -212,6 +260,7 @@ assert_order_matches_preview() {
 cancel_unfinished_fixture_orders() {
   local order_id status
   [[ -n "$customer_token" ]] || return 0
+  ((${#fixture_order_ids[@]} > 0)) || return 0
   for order_id in "${fixture_order_ids[@]}"; do
     status="$(psql_value order_db "SELECT status FROM orders WHERE id = $order_id;" 2>/dev/null || true)"
     case "$status" in
@@ -386,6 +435,7 @@ command -v curl >/dev/null
 command -v jq >/dev/null
 command -v docker >/dev/null
 command -v awk >/dev/null
+command -v mvn >/dev/null
 [[ "$RUN_ID" =~ ^[0-9]{1,30}$ ]] || fail "RUN_ID must contain 1-30 digits"
 docker info >/dev/null 2>&1 || fail "Docker daemon is unavailable"
 
@@ -393,14 +443,37 @@ cd "$BACKEND_DIR"
 seed_result="$(mktemp)"
 response_file="$(mktemp)"
 
-step "build and start Order/Promotion/Flash-sale with checkout + relays enabled"
-"${COMPOSE[@]}" build order-service promotion-service flashsale-service >/dev/null
+step "preflight required retained-stack services"
+for service in postgres redis kafka config-server discovery-server api-gateway \
+  auth-service user-service restaurant-service shipper-service settlement-service \
+  notification-service delivery-service match-service saga-orchestrator-service \
+  tracking-service; do
+  wait_for_container "$service"
+done
+wait_for_current_eureka_instance user-service USER-SERVICE
+wait_for_current_eureka_instance auth-service AUTH-SERVICE
+wait_for_gateway_registration_route
+
+step "package operator fixture and Task 21 services before rollout"
+mvn -q -pl auth-service,order-service,promotion-service,flashsale-service,delivery-service,settlement-service \
+  -am -DskipTests package
+step "build operator fixture image and Task 21 services before rollout"
+"${COMPOSE[@]}" build auth-service order-service promotion-service flashsale-service \
+  delivery-service settlement-service >/dev/null
+step "start Task 21 pricing/reservation/reconciliation services"
 rollout_started=true
 compose_enabled up -d --no-deps --force-recreate \
-  order-service promotion-service flashsale-service >/dev/null
+  order-service promotion-service flashsale-service delivery-service settlement-service >/dev/null
 wait_for_container order-service
 wait_for_container promotion-service
 wait_for_container flashsale-service
+wait_for_container delivery-service
+wait_for_container settlement-service
+wait_for_current_eureka_instance order-service ORDER-SERVICE
+wait_for_current_eureka_instance promotion-service PROMOTION-SERVICE
+wait_for_current_eureka_instance flashsale-service FLASHSALE-SERVICE
+wait_for_current_eureka_instance delivery-service DELIVERY-SERVICE
+wait_for_current_eureka_instance settlement-service SETTLEMENT-SERVICE
 
 step "verify Task 21 migrations"
 wait_sql_equals order_db \
@@ -412,6 +485,7 @@ wait_sql_equals flashsale_db \
 
 step "seed unique customer, restaurant, menu and shipper actors"
 env RUN_ID="$RUN_ID" SEED_OUTPUT_FILE="$seed_result" BASE="$BASE" \
+  SEED_LOCAL_FIXTURE_EMAIL_VERIFIED=true \
   bash scripts/seed.sh >/dev/null
 customer_token="$(jq -er '.customerToken' "$seed_result")"
 owner_token="$(jq -er '.ownerToken' "$seed_result")"
@@ -428,6 +502,7 @@ step "provision an operator-owned ADMIN and create authoritative voucher/campaig
 admin_email="admin+$RUN_ID@test.dev"
 safe_run_id="${RUN_ID//[^a-zA-Z0-9_.-]/-}"
 "${COMPOSE[@]}" run --rm --no-deps --name "auth-admin-task21-$safe_run_id" \
+  -e EUREKA_CLIENT_REGISTER_WITH_EUREKA=false \
   -e APP_OPERATOR_ADMIN_PROVISIONING_ENABLED=true \
   -e APP_OPERATOR_ADMIN_PROVISIONING_EMAIL="$admin_email" \
   -e APP_OPERATOR_ADMIN_PROVISIONING_PASSWORD="$PASS" \
@@ -454,12 +529,14 @@ curl --fail-with-body --silent --show-error -X PUT \
 
 # Merchant registration intentionally remains unavailable. Seed the one valid,
 # restaurant-owned PENDING row, then exercise ADMIN approval through Gateway.
+[[ "$campaign_id" =~ ^[0-9]+$ && "$restaurant_id" =~ ^[0-9]+$ \
+  && "$menu_item_id" =~ ^[0-9]+$ ]] \
+  || fail "flash-sale fixture identities must be numeric"
 flash_item_id="$("${COMPOSE[@]}" exec -T postgres psql -U postgres -d flashsale_db -qAt \
-  -v campaign_id="$campaign_id" -v restaurant_id="$restaurant_id" -v menu_item_id="$menu_item_id" \
   -c "INSERT INTO flash_sale_items
     (campaign_id, restaurant_id, menu_item_id, original_price, flash_sale_price,
      stock_quantity, sold_quantity, status, created_at, updated_at)
-    VALUES (:campaign_id, :restaurant_id, :menu_item_id, 45000, 30000, 1, 0,
+    VALUES ($campaign_id, $restaurant_id, $menu_item_id, 45000, 30000, 1, 0,
       'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) RETURNING id;")"
 [[ "$flash_item_id" =~ ^[0-9]+$ ]] || fail "failed to seed flash-sale item"
 curl --fail-with-body --silent --show-error -X PUT \

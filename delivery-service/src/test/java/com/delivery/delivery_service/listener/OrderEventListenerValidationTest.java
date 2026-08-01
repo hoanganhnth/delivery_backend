@@ -60,6 +60,30 @@ class OrderEventListenerValidationTest {
     }
 
     @Test
+    void canonicalPositiveDiscountCreatesDeliveryAndAcknowledges() throws Exception {
+        DeliveryService deliveryService = mock(DeliveryService.class);
+        OutboxService outboxService = mock(OutboxService.class);
+        Acknowledgment acknowledgment = mock(Acknowledgment.class);
+        OrderEventListener listener = new OrderEventListener(
+                deliveryService, new EventValidationService(), outboxService);
+        OrderCreatedEvent event = minimallyPopulatedEvent();
+        event.setDiscountAmount(new BigDecimal("10000"));
+        event.setTotalPrice(new BigDecimal("102000"));
+        DeliveryResponse response = new DeliveryResponse();
+        response.setId(202L);
+        when(deliveryService.createDeliveryFromOrderEvent(any())).thenReturn(response);
+
+        listener.handleCreateDeliveryCommand(
+                new ObjectMapper().findAndRegisterModules().writeValueAsString(event), acknowledgment);
+
+        verify(deliveryService).createDeliveryFromOrderEvent(argThat(value ->
+                value.getDiscountAmount().compareTo(new BigDecimal("10000")) == 0
+                        && value.getTotalPrice().compareTo(new BigDecimal("102000")) == 0));
+        verify(acknowledgment).acknowledge();
+        verifyNoInteractions(outboxService);
+    }
+
+    @Test
     void uncorrelatableMalformedCommandIsNotAcknowledged() {
         DeliveryService deliveryService = mock(DeliveryService.class);
         OutboxService outboxService = mock(OutboxService.class);

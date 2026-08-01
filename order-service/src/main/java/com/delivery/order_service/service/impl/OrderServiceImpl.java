@@ -27,6 +27,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -169,7 +170,7 @@ public class OrderServiceImpl implements OrderService {
                         : canonicalFlashQuote.byFlashSaleItemId().get(itemRequest.getFlashSaleItemId()).unitPrice());
                 item.setOrder(savedOrder);
                 return item;
-            }).toList();
+            }).collect(Collectors.toCollection(ArrayList::new));
             orderItemRepository.saveAll(orderItems);
             savedOrder.setItems(orderItems);
             orderRepository.save(savedOrder);

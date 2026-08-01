@@ -19,6 +19,9 @@ RUN_ID="${RUN_ID:-$(date +%s)}"
 RUN_SUFFIX="${RUN_ID: -8}"
 SEED_OUTPUT_FILE="${SEED_OUTPUT_FILE:-}"
 SEED_SKIP_OFFLINE_PREVIOUS_SHIPPERS="${SEED_SKIP_OFFLINE_PREVIOUS_SHIPPERS:-false}"
+# Runtime rehearsals may use an isolated local database fixture without an
+# SMTP inbox. Production/default seeding never bypasses email verification.
+SEED_LOCAL_FIXTURE_EMAIL_VERIFIED="${SEED_LOCAL_FIXTURE_EMAIL_VERIFIED:-false}"
 
 # ⚠️ Role: các service downstream kiểm tra theo các chuỗi này
 #   (USER = khách, SHOP_OWNER = chủ nhà hàng, SHIPPER = shipper).
@@ -34,6 +37,12 @@ SHIPPER_LAT="10.7780"; SHIPPER_LNG="106.7020"
 
 command -v jq >/dev/null || { echo "❌ Cần cài jq"; exit 1; }
 command -v docker >/dev/null || { echo "❌ Cần Docker để seed ledger ký quỹ local"; exit 1; }
+command -v grep >/dev/null || { echo "❌ Cần grep để xác nhận fixture local"; exit 1; }
+
+# A retained-volume rehearsal may need to log in several older fixture shippers
+# before the new one. Respect Gateway 429 Retry-After instead of weakening the
+# public-auth rate-limit policy for test automation.
+CURL_RETRY_ARGS=(--retry 4 --retry-all-errors --retry-max-time 240)
 
 COMPOSE_COMMAND=(docker compose -f "$BACKEND_DIR/docker-compose.yml")
 if [[ -f "$BACKEND_DIR/docker-compose.secrets.yml" ]]; then
@@ -43,14 +52,48 @@ fi
 # Trích token: thử cả dạng bọc BaseResponse (.data) lẫn phẳng.
 extract() { jq -r "$1 // .data$1 // empty"; }
 
+verify_local_fixture_email() {
+  [[ "$SEED_LOCAL_FIXTURE_EMAIL_VERIFIED" == "true" ]] || return 0
+  "${COMPOSE_COMMAND[@]}" exec -T postgres psql -U postgres -d auth_db \
+    -qAt \
+    -c "UPDATE auth_account
+        SET email_verification_required = false,
+            email_verified_at = COALESCE(email_verified_at, CURRENT_TIMESTAMP)
+        WHERE email = '$1'
+        RETURNING id;" | grep -Eq '^[0-9]+$' \
+    || { echo "❌ Không thể verify local fixture email $1"; return 1; }
+}
+
 register() { # email role
-  curl --fail-with-body --silent --show-error -X POST "$BASE/api/auth/register" \
+  local auth_response provisioning_token
+  auth_response="$(curl "${CURL_RETRY_ARGS[@]}" --fail-with-body --silent --show-error \
+    -X POST "$BASE/api/auth/register" \
     -H 'Content-Type: application/json' \
-    -d "{\"email\":\"$1\",\"password\":\"$PASS\",\"role\":\"$2\"}" >/dev/null
+    -d "{\"email\":\"$1\",\"password\":\"$PASS\",\"role\":\"$2\"}")"
+  provisioning_token="$(jq -r '
+    if (.data | type) == "object" then (.data.provisioningToken // empty)
+    else empty end' <<< "$auth_response")"
+  if [[ -z "$provisioning_token" ]]; then
+    # Retained local stacks may still run the previous Auth image, where Auth
+    # completed User provisioning itself and returned boolean success. This is
+    # fixture compatibility only; production clients remain on the new token
+    # handoff contract in the current source tree.
+    jq -e '(.data == true) or (. == true)' <<< "$auth_response" >/dev/null \
+      || { echo "❌ Auth registration không trả provisioning token hoặc legacy success"; return 1; }
+    verify_local_fixture_email "$1"
+    return 0
+  fi
+  curl "${CURL_RETRY_ARGS[@]}" --fail-with-body --silent --show-error \
+    -X POST "$BASE/api/users/registrations" \
+    -H 'Content-Type: application/json' \
+    -d "$(jq -n --arg token "$provisioning_token" --arg name "Seed $2" \
+      '{provisioningToken: $token, fullName: $name}')" >/dev/null
+  verify_local_fixture_email "$1"
 }
 
 login() { # email deviceId -> echoes accessToken
-  curl --fail-with-body --silent --show-error -X POST "$BASE/api/auth/login" \
+  curl "${CURL_RETRY_ARGS[@]}" --fail-with-body --silent --show-error \
+    -X POST "$BASE/api/auth/login" \
     -H 'Content-Type: application/json' \
     -d "{\"email\":\"$1\",\"password\":\"$PASS\",\"deviceId\":\"$2\",\"deviceName\":\"MVP seed\",\"deviceType\":\"WEB\"}" \
     | jq -r '.accessToken // .data.accessToken // empty'
@@ -84,6 +127,7 @@ operator_provision_shipper() {
   local safe_run_id="${RUN_ID//[^a-zA-Z0-9_.-]/-}"
   "${COMPOSE_COMMAND[@]}" run --rm --build --no-deps \
     --name "auth-shipper-provision-$safe_run_id" \
+    -e EUREKA_CLIENT_REGISTER_WITH_EUREKA=false \
     -e APP_OPERATOR_SHIPPER_PROVISIONING_ENABLED=true \
     -e APP_OPERATOR_SHIPPER_PROVISIONING_EMAIL="$email" \
     -e APP_OPERATOR_SHIPPER_PROVISIONING_PASSWORD="$PASS" \
@@ -116,7 +160,7 @@ echo "✅ Chủ NH: $OWNER_EMAIL (token ${OWNER_TOKEN:+ok})"
 
 REST_ID="$(curl --fail-with-body --silent --show-error -X POST "$BASE/api/restaurants" \
   -H "Authorization: Bearer $OWNER_TOKEN" -H 'Content-Type: application/json' \
-  -d "{\"name\":\"Quán Test\",\"address\":\"123 Lê Lợi, Q1\",\"phone\":\"0900000001\",\"openingHour\":\"08:00\",\"closingHour\":\"22:00\",\"addressLat\":$REST_LAT,\"addressLng\":$REST_LNG,\"description\":\"Seed restaurant\"}" \
+  -d "{\"name\":\"Quán Test\",\"address\":\"123 Lê Lợi, Q1\",\"phone\":\"0900000001\",\"openingHour\":\"00:00\",\"closingHour\":\"23:59\",\"addressLat\":$REST_LAT,\"addressLng\":$REST_LNG,\"description\":\"Seed restaurant\"}" \
   | jq -r '.id // .data.id // empty')"
 [[ "$REST_ID" =~ ^[0-9]+$ ]] || { echo "❌ Không tạo được restaurant canonical"; exit 1; }
 echo "✅ Nhà hàng id=$REST_ID"

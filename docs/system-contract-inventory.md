@@ -366,6 +366,10 @@ rehearsal đồng thời bằng Redis/PostgreSQL thật vẫn OPEN.
 - Flashsale, analytics và promotion đã bỏ Eureka dependency/BOM `2022.0.3`;
   promotion bỏ `@EnableDiscoveryClient`. Eureka được roadmap xếp post-MVP,
   còn Compose MVP không có registry và dùng internal URL tường minh.
+- Task 21 (2026-08-01) supersedes that historical exception for Promotion and
+  Flash-sale: both now consume the supported `runtime-platform-starter` and
+  register through Spring Cloud `2025.0.3` so their Gateway `lb://` routes are
+  executable. Analytics and Livestream remain outside the active registry set.
 - `scripts/verify-build-baseline.sh` fail khi JDK, Boot parent, Cloud BOM hoặc
   Gateway starter lệch baseline.
 - Proof sau migration: verifier pass; reactor `-DskipTests package` pass 17/17;

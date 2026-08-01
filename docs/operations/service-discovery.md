@@ -16,10 +16,13 @@ or display names in a client URL.
 | Ordering | `restaurant-service`, `order-service`, `delivery-service`, `shipper-service`, `settlement-service` |
 | Realtime/workflow | `notification-service`, `tracking-service`, `match-service`, `saga-orchestrator-service` |
 | Search | `search-service` |
+| Checkout campaigns | `promotion-service`, `flashsale-service` |
 
-`promotion-service`, `flashsale-service`, `analytics-service`, and
-`livestream-service` remain disabled MVP capabilities. They are deliberately
-not Eureka clients in this rollout.
+`analytics-service` and `livestream-service` remain disabled MVP capabilities.
+They are deliberately not Eureka clients in this rollout. Promotion and
+flash-sale joined the registry with the Task 21 checkout capability; their
+checkout/relay flags still default off and are enabled only by a coordinated
+rollout.
 
 Gateway routes use `lb://<service-id>` (and `lb:ws://tracking-service` for raw
 WebSocket). The five active synchronous internal clients use

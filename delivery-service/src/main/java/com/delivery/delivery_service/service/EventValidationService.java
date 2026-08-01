@@ -64,8 +64,9 @@ public class EventValidationService {
             errors.add("Shipping fee phải lớn hơn 0");
         }
 
-        if (event.getDiscountAmount() == null || event.getDiscountAmount().compareTo(BigDecimal.ZERO) != 0) {
-            errors.add("Discount amount phải bằng 0 trong COD MVP");
+        if (event.getDiscountAmount() == null
+                || event.getDiscountAmount().compareTo(BigDecimal.ZERO) < 0) {
+            errors.add("Discount amount không được null hoặc âm");
         }
         
         if (!"COD".equals(event.getPaymentMethod())) {

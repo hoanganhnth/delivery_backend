@@ -64,6 +64,7 @@ printf '%s' "$rendered_config" | jq -e \
       and ($root.services[$service].secrets | map(.source) | index("internal-secret") != null)))
     and (.services["user-service"].environment | has("USER_LEGACY_DELETE_API_ENABLED") | not)
     and .services["auth-service"].environment.JWT_ACCESS_TOKEN_TTL_SECONDS == "900"
+    and .services["auth-service"].environment.MANAGEMENT_HEALTH_MAIL_ENABLED == "false"
     and (.services["restaurant-service"].environment | has("ORDER_SERVICE_URL") | not)
     and .services["restaurant-service"].environment.SPRING_DATA_REDIS_HOST == "redis"
     and (.services["restaurant-service"].depends_on | has("redis"))
@@ -143,7 +144,8 @@ printf '%s' "$rendered_config" | jq -e \
       "api-gateway", "auth-service", "user-service", "restaurant-service",
       "order-service", "delivery-service", "search-service", "shipper-service",
       "settlement-service", "notification-service", "match-service",
-      "tracking-service", "saga-orchestrator-service"
+      "tracking-service", "saga-orchestrator-service", "promotion-service",
+      "flashsale-service"
     ] | all(. as $service |
       $root.services[$service].environment.SPRING_CONFIG_IMPORT
         == "configserver:http://config-server:8888,optional:configtree:/run/secrets/"

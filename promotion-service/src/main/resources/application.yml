@@ -18,7 +18,10 @@ app:
 
 spring:
   config:
-    import: optional:configtree:/run/secrets/
+    import: ${CONFIG_SERVER_IMPORT:optional:configserver:http://config-server:8888},optional:configtree:/run/secrets/
+  cloud:
+    config:
+      fail-fast: ${CONFIG_SERVER_FAIL_FAST:false}
   application:
     name: promotion-service
   
@@ -56,6 +59,20 @@ spring:
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
+
+eureka:
+  client:
+    enabled: ${SERVICE_DISCOVERY_ENABLED:false}
+    service-url:
+      defaultZone: ${EUREKA_DEFAULT_ZONE:http://discovery-server:8761/eureka/}
+    healthcheck:
+      enabled: true
+  instance:
+    instance-id: ${spring.application.name}:${HOSTNAME:${random.value}}
+    prefer-ip-address: false
+    metadata-map:
+      management.port: ${management.server.port}
+      readiness-path: /actuator/health/readiness
 
 logging:
   level:

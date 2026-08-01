@@ -187,6 +187,7 @@ services:
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SMTP_AUTH: ${SMTP_AUTH:-true}
       SMTP_STARTTLS: ${SMTP_STARTTLS:-true}
+      MANAGEMENT_HEALTH_MAIL_ENABLED: ${MANAGEMENT_HEALTH_MAIL_ENABLED:-false}
       SECURITY_EMAIL_FROM: ${SECURITY_EMAIL_FROM:-}
       PASSWORD_RESET_URL: ${PASSWORD_RESET_URL:-http://localhost:3000/reset-password}
       EMAIL_VERIFICATION_URL: ${EMAIL_VERIFICATION_URL:-http://localhost:3000/verify-email}
@@ -486,6 +487,7 @@ services:
     container_name: promotion-service
     expose: ["8096", "9090"]
     environment:
+      <<: [*tracing-environment, *runtime-platform-environment]
       PROMOTION_CHECKOUT_ENABLED: "${PROMOTION_CHECKOUT_ENABLED:-false}"
       PROMOTION_OUTBOX_RELAY_ENABLED: "${PROMOTION_OUTBOX_RELAY_ENABLED:-false}"
       PROMOTION_MERCHANT_CREATE_API_ENABLED: "${PROMOTION_MERCHANT_CREATE_API_ENABLED:-false}"
@@ -528,6 +530,7 @@ services:
     container_name: flashsale-service
     expose: ["8092", "9090"]
     environment:
+      <<: [*tracing-environment, *runtime-platform-environment]
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/flashsale_db
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver

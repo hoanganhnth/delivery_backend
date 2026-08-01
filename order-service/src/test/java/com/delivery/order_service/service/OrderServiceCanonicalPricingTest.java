@@ -146,6 +146,9 @@ class OrderServiceCanonicalPricingTest {
         verify(orderEventPublisher).publishOrderCreatedEvent(order);
         assertEquals("Cơm canonical", orderItem.getMenuItemName());
         assertEquals(new BigDecimal("50000"), orderItem.getPrice());
+        org.assertj.core.api.Assertions.assertThat(order.getItems())
+                .as("Hibernate merge must be able to replace collection contents")
+                .isInstanceOf(java.util.ArrayList.class);
     }
 
     @Test
