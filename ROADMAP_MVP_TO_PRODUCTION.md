@@ -1,9 +1,10 @@
 # 🗺️ Roadmap: Hoàn thiện MVP → Vận hành Production
 
-> Cập nhật: 2026-07-21
+> Historical baseline: 2026-07-21 · Current implementation checkpoint:
+> 2026-08-01
 > Thay thế cho `SYSTEM_REVIEW.md` (đã lỗi thời từ 2026-04-25)
 
-## 0. Đánh giá lại hiện trạng (verify bằng code, 2026-07-21)
+## 0. Historical baseline — đánh giá ngày 2026-07-21
 
 `SYSTEM_REVIEW.md` viết ngày 25/04 và **phần lớn bug P0 trong đó đã được sửa**. Xác minh trực tiếp trên source:
 
@@ -19,6 +20,24 @@
 | NPE khi `notes == null` | ✅ Đã có `appendNotes()` null-safe |
 
 **Kết luận kiến trúc:** Thiết kế microservices đi đúng hướng và đã vượt mức prototype — có gateway (JWT RSA), Kafka event-driven, Redis GEO/TTL, raw WebSocket realtime, idempotency ở settlement, và đã mở rộng thêm flashsale / promotion / analytics / search / saga. **Nền tảng ổn.** Khoảng cách còn lại **không phải ở kiến trúc mà ở độ chín vận hành**: observability gần như bằng 0, chưa có rate-limit/circuit-breaker, vài luồng nghiệp vụ chưa khép kín, và một số điểm hiệu năng có thể sập khi tải lớn.
+
+## 0.1 Current verified status — 2026-08-01
+
+Phần historical baseline ở trên không còn là status hiện hành. Các phase sau đã
+được triển khai và có plan/evidence riêng:
+
+| Phase | Current status | Evidence |
+|---|---|---|
+| Observability | Actuator private, liveness/readiness, Prometheus/Grafana, correlation ID và OTLP tracing | `../docs/plans/completed/backend-actuator-health-readiness.md`, `../docs/plans/completed/production-metrics-prometheus.md`, `../docs/plans/completed/distributed-order-tracing.md` |
+| Resilience | Gateway rate limit, HTTP circuit breaker, Kafka retry/DLT, consumer dedup/idempotency | `docs/plans/completed/phase-2-resilience.md` |
+| Operations | Eureka, Config Server, secret-injection contract, CI và rollout/rollback runbook | `../docs/plans/completed/phase-3-operations-deployment.md` |
+| Data/scale | Backup/restore rehearsal, hot indexes, WebSocket fan-out/backpressure, location history | `docs/plans/completed/phase-4-data-scale.md` |
+| Auth/checkout/push | Password reset/email verification, refresh rotation, FCM wake-only, voucher/flash-sale reservation | `docs/plans/completed/task-18-password-reset-email-verification.md`, `../docs/plans/completed/task-19-refresh-token-rotation.md`, `../docs/plans/completed/task-21-voucher-flashsale-checkout.md`, `../docs/plans/completed/task-22-fcm-native-wakeup.md` |
+
+Các evidence trên là no-runtime, in-process hoặc localhost-only theo policy.
+Docker/Testcontainers race rehearsal, provider thật, cloud secrets và
+device/emulator sanity vẫn là operational follow-up, không được đánh dấu pass từ
+unit/static proof.
 
 ---
 
@@ -55,19 +74,23 @@
 
 ## 2. 🟦 Production — Nâng cấp để vận hành chuyên nghiệp, scale thật
 
+> Các checkbox trong mục 2 là backlog gốc được ghi trước các phase triển khai.
+> Current status có authority ở mục 2.8 bên dưới và các completed plans; không
+> đọc checkbox lịch sử một mình để kết luận phase chưa làm.
+
 Sau khi MVP chạy ổn, đây là các mảng đưa hệ thống từ "chạy được" lên "vận hành được ở quy mô lớn".
 
-### 2.1 Observability (đang là lỗ hổng lớn nhất — hiện gần như không có)
-- [ ] Thêm **Spring Boot Actuator** vào tất cả service (health, readiness, liveness) — hiện **không service nào có actuator**.
-- [ ] **Metrics**: Micrometer + Prometheus, dựng **Grafana** dashboard (throughput, latency p95/p99, Kafka lag, error rate). docker-compose hiện **chưa có** prometheus/grafana.
-- [ ] **Distributed tracing**: OpenTelemetry / Zipkin — trace một đơn hàng đi xuyên order → delivery → match → settlement.
-- [ ] **Log tập trung**: correlation-id (trace-id) xuyên service + đẩy về ELK/Loki thay vì log rời rạc.
+### 2.1 Observability
+- [x] **Spring Boot Actuator** cho tất cả service với health, readiness và liveness private.
+- [x] **Metrics**: Micrometer + Prometheus registry và Grafana dashboard/runbook.
+- [x] **Distributed tracing**: Micrometer/OpenTelemetry trace order lifecycle và outbox/Kafka propagation.
+- [x] **Correlation/structured logging**: correlation ID xuyên HTTP/Kafka và safe structured log context. External ELK/Loki hosting vẫn là deployment choice, chưa phải repo proof.
 
 ### 2.2 Khả năng chịu lỗi (resilience)
-- [ ] **Rate limiting ở Gateway** — dùng `RequestRateLimiter` (Redis) chống abuse/DDoS.
-- [ ] **Circuit breaker** — Resilience4j cho các call HTTP đồng bộ (match→tracking, auth→user) để lỗi không lan truyền.
-- [ ] **Dead Letter Queue** cho Kafka consumers — hiện chỉ có `FixedBackOff(1000,3)`, message lỗi hết retry sẽ mất. Cần DLQ + alert.
-- [ ] **Retry/backoff chuẩn hoá** và **idempotency mở rộng** ra các consumer khác ngoài settlement (order, delivery, notification).
+- [x] **Rate limiting ở Gateway** — Redis fixed-window, timeout/fail-open policy và route/role tests.
+- [x] **Circuit breaker** — Resilience4j cho các audited HTTP boundaries với timeout, state metrics và recovery proof.
+- [x] **Dead Letter Queue** — retry topics/DLT, same-partition recovery, no-retry poison classification và operator runbook.
+- [x] **Retry/backoff và idempotency** — chuẩn hóa cho các core consumer ngoài settlement, gồm Notification, Saga, Order và Delivery.
 
 ### 2.3 Service discovery & cấu hình
 - [ ] **Hoàn tất Eureka** — gateway đã có `eureka-client` dep nhưng route vẫn khai báo trong `application.properties` (localhost). Chuyển sang `lb://service-name` và đăng ký toàn bộ service với registry.
@@ -106,12 +129,34 @@ Sau khi MVP chạy ổn, đây là các mảng đưa hệ thống từ "chạy �
 - [ ] Trạng thái availability shipper (`IDLE`/`ON_DELIVERY`/`OFFLINE`) + filter shipper đang bận khi match.
 - [ ] Refund khi hủy đơn (settlement), notification preferences, viewer count/chat cho livestream.
 
+### 2.8 Current implementation checkpoint — 2026-08-01
+
+Đối chiếu với completed plans và source hiện hành:
+
+- **Đã hoàn tất:** Actuator/private readiness; Micrometer/Prometheus/Grafana;
+  correlation ID/OTLP tracing; Gateway rate limit; HTTP circuit breakers; Kafka
+  retry/DLT và core-consumer dedup; Eureka/Config Server; secret-injection
+  contract; CI/rollout runbook; backup/restore, hot indexes, WebSocket
+  fan-out/backpressure và location history; password reset/email verification;
+  refresh-token rotation; FCM wake-only; voucher/flash-sale reservation.
+- **Đã có contract/no-runtime proof nhưng external rehearsal còn deferred:**
+  PostgreSQL/Kafka delivery/Saga race, Redis/Kafka/raw-WebSocket replay, cloud
+  backup/PITR/KMS, provider thật và device/emulator sanity.
+- **Còn decision-gated:** automatic refund, online-payment provider activation,
+  shipper availability state/filter, analytics per-item pipeline,
+  notification preferences và livestream chat/concurrent viewer.
+- **Không được mở mặc định:** payment/VNPay, voucher/flash-sale checkout,
+  analytics, livestream và các route hidden; các cờ rollback vẫn `false`.
+
 ---
 
-## 3. Thứ tự đề xuất
+## 3. Current execution order
 
-1. **Tuần 1–2 (MVP block):** WaitingService integration, shipper-cancel→rematch, match thread không block, ShipperService pagination, đổi default secret.
-2. **Tuần 3–4 (MVP polish):** Order status enum, raw WebSocket rehearsal, logger cleanup, migration check.
-3. **Tháng 2 (Production nền tảng):** Actuator + Prometheus/Grafana + tracing, rate limit + circuit breaker + DLQ, hoàn tất Eureka.
-4. **Tháng 3+ (Production chín):** Secrets management, integration/contract test + CI/CD, tối ưu WebSocket & data, nghiệp vụ nâng cao.
+1. Đồng bộ status docs và hoàn tất no-runtime test isolation.
+2. Dùng Web action-contract matrix làm reference; sau đó kiểm tra parity của
+   Flutter và Shipper bằng test/fake adapter, không cần emulator.
+3. Draft và xin quyết định product cho automatic refund, availability và online
+   payment trước khi viết code tài chính.
+4. Khi có authority + môi trường, mới chạy external provider, Testcontainers,
+   cloud secret/PITR và device sanity rehearsal.
 </content>

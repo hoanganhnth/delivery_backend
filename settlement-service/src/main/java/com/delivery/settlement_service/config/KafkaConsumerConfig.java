@@ -28,6 +28,9 @@ public class KafkaConsumerConfig {
     private final String bootstrapServers;
     private final String groupId;
 
+    @Value("${spring.kafka.listener.auto-startup:true}")
+    private boolean listenerAutoStartup = true;
+
     public KafkaConsumerConfig(
             @Value("${spring.kafka.bootstrap-servers:localhost:9092}") String bootstrapServers,
             @Value("${spring.kafka.consumer.group-id:settlement-service-group}") String groupId) {
@@ -54,6 +57,7 @@ public class KafkaConsumerConfig {
         ConcurrentKafkaListenerContainerFactory<String, Object> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(consumerFactory());
+        factory.setAutoStartup(listenerAutoStartup);
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL);
         factory.setCommonErrorHandler(settlementKafkaErrorHandler);
         return factory;

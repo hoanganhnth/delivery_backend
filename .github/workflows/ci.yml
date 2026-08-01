@@ -21,6 +21,8 @@ jobs:
           cache: maven
       - name: Verify toolchain and dependency baseline
         run: ./scripts/verify-build-baseline.sh
+      - name: Verify no-runtime test context isolation
+        run: ./scripts/verify-test-context-isolation.sh
       - name: Build and test
         run: mvn -B clean test
       - name: Verify HTTP and public-boundary contracts

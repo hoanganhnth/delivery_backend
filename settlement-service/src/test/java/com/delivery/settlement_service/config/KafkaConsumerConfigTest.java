@@ -8,6 +8,7 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.listener.ContainerProperties;
 import org.springframework.kafka.support.SendResult;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.concurrent.CompletableFuture;
 
@@ -65,5 +66,18 @@ class KafkaConsumerConfigTest {
 
         assertThat(handler.isAckAfterHandle()).isTrue();
         assertThat(handler.seeksAfterHandling()).isTrue();
+    }
+
+    @Test
+    void honorsListenerAutoStartupFlagForNoRuntimeTests() {
+        KafkaConsumerConfig config = new KafkaConsumerConfig(
+                "kafka:19092", "settlement-test-group");
+        ReflectionTestUtils.setField(config, "listenerAutoStartup", false);
+
+        var recoverer = config.settlementDeadLetterRecoverer(mock(KafkaTemplate.class));
+        var factory = config.kafkaListenerContainerFactory(
+                config.settlementKafkaErrorHandler(recoverer));
+
+        assertThat(factory.createContainer("delivery.completed").isAutoStartup()).isFalse();
     }
 }
