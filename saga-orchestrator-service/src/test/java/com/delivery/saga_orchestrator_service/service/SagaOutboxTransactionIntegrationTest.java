@@ -62,9 +62,10 @@ class SagaOutboxTransactionIntegrationTest {
 
     private String orderCreated(Long orderId) {
         return """
-                {"orderId":%d,"totalPrice":120000,"shippingFee":20000,
+                {"eventId":"00000000-0000-0000-0000-%012d","orderId":%d,
+                 "totalPrice":120000,"shippingFee":20000,
                  "paymentMethod":"COD","restaurantId":30}
-                """.formatted(orderId);
+                """.formatted(orderId, orderId);
     }
 
     private static final class DeliberateRollback extends RuntimeException {
