@@ -133,8 +133,6 @@ public class AuthService implements UserDetailsService {
                 .map(existing -> resumePendingPasswordRegistration(existing, request, roleEnum))
                 .orElseGet(() -> createPasswordAccountOrResumeRace(request, roleEnum));
 
-        provisionUserProfile(account);
-
         return account;
     }
 
@@ -704,7 +702,7 @@ public class AuthService implements UserDetailsService {
         if (!Boolean.TRUE.equals(existing.getIsActive())) {
             throw new InvalidCredentialsException("Account is blocked or inactive");
         }
-        log.info("Resuming user profile provisioning for authAccountId={}", existing.getId());
+        log.info("Resuming password registration for authAccountId={}", existing.getId());
         return existing;
     }
 

@@ -48,9 +48,51 @@ Hai runner không mở public API, không ghi log password, chỉ resume account
 role và cùng password; existing account lệch role/password hoặc inactive sẽ
 fail-closed. Public self-registration vẫn không được tạo `ADMIN` hoặc `SHIPPER`.
 
+Public password registration là contract hai request do client điều phối:
+
+1. `POST /api/auth/register` chỉ tạo/resume credential identity trong Auth và
+   trả `authId/email/role` cùng `provisioningToken` opaque, thời hạn 15 phút.
+2. `POST /api/users/registrations` nhận token và profile fields. User service
+   resolve identity qua internal Auth API, không tin `authId/email/role` từ
+   client, tạo profile idempotent rồi complete liên kết `auth_account.user_id`.
+
+Nếu bước 2 lỗi sau khi Auth đã thành công, client chạy lại từ bước 1 để nhận
+handoff mới. Nếu profile đã persist nhưng callback complete bị gián đoạn, retry
+trả lại đúng profile theo `authId` rồi tiếp tục link; login vẫn fail-closed khi
+`user_id` chưa được link. Token chỉ lưu SHA-256 digest, one-time nhưng replay của
+một completion đã thành công được trả idempotent trong TTL. Password account vẫn
+phải verify email trước login. Social login và operator provisioning tiếp tục
+dùng internal server orchestration, không thuộc public two-request flow này.
+
+Gateway dùng cùng limit/fail-closed policy của public auth cho bước User nhưng
+một Redis bucket riêng, để một đăng ký hợp lệ không bị tính hai lần vào quota
+Auth trong khi cả hai anonymous endpoints vẫn được giới hạn theo peer IP.
+
 ## 3. Luồng nghiệp vụ (Business Flow)
 
-### 3.1. Phân quyền và Routing tại Gateway
+### 3.1. Đăng ký password hai bước
+
+```mermaid
+sequenceDiagram
+    participant App as Customer App
+    participant GW as API Gateway
+    participant Auth as Auth Service
+    participant User as User Service
+
+    App->>GW: POST /api/auth/register
+    GW->>Auth: email, password, role
+    Auth-->>App: auth identity + provisioningToken
+    App->>GW: POST /api/users/registrations
+    GW->>User: provisioningToken + profile
+    User->>Auth: internal resolve(token)
+    Auth-->>User: authId, email, role
+    User->>User: create/resume profile by authId
+    User->>Auth: internal complete(token, userId)
+    Auth-->>User: linked/idempotent
+    User-->>App: user profile
+```
+
+### 3.2. Phân quyền và Routing tại Gateway
 1. Khi user đăng nhập thành công, `auth-service` trả về Access Token TTL 15 phút
    và Refresh Token/session TTL 7 ngày. Mỗi device session có một token family
    độc lập. Mỗi refresh bắt buộc trả cả access token và refresh token mới; token

@@ -485,8 +485,7 @@ class AuthServiceSecurityTest {
     }
 
     @Test
-    @SuppressWarnings({"rawtypes", "unchecked"})
-    void registrationAuthenticatesItsInternalUserServiceRequest() {
+    void publicRegistrationCreatesOnlyTheAuthIdentity() {
         RegisterRequest request = new RegisterRequest();
         request.setEmail("user@example.com");
         request.setPassword("secret");
@@ -498,29 +497,14 @@ class AuthServiceSecurityTest {
             ReflectionTestUtils.setField(account, "id", 3L);
             return account;
         });
-        UserResponse user = UserResponse.builder()
-                .id(7L).authId(3L).email("user@example.com").role("USER").build();
-        when(restTemplate.exchange(
-                anyString(),
-                eq(HttpMethod.POST),
-                any(HttpEntity.class),
-                any(ParameterizedTypeReference.class)))
-                .thenReturn(ResponseEntity.ok(BaseResponse.success(user, "ok")));
+        AuthAccount result = service.register(request);
 
-        service.register(request);
-
-        ArgumentCaptor<HttpEntity> entity = ArgumentCaptor.forClass(HttpEntity.class);
-        verify(restTemplate).exchange(
-                anyString(),
-                eq(HttpMethod.POST),
-                entity.capture(),
-                any(ParameterizedTypeReference.class));
-        assertThat(entity.getValue().getHeaders().getFirst("Internal-Token"))
-                .isEqualTo("service-secret");
+        assertThat(result.getId()).isEqualTo(3L);
+        assertThat(result.getUserId()).isNull();
+        verifyNoInteractions(restTemplate);
     }
 
     @Test
-    @SuppressWarnings({"rawtypes", "unchecked"})
     void registrationCanResumeAnUnlinkedAccountWithTheSameCredentials() {
         RegisterRequest request = new RegisterRequest();
         request.setEmail("pending@example.com");
@@ -536,23 +520,17 @@ class AuthServiceSecurityTest {
 
         when(accountRepository.findByEmail(request.getEmail())).thenReturn(Optional.of(pending));
         when(passwordEncoder.matches(request.getPassword(), pending.getPasswordHash())).thenReturn(true);
-        UserResponse user = UserResponse.builder()
-                .id(17L).authId(11L).email("pending@example.com").role("USER").build();
-        when(restTemplate.exchange(
-                anyString(), eq(HttpMethod.POST), any(HttpEntity.class), any(ParameterizedTypeReference.class)))
-                .thenReturn(ResponseEntity.ok(BaseResponse.success(user, "ok")));
-
         AuthAccount result = service.register(request);
 
         assertThat(result).isSameAs(pending);
-        assertThat(result.getUserId()).isEqualTo(17L);
+        assertThat(result.getUserId()).isNull();
         verify(passwordEncoder, never()).encode(anyString());
-        verify(accountRepository).save(pending);
+        verify(accountRepository, never()).save(pending);
+        verifyNoInteractions(restTemplate);
     }
 
     @Test
-    @SuppressWarnings({"rawtypes", "unchecked"})
-    void provisioningFailureLeavesTheSavedAccountAvailableForRetry() {
+    void authRegistrationDoesNotDependOnUserServiceAvailability() {
         RegisterRequest request = new RegisterRequest();
         request.setEmail("retry@example.com");
         request.setPassword("secret");
@@ -564,19 +542,15 @@ class AuthServiceSecurityTest {
             ReflectionTestUtils.setField(account, "id", 23L);
             return account;
         });
-        when(restTemplate.exchange(
-                anyString(), eq(HttpMethod.POST), any(HttpEntity.class), any(ParameterizedTypeReference.class)))
-                .thenThrow(new ResourceAccessException("user-service unavailable"));
+        AuthAccount result = service.register(request);
 
-        assertThatThrownBy(() -> service.register(request))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("provision");
-
+        assertThat(result.getId()).isEqualTo(23L);
+        assertThat(result.getUserId()).isNull();
         verify(accountRepository, times(1)).save(any(AuthAccount.class));
+        verifyNoInteractions(restTemplate);
     }
 
     @Test
-    @SuppressWarnings({"rawtypes", "unchecked"})
     void concurrentPasswordRegistrationResumesTheWinningUnlinkedAccount() {
         RegisterRequest request = new RegisterRequest();
         request.setEmail("race@example.com");
@@ -597,48 +571,11 @@ class AuthServiceSecurityTest {
         when(accountRepository.save(any(AuthAccount.class)))
                 .thenThrow(new DataIntegrityViolationException("duplicate email"))
                 .thenAnswer(invocation -> invocation.getArgument(0));
-        UserResponse user = UserResponse.builder()
-                .id(37L).authId(31L).email(request.getEmail()).role("USER").build();
-        when(restTemplate.exchange(
-                anyString(), eq(HttpMethod.POST), any(HttpEntity.class), any(ParameterizedTypeReference.class)))
-                .thenReturn(ResponseEntity.ok(BaseResponse.success(user, "ok")));
-
         AuthAccount result = service.register(request);
 
         assertThat(result).isSameAs(winner);
-        assertThat(result.getUserId()).isEqualTo(37L);
-        verify(restTemplate).exchange(
-                anyString(), eq(HttpMethod.POST), any(HttpEntity.class), any(ParameterizedTypeReference.class));
-    }
-
-    @Test
-    @SuppressWarnings({"rawtypes", "unchecked"})
-    void conflictingProvisioningResponseCannotLinkAProfileFromAnotherIdentity() {
-        RegisterRequest request = new RegisterRequest();
-        request.setEmail("pending@example.com");
-        request.setPassword("secret");
-        request.setRole("USER");
-
-        AuthAccount pending = new AuthAccount();
-        ReflectionTestUtils.setField(pending, "id", 41L);
-        pending.setEmail(request.getEmail());
-        pending.setPasswordHash("hash");
-        pending.setRole(AuthAccount.Role.USER);
-        pending.setIsActive(true);
-        when(accountRepository.findByEmail(request.getEmail())).thenReturn(Optional.of(pending));
-        when(passwordEncoder.matches(request.getPassword(), pending.getPasswordHash())).thenReturn(true);
-        UserResponse conflicting = UserResponse.builder()
-                .id(99L).authId(42L).email("other@example.com").role("USER").build();
-        when(restTemplate.exchange(
-                anyString(), eq(HttpMethod.POST), any(HttpEntity.class), any(ParameterizedTypeReference.class)))
-                .thenReturn(ResponseEntity.ok(BaseResponse.success(conflicting, "ok")));
-
-        assertThatThrownBy(() -> service.register(request))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("conflicting provisioning identity");
-
-        assertThat(pending.getUserId()).isNull();
-        verify(accountRepository, never()).save(pending);
+        assertThat(result.getUserId()).isNull();
+        verifyNoInteractions(restTemplate);
     }
 
     @Test

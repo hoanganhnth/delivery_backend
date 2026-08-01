@@ -370,11 +370,13 @@ rehearsal đồng thời bằng Redis/PostgreSQL thật vẫn OPEN.
   Gateway starter lệch baseline.
 - Proof sau migration: verifier pass; reactor `-DskipTests package` pass 17/17;
   full Gateway test 12/12, focused Auth 16/16 và User 12/12 pass trên JDK 17.
-- Auth→User provisioning persist auth account trước remote call, resume account
-  chưa link và user create idempotent theo `authId`; unique-email race của
-  password/social registration reload account thắng để resume. Auth chỉ link khi
-  User response echo đúng immutable `authId/email/role`, không tin một `user.id`
-  rời rạc. Public flow không tạo mới SHIPPER trước khi có profile onboarding;
+- Public password registration đã tách thành hai client request: Auth persist
+  identity và phát opaque digest-only handoff trước; exact public User endpoint
+  resolve immutable `authId/email/role` qua internal Auth credential, create
+  idempotent theo `authId`, rồi complete exact `userId` link. Lost response/callback
+  được retry mà không rebind identity; login fail-closed tới khi link hoàn tất.
+  Social/operator provisioning vẫn dùng Auth→User internal call. Unique-email
+  race reload account thắng để resume. Public flow không tạo mới SHIPPER;
   existing operator-provisioned SHIPPER vẫn login được. Profile mutation dùng
   identity từ Gateway. Default-address mutation serialize bằng pessimistic owner
   lock. Auth clean 44/44, User clean 31/31; PostgreSQL migration/race integration

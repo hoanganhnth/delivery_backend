@@ -18,14 +18,17 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.delivery.auth_service.controller.AuthController;
+import com.delivery.auth_service.controller.InternalRegistrationController;
 import com.delivery.auth_service.dto.AuthResponse;
+import com.delivery.auth_service.entity.AuthAccount;
 import com.delivery.auth_service.service.AuthService;
 import com.delivery.auth_service.service.AccountSecurityService;
 import com.delivery.auth_service.service.TokenService;
 import org.springframework.web.client.RestTemplate;
 
 @WebMvcTest(
-        controllers = AuthController.class,
+        controllers = { AuthController.class, InternalRegistrationController.class },
+        properties = "app.internal.secret=service-secret",
         excludeAutoConfiguration = UserDetailsServiceAutoConfiguration.class)
 @Import({ SecurityConfig.class, JwtAuthenticationFilter.class })
 class AuthEndpointSecurityTest {
@@ -59,6 +62,59 @@ class AuthEndpointSecurityTest {
                                   "deviceId": "phone-1"
                                 }
                                 """))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void registrationReturnsAuthIdentityAndOpaqueUserHandoff() throws Exception {
+        AuthAccount account = new AuthAccount();
+        org.springframework.test.util.ReflectionTestUtils.setField(account, "id", 11L);
+        account.setEmail("user@example.com");
+        account.setRole(AuthAccount.Role.USER);
+        account.setIsActive(true);
+        when(authService.register(org.mockito.ArgumentMatchers.any())).thenReturn(account);
+        when(accountSecurityService.issueUserProvisioning(
+                org.mockito.ArgumentMatchers.eq(account),
+                org.mockito.ArgumentMatchers.nullable(String.class)))
+                .thenReturn("opaque-handoff");
+
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"email":"user@example.com",
+                                 "password":"Password1!",
+                                 "role":"USER"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .jsonPath("$.data.authId").value(11))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .jsonPath("$.data.email").value("user@example.com"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .jsonPath("$.data.role").value("USER"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .jsonPath("$.data.provisioningToken").value("opaque-handoff"));
+
+        verify(accountSecurityService).requestEmailVerification(
+                org.mockito.ArgumentMatchers.eq("user@example.com"),
+                org.mockito.ArgumentMatchers.nullable(String.class));
+    }
+
+    @Test
+    void internalRegistrationEndpointsRequireTheServiceCredential() throws Exception {
+        when(accountSecurityService.resolveUserProvisioning("opaque-handoff"))
+                .thenReturn(new com.delivery.auth_service.dto.UserProvisioningIdentityResponse(
+                        11L, "user@example.com", "USER"));
+
+        mockMvc.perform(post("/api/auth/internal/registrations/resolve")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"provisioningToken\":\"opaque-handoff\"}"))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(post("/api/auth/internal/registrations/resolve")
+                        .header("Internal-Token", "service-secret")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"provisioningToken\":\"opaque-handoff\"}"))
                 .andExpect(status().isOk());
     }
 

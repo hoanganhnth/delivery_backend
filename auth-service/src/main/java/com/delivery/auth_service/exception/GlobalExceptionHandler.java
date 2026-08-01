@@ -74,6 +74,13 @@ public class GlobalExceptionHandler {
         BaseResponse<Object> response = BaseResponse.failure(ex.getMessage());
         return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
     }
+
+    @ExceptionHandler(ProvisioningConflictException.class)
+    public ResponseEntity<BaseResponse<Object>> handleProvisioningConflict(
+            ProvisioningConflictException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(BaseResponse.failure(ex.getMessage()));
+    }
     
     /**
      * Xử lý validation errors từ @Valid (400)

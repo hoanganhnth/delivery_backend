@@ -1,10 +1,10 @@
 # HTTP API Inventory
 
-Ngày cập nhật inventory: 2026-07-30
+Ngày cập nhật inventory: 2026-07-31
 
 Tài liệu này liệt kê toàn bộ method có mapping trong 16 service có controller.
 `saga-orchestrator-service` không có HTTP controller. Danh sách được sinh trực
-tiếp từ annotation Java và hiện có **157 method**.
+tiếp từ annotation Java và hiện có **160 method**.
 
 Contract backend MVP được freeze ngày 2026-07-26 sau clean Gate B8, API surface
 classification và full reactor 602 test. Các capability ghi hidden/disabled hoặc
@@ -29,7 +29,7 @@ việc không thấy client gọi.
 | exact order/delivery admin maintenance handlers | public-admin | Gateway allow-list theo path + method và service đều bắt JWT role `ADMIN`; không còn admin wildcard |
 | `PUT /api/deliveries/{id}/status` | public-client/SHIPPER self | chỉ shipper đã assign được đi tuần tự `PICKED_UP -> DELIVERING -> DELIVERED`; ADMIN và generic assign/cancel/rematch bị chặn; exact same-state retry không ghi thêm outbox |
 | `/api/auth/accounts/email/**` | dead/deleted | không có backend/client caller; account detail admin dùng ID, Auth→User linkage dùng provisioning response |
-| `POST /api/users`, `GET /api/users/by-auth/**` | internal | đã bỏ khỏi Gateway và yêu cầu shared internal credential |
+| `POST /api/users`, `GET /api/users/by-auth/**` | internal | đã bỏ khỏi Gateway và yêu cầu shared internal credential; chỉ exact `POST /api/users/registrations` là public handoff |
 | `POST /api/users/admin/{userId}/block|unblock` | internal | web chỉ dùng Auth admin status API; User mutation đã bỏ khỏi Gateway, yêu cầu `Internal-Token` + ADMIN identity từ auth-service và idempotent cho retry |
 | `/api/restaurants/validate/**` | internal | đã ẩn khỏi Gateway; fail-closed bằng `Internal-Token` dùng chung với order-service |
 | restaurant `/api/cache/**` | dead/deleted | không có Gateway/client/ops consumer; availability mutation và warmup controller/service graph đã xóa, canonical mutation tự đồng bộ cache |
@@ -55,12 +55,14 @@ sửa.
 
 | Service/surface | Target actor and ownership | Known consumer | Class/disposition | Current gap |
 |---|---|---|---|---|
-| auth register/login/social/refresh | anonymous; refresh token rotation | cả 3 client | public-client/keep | Mỗi device là một token family; refresh token chỉ lưu SHA-256 fingerprint, rotate dưới row lock và consumed-token reuse revoke toàn family trước khi trả 401; ba client single-flight và bắt buộc lưu cặp token mới |
+| auth password register | anonymous; Auth owns immutable identity and opaque handoff | Flutter | public-client/keep | `POST /api/auth/register` chỉ tạo/resume Auth identity, phát digest-only 15-minute provisioning token; không gọi User trong request này |
+| auth login/social/refresh | anonymous; refresh token rotation | cả 3 client | public-client/keep | Mỗi device là một token family; refresh token chỉ lưu SHA-256 fingerprint, rotate dưới row lock và consumed-token reuse revoke toàn family trước khi trả 401; ba client single-flight và bắt buộc lưu cặp token mới |
 | auth forgot/reset + email verification | anonymous; exact one-time token owns account | all clients | public-client/keep | uniform request response; AWS SES SMTP async after commit; token digest/expiry/consumption persisted; public-auth Gateway quota 10/min/IP; password reset revokes all refresh families/sessions |
 | auth logout/sessions | authenticated account, own sessions | Flutter/web | public-client/keep | Logout bằng current/rotated refresh token và authenticated `DELETE /sessions/{deviceId}` revoke đúng device family; session khác không bị ảnh hưởng. Access token đã cấp vẫn stateless-valid tối đa 15 phút; immediate access invalidation không thuộc MVP. |
 | auth account by id/admin actions | ADMIN | web admin | public-admin/keep | Gateway + service bắt `ADMIN`; block/unblock dùng account row lock transaction, revoke active sessions và ghi durable pending projection trước commit; User projection sync chạy after-commit + scheduled retry bằng internal credential với version guard; block reason bound 500 và typed admin identity; compatibility list hard-cap 100, paginated envelope chờ client migration |
 | auth account by email | authenticated service identity | auth→user/internal admin lookup | internal/keep | đã ẩn khỏi Gateway và fail-closed bằng shared secret; rotation/integration proof còn OPEN |
-| user create/by-auth | auth-service only | auth registration | internal/keep | đã ẩn khỏi Gateway và bắt shared secret; create idempotent theo authId, từ chối rebinding theo authId hoặc email khác auth identity, DB migration khóa unique email case-insensitive và auth có resume sau lỗi; PostgreSQL concurrent proof còn OPEN |
+| user public registration handoff | anonymous bearer handoff; identity resolved from Auth | Flutter | public-client/keep | exact `POST /api/users/registrations`; client chỉ gửi opaque token + profile, User resolve/complete qua internal Auth credential, create idempotent theo authId và retry được sau callback failure |
+| user internal create/by-auth | auth-service only | social/operator provisioning | internal/keep | không có Gateway route và bắt shared secret; create idempotent theo authId, từ chối rebinding theo authId hoặc email khác auth identity, DB migration khóa unique email case-insensitive; PostgreSQL concurrent proof còn OPEN |
 | user current read/update | authenticated account owns its profile projection | Flutter/web/shipper | public-client/keep | canonical `GET/PUT /api/users` derive ID từ JWT and fail closed if trusted Gateway identity headers are missing; path-ID mutation không còn public |
 | user delete | auth-owned soft deactivate only | không có consumer | dead/deleted | user xác nhận không hard-delete nghiệp vụ; orphan `DELETE /api/users/{id}` controller/service/repository branch và feature flag đã xóa. Canonical admin block vô hiệu hóa Auth + User projection và revoke sessions; self-deactivate sau MVP phải được orchestration từ Auth, không được xóa profile trực tiếp. |
 | user addresses | USER owns address and path userId; ADMIN support | Flutter | public-client/keep | exact path+method Gateway allow-list bắt `USER|ADMIN`; controller từ chối role khác dù numeric identity trùng; tất cả read/mutation đã đối chiếu owner; runtime self read 200 và cross-user read 403, spoof identity headers không đổi JWT identity; default mutation serialize bằng pessimistic owner lock |
@@ -145,6 +147,8 @@ sửa.
 | auth-service | AuthController | POST | `/api/auth/reset-password` | `resetPassword` |
 | auth-service | AuthController | POST | `/api/auth/email-verification/request` | `requestEmailVerification` |
 | auth-service | AuthController | POST | `/api/auth/email-verification/confirm` | `confirmEmailVerification` |
+| auth-service | InternalRegistrationController | POST | `/api/auth/internal/registrations/resolve` | `resolve` |
+| auth-service | InternalRegistrationController | POST | `/api/auth/internal/registrations/complete` | `complete` |
 | auth-service | AuthController | GET | `/api/auth/sessions` | `getSessions` |
 | auth-service | AuthController | DELETE | `/api/auth/sessions/{deviceId}` | `revokeDeviceSession` |
 | auth-service | AuthController | GET | `/api/auth/accounts/{id}` | `getAccountById` |
@@ -282,6 +286,7 @@ sửa.
 | user-service | UserAddressController | DELETE | `/api/addresses/{id}` | `deleteAddress` |
 | user-service | UserAddressController | PATCH | `/api/addresses/{id}/default` | `setDefault` |
 | user-service | UserController | POST | `/api/users` | `createUser` |
+| user-service | UserController | POST | `/api/users/registrations` | `registerUser` |
 | user-service | UserController | GET | `/api/users` | `getUserById` |
 | user-service | UserController | GET | `/api/users/by-auth/{authId}` | `getUserByAuthId` |
 | user-service | UserController | PUT | `/api/users` | `updateCurrentUser` |

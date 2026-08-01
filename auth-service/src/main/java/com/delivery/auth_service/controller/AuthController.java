@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.delivery.auth_service.dto.AuthAccountDto;
+import com.delivery.auth_service.dto.AuthRegisterResponse;
 import com.delivery.auth_service.dto.AuthResponse;
 import com.delivery.auth_service.dto.BlockAccountRequest;
 import com.delivery.auth_service.dto.LoginRequest;
@@ -52,15 +53,19 @@ public class AuthController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<BaseResponse<Boolean>> register(
+    public ResponseEntity<BaseResponse<AuthRegisterResponse>> register(
             @Valid @RequestBody RegisterRequest request,
             HttpServletRequest servletRequest) {
         var account = authService.register(request);
-        if (accountSecurityService != null) {
-            accountSecurityService.requestEmailVerification(account.getEmail(), clientIp(servletRequest));
-        }
-        BaseResponse<Boolean> response = BaseResponse.success(true,
-                "Account registered; check your email to verify it");
+        String provisioningToken = accountSecurityService.issueUserProvisioning(account, clientIp(servletRequest));
+        accountSecurityService.requestEmailVerification(account.getEmail(), clientIp(servletRequest));
+        AuthRegisterResponse registration = new AuthRegisterResponse(
+                account.getId(),
+                account.getEmail(),
+                account.getRole().name(),
+                provisioningToken);
+        BaseResponse<AuthRegisterResponse> response = BaseResponse.success(registration,
+                "Auth identity registered; create the user profile to finish registration");
         return ResponseEntity.ok(response);
     }
 

@@ -4,6 +4,8 @@ import com.delivery.auth_service.entity.AuthAccount;
 import com.delivery.auth_service.entity.AuthSecurityToken;
 import com.delivery.auth_service.entity.AuthSecurityToken.Purpose;
 import com.delivery.auth_service.exception.InvalidTokenException;
+import com.delivery.auth_service.exception.ProvisioningConflictException;
+import com.delivery.auth_service.dto.UserProvisioningIdentityResponse;
 import com.delivery.auth_service.repository.AuthAccountRepository;
 import com.delivery.auth_service.repository.AuthSecurityAuditRepository;
 import com.delivery.auth_service.repository.AuthSecurityTokenRepository;
@@ -41,6 +43,7 @@ public class AccountSecurityService {
     private final SecurityAuditService auditService;
     private final Duration resetTtl;
     private final Duration verificationTtl;
+    private final Duration userProvisioningTtl;
     private final int tokenRetentionDays;
     private final int auditRetentionDays;
 
@@ -55,6 +58,7 @@ public class AccountSecurityService {
             SecurityAuditService auditService,
             @Value("${app.security-token.password-reset-ttl:PT15M}") Duration resetTtl,
             @Value("${app.security-token.email-verification-ttl:PT24H}") Duration verificationTtl,
+            @Value("${app.security-token.user-provisioning-ttl:PT15M}") Duration userProvisioningTtl,
             @Value("${app.security-token.retention-days:30}") int tokenRetentionDays,
             @Value("${app.security-audit.retention-days:180}") int auditRetentionDays) {
         this.accounts = accounts;
@@ -67,6 +71,7 @@ public class AccountSecurityService {
         this.auditService = auditService;
         this.resetTtl = requirePositive(resetTtl, "password reset TTL");
         this.verificationTtl = requirePositive(verificationTtl, "email verification TTL");
+        this.userProvisioningTtl = requirePositive(userProvisioningTtl, "user provisioning TTL");
         this.tokenRetentionDays = Math.max(1, tokenRetentionDays);
         this.auditRetentionDays = Math.max(30, auditRetentionDays);
     }
@@ -128,6 +133,65 @@ public class AccountSecurityService {
                 account.getId(), "EMAIL_VERIFICATION_COMPLETE", "SUCCESS", null, clientIp);
     }
 
+    @Transactional
+    public String issueUserProvisioning(AuthAccount account, String clientIp) {
+        if (account == null || account.getId() == null
+                || !Boolean.TRUE.equals(account.getIsActive())) {
+            throw new IllegalArgumentException("Active auth account is required for user provisioning");
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        tokens.consumeOutstanding(account.getId(), Purpose.USER_PROVISIONING, now);
+        String rawToken = randomToken();
+        AuthSecurityToken token = new AuthSecurityToken();
+        token.setAuthAccount(account);
+        token.setPurpose(Purpose.USER_PROVISIONING);
+        token.setTokenHash(hashToken(rawToken));
+        token.setExpiresAt(now.plus(userProvisioningTtl));
+        tokens.saveAndFlush(token);
+        auditService.recordTransactional(
+                account.getId(), "USER_PROVISIONING_ISSUED", "SUCCESS", null, clientIp);
+        return rawToken;
+    }
+
+    @Transactional
+    public UserProvisioningIdentityResponse resolveUserProvisioning(String rawToken) {
+        AuthSecurityToken token = requireUsableUserProvisioning(rawToken, true);
+        AuthAccount account = token.getAuthAccount();
+        return new UserProvisioningIdentityResponse(
+                account.getId(), account.getEmail(), account.getRole().name());
+    }
+
+    @Transactional
+    public void completeUserProvisioning(String rawToken, Long userId) {
+        if (userId == null || userId <= 0) {
+            throw new IllegalArgumentException("Positive userId is required");
+        }
+
+        AuthSecurityToken token = requireUsableUserProvisioning(rawToken, true);
+        AuthAccount account = token.getAuthAccount();
+        if (account.getUserId() != null && !account.getUserId().equals(userId)) {
+            throw new ProvisioningConflictException(
+                    "Auth identity is already linked to a different user");
+        }
+
+        if (token.getConsumedAt() != null) {
+            if (userId.equals(account.getUserId())) {
+                return;
+            }
+            throw new InvalidTokenException("Invalid or expired security token");
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        account.setUserId(userId);
+        accounts.save(account);
+        token.setConsumedAt(now);
+        tokens.save(token);
+        tokens.consumeOutstanding(account.getId(), Purpose.USER_PROVISIONING, now);
+        auditService.recordTransactional(
+                account.getId(), "USER_PROVISIONING_COMPLETE", "SUCCESS", null, null);
+    }
+
     private void issueAndSend(AuthAccount account, Purpose purpose, Duration ttl, String clientIp) {
         LocalDateTime now = LocalDateTime.now();
         tokens.consumeOutstanding(account.getId(), purpose, now);
@@ -158,6 +222,31 @@ public class AccountSecurityService {
         }
         if (!Boolean.TRUE.equals(token.getAuthAccount().getIsActive())) {
             return reject(expected, "INACTIVE_ACCOUNT", clientIp);
+        }
+        return token;
+    }
+
+    private AuthSecurityToken requireUsableUserProvisioning(
+            String rawToken, boolean allowCompletedRetry) {
+        if (rawToken == null || rawToken.isBlank()) {
+            return reject(Purpose.USER_PROVISIONING, "INVALID", null);
+        }
+        AuthSecurityToken token = tokens.findByTokenHashForUpdate(hashToken(rawToken)).orElse(null);
+        if (token == null) {
+            return reject(Purpose.USER_PROVISIONING, "INVALID", null);
+        }
+        if (token.getPurpose() != Purpose.USER_PROVISIONING) {
+            return reject(Purpose.USER_PROVISIONING, "WRONG_PURPOSE", null);
+        }
+        if (token.getExpiresAt() == null || !token.getExpiresAt().isAfter(LocalDateTime.now())) {
+            return reject(Purpose.USER_PROVISIONING, "EXPIRED", null);
+        }
+        if (!Boolean.TRUE.equals(token.getAuthAccount().getIsActive())) {
+            return reject(Purpose.USER_PROVISIONING, "INACTIVE_ACCOUNT", null);
+        }
+        if (token.getConsumedAt() != null
+                && (!allowCompletedRetry || token.getAuthAccount().getUserId() == null)) {
+            return reject(Purpose.USER_PROVISIONING, "REUSED", null);
         }
         return token;
     }

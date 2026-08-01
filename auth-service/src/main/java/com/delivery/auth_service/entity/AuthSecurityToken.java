@@ -21,7 +21,7 @@ import java.time.LocalDateTime;
         uniqueConstraints = @UniqueConstraint(name = "uk_auth_security_token_hash", columnNames = "token_hash"))
 public class AuthSecurityToken {
 
-    public enum Purpose { PASSWORD_RESET, EMAIL_VERIFICATION }
+    public enum Purpose { PASSWORD_RESET, EMAIL_VERIFICATION, USER_PROVISIONING }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

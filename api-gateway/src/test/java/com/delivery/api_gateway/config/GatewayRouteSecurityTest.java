@@ -145,6 +145,8 @@ class GatewayRouteSecurityTest {
         Map<String, Route> routes = routes();
 
         assertThat(matches(routes, HttpMethod.POST, "/api/users")).isFalse();
+        assertThat(matches(routes, HttpMethod.POST, "/api/users/registrations")).isTrue();
+        assertThat(matches(routes, HttpMethod.POST, "/api/users/registrations/extra")).isFalse();
         assertThat(matches(routes, HttpMethod.GET, "/api/users/by-auth/42")).isFalse();
         assertThat(matches(routes, HttpMethod.GET, "/api/users")).isTrue();
         assertThat(matches(routes, HttpMethod.PUT, "/api/users")).isTrue();

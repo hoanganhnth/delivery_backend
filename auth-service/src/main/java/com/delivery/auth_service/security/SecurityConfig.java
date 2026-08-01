@@ -45,6 +45,9 @@ public class SecurityConfig {
                                 "/actuator/health",
                                 "/actuator/health/**",
                                 "/error").permitAll()
+                        .requestMatchers(HttpMethod.POST,
+                                "/api/auth/internal/registrations/resolve",
+                                "/api/auth/internal/registrations/complete").permitAll()
                         .requestMatchers("/api/auth/admin/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/auth/accounts/*").hasRole("ADMIN")
                         .requestMatchers("/api/auth/**").authenticated()

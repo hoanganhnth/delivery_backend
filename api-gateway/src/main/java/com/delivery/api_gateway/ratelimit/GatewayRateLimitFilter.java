@@ -94,6 +94,9 @@ public class GatewayRateLimitFilter implements GlobalFilter, Ordered {
         if (isPublicAuth(path, method)) {
             return new Policy("public_auth", properties.getPublicAuth(), ignored -> peerIp(exchange));
         }
+        if (isUserRegistration(path, method)) {
+            return new Policy("user_registration", properties.getPublicAuth(), ignored -> peerIp(exchange));
+        }
         if (isPublicCatalog(path, method)) {
             return new Policy("public_catalog", properties.getPublicCatalog(), ignored -> peerIp(exchange));
         }
@@ -119,6 +122,10 @@ public class GatewayRateLimitFilter implements GlobalFilter, Ordered {
                 || "/api/auth/reset-password".equals(path)
                 || "/api/auth/email-verification/request".equals(path)
                 || "/api/auth/email-verification/confirm".equals(path));
+    }
+
+    private boolean isUserRegistration(String path, HttpMethod method) {
+        return method == HttpMethod.POST && "/api/users/registrations".equals(path);
     }
 
     private boolean isPublicCatalog(String path, HttpMethod method) {

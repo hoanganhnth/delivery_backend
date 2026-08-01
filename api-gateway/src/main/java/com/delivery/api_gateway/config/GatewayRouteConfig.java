@@ -83,6 +83,10 @@ public class GatewayRouteConfig {
                                                 "/api/search/dishes")
                                                 .and().method(HttpMethod.GET)
                                                 .uri(searchServiceUri))
+                                .route("user-service-registration", r -> r.path(
+                                                "/api/users/registrations")
+                                                .and().method(HttpMethod.POST)
+                                                .uri(userServiceUri))
 
                                 // Protected auth endpoints (JWT required)
                                 .route("auth-service-admin", r -> r.path(
@@ -105,8 +109,8 @@ public class GatewayRouteConfig {
                                                                 jwtFilter.apply(new JwtAuthenticationFilter.Config())))
                                                 .uri(authServiceUri))
 
-                                // POST /api/users and GET /by-auth/** are auth-service internal
-                                // linkage APIs and intentionally have no public route.
+                                // POST /api/users and GET /by-auth/** remain internal linkage APIs.
+                                // Only the exact /registrations handoff path is public above.
                                 .route("user-service-current", r -> r.path("/api/users")
                                                 .and().method(HttpMethod.GET, HttpMethod.PUT)
                                                 .filters(f -> f.filter(

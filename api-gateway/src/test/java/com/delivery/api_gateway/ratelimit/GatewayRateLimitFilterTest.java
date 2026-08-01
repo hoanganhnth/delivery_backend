@@ -47,6 +47,18 @@ class GatewayRateLimitFilterTest {
     }
 
     @Test
+    void userRegistrationHandoffUsesASeparateIpBucketWithThePublicAuthLimit() {
+        StubStore store = new StubStore(Mono.just(new RateLimitStore.Decision(11, 17)));
+        var exchange = exchange("POST", "/api/users/registrations", null, null);
+        var chain = mock(org.springframework.cloud.gateway.filter.GatewayFilterChain.class);
+
+        filter(store).filter(exchange, chain).block();
+
+        assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+        assertThat(store.key.get()).contains("user_registration:127.0.0.1");
+    }
+
+    @Test
     void usesVerifiedSubjectForAuthenticatedRead() {
         StubStore store = new StubStore(Mono.just(new RateLimitStore.Decision(1, 60)));
         var exchange = exchange("GET", "/api/orders/7", "44", "USER");

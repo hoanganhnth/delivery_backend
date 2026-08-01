@@ -16,17 +16,29 @@ import org.springframework.beans.factory.annotation.Value;
 
 import com.delivery.user_service.dto.UserRequest;
 import com.delivery.user_service.dto.UserResponse;
+import com.delivery.user_service.dto.UserRegistrationRequest;
 import com.delivery.user_service.service.UserService;
+import com.delivery.user_service.service.UserRegistrationService;
 
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 
 @RestController
 @RequestMapping("/api/users")
-@RequiredArgsConstructor
 public class UserController {
 
     private final UserService userService;
+    private final UserRegistrationService userRegistrationService;
+
+    public UserController(UserService userService) {
+        this(userService, null);
+    }
+
+    @Autowired
+    public UserController(UserService userService, UserRegistrationService userRegistrationService) {
+        this.userService = userService;
+        this.userRegistrationService = userRegistrationService;
+    }
 
     @Value("${app.internal.secret:}")
     private String internalSecret;
@@ -41,6 +53,14 @@ public class UserController {
         }
         UserResponse user = userService.createUser(request);
         return ResponseEntity.ok(new BaseResponse<>(1, user));
+    }
+
+    @PostMapping("/registrations")
+    public ResponseEntity<BaseResponse<UserResponse>> registerUser(
+            @Valid @RequestBody UserRegistrationRequest request) {
+        UserResponse user = userRegistrationService.register(request);
+        return ResponseEntity.ok(new BaseResponse<>(
+                1, user, "User profile registered and linked"));
     }
 
     @GetMapping
