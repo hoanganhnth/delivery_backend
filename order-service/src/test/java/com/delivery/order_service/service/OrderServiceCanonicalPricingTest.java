@@ -1,6 +1,7 @@
 package com.delivery.order_service.service;
 
 import com.delivery.order_service.dto.internal.ValidatedOrderData;
+import com.delivery.order_service.dto.event.ShipperNotFoundEvent;
 import com.delivery.order_service.dto.request.CreateOrderRequest;
 import com.delivery.order_service.dto.response.OrderResponse;
 import com.delivery.order_service.entity.Order;
@@ -42,6 +43,30 @@ class OrderServiceCanonicalPricingTest {
     @Mock CheckoutReservationClient reservationClient;
 
     @Test
+    void shipperNotFoundKeepsTerminalStatusAndPublishesRefundEligibilitySnapshot() {
+        Order order = new Order();
+        order.setId(101L);
+        order.setUserId(21L);
+        order.setRestaurantId(11L);
+        order.setStatus(com.delivery.order_service.entity.OrderStatus.FINDING_SHIPPER);
+        when(orderRepository.findByIdForUpdate(101L)).thenReturn(java.util.Optional.of(order));
+        when(orderRepository.save(order)).thenReturn(order);
+
+        ShipperNotFoundEvent event = new ShipperNotFoundEvent();
+        event.setOrderId(101L);
+        event.setDeliveryId(202L);
+        event.setReason("No eligible shipper");
+        event.setRetryAttempts(3);
+
+        service().updateOrderStatusFromShipperNotFoundEvent(event);
+
+        org.assertj.core.api.Assertions.assertThat(order.getStatus())
+                .isEqualTo(com.delivery.order_service.entity.OrderStatus.SHIPPER_NOT_FOUND);
+        verify(orderEventPublisher).publishRefundEligibilityEvent(
+                order, "FINDING_SHIPPER", "No eligible shipper");
+    }
+
+    @Test
     void customerCancellationLocksOrderBeforeTransitionAndOutbox() {
         Order order = new Order();
         order.setId(101L);
@@ -59,7 +84,8 @@ class OrderServiceCanonicalPricingTest {
         org.mockito.InOrder mutation = org.mockito.Mockito.inOrder(orderRepository, orderEventPublisher);
         mutation.verify(orderRepository).findByIdForUpdate(101L);
         mutation.verify(orderRepository).save(order);
-        mutation.verify(orderEventPublisher).publishOrderCancelledEvent(order, "PENDING", 21L);
+        mutation.verify(orderEventPublisher).publishOrderCancelledEvent(order, "PENDING", 21L,
+                "CUSTOMER", "CUSTOMER_CANCELLED");
         org.assertj.core.api.Assertions.assertThat(order.getUpdatedAt()).isNotNull();
     }
 
@@ -80,7 +106,8 @@ class OrderServiceCanonicalPricingTest {
         org.mockito.Mockito.verify(orderRepository, org.mockito.Mockito.times(2)).findByIdForUpdate(101L);
         org.mockito.Mockito.verify(orderRepository, org.mockito.Mockito.times(1)).save(order);
         org.mockito.Mockito.verify(orderEventPublisher, org.mockito.Mockito.times(1))
-                .publishOrderCancelledEvent(order, "PENDING", 21L);
+                .publishOrderCancelledEvent(order, "PENDING", 21L,
+                        "CUSTOMER", "CUSTOMER_CANCELLED");
     }
 
     @Test

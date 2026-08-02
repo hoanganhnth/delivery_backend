@@ -17,8 +17,9 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
- * Consumes the canonical cancellation snapshot only when the refund boundary is
- * explicitly enabled. Provider execution remains separately disabled by default.
+ * Consumes cancellation and deterministic compensation snapshots only when the
+ * refund boundary is explicitly enabled. Provider execution remains separately
+ * disabled by default.
  */
 @Component
 @Slf4j
@@ -31,7 +32,10 @@ public class OrderCancelledRefundListener {
         this.refundCaseService = refundCaseService;
     }
 
-    @KafkaListener(topics = "${app.kafka.topics.order-cancelled:order.cancelled}")
+    @KafkaListener(topics = {
+            "${app.kafka.topics.order-cancelled:order.cancelled}",
+            "${app.kafka.topics.refund-eligible:order.refund-eligible}"
+    })
     @Transactional
     public void handleOrderCancelled(String message,
                                      @Header(KafkaHeaders.RECEIVED_TOPIC) String topic,
@@ -42,13 +46,15 @@ public class OrderCancelledRefundListener {
         try {
             event = objectMapper.readValue(message, OrderCancelledEvent.class);
         } catch (JsonProcessingException exception) {
-            throw new IllegalArgumentException("Invalid order.cancelled JSON", exception);
+            // Keep the historical prefix for alert/runbook compatibility while
+            // covering the additional order.refund-eligible topic.
+            throw new IllegalArgumentException("Invalid order.cancelled JSON (refund trigger)", exception);
         }
 
         refundCaseService.processOrderCancellation(event);
         acknowledgeAfterCommit(acknowledgment);
-        log.info("Processed order.cancelled for refund boundary: orderId={}, eventId={}",
-                event.getOrderId(), event.getEventId());
+        log.info("Processed refund trigger: topic={}, orderId={}, eventId={}, eventType={}",
+                topic, event.getOrderId(), event.getEventId(), event.getEventType());
     }
 
     private void acknowledgeAfterCommit(Acknowledgment acknowledgment) {

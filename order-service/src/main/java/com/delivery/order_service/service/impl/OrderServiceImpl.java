@@ -327,8 +327,15 @@ public class OrderServiceImpl implements OrderService {
         order = orderRepository.save(order);
         businessMetrics.record("order_cancelled");
 
-        // ✅ Publish OrderCancelledEvent để thông báo delivery service ngừng tìm shipper
-        orderEventPublisher.publishOrderCancelledEvent(order, previousStatus, userId);
+        // ✅ Publish the cancellation for Delivery and the refund boundary.  The
+        // source is part of the durable event so a future provider rollout cannot
+        // mistake an admin/customer exception for an automatic refund trigger.
+        String cancellationSource = RoleConstants.ADMIN.equals(role) ? "ADMIN"
+                : RoleConstants.RESTAURANT_OWNER.equals(role) ? "RESTAURANT" : "CUSTOMER";
+        String reasonCode = RoleConstants.ADMIN.equals(role) ? "ADMIN_CANCELLED"
+                : RoleConstants.RESTAURANT_OWNER.equals(role) ? "RESTAURANT_CANCELLED" : "CUSTOMER_CANCELLED";
+        orderEventPublisher.publishOrderCancelledEvent(order, previousStatus, userId,
+                cancellationSource, reasonCode);
 
         return orderMapper.orderToOrderResponse(order);
     }
@@ -408,6 +415,11 @@ public class OrderServiceImpl implements OrderService {
             order.setNotes("Không tìm được shipper sau " + event.getRetryAttempts() + " lần thử");
 
             orderRepository.save(order);
+
+            // SHIPPER_NOT_FOUND is deliberately not rewritten to CANCELLED, but
+            // it is still a deterministic pre-pickup compensation/refund trigger.
+            orderEventPublisher.publishRefundEligibilityEvent(order, previousStatus.name(),
+                    event.getReason());
 
             log.info("✅ Updated order {} status from {} to SHIPPER_NOT_FOUND after {} retry attempts",
                     order.getId(), previousStatus, event.getRetryAttempts());

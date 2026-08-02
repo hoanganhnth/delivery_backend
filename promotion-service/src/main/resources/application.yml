@@ -15,6 +15,7 @@ app:
       voucher-reservation-events: ${VOUCHER_RESERVATION_EVENTS_TOPIC:voucher.reservation.events}
       order-created: ${ORDER_CREATED_TOPIC:order.created}
       order-cancelled: ${ORDER_CANCELLED_TOPIC:order.cancelled}
+      refund-eligible: ${ORDER_REFUND_ELIGIBLE_TOPIC:order.refund-eligible}
 
 spring:
   config:

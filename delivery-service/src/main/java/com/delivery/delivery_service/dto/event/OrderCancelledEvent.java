@@ -30,6 +30,8 @@ public class OrderCancelledEvent {
     // Cancellation info
     private String cancelReason;
     private Long cancelledBy; // userId who cancelled
+    private String cancelledBySource;
+    private String cancelReasonCode;
     private LocalDateTime cancelledAt;
     
     // Delivery related

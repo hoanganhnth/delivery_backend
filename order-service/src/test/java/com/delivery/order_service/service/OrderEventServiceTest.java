@@ -419,7 +419,8 @@ class OrderEventServiceTest {
         orderEventService.handlePaymentFailed(event);
 
         assertEquals(OrderStatus.CANCELLED, testOrder.getStatus());
-        verify(orderEventPublisher).publishOrderCancelledEvent(testOrder, "PENDING", 123L);
+        verify(orderEventPublisher).publishOrderCancelledEvent(testOrder, "PENDING", 123L,
+                "SYSTEM", "PAYMENT_FAILED");
         assertEquals("Gateway timeout", testOrder.getCancelReason());
     }
 
@@ -441,7 +442,8 @@ class OrderEventServiceTest {
         assertEquals(OrderStatus.CANCELLED, testOrder.getStatus());
         assertEquals(null, testOrder.getVoucherReservationId());
         assertEquals(flashId, testOrder.getFlashSaleReservationId());
-        verify(orderEventPublisher).publishOrderCancelledEvent(testOrder, "PENDING", 70L);
+        verify(orderEventPublisher).publishOrderCancelledEvent(testOrder, "PENDING", 70L,
+                "RESTAURANT", "RESTAURANT_REJECTED");
     }
 
     private UUID decisionEventId() {

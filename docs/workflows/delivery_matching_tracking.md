@@ -35,6 +35,7 @@ sequenceDiagram
         S-->>D: saga.command.mark-shipper-not-found
         S-->>O: saga.command.update-order-status(SHIPPER_NOT_FOUND)
         D->>D: FINDING_SHIPPER -> SHIPPER_NOT_FOUND
+        O-->>R: order.refund-eligible (reservation compensation)
     end
 ```
 
@@ -59,7 +60,9 @@ sequenceDiagram
   Redis offer ownership. Reserve kiểm tombstone atomically nên in-flight find
   không thể giữ lại shipper sau cancel; stale release không xoá offer mới.
 - Hết retry/candidate: command riêng `saga.command.mark-shipper-not-found` đưa
-  Delivery về `SHIPPER_NOT_FOUND`; không dùng cancellation command.
+  Delivery về `SHIPPER_NOT_FOUND`; không dùng cancellation command. Order vẫn
+  giữ terminal status riêng nhưng phát `order.refund-eligible` với immutable
+  monetary snapshot để Settlement/Promotion/Flash-sale xử lý idempotent.
 
 ## Proof còn mở
 

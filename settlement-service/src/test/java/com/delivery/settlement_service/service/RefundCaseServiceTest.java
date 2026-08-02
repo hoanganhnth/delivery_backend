@@ -65,6 +65,53 @@ class RefundCaseServiceTest {
     }
 
     @Test
+    void noShipperCodOutcomeUsesDedicatedTriggerAndNeedsNoCustomerRefund() {
+        OrderCancelledEvent event = event("COD", "FINDING_SHIPPER");
+        event.setEventType("REFUND_ELIGIBLE");
+        event.setCurrentStatus("SHIPPER_NOT_FOUND");
+        event.setCancelledBy(null);
+        event.setCancelledBySource("SYSTEM");
+        event.setCancelReasonCode("SHIPPER_NOT_FOUND");
+
+        RefundCase result = service.processOrderCancellation(event);
+
+        assertThat(result.getTrigger()).isEqualTo(RefundCase.RefundTrigger.SHIPPER_NOT_FOUND);
+        assertThat(result.getStatus()).isEqualTo(RefundCase.RefundStatus.NO_REFUND_REQUIRED);
+        assertThat(result.getRefundAmount()).isEqualByComparingTo("0");
+        verify(outboxService, never()).enqueue(any());
+    }
+
+    @Test
+    void systemPaymentFailureCanRequestOnlineRefundOnlyWhenProviderBoundaryIsEnabled() {
+        RefundCaseService providerEnabled = new RefundCaseService(
+                repository, outboxService, new ObjectMapper(), true);
+        OrderCancelledEvent event = event("ONLINE", "PENDING");
+        event.setCancelledBySource("SYSTEM");
+        event.setCancelReasonCode("PAYMENT_FAILED");
+
+        RefundCase result = providerEnabled.processOrderCancellation(event);
+
+        assertThat(result.getTrigger()).isEqualTo(RefundCase.RefundTrigger.PAYMENT_FAILED);
+        assertThat(result.getStatus()).isEqualTo(RefundCase.RefundStatus.REQUESTED);
+        assertThat(result.getRefundAmount()).isEqualByComparingTo("120000");
+        verify(outboxService).enqueue(result);
+    }
+
+    @Test
+    void confirmedCustomerCancellationNeverBecomesAutomaticProviderRefund() {
+        RefundCaseService providerEnabled = new RefundCaseService(
+                repository, outboxService, new ObjectMapper(), true);
+        OrderCancelledEvent event = event("ONLINE", "CONFIRMED");
+        event.setCancelledBySource("CUSTOMER");
+        event.setCancelReasonCode("CUSTOMER_CANCELLED");
+
+        RefundCase result = providerEnabled.processOrderCancellation(event);
+
+        assertThat(result.getStatus()).isEqualTo(RefundCase.RefundStatus.MANUAL_REVIEW);
+        verify(outboxService, never()).enqueue(any());
+    }
+
+    @Test
     void postPickupCancellationRequiresManualReviewAndNeverCreatesNegativeCodRefund() {
         RefundCase result = service.processOrderCancellation(event("COD", "PICKED_UP"));
 

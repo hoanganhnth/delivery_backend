@@ -33,6 +33,8 @@ public class RefundCaseService {
     private static final String COD = "COD";
     private static final String ONLINE = "ONLINE";
     private static final String CANCELLED = "CANCELLED";
+    private static final String SHIPPER_NOT_FOUND = "SHIPPER_NOT_FOUND";
+    private static final String REFUND_ELIGIBLE = "REFUND_ELIGIBLE";
 
     private final RefundCaseRepository repository;
     private final RefundOutboxService outboxService;
@@ -53,7 +55,8 @@ public class RefundCaseService {
     public RefundCase processOrderCancellation(OrderCancelledEvent event) {
         validate(event);
         String fingerprint = fingerprint(event);
-        String idempotencyKey = event.getOrderId() + ":ORDER_CANCELLED:ORDER_TOTAL";
+        RefundTrigger trigger = resolveTrigger(event);
+        String idempotencyKey = event.getOrderId() + ":" + trigger.name() + ":ORDER_TOTAL";
 
         RefundCase byEvent = repository.findByEventId(event.getEventId()).orElse(null);
         if (byEvent != null) {
@@ -68,12 +71,12 @@ public class RefundCaseService {
         }
 
         RefundCase byOrder = repository.findByOrderIdAndTriggerAndComponent(
-                event.getOrderId(), RefundTrigger.ORDER_CANCELLED, RefundComponent.ORDER_TOTAL).orElse(null);
+                event.getOrderId(), trigger, RefundComponent.ORDER_TOTAL).orElse(null);
         if (byOrder != null) {
             throw new IllegalArgumentException("order already has a different refund cancellation event");
         }
 
-        RefundStatus status = decideStatus(event);
+        RefundStatus status = decideStatus(event, trigger);
         BigDecimal capturedAmount = COD.equals(event.getPaymentMethod())
                 ? BigDecimal.ZERO : event.getTotalPrice();
         BigDecimal refundAmount = COD.equals(event.getPaymentMethod())
@@ -92,7 +95,7 @@ public class RefundCaseService {
                 .previousOrderStatus(event.getPreviousStatus())
                 .currentOrderStatus(event.getCurrentStatus())
                 .paymentMethod(event.getPaymentMethod())
-                .trigger(RefundTrigger.ORDER_CANCELLED)
+                .trigger(trigger)
                 .component(RefundComponent.ORDER_TOTAL)
                 .status(status)
                 .currency("VND")
@@ -102,7 +105,7 @@ public class RefundCaseService {
                 .totalAmount(event.getTotalPrice())
                 .capturedAmount(capturedAmount)
                 .refundAmount(refundAmount)
-                .actorSource(event.getCancelledBy() == null ? "SYSTEM" : "ACTOR")
+                .actorSource(actorSource(event))
                 .actorId(event.getCancelledBy())
                 .reason(event.getCancelReason())
                 .payloadFingerprint(fingerprint)
@@ -169,17 +172,36 @@ public class RefundCaseService {
                 .build();
     }
 
-    private RefundStatus decideStatus(OrderCancelledEvent event) {
+    private RefundStatus decideStatus(OrderCancelledEvent event, RefundTrigger trigger) {
         if (COD.equals(event.getPaymentMethod()) && isBeforePickup(event.getPreviousStatus())) {
             return RefundStatus.NO_REFUND_REQUIRED;
         }
-        if (!isBeforePickup(event.getPreviousStatus())) {
+        if (!isAutoEligible(event, trigger)) {
             return RefundStatus.MANUAL_REVIEW;
         }
         if (ONLINE.equals(event.getPaymentMethod()) && !providerProcessingEnabled) {
             return RefundStatus.MANUAL_REVIEW;
         }
         return RefundStatus.REQUESTED;
+    }
+
+    private boolean isAutoEligible(OrderCancelledEvent event, RefundTrigger trigger) {
+        if (!isBeforePickup(event.getPreviousStatus())) {
+            return false;
+        }
+        return switch (trigger) {
+            case SHIPPER_NOT_FOUND -> "SYSTEM".equals(actorSource(event));
+            case PAYMENT_FAILED -> ONLINE.equals(event.getPaymentMethod())
+                    && "SYSTEM".equals(actorSource(event));
+            case ORDER_CANCELLED -> switch (actorSource(event)) {
+                case "CUSTOMER" -> "PENDING".equals(event.getPreviousStatus())
+                        && "CUSTOMER_CANCELLED".equals(event.getCancelReasonCode());
+                case "RESTAURANT" -> "RESTAURANT_REJECTED".equals(event.getCancelReasonCode());
+                case "SYSTEM" -> "SYSTEM_CANCELLED".equals(event.getCancelReasonCode());
+                default -> false;
+            };
+            case DELIVERY_DISPUTE -> false;
+        };
     }
 
     private boolean isBeforePickup(String status) {
@@ -193,8 +215,9 @@ public class RefundCaseService {
                 || event.getRestaurantId() == null || event.getRestaurantId() <= 0) {
             throw new IllegalArgumentException("refund cancellation event identity is required");
         }
-        if (!"ORDER_CANCELLED".equals(event.getEventType()) || !CANCELLED.equals(event.getCurrentStatus())) {
-            throw new IllegalArgumentException("refund cancellation event type/status is invalid");
+        if (!"ORDER_CANCELLED".equals(event.getEventType())
+                && !REFUND_ELIGIBLE.equals(event.getEventType())) {
+            throw new IllegalArgumentException("refund event type is invalid");
         }
         if (event.getPreviousStatus() == null || event.getPreviousStatus().isBlank()
                 || event.getCancelReason() == null || event.getCancelReason().isBlank()) {
@@ -202,6 +225,21 @@ public class RefundCaseService {
         }
         if (!COD.equals(event.getPaymentMethod()) && !ONLINE.equals(event.getPaymentMethod())) {
             throw new IllegalArgumentException("refund payment method must be COD or ONLINE");
+        }
+        RefundTrigger trigger = resolveTrigger(event);
+        if (trigger == RefundTrigger.SHIPPER_NOT_FOUND
+                && !SHIPPER_NOT_FOUND.equals(event.getCurrentStatus())) {
+            throw new IllegalArgumentException("shipper-not-found refund requires SHIPPER_NOT_FOUND status");
+        }
+        if (trigger != RefundTrigger.SHIPPER_NOT_FOUND
+                && !CANCELLED.equals(event.getCurrentStatus())) {
+            throw new IllegalArgumentException("refund cancellation requires CANCELLED status");
+        }
+        if (trigger == RefundTrigger.SHIPPER_NOT_FOUND && !"SYSTEM".equals(actorSource(event))) {
+            throw new IllegalArgumentException("shipper-not-found refund must be system sourced");
+        }
+        if (trigger == RefundTrigger.PAYMENT_FAILED && !ONLINE.equals(event.getPaymentMethod())) {
+            throw new IllegalArgumentException("payment failure refund must be ONLINE");
         }
         requireNonNegative(event.getSubtotalPrice(), "subtotalPrice");
         requireNonNegative(event.getDiscountAmount(), "discountAmount");
@@ -212,6 +250,26 @@ public class RefundCaseService {
         if (calculatedTotal.compareTo(event.getTotalPrice()) != 0) {
             throw new IllegalArgumentException("order monetary snapshot does not reconcile");
         }
+    }
+
+    private RefundTrigger resolveTrigger(OrderCancelledEvent event) {
+        if (REFUND_ELIGIBLE.equals(event.getEventType())
+                || SHIPPER_NOT_FOUND.equals(event.getCancelReasonCode())) {
+            return RefundTrigger.SHIPPER_NOT_FOUND;
+        }
+        if ("PAYMENT_FAILED".equals(event.getCancelReasonCode())) {
+            return RefundTrigger.PAYMENT_FAILED;
+        }
+        return RefundTrigger.ORDER_CANCELLED;
+    }
+
+    private String actorSource(OrderCancelledEvent event) {
+        if (event.getCancelledBySource() != null && !event.getCancelledBySource().isBlank()) {
+            return event.getCancelledBySource().trim().toUpperCase(java.util.Locale.ROOT);
+        }
+        // Legacy events remain readable but are never auto-eligible when an
+        // online provider is eventually enabled.
+        return event.getCancelledBy() == null ? "SYSTEM" : "LEGACY_ACTOR";
     }
 
     private void requireExactReplay(RefundCase existing, OrderCancelledEvent event,

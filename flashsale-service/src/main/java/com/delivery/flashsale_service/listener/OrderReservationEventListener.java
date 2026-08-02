@@ -22,7 +22,8 @@ public class OrderReservationEventListener {
     @Value("${app.kafka.topics.order-created:order.created}") private String orderCreatedTopic;
 
     @KafkaListener(topics = {"${app.kafka.topics.order-created:order.created}",
-            "${app.kafka.topics.order-cancelled:order.cancelled}"})
+            "${app.kafka.topics.order-cancelled:order.cancelled}",
+            "${app.kafka.topics.refund-eligible:order.refund-eligible}"})
     public void consume(String payload, @Header(KafkaHeaders.RECEIVED_TOPIC) String topic,
                         Acknowledgment acknowledgment) throws Exception {
         JsonNode event = objectMapper.readTree(payload);

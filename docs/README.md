@@ -34,3 +34,4 @@ Tài liệu đặc tả các luồng nghiệp vụ phức tạp, có sự giao t
 - [Account recovery and email verification](runbooks/account-recovery-email-verification.md)
 - [Secrets management and rotation](runbooks/secrets-management.md)
 - [Rolling/canary rollout and rollback](runbooks/rollout-and-rollback.md)
+- [Refund and cancellation compensation](runbooks/refund-workflow.md)

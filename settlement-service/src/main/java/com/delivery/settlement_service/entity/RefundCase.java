@@ -152,6 +152,7 @@ public class RefundCase {
     public enum RefundTrigger {
         ORDER_CANCELLED,
         PAYMENT_FAILED,
+        SHIPPER_NOT_FOUND,
         DELIVERY_DISPUTE
     }
 

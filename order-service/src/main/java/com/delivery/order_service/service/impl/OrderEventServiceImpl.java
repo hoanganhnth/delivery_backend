@@ -128,7 +128,8 @@ public class OrderEventServiceImpl implements OrderEventService {
         }
 
         orderRepository.save(order);
-        orderEventPublisher.publishOrderCancelledEvent(order, previousStatus, order.getUserId());
+        orderEventPublisher.publishOrderCancelledEvent(order, previousStatus, order.getUserId(),
+                "SYSTEM", "PAYMENT_FAILED");
         
         log.info("✅ Order {} marked as PAYMENT_FAILED", order.getId());
     }
@@ -206,7 +207,8 @@ public class OrderEventServiceImpl implements OrderEventService {
         //    Tái dùng luồng huỷ hiện có: publish order.cancelled → Saga điều phối
         //    saga.command.cancel-delivery → delivery ngừng matching.
         // cancelledBy is the authenticated actor user ID, never a restaurant ID.
-        orderEventPublisher.publishOrderCancelledEvent(order, previousStatus, event.getActorUserId());
+        orderEventPublisher.publishOrderCancelledEvent(order, previousStatus, event.getActorUserId(),
+                "RESTAURANT", "RESTAURANT_REJECTED");
 
         log.info("✅ Order {} rejected by restaurant → published cancellation to stop delivery", order.getId());
     }

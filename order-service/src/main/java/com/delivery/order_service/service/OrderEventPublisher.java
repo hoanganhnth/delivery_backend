@@ -27,6 +27,9 @@ public class OrderEventPublisher {
     @Value("${app.kafka.topics.order-cancelled:order.cancelled}")
     private String orderCancelledTopic;
 
+    @Value("${app.kafka.topics.refund-eligible:order.refund-eligible}")
+    private String refundEligibilityTopic;
+
     public OrderEventPublisher(OrderOutboxService outboxService) {
         this.outboxService = outboxService;
     }
@@ -50,8 +53,19 @@ public class OrderEventPublisher {
      * Publish OrderCancelledEvent khi order bị hủy
      */
     public void publishOrderCancelledEvent(Order order, String previousStatus, Long cancelledBy) {
+        publishOrderCancelledEvent(order, previousStatus, cancelledBy, "LEGACY_ACTOR", "ORDER_CANCELLED");
+    }
+
+    /**
+     * Publish an order cancellation with the source and stable reason code
+     * required by the refund eligibility policy.  The free-form reason remains
+     * an audit/display field; consumers must branch on the typed code/source.
+     */
+    public void publishOrderCancelledEvent(Order order, String previousStatus, Long cancelledBy,
+                                           String cancelledBySource, String cancelReasonCode) {
         requirePersistedOrder(order);
-        OrderCancelledEvent event = mapOrderToCancelledEvent(order, previousStatus, cancelledBy);
+        OrderCancelledEvent event = mapOrderToCancelledEvent(order, previousStatus, cancelledBy,
+                "CANCELLED", cancelledBySource, cancelReasonCode);
         outboxService.enqueue(
                 ORDER_CANCELLED_EVENT,
                 order.getId().toString(),
@@ -59,6 +73,28 @@ public class OrderEventPublisher {
                 order.getId().toString(),
                 event);
         log.info("Queued OrderCancelledEvent in transactional outbox for order {}", order.getId());
+    }
+
+    /**
+     * A no-shipper terminal outcome is intentionally not represented as an
+     * Order cancellation: Order and Delivery remain SHIPPER_NOT_FOUND.  It
+     * still needs the same immutable money/reservation snapshot so settlement
+     * and checkout compensation can converge without changing fulfilment
+     * semantics.
+     */
+    public void publishRefundEligibilityEvent(Order order, String previousStatus, String reason) {
+        requirePersistedOrder(order);
+        OrderCancelledEvent event = mapOrderToCancelledEvent(order, previousStatus, null,
+                "SHIPPER_NOT_FOUND", "SYSTEM", "SHIPPER_NOT_FOUND");
+        event.setCancelReason(reason == null || reason.isBlank()
+                ? "No shipper available" : reason);
+        outboxService.enqueue(
+                "REFUND_ELIGIBLE",
+                order.getId().toString(),
+                refundEligibilityTopic,
+                order.getId().toString(),
+                event);
+        log.info("Queued refund eligibility event for no-shipper order {}", order.getId());
     }
 
     private void requirePersistedOrder(Order order) {
@@ -70,16 +106,20 @@ public class OrderEventPublisher {
     /**
      * Map Order entity to OrderCancelledEvent
      */
-    private OrderCancelledEvent mapOrderToCancelledEvent(Order order, String previousStatus, Long cancelledBy) {
+    private OrderCancelledEvent mapOrderToCancelledEvent(Order order, String previousStatus,
+                                                         Long cancelledBy, String currentStatus,
+                                                         String cancelledBySource, String cancelReasonCode) {
         // Build cancel event manually to match structure
         OrderCancelledEvent cancelEvent = new OrderCancelledEvent();
         cancelEvent.setOrderId(order.getId());
         cancelEvent.setUserId(order.getUserId());
         cancelEvent.setRestaurantId(order.getRestaurantId());
         cancelEvent.setPreviousStatus(previousStatus);
-        cancelEvent.setCurrentStatus("CANCELLED");
+        cancelEvent.setCurrentStatus(currentStatus);
         cancelEvent.setCancelReason(order.getCancelReason());
         cancelEvent.setCancelledBy(cancelledBy);
+        cancelEvent.setCancelledBySource(cancelledBySource);
+        cancelEvent.setCancelReasonCode(cancelReasonCode);
         cancelEvent.setCancelledAt(order.getUpdatedAt() != null ? order.getUpdatedAt() : LocalDateTime.now());
         cancelEvent.setShipperId(order.getShipperId());
         cancelEvent.setHasActiveDelivery(order.getShipperId() != null);

@@ -26,6 +26,10 @@ public class OrderCancelledEvent {
     // Cancellation info
     private String cancelReason;
     private Long cancelledBy; // userId who cancelled
+    /** CUSTOMER, RESTAURANT, ADMIN or SYSTEM; used by refund eligibility rules. */
+    private String cancelledBySource;
+    /** Stable business reason code, not a free-form UI message. */
+    private String cancelReasonCode;
     private LocalDateTime cancelledAt;
     
     // Delivery related

@@ -25,6 +25,7 @@ class OrderEventPublisherTopicConfigurationTest {
         OrderEventPublisher publisher = new OrderEventPublisher(outboxService);
         ReflectionTestUtils.setField(publisher, "orderCreatedTopic", "b8.order.created");
         ReflectionTestUtils.setField(publisher, "orderCancelledTopic", "b8.order.cancelled");
+        ReflectionTestUtils.setField(publisher, "refundEligibilityTopic", "b8.order.refund-eligible");
         Order order = order();
 
         publisher.publishOrderCreatedEvent(order);
@@ -42,6 +43,7 @@ class OrderEventPublisherTopicConfigurationTest {
         OrderEventPublisher publisher = new OrderEventPublisher(outboxService);
         ReflectionTestUtils.setField(publisher, "orderCreatedTopic", "order.created");
         ReflectionTestUtils.setField(publisher, "orderCancelledTopic", "order.cancelled");
+        ReflectionTestUtils.setField(publisher, "refundEligibilityTopic", "order.refund-eligible");
         Order order = order();
         UUID voucherId = UUID.randomUUID();
         UUID flashId = UUID.randomUUID();
@@ -69,6 +71,38 @@ class OrderEventPublisherTopicConfigurationTest {
             assertThat(event.getShippingFee()).isEqualByComparingTo("25000");
             assertThat(event.getTotalPrice()).isEqualByComparingTo("120000");
             assertThat(event.getPaymentMethod()).isEqualTo("COD");
+        });
+    }
+
+    @Test
+    void cancellationAndNoShipperEventsCarryTypedCompensationAuthority() {
+        OrderOutboxService outboxService = mock(OrderOutboxService.class);
+        OrderEventPublisher publisher = new OrderEventPublisher(outboxService);
+        ReflectionTestUtils.setField(publisher, "orderCancelledTopic", "order.cancelled");
+        ReflectionTestUtils.setField(publisher, "refundEligibilityTopic", "order.refund-eligible");
+        Order order = order();
+        order.setCancelReason("customer changed mind");
+
+        publisher.publishOrderCancelledEvent(order, "PENDING", 30L,
+                "CUSTOMER", "CUSTOMER_CANCELLED");
+        publisher.publishRefundEligibilityEvent(order, "FINDING_SHIPPER", "No eligible shipper");
+
+        ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
+        verify(outboxService).enqueue(eq("ORDER_CANCELLED"), eq("970001"),
+                eq("order.cancelled"), eq("970001"), payload.capture());
+        verify(outboxService).enqueue(eq("REFUND_ELIGIBLE"), eq("970001"),
+                eq("order.refund-eligible"), eq("970001"), payload.capture());
+
+        assertThat(payload.getAllValues().get(0)).isInstanceOfSatisfying(OrderCancelledEvent.class, event -> {
+            assertThat(event.getCancelledBySource()).isEqualTo("CUSTOMER");
+            assertThat(event.getCancelReasonCode()).isEqualTo("CUSTOMER_CANCELLED");
+            assertThat(event.getCurrentStatus()).isEqualTo("CANCELLED");
+        });
+        assertThat(payload.getAllValues().get(1)).isInstanceOfSatisfying(OrderCancelledEvent.class, event -> {
+            assertThat(event.getCancelledBySource()).isEqualTo("SYSTEM");
+            assertThat(event.getCancelReasonCode()).isEqualTo("SHIPPER_NOT_FOUND");
+            assertThat(event.getCurrentStatus()).isEqualTo("SHIPPER_NOT_FOUND");
+            assertThat(event.getCancelReason()).isEqualTo("No eligible shipper");
         });
     }
 

@@ -10,6 +10,10 @@ Settlement runs on port `8090`. The active MVP surface is deliberately small:
 - Settlement writes the durable receipt, four ledger entries and balance
   projections in one database transaction.
 - Admin may read bounded balances, transactions, pending withdrawals and revenue.
+- Refund compensation consumes `order.cancelled` and the dedicated
+  `order.refund-eligible` no-shipper snapshot only behind its default-off flag;
+  it creates a read-only case/outbox boundary and never calls a provider or
+  reverses the ledger in the MVP.
 
 Payment/VNPay, self-service balance/withdraw/deposit APIs and admin financial
 mutations are disabled by default. They are not part of the COD MVP contract.

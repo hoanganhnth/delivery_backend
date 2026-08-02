@@ -29,9 +29,10 @@ class OrderReservationEventListenerTest {
         listener.consume(payload, "order.created", acknowledgment);
         listener.consume(payload, "order.created", acknowledgment);
         listener.consume(payload, "order.cancelled", acknowledgment);
+        listener.consume(payload, "order.refund-eligible", acknowledgment);
         verify(service, times(2)).commitReservation(reservationId, 9L);
-        verify(service).releaseReservation(reservationId, 9L);
-        verify(acknowledgment, times(3)).acknowledge();
+        verify(service, times(2)).releaseReservation(reservationId, 9L);
+        verify(acknowledgment, times(4)).acknowledge();
     }
 
     @Test

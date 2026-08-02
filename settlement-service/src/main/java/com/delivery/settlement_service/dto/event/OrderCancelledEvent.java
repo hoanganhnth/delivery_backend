@@ -29,6 +29,8 @@ public class OrderCancelledEvent {
 
     private String cancelReason;
     private Long cancelledBy;
+    private String cancelledBySource;
+    private String cancelReasonCode;
     private LocalDateTime cancelledAt;
 
     private Long shipperId;

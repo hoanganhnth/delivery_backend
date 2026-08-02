@@ -62,6 +62,23 @@ class OrderCancelledRefundListenerTest {
     }
 
     @Test
+    void noShipperRefundEligibilityTopicUsesTheSameSnapshotBoundary() throws Exception {
+        OrderCancelledEvent event = event();
+        event.setEventType("REFUND_ELIGIBLE");
+        event.setCurrentStatus("SHIPPER_NOT_FOUND");
+        event.setCancelledBy(null);
+        event.setCancelledBySource("SYSTEM");
+        event.setCancelReasonCode("SHIPPER_NOT_FOUND");
+
+        listener().handleOrderCancelled(
+                new ObjectMapper().findAndRegisterModules().writeValueAsString(event),
+                "order.refund-eligible", 0, 1L, acknowledgment);
+
+        verify(refundCaseService).processOrderCancellation(any(OrderCancelledEvent.class));
+        verify(acknowledgment).acknowledge();
+    }
+
+    @Test
     void malformedJsonIsNotAcknowledgedOrForwarded() {
         OrderCancelledRefundListener listener = new OrderCancelledRefundListener(refundCaseService);
 
@@ -92,5 +109,9 @@ class OrderCancelledRefundListenerTest {
                 .shippingFee(new BigDecimal("25000"))
                 .totalPrice(new BigDecimal("120000"))
                 .build();
+    }
+
+    private OrderCancelledRefundListener listener() {
+        return new OrderCancelledRefundListener(refundCaseService);
     }
 }
