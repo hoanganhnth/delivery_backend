@@ -1,6 +1,7 @@
 package com.delivery.settlement_service.service;
 
 import com.delivery.settlement_service.dto.event.OrderCancelledEvent;
+import com.delivery.settlement_service.dto.response.RefundCaseResponse;
 import com.delivery.settlement_service.entity.RefundCase;
 import com.delivery.settlement_service.repository.RefundCaseRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -12,12 +13,15 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -107,6 +111,44 @@ class RefundCaseServiceTest {
         verify(repository, never()).saveAndFlush(any());
     }
 
+    @Test
+    void adminListReturnsReadOnlyProjectionAndCapsCompatibilityLimit() {
+        RefundCase existing = persistedCase();
+        when(repository.findByStatusOrderByCreatedAtDesc(
+                eq(RefundCase.RefundStatus.MANUAL_REVIEW), any()))
+                .thenReturn(List.of(existing));
+
+        List<RefundCaseResponse> result = service.listAdminCases(
+                RefundCase.RefundStatus.MANUAL_REVIEW, 1000);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getRefundId()).isEqualTo(existing.getRefundId());
+        assertThat(result.get(0).getStatus()).isEqualTo("MANUAL_REVIEW");
+        assertThat(result.get(0).getRefundAmount()).isEqualByComparingTo(existing.getRefundAmount());
+        verify(repository).findByStatusOrderByCreatedAtDesc(
+                eq(RefundCase.RefundStatus.MANUAL_REVIEW),
+                org.mockito.ArgumentMatchers.argThat(page -> page.getPageSize() == 100));
+    }
+
+    @Test
+    void adminGetMissingCaseFailsClosed() {
+        UUID refundId = UUID.randomUUID();
+        when(repository.findById(refundId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.getAdminCase(refundId))
+                .isInstanceOf(com.delivery.settlement_service.exception.ResourceNotFoundException.class)
+                .hasMessageContaining(refundId.toString());
+    }
+
+    @Test
+    void adminListWithoutStatusUsesNewestCases() {
+        when(repository.findAllByOrderByCreatedAtDesc(any())).thenReturn(List.of(persistedCase()));
+
+        assertThatCode(() -> service.listAdminCases(null, 0)).doesNotThrowAnyException();
+        verify(repository).findAllByOrderByCreatedAtDesc(
+                org.mockito.ArgumentMatchers.argThat(page -> page.getPageSize() == 1));
+    }
+
     private OrderCancelledEvent event(String paymentMethod, String previousStatus) {
         return OrderCancelledEvent.builder()
                 .eventId(UUID.randomUUID())
@@ -125,6 +167,37 @@ class RefundCaseServiceTest {
                 .discountAmount(new BigDecimal("5000"))
                 .shippingFee(new BigDecimal("25000"))
                 .totalPrice(new BigDecimal("120000"))
+                .build();
+    }
+
+    private RefundCase persistedCase() {
+        return RefundCase.builder()
+                .refundId(UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"))
+                .eventId(UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"))
+                .idempotencyKey("101:ORDER_CANCELLED:ORDER_TOTAL")
+                .orderId(101L)
+                .userId(7L)
+                .restaurantId(11L)
+                .previousOrderStatus("PICKED_UP")
+                .currentOrderStatus("CANCELLED")
+                .paymentMethod("ONLINE")
+                .trigger(RefundCase.RefundTrigger.ORDER_CANCELLED)
+                .component(RefundCase.RefundComponent.ORDER_TOTAL)
+                .status(RefundCase.RefundStatus.MANUAL_REVIEW)
+                .currency("VND")
+                .subtotalAmount(new BigDecimal("100000"))
+                .discountAmount(new BigDecimal("5000"))
+                .shippingFee(new BigDecimal("25000"))
+                .totalAmount(new BigDecimal("120000"))
+                .capturedAmount(new BigDecimal("120000"))
+                .refundAmount(new BigDecimal("120000"))
+                .actorSource("ACTOR")
+                .actorId(7L)
+                .reason("customer dispute")
+                .payloadFingerprint("a".repeat(64))
+                .attempts(0)
+                .createdAt(LocalDateTime.of(2026, 8, 2, 10, 0))
+                .updatedAt(LocalDateTime.of(2026, 8, 2, 10, 0))
                 .build();
     }
 }

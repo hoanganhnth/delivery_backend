@@ -427,7 +427,9 @@ public class GatewayRouteConfig {
                                                 "/api/settlement/admin/balances",
                                                 "/api/settlement/admin/transactions",
                                                 "/api/settlement/admin/transactions/pending",
-                                                "/api/settlement/admin/revenue")
+                                                "/api/settlement/admin/revenue",
+                                                "/api/settlement/admin/refunds",
+                                                "/api/settlement/admin/refunds/{refundId:[0-9a-fA-F-]+}")
                                                 .and().method(HttpMethod.GET)
                                                 .filters(f -> f.filter(
                                                                 jwtFilter.apply(new JwtAuthenticationFilter.Config()

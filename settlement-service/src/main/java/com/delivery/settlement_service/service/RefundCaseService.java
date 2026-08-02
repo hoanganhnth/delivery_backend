@@ -1,16 +1,19 @@
 package com.delivery.settlement_service.service;
 
 import com.delivery.settlement_service.dto.event.OrderCancelledEvent;
+import com.delivery.settlement_service.dto.response.RefundCaseResponse;
 import com.delivery.settlement_service.entity.RefundCase;
 import com.delivery.settlement_service.entity.RefundCase.RefundComponent;
 import com.delivery.settlement_service.entity.RefundCase.RefundStatus;
 import com.delivery.settlement_service.entity.RefundCase.RefundTrigger;
+import com.delivery.settlement_service.exception.ResourceNotFoundException;
 import com.delivery.settlement_service.repository.RefundCaseRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,6 +29,7 @@ import java.util.UUID;
 @Service
 @Slf4j
 public class RefundCaseService {
+    private static final int ADMIN_LIST_LIMIT = 100;
     private static final String COD = "COD";
     private static final String ONLINE = "ONLINE";
     private static final String CANCELLED = "CANCELLED";
@@ -111,6 +115,58 @@ public class RefundCaseService {
         }
         log.info("Refund case {} created for order {} with status {}", saved.getRefundId(), saved.getOrderId(), status);
         return saved;
+    }
+
+    @Transactional(readOnly = true)
+    public List<RefundCaseResponse> listAdminCases(RefundStatus status, int requestedLimit) {
+        int limit = Math.min(Math.max(requestedLimit, 1), ADMIN_LIST_LIMIT);
+        List<RefundCase> cases = status == null
+                ? repository.findAllByOrderByCreatedAtDesc(PageRequest.of(0, limit))
+                : repository.findByStatusOrderByCreatedAtDesc(status, PageRequest.of(0, limit));
+        return cases.stream().map(this::toAdminResponse).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public RefundCaseResponse getAdminCase(UUID refundId) {
+        if (refundId == null) {
+            throw new IllegalArgumentException("refundId is required");
+        }
+        return repository.findById(refundId)
+                .map(this::toAdminResponse)
+                .orElseThrow(() -> new ResourceNotFoundException("Refund case", "refundId", refundId));
+    }
+
+    private RefundCaseResponse toAdminResponse(RefundCase refundCase) {
+        return RefundCaseResponse.builder()
+                .refundId(refundCase.getRefundId())
+                .eventId(refundCase.getEventId())
+                .idempotencyKey(refundCase.getIdempotencyKey())
+                .orderId(refundCase.getOrderId())
+                .userId(refundCase.getUserId())
+                .restaurantId(refundCase.getRestaurantId())
+                .previousOrderStatus(refundCase.getPreviousOrderStatus())
+                .currentOrderStatus(refundCase.getCurrentOrderStatus())
+                .paymentMethod(refundCase.getPaymentMethod())
+                .trigger(refundCase.getTrigger() == null ? null : refundCase.getTrigger().name())
+                .component(refundCase.getComponent() == null ? null : refundCase.getComponent().name())
+                .status(refundCase.getStatus() == null ? null : refundCase.getStatus().name())
+                .currency(refundCase.getCurrency())
+                .subtotalAmount(refundCase.getSubtotalAmount())
+                .discountAmount(refundCase.getDiscountAmount())
+                .shippingFee(refundCase.getShippingFee())
+                .totalAmount(refundCase.getTotalAmount())
+                .capturedAmount(refundCase.getCapturedAmount())
+                .refundAmount(refundCase.getRefundAmount())
+                .actorSource(refundCase.getActorSource())
+                .actorId(refundCase.getActorId())
+                .reason(refundCase.getReason())
+                .providerReference(refundCase.getProviderReference())
+                .lastError(refundCase.getLastError())
+                .attempts(refundCase.getAttempts())
+                .createdAt(refundCase.getCreatedAt())
+                .updatedAt(refundCase.getUpdatedAt())
+                .processedAt(refundCase.getProcessedAt())
+                .build();
     }
 
     private RefundStatus decideStatus(OrderCancelledEvent event) {

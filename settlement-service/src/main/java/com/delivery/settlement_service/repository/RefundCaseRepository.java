@@ -21,5 +21,7 @@ public interface RefundCaseRepository extends JpaRepository<RefundCase, UUID> {
     Optional<RefundCase> findByOrderIdAndTriggerAndComponent(
             Long orderId, RefundTrigger trigger, RefundComponent component);
 
+    List<RefundCase> findAllByOrderByCreatedAtDesc(Pageable pageable);
+
     List<RefundCase> findByStatusOrderByCreatedAtDesc(RefundStatus status, Pageable pageable);
 }

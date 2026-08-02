@@ -283,7 +283,13 @@ class GatewayRouteSecurityTest {
         Map<String, Route> routes = routes();
 
         assertThat(matches(routes, HttpMethod.GET, "/api/settlement/admin/balances")).isTrue();
+        assertThat(matches(routes, HttpMethod.GET, "/api/settlement/admin/refunds")).isTrue();
+        assertThat(matches(routes, HttpMethod.GET,
+                "/api/settlement/admin/refunds/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")).isTrue();
         assertThat(routes.get("settlement-service-admin-read").getFilters()).isNotEmpty();
+        assertThat(matches(routes, HttpMethod.POST, "/api/settlement/admin/refunds")).isFalse();
+        assertThat(matches(routes, HttpMethod.DELETE,
+                "/api/settlement/admin/refunds/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")).isFalse();
         assertThat(matches(routes, HttpMethod.POST, "/api/settlement/admin/transactions/42/reverse")).isFalse();
         assertThat(matches(routes, HttpMethod.POST, "/api/settlement/admin/transactions/42/approve")).isFalse();
         assertThat(matches(routes, HttpMethod.POST, "/api/settlement/balances/shipper/42/deposit")).isFalse();
