@@ -1,0 +1,70 @@
+package com.delivery.settlement_service.entity;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.Id;
+import jakarta.persistence.Index;
+import jakarta.persistence.Table;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+import java.time.LocalDateTime;
+import java.util.UUID;
+
+/** Durable, replayable handoff for a future provider/refund worker. */
+@Entity
+@Table(name = "refund_outbox_events", indexes = {
+        @Index(name = "idx_refund_outbox_pending", columnList = "status,next_attempt_at,created_at,event_id"),
+        @Index(name = "idx_refund_outbox_aggregate", columnList = "aggregate_type,aggregate_id,created_at")
+})
+@Getter
+@Setter
+@NoArgsConstructor
+public class RefundOutboxEvent {
+
+    @Id
+    @Column(name = "event_id", nullable = false, updatable = false)
+    private UUID eventId;
+
+    @Column(name = "aggregate_type", nullable = false, updatable = false, length = 64)
+    private String aggregateType;
+
+    @Column(name = "aggregate_id", nullable = false, updatable = false, length = 64)
+    private String aggregateId;
+
+    @Column(name = "event_type", nullable = false, updatable = false, length = 128)
+    private String eventType;
+
+    @Column(nullable = false, updatable = false)
+    private String topic;
+
+    @Column(name = "event_key", nullable = false, updatable = false, length = 128)
+    private String eventKey;
+
+    @Column(nullable = false, updatable = false, columnDefinition = "TEXT")
+    private String payload;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 16)
+    private Status status;
+
+    @Column(nullable = false)
+    private int attempts;
+
+    @Column(name = "next_attempt_at", nullable = false)
+    private LocalDateTime nextAttemptAt;
+
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private LocalDateTime createdAt;
+
+    @Column(name = "sent_at")
+    private LocalDateTime sentAt;
+
+    @Column(name = "last_error", length = 2000)
+    private String lastError;
+
+    public enum Status { PENDING, SENT, DEAD }
+}
