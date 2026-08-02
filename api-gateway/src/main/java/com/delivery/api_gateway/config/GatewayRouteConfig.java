@@ -419,10 +419,18 @@ public class GatewayRouteConfig {
                                                                 jwtFilter.apply(new JwtAuthenticationFilter.Config())))
                                                 .uri(trackingServiceWsUri))
 
-                                // COD-first MVP: only the audited admin read/maintenance surface is
-                                // reachable. Self-service balance, withdrawal, manual deposit and
-                                // fake/online payment APIs stay hidden until entity ownership and
-                                // provider-backed money movement are proven end to end.
+                                // COD-first MVP: only customer-owned refund status and audited
+                                // admin read surfaces are reachable. Self-service balance,
+                                // withdrawal, manual deposit and fake/online payment APIs stay
+                                // hidden until entity ownership and provider-backed money movement
+                                // are proven end to end.
+                                .route("settlement-service-customer-refund-read", r -> r.path(
+                                                "/api/settlement/refunds/my")
+                                                .and().method(HttpMethod.GET)
+                                                .filters(f -> f.filter(
+                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config()
+                                                                                .setRequiredRole("USER"))))
+                                                .uri(settlementServiceUri))
                                 .route("settlement-service-admin-read", r -> r.path(
                                                 "/api/settlement/admin/balances",
                                                 "/api/settlement/admin/transactions",

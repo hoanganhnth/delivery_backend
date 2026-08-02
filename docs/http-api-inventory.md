@@ -4,7 +4,7 @@ Ngày cập nhật inventory: 2026-08-02
 
 Tài liệu này liệt kê toàn bộ method có mapping trong 16 service có controller.
 `saga-orchestrator-service` không có HTTP controller. Danh sách được sinh trực
-tiếp từ annotation Java và hiện có **162 method**.
+tiếp từ annotation Java và hiện có **163 method**.
 
 Contract backend MVP được freeze ngày 2026-07-26 sau clean Gate B8, API surface
 classification và full reactor 602 test. Các capability ghi hidden/disabled hoặc
@@ -42,6 +42,7 @@ việc không thấy client gọi.
 | `POST /api/notifications/send` | internal | không có Gateway route; fail-closed bằng `Internal-Token` |
 | `/api/flashsales/internal/**` | internal | Gateway route đã loại 2026-07-22; service credential còn OPEN |
 | settlement fake confirm | dev-only | không còn Gateway route trong COD-first MVP |
+| settlement customer refund status | public-client/USER | exact `GET /api/settlement/refunds/my` only; query scopes to trusted `X-User-Id` and returns a safe status projection of existing cases. It cannot create, approve, execute or mutate a refund. |
 | settlement hold/release | public-admin/internal | không còn Gateway route; chỉ admin read surface riêng còn public |
 | settlement internal COD eligibility | internal | Match gọi bằng `Internal-Token`; không có Gateway route, secret rỗng fail-closed |
 | livestream write/token routes | experimental/hidden | Gateway route đã đóng; ownership/token role chưa enforce đầy đủ |
@@ -249,6 +250,7 @@ sửa.
 | settlement-service | AdminController | GET | `/api/settlement/admin/revenue` | `getPlatformRevenue` |
 | settlement-service | RefundAdminController | GET | `/api/settlement/admin/refunds` | `list` |
 | settlement-service | RefundAdminController | GET | `/api/settlement/admin/refunds/{refundId}` | `get` |
+| settlement-service | RefundCustomerController | GET | `/api/settlement/refunds/my` | `list` |
 | settlement-service | BalanceController | GET | `/api/settlement/balances/restaurant/{entityId}` | `getRestaurantBalance` |
 | settlement-service | BalanceController | GET | `/api/settlement/balances/shipper/{entityId}` | `getShipperBalance` |
 | settlement-service | BalanceController | GET | `/api/settlement/balances/restaurant/{entityId}/earnings` | `getRestaurantEarnings` |

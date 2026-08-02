@@ -32,8 +32,10 @@ idempotently from either compensation topic.
 
 1. Apply Flyway V4 in Settlement and confirm the `refund_cases` and
    `refund_outbox_events` constraints are present.
-2. Confirm Gateway exposes only the two `GET` admin refund paths and the service
-   requires `ADMIN`; there is no POST/PUT/DELETE mutation route.
+2. Confirm Gateway exposes only the customer-owned `GET /api/settlement/refunds/my`
+   plus the two `GET` admin refund paths. The customer route requires `USER` and
+   a trusted user identity; the admin paths require `ADMIN`. There is no
+   POST/PUT/DELETE refund mutation route.
 3. Start Settlement with `REFUND_PROCESSING_ENABLED=true` only after the
    `order.cancelled` and `order.refund-eligible` consumers have been deployed.
 4. Observe case creation and reservation release. Keep
@@ -55,6 +57,16 @@ components (`subtotal_amount`, `discount_amount`, `shipping_fee`,
 `total_amount`, `captured_amount`, `refund_amount`) with the retained Order
 snapshot. Review `payload_fingerprint`, `event_id`, trigger, actor source,
 reason code, outbox status and attempts. Do not repair by editing these rows.
+
+Customers can read the status of their own existing cases through:
+
+```text
+GET /api/settlement/refunds/my?limit=50
+```
+
+This is visibility only. The safe projection excludes provider references,
+internal errors, idempotency, actor and reason fields; it cannot open a dispute,
+approve a refund, call a provider, or change ledger balances.
 
 ## Rollback and recovery
 

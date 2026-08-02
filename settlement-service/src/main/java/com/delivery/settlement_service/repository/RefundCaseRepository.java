@@ -24,4 +24,6 @@ public interface RefundCaseRepository extends JpaRepository<RefundCase, UUID> {
     List<RefundCase> findAllByOrderByCreatedAtDesc(Pageable pageable);
 
     List<RefundCase> findByStatusOrderByCreatedAtDesc(RefundStatus status, Pageable pageable);
+
+    List<RefundCase> findByUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable);
 }

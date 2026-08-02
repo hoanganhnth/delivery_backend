@@ -2,6 +2,7 @@ package com.delivery.settlement_service.service;
 
 import com.delivery.settlement_service.dto.event.OrderCancelledEvent;
 import com.delivery.settlement_service.dto.response.RefundCaseResponse;
+import com.delivery.settlement_service.dto.response.RefundCustomerCaseResponse;
 import com.delivery.settlement_service.entity.RefundCase;
 import com.delivery.settlement_service.entity.RefundCase.RefundComponent;
 import com.delivery.settlement_service.entity.RefundCase.RefundStatus;
@@ -139,6 +140,18 @@ public class RefundCaseService {
                 .orElseThrow(() -> new ResourceNotFoundException("Refund case", "refundId", refundId));
     }
 
+    @Transactional(readOnly = true)
+    public List<RefundCustomerCaseResponse> listCustomerCases(Long userId, int requestedLimit) {
+        if (userId == null || userId <= 0) {
+            throw new IllegalArgumentException("userId is required");
+        }
+        int limit = Math.min(Math.max(requestedLimit, 1), ADMIN_LIST_LIMIT);
+        return repository.findByUserIdOrderByCreatedAtDesc(userId, PageRequest.of(0, limit))
+                .stream()
+                .map(this::toCustomerResponse)
+                .toList();
+    }
+
     private RefundCaseResponse toAdminResponse(RefundCase refundCase) {
         return RefundCaseResponse.builder()
                 .refundId(refundCase.getRefundId())
@@ -166,6 +179,21 @@ public class RefundCaseService {
                 .providerReference(refundCase.getProviderReference())
                 .lastError(refundCase.getLastError())
                 .attempts(refundCase.getAttempts())
+                .createdAt(refundCase.getCreatedAt())
+                .updatedAt(refundCase.getUpdatedAt())
+                .processedAt(refundCase.getProcessedAt())
+                .build();
+    }
+
+    private RefundCustomerCaseResponse toCustomerResponse(RefundCase refundCase) {
+        return RefundCustomerCaseResponse.builder()
+                .refundId(refundCase.getRefundId())
+                .orderId(refundCase.getOrderId())
+                .paymentMethod(refundCase.getPaymentMethod())
+                .trigger(refundCase.getTrigger() == null ? null : refundCase.getTrigger().name())
+                .status(refundCase.getStatus() == null ? null : refundCase.getStatus().name())
+                .currency(refundCase.getCurrency())
+                .refundAmount(refundCase.getRefundAmount())
                 .createdAt(refundCase.getCreatedAt())
                 .updatedAt(refundCase.getUpdatedAt())
                 .processedAt(refundCase.getProcessedAt())

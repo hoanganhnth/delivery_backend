@@ -2,6 +2,7 @@ package com.delivery.settlement_service.service;
 
 import com.delivery.settlement_service.dto.event.OrderCancelledEvent;
 import com.delivery.settlement_service.dto.response.RefundCaseResponse;
+import com.delivery.settlement_service.dto.response.RefundCustomerCaseResponse;
 import com.delivery.settlement_service.entity.RefundCase;
 import com.delivery.settlement_service.repository.RefundCaseRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -25,6 +26,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -194,6 +196,56 @@ class RefundCaseServiceTest {
         assertThatCode(() -> service.listAdminCases(null, 0)).doesNotThrowAnyException();
         verify(repository).findAllByOrderByCreatedAtDesc(
                 org.mockito.ArgumentMatchers.argThat(page -> page.getPageSize() == 1));
+    }
+
+    @Test
+    void customerListIsScopedToTrustedUserAndUsesSafeProjection() {
+        RefundCase existing = persistedCase();
+        when(repository.findByUserIdOrderByCreatedAtDesc(eq(7L), any()))
+                .thenReturn(List.of(existing));
+
+        List<RefundCustomerCaseResponse> result = service.listCustomerCases(7L, 50);
+
+        assertThat(result).singleElement().satisfies(response -> {
+            assertThat(response.getRefundId()).isEqualTo(existing.getRefundId());
+            assertThat(response.getOrderId()).isEqualTo(existing.getOrderId());
+            assertThat(response.getPaymentMethod()).isEqualTo("ONLINE");
+            assertThat(response.getTrigger()).isEqualTo("ORDER_CANCELLED");
+            assertThat(response.getStatus()).isEqualTo("MANUAL_REVIEW");
+            assertThat(response.getCurrency()).isEqualTo("VND");
+            assertThat(response.getRefundAmount()).isEqualByComparingTo("120000");
+            assertThat(response.getCreatedAt()).isEqualTo(existing.getCreatedAt());
+            assertThat(response.getUpdatedAt()).isEqualTo(existing.getUpdatedAt());
+            assertThat(response.getProcessedAt()).isNull();
+        });
+        assertThat(RefundCustomerCaseResponse.class.getDeclaredFields())
+                .extracting(java.lang.reflect.Field::getName)
+                .doesNotContain("eventId", "idempotencyKey", "actorSource", "actorId",
+                        "reason", "providerReference", "lastError", "attempts");
+        verify(repository).findByUserIdOrderByCreatedAtDesc(eq(7L),
+                org.mockito.ArgumentMatchers.argThat(page -> page.getPageSize() == 50));
+    }
+
+    @Test
+    void customerListCapsLimitAtOneHundred() {
+        when(repository.findByUserIdOrderByCreatedAtDesc(eq(7L), any())).thenReturn(List.of());
+
+        service.listCustomerCases(7L, 1_000);
+
+        verify(repository).findByUserIdOrderByCreatedAtDesc(eq(7L),
+                org.mockito.ArgumentMatchers.argThat(page -> page.getPageSize() == 100));
+    }
+
+    @Test
+    void customerListRejectsMissingOrNonPositiveIdentity() {
+        assertThatThrownBy(() -> service.listCustomerCases(null, 50))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("userId");
+        assertThatThrownBy(() -> service.listCustomerCases(0L, 50))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("userId");
+
+        verifyNoInteractions(repository);
     }
 
     private OrderCancelledEvent event(String paymentMethod, String previousStatus) {

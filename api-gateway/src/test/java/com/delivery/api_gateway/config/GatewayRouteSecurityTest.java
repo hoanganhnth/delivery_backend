@@ -279,9 +279,14 @@ class GatewayRouteSecurityTest {
     }
 
     @Test
-    void codFirstSettlementOnlyExposesAdminSurface() {
+    void codFirstSettlementExposesOnlyReadOnlyCustomerAndAdminSurfaces() {
         Map<String, Route> routes = routes();
 
+        assertThat(matches(routes, HttpMethod.GET, "/api/settlement/refunds/my")).isTrue();
+        assertThat(routes.get("settlement-service-customer-refund-read").getFilters()).isNotEmpty();
+        assertThat(matches(routes, HttpMethod.POST, "/api/settlement/refunds/my")).isFalse();
+        assertThat(matches(routes, HttpMethod.PUT, "/api/settlement/refunds/my")).isFalse();
+        assertThat(matches(routes, HttpMethod.DELETE, "/api/settlement/refunds/my")).isFalse();
         assertThat(matches(routes, HttpMethod.GET, "/api/settlement/admin/balances")).isTrue();
         assertThat(matches(routes, HttpMethod.GET, "/api/settlement/admin/refunds")).isTrue();
         assertThat(matches(routes, HttpMethod.GET,
