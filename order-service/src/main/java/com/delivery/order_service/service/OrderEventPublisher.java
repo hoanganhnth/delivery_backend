@@ -85,6 +85,11 @@ public class OrderEventPublisher {
         cancelEvent.setHasActiveDelivery(order.getShipperId() != null);
         cancelEvent.setVoucherReservationId(order.getVoucherReservationId());
         cancelEvent.setFlashSaleReservationId(order.getFlashSaleReservationId());
+        cancelEvent.setSubtotalPrice(order.getSubtotalPrice());
+        cancelEvent.setDiscountAmount(order.getDiscountAmount());
+        cancelEvent.setShippingFee(order.getShippingFee());
+        cancelEvent.setTotalPrice(order.getTotalPrice());
+        cancelEvent.setPaymentMethod(order.getPaymentMethod());
         cancelEvent.setCreatedAt(order.getCreatedAt());
         cancelEvent.setUpdatedAt(order.getUpdatedAt());
 

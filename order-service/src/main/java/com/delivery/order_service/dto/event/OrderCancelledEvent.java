@@ -4,6 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -32,6 +33,13 @@ public class OrderCancelledEvent {
     private Boolean hasActiveDelivery;
     private UUID voucherReservationId;
     private UUID flashSaleReservationId;
+
+    // Immutable monetary snapshot used by settlement/refund consumers.
+    private BigDecimal subtotalPrice;
+    private BigDecimal discountAmount;
+    private BigDecimal shippingFee;
+    private BigDecimal totalPrice;
+    private String paymentMethod;
     
     // Items
     private java.util.List<java.util.Map<String, Object>> items;

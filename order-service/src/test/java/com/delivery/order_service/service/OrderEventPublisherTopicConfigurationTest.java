@@ -64,6 +64,11 @@ class OrderEventPublisherTopicConfigurationTest {
         assertThat(payload.getAllValues().get(1)).isInstanceOfSatisfying(OrderCancelledEvent.class, event -> {
             assertThat(event.getVoucherReservationId()).isNull();
             assertThat(event.getFlashSaleReservationId()).isEqualTo(flashId);
+            assertThat(event.getSubtotalPrice()).isEqualByComparingTo("100000");
+            assertThat(event.getDiscountAmount()).isEqualByComparingTo("5000");
+            assertThat(event.getShippingFee()).isEqualByComparingTo("25000");
+            assertThat(event.getTotalPrice()).isEqualByComparingTo("120000");
+            assertThat(event.getPaymentMethod()).isEqualTo("COD");
         });
     }
 
@@ -75,6 +80,10 @@ class OrderEventPublisherTopicConfigurationTest {
         order.setRestaurantId(97L);
         order.setStatus(OrderStatus.PENDING);
         order.setPaymentMethod("COD");
+        order.setSubtotalPrice(new java.math.BigDecimal("100000"));
+        order.setDiscountAmount(new java.math.BigDecimal("5000"));
+        order.setShippingFee(new java.math.BigDecimal("25000"));
+        order.setTotalPrice(new java.math.BigDecimal("120000"));
         order.setCreatedAt(LocalDateTime.now());
         order.setUpdatedAt(order.getCreatedAt());
         return order;

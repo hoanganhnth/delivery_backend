@@ -7,6 +7,8 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /** Canonical cancellation snapshot consumed by the refund boundary. */
@@ -34,6 +36,9 @@ public class OrderCancelledEvent {
 
     private UUID voucherReservationId;
     private UUID flashSaleReservationId;
+    private List<Map<String, Object>> items;
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
     private BigDecimal subtotalPrice;
     private BigDecimal discountAmount;
     private BigDecimal shippingFee;

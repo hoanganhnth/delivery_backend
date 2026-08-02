@@ -4,7 +4,10 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -32,8 +35,16 @@ public class OrderCancelledEvent {
     // Delivery related
     private Long shipperId; // null if no shipper assigned
     private Boolean hasActiveDelivery;
-    
-    // Timestamps
+    private UUID voucherReservationId;
+    private UUID flashSaleReservationId;
+    private List<Map<String, Object>> items;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+
+    // Carried through for downstream compensation consumers; Delivery does not mutate it.
+    private BigDecimal subtotalPrice;
+    private BigDecimal discountAmount;
+    private BigDecimal shippingFee;
+    private BigDecimal totalPrice;
+    private String paymentMethod;
 }
