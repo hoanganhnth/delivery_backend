@@ -1,6 +1,12 @@
 # 📋 DELIVERY PLATFORM — TỔNG HỢP USE CASES
 
-> **Cập nhật:** 2026-05-14  
+> **Snapshot legacy:** 2026-05-14. Không dùng bảng trạng thái này làm authority
+> hiện hành; xem [system overview](../docs/product/overview.md),
+> [feature status](../docs/FEATURE_STATUS.md) và
+> [roadmap](ROADMAP_MVP_TO_PRODUCTION.md). Các dòng payment bên dưới được cập
+> nhật để không mô tả capability hidden/default-off là đã mở.
+>
+> **Cập nhật snapshot:** 2026-08-02
 > **Platforms:** Customer App (Flutter) · Shipper App (React Native) · Restaurant Web (Vite/React) · Admin Web (Vite/React) · Backend (17 Microservices)  
 > **Ưu tiên:** 🔴 Critical · 🟡 High · 🟢 Medium · ⚪ Low  
 > **Trạng thái:** ✅ Done · 🔧 Partial · ❌ Not Started
@@ -15,7 +21,7 @@
 | Customer App | Đăng nhập Email/Password | ✅ |
 | Customer App | Đăng nhập Google/Facebook | ✅ |
 | Shipper App | Đăng nhập Email/Password | ✅ |
-| Shipper App | Đăng nhập Social | ❌ |
+| Shipper App | Đăng nhập Social | ✅ |
 | Admin Web | Đăng nhập Admin | ✅ |
 | Backend | Auth Service (JWT + Social OAuth) | ✅ |
 
@@ -96,8 +102,8 @@
 | Platform | Task | Status |
 |----------|------|--------|
 | Customer App | Thanh toán COD (tiền mặt) | ✅ |
-| Customer App | Thanh toán online (VNPay/MoMo/ZaloPay) | ✅ |
-| Backend | Payment integration | ✅ |
+| Customer App | Thanh toán online (VNPay/MoMo/ZaloPay) | 🟡 Hidden/default-off; chưa mở UI |
+| Backend | Payment integration | 🟡 Provider/callback/reconciliation chưa được phê duyệt |
 
 ---
 
