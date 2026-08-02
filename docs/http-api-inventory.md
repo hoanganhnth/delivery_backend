@@ -1,10 +1,10 @@
 # HTTP API Inventory
 
-Ngày cập nhật inventory: 2026-07-31
+Ngày cập nhật inventory: 2026-08-02
 
 Tài liệu này liệt kê toàn bộ method có mapping trong 16 service có controller.
 `saga-orchestrator-service` không có HTTP controller. Danh sách được sinh trực
-tiếp từ annotation Java và hiện có **160 method**.
+tiếp từ annotation Java và hiện có **162 method**.
 
 Contract backend MVP được freeze ngày 2026-07-26 sau clean Gate B8, API surface
 classification và full reactor 602 test. Các capability ghi hidden/disabled hoặc
@@ -110,7 +110,7 @@ sửa.
 | settlement withdrawal | owner requests; ADMIN approves/rejects | web/shipper | hidden/disabled + public-admin | self request controller mặc định tắt; admin read xử lý record hiện hữu, concurrency proof còn thiếu |
 | settlement hold/release/deposit | internal ledger workflow or ADMIN | payment/delivery/admin | hidden/disabled | manual money mutation nằm trong self-service controller mặc định tắt; canonical COD listener/internal eligibility vẫn hoạt động |
 | settlement COD eligibility | match-service credential; shipper + positive canonical COD amount | match | internal/keep | exact internal endpoint dùng shared secret; nearest candidate thiếu ký quỹ bị bỏ qua, lỗi Settlement không bị đổi thành `shipper.not-found`; completion ledger chỉ nhận exact COD và fail-closed với identity/totals/commissions không canonical |
-| settlement admin surfaces | ADMIN | web admin | public-admin/read-only | exact GET balances/transactions/pending/revenue; compatibility lists cap 100, aggregate revenue DB-side; approve/reject/reverse tách sang controller mặc định tắt (`SETTLEMENT_ADMIN_MUTATION_API_ENABLED=false`) |
+| settlement admin surfaces | ADMIN | web admin | public-admin/read-only | exact GET balances/transactions/pending/revenue/refund queue; refund case detail/list are read-only and capped; compatibility lists cap 100, aggregate revenue DB-side; approve/reject/reverse tách sang controller mặc định tắt (`SETTLEMENT_ADMIN_MUTATION_API_ENABLED=false`) |
 | payment create/status/provider | authenticated payer owns payment | cả 3 client còn reference legacy | hidden/disabled | không có Gateway route, controller off mặc định và Order payment-event listener cũng off (`ORDER_PAYMENT_EVENT_PROCESSING_ENABLED=false`) trong COD-first MVP |
 | VNPAY callback/IPN | payment provider signature | provider | hidden/disabled-until-verified | toàn payment bean graph off mặc định; provider không có DEMO credential và fail-closed khi env thiếu; callback/reconciliation proof OPEN |
 | fake payment confirm | developer | no production client | hidden/dev-test-only | không có production Gateway route; controller/provider cần explicit processing+fake flags và active profile `dev|test`, không thể bật ở `prod` |
@@ -247,6 +247,8 @@ sửa.
 | settlement-service | AdminController | GET | `/api/settlement/admin/transactions` | `getAllTransactions` |
 | settlement-service | AdminController | GET | `/api/settlement/admin/transactions/pending` | `getPendingWithdrawals` |
 | settlement-service | AdminController | GET | `/api/settlement/admin/revenue` | `getPlatformRevenue` |
+| settlement-service | RefundAdminController | GET | `/api/settlement/admin/refunds` | `list` |
+| settlement-service | RefundAdminController | GET | `/api/settlement/admin/refunds/{refundId}` | `get` |
 | settlement-service | BalanceController | GET | `/api/settlement/balances/restaurant/{entityId}` | `getRestaurantBalance` |
 | settlement-service | BalanceController | GET | `/api/settlement/balances/shipper/{entityId}` | `getShipperBalance` |
 | settlement-service | BalanceController | GET | `/api/settlement/balances/restaurant/{entityId}/earnings` | `getRestaurantEarnings` |
