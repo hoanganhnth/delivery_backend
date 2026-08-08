@@ -44,4 +44,5 @@ Tài liệu đặc tả các luồng nghiệp vụ phức tạp, có sự giao t
 - [Secrets management and rotation](runbooks/secrets-management.md)
 - [Rolling/canary rollout and rollback](runbooks/rollout-and-rollback.md)
 - [JWKS Compose rollout runner](runbooks/rollout-and-rollback.md#jwks-migration-on-localstaging-compose)
+- [JWKS legacy Compose bootstrap](../scripts/bootstrap-jwks-legacy-compose.sh)
 - [Refund and cancellation compensation](runbooks/refund-workflow.md)

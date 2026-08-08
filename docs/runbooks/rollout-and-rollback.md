@@ -36,7 +36,11 @@ without `kid`. For a Compose staging rehearsal, use the phase runner rather
 than replacing every container in one `up --build` command:
 
 ```bash
-# Existing stack must still run the pre-JWKS Gateway release.
+# If this machine has no existing pre-JWKS Gateway, create a separate legacy
+# checkout and start it first. This refuses to overwrite an existing stack.
+bash scripts/bootstrap-jwks-legacy-compose.sh
+
+# The legacy Gateway must still run for Waves 1 and 2.
 bash scripts/rollout-jwks-compose.sh wave1
 
 # Login through that legacy Gateway. Store only the new access token in a
