@@ -1,5 +1,7 @@
 package com.delivery.restaurant_service;
 
+import com.delivery.auth.resourceserver.security.AuthenticatedActor;
+import com.delivery.auth.resourceserver.security.AuthenticatedActorAuthenticationToken;
 import com.delivery.restaurant_service.common.constants.ApiPathConstants;
 import com.delivery.restaurant_service.common.constants.HttpHeaderConstants;
 import com.delivery.restaurant_service.common.constants.RoleConstants;
@@ -11,10 +13,18 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
+
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -30,6 +40,21 @@ class RestaurantControllerIntegrationTest {
 	@Autowired
 	private ObjectMapper objectMapper;
 
+	private static RequestPostProcessor testActor(Long userId, String role) {
+		AuthenticatedActor actor = new AuthenticatedActor(userId, "owner@example.com", Set.of(role));
+		Jwt jwt = Jwt.withTokenValue("mock-token")
+				.header("alg", "RS256")
+				.header("kid", "key1")
+				.claim("sub", userId.toString())
+				.claim("roles", List.of(role))
+				.claim("token_type", "access")
+				.issuedAt(Instant.now())
+				.expiresAt(Instant.now().plusSeconds(3600))
+				.build();
+		AuthenticatedActorAuthenticationToken authenticationToken = new AuthenticatedActorAuthenticationToken(jwt, actor, Collections.emptyList());
+		return authentication(authenticationToken);
+	}
+
 	@Test
 	void createRestaurant_ShouldPersistToDatabase_WhenValidRequest() throws Exception {
 		// Given
@@ -42,6 +67,7 @@ class RestaurantControllerIntegrationTest {
 
 		// When & Then
 		mockMvc.perform(post(ApiPathConstants.RESTAURANTS)
+						.with(testActor(1L, RoleConstants.OWNER))
 						.contentType(MediaType.APPLICATION_JSON)
 						.header(HttpHeaderConstants.X_USER_ID, "1")
 						.header(HttpHeaderConstants.X_ROLE, RoleConstants.OWNER)
@@ -64,6 +90,7 @@ class RestaurantControllerIntegrationTest {
 
 		// Create
 		String responseString = mockMvc.perform(post(ApiPathConstants.RESTAURANTS)
+						.with(testActor(1L, RoleConstants.OWNER))
 						.contentType(MediaType.APPLICATION_JSON)
 						.header(HttpHeaderConstants.X_USER_ID, "1")
 						.header(HttpHeaderConstants.X_ROLE, RoleConstants.OWNER)
@@ -78,7 +105,8 @@ class RestaurantControllerIntegrationTest {
 		Long restaurantId = jsonNode.get("data").get("id").asLong();
 
 		// When & Then - fetch by ID
-		mockMvc.perform(get(ApiPathConstants.RESTAURANTS + "/" + restaurantId))
+		mockMvc.perform(get(ApiPathConstants.RESTAURANTS + "/" + restaurantId)
+						.with(testActor(1L, RoleConstants.OWNER)))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.status").value(1))
 				.andExpect(jsonPath("$.data.name").value("Test Restaurant"));

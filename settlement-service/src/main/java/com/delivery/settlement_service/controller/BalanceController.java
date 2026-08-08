@@ -11,10 +11,13 @@ import com.delivery.settlement_service.mapper.TransactionMapper;
 import com.delivery.settlement_service.payload.BaseResponse;
 import com.delivery.settlement_service.service.BalanceService;
 import com.delivery.settlement_service.service.TransactionService;
+import com.delivery.auth.resourceserver.security.AuthenticatedActor;
+
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -29,51 +32,37 @@ public class BalanceController {
     private final TransactionService transactionService;
     private final TransactionMapper transactionMapper;
 
-    /**
-     * Get restaurant balance
-     */
     @GetMapping("/restaurant/{entityId}")
     public ResponseEntity<BaseResponse<BalanceResponse>> getRestaurantBalance(@PathVariable Long entityId) {
         BalanceResponse balance = balanceService.getBalance(entityId, EntityType.RESTAURANT);
         return ResponseEntity.ok(BaseResponse.success(balance));
     }
 
-    /**
-     * Get shipper balance
-     */
     @GetMapping("/shipper/{entityId}")
     public ResponseEntity<BaseResponse<BalanceResponse>> getShipperBalance(@PathVariable Long entityId) {
         BalanceResponse balance = balanceService.getBalance(entityId, EntityType.SHIPPER);
         return ResponseEntity.ok(BaseResponse.success(balance));
     }
 
-    /**
-     * Get total earnings for restaurant
-     */
     @GetMapping("/restaurant/{entityId}/earnings")
     public ResponseEntity<BaseResponse<BigDecimal>> getRestaurantEarnings(@PathVariable Long entityId) {
         BigDecimal earnings = balanceService.getTotalEarnings(entityId, EntityType.RESTAURANT);
         return ResponseEntity.ok(BaseResponse.success(earnings));
     }
 
-    /**
-     * Get total earnings for shipper
-     */
     @GetMapping("/shipper/{entityId}/earnings")
     public ResponseEntity<BaseResponse<BigDecimal>> getShipperEarnings(@PathVariable Long entityId) {
         BigDecimal earnings = balanceService.getTotalEarnings(entityId, EntityType.SHIPPER);
         return ResponseEntity.ok(BaseResponse.success(earnings));
     }
 
-    /**
-     * Request restaurant withdrawal
-     */
     @PostMapping("/restaurant/{entityId}/withdraw")
     public ResponseEntity<BaseResponse<TransactionResponse>> requestRestaurantWithdrawal(
             @PathVariable Long entityId,
             @Valid @RequestBody WithdrawalRequest request,
-            @RequestHeader(value = "X-User-Id", required = false) Long userId) {
+            @AuthenticationPrincipal AuthenticatedActor actor) {
 
+        Long userId = actor != null ? actor.getUserId() : null;
         Transaction transaction = transactionService.requestWithdrawal(
                 entityId, EntityType.RESTAURANT, request.getAmount(), userId);
 
@@ -81,15 +70,13 @@ public class BalanceController {
                 transactionMapper.toResponse(transaction), "Withdrawal request submitted"));
     }
 
-    /**
-     * Request shipper withdrawal
-     */
     @PostMapping("/shipper/{entityId}/withdraw")
     public ResponseEntity<BaseResponse<TransactionResponse>> requestShipperWithdrawal(
             @PathVariable Long entityId,
             @Valid @RequestBody WithdrawalRequest request,
-            @RequestHeader(value = "X-User-Id", required = false) Long userId) {
+            @AuthenticationPrincipal AuthenticatedActor actor) {
 
+        Long userId = actor != null ? actor.getUserId() : null;
         Transaction transaction = transactionService.requestWithdrawal(
                 entityId, EntityType.SHIPPER, request.getAmount(), userId);
 
@@ -97,9 +84,6 @@ public class BalanceController {
                 transactionMapper.toResponse(transaction), "Withdrawal request submitted"));
     }
 
-    /**
-     * Hold shipper balance
-     */
     @PostMapping("/shipper/{entityId}/hold")
     public ResponseEntity<BaseResponse<TransactionResponse>> holdShipperBalance(
             @PathVariable Long entityId,
@@ -112,9 +96,6 @@ public class BalanceController {
                 transactionMapper.toResponse(transaction), "Balance held successfully"));
     }
 
-    /**
-     * Release shipper balance
-     */
     @PostMapping("/shipper/{entityId}/release")
     public ResponseEntity<BaseResponse<TransactionResponse>> releaseShipperBalance(
             @PathVariable Long entityId,
@@ -127,9 +108,6 @@ public class BalanceController {
                 transactionMapper.toResponse(transaction), "Balance released successfully"));
     }
 
-    /**
-     * ✅ Shipper nạp tiền vào Ví Ký quỹ (Deposit Wallet)
-     */
     @PostMapping("/shipper/{entityId}/deposit")
     public ResponseEntity<BaseResponse<TransactionResponse>> topUpDeposit(
             @PathVariable Long entityId,
@@ -142,9 +120,6 @@ public class BalanceController {
                 transactionMapper.toResponse(transaction), "Deposit topped up successfully"));
     }
 
-    /**
-     * ✅ Kiểm tra shipper có đủ ký quỹ để nhận đơn COD không
-     */
     @GetMapping("/shipper/{entityId}/cod-eligibility")
     public ResponseEntity<BaseResponse<Boolean>> checkCodEligibility(
             @PathVariable Long entityId,
@@ -158,5 +133,4 @@ public class BalanceController {
 
         return ResponseEntity.ok(BaseResponse.success(eligible, message));
     }
-
 }

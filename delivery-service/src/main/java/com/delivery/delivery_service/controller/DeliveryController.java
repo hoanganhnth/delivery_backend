@@ -1,7 +1,6 @@
 package com.delivery.delivery_service.controller;
 
 import com.delivery.delivery_service.common.constants.ApiPathConstants;
-import com.delivery.delivery_service.common.constants.HttpHeaderConstants;
 import com.delivery.delivery_service.dto.request.AcceptDeliveryRequest;
 import com.delivery.delivery_service.dto.request.CancelDeliveryAssignmentRequest;
 import com.delivery.delivery_service.dto.response.DeliveryResponse;
@@ -9,7 +8,11 @@ import com.delivery.delivery_service.dto.response.DeliveryOfferResponse;
 import com.delivery.delivery_service.entity.DeliveryStatus;
 import com.delivery.delivery_service.payload.BaseResponse;
 import com.delivery.delivery_service.service.DeliveryService;
+import com.delivery.auth.resourceserver.security.AuthenticatedActor;
+
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
 
@@ -25,102 +28,91 @@ public class DeliveryController {
         this.deliveryService = deliveryService;
     }
 
-    /**
-     * ✅ POST /accept - Shipper nhận đơn hàng
-     */
     @PostMapping("/accept")
     public ResponseEntity<BaseResponse<DeliveryResponse>> acceptDelivery(
             @Valid @RequestBody AcceptDeliveryRequest request,
-            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long shipperId,
-            @RequestHeader(value = HttpHeaderConstants.X_ROLE) String role) {
-        DeliveryResponse response = deliveryService.acceptDelivery(request, shipperId, role);
+            @AuthenticationPrincipal AuthenticatedActor actor) {
+        requireActor(actor);
+        DeliveryResponse response = deliveryService.acceptDelivery(request, actor.getUserId(), getRoleString(actor));
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Nhận đơn hàng thành công"));
     }
 
-    /**
-     * POST /deliveries/cancel-assignment - Shipper huỷ đơn SAU khi đã accept
-     * (chỉ khi chưa lấy hàng). Đơn được reset để tìm shipper mới.
-     * Body cần orderId và reason tuỳ chọn.
-     */
     @PostMapping("/cancel-assignment")
     public ResponseEntity<BaseResponse<DeliveryResponse>> cancelAssignedDelivery(
             @Valid @RequestBody CancelDeliveryAssignmentRequest request,
-            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long shipperId,
-            @RequestHeader(value = HttpHeaderConstants.X_ROLE) String role) {
+            @AuthenticationPrincipal AuthenticatedActor actor) {
+        requireActor(actor);
         DeliveryResponse response = deliveryService.cancelAssignedDelivery(
-                request.getOrderId(), shipperId, role, request.getReason());
+                request.getOrderId(), actor.getUserId(), getRoleString(actor), request.getReason());
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Đã huỷ đơn, đang tìm shipper mới"));
     }
 
-    /** Recover the authenticated shipper's single unexpired offer after reconnect. */
     @GetMapping("/offers/current")
     public ResponseEntity<BaseResponse<DeliveryOfferResponse>> getCurrentOffer(
-            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long shipperId,
-            @RequestHeader(value = HttpHeaderConstants.X_ROLE) String role) {
-        DeliveryOfferResponse response = deliveryService.getCurrentOffer(shipperId, role);
+            @AuthenticationPrincipal AuthenticatedActor actor) {
+        requireActor(actor);
+        DeliveryOfferResponse response = deliveryService.getCurrentOffer(actor.getUserId(), getRoleString(actor));
         return ResponseEntity.ok(new BaseResponse<>(1, response,
                 response == null ? "Không có offer đang hoạt động" : "Lấy offer hiện tại thành công"));
     }
 
-    /**
-     * GET /:id - Lấy thông tin delivery
-     */
     @GetMapping("/{id}")
     public ResponseEntity<BaseResponse<DeliveryResponse>> getDelivery(
             @PathVariable Long id,
-            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId,
-            @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
-        DeliveryResponse response = deliveryService.getDeliveryById(id, userId, role);
+            @AuthenticationPrincipal AuthenticatedActor actor) {
+        requireActor(actor);
+        DeliveryResponse response = deliveryService.getDeliveryById(id, actor.getUserId(), getRoleString(actor));
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Lấy thông tin delivery thành công"));
     }
 
-    /**
-     * PUT /:id/status - Cập nhật trạng thái delivery
-     */
     @PutMapping("/{id}/status")
     public ResponseEntity<BaseResponse<DeliveryResponse>> updateStatus(
             @PathVariable Long id,
             @RequestParam DeliveryStatus status,
-            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId,
-            @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
-        DeliveryResponse response = deliveryService.updateDeliveryStatus(id, status, userId, role);
+            @AuthenticationPrincipal AuthenticatedActor actor) {
+        requireActor(actor);
+        DeliveryResponse response = deliveryService.updateDeliveryStatus(id, status, actor.getUserId(), getRoleString(actor));
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Cập nhật trạng thái delivery thành công"));
     }
 
-    /**
-     * GET /shipper/:shipperId - Lấy danh sách delivery của shipper
-     */
     @GetMapping("/shipper/{shipperId}")
     public ResponseEntity<BaseResponse<List<DeliveryResponse>>> getDeliveriesByShipper(
             @PathVariable Long shipperId,
-            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId,
-            @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
-        List<DeliveryResponse> response = deliveryService.getDeliveriesByShipper(shipperId, userId, role);
+            @AuthenticationPrincipal AuthenticatedActor actor) {
+        requireActor(actor);
+        List<DeliveryResponse> response = deliveryService.getDeliveriesByShipper(shipperId, actor.getUserId(), getRoleString(actor));
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Lấy danh sách delivery của shipper thành công"));
     }
 
-    /**
-     * GET /shipper/:shipperId/active - Lấy các delivery đang active của shipper
-     */
     @GetMapping("/shipper/{shipperId}/active")
     public ResponseEntity<BaseResponse<List<DeliveryResponse>>> getActiveDeliveriesByShipper(
             @PathVariable Long shipperId,
-            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId,
-            @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
-        List<DeliveryResponse> response = deliveryService.getActiveDeliveriesByShipper(shipperId, userId, role);
+            @AuthenticationPrincipal AuthenticatedActor actor) {
+        requireActor(actor);
+        List<DeliveryResponse> response = deliveryService.getActiveDeliveriesByShipper(shipperId, actor.getUserId(), getRoleString(actor));
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Lấy danh sách delivery đang hoạt động thành công"));
     }
 
-    /**
-     * GET /order/:orderId - Lấy delivery theo order ID
-     */
     @GetMapping("/order/{orderId}")
     public ResponseEntity<BaseResponse<DeliveryResponse>> getDeliveryByOrderId(
             @PathVariable Long orderId,
-            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId,
-            @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
-        DeliveryResponse response = deliveryService.getDeliveryByOrderId(orderId, userId, role);
+            @AuthenticationPrincipal AuthenticatedActor actor) {
+        requireActor(actor);
+        DeliveryResponse response = deliveryService.getDeliveryByOrderId(orderId, actor.getUserId(), getRoleString(actor));
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Lấy thông tin delivery theo order thành công"));
     }
 
+    private void requireActor(AuthenticatedActor actor) {
+        if (actor == null || actor.getUserId() == null) {
+            throw new AccessDeniedException("Yêu cầu đăng nhập");
+        }
+    }
+
+    private String getRoleString(AuthenticatedActor actor) {
+        if (actor == null) return null;
+        if (actor.isAdmin()) return "ADMIN";
+        if (actor.isShipper()) return "SHIPPER";
+        if (actor.isShopOwner()) return "SHOP_OWNER";
+        return "USER";
+    }
 }

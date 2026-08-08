@@ -1,38 +1,26 @@
 package com.delivery.notification_service.controller;
 
 import com.delivery.notification_service.common.constants.ApiPathConstants;
-import com.delivery.notification_service.common.constants.HttpHeaderConstants;
-import com.delivery.notification_service.common.constants.RoleConstants;
 import com.delivery.notification_service.dto.request.SendNotificationRequest;
 import com.delivery.notification_service.dto.response.NotificationResponse;
 import com.delivery.notification_service.exception.NotificationAccessDeniedException;
 import com.delivery.notification_service.payload.BaseResponse;
 import com.delivery.notification_service.service.NotificationService;
+import com.delivery.auth.resourceserver.security.AuthenticatedActor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpStatus;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
 
 import java.util.List;
-import java.util.Set;
 
-
-/**
- * ✅ Notification Controller theo Backend Instructions
- */
 @Slf4j
 @RestController
 @RequestMapping(ApiPathConstants.NOTIFICATIONS)
 public class NotificationController {
-
-    private static final Set<String> AUTHENTICATED_NOTIFICATION_ROLES = Set.of(
-            RoleConstants.USER,
-            RoleConstants.RESTAURANT_OWNER,
-            RoleConstants.SHIPPER,
-            RoleConstants.ADMIN
-    );
 
     private final NotificationService notificationService;
     private final String internalSecret;
@@ -46,7 +34,7 @@ public class NotificationController {
     @PostMapping(ApiPathConstants.SEND_NOTIFICATION)
     public ResponseEntity<BaseResponse<NotificationResponse>> sendNotification(
             @Valid @RequestBody SendNotificationRequest request,
-            @RequestHeader(value = HttpHeaderConstants.INTERNAL_TOKEN, required = false) String internalToken) {
+            @RequestHeader(value = "Internal-Token", required = false) String internalToken) {
 
         if (internalSecret == null || internalSecret.isBlank()
                 || !internalSecret.equals(internalToken)) {
@@ -61,80 +49,74 @@ public class NotificationController {
     @GetMapping(ApiPathConstants.USER_NOTIFICATIONS)
     public ResponseEntity<BaseResponse<List<NotificationResponse>>> getUserNotifications(
             @PathVariable Long userId,
-            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long requestUserId,
-            @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
+            @AuthenticationPrincipal AuthenticatedActor actor) {
 
-        requireAuthenticatedNotificationRole(role);
-        requireSelf(userId, requestUserId);
+        requireActor(actor);
+        requireSelf(userId, actor.getUserId());
         List<NotificationResponse> notifications = notificationService.getUserNotifications(userId);
         return ResponseEntity.ok(new BaseResponse<>(1, notifications, "Lấy danh sách thông báo thành công"));
     }
 
     @GetMapping("/unread")
     public ResponseEntity<BaseResponse<List<NotificationResponse>>> getUnreadNotifications(
-            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId,
-            @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
+            @AuthenticationPrincipal AuthenticatedActor actor) {
 
-        requireAuthenticatedNotificationRole(role);
-        List<NotificationResponse> notifications = notificationService.getUnreadNotifications(userId);
+        requireActor(actor);
+        List<NotificationResponse> notifications = notificationService.getUnreadNotifications(actor.getUserId());
         return ResponseEntity.ok(new BaseResponse<>(1, notifications, "Lấy danh sách thông báo chưa đọc thành công"));
     }
 
     @GetMapping("/unread-count")
     public ResponseEntity<BaseResponse<Long>> getUnreadCount(
-            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId,
-            @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
+            @AuthenticationPrincipal AuthenticatedActor actor) {
 
-        requireAuthenticatedNotificationRole(role);
-        long count = notificationService.getUnreadCount(userId);
+        requireActor(actor);
+        long count = notificationService.getUnreadCount(actor.getUserId());
         return ResponseEntity.ok(new BaseResponse<>(1, count, "Lấy số lượng thông báo chưa đọc thành công"));
     }
 
     @PutMapping(ApiPathConstants.MARK_AS_READ)
     public ResponseEntity<BaseResponse<NotificationResponse>> markAsRead(
             @PathVariable Long id,
-            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId,
-            @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
+            @AuthenticationPrincipal AuthenticatedActor actor) {
 
-        requireAuthenticatedNotificationRole(role);
-        NotificationResponse response = notificationService.markAsRead(id, userId);
+        requireActor(actor);
+        NotificationResponse response = notificationService.markAsRead(id, actor.getUserId());
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Đánh dấu đã đọc thành công"));
     }
 
     @PutMapping(ApiPathConstants.MARK_ALL_AS_READ)
     public ResponseEntity<BaseResponse<Integer>> markAllAsRead(
-            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId,
-            @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
+            @AuthenticationPrincipal AuthenticatedActor actor) {
 
-        requireAuthenticatedNotificationRole(role);
-        int updated = notificationService.markAllAsRead(userId);
+        requireActor(actor);
+        int updated = notificationService.markAllAsRead(actor.getUserId());
         return ResponseEntity.ok(new BaseResponse<>(1, updated, "Đánh dấu tất cả đã đọc thành công"));
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<BaseResponse<NotificationResponse>> getNotificationById(
             @PathVariable Long id,
-            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId,
-            @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
+            @AuthenticationPrincipal AuthenticatedActor actor) {
 
-        requireAuthenticatedNotificationRole(role);
-        NotificationResponse response = notificationService.getNotificationById(id, userId);
+        requireActor(actor);
+        NotificationResponse response = notificationService.getNotificationById(id, actor.getUserId());
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Lấy thông báo thành công"));
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<BaseResponse<Void>> deleteNotification(
             @PathVariable Long id,
-            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId,
-            @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
+            @AuthenticationPrincipal AuthenticatedActor actor) {
 
-        requireAuthenticatedNotificationRole(role);
-        notificationService.deleteNotification(id, userId);
+        requireActor(actor);
+        notificationService.deleteNotification(id, actor.getUserId());
         return ResponseEntity.ok(new BaseResponse<>(1, null, "Xóa thông báo thành công"));
     }
 
-    private void requireAuthenticatedNotificationRole(String actualRole) {
-        if (actualRole == null || !AUTHENTICATED_NOTIFICATION_ROLES.contains(actualRole)) {
+    private void requireActor(AuthenticatedActor actor) {
+        if (actor == null || actor.getUserId() == null
+                || (!actor.isUser() && !actor.isShipper() && !actor.isShopOwner() && !actor.isAdmin())) {
             throw new NotificationAccessDeniedException("Forbidden");
         }
     }

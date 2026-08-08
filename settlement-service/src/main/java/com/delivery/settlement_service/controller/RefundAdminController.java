@@ -4,12 +4,13 @@ import com.delivery.settlement_service.dto.response.RefundCaseResponse;
 import com.delivery.settlement_service.entity.RefundCase.RefundStatus;
 import com.delivery.settlement_service.payload.BaseResponse;
 import com.delivery.settlement_service.service.RefundCaseService;
+import com.delivery.auth.resourceserver.security.AuthenticatedActor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -18,7 +19,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
-/** Read-only refund queue for authenticated administrators. */
 @RestController
 @RequestMapping("/api/settlement/admin/refunds")
 @RequiredArgsConstructor
@@ -28,10 +28,10 @@ public class RefundAdminController {
 
     @GetMapping
     public ResponseEntity<BaseResponse<List<RefundCaseResponse>>> list(
-            @RequestHeader(value = "X-Role", required = false) String role,
+            @AuthenticationPrincipal AuthenticatedActor actor,
             @RequestParam(value = "status", required = false) String status,
             @RequestParam(value = "limit", defaultValue = "100") int limit) {
-        if (!"ADMIN".equals(role)) {
+        if (actor == null || !actor.isAdmin()) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(BaseResponse.failure("Only ADMIN can access this endpoint"));
         }
@@ -48,9 +48,9 @@ public class RefundAdminController {
 
     @GetMapping("/{refundId:[0-9a-fA-F-]+}")
     public ResponseEntity<BaseResponse<RefundCaseResponse>> get(
-            @RequestHeader(value = "X-Role", required = false) String role,
+            @AuthenticationPrincipal AuthenticatedActor actor,
             @PathVariable UUID refundId) {
-        if (!"ADMIN".equals(role)) {
+        if (actor == null || !actor.isAdmin()) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(BaseResponse.failure("Only ADMIN can access this endpoint"));
         }

@@ -57,9 +57,15 @@ Trong `Match Service`, khi không tìm thấy Shipper, hệ thống chờ một 
 
 ## 5. Security: Lỗ hổng giả mạo Định danh (Identity Spoofing)
 **🔍 Vấn đề:**
-API Gateway sử dụng `JwtAuthenticationFilter` để parse Token ra `userId` và truyền xuống Microservices qua HTTP Header `X-User-Id`.
-- Nếu Hacker chủ động gửi kèm header `X-User-Id: 1` (Id của Admin) từ bên ngoài Internet, Gateway nếu không filter/strip kỹ sẽ pass thẳng header này xuống các service bên dưới.
+Mỗi resource service xác thực Bearer JWT qua JWKS của Auth và tự dựng actor từ
+claims, thay vì tin định danh do Gateway inject.
+- Nếu Hacker chủ động gửi kèm `X-User-Id: 1` hoặc `X-Role: ADMIN` từ bên ngoài
+Internet, các header này không được dùng để xác thực/quyền và Gateway loại bỏ
+chúng trước routing.
 
 **💡 Giải pháp (Best Practice):**
-- Tại API Gateway: **BẮT BUỘC** remove (strip) toàn bộ header `X-User-Id`, `X-User-Role` xuất phát từ Client trước khi validate JWT.
-- Chỉ sau khi parse JWT thành công, Gateway mới tự động Inject (đè) header này vào Request gởi xuống Backend.
+- Tại API Gateway: **BẮT BUỘC** remove (strip) toàn bộ header
+  `X-User-Id`, `X-User-Role` xuất phát từ Client; Gateway không parse hoặc
+  inject JWT identity.
+- Tại resource service: chỉ dùng `AuthenticatedActor` sinh từ JWT đã kiểm tra
+  RS256, `kid`, issuer, audience và token type qua JWKS.

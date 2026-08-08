@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import com.delivery.auth_service.exception.InvalidTokenException;
 
 import java.io.InputStream;
+import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -15,15 +16,13 @@ import java.security.KeyFactory;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.Signature;
+import java.security.interfaces.RSAPublicKey;
 import java.security.spec.*;
-import java.util.Base64;
-import java.util.Date;
-import java.util.List;
+import java.util.*;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-import java.util.UUID;
 
 @Service
 public class TokenService {
@@ -38,13 +37,21 @@ public class TokenService {
     private final PublicKey publicKey;
     private final List<PublicKey> previousPublicKeys;
     private final Duration accessTokenTtl;
+    private final String activeKid;
+    private final String retiringKid;
+    private final String issuer;
+    private final String audience;
 
     @Autowired
     public TokenService(
             @Value("${jwt.private-key.path:}") String privateKeyLocation,
             @Value("${jwt.public-key.path:}") String publicKeyLocation,
             @Value("${jwt.previous-public-key.path:}") String previousPublicKeyLocation,
-            @Value("${jwt.access-token-ttl-seconds:900}") long accessTokenTtlSeconds) {
+            @Value("${jwt.access-token-ttl-seconds:900}") long accessTokenTtlSeconds,
+            @Value("${jwt.active-kid:auth-key-1}") String activeKid,
+            @Value("${jwt.retiring-kid:}") String retiringKid,
+            @Value("${jwt.issuer:${JWT_ISSUER:delivery-auth}}") String issuer,
+            @Value("${jwt.audience:${JWT_AUDIENCE:delivery-api}}") String audience) {
         try {
             this.privateKey = loadPrivateKey(privateKeyLocation);
             this.publicKey = loadPublicKey(publicKeyLocation);
@@ -55,7 +62,26 @@ public class TokenService {
             if (accessTokenTtlSeconds <= 0) {
                 throw new IllegalArgumentException("JWT access token TTL must be positive");
             }
+            if (activeKid == null || activeKid.isBlank()) {
+                throw new IllegalArgumentException("JWT active kid must not be blank");
+            }
+            if (issuer == null || issuer.isBlank()) {
+                throw new IllegalArgumentException("JWT issuer must not be blank");
+            }
+            if (audience == null || audience.isBlank()) {
+                throw new IllegalArgumentException("JWT audience must not be blank");
+            }
+            if (!previousPublicKeys.isEmpty() && (retiringKid == null || retiringKid.isBlank())) {
+                throw new IllegalArgumentException("JWT retiring kid is required when a previous public key is configured");
+            }
+            if (!previousPublicKeys.isEmpty() && activeKid.equals(retiringKid)) {
+                throw new IllegalArgumentException("JWT active kid and retiring kid must be different");
+            }
             this.accessTokenTtl = Duration.ofSeconds(accessTokenTtlSeconds);
+            this.activeKid = activeKid;
+            this.retiringKid = retiringKid;
+            this.issuer = issuer;
+            this.audience = audience;
         } catch (Exception e) {
             throw new IllegalStateException(
                     "Failed to initialize JWT RSA keys from configured locations", e);
@@ -63,7 +89,12 @@ public class TokenService {
     }
 
     TokenService(String privateKeyLocation, String publicKeyLocation) {
-        this(privateKeyLocation, publicKeyLocation, "", 900L);
+        this(privateKeyLocation, publicKeyLocation, "", 900L, "auth-key-1", "", "delivery-auth", "delivery-api");
+    }
+
+    TokenService(String privateKeyLocation, String publicKeyLocation, String previousPublicKeyLocation, long accessTokenTtlSeconds) {
+        this(privateKeyLocation, publicKeyLocation, previousPublicKeyLocation, accessTokenTtlSeconds,
+                "auth-key-1", "", "delivery-auth", "delivery-api");
     }
 
     private PrivateKey loadPrivateKey(String location) throws Exception {
@@ -78,10 +109,6 @@ public class TokenService {
         return KeyFactory.getInstance("RSA").generatePublic(spec);
     }
 
-    /**
-     * Đọc nội dung PEM từ Spring-configured location. Hỗ trợ classpath resource,
-     * file URI và filesystem path tuyệt đối để secret manager có thể mount file.
-     */
     private String readKeyMaterial(String location) throws Exception {
         if (location == null || location.isBlank()) {
             throw new IllegalArgumentException("JWT key location must not be blank");
@@ -126,10 +153,15 @@ public class TokenService {
     public String generateToken(Long userId, String email, String role) {
         Instant issuedAt = Instant.now();
         return Jwts.builder()
-                .setSubject(String.valueOf(userId)) // có thể dùng userId làm subject
+                .setHeaderParam("kid", activeKid)
+                .setIssuer(issuer)
+                .claim("aud", List.of(audience))
+                .setSubject(String.valueOf(userId))
                 .claim("email", email)
+                .claim("roles", List.of(role))
                 .claim("role", role)
                 .claim(TOKEN_TYPE_CLAIM, ACCESS_TOKEN_TYPE)
+                .setId(UUID.randomUUID().toString())
                 .setIssuedAt(Date.from(issuedAt))
                 .setExpiration(Date.from(issuedAt.plus(accessTokenTtl)))
                 .signWith(privateKey, SignatureAlgorithm.RS256)
@@ -143,7 +175,9 @@ public class TokenService {
     public String generateRefreshToken(Long userId, String email, String role, String tokenFamilyId) {
         Instant issuedAt = Instant.now();
         return Jwts.builder()
-                .setSubject(String.valueOf(userId)) // có thể dùng userId làm subject
+                .setHeaderParam("kid", activeKid)
+                .setIssuer(issuer)
+                .setSubject(String.valueOf(userId))
                 .claim("email", email)
                 .claim("role", role)
                 .claim(TOKEN_TYPE_CLAIM, REFRESH_TOKEN_TYPE)
@@ -153,6 +187,42 @@ public class TokenService {
                 .setExpiration(Date.from(issuedAt.plus(REFRESH_TOKEN_TTL)))
                 .signWith(privateKey, SignatureAlgorithm.RS256)
                 .compact();
+    }
+
+    public Map<String, Object> getJwks() {
+        List<Map<String, Object>> keys = new ArrayList<>();
+        if (publicKey instanceof RSAPublicKey rsaKey) {
+            keys.add(toJwkMap(rsaKey, activeKid));
+        }
+        if (previousPublicKeys != null) {
+            for (PublicKey pk : previousPublicKeys) {
+                if (pk instanceof RSAPublicKey rsaKey) {
+                    keys.add(toJwkMap(rsaKey, retiringKid));
+                }
+            }
+        }
+        return Map.of("keys", keys);
+    }
+
+    private Map<String, Object> toJwkMap(RSAPublicKey key, String kid) {
+        Map<String, Object> jwk = new LinkedHashMap<>();
+        jwk.put("kty", "RSA");
+        jwk.put("alg", "RS256");
+        jwk.put("use", "sig");
+        jwk.put("kid", kid);
+        jwk.put("n", encodeBigInteger(key.getModulus()));
+        jwk.put("e", encodeBigInteger(key.getPublicExponent()));
+        return jwk;
+    }
+
+    private String encodeBigInteger(BigInteger val) {
+        byte[] bytes = val.toByteArray();
+        if (bytes[0] == 0 && bytes.length > 1) {
+            byte[] tmp = new byte[bytes.length - 1];
+            System.arraycopy(bytes, 1, tmp, 0, tmp.length);
+            bytes = tmp;
+        }
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 
     public String extractEmail(String token) {
@@ -173,8 +243,6 @@ public class TokenService {
     public boolean isValidRefreshToken(String token) {
         try {
             String tokenType = parseClaims(token).getBody().get(TOKEN_TYPE_CLAIM, String.class);
-            // Tokens issued before rotation-family rollout had no explicit type.
-            // Their database fingerprint is still required before refresh.
             return tokenType == null || REFRESH_TOKEN_TYPE.equals(tokenType);
         } catch (JwtException | IllegalArgumentException e) {
             return false;

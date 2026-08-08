@@ -1,10 +1,10 @@
 # HTTP API Inventory
 
-Ngày cập nhật inventory: 2026-08-02
+Ngày cập nhật inventory: 2026-08-08
 
 Tài liệu này liệt kê toàn bộ method có mapping trong 16 service có controller.
 `saga-orchestrator-service` không có HTTP controller. Danh sách được sinh trực
-tiếp từ annotation Java và hiện có **163 method**.
+tiếp từ annotation Java và hiện có **166 method**.
 
 Contract backend MVP được freeze ngày 2026-07-26 sau clean Gate B8, API surface
 classification và full reactor 602 test. Các capability ghi hidden/disabled hoặc
@@ -13,9 +13,9 @@ việc không thấy client gọi.
 
 ## Classification rules
 
-- `public-client`: use case hợp lệ của customer/restaurant/shipper, đi qua Gateway
-  và xác thực theo actor nếu không phải read-only public catalog/search.
-- `public-admin`: chỉ ADMIN, Gateway và service cùng enforce.
+- `public-client`: use case hợp lệ của customer/restaurant/shipper, đi qua Gateway;
+  resource service xác thực Bearer token qua Auth JWKS nếu không phải read-only public catalog/search.
+- `public-admin`: chỉ ADMIN; Gateway chỉ giới hạn route/method, resource service enforce JWT role/ownership.
 - `internal`: không có public Gateway route; dùng service credential và idempotency
   tại boundary.
 - `dev-only`: chỉ tạo bean/route dưới profile `dev`.
@@ -26,11 +26,11 @@ việc không thấy client gọi.
 
 | Surface | Proposed class | Evidence/problem |
 |---|---|---|
-| exact order/delivery admin maintenance handlers | public-admin | Gateway allow-list theo path + method và service đều bắt JWT role `ADMIN`; không còn admin wildcard |
+| exact order/delivery admin maintenance handlers | public-admin | Gateway allow-list theo path + method; resource service bắt JWT role `ADMIN`; không còn admin wildcard |
 | `PUT /api/deliveries/{id}/status` | public-client/SHIPPER self | chỉ shipper đã assign được đi tuần tự `PICKED_UP -> DELIVERING -> DELIVERED`; ADMIN và generic assign/cancel/rematch bị chặn; exact same-state retry không ghi thêm outbox |
 | `/api/auth/accounts/email/**` | dead/deleted | không có backend/client caller; account detail admin dùng ID, Auth→User linkage dùng provisioning response |
 | `POST /api/users`, `GET /api/users/by-auth/**` | internal | đã bỏ khỏi Gateway và yêu cầu shared internal credential; chỉ exact `POST /api/users/registrations` là public handoff |
-| `POST /api/users/admin/{userId}/block|unblock` | internal | web chỉ dùng Auth admin status API; User mutation đã bỏ khỏi Gateway, yêu cầu `Internal-Token` + ADMIN identity từ auth-service và idempotent cho retry |
+| `POST /api/internal/users/{userId}/block-status` | internal | web chỉ dùng Auth admin status API; Auth đồng bộ projection bằng `Internal-Token` và body `{adminId, blocked, reason}`, idempotent cho retry |
 | `/api/restaurants/validate/**` | internal | đã ẩn khỏi Gateway; fail-closed bằng `Internal-Token` dùng chung với order-service |
 | restaurant `/api/cache/**` | dead/deleted | không có Gateway/client/ops consumer; availability mutation và warmup controller/service graph đã xóa, canonical mutation tự đồng bộ cache |
 | restaurant `/api/location/**` | dead/deleted | geocoding API không có consumer/product contract; controller/service/Mapbox backend dependency đã xóa |
@@ -42,7 +42,7 @@ việc không thấy client gọi.
 | `POST /api/notifications/send` | internal | không có Gateway route; fail-closed bằng `Internal-Token` |
 | `/api/flashsales/internal/**` | internal | Gateway route đã loại 2026-07-22; service credential còn OPEN |
 | settlement fake confirm | dev-only | không còn Gateway route trong COD-first MVP |
-| settlement customer refund status | public-client/USER | exact `GET /api/settlement/refunds/my` only; query scopes to trusted `X-User-Id` and returns a safe status projection of existing cases. It cannot create, approve, execute or mutate a refund. |
+| settlement customer refund status | public-client/USER | exact `GET /api/settlement/refunds/my` only; query scopes to the JWKS-authenticated actor and returns a safe status projection of existing cases. It cannot create, approve, execute or mutate a refund. |
 | settlement hold/release | public-admin/internal | không còn Gateway route; chỉ admin read surface riêng còn public |
 | settlement internal COD eligibility | internal | Match gọi bằng `Internal-Token`; không có Gateway route, secret rỗng fail-closed |
 | livestream write/token routes | experimental/hidden | Gateway route đã đóng; ownership/token role chưa enforce đầy đủ |
@@ -60,15 +60,15 @@ sửa.
 | auth login/social/refresh | anonymous; refresh token rotation | cả 3 client | public-client/keep | Mỗi device là một token family; refresh token chỉ lưu SHA-256 fingerprint, rotate dưới row lock và consumed-token reuse revoke toàn family trước khi trả 401; ba client single-flight và bắt buộc lưu cặp token mới |
 | auth forgot/reset + email verification | anonymous; exact one-time token owns account | all clients | public-client/keep | uniform request response; AWS SES SMTP async after commit; token digest/expiry/consumption persisted; public-auth Gateway quota 10/min/IP; password reset revokes all refresh families/sessions |
 | auth logout/sessions | authenticated account, own sessions | Flutter/web | public-client/keep | Logout bằng current/rotated refresh token và authenticated `DELETE /sessions/{deviceId}` revoke đúng device family; session khác không bị ảnh hưởng. Access token đã cấp vẫn stateless-valid tối đa 15 phút; immediate access invalidation không thuộc MVP. |
-| auth account by id/admin actions | ADMIN | web admin | public-admin/keep | Gateway + service bắt `ADMIN`; block/unblock dùng account row lock transaction, revoke active sessions và ghi durable pending projection trước commit; User projection sync chạy after-commit + scheduled retry bằng internal credential với version guard; block reason bound 500 và typed admin identity; compatibility list hard-cap 100, paginated envelope chờ client migration |
+| auth account by id/admin actions | ADMIN | web admin | public-admin/keep | Auth resource server bắt `ADMIN`; Gateway chỉ route exact method. Block/unblock dùng account row lock transaction, revoke active sessions và ghi durable pending projection trước commit; User projection sync chạy after-commit + scheduled retry bằng internal credential với version guard; block reason bound 500 và typed admin identity; compatibility list hard-cap 100, paginated envelope chờ client migration |
 | auth account by email | authenticated service identity | auth→user/internal admin lookup | internal/keep | đã ẩn khỏi Gateway và fail-closed bằng shared secret; rotation/integration proof còn OPEN |
 | user public registration handoff | anonymous bearer handoff; identity resolved from Auth | Flutter | public-client/keep | exact `POST /api/users/registrations`; client chỉ gửi opaque token + profile, User resolve/complete qua internal Auth credential, create idempotent theo authId và retry được sau callback failure |
 | user internal create/by-auth | auth-service only | social/operator provisioning | internal/keep | không có Gateway route và bắt shared secret; create idempotent theo authId, từ chối rebinding theo authId hoặc email khác auth identity, DB migration khóa unique email case-insensitive; PostgreSQL concurrent proof còn OPEN |
-| user current read/update | authenticated account owns its profile projection | Flutter/web/shipper | public-client/keep | canonical `GET/PUT /api/users` derive ID từ JWT and fail closed if trusted Gateway identity headers are missing; path-ID mutation không còn public |
+| user current read/update | authenticated account owns its profile projection | Flutter/web/shipper | public-client/keep | canonical `GET/PUT /api/users` derive ID từ JWT actor đã được User resource server xác thực qua JWKS; path-ID mutation không còn public |
 | user delete | auth-owned soft deactivate only | không có consumer | dead/deleted | user xác nhận không hard-delete nghiệp vụ; orphan `DELETE /api/users/{id}` controller/service/repository branch và feature flag đã xóa. Canonical admin block vô hiệu hóa Auth + User projection và revoke sessions; self-deactivate sau MVP phải được orchestration từ Auth, không được xóa profile trực tiếp. |
-| user addresses | USER owns address and path userId; ADMIN support | Flutter | public-client/keep | exact path+method Gateway allow-list bắt `USER|ADMIN`; controller từ chối role khác dù numeric identity trùng; tất cả read/mutation đã đối chiếu owner; runtime self read 200 và cross-user read 403, spoof identity headers không đổi JWT identity; default mutation serialize bằng pessimistic owner lock |
-| user admin statistics/list | ADMIN | web admin | public-admin/keep | exact GET Gateway allow-list + controller bắt `ADMIN`; compatibility list hard-cap 100, paginated envelope chờ client migration |
-| user block/unblock projection | auth-service only | auth admin block/unblock orchestration | internal/keep | không còn Gateway route; bắt shared secret + ADMIN identity, command idempotent và dùng row lock transaction; Auth là source-of-truth, chỉ gọi User after-commit hoặc scheduled retry từ pending marker nên không còn remote User commit trước Auth commit; stale sync clear/failure bị chặn bằng version guard. Compose startup + PostgreSQL V2 schema proof PASS; live outage retry rehearsal vẫn OPEN |
+| user addresses | USER owns address and path userId; ADMIN support | Flutter | public-client/keep | exact path+method Gateway allow-list; User resource server/controller từ chối role khác dù numeric identity trùng; tất cả read/mutation đã đối chiếu owner; runtime self read 200 và cross-user read 403, spoof identity headers không đổi JWT actor; default mutation serialize bằng pessimistic owner lock |
+| user admin statistics/list | ADMIN | web admin | public-admin/keep | exact GET Gateway allow-list + User resource server/controller bắt `ADMIN`; compatibility list hard-cap 100, paginated envelope chờ client migration |
+| user block/unblock projection | auth-service only | auth admin block/unblock orchestration | internal/keep | không còn Gateway route; Auth gọi `POST /api/internal/users/{id}/block-status` bằng shared secret, mang `adminId`, `blocked`, `reason` làm audit payload. Auth là source-of-truth, chỉ gọi User after-commit hoặc scheduled retry từ pending marker nên không còn remote User commit trước Auth commit; stale sync clear/failure bị chặn bằng version guard. Compose startup + PostgreSQL V2 schema proof PASS; live outage retry rehearsal vẫn OPEN |
 | restaurant public reads/search/menu available | anonymous read-only | Flutter/web | public-client/keep | exact GET allow-list, gồm cả Flash Sale public campaign/items; compatibility catalog/search/menu/rating lists cap 100; cache/location/validation không public. Flutter orphan `/restaurants/nearby` + `/restaurants/categories` graph đã xóa vì không có backend route/UI caller. |
 | restaurant/menu writes and `my-*` | SHOP_OWNER owns restaurant/menu; ADMIN quản trị bằng entity route | web restaurant/admin | public-client+admin/keep | Gateway và service cùng yêu cầu `SHOP_OWNER` cho self list; mutation yêu cầu owner hoặc `ADMIN`; controller truyền trusted role xuống service, thiếu role fail-closed; DTO bounds trả 400 trước JPA |
 | restaurant creator lookup | SHOP_OWNER self | web owner | public-self/keep | arbitrary creatorId endpoints removed; `my-restaurants`/`my-menu-items` là self contract canonical và bắt `SHOP_OWNER` ở Gateway + controller |
@@ -104,7 +104,7 @@ sửa.
 | tracking online/nearby/distance diagnostics | none | không có consumer | dead/deleted | HTTP controller và dead Redis query/health helpers đã xóa; matching đọc replica riêng trong Match |
 | match busy/available replica | Kafka status event | delivery lifecycle | internal-event/keep | REST mutation và Tracking write-only consumer đã xóa; Match là consumer duy nhất, áp dụng offer release + BUSY/AVAILABLE + timestamp/event fence atomically trong Redis |
 | match nearby | Saga/match internal | Saga command listener | internal-event/keep | HTTP debug controller đã xóa; `saga.command.find-shipper` là ingress canonical |
-| notification FCM token register/remove | authenticated user owns token | Flutter/shipper | public-client/keep | Gateway chỉ route đúng hai POST register/unregister; JWT user được derive từ Gateway; Redis Lua reverse-owner ngăn một token thuộc nhiều account, Redis integration/race proof còn OPEN |
+| notification FCM token register/remove | authenticated user owns token | Flutter/shipper | public-client/keep | Gateway chỉ route đúng hai POST register/unregister; Notification resource server derive JWT actor qua JWKS; Redis Lua reverse-owner ngăn một token thuộc nhiều account, Redis integration/race proof còn OPEN |
 | notification list/unread/read/delete | authenticated user owns notification | cả 3 client | public-client/keep | ownership scope tới repository; list/unread cap 100, unread-count vẫn exact DB count; delivery status inbox copy không synthesize `shipperName` khi event không sở hữu field này |
 | notification send | service identity only | internal operator/service | internal/keep | không có Gateway route; shared secret + validated bounded command, unexpected error sanitized |
 | settlement own balances/transactions | SHOP_OWNER/SHIPPER owns entity | web/shipper | hidden/disabled pending ownership | arbitrary entityId endpoints không có Gateway route và self-service controllers mặc định không tạo bean (`SETTLEMENT_SELF_SERVICE_API_ENABLED=false`) |
@@ -115,7 +115,7 @@ sửa.
 | payment create/status/provider | authenticated payer owns payment | cả 3 client còn reference legacy | hidden/disabled | không có Gateway route, controller off mặc định và Order payment-event listener cũng off (`ORDER_PAYMENT_EVENT_PROCESSING_ENABLED=false`) trong COD-first MVP |
 | VNPAY callback/IPN | payment provider signature | provider | hidden/disabled-until-verified | toàn payment bean graph off mặc định; provider không có DEMO credential và fail-closed khi env thiếu; callback/reconciliation proof OPEN |
 | fake payment confirm | developer | no production client | hidden/dev-test-only | không có production Gateway route; controller/provider cần explicit processing+fake flags và active profile `dev|test`, không thể bật ở `prod` |
-| promotion collect/my/calculate | USER own voucher/order input canonical | Flutter/web | collect/my public; calculate hidden | Gateway + service đều bắt USER cho collect/my; collect kiểm active window, concurrent duplicate trả 409 qua DB unique; wallet cap 100; calculate vẫn hidden + checkout flag off, và controller cũng bắt role `USER` trước khi override body `userId` nếu bật sau này; calculate batch lookup nhưng chưa tính discount |
+| promotion collect/my/calculate | USER own voucher/order input canonical | Flutter/web | collect/my public; calculate hidden | Promotion resource server bắt USER cho collect/my; collect kiểm active window, concurrent duplicate trả 409 qua DB unique; wallet cap 100. Calculate là `/api/promotions/internal/calculate`, chỉ Order gọi bằng `Internal-Token` với `userId` trusted trong body, và checkout flag vẫn off; calculate batch lookup nhưng chưa tính discount |
 | promotion merchant CRUD/list | SHOP_OWNER owns merchant/restaurant | web restaurant | GET list public; create hidden/disabled | create không có public Gateway route và không có active controller bean mặc định (`PROMOTION_MERCHANT_CREATE_API_ENABLED=false`); Gateway test chặn `POST /api/promotions/merchant`, chỉ giữ `GET /api/promotions/merchant` cho SHOP_OWNER. Cần explicit restaurantId + ownership proof trước khi mở lại |
 | promotion platform/admin list/delete | ADMIN | web admin | public-admin/keep | Gateway/controller bắt `ADMIN`; exact POST/GET/DELETE methods, list cap 100; concurrency còn OPEN |
 | promotion reserve | order-service credential | order checkout | internal/disabled-for-MVP | hidden + shared secret; feature flag false và listener compensation không tạo bean; request IDs được validate sau credential/recovery gate. Focused controller test 2026-07-29 xác nhận credential được kiểm trước checkout flag/validation và disabled path không gọi service. Cần reservation record/outbox trước khi mở |
@@ -155,6 +155,7 @@ sửa.
 | auth-service | AuthController | GET | `/api/auth/accounts/{id}` | `getAccountById` |
 | auth-service | AuthController | POST | `/api/auth/admin/accounts/{id}/block` | `blockAccount` |
 | auth-service | AuthController | POST | `/api/auth/admin/accounts/{id}/unblock` | `unblockAccount` |
+| auth-service | JwksController | GET | `/.well-known/jwks.json` | `getJwks` |
 | delivery-service | DeliveryController | POST | `/api/deliveries/accept` | `acceptDelivery` |
 | delivery-service | DeliveryController | POST | `/api/deliveries/cancel-assignment` | `cancelAssignedDelivery` |
 | delivery-service | DeliveryController | GET | `/api/deliveries/offers/current` | `getCurrentOffer` |
@@ -216,10 +217,10 @@ sửa.
 | promotion-service | PromotionController | GET | `/api/promotions/merchant` | `listMerchantVouchers` |
 | promotion-service | PromotionController | GET | `/api/promotions/admin` | `listAllVouchers` |
 | promotion-service | PromotionController | DELETE | `/api/promotions/{id}` | `deleteVoucher` |
-| promotion-service | PromotionController | POST | `/api/promotions/calculate` | `calculate` |
-| promotion-service | PromotionController | POST | `/api/promotions/reserve` | `reserve` |
-| promotion-service | PromotionController | POST | `/api/promotions/reservations/{reservationId}/commit` | `commit` |
-| promotion-service | PromotionController | POST | `/api/promotions/reservations/{reservationId}/release` | `release` |
+| promotion-service | PromotionController | POST | `/api/promotions/internal/calculate` | `calculate` |
+| promotion-service | PromotionController | POST | `/api/promotions/internal/reserve` | `reserve` |
+| promotion-service | PromotionController | POST | `/api/promotions/internal/reservations/{reservationId}/commit` | `commit` |
+| promotion-service | PromotionController | POST | `/api/promotions/internal/reservations/{reservationId}/release` | `release` |
 | restaurant-service | MenuItemController | POST | `/api/menu-items` | `create` |
 | restaurant-service | MenuItemController | PUT | `/api/menu-items/{id}` | `update` |
 | restaurant-service | MenuItemController | DELETE | `/api/menu-items/{id}` | `delete` |
@@ -291,10 +292,12 @@ sửa.
 | user-service | UserAddressController | PATCH | `/api/addresses/{id}/default` | `setDefault` |
 | user-service | UserController | POST | `/api/users` | `createUser` |
 | user-service | UserController | POST | `/api/users/registrations` | `registerUser` |
-| user-service | UserController | GET | `/api/users` | `getUserById` |
+| user-service | UserController | GET | `/api/users` | `getCurrentUser` |
+| user-service | UserController | GET | `/api/users/{id}` | `getUserById` |
 | user-service | UserController | GET | `/api/users/by-auth/{authId}` | `getUserByAuthId` |
 | user-service | UserController | PUT | `/api/users` | `updateCurrentUser` |
 | user-service | UserController | GET | `/api/users/admin/statistics` | `getUserStatistics` |
 | user-service | UserController | GET | `/api/users/admin/all` | `getAllUsers` |
 | user-service | UserController | POST | `/api/users/admin/{userId}/block` | `blockUser` |
 | user-service | UserController | POST | `/api/users/admin/{userId}/unblock` | `unblockUser` |
+| user-service | InternalUserBlockStatusController | POST | `/api/internal/users/{userId}/block-status` | `synchronizeBlockStatus` |

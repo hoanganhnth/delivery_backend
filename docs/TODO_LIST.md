@@ -61,5 +61,5 @@ Dưới đây là danh sách toàn bộ các tính năng (Use Cases) chưa hoàn
 - [ ] **[Backend - DB Optimization]** Giảm tải MySQL cho Location: Thay thế việc ghi MySQL trực tiếp mỗi 5 giây bằng Redis GEO + Batch sync định kỳ.
 - [ ] **[Backend - Kafka]** Sửa lỗi nghẽn Thread: Thay thế `Thread.sleep()` trong Match Service bằng cơ chế Delayed Messages hoặc Scheduler.
 - [ ] **[Backend - WebSocket]** Tối ưu Broadcast: Áp dụng Geo-hashing hoặc Rooms để tránh vòng lặp `O(N)` trên hàng vạn kết nối.
-- [ ] **[Backend - Security]** Chặn Spoofing Identity: Xử lý chặt `JwtAuthenticationFilter` tại Gateway để strip/override header `X-User-Id`.
+- [x] **[Backend - Security]** Chặn Spoofing Identity: Gateway strip legacy identity headers; mỗi resource service xác thực JWT qua JWKS thay vì nhận identity header.
 - [ ] **[Backend - Bug]** Fix NPE: Kiểm tra `notes == null` trước khi xử lý chuỗi trong `OrderEventServiceImpl`.

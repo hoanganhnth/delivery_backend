@@ -1,6 +1,8 @@
 package com.delivery.api_gateway.ratelimit;
 
 import java.net.InetSocketAddress;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -23,15 +25,12 @@ import io.micrometer.core.instrument.MeterRegistry;
 import reactor.core.publisher.Mono;
 
 /**
- * Applies the approved fixed-window policy after route JWT filters have added
- * trusted X-User-Id/X-Role headers. Public keys deliberately use the direct
- * peer IP; accepting client supplied forwarding headers would allow spoofing.
+ * Applies fixed-window rate limiting by peer IP (or the client IP supplied by a
+ * configured trusted proxy) across all public and protected route categories.
  */
 @Component
 public class GatewayRateLimitFilter implements GlobalFilter, Ordered {
     private static final String RATE_LIMIT_PREFIX = "delivery:gateway:rate-limit:";
-    private static final String USER_ID_HEADER = "X-User-Id";
-    private static final String ROLE_HEADER = "X-Role";
 
     private final RateLimitStore store;
     private final RateLimitProperties properties;
@@ -48,9 +47,6 @@ public class GatewayRateLimitFilter implements GlobalFilter, Ordered {
 
     @Override
     public int getOrder() {
-        // Route-specific JWT filters use the default order (0); this must run
-        // afterwards so protected routes use the verified subject, not a header
-        // supplied by a caller.
         return 1;
     }
 
@@ -84,32 +80,25 @@ public class GatewayRateLimitFilter implements GlobalFilter, Ordered {
     private Policy policyFor(ServerWebExchange exchange) {
         String path = exchange.getRequest().getPath().value();
         HttpMethod method = exchange.getRequest().getMethod();
-        String subject = exchange.getRequest().getHeaders().getFirst(USER_ID_HEADER);
-        String role = exchange.getRequest().getHeaders().getFirst(ROLE_HEADER);
+
+        String ip = peerIp(exchange);
 
         if ("/ws/shipper-locations".equals(path)) {
-            return subject == null || subject.isBlank() ? null
-                    : new Policy("websocket_connection", properties.getWebsocketConnection(), ignored -> subject);
+            return new Policy("websocket_connection", properties.getWebsocketConnection(), ignored -> ip);
         }
         if (isPublicAuth(path, method)) {
-            return new Policy("public_auth", properties.getPublicAuth(), ignored -> peerIp(exchange));
+            return new Policy("public_auth", properties.getPublicAuth(), ignored -> ip);
         }
         if (isUserRegistration(path, method)) {
-            return new Policy("user_registration", properties.getPublicAuth(), ignored -> peerIp(exchange));
+            return new Policy("user_registration", properties.getPublicAuth(), ignored -> ip);
         }
         if (isPublicCatalog(path, method)) {
-            return new Policy("public_catalog", properties.getPublicCatalog(), ignored -> peerIp(exchange));
-        }
-        if (subject == null || subject.isBlank()) {
-            return null;
-        }
-        if ("ADMIN".equals(role)) {
-            return new Policy("admin", properties.getAdmin(), ignored -> subject);
+            return new Policy("public_catalog", properties.getPublicCatalog(), ignored -> ip);
         }
         if (method == HttpMethod.GET || method == HttpMethod.HEAD || method == HttpMethod.OPTIONS) {
-            return new Policy("authenticated_read", properties.getAuthenticatedRead(), ignored -> subject);
+            return new Policy("authenticated_read", properties.getAuthenticatedRead(), ignored -> ip);
         }
-        return new Policy("mutation", properties.getMutation(), ignored -> subject);
+        return new Policy("mutation", properties.getMutation(), ignored -> ip);
     }
 
     private boolean isPublicAuth(String path, HttpMethod method) {
@@ -141,8 +130,54 @@ public class GatewayRateLimitFilter implements GlobalFilter, Ordered {
     }
 
     private String peerIp(ServerWebExchange exchange) {
-        InetSocketAddress address = exchange.getRequest().getRemoteAddress();
-        return address == null || address.getAddress() == null ? "unknown" : address.getAddress().getHostAddress();
+        InetSocketAddress remoteAddress = exchange.getRequest().getRemoteAddress();
+        String directIp = remoteAddress == null || remoteAddress.getAddress() == null ? "unknown" : remoteAddress.getAddress().getHostAddress();
+
+        if (properties.isTrustedProxy() && isTrustedProxyIp(directIp)) {
+            String xForwardedFor = exchange.getRequest().getHeaders().getFirst("X-Forwarded-For");
+            if (xForwardedFor != null && !xForwardedFor.isBlank()) {
+                return xForwardedFor.split(",")[0].trim();
+            }
+        }
+        return directIp;
+    }
+
+    private boolean isTrustedProxyIp(String ip) {
+        if ("unknown".equals(ip) || ip == null || properties.getTrustedProxyCidrs().isEmpty()) {
+            return false;
+        }
+        return properties.getTrustedProxyCidrs().stream()
+                .filter(cidr -> cidr != null && !cidr.isBlank())
+                .anyMatch(cidr -> matchesCidr(ip, cidr.trim()));
+    }
+
+    private boolean matchesCidr(String ip, String cidr) {
+        try {
+            String[] parts = cidr.split("/", -1);
+            if (parts.length != 2) {
+                return false;
+            }
+            byte[] address = InetAddress.getByName(ip).getAddress();
+            byte[] network = InetAddress.getByName(parts[0]).getAddress();
+            int prefixLength = Integer.parseInt(parts[1]);
+            if (address.length != network.length || prefixLength < 0 || prefixLength > address.length * 8) {
+                return false;
+            }
+            int completeBytes = prefixLength / 8;
+            for (int i = 0; i < completeBytes; i++) {
+                if (address[i] != network[i]) {
+                    return false;
+                }
+            }
+            int remainingBits = prefixLength % 8;
+            if (remainingBits == 0) {
+                return true;
+            }
+            int mask = 0xFF << (8 - remainingBits);
+            return (address[completeBytes] & mask) == (network[completeBytes] & mask);
+        } catch (UnknownHostException | NumberFormatException e) {
+            return false;
+        }
     }
 
     private Mono<Void> reject(ServerWebExchange exchange, Policy policy, long retryAfterSeconds) {

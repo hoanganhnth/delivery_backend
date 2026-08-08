@@ -15,8 +15,7 @@ fi
 if git grep -n -I -F -e '-----BEGIN' \
   -- ':!docs/**' ':!scripts/gen-keys.sh' \
   ':!scripts/verify-secrets.sh' \
-  ':!auth-service/src/main/java/com/delivery/auth_service/service/TokenService.java' \
-  ':!api-gateway/src/main/java/com/delivery/api_gateway/config/JwtPublicKeyProvider.java' >/dev/null \
+  ':!auth-service/src/main/java/com/delivery/auth_service/service/TokenService.java' >/dev/null \
   || git grep -n -I -E -e 'AIza[0-9A-Za-z_-]{30,}' -e 'AKIA[0-9A-Z]{16}' \
     -- ':!docs/**' ':!scripts/gen-keys.sh' >/dev/null; then
   echo "Potential real credential material detected in tracked runtime source." >&2

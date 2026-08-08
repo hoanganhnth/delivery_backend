@@ -2,6 +2,15 @@
 
 Hệ thống tài liệu kiến trúc tổng thể cho dự án Delivery. Tài liệu được chia thành 2 nhóm chính để dễ quản lý và theo dõi.
 
+## System-level architecture
+
+- [Editable Mermaid architecture](../../docs/ARCHITECTURE.md): polyrepo context,
+  client boundary, JWKS, core workflows, data ownership and operations mechanisms.
+- [Backend product overview](product/overview.md): current service map and MVP
+  capability boundary.
+- [System contract inventory](system-contract-inventory.md): executable inventory
+  for persistence, Gateway surfaces, Kafka contracts and remaining runtime proof.
+
 ## 📍 1. Independent Services
 Tài liệu đặc tả các dịch vụ độc lập, quản lý domain nội bộ của nó. (APIs, CRUD, Logic nội bộ)
 

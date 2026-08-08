@@ -4,8 +4,8 @@
 **Mục tiêu:** Quản lý toàn bộ vòng đời của người dùng (Customer, Shipper, Admin), bao gồm quá trình xác thực (Authentication), phân quyền (Authorization) và quản lý hồ sơ cá nhân.
 
 **Microservices liên quan:**
-- `api-gateway`: Route request và xác thực Access Token (JWT Signature validation).
-- `auth-service`: Cấp phát JWT, xử lý logic đăng nhập, verify Refresh Token, tích hợp Social Login.
+- `api-gateway`: Route request, IP rate limit và loại bỏ legacy identity headers.
+- `auth-service`: Cấp phát JWT RS256/JWKS, xử lý logic đăng nhập, verify Refresh Token, tích hợp Social Login.
 - `user-service`: Quản lý thông tin hồ sơ của Customer và Admin (Tên, SĐT, Địa chỉ).
 - `shipper-service`: Quản lý hồ sơ chuyên biệt của Shipper (Bằng lái xe, CCCD, Biển số xe, Trạng thái hoạt động).
 
@@ -92,7 +92,7 @@ sequenceDiagram
     User-->>App: user profile
 ```
 
-### 3.2. Phân quyền và Routing tại Gateway
+### 3.2. Phân quyền qua JWKS
 1. Khi user đăng nhập thành công, `auth-service` trả về Access Token TTL 15 phút
    và Refresh Token/session TTL 7 ngày. Mỗi device session có một token family
    độc lập. Mỗi refresh bắt buộc trả cả access token và refresh token mới; token
@@ -100,10 +100,14 @@ sequenceDiagram
    Logout/device revoke vô hiệu family phía server; access token đã cấp hiện
    stateless-valid tới khi hết 15 phút.
 2. Các request tiếp theo từ App phải đính kèm header `Authorization: Bearer <Access_Token>`.
-3. `api-gateway` chặn request lại, tự động parse JWT và kiểm tra chữ ký (Signature). 
-4. Nếu hợp lệ, Gateway forward request vào các service bên trong, đồng thời strip header identity từ client rồi inject `X-User-Id` và `X-Role` lấy từ JWT.
+3. `api-gateway` chỉ forward request theo exact route/method và strip mọi
+   `X-User-Id`/`X-Role` do client gửi; Gateway không parse hoặc xác thực JWT.
+4. Mỗi resource service lấy public keys từ
+   `GET /.well-known/jwks.json` của Auth và xác thực RS256, `kid`, issuer,
+   audience và `token_type=access`. Converter chung dựng `AuthenticatedActor`
+   từ `sub`, `email`, `roles`; service là nơi áp dụng role/ownership policy.
 
-### 3.2. Cấu trúc an toàn cho Shipper
+### 3.3. Cấu trúc an toàn cho Shipper
 Hồ sơ Shipper yêu cầu bảo mật cao do chứa dữ liệu nhạy cảm (CCCD, Bằng lái). Do đó, thông tin này được tách riêng ra `shipper-service`, không nằm chung trong bảng User thông thường để tối ưu query và phân chia rõ ràng context.
 
 ## 4. Biểu đồ tuần tự (Sequence Diagram)
@@ -137,8 +141,9 @@ sequenceDiagram
     rect rgb(240, 255, 240)
         Note over App, DB: Phase 2: Gọi API hợp lệ
         App->>GW: GET /api/users (Header: Bearer Token)
-        GW->>GW: Validate JWT Signature & Expiration
-        GW->>User: Forward request (Kèm Header X-User-Id)
+        GW->>User: Forward Bearer token
+        User->>Auth: Read cached JWKS / refresh by kid
+        User->>User: Validate JWT + derive actor
         User->>DB: Lấy dữ liệu profile
         DB-->>User: Dữ liệu
         User-->>GW: Dữ liệu Profile
@@ -149,8 +154,9 @@ sequenceDiagram
     rect rgb(255, 240, 240)
         Note over App, DB: Phase 3: Token hết hạn & Auto Refresh
         App->>GW: GET /api/users (Header: Bearer Expired_Token)
-        GW->>GW: Validate JWT (Failed - Expired)
-        GW-->>App: 401 Unauthorized
+        GW->>User: Forward Bearer token
+        User->>User: Validate JWT (Failed - Expired)
+        User-->>App: 401 Unauthorized
         
         %% App bắt lỗi 401 và tự động gọi refresh
         Note right of App: Interceptor bắt lỗi 401

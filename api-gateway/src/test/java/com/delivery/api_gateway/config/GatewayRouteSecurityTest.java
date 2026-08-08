@@ -12,10 +12,6 @@ import org.springframework.cloud.gateway.route.RouteLocator;
 import org.springframework.http.HttpMethod;
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
 import org.springframework.mock.web.server.MockServerWebExchange;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-
-import com.delivery.api_gateway.TestJwtPublicKeyProperties;
 
 import reactor.core.publisher.Mono;
 
@@ -24,11 +20,6 @@ class GatewayRouteSecurityTest {
 
     @Autowired
     private RouteLocator routeLocator;
-
-    @DynamicPropertySource
-    static void jwtKeyProperties(DynamicPropertyRegistry registry) {
-        TestJwtPublicKeyProperties.register(registry);
-    }
 
     @Test
     void sensitiveRoutesAreNotExposedAsPublicUserRoutes() {
@@ -45,11 +36,15 @@ class GatewayRouteSecurityTest {
                 .contains("/api/auth/social-login")
                 .doesNotContain("/api/auth/accounts/email");
 
+        assertThat(routes.get("auth-service-jwks").getFilters()).isEmpty();
+        assertThat(matches(routes, HttpMethod.GET, "/.well-known/jwks.json")).isTrue();
+        assertThat(matches(routes, HttpMethod.POST, "/.well-known/jwks.json")).isFalse();
+
         assertThat(routes.get("flashsale-public").getFilters()).isEmpty();
         assertThat(routes).doesNotContainKey("flashsale-merchant");
-        assertThat(routes.get("flashsale-admin-read").getFilters()).isNotEmpty();
-        assertThat(routes.get("flashsale-admin-create").getFilters()).isNotEmpty();
-        assertThat(routes.get("flashsale-admin-update").getFilters()).isNotEmpty();
+        assertThat(routes.get("flashsale-admin-read").getFilters()).isEmpty();
+        assertThat(routes.get("flashsale-admin-create").getFilters()).isEmpty();
+        assertThat(routes.get("flashsale-admin-update").getFilters()).isEmpty();
         assertThat(matches(routes, HttpMethod.POST, "/api/flashsales/internal/reserve")).isFalse();
         assertThat(matches(routes, HttpMethod.POST, "/api/flashsales/merchant/items")).isFalse();
         assertThat(matches(routes, HttpMethod.GET, "/api/flashsales/public/future-endpoint")).isFalse();
@@ -71,7 +66,7 @@ class GatewayRouteSecurityTest {
     }
 
     @Test
-    void adminMaintenanceRoutesRequireTheJwtFilter() {
+    void adminMaintenanceRoutesAreForwardedForServiceAuthorization() {
         Map<String, Route> routes = routeLocator.getRoutes()
                 .collectMap(Route::getId)
                 .block();
@@ -79,8 +74,8 @@ class GatewayRouteSecurityTest {
         assertThat(routes).isNotNull();
         assertThat(routes).doesNotContainKeys("order-service-admin", "delivery-service-admin");
         assertThat(routes).doesNotContainKey("auth-service-admin-list");
-        assertThat(routes.get("auth-service-admin").getFilters()).isNotEmpty();
-        assertThat(routes.get("auth-service-account-admin").getFilters()).isNotEmpty();
+        assertThat(routes.get("auth-service-admin").getFilters()).isEmpty();
+        assertThat(routes.get("auth-service-account-admin").getFilters()).isEmpty();
         assertThat(matches(routes, HttpMethod.GET, "/api/auth/admin/accounts")).isFalse();
         assertThat(matches(routes, HttpMethod.POST, "/api/orders/admin/cancel-all-pending")).isFalse();
         assertThat(matches(routes, HttpMethod.GET, "/api/orders/admin/future-endpoint")).isFalse();
@@ -135,7 +130,7 @@ class GatewayRouteSecurityTest {
         assertThat(matches(routes, HttpMethod.PUT, "/api/tracking/shipper-locations/42/busy")).isFalse();
         assertThat(matches(routes, HttpMethod.GET,
                 "/api/deliveries/internal/10/tracking-access")).isFalse();
-        assertThat(routes.get("tracking-service-ws").getFilters()).isNotEmpty();
+        assertThat(routes.get("tracking-service-ws").getFilters()).isEmpty();
         assertThat(matches(routes, HttpMethod.GET, "/ws/shipper-locations?deliveryId=42")).isTrue();
         assertThat(matches(routes, HttpMethod.GET, "/ws/shipper-locations/future-endpoint")).isFalse();
     }
@@ -152,18 +147,18 @@ class GatewayRouteSecurityTest {
         assertThat(matches(routes, HttpMethod.PUT, "/api/users")).isTrue();
         assertThat(matches(routes, HttpMethod.PUT, "/api/users/42")).isFalse();
         assertThat(matches(routes, HttpMethod.DELETE, "/api/users/42")).isFalse();
-        assertThat(routes.get("user-service-admin-read").getFilters()).isNotEmpty();
+        assertThat(routes.get("user-service-admin-read").getFilters()).isEmpty();
         assertThat(routes).doesNotContainKey("user-service-admin-status");
         assertThat(matches(routes, HttpMethod.POST, "/api/users/admin/42/block")).isFalse();
         assertThat(matches(routes, HttpMethod.POST, "/api/users/admin/42/unblock")).isFalse();
         assertThat(matches(routes, HttpMethod.GET, "/api/users/admin/future-endpoint")).isFalse();
         assertThat(matches(routes, HttpMethod.GET, "/api/addresses/future-endpoint")).isFalse();
         assertThat(matches(routes, HttpMethod.POST, "/api/addresses/42/default")).isFalse();
-        assertThat(routes.get("user-address-service-read").getFilters()).isNotEmpty();
-        assertThat(routes.get("user-address-service-create").getFilters()).isNotEmpty();
-        assertThat(routes.get("user-address-service-update").getFilters()).isNotEmpty();
-        assertThat(routes.get("user-address-service-default").getFilters()).isNotEmpty();
-        assertThat(routes.get("user-address-service-delete").getFilters()).isNotEmpty();
+        assertThat(routes.get("user-address-service-read").getFilters()).isEmpty();
+        assertThat(routes.get("user-address-service-create").getFilters()).isEmpty();
+        assertThat(routes.get("user-address-service-update").getFilters()).isEmpty();
+        assertThat(routes.get("user-address-service-default").getFilters()).isEmpty();
+        assertThat(routes.get("user-address-service-delete").getFilters()).isEmpty();
     }
 
     @Test
@@ -181,12 +176,12 @@ class GatewayRouteSecurityTest {
         assertThat(matches(routes, HttpMethod.GET,
                 "/api/restaurants/internal/42/owners/7")).isFalse();
         assertThat(matches(routes, HttpMethod.GET, "/api/menu-items/creator/42")).isFalse();
-        assertThat(routes.get("restaurant-admin-ratings-read").getFilters()).isNotEmpty();
-        assertThat(routes.get("restaurant-admin-ratings-update").getFilters()).isNotEmpty();
-        assertThat(routes.get("restaurant-order-actions").getFilters()).isNotEmpty();
-        assertThat(routes.get("restaurant-owner-self").getFilters()).isNotEmpty();
-        assertThat(routes.get("restaurant-customer-ratings-self").getFilters()).isNotEmpty();
-        assertThat(routes.get("restaurant-menu-self").getFilters()).isNotEmpty();
+        assertThat(routes.get("restaurant-admin-ratings-read").getFilters()).isEmpty();
+        assertThat(routes.get("restaurant-admin-ratings-update").getFilters()).isEmpty();
+        assertThat(routes.get("restaurant-order-actions").getFilters()).isEmpty();
+        assertThat(routes.get("restaurant-owner-self").getFilters()).isEmpty();
+        assertThat(routes.get("restaurant-customer-ratings-self").getFilters()).isEmpty();
+        assertThat(routes.get("restaurant-menu-self").getFilters()).isEmpty();
         assertThat(routes).doesNotContainKey("restaurant-self");
         assertThat(matches(routes, HttpMethod.POST, "/api/restaurants/orders/42/future-action")).isFalse();
         assertThat(matches(routes, HttpMethod.DELETE, "/api/restaurants/admin/ratings/42")).isFalse();
@@ -198,14 +193,14 @@ class GatewayRouteSecurityTest {
 
         assertThat(matches(routes, HttpMethod.POST, "/api/orders")).isTrue();
         assertThat(matches(routes, HttpMethod.POST, "/api/orders/checkout-preview")).isTrue();
-        assertThat(routes.get("order-service-create").getFilters()).isNotEmpty();
+        assertThat(routes.get("order-service-create").getFilters()).isEmpty();
         assertThat(matches(routes, HttpMethod.GET, "/api/orders/42")).isTrue();
         assertThat(matches(routes, HttpMethod.GET, "/api/orders/my-orders")).isTrue();
         assertThat(matches(routes, HttpMethod.GET, "/api/orders/my-restaurant-orders")).isTrue();
-        assertThat(routes.get("order-service-customer-self").getFilters()).isNotEmpty();
-        assertThat(routes.get("order-service-restaurant-self").getFilters()).isNotEmpty();
+        assertThat(routes.get("order-service-customer-self").getFilters()).isEmpty();
+        assertThat(routes.get("order-service-restaurant-self").getFilters()).isEmpty();
         assertThat(matches(routes, HttpMethod.PUT, "/api/orders/42/cancel")).isTrue();
-        assertThat(routes.get("order-service-cancel").getFilters()).isNotEmpty();
+        assertThat(routes.get("order-service-cancel").getFilters()).isEmpty();
 
         assertThat(matches(routes, HttpMethod.PUT, "/api/orders/42")).isFalse();
         assertThat(matches(routes, HttpMethod.DELETE, "/api/orders/42")).isFalse();
@@ -228,6 +223,8 @@ class GatewayRouteSecurityTest {
         assertThat(matches(routes, HttpMethod.GET, "/api/promotions/my-vouchers")).isTrue();
         assertThat(matches(routes, HttpMethod.POST, "/api/promotions/calculate")).isFalse();
         assertThat(matches(routes, HttpMethod.POST, "/api/promotions/reserve")).isFalse();
+        assertThat(matches(routes, HttpMethod.POST, "/api/promotions/internal/calculate")).isFalse();
+        assertThat(matches(routes, HttpMethod.POST, "/api/promotions/internal/reserve")).isFalse();
         assertThat(matches(routes, HttpMethod.GET, "/api/promotions/collect/WELCOME")).isFalse();
         assertThat(matches(routes, HttpMethod.POST, "/api/promotions/my-vouchers")).isFalse();
 
@@ -246,11 +243,11 @@ class GatewayRouteSecurityTest {
 
         assertThat(matches(routes, HttpMethod.POST, "/api/deliveries/accept")).isTrue();
         assertThat(matches(routes, HttpMethod.POST, "/api/deliveries/cancel-assignment")).isTrue();
-        assertThat(routes.get("delivery-service-shipper-actions").getFilters()).isNotEmpty();
+        assertThat(routes.get("delivery-service-shipper-actions").getFilters()).isEmpty();
         assertThat(matches(routes, HttpMethod.PUT, "/api/deliveries/42/status")).isTrue();
-        assertThat(routes.get("delivery-service-status").getFilters()).isNotEmpty();
+        assertThat(routes.get("delivery-service-status").getFilters()).isEmpty();
         assertThat(matches(routes, HttpMethod.GET, "/api/deliveries/offers/current")).isTrue();
-        assertThat(routes.get("delivery-service-current-offer").getFilters()).isNotEmpty();
+        assertThat(routes.get("delivery-service-current-offer").getFilters()).isEmpty();
         assertThat(routes.get("delivery-service-current-offer").getPredicate().toString())
                 .contains("/api/deliveries/offers/current")
                 .doesNotContain("/shipper/{shipperId");
@@ -275,7 +272,7 @@ class GatewayRouteSecurityTest {
         assertThat(matches(routes, HttpMethod.DELETE, "/api/shippers")).isFalse();
         assertThat(matches(routes, HttpMethod.POST, "/api/shippers/42/ratings")).isFalse();
         assertThat(matches(routes, HttpMethod.GET, "/api/shipper-locations/nearby")).isFalse();
-        assertThat(routes.get("shipper-service-admin").getFilters()).isNotEmpty();
+        assertThat(routes.get("shipper-service-admin").getFilters()).isEmpty();
     }
 
     @Test
@@ -283,7 +280,7 @@ class GatewayRouteSecurityTest {
         Map<String, Route> routes = routes();
 
         assertThat(matches(routes, HttpMethod.GET, "/api/settlement/refunds/my")).isTrue();
-        assertThat(routes.get("settlement-service-customer-refund-read").getFilters()).isNotEmpty();
+        assertThat(routes.get("settlement-service-customer-refund-read").getFilters()).isEmpty();
         assertThat(matches(routes, HttpMethod.POST, "/api/settlement/refunds/my")).isFalse();
         assertThat(matches(routes, HttpMethod.PUT, "/api/settlement/refunds/my")).isFalse();
         assertThat(matches(routes, HttpMethod.DELETE, "/api/settlement/refunds/my")).isFalse();
@@ -291,7 +288,7 @@ class GatewayRouteSecurityTest {
         assertThat(matches(routes, HttpMethod.GET, "/api/settlement/admin/refunds")).isTrue();
         assertThat(matches(routes, HttpMethod.GET,
                 "/api/settlement/admin/refunds/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")).isTrue();
-        assertThat(routes.get("settlement-service-admin-read").getFilters()).isNotEmpty();
+        assertThat(routes.get("settlement-service-admin-read").getFilters()).isEmpty();
         assertThat(matches(routes, HttpMethod.POST, "/api/settlement/admin/refunds")).isFalse();
         assertThat(matches(routes, HttpMethod.DELETE,
                 "/api/settlement/admin/refunds/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")).isFalse();

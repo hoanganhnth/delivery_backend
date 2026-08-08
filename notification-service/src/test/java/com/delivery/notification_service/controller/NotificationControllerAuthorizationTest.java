@@ -1,9 +1,12 @@
 package com.delivery.notification_service.controller;
 
+import com.delivery.auth.resourceserver.security.AuthenticatedActor;
 import com.delivery.notification_service.exception.NotificationAccessDeniedException;
 import com.delivery.notification_service.dto.request.SendNotificationRequest;
 import com.delivery.notification_service.service.NotificationService;
 import org.junit.jupiter.api.Test;
+
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
@@ -18,8 +21,9 @@ class NotificationControllerAuthorizationTest {
 
     @Test
     void rejectsPathUserThatDoesNotMatchAuthenticatedUser() {
+        AuthenticatedActor actor = new AuthenticatedActor(99L, "user@example.com", Set.of("USER"));
         assertThrows(NotificationAccessDeniedException.class,
-                () -> controller.getUserNotifications(42L, 99L, "USER"));
+                () -> controller.getUserNotifications(42L, actor));
 
         verifyNoInteractions(notificationService);
     }
@@ -27,16 +31,18 @@ class NotificationControllerAuthorizationTest {
     @Test
     void userScopedNotificationSurfacesRejectMissingOrUnknownRoles() {
         assertThrows(NotificationAccessDeniedException.class,
-                () -> controller.getUnreadNotifications(99L, null));
+                () -> controller.getUnreadNotifications(null));
+        AuthenticatedActor guestActor = new AuthenticatedActor(99L, "guest@example.com", Set.of("GUEST"));
         assertThrows(NotificationAccessDeniedException.class,
-                () -> controller.deleteNotification(7L, 99L, "GUEST"));
+                () -> controller.deleteNotification(7L, guestActor));
 
         verifyNoInteractions(notificationService);
     }
 
     @Test
     void shipperCanReadOwnUnreadNotificationsForOfferRecovery() {
-        var response = controller.getUnreadNotifications(99L, "SHIPPER");
+        AuthenticatedActor actor = new AuthenticatedActor(99L, "shipper@example.com", Set.of("SHIPPER"));
+        var response = controller.getUnreadNotifications(actor);
 
         assertThat(response.getStatusCode().is2xxSuccessful()).isTrue();
         verify(notificationService).getUnreadNotifications(99L);
@@ -44,11 +50,16 @@ class NotificationControllerAuthorizationTest {
 
     @Test
     void allKnownAuthenticatedRolesCanAccessOwnNotificationSurfaces() {
-        controller.getUnreadCount(99L, "ADMIN");
-        controller.markAsRead(7L, 99L, "SHIPPER");
-        controller.markAllAsRead(99L, "SHOP_OWNER");
-        controller.getNotificationById(7L, 99L, "USER");
-        controller.deleteNotification(7L, 99L, "SHIPPER");
+        AuthenticatedActor adminActor = new AuthenticatedActor(99L, "admin@example.com", Set.of("ADMIN"));
+        AuthenticatedActor shipperActor = new AuthenticatedActor(99L, "shipper@example.com", Set.of("SHIPPER"));
+        AuthenticatedActor shopActor = new AuthenticatedActor(99L, "shop@example.com", Set.of("SHOP_OWNER"));
+        AuthenticatedActor userActor = new AuthenticatedActor(99L, "user@example.com", Set.of("USER"));
+
+        controller.getUnreadCount(adminActor);
+        controller.markAsRead(7L, shipperActor);
+        controller.markAllAsRead(shopActor);
+        controller.getNotificationById(7L, userActor);
+        controller.deleteNotification(7L, shipperActor);
 
         verify(notificationService).getUnreadCount(99L);
         verify(notificationService).markAsRead(7L, 99L);

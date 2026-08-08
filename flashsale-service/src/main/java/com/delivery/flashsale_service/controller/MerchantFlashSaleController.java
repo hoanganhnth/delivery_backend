@@ -3,9 +3,11 @@ package com.delivery.flashsale_service.controller;
 import com.delivery.flashsale_service.dto.*;
 import com.delivery.flashsale_service.service.FlashSaleService;
 import com.delivery.flashsale_service.client.RestaurantOwnershipClient;
+import com.delivery.auth.resourceserver.security.AuthenticatedActor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
@@ -22,12 +24,11 @@ public class MerchantFlashSaleController {
     @PostMapping("/items")
     public ResponseEntity<BaseResponse<FlashSaleItemDto>> registerItem(
             @Valid @RequestBody RegisterItemRequest req,
-            @RequestHeader("X-User-Id") Long merchantId,
-            @RequestHeader(value = "X-Role", required = false) String role) {
-        if (!"SHOP_OWNER".equals(role)) {
+            @AuthenticationPrincipal AuthenticatedActor actor) {
+        if (actor == null || !actor.isShopOwner()) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "SHOP_OWNER role required");
         }
-        restaurantOwnershipClient.requireOwnedBy(req.getRestaurantId(), merchantId);
+        restaurantOwnershipClient.requireOwnedBy(req.getRestaurantId(), actor.getUserId());
         return ResponseEntity.ok(BaseResponse.success(service.registerItem(req)));
     }
 }

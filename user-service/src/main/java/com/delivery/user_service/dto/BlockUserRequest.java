@@ -8,6 +8,8 @@ import jakarta.validation.constraints.Size;
 @Setter
 public class BlockUserRequest {
 
+    private Long adminId;
+
     @Size(max = 500)
     private String reason;
 }

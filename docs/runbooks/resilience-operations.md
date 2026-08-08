@@ -3,15 +3,16 @@
 ## Gateway rate limits
 
 The API Gateway stores fixed-window counters in Redis under
-`delivery:gateway:rate-limit:<group>:<key>`. Public keys are the direct peer IP;
-Gateway deliberately does not trust `X-Forwarded-For` until a trusted proxy
-topology is explicitly configured. Authenticated keys are the JWT-verified
-subject added by the Gateway authentication filter.
+`delivery:gateway:rate-limit:<group>:<key>`. Every key is the direct peer IP.
+Gateway uses the first `X-Forwarded-For` value only when
+`RATE_LIMIT_TRUSTED_PROXY=true` and the direct peer matches an explicit
+comma-separated `RATE_LIMIT_TRUSTED_PROXY_CIDRS` CIDR allow-list; it never uses
+JWT or identity headers for rate-limit keys.
 
 Each Redis counter call is bounded by `RATE_LIMIT_REDIS_TIMEOUT_MS` (500 ms by
 default). On timeout or an unavailable Redis connection, public catalog and
-authenticated reads fail open; auth, mutation, admin and WebSocket handshakes
-return the standard 503 envelope and do not wait on the Redis client indefinitely.
+authenticated reads fail open; auth, mutation and WebSocket handshakes return
+the standard 503 envelope and do not wait on the Redis client indefinitely.
 
 Default policy (per 60 seconds):
 
@@ -19,10 +20,9 @@ Default policy (per 60 seconds):
 | --- | ---: | --- |
 | public auth | 10/IP | fail closed (503) |
 | public catalog | 120/IP | fail open |
-| authenticated read | 300/subject | fail open |
-| mutation | 30/subject | fail closed (503) |
-| admin | 120/subject | fail closed (503) |
-| raw location WebSocket handshake | 10/subject | fail closed (503) |
+| authenticated read | 300/IP | fail open |
+| mutation | 30/IP | fail closed (503) |
+| raw location WebSocket handshake | 10/IP | fail closed (503) |
 
 Location messages after a successful raw WebSocket handshake are not rate
 limited by Gateway. To tune limits, set the corresponding `RATE_LIMIT_*`

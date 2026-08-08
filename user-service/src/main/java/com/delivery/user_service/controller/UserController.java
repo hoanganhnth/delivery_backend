@@ -1,8 +1,11 @@
 package com.delivery.user_service.controller;
 
+import java.util.List;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
-import com.delivery.user_service.payload.BaseResponse;
-import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -10,18 +13,19 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
-import com.delivery.user_service.constant.HttpHeaderConstants;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.beans.factory.annotation.Value;
 
+import com.delivery.auth.resourceserver.security.AuthenticatedActor;
+import com.delivery.user_service.dto.BlockUserRequest;
+import com.delivery.user_service.dto.UserRegistrationRequest;
 import com.delivery.user_service.dto.UserRequest;
 import com.delivery.user_service.dto.UserResponse;
-import com.delivery.user_service.dto.UserRegistrationRequest;
-import com.delivery.user_service.service.UserService;
+import com.delivery.user_service.dto.UserStatisticsResponse;
+import com.delivery.user_service.payload.BaseResponse;
 import com.delivery.user_service.service.UserRegistrationService;
+import com.delivery.user_service.service.UserService;
 
 import jakarta.validation.Valid;
-import org.springframework.beans.factory.annotation.Autowired;
 
 @RestController
 @RequestMapping("/api/users")
@@ -29,6 +33,9 @@ public class UserController {
 
     private final UserService userService;
     private final UserRegistrationService userRegistrationService;
+
+    @Value("${app.internal.secret:}")
+    private String internalSecret;
 
     public UserController(UserService userService) {
         this(userService, null);
@@ -40,17 +47,15 @@ public class UserController {
         this.userRegistrationService = userRegistrationService;
     }
 
-    @Value("${app.internal.secret:}")
-    private String internalSecret;
-
     @PostMapping
     public ResponseEntity<BaseResponse<UserResponse>> createUser(
             @Valid @RequestBody UserRequest request,
             @RequestHeader(value = "Internal-Token", required = false) String internalToken) {
         if (!isInternalRequest(internalToken)) {
             return ResponseEntity.status(403)
-                    .body(new BaseResponse<>(0, null, "Forbidden"));
+                    .body(new BaseResponse<>(0, null, "Internal service token is required"));
         }
+
         UserResponse user = userService.createUser(request);
         return ResponseEntity.ok(new BaseResponse<>(1, user));
     }
@@ -63,48 +68,53 @@ public class UserController {
                 1, user, "User profile registered and linked"));
     }
 
-    @GetMapping
-    public ResponseEntity<BaseResponse<UserResponse>> getUserById(
-            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId,
-            @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
-        if (!hasTrustedCurrentUserIdentity(userId, role)) {
-            return forbiddenUserAccess();
-        }
-        UserResponse user = userService.getUserById(userId);
-        return ResponseEntity.ok(new BaseResponse<>(1, user));
-    }
-
     @GetMapping("/by-auth/{authId}")
     public ResponseEntity<BaseResponse<UserResponse>> getUserByAuthId(
             @PathVariable Long authId,
             @RequestHeader(value = "Internal-Token", required = false) String internalToken) {
         if (!isInternalRequest(internalToken)) {
             return ResponseEntity.status(403)
-                    .body(new BaseResponse<>(0, null, "Forbidden"));
+                    .body(new BaseResponse<>(0, null, "Internal service token is required"));
         }
+
         UserResponse user = userService.getUserByAuthId(authId);
+        return ResponseEntity.ok(new BaseResponse<>(1, user));
+    }
+
+    @GetMapping
+    public ResponseEntity<BaseResponse<UserResponse>> getCurrentUser(
+            @AuthenticationPrincipal AuthenticatedActor actor) {
+        if (actor == null || actor.getUserId() == null) {
+            return forbiddenUserAccess();
+        }
+        UserResponse user = userService.getUserById(actor.getUserId());
+        return ResponseEntity.ok(new BaseResponse<>(1, user));
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<BaseResponse<UserResponse>> getUserById(
+            @AuthenticationPrincipal AuthenticatedActor actor) {
+        if (actor == null || actor.getUserId() == null) {
+            return forbiddenUserAccess();
+        }
+        UserResponse user = userService.getUserById(actor.getUserId());
         return ResponseEntity.ok(new BaseResponse<>(1, user));
     }
 
     @PutMapping
     public ResponseEntity<BaseResponse<UserResponse>> updateCurrentUser(
             @Valid @RequestBody UserRequest request,
-            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId,
-            @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
-        if (!hasTrustedCurrentUserIdentity(userId, role)) {
+            @AuthenticationPrincipal AuthenticatedActor actor) {
+        if (actor == null || actor.getUserId() == null) {
             return forbiddenUserAccess();
         }
-        UserResponse user = userService.updateUser(userId, request);
+        UserResponse user = userService.updateUser(actor.getUserId(), request);
         return ResponseEntity.ok(new BaseResponse<>(1, user));
     }
 
     private boolean isInternalRequest(String token) {
         return internalSecret != null && !internalSecret.isBlank()
                 && token != null && token.equals(internalSecret);
-    }
-
-    private boolean hasTrustedCurrentUserIdentity(Long userId, String role) {
-        return userId != null && role != null && !role.isBlank();
     }
 
     private <T> ResponseEntity<BaseResponse<T>> forbiddenUserAccess() {
@@ -118,16 +128,15 @@ public class UserController {
      * Get user statistics by role
      */
     @GetMapping("/admin/statistics")
-    public ResponseEntity<BaseResponse<com.delivery.user_service.dto.UserStatisticsResponse>> getUserStatistics(
-            @RequestHeader(value = HttpHeaderConstants.X_USER_ID, required = false) Long userId,
-            @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
+    public ResponseEntity<BaseResponse<UserStatisticsResponse>> getUserStatistics(
+            @AuthenticationPrincipal AuthenticatedActor actor) {
 
-        if (!"ADMIN".equals(role)) {
+        if (actor == null || !actor.isAdmin()) {
             return ResponseEntity.status(403)
                     .body(new BaseResponse<>(0, null, "Only ADMIN can access this endpoint"));
         }
 
-        com.delivery.user_service.dto.UserStatisticsResponse statistics = userService.getUserStatistics();
+        UserStatisticsResponse statistics = userService.getUserStatistics();
         return ResponseEntity.ok(new BaseResponse<>(1, statistics));
     }
 
@@ -135,34 +144,41 @@ public class UserController {
      * Get all users
      */
     @GetMapping("/admin/all")
-    public ResponseEntity<BaseResponse<java.util.List<UserResponse>>> getAllUsers(
-            @RequestHeader(value = HttpHeaderConstants.X_USER_ID, required = false) Long userId,
-            @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
+    public ResponseEntity<BaseResponse<List<UserResponse>>> getAllUsers(
+            @AuthenticationPrincipal AuthenticatedActor actor) {
 
-        if (!"ADMIN".equals(role)) {
+        if (actor == null || !actor.isAdmin()) {
             return ResponseEntity.status(403)
                     .body(new BaseResponse<>(0, null, "Only ADMIN can access this endpoint"));
         }
 
-        java.util.List<UserResponse> users = userService.getAllUsers();
+        List<UserResponse> users = userService.getAllUsers();
         return ResponseEntity.ok(new BaseResponse<>(1, users));
     }
 
     /**
-     * Block a user account
+     * Block a user account (internal auth sync or admin)
      */
     @PostMapping("/admin/{userId}/block")
     public ResponseEntity<BaseResponse<Void>> blockUser(
             @PathVariable Long userId,
-            @RequestBody com.delivery.user_service.dto.BlockUserRequest request,
-            @RequestHeader(value = HttpHeaderConstants.X_USER_ID, required = false) Long adminId,
-            @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role,
-            @RequestHeader(value = "Internal-Token", required = false) String internalToken) {
+            @RequestBody BlockUserRequest request,
+            @RequestHeader(value = "Internal-Token", required = false) String internalToken,
+            @AuthenticationPrincipal AuthenticatedActor actor) {
 
-        if (!"ADMIN".equals(role) || !isInternalRequest(internalToken)) {
+        if (!isInternalRequest(internalToken)) {
             return ResponseEntity.status(403)
-                    .body(new BaseResponse<>(0, null, "Forbidden"));
+                    .body(new BaseResponse<>(0, null, "Internal service token is required"));
         }
+
+        if (actor != null && !actor.isAdmin()) {
+            return ResponseEntity.status(403)
+                    .body(new BaseResponse<>(0, null, "Only ADMIN can block users"));
+        }
+
+        Long adminId = (request != null && request.getAdminId() != null)
+                ? request.getAdminId()
+                : (actor != null ? actor.getUserId() : null);
 
         if (adminId == null) {
             return ResponseEntity.status(400)
@@ -183,19 +199,28 @@ public class UserController {
     }
 
     /**
-     * Unblock a user account
+     * Unblock a user account (internal auth sync or admin)
      */
     @PostMapping("/admin/{userId}/unblock")
     public ResponseEntity<BaseResponse<Void>> unblockUser(
             @PathVariable Long userId,
-            @RequestHeader(value = HttpHeaderConstants.X_USER_ID, required = false) Long adminId,
-            @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role,
-            @RequestHeader(value = "Internal-Token", required = false) String internalToken) {
+            @RequestBody(required = false) BlockUserRequest request,
+            @RequestHeader(value = "Internal-Token", required = false) String internalToken,
+            @AuthenticationPrincipal AuthenticatedActor actor) {
 
-        if (!"ADMIN".equals(role) || !isInternalRequest(internalToken)) {
+        if (!isInternalRequest(internalToken)) {
             return ResponseEntity.status(403)
-                    .body(new BaseResponse<>(0, null, "Forbidden"));
+                    .body(new BaseResponse<>(0, null, "Internal service token is required"));
         }
+
+        if (actor != null && !actor.isAdmin()) {
+            return ResponseEntity.status(403)
+                    .body(new BaseResponse<>(0, null, "Only ADMIN can unblock users"));
+        }
+
+        Long adminId = (request != null && request.getAdminId() != null)
+                ? request.getAdminId()
+                : (actor != null ? actor.getUserId() : null);
 
         if (adminId == null) {
             return ResponseEntity.status(400)

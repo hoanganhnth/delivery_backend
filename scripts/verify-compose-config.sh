@@ -26,11 +26,21 @@ if [[ -z "${JWT_PUBLIC_KEY_FILE:-}" ]]; then
   JWT_PUBLIC_KEY_FILE="/tmp/compose-contract-test-jwt-public.pem"
   export JWT_PUBLIC_KEY_FILE
 fi
+if [[ -z "${JWT_PREVIOUS_PUBLIC_KEY_FILE:-}" ]]; then
+  JWT_PREVIOUS_PUBLIC_KEY_FILE="/tmp/compose-contract-test-jwt-previous-public.pem"
+  export JWT_PREVIOUS_PUBLIC_KEY_FILE
+fi
+if [[ -z "${JWT_RETIRING_KID:-}" ]]; then
+  JWT_RETIRING_KID="compose-contract-test-retiring-kid"
+  export JWT_RETIRING_KID
+fi
 
 docker compose config --quiet
 rendered_config="$(docker compose config --format json)"
 docker compose -f docker-compose.yml -f docker-compose.secrets.yml config --quiet
 rendered_secret_config="$(docker compose -f docker-compose.yml -f docker-compose.secrets.yml config --format json)"
+docker compose -f docker-compose.yml -f docker-compose.secrets.yml -f docker-compose.jwt-overlap.yml config --quiet
+rendered_rotation_config="$(docker compose -f docker-compose.yml -f docker-compose.secrets.yml -f docker-compose.jwt-overlap.yml config --format json)"
 rendered_static_route_config="$(docker compose -f docker-compose.yml -f docker-compose.static-routes.yml config --format json)"
 expected_kafka_volume_name="${KAFKA_VOLUME_NAME:-backend_delivery_kafka_data}"
 
@@ -257,14 +267,24 @@ printf '%s' "$rendered_config" | jq -e \
       ))))
 ' >/dev/null
 
+printf '%s' "$rendered_rotation_config" | jq -e \
+  --arg expectedRetiringKid "$JWT_RETIRING_KID" '
+  (.services["api-gateway"].environment | has("JWT_PREVIOUS_PUBLIC_KEY_PATH") | not)
+    and ((.services["api-gateway"].secrets // []) | map(.source) | index("jwt-previous-public-key") | not)
+    and .services["auth-service"].environment.JWT_PREVIOUS_PUBLIC_KEY_PATH
+      == "/run/secrets/jwt-previous-public.pem"
+    and .services["auth-service"].environment.JWT_RETIRING_KID == $expectedRetiringKid
+    and (.services["auth-service"].secrets | map(.source) | index("jwt-previous-public-key") != null)
+' >/dev/null
+
 printf '%s' "$rendered_secret_config" | jq -e '
-  .services["api-gateway"].environment.JWT_PUBLIC_KEY_PATH
-      == "/run/secrets/jwt-public.pem"
+  (.services["api-gateway"].environment | has("JWT_PUBLIC_KEY_PATH") | not)
+    and (.services["api-gateway"].environment | has("JWT_PREVIOUS_PUBLIC_KEY_PATH") | not)
     and .services["auth-service"].environment.JWT_PRIVATE_KEY_PATH
       == "/run/secrets/jwt-private.pem"
     and .services["auth-service"].environment.JWT_PUBLIC_KEY_PATH
       == "/run/secrets/jwt-public.pem"
-    and (.services["api-gateway"].secrets | length == 1)
+    and ((.services["api-gateway"].secrets // []) | length == 0)
     and (.services["auth-service"].secrets | length == 4)
     and (.services["auth-service"].environment | has("INTERNAL_SECRET") | not)
     and (.services["auth-service"].environment | has("SPRING_DATASOURCE_PASSWORD") | not)

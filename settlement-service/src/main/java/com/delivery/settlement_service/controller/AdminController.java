@@ -6,8 +6,11 @@ import com.delivery.settlement_service.payload.BaseResponse;
 import com.delivery.settlement_service.repository.TransactionRepository;
 import com.delivery.settlement_service.service.BalanceService;
 import com.delivery.settlement_service.service.TransactionService;
+import com.delivery.auth.resourceserver.security.AuthenticatedActor;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -22,14 +25,11 @@ public class AdminController {
     private final TransactionService transactionService;
     private final TransactionRepository transactionRepository;
 
-    /**
-     * Get all balances
-     */
     @GetMapping("/balances")
     public ResponseEntity<BaseResponse<List<BalanceResponse>>> getAllBalances(
-            @RequestHeader(value = "X-Role", required = false) String role) {
+            @AuthenticationPrincipal AuthenticatedActor actor) {
 
-        if (!"ADMIN".equals(role)) {
+        if (actor == null || !actor.isAdmin()) {
             return ResponseEntity.status(403)
                     .body(BaseResponse.failure("Only ADMIN can access this endpoint"));
         }
@@ -38,14 +38,11 @@ public class AdminController {
         return ResponseEntity.ok(BaseResponse.success(balances));
     }
 
-    /**
-     * Get all transactions
-     */
     @GetMapping("/transactions")
     public ResponseEntity<BaseResponse<List<TransactionResponse>>> getAllTransactions(
-            @RequestHeader(value = "X-Role", required = false) String role) {
+            @AuthenticationPrincipal AuthenticatedActor actor) {
 
-        if (!"ADMIN".equals(role)) {
+        if (actor == null || !actor.isAdmin()) {
             return ResponseEntity.status(403)
                     .body(BaseResponse.failure("Only ADMIN can access this endpoint"));
         }
@@ -54,14 +51,11 @@ public class AdminController {
         return ResponseEntity.ok(BaseResponse.success(transactions));
     }
 
-    /**
-     * Get pending withdrawals
-     */
     @GetMapping("/transactions/pending")
     public ResponseEntity<BaseResponse<List<TransactionResponse>>> getPendingWithdrawals(
-            @RequestHeader(value = "X-Role", required = false) String role) {
+            @AuthenticationPrincipal AuthenticatedActor actor) {
 
-        if (!"ADMIN".equals(role)) {
+        if (actor == null || !actor.isAdmin()) {
             return ResponseEntity.status(403)
                     .body(BaseResponse.failure("Only ADMIN can access this endpoint"));
         }
@@ -70,14 +64,11 @@ public class AdminController {
         return ResponseEntity.ok(BaseResponse.success(pendingWithdrawals));
     }
 
-    /**
-     * Get total platform revenue (commission)
-     */
     @GetMapping("/revenue")
     public ResponseEntity<BaseResponse<BigDecimal>> getPlatformRevenue(
-            @RequestHeader(value = "X-Role", required = false) String role) {
+            @AuthenticationPrincipal AuthenticatedActor actor) {
 
-        if (!"ADMIN".equals(role)) {
+        if (actor == null || !actor.isAdmin()) {
             return ResponseEntity.status(403)
                     .body(BaseResponse.failure("Only ADMIN can access this endpoint"));
         }
@@ -85,5 +76,4 @@ public class AdminController {
         BigDecimal revenue = transactionRepository.calculateTotalPlatformRevenue();
         return ResponseEntity.ok(BaseResponse.success(revenue, "Total platform revenue"));
     }
-
 }

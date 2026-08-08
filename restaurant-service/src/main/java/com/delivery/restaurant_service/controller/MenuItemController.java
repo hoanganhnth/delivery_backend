@@ -1,20 +1,21 @@
 package com.delivery.restaurant_service.controller;
 
 import com.delivery.restaurant_service.common.constants.ApiPathConstants;
-import com.delivery.restaurant_service.common.constants.HttpHeaderConstants;
 import com.delivery.restaurant_service.common.constants.RoleConstants;
 import com.delivery.restaurant_service.dto.request.CreateMenuItemRequest;
 import com.delivery.restaurant_service.dto.request.UpdateMenuItemRequest;
 import com.delivery.restaurant_service.dto.response.MenuItemResponse;
 import com.delivery.restaurant_service.payload.BaseResponse;
 import com.delivery.restaurant_service.service.MenuItemService;
+import com.delivery.auth.resourceserver.security.AuthenticatedActor;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
 
 import java.util.List;
-
 
 @RestController
 @RequestMapping(ApiPathConstants.MENU_ITEMS)
@@ -27,10 +28,11 @@ public class MenuItemController {
     }
 
     @PostMapping
-    public ResponseEntity<BaseResponse<MenuItemResponse>> create(@Valid @RequestBody CreateMenuItemRequest request,
-                                                                 @RequestHeader(value = HttpHeaderConstants.X_USER_ID, required = false) Long creatorId,
-                                                                 @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
-        MenuItemResponse response = menuItemService.createMenuItem(request, creatorId, role);
+    public ResponseEntity<BaseResponse<MenuItemResponse>> create(
+            @Valid @RequestBody CreateMenuItemRequest request,
+            @AuthenticationPrincipal AuthenticatedActor actor) {
+        requireActor(actor);
+        MenuItemResponse response = menuItemService.createMenuItem(request, actor.getUserId(), getRoleString(actor));
         return ResponseEntity.ok(new BaseResponse<>(1, response));
     }
 
@@ -38,17 +40,18 @@ public class MenuItemController {
     public ResponseEntity<BaseResponse<MenuItemResponse>> update(
             @PathVariable Long id,
             @Valid @RequestBody UpdateMenuItemRequest request,
-            @RequestHeader(value = HttpHeaderConstants.X_USER_ID,required = false) Long creatorId,
-            @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
-        MenuItemResponse response = menuItemService.updateMenuItem(id, request, creatorId, role);
+            @AuthenticationPrincipal AuthenticatedActor actor) {
+        requireActor(actor);
+        MenuItemResponse response = menuItemService.updateMenuItem(id, request, actor.getUserId(), getRoleString(actor));
         return ResponseEntity.ok(new BaseResponse<>(1, response));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<BaseResponse<Void>> delete(@PathVariable Long id,
-                                                     @RequestHeader(value = HttpHeaderConstants.X_USER_ID,required = false) Long creatorId,
-                                                     @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
-        menuItemService.deleteMenuItem(id, creatorId, role);
+    public ResponseEntity<BaseResponse<Void>> delete(
+            @PathVariable Long id,
+            @AuthenticationPrincipal AuthenticatedActor actor) {
+        requireActor(actor);
+        menuItemService.deleteMenuItem(id, actor.getUserId(), getRoleString(actor));
         return ResponseEntity.ok(new BaseResponse<>(1, null));
     }
 
@@ -66,17 +69,29 @@ public class MenuItemController {
     
     @GetMapping("/my-menu-items")
     public ResponseEntity<BaseResponse<List<MenuItemResponse>>> getMyMenuItems(
-            @RequestHeader(value = HttpHeaderConstants.X_USER_ID, required = false) Long creatorId,
-            @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
+            @AuthenticationPrincipal AuthenticatedActor actor) {
         
-        if (creatorId == null) {
+        if (actor == null || actor.getUserId() == null) {
             throw new IllegalArgumentException("User ID is required");
         }
-        if (!RoleConstants.OWNER.equals(role)) {
+        if (!actor.isShopOwner()) {
             throw new AccessDeniedException("Only SHOP_OWNER can view owned menu items");
         }
         
-        List<MenuItemResponse> list = menuItemService.getMenuItemsByCreatorId(creatorId);
+        List<MenuItemResponse> list = menuItemService.getMenuItemsByCreatorId(actor.getUserId());
         return ResponseEntity.ok(new BaseResponse<>(1, list));
+    }
+
+    private void requireActor(AuthenticatedActor actor) {
+        if (actor == null || actor.getUserId() == null) {
+            throw new AccessDeniedException("Yêu cầu đăng nhập");
+        }
+    }
+
+    private String getRoleString(AuthenticatedActor actor) {
+        if (actor == null) return null;
+        if (actor.isAdmin()) return RoleConstants.ADMIN;
+        if (actor.isShopOwner()) return RoleConstants.OWNER;
+        return RoleConstants.CUSTOMER;
     }
 }

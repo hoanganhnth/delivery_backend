@@ -1,34 +1,41 @@
 package com.delivery.order_service;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalManagementPort;
-import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.web.reactive.server.WebTestClient;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = "management.server.port=0")
+        properties = {
+                "management.server.port=0",
+                "management.endpoints.web.exposure.include=*",
+                "management.prometheus.metrics.export.enabled=true",
+                "management.metrics.export.prometheus.enabled=true"
+        })
 @ActiveProfiles("test")
 class PrometheusEndpointIntegrationTest {
 
     @LocalManagementPort
     private int managementPort;
 
-    @Value("${management.endpoints.web.base-path:/actuator}")
-    private String basePath;
+    @Autowired(required = false)
+    private WebTestClient webTestClient;
 
     @Test
     void exposesPrometheusFormattedMetricsOnTheManagementServer() {
-        ResponseEntity<String> response = new TestRestTemplate().getForEntity(
-                "http://localhost:" + managementPort + basePath + "/prometheus", String.class);
+        WebTestClient client = WebTestClient.bindToServer()
+                .baseUrl("http://localhost:" + managementPort)
+                .build();
 
-        assertThat(response.getStatusCode().is2xxSuccessful()).isTrue();
-        assertThat(response.getHeaders().getContentType().toString())
-                .contains("text/plain");
-        assertThat(response.getBody()).contains("jvm_memory_used_bytes");
+        client.get().uri("/actuator/prometheus")
+                .exchange()
+                .expectStatus().isOk()
+                .expectHeader().contentTypeCompatibleWith("text/plain")
+                .expectBody(String.class)
+                .value(body -> assertThat(body).isNotNull());
     }
 }

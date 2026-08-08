@@ -42,7 +42,8 @@ sequenceDiagram
 ## Location realtime
 
 - Shipper publish vị trí qua raw WebSocket `/ws/shipper-locations` tại Gateway.
-- JWT xác định shipper; client không được tự khai `X-User-Id` hoặc shipper ID.
+- Tracking xác thực JWT qua JWKS trong handshake để xác định shipper; client
+  không được tự khai `X-User-Id` hoặc shipper ID.
 - Tracking lưu heartbeat/location vào Redis và phát `shipper.location-updated`.
 - Match duy trì GEO replica riêng từ event, chỉ chọn heartbeat online còn mới.
 - Customer/restaurant/shipper/admin chỉ subscribe delivery mà mình có quyền xem;

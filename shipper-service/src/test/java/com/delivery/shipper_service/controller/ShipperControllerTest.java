@@ -1,5 +1,7 @@
 package com.delivery.shipper_service.controller;
 
+import com.delivery.auth.resourceserver.security.AuthenticatedActor;
+import com.delivery.auth.resourceserver.security.AuthenticatedActorAuthenticationToken;
 import com.delivery.shipper_service.dto.request.CreateShipperRequest;
 import com.delivery.shipper_service.dto.response.ShipperResponse;
 import com.delivery.shipper_service.service.ShipperService;
@@ -9,12 +11,21 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.List;
+import java.util.Set;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -30,11 +41,26 @@ public class ShipperControllerTest {
     @Autowired
     private ObjectMapper objectMapper;
 
+    private static RequestPostProcessor testActor(Long userId, String role) {
+        AuthenticatedActor actor = new AuthenticatedActor(userId, "shipper@example.com", Set.of(role));
+        Jwt jwt = Jwt.withTokenValue("mock-token")
+                .header("alg", "RS256")
+                .header("kid", "key1")
+                .claim("sub", userId.toString())
+                .claim("roles", List.of(role))
+                .claim("token_type", "access")
+                .issuedAt(Instant.now())
+                .expiresAt(Instant.now().plusSeconds(3600))
+                .build();
+        List<GrantedAuthority> authorities = List.of(new SimpleGrantedAuthority("ROLE_" + role), new SimpleGrantedAuthority(role));
+        AuthenticatedActorAuthenticationToken authenticationToken = new AuthenticatedActorAuthenticationToken(jwt, actor, authorities);
+        return authentication(authenticationToken);
+    }
+
     @Test
     public void testCreateShipper() throws Exception {
         CreateShipperRequest request = new CreateShipperRequest();
         request.setFullName("Test Shipper");
-        // request.setUserId(1L);
         request.setVehicleType("MOTORBIKE");
         request.setLicenseNumber("B1-123456");
         request.setIdCard("123456789");
@@ -54,10 +80,10 @@ public class ShipperControllerTest {
                 .thenReturn(response);
 
         mockMvc.perform(post("/api/shippers")
+                .with(testActor(1L, "SHIPPER"))
+                .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(request))
-                .header("X-User-Id", "1")
-                .header("X-Role", "SHIPPER"))
+                .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value(1))
                 .andExpect(jsonPath("$.data.userId").value(1))
@@ -75,7 +101,7 @@ public class ShipperControllerTest {
         when(shipperService.getShipperById(1L)).thenReturn(response);
 
         mockMvc.perform(get("/api/shippers/1")
-                .header("X-Role", "ADMIN"))
+                .with(testActor(1L, "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value(1))
                 .andExpect(jsonPath("$.data.id").value(1))

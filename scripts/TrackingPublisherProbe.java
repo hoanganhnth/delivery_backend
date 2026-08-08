@@ -175,7 +175,7 @@ public final class TrackingPublisherProbe {
         Client firstInstance = connect(gatewayUri, token);
         long generation1 = generation(firstInstance.await("connection_established", 10));
 
-        Client secondInstance = connectDirect(directPeerUri, shipperId);
+        Client secondInstance = connectDirect(directPeerUri, token);
         long generation2 = generation(secondInstance.await("connection_established", 10));
         require(generation2 > generation1, "peer instance did not advance generation");
 
@@ -207,17 +207,8 @@ public final class TrackingPublisherProbe {
         return listener;
     }
 
-    private static Client connectDirect(URI uri, String shipperId) {
-        Client listener = new Client();
-        WebSocket socket = HttpClient.newHttpClient()
-                .newWebSocketBuilder()
-                .header("X-User-Id", shipperId)
-                .header("X-Role", "SHIPPER")
-                .connectTimeout(Duration.ofSeconds(10))
-                .buildAsync(uri, listener)
-                .join();
-        listener.attach(socket);
-        return listener;
+    private static Client connectDirect(URI uri, String token) {
+        return connect(uri, token);
     }
 
     private static long generation(String message) {

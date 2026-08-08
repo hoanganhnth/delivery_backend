@@ -1,14 +1,17 @@
 package com.delivery.livestream_service.controller;
 
 import com.delivery.livestream_service.common.constants.ApiPathConstants;
-import com.delivery.livestream_service.common.constants.HttpHeaderConstants;
 import com.delivery.livestream_service.dto.request.GenerateTokenRequest;
 import com.delivery.livestream_service.dto.response.TokenResponse;
 import com.delivery.livestream_service.payload.BaseResponse;
 import com.delivery.livestream_service.service.StreamTokenService;
+import com.delivery.auth.resourceserver.security.AuthenticatedActor;
+
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
@@ -28,9 +31,12 @@ public class StreamTokenController {
     public ResponseEntity<BaseResponse<TokenResponse>> generateToken(
             @PathVariable UUID id,
             @Valid @RequestBody GenerateTokenRequest request,
-            @RequestHeader(value = HttpHeaderConstants.X_USER_ID) Long userId) {
+            @AuthenticationPrincipal AuthenticatedActor actor) {
+        if (actor == null || actor.getUserId() == null) {
+            throw new AccessDeniedException("Yêu cầu đăng nhập");
+        }
         TokenResponse response = streamTokenService.generateToken(
-                id, userId, request.getRole(), request.getExpireSeconds());
+                id, actor.getUserId(), request.getRole(), request.getExpireSeconds());
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Tạo token thành công"));
     }
 }

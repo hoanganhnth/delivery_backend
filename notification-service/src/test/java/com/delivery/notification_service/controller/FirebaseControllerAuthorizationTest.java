@@ -1,8 +1,11 @@
 package com.delivery.notification_service.controller;
 
+import com.delivery.auth.resourceserver.security.AuthenticatedActor;
 import com.delivery.notification_service.exception.NotificationAccessDeniedException;
 import com.delivery.notification_service.service.FirebaseService;
 import org.junit.jupiter.api.Test;
+
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
@@ -18,11 +21,13 @@ class FirebaseControllerAuthorizationTest {
     @Test
     void registerAndUnregisterRejectNonMobileRoles() {
         FirebaseController.TokenRequest request = validTokenRequest();
+        AuthenticatedActor adminActor = new AuthenticatedActor(42L, "admin@example.com", Set.of("ADMIN"));
+        AuthenticatedActor shopActor = new AuthenticatedActor(42L, "shop@example.com", Set.of("SHOP_OWNER"));
 
         assertThrows(NotificationAccessDeniedException.class,
-                () -> controller.registerFcmToken(42L, "ADMIN", request));
+                () -> controller.registerFcmToken(adminActor, request));
         assertThrows(NotificationAccessDeniedException.class,
-                () -> controller.unregisterFcmToken(42L, "SHOP_OWNER", request));
+                () -> controller.unregisterFcmToken(shopActor, request));
 
         verifyNoInteractions(firebaseService);
     }
@@ -30,11 +35,13 @@ class FirebaseControllerAuthorizationTest {
     @Test
     void registerAndUnregisterAcceptCustomerAndShipperRoles() {
         FirebaseController.TokenRequest request = validTokenRequest();
+        AuthenticatedActor userActor = new AuthenticatedActor(42L, "user@example.com", Set.of("USER"));
+        AuthenticatedActor shipperActor = new AuthenticatedActor(84L, "shipper@example.com", Set.of("SHIPPER"));
 
-        var customerRegister = controller.registerFcmToken(42L, "USER", request);
-        var customerUnregister = controller.unregisterFcmToken(42L, "USER", request);
-        var shipperRegister = controller.registerFcmToken(84L, "SHIPPER", request);
-        var shipperUnregister = controller.unregisterFcmToken(84L, "SHIPPER", request);
+        var customerRegister = controller.registerFcmToken(userActor, request);
+        var customerUnregister = controller.unregisterFcmToken(userActor, request);
+        var shipperRegister = controller.registerFcmToken(shipperActor, request);
+        var shipperUnregister = controller.unregisterFcmToken(shipperActor, request);
 
         verify(firebaseService).registerFcmToken(42L, "device-token");
         verify(firebaseService).unregisterFcmToken(42L, "device-token");

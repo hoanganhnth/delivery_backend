@@ -158,10 +158,8 @@ public class AuthController {
     }
 
     @GetMapping("/accounts/{id}")
-    public ResponseEntity<BaseResponse<AuthAccountDto>> getAccountById(
-            @PathVariable Long id,
-            @RequestHeader(value = "X-Role", required = false) String role) {
-        if (!isAdmin(role)) {
+    public ResponseEntity<BaseResponse<AuthAccountDto>> getAccountById(@PathVariable Long id) {
+        if (!isAdmin()) {
             return ResponseEntity.status(403)
                     .body(BaseResponse.failure("Only ADMIN can access this endpoint"));
         }
@@ -178,16 +176,15 @@ public class AuthController {
     @PostMapping("/admin/accounts/{id}/block")
     public ResponseEntity<BaseResponse<Void>> blockAccount(
             @PathVariable Long id,
-            @RequestHeader(value = "X-Role", required = false) String role,
-            @RequestHeader(value = "X-User-Id", required = false) Long userId,
             @RequestBody(required = false) BlockAccountRequest request) {
 
-        if (!isAdmin(role)) {
+        if (!isAdmin()) {
             return ResponseEntity.status(403)
                     .body(BaseResponse.failure("Only ADMIN can block accounts"));
         }
 
-        if (userId == null) {
+        Long adminId = getAuthenticatedAdminId();
+        if (adminId == null) {
             return ResponseEntity.badRequest()
                     .body(BaseResponse.failure("Admin ID is required"));
         }
@@ -197,7 +194,6 @@ public class AuthController {
                     .body(BaseResponse.failure("Block reason must not exceed 500 characters"));
         }
 
-        Long adminId = userId;
         String reason = (request != null && request.getReason() != null) ? request.getReason() : "Blocked by admin";
 
         authService.blockAccount(id, adminId, reason);
@@ -208,34 +204,65 @@ public class AuthController {
      * Unblock an account (admin only)
      */
     @PostMapping("/admin/accounts/{id}/unblock")
-    public ResponseEntity<BaseResponse<Void>> unblockAccount(
-            @PathVariable Long id,
-            @RequestHeader(value = "X-Role", required = false) String role,
-            @RequestHeader(value = "X-User-Id", required = false) Long userId) {
+    public ResponseEntity<BaseResponse<Void>> unblockAccount(@PathVariable Long id) {
 
-        if (!isAdmin(role)) {
+        if (!isAdmin()) {
             return ResponseEntity.status(403)
                     .body(BaseResponse.failure("Only ADMIN can unblock accounts"));
         }
 
-        if (userId == null) {
+        Long adminId = getAuthenticatedAdminId();
+        if (adminId == null) {
             return ResponseEntity.badRequest()
                     .body(BaseResponse.failure("Admin ID is required"));
         }
 
-        authService.unblockAccount(id, userId);
+        authService.unblockAccount(id, adminId);
         return ResponseEntity.ok(BaseResponse.success(null, "Account unblocked successfully"));
     }
 
-    private boolean isAdmin(String role) {
-        if (role != null) {
-            return "ADMIN".equals(role);
-        }
-
+    private boolean isAdmin() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        return authentication != null && authentication.getAuthorities().stream()
+        if (authentication == null) {
+            return false;
+        }
+        if (authentication.getPrincipal() instanceof com.delivery.auth.resourceserver.security.AuthenticatedActor actor) {
+            return actor.isAdmin();
+        }
+        return authentication.getAuthorities().stream()
                 .anyMatch(authority -> "ROLE_ADMIN".equals(authority.getAuthority())
                         || "ADMIN".equals(authority.getAuthority()));
+    }
+
+    private Long getAuthenticatedAdminId() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null) {
+            if (authentication.getPrincipal() instanceof com.delivery.auth.resourceserver.security.AuthenticatedActor actor) {
+                if (actor.getUserId() != null) return actor.getUserId();
+                if (actor.getEmail() != null && !actor.getEmail().isBlank()) {
+                    var account = authService.getAccountByEmail(actor.getEmail());
+                    if (account.isPresent()) return account.get().getId();
+                }
+            }
+            if (authentication.getPrincipal() instanceof org.springframework.security.oauth2.jwt.Jwt jwt) {
+                try {
+                    return Long.parseLong(jwt.getSubject());
+                } catch (NumberFormatException ignored) {}
+                String email = jwt.getClaimAsString("email");
+                if (email != null && !email.isBlank()) {
+                    var account = authService.getAccountByEmail(email);
+                    if (account.isPresent()) return account.get().getId();
+                }
+            }
+            if (authentication.getName() != null && !authentication.getName().isBlank()) {
+                if (authentication.getName().matches("\\d+")) {
+                    return Long.parseLong(authentication.getName());
+                }
+                var account = authService.getAccountByEmail(authentication.getName());
+                if (account.isPresent()) return account.get().getId();
+            }
+        }
+        return null;
     }
 
     private String clientIp(HttpServletRequest request) {

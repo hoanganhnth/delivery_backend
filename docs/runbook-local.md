@@ -39,7 +39,8 @@ the supported baseline:
 
 Base Compose publishes only Gateway (`http://localhost:8079`) for application
 traffic. Service ports remain reachable inside `delivery-network`, which prevents
-clients on the host from bypassing Gateway JWT/header policy.
+clients on the host from bypassing the public Gateway route policy. Resource
+services still validate Bearer tokens independently through Auth JWKS.
 
 PostgreSQL defaults to host port `5432`. If that port is already used by a local
 installation, set `POSTGRES_HOST_PORT` (for example `15432`) before running

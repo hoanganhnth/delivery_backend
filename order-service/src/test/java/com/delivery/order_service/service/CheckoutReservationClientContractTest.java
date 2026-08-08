@@ -23,7 +23,7 @@ class CheckoutReservationClientContractTest {
         WebClient webClient = WebClient.builder().exchangeFunction(request -> {
             assertThat(request.method()).isEqualTo(HttpMethod.POST);
             assertThat(request.url().toString())
-                    .isEqualTo("http://promotion-service:8096/api/promotions/reserve");
+                    .isEqualTo("http://promotion-service:8096/api/promotions/internal/reserve");
             assertThat(request.headers().getFirst("Internal-Token")).isEqualTo("test-secret");
             return json("""
                     {"status":1,"data":{"reservationId":"%s","orderId":41,

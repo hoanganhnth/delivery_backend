@@ -18,7 +18,7 @@ it as a required gate.
 | Secret | Reader(s) | Access policy |
 | --- | --- | --- |
 | JWT private key | `auth-service` | Auth workload only |
-| JWT public / retiring public key | `api-gateway`, `auth-service` | Gateway/Auth only |
+| JWT public / retiring public key | `auth-service` | Auth publishes public JWKS; no other workload mounts JWT public keys |
 | Internal credential | Auth, User, Restaurant, Order, Delivery, Settlement, Notification, Match, Tracking; disabled internal services when deployed | named workload identities only |
 | Database credential | PostgreSQL and each database-owning service | per-service database role; no client workload access |
 | Kafka/Redis credential | only services that use the protected deployment profile | topic/key-prefix scoped service identity |
@@ -36,11 +36,12 @@ or decoded JWT key material.
    readiness and Gateway COD smoke, then roll remaining instances. Revoke the
    old version only after all consumers move.
 3. For JWT, deploy `docker-compose.jwt-overlap.yml` (or its platform
-   equivalent) with the retiring public key. Auth signs with the new private key
-   while Auth and Gateway verify both current and retiring public keys. Keep
-   overlap for the maximum issued-token/refresh-session compatibility window,
-   verify both key generations through Gateway, then remove/revoke the retiring
-   key.
+   equivalent) with the retiring public key and `JWT_RETIRING_KID` equal to the
+   old token header `kid`. Auth publishes both public JWKs; services retrieve
+   them from `/.well-known/jwks.json`. Publish/wait for the 5-minute JWKS cache,
+   switch `JWT_ACTIVE_KID`, retain the old JWK for access TTL (15 minutes) plus
+   clock skew, and retain Auth's prior public key for the 7-day refresh window.
+   Gateway never receives or verifies JWT keys.
 4. If a secret is exposed, revoke it, rotate dependents, invalidate affected
    sessions/credentials where appropriate, and preserve audit evidence without
    copying the value into an incident ticket.

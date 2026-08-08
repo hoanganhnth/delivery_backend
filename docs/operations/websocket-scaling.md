@@ -4,9 +4,9 @@
 
 The external contract remains `/ws/shipper-locations` with the existing
 `subscribe_shipper`, `unsubscribe_shipper`, `update_location`, `ping`, and
-`location_update` messages. Authentication still comes only through the Gateway
-JWT handshake, and every subscription still requires the fail-closed Delivery
-participant check.
+`location_update` messages. Gateway forwards the handshake unchanged; Tracking
+validates the Bearer token through Auth JWKS during the handshake and every
+subscription still requires the fail-closed Delivery participant check.
 
 Internally, authorized subscriptions are indexed by `deliveryId` room with a
 reverse session index. The previous shipper-only map could keep a customer from

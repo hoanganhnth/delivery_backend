@@ -15,7 +15,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 		"spring.datasource.username=sa",
 		"spring.datasource.password=",
 		"delivery.service.url=http://delivery-service",
-		"app.internal.secret=test-secret"
+		"app.internal.secret=test-secret",
+		"app.auth.jwks-uri=http://localhost:8081/.well-known/jwks.json"
 })
 class TrackingServiceApplicationTests {
 	@Autowired ApplicationContext applicationContext;

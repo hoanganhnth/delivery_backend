@@ -53,7 +53,7 @@ public class CorsConfig {
             "GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"
         ));
         
-        // ✅ Allow all headers (including Authorization, X-User-Id, X-Role)
+        // ✅ Allow all headers (including Authorization)
         corsConfig.setAllowedHeaders(List.of("*"));
         
         // ✅ Allow credentials (cookies, authorization headers)
@@ -65,8 +65,6 @@ public class CorsConfig {
         // ✅ Expose headers to frontend
         corsConfig.setExposedHeaders(List.of(
             "Authorization",
-            "X-User-Id", 
-            "X-Role",
             "Content-Type"
         ));
         

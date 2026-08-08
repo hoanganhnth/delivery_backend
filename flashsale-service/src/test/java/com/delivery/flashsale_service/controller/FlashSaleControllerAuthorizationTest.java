@@ -1,5 +1,6 @@
 package com.delivery.flashsale_service.controller;
 
+import com.delivery.auth.resourceserver.security.AuthenticatedActor;
 import com.delivery.flashsale_service.dto.RegisterItemRequest;
 import com.delivery.flashsale_service.service.FlashSaleService;
 import com.delivery.flashsale_service.service.FlashSaleStockService;
@@ -16,6 +17,7 @@ import org.springframework.web.server.ResponseStatusException;
 import org.springframework.beans.factory.ObjectProvider;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import com.delivery.flashsale_service.dto.FlashSaleReservationRequest;
 import com.delivery.flashsale_service.dto.ReserveItemRequest;
@@ -38,9 +40,10 @@ class FlashSaleControllerAuthorizationTest {
     @Test
     void adminControllerRejectsNonAdmin() {
         AdminFlashSaleController controller = new AdminFlashSaleController(flashSaleService);
+        AuthenticatedActor shopActor = new AuthenticatedActor(7L, "shop@example.com", Set.of("SHOP_OWNER"));
 
         ResponseStatusException error = assertThrows(ResponseStatusException.class,
-                () -> controller.getAllCampaigns("SHOP_OWNER"));
+                () -> controller.getAllCampaigns(shopActor));
 
         assertEquals(HttpStatus.FORBIDDEN, error.getStatusCode());
         verifyNoInteractions(flashSaleService);
@@ -50,8 +53,9 @@ class FlashSaleControllerAuthorizationTest {
     void publicAndAdminSuccessUseCanonicalEnvelopeStatus() {
         AdminFlashSaleController admin = new AdminFlashSaleController(flashSaleService);
         PublicFlashSaleController publicController = new PublicFlashSaleController(flashSaleService);
+        AuthenticatedActor adminActor = new AuthenticatedActor(7L, "admin@example.com", Set.of("ADMIN"));
 
-        var adminResponse = admin.getAllCampaigns("ADMIN");
+        var adminResponse = admin.getAllCampaigns(adminActor);
         var publicResponse = publicController.getActiveCampaigns();
 
         assertEquals(1, adminResponse.getBody().getStatus());
@@ -61,9 +65,10 @@ class FlashSaleControllerAuthorizationTest {
     @Test
     void merchantControllerRejectsNonOwner() {
         MerchantFlashSaleController controller = new MerchantFlashSaleController(flashSaleService, ownershipClient);
+        AuthenticatedActor userActor = new AuthenticatedActor(7L, "user@example.com", Set.of("USER"));
 
         ResponseStatusException error = assertThrows(ResponseStatusException.class,
-                () -> controller.registerItem(new RegisterItemRequest(), 7L, "USER"));
+                () -> controller.registerItem(new RegisterItemRequest(), userActor));
 
         assertEquals(HttpStatus.FORBIDDEN, error.getStatusCode());
         verifyNoInteractions(flashSaleService);
@@ -75,8 +80,9 @@ class FlashSaleControllerAuthorizationTest {
         MerchantFlashSaleController controller = new MerchantFlashSaleController(flashSaleService, ownershipClient);
         RegisterItemRequest request = new RegisterItemRequest();
         request.setRestaurantId(9L);
+        AuthenticatedActor shopActor = new AuthenticatedActor(21L, "shop@example.com", Set.of("SHOP_OWNER"));
 
-        controller.registerItem(request, 21L, "SHOP_OWNER");
+        controller.registerItem(request, shopActor);
 
         verify(ownershipClient).requireOwnedBy(9L, 21L);
         verify(flashSaleService).registerItem(request);

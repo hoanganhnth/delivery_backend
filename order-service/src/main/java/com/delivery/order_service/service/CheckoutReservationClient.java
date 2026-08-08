@@ -30,7 +30,7 @@ public class CheckoutReservationClient {
 
     public VoucherQuote reserveVoucher(UUID reservationId, Long orderId, Long userId, Long voucherId,
             Long restaurantId, BigDecimal subtotal, BigDecimal shippingFee) {
-        Map<String, Object> data = post(promotionUrl + "/api/promotions/reserve", Map.of(
+        Map<String, Object> data = post(promotionUrl + "/api/promotions/internal/reserve", Map.of(
                 "reservationId", reservationId, "orderId", orderId, "userId", userId,
                 "voucherId", voucherId, "restaurantId", restaurantId,
                 "subtotal", subtotal, "shippingFee", shippingFee));
@@ -42,9 +42,10 @@ public class CheckoutReservationClient {
     @SuppressWarnings("unchecked")
     public VoucherQuote quoteVoucher(Long userId, Long voucherId, Long restaurantId,
                                      BigDecimal subtotal, BigDecimal shippingFee) {
-        Map<String, Object> envelope = webClient.post().uri(promotionUrl + "/api/promotions/calculate")
-                .header("X-User-Id", userId.toString()).header("X-Role", "USER")
-                .bodyValue(Map.of("shopId", restaurantId, "subTotal", subtotal,
+        requireSecret();
+        Map<String, Object> envelope = webClient.post().uri(promotionUrl + "/api/promotions/internal/calculate")
+                .header("Internal-Token", internalSecret)
+                .bodyValue(Map.of("shopId", restaurantId, "userId", userId, "subTotal", subtotal,
                         "shippingFee", shippingFee, "selectedVoucherId", voucherId))
                 .retrieve().bodyToMono(Map.class).timeout(timeout).block();
         if (envelope == null || !Integer.valueOf(1).equals(envelope.get("status"))
@@ -85,7 +86,7 @@ public class CheckoutReservationClient {
     }
 
     public void releaseVoucher(UUID reservationId, Long orderId) {
-        transition(promotionUrl + "/api/promotions/reservations/" + reservationId + "/release?orderId=" + orderId);
+        transition(promotionUrl + "/api/promotions/internal/reservations/" + reservationId + "/release?orderId=" + orderId);
     }
 
     public void releaseFlash(UUID reservationId, Long orderId) {

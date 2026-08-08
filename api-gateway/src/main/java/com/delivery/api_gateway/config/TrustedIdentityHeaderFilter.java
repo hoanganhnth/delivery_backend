@@ -10,8 +10,8 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 /**
- * Removes client-supplied identity headers before route filters run.
- * Authenticated routes add trusted values back from the verified JWT.
+ * Removes obsolete client-supplied identity headers before requests are routed.
+ * Resource services derive the actor from the bearer token they validate via JWKS.
  */
 @Component
 public class TrustedIdentityHeaderFilter implements GlobalFilter, Ordered {

@@ -7,8 +7,6 @@ import org.springframework.boot.test.web.server.LocalManagementPort;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.HttpStatus;
 import org.springframework.core.env.Environment;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.reactive.server.WebTestClient;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
@@ -19,7 +17,9 @@ import org.springframework.test.web.reactive.server.WebTestClient;
                 "management.health.livenessstate.enabled=true",
                 "management.health.readinessstate.enabled=true",
                 "management.endpoint.health.group.liveness.include=livenessState",
-                "management.endpoint.health.group.readiness.include=*",
+                "management.endpoint.health.group.readiness.include=readinessState",
+                "management.health.redis.enabled=false",
+                "management.health.eureka.enabled=false",
                 "management.endpoint.health.show-details=never",
                 "management.endpoint.health.show-components=never"
         })
@@ -36,11 +36,6 @@ class ActuatorProbeEndpointTest {
 
     @Autowired
     private Environment environment;
-
-    @DynamicPropertySource
-    static void jwtKeyProperties(DynamicPropertyRegistry registry) {
-        TestJwtPublicKeyProperties.register(registry);
-    }
 
     @Test
     void exposesSanitizedHealthAndProbeEndpointsOnlyOnManagementPort() {

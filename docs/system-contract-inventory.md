@@ -1,6 +1,6 @@
 # System Contract Inventory
 
-Ngày kiểm kê: 2026-07-30
+Ngày kiểm kê: 2026-08-08
 
 Tài liệu này là inventory thực thi cho Phase 0 của
 `../../docs/plans/active/priority-roadmap.md`. Source code, test và runtime vẫn là
@@ -12,8 +12,8 @@ hidden/disabled, không được hiểu là public contract chưa xác định.
 
 | Service | Port | Persistence/dependency chính | Gateway surface | Baseline issue |
 |---|---:|---|---|---|
-| api-gateway | 8079 | JWT RSA | public edge | exact route/method/role allow-list; external public-key loader fail-fast có focused proof; mounted-key container startup và Gateway public reads PASS ngày 2026-07-28 |
-| auth-service | 8081 | PostgreSQL `auth_db`, AWS SES SMTP | exact public auth/recovery + protected session/admin routes | Forgot/reset và verification dùng post-only exact route, uniform request response, 256-bit one-time token chỉ lưu digest, async email sau commit, security audit và account-wide refresh-family/session revocation; password account mới cần verify, legacy grandfathered, Google verified email giữ social flow; admin block/unblock và User projection retry giữ nguyên |
+| api-gateway | 8079 | Redis rate-limit; no JWT keys | public edge | exact route/method allow-list, peer-IP quota and legacy identity-header sanitization. JWT validation and role/ownership enforcement run in each resource service via Auth JWKS. |
+| auth-service | 8081 | PostgreSQL `auth_db`, AWS SES SMTP, RS256 keypair | exact public auth/recovery + protected session/admin routes + JWKS | Forgot/reset và verification dùng post-only exact route, uniform request response, 256-bit one-time token chỉ lưu digest, async email sau commit, security audit và account-wide refresh-family/session revocation; Auth emits `kid`/issuer/audience access tokens and publishes active/retiring public JWKs. |
 | user-service | 8082 | PostgreSQL `user_db` | exact current-user/address/admin-read routes; create/by-auth/status projection internal | ownership đã audit; internal create idempotent theo authId, fail-closed khi email đã thuộc auth identity khác và migration khóa unique email case-insensitive; block/unblock projection dùng row lock transaction; Auth↔User crash-window có code/unit/H2 proof và runtime schema/startup proof; live outage retry harness `scripts/verify-auth-user-outage-retry.sh` đã có nhưng runtime execution còn OPEN |
 | restaurant-service | 8083 | PostgreSQL `restaurant_db`, Kafka | `/api/restaurants/**`, `/api/menu-items/**` | confirm/reject decision+outbox atomic; direct restaurant decision publisher now fails closed on invalid order/restaurant/actor/prep-time/rejection input before touching eligibility or outbox; PostgreSQL two-instance race, broker-down/backoff, relay restart và Kafka cardinality PASS; checkout reads canonical `openingHour/closingHour`, accepts only menu status `AVAILABLE`, and requires menu ownership plus finite positive canonical price; rating duplicate sequential/constraint race maps to 409 conflict with no average rewrite after duplicate; Restaurant `112/112`, Order consumer `87/87`; downstream Order crash-window còn OPEN |
 | order-service | 8084 | PostgreSQL `order_db`, Kafka; HTTP restaurant/promotion/flash sale | exact create/preview/read/cancel + admin paths | server-owned regular/flash/voucher pricing; one voucher and no stacking; immutable monetary/reservation snapshot; synchronous same-identity release on ambiguous/later create failure; cancellation/payment failure emits compensation IDs through transactional outbox. Checkout flags remain false by default. |
@@ -47,16 +47,15 @@ proof và không mở lại hai capability experimental.
 
 ## HTTP surface baseline
 
-Exact method inventory hiện có tại `http-api-inventory.md`: **146 handler
+Exact method inventory hiện có tại `http-api-inventory.md`: **166 handler
 mapping**. `verify-http-api-inventory.sh` khóa source mapping count, controller
 và handler ownership trong build baseline; exact path/verb/actor được review từ
 source, Gateway và call-site nhưng chưa được script parse cơ học.
 
 Các surface đã xác định cần đổi classification ở wave tương ứng:
 
-- `order-service` và `delivery-service` admin routes: `public-admin`, bắt buộc JWT
-  và role `ADMIN`. Baseline phát hiện Gateway bỏ filter; edge wave 2026-07-22 đã
-  thêm JWT + required role và controller-level role check dự phòng.
+- `order-service` và `delivery-service` admin routes: `public-admin`, resource
+  service bắt JWT qua JWKS và role `ADMIN`; Gateway chỉ giữ exact route/method.
 - auth account lookup theo email: `internal`; baseline thấy nằm trong public
   allow-list dù controller còn kiểm `Internal-Token`. Edge wave 2026-07-22 đã
   loại khỏi public allow-list; service credential boundary vẫn cần integration proof.
@@ -230,7 +229,7 @@ Cross-cutting Kafka issues:
 
 | Endpoint | Protocol | Producer/consumer | Tình trạng |
 |---|---|---|---|
-| `/ws/shipper-locations` | raw WebSocket JSON | shipper publish; delivery participant subscribe | canonical payload/actions unchanged; JWT Gateway + participant check; exact delivery rooms and Redis Pub/Sub prevent old-delivery/IDOR audience; bounded per-session coalescing preserves latest state and offline/online transition, reconnect sends final Redis location; publisher generation, grace/lease tombstone and stale fences unchanged |
+| `/ws/shipper-locations` | raw WebSocket JSON | shipper publish; delivery participant subscribe | canonical payload/actions unchanged; Tracking validates JWT through Auth JWKS in the handshake, then checks participant access; exact delivery rooms and Redis Pub/Sub prevent old-delivery/IDOR audience; bounded per-session coalescing preserves latest state and offline/online transition, reconnect sends final Redis location; publisher generation, grace/lease tombstone and stale fences unchanged |
 | `/ws/delivery-native` | STOMP | none | removed: client migration complete; Delivery config/notifier/dependency/properties/Compose flag đã xóa, lifecycle tiếp tục qua REST + Kafka/outbox |
 | `/ws-native` | STOMP | none | removed: zero polyrepo caller; Notification broker/config/service/DTO/dependency và Compose flag đã xóa, không phải compatibility surface MVP |
 | `/ws-test` | HTML test page | developer | phải `dev-only` |
@@ -509,13 +508,14 @@ rehearsal đồng thời bằng Redis/PostgreSQL thật vẫn OPEN.
 - Auth session list chỉ trả active + unexpired session và cap 100; Delivery
   shipper history/active compatibility lists cap 100. Full suites đạt Auth 19/19
   và Delivery 22/22 trên JDK 17.
-- Auth/Gateway runtime matrix xác nhận access/refresh TTL 900/604800 giây;
+- Auth/resource-server runtime matrix xác nhận access/refresh TTL 900/604800 giây;
   missing/malformed/tampered JWT 401, injected identity headers bị strip, USER
   không leo ADMIN và cross-user address bị 403. Refresh token dùng per-device
   family + hashed history; rotation row-lock current fingerprint, reuse commit
   revoke toàn family, logout/device revoke không ảnh hưởng session device khác.
-  Access JWT cũ vẫn hợp lệ tới TTL 15 phút vì Gateway
-  chưa introspect session/version. Product authority ngày 2026-07-26 chấp nhận
+  Access JWT cũ vẫn hợp lệ tới TTL 15 phút vì access token stateless và resource
+  service không introspect session/version ở mỗi request. Product authority ngày
+  2026-07-26 chấp nhận
   bounded window này cho MVP: logout/admin block revoke refresh/session ngay,
   access token đã phát còn hiệu lực tối đa 15 phút; immediate revocation không
   thuộc contract MVP.
@@ -569,8 +569,10 @@ rehearsal đồng thời bằng Redis/PostgreSQL thật vẫn OPEN.
   polyrepo search không có consumer; 8/8 behavior tests còn lại xanh.
 - Flash Sale không còn dual MySQL/PostgreSQL runtime; production source và Compose
   cùng PostgreSQL, test profile dùng H2. Full suite 7/7.
-- Gateway strip spoofed identity headers toàn cục trước routing, reject JWT thiếu
-  canonical subject/role và nhận CORS origin allow-list qua env. Full suite 19/19.
+- Gateway strip spoofed identity headers toàn cục trước routing và nhận CORS origin
+  allow-list qua env. Resource services reject JWT thiếu/sai subject, role, kid,
+  RS256, issuer, audience hoặc access token type through Auth JWKS. Full suite
+  passed at the recorded checkpoint.
 - Delivery accept/cancel command DTO đã tách và validate, malformed body trả 400;
   Order pagination bound page >= 0, size 1..100. Full suites Delivery 24/24 và
   Order 37/37.

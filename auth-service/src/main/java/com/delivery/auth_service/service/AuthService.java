@@ -5,6 +5,7 @@ import java.security.MessageDigest;
 import java.time.LocalDateTime;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.core.ParameterizedTypeReference;
@@ -431,6 +432,18 @@ public class AuthService implements UserDetailsService {
                 .toList();
     }
 
+    public Optional<AuthAccount> getAccountByEmail(String email) {
+        if (email == null || email.isBlank()) {
+            return Optional.empty();
+        }
+        return authAccountRepository.findByEmail(email);
+    }
+
+    public AuthAccount getAccountByEmailOrThrow(String email) {
+        return authAccountRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("Account", "email", email));
+    }
+
     public AuthAccountDto getAccountByIdDto(Long id) {
         AuthAccount account = authAccountRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Account", "id", id));
@@ -625,17 +638,15 @@ public class AuthService implements UserDetailsService {
     }
 
     private void syncUserBlockState(Long userId, Long adminId, String reason, boolean blocked) {
-        String url = blocked
-                ? userServiceConfig.getBlockUserUrl(userId)
-                : userServiceConfig.getUnblockUserUrl(userId);
-        java.util.Map<String, String> requestBody = new java.util.HashMap<>();
+        String url = userServiceConfig.getBlockStatusUrl(userId);
+        java.util.Map<String, Object> requestBody = new java.util.HashMap<>();
+        requestBody.put("adminId", adminId);
+        requestBody.put("blocked", blocked);
         if (blocked) {
             requestBody.put("reason", reason != null ? reason : "Blocked by admin");
         }
 
         HttpHeaders headers = new HttpHeaders();
-        headers.set("X-User-Id", String.valueOf(adminId));
-        headers.set("X-Role", "ADMIN");
         headers.set("Internal-Token", requireInternalSecret());
         headers.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
 

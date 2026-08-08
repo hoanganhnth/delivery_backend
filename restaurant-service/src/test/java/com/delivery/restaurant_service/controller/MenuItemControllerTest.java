@@ -1,5 +1,6 @@
 package com.delivery.restaurant_service.controller;
 
+import com.delivery.auth.resourceserver.security.AuthenticatedActor;
 import com.delivery.restaurant_service.common.constants.HttpHeaderConstants;
 import com.delivery.restaurant_service.common.constants.RoleConstants;
 import com.delivery.restaurant_service.dto.request.CreateMenuItemRequest;
@@ -13,13 +14,21 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.core.MethodParameter;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.bind.support.WebDataBinderFactory;
+import org.springframework.web.context.request.NativeWebRequest;
+import org.springframework.web.method.support.HandlerMethodArgumentResolver;
+import org.springframework.web.method.support.ModelAndViewContainer;
 
 import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.when;
@@ -28,7 +37,6 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
-import org.springframework.security.access.AccessDeniedException;
 
 @ExtendWith(MockitoExtension.class)
 class MenuItemControllerTest {
@@ -44,7 +52,28 @@ class MenuItemControllerTest {
 
     @BeforeEach
     void setUp() {
-        mockMvc = MockMvcBuilders.standaloneSetup(menuItemController).build();
+        mockMvc = MockMvcBuilders.standaloneSetup(menuItemController)
+                .setCustomArgumentResolvers(new HandlerMethodArgumentResolver() {
+                    @Override
+                    public boolean supportsParameter(MethodParameter parameter) {
+                        return parameter.hasParameterAnnotation(AuthenticationPrincipal.class)
+                                && AuthenticatedActor.class.isAssignableFrom(parameter.getParameterType());
+                    }
+
+                    @Override
+                    public Object resolveArgument(MethodParameter parameter, ModelAndViewContainer mavContainer,
+                                                  NativeWebRequest webRequest, WebDataBinderFactory binderFactory) {
+                        String userIdHeader = webRequest.getHeader(HttpHeaderConstants.X_USER_ID);
+                        String roleHeader = webRequest.getHeader(HttpHeaderConstants.X_ROLE);
+                        if (userIdHeader != null && userIdHeader.matches("\\d+")) {
+                            Long userId = Long.parseLong(userIdHeader);
+                            Set<String> roles = roleHeader != null ? Set.of(roleHeader) : Set.of("USER");
+                            return new AuthenticatedActor(userId, "user@example.com", roles);
+                        }
+                        return null;
+                    }
+                })
+                .build();
         objectMapper = new ObjectMapper();
     }
 
@@ -181,34 +210,26 @@ class MenuItemControllerTest {
 
     @Test
     void myMenuItemsRejectsNonOwnerRole() {
-        assertThatThrownBy(() -> menuItemController.getMyMenuItems(7L, RoleConstants.SHIPPER))
+        AuthenticatedActor shipperActor = new AuthenticatedActor(7L, "shipper@example.com", Set.of(RoleConstants.SHIPPER));
+        assertThatThrownBy(() -> menuItemController.getMyMenuItems(shipperActor))
                 .isInstanceOf(AccessDeniedException.class);
 
         verifyNoInteractions(menuItemService);
     }
 
     @Test
-    void create_ShouldWork_WithoutHeaders() throws Exception {
+    void create_ShouldReject_WithoutAuthenticatedActor() throws Exception {
         // Given
         CreateMenuItemRequest request = new CreateMenuItemRequest();
         request.setRestaurantId(1L);
         request.setName("Pizza");
         request.setPrice(BigDecimal.valueOf(25.99));
 
-        MenuItemResponse response = createMenuItemResponse(1L, "Pizza", BigDecimal.valueOf(25.99));
+        // When & Then - no identity header provided, actor resolved to null, controller throws AccessDeniedException
+        assertThatThrownBy(() -> menuItemController.create(request, null))
+                .isInstanceOf(AccessDeniedException.class);
 
-        when(menuItemService.createMenuItem(any(CreateMenuItemRequest.class), isNull(), isNull()))
-                .thenReturn(response);
-
-        // When & Then
-        mockMvc.perform(post("/api/menu-items")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value(1))
-                .andExpect(jsonPath("$.data.name").value("Pizza"));
-
-        verify(menuItemService).createMenuItem(any(CreateMenuItemRequest.class), isNull(), isNull());
+        verifyNoInteractions(menuItemService);
     }
 
     @Test
@@ -219,6 +240,8 @@ class MenuItemControllerTest {
         request.setPrice(BigDecimal.ZERO);
 
         mockMvc.perform(post("/api/menu-items")
+                        .header(HttpHeaderConstants.X_USER_ID, "1")
+                        .header(HttpHeaderConstants.X_ROLE, RoleConstants.OWNER)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest());

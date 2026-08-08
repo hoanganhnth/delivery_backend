@@ -10,7 +10,6 @@ import org.springframework.http.HttpMethod;
 @Configuration
 public class GatewayRouteConfig {
 
-        private final JwtAuthenticationFilter jwtFilter;
         private final String authServiceUri;
         private final String userServiceUri;
         private final String restaurantServiceUri;
@@ -28,7 +27,6 @@ public class GatewayRouteConfig {
         private final String flashsaleServiceUri;
 
         public GatewayRouteConfig(
-                        JwtAuthenticationFilter jwtFilter,
                         @Value("${app.auth-service.uri:lb://auth-service}") String authServiceUri,
                         @Value("${app.user-service.uri:lb://user-service}") String userServiceUri,
                         @Value("${app.restaurant-service.uri:lb://restaurant-service}") String restaurantServiceUri,
@@ -44,7 +42,6 @@ public class GatewayRouteConfig {
                         @Value("${app.promotion-service.uri:lb://promotion-service}") String promotionServiceUri,
                         @Value("${app.analytics-service.uri:lb://analytics-service}") String analyticsServiceUri,
                         @Value("${app.flashsale-service.uri:lb://flashsale-service}") String flashsaleServiceUri) {
-                this.jwtFilter = jwtFilter;
                 this.authServiceUri = authServiceUri;
                 this.userServiceUri = userServiceUri;
                 this.restaurantServiceUri = restaurantServiceUri;
@@ -66,6 +63,9 @@ public class GatewayRouteConfig {
         public RouteLocator customRoutes(RouteLocatorBuilder builder) {
                 return builder.routes()
                                 // Public auth endpoints (no JWT required)
+                                .route("auth-service-jwks", r -> r.path("/.well-known/jwks.json")
+                                                .and().method(HttpMethod.GET)
+                                                .uri(authServiceUri))
                                 .route("auth-service-public", r -> r.path(
                                                 "/api/auth/login",
                                                 "/api/auth/register",
@@ -93,72 +93,44 @@ public class GatewayRouteConfig {
                                                 "/api/auth/admin/accounts/{id:[0-9]+}/block",
                                                 "/api/auth/admin/accounts/{id:[0-9]+}/unblock")
                                                 .and().method(HttpMethod.POST)
-                                                .filters(f -> f.filter(
-                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config()
-                                                                                .setRequiredRole("ADMIN"))))
                                                 .uri(authServiceUri))
                                 .route("auth-service-account-admin", r -> r.path("/api/auth/accounts/{id:[0-9]+}")
                                                 .and().method(HttpMethod.GET)
-                                                .filters(f -> f.filter(
-                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config()
-                                                                                .setRequiredRole("ADMIN"))))
                                                 .uri(authServiceUri))
                                 .route("auth-service-protected", r -> r.path("/api/auth/sessions")
                                                 .and().method(HttpMethod.GET)
-                                                .filters(f -> f.filter(
-                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config())))
                                                 .uri(authServiceUri))
 
                                 // POST /api/users and GET /by-auth/** remain internal linkage APIs.
                                 // Only the exact /registrations handoff path is public above.
                                 .route("user-service-current", r -> r.path("/api/users")
                                                 .and().method(HttpMethod.GET, HttpMethod.PUT)
-                                                .filters(f -> f.filter(
-                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config())))
                                                 .uri(userServiceUri))
                                 .route("user-service-admin-read", r -> r.path(
                                                 "/api/users/admin/statistics",
                                                 "/api/users/admin/all")
                                                 .and().method(HttpMethod.GET)
-                                                .filters(f -> f.filter(
-                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config()
-                                                                                .setRequiredRole("ADMIN"))))
                                                 .uri(userServiceUri))
                                 .route("user-address-service-read", r -> r.path(
                                                 "/api/addresses/users/{userId:[0-9]+}/addresses",
                                                 "/api/addresses/{id:[0-9]+}")
                                                 .and().method(HttpMethod.GET)
-                                                .filters(f -> f.filter(
-                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config()
-                                                                                .setRequiredRoles("USER", "ADMIN"))))
                                                 .uri(userServiceUri))
                                 .route("user-address-service-create", r -> r.path(
                                                 "/api/addresses/users/{userId:[0-9]+}/addresses")
                                                 .and().method(HttpMethod.POST)
-                                                .filters(f -> f.filter(
-                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config()
-                                                                                .setRequiredRoles("USER", "ADMIN"))))
                                                 .uri(userServiceUri))
                                 .route("user-address-service-update", r -> r.path(
                                                 "/api/addresses/{id:[0-9]+}")
                                                 .and().method(HttpMethod.PUT)
-                                                .filters(f -> f.filter(
-                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config()
-                                                                                .setRequiredRoles("USER", "ADMIN"))))
                                                 .uri(userServiceUri))
                                 .route("user-address-service-default", r -> r.path(
                                                 "/api/addresses/{id:[0-9]+}/default")
                                                 .and().method(HttpMethod.PATCH)
-                                                .filters(f -> f.filter(
-                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config()
-                                                                                .setRequiredRoles("USER", "ADMIN"))))
                                                 .uri(userServiceUri))
                                 .route("user-address-service-delete", r -> r.path(
                                                 "/api/addresses/{id:[0-9]+}")
                                                 .and().method(HttpMethod.DELETE)
-                                                .filters(f -> f.filter(
-                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config()
-                                                                                .setRequiredRoles("USER", "ADMIN"))))
                                                 .uri(userServiceUri))
 
                                 // Public catalog is read-only. Internal validation, creator lookup,
@@ -178,75 +150,42 @@ public class GatewayRouteConfig {
                                                 .uri(restaurantServiceUri))
                                 .route("restaurant-admin-ratings-read", r -> r.path("/api/restaurants/admin/ratings")
                                                 .and().method(HttpMethod.GET)
-                                                .filters(f -> f.filter(
-                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config()
-                                                                                .setRequiredRole("ADMIN"))))
                                                 .uri(restaurantServiceUri))
                                 .route("restaurant-admin-ratings-update", r -> r.path(
                                                 "/api/restaurants/admin/ratings/{id:[0-9]+}/status")
                                                 .and().method(HttpMethod.PUT)
-                                                .filters(f -> f.filter(
-                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config()
-                                                                                .setRequiredRole("ADMIN"))))
                                                 .uri(restaurantServiceUri))
                                 .route("restaurant-order-actions", r -> r.path(
                                                 "/api/restaurants/orders/{orderId:[0-9]+}/confirm",
                                                 "/api/restaurants/orders/{orderId:[0-9]+}/reject")
                                                 .and().method(HttpMethod.POST)
-                                                .filters(f -> f.filter(
-                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config()
-                                                                                .setRequiredRoles("SHOP_OWNER", "ADMIN"))))
                                                 .uri(restaurantServiceUri))
                                 .route("restaurant-owner-self", r -> r.path(
                                                 "/api/restaurants/my-restaurants")
                                                 .and().method(HttpMethod.GET)
-                                                .filters(f -> f.filter(
-                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config()
-                                                                                .setRequiredRole("SHOP_OWNER"))))
                                                 .uri(restaurantServiceUri))
                                 .route("restaurant-customer-ratings-self", r -> r.path(
                                                 "/api/restaurants/me/ratings")
                                                 .and().method(HttpMethod.GET)
-                                                .filters(f -> f.filter(
-                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config()
-                                                                                .setRequiredRole("USER"))))
                                                 .uri(restaurantServiceUri))
                                 .route("restaurant-rating-submit", r -> r.path(
                                                 "/api/restaurants/{restaurantId:[0-9]+}/ratings")
                                                 .and().method(HttpMethod.POST)
-                                                .filters(f -> f.filter(
-                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config()
-                                                                                .setRequiredRole("USER"))))
                                                 .uri(restaurantServiceUri))
                                 .route("restaurant-create", r -> r.path("/api/restaurants")
                                                 .and().method(HttpMethod.POST)
-                                                .filters(f -> f.filter(
-                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config()
-                                                                                .setRequiredRoles("SHOP_OWNER", "ADMIN"))))
                                                 .uri(restaurantServiceUri))
                                 .route("restaurant-update-delete", r -> r.path("/api/restaurants/{id:[0-9]+}")
                                                 .and().method(HttpMethod.PUT, HttpMethod.DELETE)
-                                                .filters(f -> f.filter(
-                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config()
-                                                                                .setRequiredRoles("SHOP_OWNER", "ADMIN"))))
                                                 .uri(restaurantServiceUri))
                                 .route("restaurant-menu-self", r -> r.path("/api/menu-items/my-menu-items")
                                                 .and().method(HttpMethod.GET)
-                                                .filters(f -> f.filter(
-                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config()
-                                                                                .setRequiredRole("SHOP_OWNER"))))
                                                 .uri(restaurantServiceUri))
                                 .route("restaurant-menu-create", r -> r.path("/api/menu-items")
                                                 .and().method(HttpMethod.POST)
-                                                .filters(f -> f.filter(
-                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config()
-                                                                                .setRequiredRoles("SHOP_OWNER", "ADMIN"))))
                                                 .uri(restaurantServiceUri))
                                 .route("restaurant-menu-update-delete", r -> r.path("/api/menu-items/{id:[0-9]+}")
                                                 .and().method(HttpMethod.PUT, HttpMethod.DELETE)
-                                                .filters(f -> f.filter(
-                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config()
-                                                                                .setRequiredRoles("SHOP_OWNER", "ADMIN"))))
                                                 .uri(restaurantServiceUri))
                                 // Admin endpoints must be authenticated before the broader orders route.
                                 // Enforce the edge role here; order-service must also keep a
@@ -255,43 +194,26 @@ public class GatewayRouteConfig {
                                                 "/api/orders/all",
                                                 "/api/orders/status/{status}")
                                                 .and().method(HttpMethod.GET)
-                                                .filters(f -> f.filter(
-                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config()
-                                                                                .setRequiredRole("ADMIN"))))
                                                 .uri(orderServiceUri))
                                 .route("order-service-create", r -> r.path(
                                                 "/api/orders",
                                                 "/api/orders/checkout-preview")
                                                 .and().method(HttpMethod.POST)
-                                                .filters(f -> f.filter(
-                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config()
-                                                                                .setRequiredRole("USER"))))
                                                 .uri(orderServiceUri))
                                 .route("order-service-read", r -> r.path(
                                                 "/api/orders/{id:[0-9]+}")
                                                 .and().method(HttpMethod.GET)
-                                                .filters(f -> f.filter(
-                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config())))
                                                 .uri(orderServiceUri))
                                 .route("order-service-customer-self", r -> r.path(
                                                 "/api/orders/my-orders")
                                                 .and().method(HttpMethod.GET)
-                                                .filters(f -> f.filter(
-                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config()
-                                                                                .setRequiredRole("USER"))))
                                                 .uri(orderServiceUri))
                                 .route("order-service-restaurant-self", r -> r.path(
                                                 "/api/orders/my-restaurant-orders")
                                                 .and().method(HttpMethod.GET)
-                                                .filters(f -> f.filter(
-                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config()
-                                                                                .setRequiredRole("SHOP_OWNER"))))
                                                 .uri(orderServiceUri))
                                 .route("order-service-cancel", r -> r.path("/api/orders/{id:[0-9]+}/cancel")
                                                 .and().method(HttpMethod.PUT)
-                                                .filters(f -> f.filter(
-                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config()
-                                                                                .setRequiredRoles("USER", "SHOP_OWNER", "ADMIN"))))
                                                 .uri(orderServiceUri))
 
                                 // Delivery mutations are shipper business commands. The service
@@ -300,73 +222,44 @@ public class GatewayRouteConfig {
                                                 "/api/deliveries/accept",
                                                 "/api/deliveries/cancel-assignment")
                                                 .and().method(HttpMethod.POST)
-                                                .filters(f -> f.filter(
-                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config()
-                                                                                .setRequiredRole("SHIPPER"))))
                                                 .uri(deliveryServiceUri))
                                 .route("delivery-service-status", r -> r.path("/api/deliveries/{id:[0-9]+}/status")
                                                 .and().method(HttpMethod.PUT)
-                                                .filters(f -> f.filter(
-                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config()
-                                                                                .setRequiredRole("SHIPPER"))))
                                                 .uri(deliveryServiceUri))
                                 .route("delivery-service-read", r -> r.path(
                                                 "/api/deliveries/{id:[0-9]+}",
                                                 "/api/deliveries/order/{orderId:[0-9]+}")
                                                 .and().method(HttpMethod.GET)
-                                                .filters(f -> f.filter(
-                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config())))
                                                 .uri(deliveryServiceUri))
                                 .route("delivery-service-current-offer", r -> r.path(
                                                 "/api/deliveries/offers/current")
                                                 .and().method(HttpMethod.GET)
-                                                .filters(f -> f.filter(
-                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config()
-                                                                                .setRequiredRole("SHIPPER"))))
                                                 .uri(deliveryServiceUri))
                                 .route("delivery-service-shipper-read", r -> r.path(
                                                 "/api/deliveries/shipper/{shipperId:[0-9]+}",
                                                 "/api/deliveries/shipper/{shipperId:[0-9]+}/active")
                                                 .and().method(HttpMethod.GET)
-                                                .filters(f -> f.filter(
-                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config()
-                                                                                .setRequiredRoles("SHIPPER", "ADMIN"))))
                                                 .uri(deliveryServiceUri))
 
                                 .route("shipper-service-self-create", r -> r.path("/api/shippers")
                                                 .and().method(HttpMethod.POST)
-                                                .filters(f -> f.filter(
-                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config()
-                                                                                .setRequiredRole("SHIPPER"))))
                                                 .uri(shipperServiceUri))
                                 .route("shipper-service-self", r -> r.path(
                                                 "/api/shippers/my-profile",
                                                 "/api/shippers/me/ratings")
                                                 .and().method(HttpMethod.GET)
-                                                .filters(f -> f.filter(
-                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config()
-                                                                                .setRequiredRole("SHIPPER"))))
                                                 .uri(shipperServiceUri))
                                 .route("shipper-service-self-update", r -> r.path("/api/shippers")
                                                 .and().method(HttpMethod.PUT)
-                                                .filters(f -> f.filter(
-                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config()
-                                                                                .setRequiredRole("SHIPPER"))))
                                                 .uri(shipperServiceUri))
                                 .route("shipper-service-online", r -> r.path("/api/shippers/online-status")
                                                 .and().method(HttpMethod.PATCH)
-                                                .filters(f -> f.filter(
-                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config()
-                                                                                .setRequiredRole("SHIPPER"))))
                                                 .uri(shipperServiceUri))
                                 .route("shipper-service-admin", r -> r.path(
                                                 "/api/shippers",
                                                 "/api/shippers/online",
                                                 "/api/shippers/{id:[0-9]+}")
                                                 .and().method(HttpMethod.GET)
-                                                .filters(f -> f.filter(
-                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config()
-                                                                                .setRequiredRole("ADMIN"))))
                                                 .uri(shipperServiceUri))
 
                                 // Client notification routes are method-scoped so the internal
@@ -377,28 +270,20 @@ public class GatewayRouteConfig {
                                                 "/api/notifications/unread-count",
                                                 "/api/notifications/{id:[0-9]+}")
                                                 .and().method(HttpMethod.GET)
-                                                .filters(f -> f.filter(
-                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config())))
                                                 .uri(notificationServiceUri))
                                 .route("notification-service-update", r -> r.path(
                                                 "/api/notifications/{id:[0-9]+}/read",
                                                 "/api/notifications/mark-all-read")
                                                 .and().method(HttpMethod.PUT)
-                                                .filters(f -> f.filter(
-                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config())))
                                                 .uri(notificationServiceUri))
                                 .route("notification-service-delete", r -> r.path(
                                                 "/api/notifications/{id:[0-9]+}")
                                                 .and().method(HttpMethod.DELETE)
-                                                .filters(f -> f.filter(
-                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config())))
                                                 .uri(notificationServiceUri))
                                 .route("firebase-service", r -> r.path(
                                                 "/api/firebase/register-token",
                                                 "/api/firebase/unregister-token")
                                                 .and().method(HttpMethod.POST)
-                                                .filters(f -> f.filter(
-                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config())))
                                                 .uri(notificationServiceUri))
 
                                 // A shipper may publish only through the two self-identity
@@ -408,15 +293,10 @@ public class GatewayRouteConfig {
                                                 "/api/tracking/shipper-locations/update",
                                                 "/api/tracking/shipper-locations/offline")
                                                 .and().method(HttpMethod.POST)
-                                                .filters(f -> f.filter(
-                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config()
-                                                                                .setRequiredRole("SHIPPER"))))
                                                 .uri(trackingServiceUri))
                                 // Arbitrary shipper-point reads are intentionally hidden. Customer
                                 // tracking uses the participant-authorized raw WebSocket contract.
                                 .route("tracking-service-ws", r -> r.path("/ws/shipper-locations")
-                                                .filters(f -> f.filter(
-                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config())))
                                                 .uri(trackingServiceWsUri))
 
                                 // COD-first MVP: only customer-owned refund status and audited
@@ -427,9 +307,6 @@ public class GatewayRouteConfig {
                                 .route("settlement-service-customer-refund-read", r -> r.path(
                                                 "/api/settlement/refunds/my")
                                                 .and().method(HttpMethod.GET)
-                                                .filters(f -> f.filter(
-                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config()
-                                                                                .setRequiredRole("USER"))))
                                                 .uri(settlementServiceUri))
                                 .route("settlement-service-admin-read", r -> r.path(
                                                 "/api/settlement/admin/balances",
@@ -439,24 +316,15 @@ public class GatewayRouteConfig {
                                                 "/api/settlement/admin/refunds",
                                                 "/api/settlement/admin/refunds/{refundId:[0-9a-fA-F-]+}")
                                                 .and().method(HttpMethod.GET)
-                                                .filters(f -> f.filter(
-                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config()
-                                                                                .setRequiredRole("ADMIN"))))
                                                 .uri(settlementServiceUri))
 
                                 .route("promotion-service-user-collect", r -> r
                                                 .path("/api/promotions/collect/{code}")
                                                 .and().method(HttpMethod.POST)
-                                                .filters(f -> f.filter(
-                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config()
-                                                                                .setRequiredRole("USER"))))
                                                 .uri(promotionServiceUri))
                                 .route("promotion-service-user-vouchers", r -> r
                                                 .path("/api/promotions/my-vouchers")
                                                 .and().method(HttpMethod.GET)
-                                                .filters(f -> f.filter(
-                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config()
-                                                                                .setRequiredRole("USER"))))
                                                 .uri(promotionServiceUri))
                                 // Merchant voucher creation stays hidden until restaurantId is
                                 // explicit and restaurant ownership is verified. ownerId is not a
@@ -464,30 +332,18 @@ public class GatewayRouteConfig {
                                 .route("promotion-service-merchant-list", r -> r
                                                 .path("/api/promotions/merchant")
                                                 .and().method(HttpMethod.GET)
-                                                .filters(f -> f.filter(
-                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config()
-                                                                                .setRequiredRole("SHOP_OWNER"))))
                                                 .uri(promotionServiceUri))
                                 .route("promotion-service-admin-create", r -> r
                                                 .path("/api/promotions/platform")
                                                 .and().method(HttpMethod.POST)
-                                                .filters(f -> f.filter(
-                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config()
-                                                                                .setRequiredRole("ADMIN"))))
                                                 .uri(promotionServiceUri))
                                 .route("promotion-service-admin-list", r -> r
                                                 .path("/api/promotions/admin")
                                                 .and().method(HttpMethod.GET)
-                                                .filters(f -> f.filter(
-                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config()
-                                                                                .setRequiredRole("ADMIN"))))
                                                 .uri(promotionServiceUri))
                                 .route("promotion-service-admin-delete", r -> r
                                                 .path("/api/promotions/{id:[0-9]+}")
                                                 .and().method(HttpMethod.DELETE)
-                                                .filters(f -> f.filter(
-                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config()
-                                                                                .setRequiredRole("ADMIN"))))
                                                 .uri(promotionServiceUri))
 
                                 // Internal stock reservation is called service-to-service and is not
@@ -501,24 +357,15 @@ public class GatewayRouteConfig {
                                                 "/api/flashsales/admin/campaigns",
                                                 "/api/flashsales/admin/campaigns/{id:[0-9]+}/items")
                                                 .and().method(HttpMethod.GET)
-                                                .filters(f -> f.filter(
-                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config()
-                                                                                .setRequiredRole("ADMIN"))))
                                                 .uri(flashsaleServiceUri))
                                 .route("flashsale-admin-create", r -> r.path(
                                                 "/api/flashsales/admin/campaigns")
                                                 .and().method(HttpMethod.POST)
-                                                .filters(f -> f.filter(
-                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config()
-                                                                                .setRequiredRole("ADMIN"))))
                                                 .uri(flashsaleServiceUri))
                                 .route("flashsale-admin-update", r -> r.path(
                                                 "/api/flashsales/admin/campaigns/{id:[0-9]+}/status",
                                                 "/api/flashsales/admin/items/{id:[0-9]+}/approve")
                                                 .and().method(HttpMethod.PUT)
-                                                .filters(f -> f.filter(
-                                                                jwtFilter.apply(new JwtAuthenticationFilter.Config()
-                                                                                .setRequiredRole("ADMIN"))))
                                                 .uri(flashsaleServiceUri))
 
                                 .build();

@@ -633,7 +633,7 @@ class AuthServiceSecurityTest {
         when(accountRepository.findByIdForUpdate(3L)).thenReturn(Optional.of(account));
         when(accountRepository.findById(3L)).thenReturn(Optional.of(account));
         when(restTemplate.exchange(
-                eq("http://user-service:8082/api/users/admin/7/block"),
+                eq("http://user-service:8082/api/internal/users/7/block-status"),
                 eq(HttpMethod.POST),
                 any(HttpEntity.class),
                 any(ParameterizedTypeReference.class)))
@@ -692,7 +692,7 @@ class AuthServiceSecurityTest {
         when(accountRepository.findByIdForUpdate(3L)).thenReturn(Optional.of(account));
         when(accountRepository.findById(3L)).thenReturn(Optional.of(account));
         when(restTemplate.exchange(
-                eq("http://user-service:8082/api/users/admin/7/unblock"),
+                eq("http://user-service:8082/api/internal/users/7/block-status"),
                 eq(HttpMethod.POST),
                 any(HttpEntity.class),
                 any(ParameterizedTypeReference.class)))
@@ -717,12 +717,16 @@ class AuthServiceSecurityTest {
         verify(accountRepository).findByIdForUpdate(3L);
         ArgumentCaptor<HttpEntity> request = ArgumentCaptor.forClass(HttpEntity.class);
         verify(restTemplate).exchange(
-                eq("http://user-service:8082/api/users/admin/7/unblock"),
+                eq("http://user-service:8082/api/internal/users/7/block-status"),
                 eq(HttpMethod.POST),
                 request.capture(),
                 any(ParameterizedTypeReference.class));
         assertThat(request.getValue().getHeaders().getFirst("Internal-Token"))
                 .isEqualTo("service-secret");
+        java.util.Map<String, Object> requestBody = (java.util.Map<String, Object>) request.getValue().getBody();
+        assertThat(requestBody)
+                .containsEntry("adminId", 1L)
+                .containsEntry("blocked", false);
         verify(accountRepository).clearUserStatusSyncPending(
                 eq(3L), eq(1L), any(LocalDateTime.class));
     }
@@ -737,7 +741,7 @@ class AuthServiceSecurityTest {
         when(accountRepository.findByIdForUpdate(3L)).thenReturn(Optional.of(account));
         when(accountRepository.findById(3L)).thenReturn(Optional.of(account));
         when(restTemplate.exchange(
-                eq("http://user-service:8082/api/users/admin/7/block"),
+                eq("http://user-service:8082/api/internal/users/7/block-status"),
                 eq(HttpMethod.POST),
                 any(HttpEntity.class),
                 any(ParameterizedTypeReference.class)))
@@ -784,13 +788,13 @@ class AuthServiceSecurityTest {
         when(accountRepository.findPendingUserStatusSync(any(Pageable.class)))
                 .thenReturn(java.util.List.of(failed, next));
         when(restTemplate.exchange(
-                eq("http://user-service:8082/api/users/admin/7/block"),
+                eq("http://user-service:8082/api/internal/users/7/block-status"),
                 eq(HttpMethod.POST),
                 any(HttpEntity.class),
                 any(ParameterizedTypeReference.class)))
                 .thenThrow(new ResourceAccessException("user-service unavailable"));
         when(restTemplate.exchange(
-                eq("http://user-service:8082/api/users/admin/8/unblock"),
+                eq("http://user-service:8082/api/internal/users/8/block-status"),
                 eq(HttpMethod.POST),
                 any(HttpEntity.class),
                 any(ParameterizedTypeReference.class)))

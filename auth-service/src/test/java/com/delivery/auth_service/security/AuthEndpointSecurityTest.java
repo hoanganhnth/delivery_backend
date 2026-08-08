@@ -19,6 +19,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.delivery.auth_service.controller.AuthController;
 import com.delivery.auth_service.controller.InternalRegistrationController;
+import com.delivery.auth_service.controller.JwksController;
 import com.delivery.auth_service.dto.AuthResponse;
 import com.delivery.auth_service.entity.AuthAccount;
 import com.delivery.auth_service.service.AuthService;
@@ -26,11 +27,15 @@ import com.delivery.auth_service.service.AccountSecurityService;
 import com.delivery.auth_service.service.TokenService;
 import org.springframework.web.client.RestTemplate;
 
+import com.delivery.auth.resourceserver.security.DeliveryJwtAuthenticationConverter;
+
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+
 @WebMvcTest(
-        controllers = { AuthController.class, InternalRegistrationController.class },
+        controllers = { AuthController.class, InternalRegistrationController.class, JwksController.class },
         properties = "app.internal.secret=service-secret",
         excludeAutoConfiguration = UserDetailsServiceAutoConfiguration.class)
-@Import({ SecurityConfig.class, JwtAuthenticationFilter.class })
+@Import({ SecurityConfig.class, DeliveryJwtAuthenticationConverter.class })
 class AuthEndpointSecurityTest {
 
     @Autowired
@@ -41,6 +46,9 @@ class AuthEndpointSecurityTest {
 
     @MockitoBean
     private TokenService tokenService;
+
+    @MockitoBean
+    private JwtDecoder jwtDecoder;
 
     @MockitoBean
     private AccountSecurityService accountSecurityService;
@@ -164,6 +172,25 @@ class AuthEndpointSecurityTest {
         mockMvc.perform(get("/api/auth/sessions"))
                 .andExpect(status().isUnauthorized());
         mockMvc.perform(delete("/api/auth/sessions/phone-1"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void jwksIsPublicReadOnlyAndUsesStandardCacheHeader() throws Exception {
+        when(tokenService.getJwks()).thenReturn(java.util.Map.of("keys", java.util.List.of(
+                java.util.Map.of("kty", "RSA", "alg", "RS256", "use", "sig",
+                        "kid", "auth-key-1", "n", "modulus", "e", "AQAB"))));
+
+        mockMvc.perform(get("/.well-known/jwks.json"))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .header().string("Cache-Control", "max-age=300"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .jsonPath("$.keys[0].kty").value("RSA"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .jsonPath("$.keys[0].kid").value("auth-key-1"));
+
+        mockMvc.perform(post("/.well-known/jwks.json"))
                 .andExpect(status().isUnauthorized());
     }
 

@@ -8,32 +8,41 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.http.server.ServerHttpResponse;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.web.socket.config.annotation.EnableWebSocket;
 import org.springframework.web.socket.config.annotation.WebSocketConfigurer;
 import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry;
 import org.springframework.web.socket.WebSocketHandler;
 import org.springframework.web.socket.server.HandshakeInterceptor;
 
+import java.util.List;
 import java.util.Map;
+import java.util.Locale;
 
 @Configuration
 @EnableWebSocket
 public class WebSocketConfig implements WebSocketConfigurer {
 
+    private static final List<String> TRACKING_ROLE_PRECEDENCE = List.of("ADMIN", "SHIPPER", "USER");
+
     private final ShipperLocationWebSocketHandler shipperLocationHandler;
+    private final JwtDecoder jwtDecoder;
     private final String[] allowedOrigins;
 
     public WebSocketConfig(
             ShipperLocationWebSocketHandler shipperLocationHandler,
+            JwtDecoder jwtDecoder,
             @Value("${app.websocket.allowed-origins:http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:3000}")
             String allowedOrigins) {
         this.shipperLocationHandler = shipperLocationHandler;
+        this.jwtDecoder = jwtDecoder;
         this.allowedOrigins = allowedOrigins.split(",");
     }
 
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
-        // Endpoint để client theo dõi vị trí shipper theo thời gian thực
         registry.addHandler(shipperLocationHandler, "/ws/shipper-locations")
                 .addInterceptors(identityHeadersInterceptor())
                 .setAllowedOrigins(allowedOrigins);
@@ -45,13 +54,49 @@ public class WebSocketConfig implements WebSocketConfigurer {
             public boolean beforeHandshake(ServerHttpRequest request, ServerHttpResponse response,
                     WebSocketHandler wsHandler, Map<String, Object> attributes) {
                 HttpHeaders headers = request.getHeaders();
-                String userId = headers.getFirst("X-User-Id");
-                String role = headers.getFirst("X-Role");
-                if (userId == null || !userId.matches("[0-9]+") || role == null || role.isBlank()) {
+                String authHeader = headers.getFirst("Authorization");
+                String token = null;
+
+                if (authHeader != null && authHeader.startsWith("Bearer ")) {
+                    token = authHeader.substring(7);
+                } else {
+                    List<String> protocols = headers.get("Sec-WebSocket-Protocol");
+                    if (protocols != null && !protocols.isEmpty()) {
+                        for (String protocol : protocols) {
+                            for (String part : protocol.split(",")) {
+                                String trimmed = part.trim();
+                                if (trimmed.startsWith("bearer.")) {
+                                    token = trimmed.substring(7);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Long userId = null;
+                String role = null;
+
+                if (token != null && !token.isBlank()) {
+                    try {
+                        Jwt jwt = jwtDecoder.decode(token);
+                        String sub = jwt.getSubject();
+                        if (sub != null && sub.matches("\\d+")) {
+                            userId = Long.parseLong(sub);
+                        }
+                        role = selectTrackingRole(jwt);
+                    } catch (JwtException e) {
+                        response.setStatusCode(HttpStatus.UNAUTHORIZED);
+                        return false;
+                    }
+                }
+
+                if (userId == null || role == null || role.isBlank()) {
                     response.setStatusCode(HttpStatus.UNAUTHORIZED);
                     return false;
                 }
-                attributes.put("authenticatedUserId", Long.parseLong(userId));
+
+                attributes.put("authenticatedUserId", userId);
                 attributes.put("authenticatedRole", role);
                 try {
                     attributes.put("correlationId",
@@ -62,7 +107,6 @@ public class WebSocketConfig implements WebSocketConfigurer {
                 }
                 String traceparent = headers.getFirst("traceparent");
                 if (isW3cTraceparent(traceparent)) {
-                    // Session metadata only: individual location messages remain untraced.
                     attributes.put("traceparent", traceparent);
                 }
                 return true;
@@ -71,12 +115,34 @@ public class WebSocketConfig implements WebSocketConfigurer {
             @Override
             public void afterHandshake(ServerHttpRequest request, ServerHttpResponse response,
                     WebSocketHandler wsHandler, Exception exception) {
-                // No-op.
             }
         };
     }
 
     private static boolean isW3cTraceparent(String value) {
-        return value != null && value.matches("^[\u0030-\u0039a-f]{2}-[\u0030-\u0039a-f]{32}-[\u0030-\u0039a-f]{16}-[\u0030-\u0039a-f]{2}$");
+        return value != null && value.matches("^[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$");
+    }
+
+    private static String selectTrackingRole(Jwt jwt) {
+        List<String> roles = jwt.getClaimAsStringList("roles");
+        if (roles != null) {
+            for (String preferredRole : TRACKING_ROLE_PRECEDENCE) {
+                boolean present = roles.stream()
+                        .filter(java.util.Objects::nonNull)
+                        .map(String::trim)
+                        .map(value -> value.toUpperCase(Locale.ROOT))
+                        .anyMatch(preferredRole::equals);
+                if (present) {
+                    return preferredRole;
+                }
+            }
+        }
+
+        String legacyRole = jwt.getClaimAsString("role");
+        if (legacyRole == null) {
+            return null;
+        }
+        String normalizedRole = legacyRole.trim().toUpperCase(Locale.ROOT);
+        return TRACKING_ROLE_PRECEDENCE.contains(normalizedRole) ? normalizedRole : null;
     }
 }

@@ -9,7 +9,7 @@ import org.springframework.data.domain.Pageable;
 import java.util.List;
 
 public interface ShipperService {
-    // Main shipper operations based on userId (from X-User-Id header)
+    // Main shipper operations based on the JWKS-authenticated actor userId.
     ShipperResponse createShipper(CreateShipperRequest request, Long userId, String role);
     ShipperResponse updateShipperByUserId(Long userId, UpdateShipperRequest request);
     void deleteShipperByUserId(Long userId);

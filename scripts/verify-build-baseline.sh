@@ -196,10 +196,13 @@ if rg -n -U '@Autowired[[:space:]]*(private|protected|public)?[[:space:]]+[^()\n
 fi
 
 # VNPay IPN is an external provider callback whose acknowledgement shape is provider-owned.
+# JWKS is an RFC-defined discovery document and intentionally is not wrapped in
+# the product BaseResponse envelope.
 raw_controller_responses="$(rg -n 'public ResponseEntity<' \
   --glob '**/src/main/java/**/*Controller.java' "${ROOT_DIR}" \
   | rg -v 'BaseResponse' \
   | rg -v '/PaymentController\.java:' \
+  | rg -v '/JwksController\.java:' \
   || true)"
 if [[ -n "${raw_controller_responses}" ]]; then
   echo "Public controllers must use the canonical BaseResponse envelope:" >&2
@@ -365,15 +368,12 @@ if [[ -n "${unsafe_match_if_missing}" ]]; then
 fi
 
 auth_properties="${ROOT_DIR}/auth-service/src/main/resources/application.properties"
-gateway_properties="${ROOT_DIR}/api-gateway/src/main/resources/application.properties"
 auth_token_service="${ROOT_DIR}/auth-service/src/main/java/com/delivery/auth_service/service/TokenService.java"
-gateway_key_provider="${ROOT_DIR}/api-gateway/src/main/java/com/delivery/api_gateway/config/JwtPublicKeyProvider.java"
 if ! rg -Fq 'jwt.private-key.path=${JWT_PRIVATE_KEY_PATH:}' "${auth_properties}" \
     || ! rg -Fq 'jwt.public-key.path=${JWT_PUBLIC_KEY_PATH:}' "${auth_properties}" \
-    || ! rg -Fq 'jwt.public-key.path=${JWT_PUBLIC_KEY_PATH:}' "${gateway_properties}" \
     || rg -q '@Value\("\$\{jwt\.(private|public)-key\.path:classpath:' \
-      "${auth_token_service}" "${gateway_key_provider}"; then
-  echo "JWT key locations must be env-backed and blank-by-default so startup fails fast without mounted keys." >&2
+      "${auth_token_service}"; then
+  echo "Auth JWT key locations must be env-backed and blank-by-default so startup fails fast without mounted keys." >&2
   exit 1
 fi
 if ! rg -Fq 'REFRESH_TOKEN_TTL = Duration.ofDays(7)' "${auth_token_service}" \

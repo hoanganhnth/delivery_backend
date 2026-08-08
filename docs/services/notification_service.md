@@ -27,7 +27,8 @@ bị từ chối để không làm lộ hoặc ghi đè notification của accou
 - `POST /api/notifications/send` là internal-only, yêu cầu `Internal-Token` và
   không có Gateway route.
 
-List được cap 100. Read/update/delete luôn scope theo trusted `X-User-Id`.
+List được cap 100. Read/update/delete luôn scope theo actor được resource server
+dựng từ JWT đã xác thực JWKS.
 Repeated mark-read trả state hiện tại và không đổi `readAt` lần nữa.
 
 ## Offer cho shipper

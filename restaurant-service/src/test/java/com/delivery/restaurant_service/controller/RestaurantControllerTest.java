@@ -1,5 +1,6 @@
 package com.delivery.restaurant_service.controller;
 
+import com.delivery.auth.resourceserver.security.AuthenticatedActor;
 import com.delivery.restaurant_service.common.constants.HttpHeaderConstants;
 import com.delivery.restaurant_service.common.constants.RoleConstants;
 import com.delivery.restaurant_service.dto.request.CreateRestaurantRequest;
@@ -13,12 +14,20 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.core.MethodParameter;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.bind.support.WebDataBinderFactory;
+import org.springframework.web.context.request.NativeWebRequest;
+import org.springframework.web.method.support.HandlerMethodArgumentResolver;
+import org.springframework.web.method.support.ModelAndViewContainer;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.verify;
@@ -28,7 +37,6 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-import org.springframework.security.access.AccessDeniedException;
 
 @ExtendWith(MockitoExtension.class)
 class RestaurantControllerTest {
@@ -44,7 +52,28 @@ class RestaurantControllerTest {
 
     @BeforeEach
     void setUp() {
-        mockMvc = MockMvcBuilders.standaloneSetup(restaurantController).build();
+        mockMvc = MockMvcBuilders.standaloneSetup(restaurantController)
+                .setCustomArgumentResolvers(new HandlerMethodArgumentResolver() {
+                    @Override
+                    public boolean supportsParameter(MethodParameter parameter) {
+                        return parameter.hasParameterAnnotation(AuthenticationPrincipal.class)
+                                && AuthenticatedActor.class.isAssignableFrom(parameter.getParameterType());
+                    }
+
+                    @Override
+                    public Object resolveArgument(MethodParameter parameter, ModelAndViewContainer mavContainer,
+                                                  NativeWebRequest webRequest, WebDataBinderFactory binderFactory) {
+                        String userIdHeader = webRequest.getHeader(HttpHeaderConstants.X_USER_ID);
+                        String roleHeader = webRequest.getHeader(HttpHeaderConstants.X_ROLE);
+                        if (userIdHeader != null && userIdHeader.matches("\\d+")) {
+                            Long userId = Long.parseLong(userIdHeader);
+                            Set<String> roles = roleHeader != null ? Set.of(roleHeader) : Set.of("USER");
+                            return new AuthenticatedActor(userId, "user@example.com", roles);
+                        }
+                        return null;
+                    }
+                })
+                .build();
         objectMapper = new ObjectMapper();
     }
 
@@ -57,14 +86,12 @@ class RestaurantControllerTest {
         request.setPhone("0123456789");
         request.setAddressLat(10.78);
         request.setAddressLng(106.69);
-//        request.setDescription("Best pizza in town");
 
         RestaurantResponse response = new RestaurantResponse();
         response.setId(1L);
         response.setName("Pizza Palace");
         response.setAddress("123 Main Street");
         response.setPhone("0123456789");
-//        response.setDescription("Best pizza in town");
 
         when(restaurantService.createRestaurant(any(CreateRestaurantRequest.class), anyLong(), anyString()))
                 .thenReturn(response);
@@ -224,14 +251,15 @@ class RestaurantControllerTest {
 
     @Test
     void myRestaurantsRejectsNonOwnerRole() {
-        assertThatThrownBy(() -> restaurantController.getMyRestaurants(7L, RoleConstants.CUSTOMER))
+        AuthenticatedActor customerActor = new AuthenticatedActor(7L, "user@example.com", Set.of(RoleConstants.CUSTOMER));
+        assertThatThrownBy(() -> restaurantController.getMyRestaurants(customerActor))
                 .isInstanceOf(AccessDeniedException.class);
 
         verifyNoInteractions(restaurantService);
     }
 
     @Test
-    void create_ShouldWork_WithoutHeaders() throws Exception {
+    void create_ShouldReject_WithoutAuthenticatedActor() throws Exception {
         // Given
         CreateRestaurantRequest request = new CreateRestaurantRequest();
         request.setName("Test Restaurant");
@@ -239,43 +267,25 @@ class RestaurantControllerTest {
         request.setAddressLat(10.78);
         request.setAddressLng(106.69);
 
-        RestaurantResponse response = createRestaurantResponse(1L, "Test Restaurant", "Test Address");
-
-        when(restaurantService.createRestaurant(any(CreateRestaurantRequest.class), isNull(), isNull()))
-                .thenReturn(response);
-
         // When & Then
-        mockMvc.perform(post("/api/restaurants")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value(1))
-                .andExpect(jsonPath("$.data.name").value("Test Restaurant"));
+        assertThatThrownBy(() -> restaurantController.create(request, null))
+                .isInstanceOf(AccessDeniedException.class);
 
-        verify(restaurantService).createRestaurant(any(CreateRestaurantRequest.class), isNull(), isNull());
+        verifyNoInteractions(restaurantService);
     }
 
     @Test
-    void update_ShouldWork_WithoutOptionalHeaders() throws Exception {
+    void update_ShouldReject_WithoutAuthenticatedActor() throws Exception {
         // Given
         Long restaurantId = 1L;
         UpdateRestaurantRequest request = new UpdateRestaurantRequest();
         request.setName("Updated Name");
 
-        RestaurantResponse response = createRestaurantResponse(restaurantId, "Updated Name", "Address");
-
-        when(restaurantService.updateRestaurant(eq(restaurantId), any(UpdateRestaurantRequest.class), isNull(), isNull()))
-                .thenReturn(response);
-
         // When & Then
-        mockMvc.perform(put("/api/restaurants/{id}", restaurantId)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value(1))
-                .andExpect(jsonPath("$.data.name").value("Updated Name"));
+        assertThatThrownBy(() -> restaurantController.update(restaurantId, request, null))
+                .isInstanceOf(AccessDeniedException.class);
 
-        verify(restaurantService).updateRestaurant(eq(restaurantId), any(UpdateRestaurantRequest.class), isNull(), isNull());
+        verifyNoInteractions(restaurantService);
     }
 
     private RestaurantResponse createRestaurantResponse(Long id, String name, String address) {

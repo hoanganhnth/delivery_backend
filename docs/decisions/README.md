@@ -9,6 +9,12 @@ the active execution plan and do not require a separate decision.
 An installed consumer begins with no fabricated decisions. Add local decision
 documents here as real choices are accepted, then index them in this file.
 
+## Local Decisions
+
+| Decision | Status | Title |
+| --- | --- | --- |
+| [0001](0001-jwks-resource-server-authentication.md) | Accepted | JWKS Resource-Server Authentication |
+
 ## Upstream Current Decisions
 
 These source-repository decisions explain Harness itself; they are not installed

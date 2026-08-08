@@ -9,14 +9,18 @@ import com.delivery.promotion_service.dto.VoucherReservationResponse;
 import com.delivery.promotion_service.entity.Voucher;
 import com.delivery.promotion_service.payload.BaseResponse;
 import com.delivery.promotion_service.service.PromotionService;
+import com.delivery.auth.resourceserver.security.AuthenticatedActor;
+
 import jakarta.validation.Valid;
 import jakarta.validation.Validator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.bind.annotation.*;
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -36,8 +40,8 @@ public class PromotionController {
     @PostMapping("/platform")
     public ResponseEntity<BaseResponse<VoucherResponse>> createPlatformVoucher(
             @RequestBody @Valid CreateVoucherRequest request,
-            @RequestHeader(value = "X-Role", required = false) String role) {
-        requireRole(role, "ADMIN");
+            @AuthenticationPrincipal AuthenticatedActor actor) {
+        requireRole(actor, "ADMIN");
         request.setCreatorType(Voucher.CreatorType.PLATFORM);
         request.setCreatorId(null);
         return ResponseEntity.ok(new BaseResponse<>(1,
@@ -46,61 +50,56 @@ public class PromotionController {
 
     @PostMapping("/collect/{code}")
     public ResponseEntity<BaseResponse<String>> collectVoucher(
-            @RequestHeader("X-User-Id") Long userId,
-            @RequestHeader(value = "X-Role", required = false) String role,
-            @PathVariable String code) {
-        requireRole(role, "USER");
-        promotionService.collectVoucher(userId, code);
+            @PathVariable String code,
+            @AuthenticationPrincipal AuthenticatedActor actor) {
+        requireRole(actor, "USER");
+        promotionService.collectVoucher(actor.getUserId(), code);
         return ResponseEntity.ok(new BaseResponse<>(1, "Collected successfully"));
     }
 
     @GetMapping("/my-vouchers")
-    public ResponseEntity<BaseResponse<java.util.List<VoucherResponse>>> getMyVouchers(
-            @RequestHeader("X-User-Id") Long userId,
-            @RequestHeader(value = "X-Role", required = false) String role) {
-        requireRole(role, "USER");
-        return ResponseEntity.ok(new BaseResponse<>(1, toResponse(promotionService.getCollectedVouchers(userId))));
+    public ResponseEntity<BaseResponse<List<VoucherResponse>>> getMyVouchers(
+            @AuthenticationPrincipal AuthenticatedActor actor) {
+        requireRole(actor, "USER");
+        return ResponseEntity.ok(new BaseResponse<>(1, toResponse(promotionService.getCollectedVouchers(actor.getUserId()))));
     }
 
     @GetMapping("/merchant")
-    public ResponseEntity<BaseResponse<java.util.List<VoucherResponse>>> listMerchantVouchers(
-            @RequestHeader("X-User-Id") Long merchantId,
-            @RequestHeader(value = "X-Role", required = false) String role) {
-        requireRole(role, "SHOP_OWNER");
-        return ResponseEntity.ok(new BaseResponse<>(1, toResponse(promotionService.listMerchantVouchers(merchantId))));
+    public ResponseEntity<BaseResponse<List<VoucherResponse>>> listMerchantVouchers(
+            @AuthenticationPrincipal AuthenticatedActor actor) {
+        requireRole(actor, "SHOP_OWNER");
+        return ResponseEntity.ok(new BaseResponse<>(1, toResponse(promotionService.listMerchantVouchers(actor.getUserId()))));
     }
 
     @GetMapping("/admin")
-    public ResponseEntity<BaseResponse<java.util.List<VoucherResponse>>> listAllVouchers(
-            @RequestHeader(value = "X-Role", required = false) String role) {
-        requireRole(role, "ADMIN");
+    public ResponseEntity<BaseResponse<List<VoucherResponse>>> listAllVouchers(
+            @AuthenticationPrincipal AuthenticatedActor actor) {
+        requireRole(actor, "ADMIN");
         return ResponseEntity.ok(new BaseResponse<>(1, toResponse(promotionService.listAllVouchers())));
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<BaseResponse<Void>> deleteVoucher(
             @PathVariable Long id,
-            @RequestHeader(value = "X-Role", required = false) String role) {
-        requireRole(role, "ADMIN");
+            @AuthenticationPrincipal AuthenticatedActor actor) {
+        requireRole(actor, "ADMIN");
         promotionService.deleteVoucher(id);
         return ResponseEntity.ok(new BaseResponse<>(1, null));
     }
 
-    @PostMapping("/calculate")
+    @PostMapping("/internal/calculate")
     public ResponseEntity<BaseResponse<CalculateResponse>> calculate(
-            @Valid @RequestBody CartContextRequest request,
-            @RequestHeader("X-User-Id") Long userId,
-            @RequestHeader(value = "X-Role", required = false) String role) {
-        requireRole(role, "USER");
-        if (!checkoutEnabled) {
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
-                    "Voucher checkout is disabled until reservation recovery is proven");
+            @RequestBody CartContextRequest request,
+            @RequestHeader(value = "Internal-Token", required = false) String internalToken) {
+        requireInternalCheckout(internalToken);
+        if (request == null || !validator.validate(request).isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid voucher quote request");
         }
-        request.setUserId(userId);
+
         return ResponseEntity.ok(new BaseResponse<>(1, promotionService.calculate(request)));
     }
 
-    @PostMapping("/reserve")
+    @PostMapping("/internal/reserve")
     public ResponseEntity<BaseResponse<VoucherReservationResponse>> reserve(
             @RequestBody ReserveRequest request,
             @RequestHeader(value = "Internal-Token", required = false) String internalToken) {
@@ -118,7 +117,7 @@ public class PromotionController {
         return ResponseEntity.ok(new BaseResponse<>(1, promotionService.reserveVoucher(request)));
     }
 
-    @PostMapping("/reservations/{reservationId}/commit")
+    @PostMapping("/internal/reservations/{reservationId}/commit")
     public ResponseEntity<BaseResponse<VoucherReservationResponse>> commit(
             @PathVariable UUID reservationId,
             @RequestParam Long orderId,
@@ -128,7 +127,7 @@ public class PromotionController {
                 promotionService.commitReservation(reservationId, orderId)));
     }
 
-    @PostMapping("/reservations/{reservationId}/release")
+    @PostMapping("/internal/reservations/{reservationId}/release")
     public ResponseEntity<BaseResponse<VoucherReservationResponse>> release(
             @PathVariable UUID reservationId,
             @RequestParam Long orderId,
@@ -149,13 +148,13 @@ public class PromotionController {
         }
     }
 
-    private void requireRole(String actualRole, String requiredRole) {
-        if (!requiredRole.equals(actualRole)) {
+    private void requireRole(AuthenticatedActor actor, String requiredRole) {
+        if (actor == null || !actor.hasRole(requiredRole)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Forbidden");
         }
     }
 
-    private java.util.List<VoucherResponse> toResponse(java.util.List<Voucher> vouchers) {
+    private List<VoucherResponse> toResponse(List<Voucher> vouchers) {
         return vouchers.stream().map(VoucherResponse::from).toList();
     }
 }

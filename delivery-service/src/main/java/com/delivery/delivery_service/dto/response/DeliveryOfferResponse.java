@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 
 /**
  * Minimal self-scoped view used by a shipper to recover an unexpired offer.
- * The selected shipper identity is derived from the trusted request header and
+ * The selected shipper identity is derived from the JWKS-authenticated actor and
  * is intentionally not echoed in this response.
  */
 @Getter

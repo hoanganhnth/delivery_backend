@@ -6,18 +6,16 @@ import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-
-// No import needed as it is in the same package (com.delivery.auth_service.security)
-
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+
+import com.delivery.auth.resourceserver.security.DeliveryJwtAuthenticationConverter;
 
 @Configuration
 public class SecurityConfig {
 
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http, JwtAuthenticationFilter jwtAuthenticationFilter)
+    public SecurityFilterChain filterChain(HttpSecurity http, DeliveryJwtAuthenticationConverter converter)
             throws Exception {
         http.csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session
@@ -38,10 +36,8 @@ public class SecurityConfig {
                                 "/api/auth/reset-password",
                                 "/api/auth/email-verification/request",
                                 "/api/auth/email-verification/confirm").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/.well-known/jwks.json").permitAll()
                         .requestMatchers(
-                                // Management is bound to a private Compose/platform port;
-                                // Eureka and the orchestrator must be able to read genuine
-                                // health/readiness without a user JWT.
                                 "/actuator/health",
                                 "/actuator/health/**",
                                 "/error").permitAll()
@@ -52,7 +48,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/auth/accounts/*").hasRole("ADMIN")
                         .requestMatchers("/api/auth/**").authenticated()
                         .anyRequest().authenticated())
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                .oauth2ResourceServer(oauth2 -> oauth2
+                        .jwt(jwt -> jwt.jwtAuthenticationConverter(converter))
+                );
 
         return http.build();
     }

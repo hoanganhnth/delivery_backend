@@ -106,6 +106,61 @@ class TokenServiceKeyPreflightTest {
     }
 
     @Test
+    void accessTokenAndJwksUseTheConfiguredKidIssuerAndAudience() throws Exception {
+        KeyPair keyPair = generateKeyPair();
+        Path privateKey = write("contract-private.pem", keyPair.getPrivate().getEncoded());
+        Path publicKey = write("contract-public.pem", keyPair.getPublic().getEncoded());
+        TokenService tokenService = new TokenService(
+                privateKey.toString(), publicKey.toString(), "", 900L,
+                "auth-key-current", "", "delivery-auth-test", "delivery-api-test");
+
+        String token = tokenService.generateToken(7L, "user@example.test", "USER");
+        Map<String, Object> header = new ObjectMapper().readValue(
+                Base64.getUrlDecoder().decode(token.split("\\.")[0]), new TypeReference<>() {});
+        Map<String, Object> claims = claims(token);
+
+        assertEquals("RS256", header.get("alg"));
+        assertEquals("auth-key-current", header.get("kid"));
+        assertEquals("delivery-auth-test", claims.get("iss"));
+        assertEquals(java.util.List.of("delivery-api-test"), claims.get("aud"));
+        assertEquals(java.util.List.of("USER"), claims.get("roles"));
+        assertEquals("access", claims.get("token_type"));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> jwk = (Map<String, Object>) ((java.util.List<?>) tokenService.getJwks()
+                .get("keys")).get(0);
+        assertEquals("RSA", jwk.get("kty"));
+        assertEquals("RS256", jwk.get("alg"));
+        assertEquals("auth-key-current", jwk.get("kid"));
+        assertTrue(jwk.containsKey("n"));
+        assertTrue(jwk.containsKey("e"));
+        assertFalse(jwk.containsKey("d"));
+    }
+
+    @Test
+    void previousPublicKeyRequiresAndPublishesItsOriginalKid() throws Exception {
+        KeyPair currentPair = generateKeyPair();
+        KeyPair retiringPair = generateKeyPair();
+        Path privateKey = write("current-private.pem", currentPair.getPrivate().getEncoded());
+        Path publicKey = write("current-public.pem", currentPair.getPublic().getEncoded());
+        Path retiringPublicKey = write("retiring-public.pem", retiringPair.getPublic().getEncoded());
+
+        TokenService tokenService = new TokenService(
+                privateKey.toString(), publicKey.toString(), retiringPublicKey.toString(), 900L,
+                "auth-key-current", "auth-key-retiring", "delivery-auth", "delivery-api");
+
+        @SuppressWarnings("unchecked")
+        java.util.List<Map<String, Object>> keys = (java.util.List<Map<String, Object>>) tokenService.getJwks()
+                .get("keys");
+        assertEquals(java.util.List.of("auth-key-current", "auth-key-retiring"),
+                keys.stream().map(key -> (String) key.get("kid")).toList());
+
+        assertThrows(IllegalStateException.class, () -> new TokenService(
+                privateKey.toString(), publicKey.toString(), retiringPublicKey.toString(), 900L,
+                "auth-key-current", "", "delivery-auth", "delivery-api"));
+    }
+
+    @Test
     void rejectsMismatchedKeyPairDuringStartup() throws Exception {
         KeyPair signingPair = generateKeyPair();
         KeyPair unrelatedPair = generateKeyPair();

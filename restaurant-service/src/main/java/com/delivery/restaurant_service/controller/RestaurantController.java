@@ -1,15 +1,17 @@
 package com.delivery.restaurant_service.controller;
 
 import com.delivery.restaurant_service.common.constants.ApiPathConstants;
-import com.delivery.restaurant_service.common.constants.HttpHeaderConstants;
 import com.delivery.restaurant_service.common.constants.RoleConstants;
 import com.delivery.restaurant_service.dto.request.CreateRestaurantRequest;
 import com.delivery.restaurant_service.dto.request.UpdateRestaurantRequest;
 import com.delivery.restaurant_service.dto.response.RestaurantResponse;
 import com.delivery.restaurant_service.payload.BaseResponse;
 import com.delivery.restaurant_service.service.RestaurantService;
+import com.delivery.auth.resourceserver.security.AuthenticatedActor;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
 
@@ -26,28 +28,30 @@ public class RestaurantController {
     }
 
     @PostMapping
-    public ResponseEntity<BaseResponse<RestaurantResponse>> create(@Valid @RequestBody CreateRestaurantRequest request,
-                                                                   @RequestHeader(value = HttpHeaderConstants.X_USER_ID, required = false) Long creatorId,
-                                                                   @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
-        RestaurantResponse response = restaurantService.createRestaurant(request, creatorId, role);
-
+    public ResponseEntity<BaseResponse<RestaurantResponse>> create(
+            @Valid @RequestBody CreateRestaurantRequest request,
+            @AuthenticationPrincipal AuthenticatedActor actor) {
+        requireActor(actor);
+        RestaurantResponse response = restaurantService.createRestaurant(request, actor.getUserId(), getRoleString(actor));
         return ResponseEntity.ok(new BaseResponse<>(1, response));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<BaseResponse<RestaurantResponse>> update(@PathVariable Long id,
-                                                                   @Valid @RequestBody UpdateRestaurantRequest request,
-                                                                   @RequestHeader(value = HttpHeaderConstants.X_USER_ID, required = false) Long creatorId,
-                                                                   @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
-        RestaurantResponse response = restaurantService.updateRestaurant(id, request, creatorId, role);
+    public ResponseEntity<BaseResponse<RestaurantResponse>> update(
+            @PathVariable Long id,
+            @Valid @RequestBody UpdateRestaurantRequest request,
+            @AuthenticationPrincipal AuthenticatedActor actor) {
+        requireActor(actor);
+        RestaurantResponse response = restaurantService.updateRestaurant(id, request, actor.getUserId(), getRoleString(actor));
         return ResponseEntity.ok(new BaseResponse<>(1, response));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<BaseResponse<Void>> delete(@PathVariable Long id,
-                                                     @RequestHeader(value = HttpHeaderConstants.X_USER_ID, required = false) Long creatorId,
-                                                     @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
-        restaurantService.deleteRestaurant(id, creatorId, role);
+    public ResponseEntity<BaseResponse<Void>> delete(
+            @PathVariable Long id,
+            @AuthenticationPrincipal AuthenticatedActor actor) {
+        requireActor(actor);
+        restaurantService.deleteRestaurant(id, actor.getUserId(), getRoleString(actor));
         return ResponseEntity.ok(new BaseResponse<>(1, null));
     }
 
@@ -71,17 +75,29 @@ public class RestaurantController {
     
     @GetMapping("/my-restaurants")
     public ResponseEntity<BaseResponse<List<RestaurantResponse>>> getMyRestaurants(
-            @RequestHeader(value = HttpHeaderConstants.X_USER_ID, required = false) Long creatorId,
-            @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
+            @AuthenticationPrincipal AuthenticatedActor actor) {
         
-        if (creatorId == null) {
+        if (actor == null || actor.getUserId() == null) {
             throw new IllegalArgumentException("User ID is required");
         }
-        if (!RoleConstants.OWNER.equals(role)) {
+        if (!actor.isShopOwner()) {
             throw new AccessDeniedException("Only SHOP_OWNER can view owned restaurants");
         }
         
-        List<RestaurantResponse> list = restaurantService.getRestaurantsByCreatorId(creatorId);
+        List<RestaurantResponse> list = restaurantService.getRestaurantsByCreatorId(actor.getUserId());
         return ResponseEntity.ok(new BaseResponse<>(1, list));
+    }
+
+    private void requireActor(AuthenticatedActor actor) {
+        if (actor == null || actor.getUserId() == null) {
+            throw new AccessDeniedException("Yêu cầu đăng nhập");
+        }
+    }
+
+    private String getRoleString(AuthenticatedActor actor) {
+        if (actor == null) return null;
+        if (actor.isAdmin()) return RoleConstants.ADMIN;
+        if (actor.isShopOwner()) return RoleConstants.OWNER;
+        return RoleConstants.CUSTOMER;
     }
 }

@@ -8,10 +8,13 @@ import static org.mockito.Mockito.verify;
 
 import org.junit.jupiter.api.Test;
 
+import com.delivery.auth.resourceserver.security.AuthenticatedActor;
 import com.delivery.restaurant_service.service.RestaurantRatingService;
 import com.delivery.restaurant_service.client.OrderEligibilityClient;
 import com.delivery.restaurant_service.dto.request.RestaurantRatingRequest;
 import org.springframework.security.access.AccessDeniedException;
+
+import java.util.Set;
 
 class RestaurantRatingControllerAuthorizationTest {
 
@@ -21,7 +24,8 @@ class RestaurantRatingControllerAuthorizationTest {
 
     @Test
     void ratingListRejectsMissingAdminRole() {
-        var response = controller.getAllRatings("USER");
+        AuthenticatedActor userActor = new AuthenticatedActor(21L, "user@example.com", Set.of("USER"));
+        var response = controller.getAllRatings(userActor);
 
         assertThat(response.getStatusCode().value()).isEqualTo(403);
         verify(service, never()).getAllRatings();
@@ -29,7 +33,8 @@ class RestaurantRatingControllerAuthorizationTest {
 
     @Test
     void ratingModerationRejectsMissingAdminRole() {
-        var response = controller.updateRatingStatus(7L, "APPROVED", "SHOP_OWNER");
+        AuthenticatedActor shopActor = new AuthenticatedActor(21L, "shop@example.com", Set.of("SHOP_OWNER"));
+        var response = controller.updateRatingStatus(7L, "APPROVED", shopActor);
 
         assertThat(response.getStatusCode().value()).isEqualTo(403);
         verify(service, never()).updateRatingStatus(7L, "APPROVED");
@@ -40,8 +45,9 @@ class RestaurantRatingControllerAuthorizationTest {
         RestaurantRatingRequest request = new RestaurantRatingRequest();
         request.setOrderId(101L);
         request.setRating(5);
+        AuthenticatedActor userActor = new AuthenticatedActor(21L, "user@example.com", Set.of("USER"));
 
-        controller.submitRating(7L, 21L, "USER", request);
+        controller.submitRating(7L, userActor, request);
 
         verify(eligibilityClient).requireDeliveredOrder(101L, 21L, 7L);
         verify(service).submitRating(7L, 21L, request);
@@ -52,10 +58,12 @@ class RestaurantRatingControllerAuthorizationTest {
         RestaurantRatingRequest request = new RestaurantRatingRequest();
         request.setOrderId(101L);
         request.setRating(5);
+        AuthenticatedActor shipperActor = new AuthenticatedActor(21L, "shipper@example.com", Set.of("SHIPPER"));
+        AuthenticatedActor shopActor = new AuthenticatedActor(21L, "shop@example.com", Set.of("SHOP_OWNER"));
 
-        assertThatThrownBy(() -> controller.submitRating(7L, 21L, "SHIPPER", request))
+        assertThatThrownBy(() -> controller.submitRating(7L, shipperActor, request))
                 .isInstanceOf(AccessDeniedException.class);
-        assertThatThrownBy(() -> controller.getMyRatings(21L, "SHOP_OWNER"))
+        assertThatThrownBy(() -> controller.getMyRatings(shopActor))
                 .isInstanceOf(AccessDeniedException.class);
 
         verify(eligibilityClient, never()).requireDeliveredOrder(101L, 21L, 7L);

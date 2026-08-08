@@ -59,7 +59,7 @@ class GatewayRateLimitFilterTest {
     }
 
     @Test
-    void usesVerifiedSubjectForAuthenticatedRead() {
+    void usesPeerIpForAuthenticatedReadEvenWhenIdentityHeadersAreSupplied() {
         StubStore store = new StubStore(Mono.just(new RateLimitStore.Decision(1, 60)));
         var exchange = exchange("GET", "/api/orders/7", "44", "USER");
         var chain = mock(org.springframework.cloud.gateway.filter.GatewayFilterChain.class);
@@ -68,7 +68,7 @@ class GatewayRateLimitFilterTest {
         filter(store).filter(exchange, chain).block();
 
         verify(chain).filter(exchange);
-        assertThat(store.key.get()).contains("authenticated_read:44");
+        assertThat(store.key.get()).contains("authenticated_read:127.0.0.1");
     }
 
     @Test
@@ -109,7 +109,7 @@ class GatewayRateLimitFilterTest {
     }
 
     @Test
-    void limitsOnlyWebsocketHandshakeBySubject() {
+    void limitsOnlyWebsocketHandshakeByPeerIp() {
         StubStore store = new StubStore(Mono.just(new RateLimitStore.Decision(1, 60)));
         var exchange = exchange("GET", "/ws/shipper-locations", "shipper-9", "SHIPPER");
         var chain = mock(org.springframework.cloud.gateway.filter.GatewayFilterChain.class);
@@ -117,7 +117,51 @@ class GatewayRateLimitFilterTest {
 
         filter(store).filter(exchange, chain).block();
 
-        assertThat(store.key.get()).contains("websocket_connection:shipper-9");
+        assertThat(store.key.get()).contains("websocket_connection:127.0.0.1");
+    }
+
+    @Test
+    void trustsForwardedClientIpOnlyForAnExplicitlyConfiguredProxyCidr() {
+        StubStore store = new StubStore(Mono.just(new RateLimitStore.Decision(1, 60)));
+        RateLimitProperties properties = new RateLimitProperties();
+        properties.setTrustedProxy(true);
+        properties.setTrustedProxyCidrs(java.util.List.of("10.0.0.0/8"));
+        var exchange = exchange("GET", "/api/orders/7", "44", "USER", "10.10.2.3", "203.0.113.42");
+        var chain = mock(org.springframework.cloud.gateway.filter.GatewayFilterChain.class);
+        org.mockito.Mockito.when(chain.filter(exchange)).thenReturn(Mono.empty());
+
+        filter(store, properties).filter(exchange, chain).block();
+
+        assertThat(store.key.get()).contains("authenticated_read:203.0.113.42");
+    }
+
+    @Test
+    void ignoresForwardedClientIpWhenTrustedProxyAllowListIsEmpty() {
+        StubStore store = new StubStore(Mono.just(new RateLimitStore.Decision(1, 60)));
+        RateLimitProperties properties = new RateLimitProperties();
+        properties.setTrustedProxy(true);
+        var exchange = exchange("GET", "/api/orders/7", "44", "USER", "10.10.2.3", "203.0.113.42");
+        var chain = mock(org.springframework.cloud.gateway.filter.GatewayFilterChain.class);
+        org.mockito.Mockito.when(chain.filter(exchange)).thenReturn(Mono.empty());
+
+        filter(store, properties).filter(exchange, chain).block();
+
+        assertThat(store.key.get()).contains("authenticated_read:10.10.2.3");
+    }
+
+    @Test
+    void ignoresForwardedClientIpWhenPrivatePeerIsOutsideConfiguredCidr() {
+        StubStore store = new StubStore(Mono.just(new RateLimitStore.Decision(1, 60)));
+        RateLimitProperties properties = new RateLimitProperties();
+        properties.setTrustedProxy(true);
+        properties.setTrustedProxyCidrs(java.util.List.of("10.0.0.0/8"));
+        var exchange = exchange("GET", "/api/orders/7", "44", "USER", "192.168.1.9", "203.0.113.42");
+        var chain = mock(org.springframework.cloud.gateway.filter.GatewayFilterChain.class);
+        org.mockito.Mockito.when(chain.filter(exchange)).thenReturn(Mono.empty());
+
+        filter(store, properties).filter(exchange, chain).block();
+
+        assertThat(store.key.get()).contains("authenticated_read:192.168.1.9");
     }
 
     private GatewayRateLimitFilter filter(RateLimitStore store) {
@@ -129,10 +173,16 @@ class GatewayRateLimitFilterTest {
     }
 
     private MockServerWebExchange exchange(String method, String path, String userId, String role) {
+        return exchange(method, path, userId, role, "127.0.0.1", null);
+    }
+
+    private MockServerWebExchange exchange(String method, String path, String userId, String role,
+            String remoteIp, String forwardedFor) {
         MockServerHttpRequest.BaseBuilder<?> builder = MockServerHttpRequest.method(method, path)
-                .remoteAddress(new InetSocketAddress("127.0.0.1", 50123));
+                .remoteAddress(new InetSocketAddress(remoteIp, 50123));
         if (userId != null) builder.header("X-User-Id", userId);
         if (role != null) builder.header("X-Role", role);
+        if (forwardedFor != null) builder.header("X-Forwarded-For", forwardedFor);
         return MockServerWebExchange.from(builder);
     }
 

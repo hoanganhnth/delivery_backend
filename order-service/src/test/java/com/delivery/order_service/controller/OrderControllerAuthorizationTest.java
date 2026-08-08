@@ -6,10 +6,13 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 import org.junit.jupiter.api.Test;
 
+import com.delivery.auth.resourceserver.security.AuthenticatedActor;
 import com.delivery.order_service.dto.request.CheckoutPreviewRequest;
 import com.delivery.order_service.exception.AccessDeniedException;
 import com.delivery.order_service.service.CheckoutPreviewService;
 import com.delivery.order_service.service.OrderService;
+
+import java.util.Set;
 
 class OrderControllerAuthorizationTest {
 
@@ -20,17 +23,21 @@ class OrderControllerAuthorizationTest {
     @Test
     void checkoutPreviewRejectsNonCustomerBeforeCallingDependencies() {
         CheckoutPreviewRequest request = new CheckoutPreviewRequest();
+        AuthenticatedActor shopActor = new AuthenticatedActor(7L, "shop@example.com", Set.of("SHOP_OWNER"));
 
-        assertThatThrownBy(() -> controller.checkoutPreview(request, 7L, "SHOP_OWNER"))
+        assertThatThrownBy(() -> controller.checkoutPreview(request, shopActor))
                 .isInstanceOf(AccessDeniedException.class);
         verifyNoInteractions(orderService, previewService);
     }
 
     @Test
     void selfOrderListsRejectWrongActorsBeforeQuery() {
-        assertThatThrownBy(() -> controller.getMyOrders(7L, "SHIPPER", 0, 10))
+        AuthenticatedActor shipperActor = new AuthenticatedActor(7L, "shipper@example.com", Set.of("SHIPPER"));
+        AuthenticatedActor userActor = new AuthenticatedActor(7L, "user@example.com", Set.of("USER"));
+
+        assertThatThrownBy(() -> controller.getMyOrders(shipperActor, 0, 10))
                 .isInstanceOf(AccessDeniedException.class);
-        assertThatThrownBy(() -> controller.getMyRestaurantOrders(7L, "USER", 0, 10))
+        assertThatThrownBy(() -> controller.getMyRestaurantOrders(userActor, 0, 10))
                 .isInstanceOf(AccessDeniedException.class);
 
         verifyNoInteractions(orderService, previewService);

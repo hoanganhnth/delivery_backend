@@ -3,9 +3,10 @@
 ## Project Context
 
 Food-delivery backend, microservices trên Spring Boot 3.x. Giao tiếp async qua
-Kafka, realtime vị trí MVP qua raw WebSocket, cache/GEO qua Redis, auth JWT RSA
-qua API Gateway. gRPC không thuộc contract hiện tại. Chi tiết hệ thống và service
-map: `docs/product/overview.md`.
+Kafka, realtime vị trí MVP qua raw WebSocket, cache/GEO qua Redis. Auth phát JWT
+RS256/JWKS và từng resource service xác thực Bearer token; API Gateway chỉ route,
+rate-limit và strip legacy identity headers. gRPC không thuộc contract hiện tại.
+Chi tiết hệ thống và service map: `docs/product/overview.md`.
 
 Tài liệu định hướng (đọc trước khi sửa):
 - `ROADMAP_MVP_TO_PRODUCTION.md` — hiện trạng verify + việc cần làm (MVP → prod).

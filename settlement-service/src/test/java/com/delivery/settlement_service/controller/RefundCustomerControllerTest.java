@@ -1,5 +1,6 @@
 package com.delivery.settlement_service.controller;
 
+import com.delivery.auth.resourceserver.security.AuthenticatedActor;
 import com.delivery.settlement_service.dto.response.RefundCustomerCaseResponse;
 import com.delivery.settlement_service.service.RefundCaseService;
 import org.junit.jupiter.api.Test;
@@ -31,8 +32,9 @@ class RefundCustomerControllerTest {
     @Test
     void nonUserCannotReadRefundStatus() {
         RefundCustomerController controller = new RefundCustomerController(refundCaseService);
+        AuthenticatedActor shopActor = new AuthenticatedActor(7L, "shop@example.com", Set.of("SHOP_OWNER"));
 
-        var response = controller.list("SHOP_OWNER", 7L, 50);
+        var response = controller.list(shopActor, 50);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
         verify(refundCaseService, never()).listCustomerCases(anyLong(), anyInt());
@@ -41,8 +43,9 @@ class RefundCustomerControllerTest {
     @Test
     void missingTrustedUserIdentityIsRejected() {
         RefundCustomerController controller = new RefundCustomerController(refundCaseService);
+        AuthenticatedActor userActorWithoutId = new AuthenticatedActor(null, "user@example.com", Set.of("USER"));
 
-        var response = controller.list("USER", null, 50);
+        var response = controller.list(userActorWithoutId, 50);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
         verify(refundCaseService, never()).listCustomerCases(anyLong(), anyInt());
@@ -51,13 +54,14 @@ class RefundCustomerControllerTest {
     @Test
     void userReadsOnlyOwnRefundCases() {
         RefundCustomerController controller = new RefundCustomerController(refundCaseService);
+        AuthenticatedActor userActor = new AuthenticatedActor(7L, "user@example.com", Set.of("USER"));
         RefundCustomerCaseResponse refund = RefundCustomerCaseResponse.builder()
                 .orderId(101L)
                 .status("MANUAL_REVIEW")
                 .build();
         when(refundCaseService.listCustomerCases(7L, 25)).thenReturn(List.of(refund));
 
-        var response = controller.list("USER", 7L, 25);
+        var response = controller.list(userActor, 25);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody().getData()).containsExactly(refund);
