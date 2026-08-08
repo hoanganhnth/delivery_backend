@@ -40,6 +40,7 @@ public class V1__livestream_schema extends BaseJavaMigration {
         } else if (existing != 3) {
             throw new FlywayException("Existing Livestream schema is incomplete: livestream, product and event tables must exist");
         } else {
+            repairEmptyLegacyViewCount(connection, livestreams);
             requireColumns(connection, livestreams, LIVESTREAM_COLUMNS, "livestreams");
             requireColumns(connection, products, PRODUCT_COLUMNS, "livestream_products");
             requireColumns(connection, events, EVENT_COLUMNS, "livestream_events");
@@ -122,6 +123,26 @@ public class V1__livestream_schema extends BaseJavaMigration {
 
     private void requireColumns(Connection connection, String table, Set<String> required, String logicalName)
             throws SQLException {
+        Set<String> missing = missingColumns(connection, table, required);
+        if (!missing.isEmpty()) {
+            throw new FlywayException("Existing " + logicalName + " table is missing core column(s): " + missing);
+        }
+    }
+
+    private void repairEmptyLegacyViewCount(Connection connection, String livestreams) throws SQLException {
+        Set<String> missing = missingColumns(connection, livestreams, LIVESTREAM_COLUMNS);
+        if (!missing.equals(Set.of("view_count"))) {
+            return;
+        }
+        if (queryCount(connection, "SELECT count(*) FROM " + livestreams) != 0) {
+            return;
+        }
+        execute(connection, "ALTER TABLE " + livestreams
+                + " ADD COLUMN view_count BIGINT NOT NULL DEFAULT 0");
+    }
+
+    private Set<String> missingColumns(Connection connection, String table, Set<String> required)
+            throws SQLException {
         Set<String> columns = new HashSet<>();
         try (ResultSet resultSet = connection.getMetaData()
                 .getColumns(null, connection.getSchema(), table, "%")) {
@@ -129,9 +150,7 @@ public class V1__livestream_schema extends BaseJavaMigration {
         }
         Set<String> missing = new HashSet<>(required);
         missing.removeAll(columns);
-        if (!missing.isEmpty()) {
-            throw new FlywayException("Existing " + logicalName + " table is missing core column(s): " + missing);
-        }
+        return missing;
     }
 
     private long queryCount(Connection connection, String sql) throws SQLException {

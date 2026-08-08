@@ -141,7 +141,7 @@ wait_for_readiness() {
   local container_id state
 
   while (( SECONDS < deadline )); do
-    container_id="$(compose ps -q "$service")"
+    container_id="$(compose ps -q --all "$service")"
     if [[ -n "$container_id" ]]; then
       state="$(docker inspect --format '{{.State.Status}}' "$container_id" 2>/dev/null || true)"
       if [[ "$state" == 'running' ]] \
