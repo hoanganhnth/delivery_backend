@@ -154,8 +154,8 @@ printf '%s' "$rendered_config" | jq -e \
       "api-gateway", "auth-service", "user-service", "restaurant-service",
       "order-service", "delivery-service", "search-service", "shipper-service",
       "settlement-service", "notification-service", "match-service",
-      "tracking-service", "saga-orchestrator-service", "promotion-service",
-      "flashsale-service"
+      "tracking-service", "livestream-service", "saga-orchestrator-service",
+      "promotion-service", "analytics-service", "flashsale-service"
     ] | all(. as $service |
       $root.services[$service].environment.SPRING_CONFIG_IMPORT
         == "configserver:http://config-server:8888,optional:configtree:/run/secrets/"

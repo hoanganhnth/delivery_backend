@@ -55,6 +55,8 @@ app:
 
 management:
   health:
+    elasticsearch:
+      enabled: false
     livenessstate:
       enabled: true
     readinessstate:

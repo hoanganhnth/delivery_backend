@@ -62,6 +62,11 @@ then verifies a resource-service request before the Gateway cutover. It records
 only timestamps, release revision and public `kid` in ignored
 `.jwks-rollout-state`; it never records JWTs or PEM contents.
 
+Wave 2 first packages and builds the complete resource-service set, then
+replaces and readiness-checks one service at a time. Its default readiness
+window is ten minutes so a local Docker host cannot turn a concurrent JVM
+startup burst into a false migration failure.
+
 It is deliberately not a production deployment controller: Compose local builds
 mutable images and cannot provide a safe canary. Production follows the main
 runbook's immutable-image, readiness, metric/SLO and rollback requirements.

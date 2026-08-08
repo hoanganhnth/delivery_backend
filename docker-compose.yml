@@ -442,6 +442,7 @@ services:
     container_name: livestream-service
     expose: ["8094", "9090"]
     environment:
+      <<: *runtime-platform-environment
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/livestream_db
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
@@ -511,6 +512,7 @@ services:
     container_name: analytics-service
     expose: ["8097", "9090"]
     environment:
+      <<: *runtime-platform-environment
       ANALYTICS_PROCESSING_ENABLED: "false"
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/analytics_db
       SPRING_DATASOURCE_USERNAME: postgres

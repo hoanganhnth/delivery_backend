@@ -11,7 +11,7 @@ set -euo pipefail
 
 readonly ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly PHASE="${1:-}"
-readonly STARTUP_TIMEOUT_SECONDS="${JWKS_STARTUP_TIMEOUT_SECONDS:-180}"
+readonly STARTUP_TIMEOUT_SECONDS="${JWKS_STARTUP_TIMEOUT_SECONDS:-600}"
 readonly TOKEN_BUFFER_SECONDS="${JWKS_TOKEN_BUFFER_SECONDS:-1200}"
 readonly ACTIVE_KID="${JWT_ACTIVE_KID:-auth-key-1}"
 readonly EXPECTED_ISSUER="${JWT_ISSUER:-delivery-auth}"
@@ -337,8 +337,10 @@ wave2() {
 
   printf '%s\n' '[JWKS] Wave 2: package and replace JWKS resource services; legacy Gateway remains active.'
   (cd "$ROOT_DIR" && mvn -q -pl "$(IFS=,; echo "${RESOURCE_SERVICES[*]}")" -am -DskipTests package)
-  compose up -d --no-deps --build --force-recreate "${RESOURCE_SERVICES[@]}"
+  compose build "${RESOURCE_SERVICES[@]}"
   for service in "${RESOURCE_SERVICES[@]}"; do
+    printf '%s\n' "[JWKS] Wave 2: replace ${service}."
+    compose up -d --no-deps --force-recreate "$service"
     wait_for_readiness "$service"
   done
   authenticated_user_smoke "$token"
