@@ -28,3 +28,36 @@ Record image digest, config label, secret version identifiers (not values),
 registry instance IDs, readiness timestamps, smoke output and rollback decision
 in the deployment record. Rehearse dependency failure, readiness recovery,
 service re-registration and rollback before production promotion.
+
+## JWKS migration on local/staging Compose
+
+The final JWKS Gateway release must never be started on top of access tokens
+without `kid`. For a Compose staging rehearsal, use the phase runner rather
+than replacing every container in one `up --build` command:
+
+```bash
+# Existing stack must still run the pre-JWKS Gateway release.
+bash scripts/rollout-jwks-compose.sh wave1
+
+# Login through that legacy Gateway. Store only the new access token in a
+# protected, untracked file, then validate it without printing it.
+JWKS_SMOKE_ACCESS_TOKEN_FILE=/secure/path/access.jwt \
+  bash scripts/rollout-jwks-compose.sh verify-token
+
+# Only after the runner-recorded 15-minute access-token TTL plus five-minute
+# skew buffer has elapsed:
+JWKS_SMOKE_ACCESS_TOKEN_FILE=/secure/path/access.jwt \
+  bash scripts/rollout-jwks-compose.sh wave2
+JWKS_SMOKE_ACCESS_TOKEN_FILE=/secure/path/access.jwt \
+  bash scripts/rollout-jwks-compose.sh wave3
+```
+
+The runner preserves the old Gateway through Waves 1 and 2, checks Auth
+readiness and the public-only JWK shape, requires a post-Wave-1 RS256 token,
+then verifies a resource-service request before the Gateway cutover. It records
+only timestamps, release revision and public `kid` in ignored
+`.jwks-rollout-state`; it never records JWTs or PEM contents.
+
+It is deliberately not a production deployment controller: Compose local builds
+mutable images and cannot provide a safe canary. Production follows the main
+runbook's immutable-image, readiness, metric/SLO and rollback requirements.
