@@ -38,6 +38,8 @@ done
 rg -q 'CMD(-SHELL)? wget' "${ROOT_DIR}/Dockerfile" \
   && rg -Fq 'MANAGEMENT_SERVER_PORT:-9090}/actuator/health/readiness' "${ROOT_DIR}/Dockerfile" \
   || { echo "Docker healthcheck must use the private readiness probe." >&2; exit 1; }
+rg -Fq 'HEALTHCHECK --interval=15s --timeout=3s --start-period=120s --retries=12' "${ROOT_DIR}/Dockerfile" \
+  || { echo "Docker healthcheck must preserve the cold-start readiness budget." >&2; exit 1; }
 if rg -n 'ports:.*9090|"9090:[^"]*"' "${ROOT_DIR}/docker-compose.yml" >/dev/null; then
   echo "Management port must not be published by canonical Compose." >&2
   exit 1

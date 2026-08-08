@@ -24,8 +24,15 @@ RUN set -eu; \
 
 FROM amazoncorretto:17-alpine
 WORKDIR /app
-RUN apk add --no-cache wget
-COPY --from=artifact-check /build/service/target/*.jar app.jar
-HEALTHCHECK --interval=15s --timeout=3s --start-period=30s --retries=5 \
+RUN apk add --no-cache wget \
+    && addgroup -S -g 10001 delivery \
+    && adduser -S -D -H -u 10001 -G delivery delivery
+COPY --from=artifact-check --chown=delivery:delivery /build/service/target/*.jar app.jar
+USER 10001:10001
+# A cold JPA/Kafka/Eureka bootstrap on a constrained Docker Desktop VM can take
+# longer than two minutes. Keep the readiness endpoint strict, but give it a
+# startup budget that avoids marking a still-booting service unhealthy before
+# it has had a chance to register and expose management health.
+HEALTHCHECK --interval=15s --timeout=3s --start-period=120s --retries=12 \
   CMD wget -q -T 3 -O /dev/null "http://localhost:${MANAGEMENT_SERVER_PORT:-9090}/actuator/health/readiness" || exit 1
 ENTRYPOINT ["java", "-jar", "app.jar"]

@@ -1,0 +1,25 @@
+# Not included in any Kustomization. Copy into an approved environment overlay
+# only after the platform owner has selected ingress class, DNS, TLS secret and
+# WAF/origin policy. Only api-gateway may receive an Ingress.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api-gateway
+  annotations: {}
+spec:
+  ingressClassName: REPLACE_WITH_APPROVED_INGRESS_CLASS
+  tls:
+    - hosts:
+        - gateway.example.invalid
+      secretName: REPLACE_WITH_TLS_SECRET
+  rules:
+    - host: gateway.example.invalid
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: api-gateway
+                port:
+                  name: http

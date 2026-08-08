@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: delivery-data-plane
+  labels:
+    app.kubernetes.io/part-of: delivery-platform
+    delivery.platform/template: provider-neutral
+    delivery.platform/wave: control
+data:
+  # Intentionally invalid placeholders. A real overlay must use private managed
+  # endpoints or cluster DNS and must not commit production credential values.
+  DATABASE_HOST: postgresql.example.invalid
+  DATABASE_PORT: "5432"

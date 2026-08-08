@@ -15,8 +15,15 @@ The Maven reactor is currently verified on JDK 17. Check `java -version` and
 bash scripts/gen-keys.sh
 JAVA_HOME=$(/usr/libexec/java_home -v 17) mvn -DskipTests package
 ./scripts/verify-compose-config.sh
-docker compose -f docker-compose.yml -f docker-compose.secrets.yml up --build
+JAVA_HOME=$(/usr/libexec/java_home -v 17) \
+  STARTUP_TIMEOUT_SECONDS=480 \
+  bash scripts/verify-runtime-startup.sh
+bash scripts/verify-observability-runtime.sh
 ```
+
+The standard proof starts the 13-service COD core in dependency order and keeps
+the four non-core capabilities stopped. A plain Compose command is useful for
+interactive debugging, but it is not the rebuild acceptance gate.
 
 Docker images consume the host-built Maven JARs. The shared Dockerfile compares
 the packaged artifact with the module `pom.xml`, root reactor `pom.xml` and all
@@ -61,6 +68,18 @@ docker compose -f docker-compose.yml -f docker-compose.secrets.yml \
 ```
 
 Do not use the debug override as the normal client or deployment topology.
+
+To deliberately rehearse the four non-core capabilities, enable the Compose
+profile and provide enough Docker Desktop memory:
+
+```bash
+COMPOSE_PROFILES=optional-capabilities \
+  docker compose -f docker-compose.yml -f docker-compose.secrets.yml \
+  up -d --build livestream-service promotion-service analytics-service flashsale-service
+```
+
+Their source/API mappings do not make them part of the default COD runtime;
+checkout/payment behavior remains separately gated.
 
 ## Optional providers
 

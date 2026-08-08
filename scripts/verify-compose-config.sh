@@ -35,14 +35,23 @@ if [[ -z "${JWT_RETIRING_KID:-}" ]]; then
   export JWT_RETIRING_KID
 fi
 
-docker compose config --quiet
-rendered_config="$(docker compose config --format json)"
-docker compose -f docker-compose.yml -f docker-compose.secrets.yml config --quiet
-rendered_secret_config="$(docker compose -f docker-compose.yml -f docker-compose.secrets.yml config --format json)"
-docker compose -f docker-compose.yml -f docker-compose.secrets.yml -f docker-compose.jwt-overlap.yml config --quiet
-rendered_rotation_config="$(docker compose -f docker-compose.yml -f docker-compose.secrets.yml -f docker-compose.jwt-overlap.yml config --format json)"
-rendered_static_route_config="$(docker compose -f docker-compose.yml -f docker-compose.static-routes.yml config --format json)"
+default_profile_config="$(docker compose config --format json)"
+COMPOSE_PROFILES=optional-capabilities docker compose config --quiet
+rendered_config="$(COMPOSE_PROFILES=optional-capabilities docker compose config --format json)"
+COMPOSE_PROFILES=optional-capabilities docker compose -f docker-compose.yml -f docker-compose.secrets.yml config --quiet
+rendered_secret_config="$(COMPOSE_PROFILES=optional-capabilities docker compose -f docker-compose.yml -f docker-compose.secrets.yml config --format json)"
+COMPOSE_PROFILES=optional-capabilities docker compose -f docker-compose.yml -f docker-compose.secrets.yml -f docker-compose.jwt-overlap.yml config --quiet
+rendered_rotation_config="$(COMPOSE_PROFILES=optional-capabilities docker compose -f docker-compose.yml -f docker-compose.secrets.yml -f docker-compose.jwt-overlap.yml config --format json)"
+rendered_static_route_config="$(COMPOSE_PROFILES=optional-capabilities docker compose -f docker-compose.yml -f docker-compose.static-routes.yml config --format json)"
 expected_kafka_volume_name="${KAFKA_VOLUME_NAME:-backend_delivery_kafka_data}"
+
+printf '%s' "$default_profile_config" | jq -e '
+  . as $root
+  | ([
+    "promotion-service", "flashsale-service", "analytics-service",
+    "livestream-service"
+  ] | all(. as $service | ($root.services | has($service) | not)))
+' >/dev/null
 
 printf '%s' "$rendered_config" | jq -e \
   --arg expectedKafkaVolumeName "$expected_kafka_volume_name" '
@@ -144,12 +153,33 @@ printf '%s' "$rendered_config" | jq -e \
       "analytics-service"
     ] | all(. as $service |
       $root.services[$service].environment.SPRING_KAFKA_BOOTSTRAP_SERVERS == "kafka:9092"))
-    and (["postgres", "redis", "kafka", "elasticsearch"]
+    and (["postgres", "redis", "kafka", "elasticsearch", "prometheus", "grafana"]
       | all(. as $service | $root.services[$service].healthcheck != null))
+    and $root.services.prometheus.healthcheck.test[1]
+      == "wget -q -T 3 -O /dev/null http://localhost:9090/-/ready"
+    and $root.services.grafana.healthcheck.test[1]
+      == "wget -q -T 3 -O /dev/null http://localhost:3000/api/health"
+    and $root.services.grafana.depends_on.prometheus.condition == "service_healthy"
     and ($root.services["config-server"].healthcheck != null)
     and ($root.services["discovery-server"].healthcheck != null)
     and ($root.services["config-server"].ports // [] | length == 0)
     and ($root.services["discovery-server"].ports // [] | length == 0)
+    and ([
+      "api-gateway", "auth-service", "user-service", "restaurant-service",
+      "order-service", "delivery-service", "search-service", "shipper-service",
+      "settlement-service", "notification-service", "match-service",
+      "tracking-service", "livestream-service", "saga-orchestrator-service",
+      "promotion-service", "analytics-service", "flashsale-service"
+    ] | all(. as $service |
+      $root.services[$service].depends_on["config-server"].condition
+        == "service_healthy"
+      and $root.services[$service].depends_on["discovery-server"].condition
+        == "service_healthy"))
+    and ([
+      "promotion-service", "flashsale-service", "analytics-service",
+      "livestream-service"
+    ] | all(. as $service |
+      ($root.services[$service].profiles | index("optional-capabilities")) != null))
     and ([
       "api-gateway", "auth-service", "user-service", "restaurant-service",
       "order-service", "delivery-service", "search-service", "shipper-service",

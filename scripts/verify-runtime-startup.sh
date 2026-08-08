@@ -10,7 +10,9 @@ readonly -a COMPOSE_COMMAND=(
 )
 
 readonly INFRA_SERVICES=(postgres redis kafka elasticsearch)
-readonly APP_SERVICES=(
+readonly OBSERVABILITY_SERVICES=(prometheus grafana)
+readonly CONTROL_PLANE_SERVICES=(config-server discovery-server)
+readonly CORE_APP_SERVICES=(
   api-gateway
   auth-service
   user-service
@@ -23,12 +25,37 @@ readonly APP_SERVICES=(
   notification-service
   match-service
   tracking-service
-  livestream-service
   saga-orchestrator-service
+)
+readonly OPTIONAL_CAPABILITY_SERVICES=(
+  livestream-service
   promotion-service
   analytics-service
   flashsale-service
 )
+readonly INCLUDE_DISABLED_CAPABILITIES="${RUNTIME_INCLUDE_DISABLED_CAPABILITIES:-false}"
+
+APP_SERVICES=("${CORE_APP_SERVICES[@]}")
+case "$INCLUDE_DISABLED_CAPABILITIES" in
+  true)
+    APP_SERVICES+=("${OPTIONAL_CAPABILITY_SERVICES[@]}")
+    export COMPOSE_PROFILES="${COMPOSE_PROFILES:+${COMPOSE_PROFILES},}optional-capabilities"
+    ;;
+  false)
+    ;;
+  *)
+    printf 'RUNTIME_INCLUDE_DISABLED_CAPABILITIES must be true or false, got %s\n' \
+      "$INCLUDE_DISABLED_CAPABILITIES" >&2
+    exit 1
+    ;;
+esac
+
+RESOURCE_APP_SERVICES=()
+for service in "${APP_SERVICES[@]}"; do
+  if [[ "$service" != "auth-service" && "$service" != "api-gateway" ]]; then
+    RESOURCE_APP_SERVICES+=("$service")
+  fi
+done
 
 command -v docker >/dev/null
 command -v curl >/dev/null
@@ -114,7 +141,6 @@ cmp -s \
 
 bash scripts/verify-compose-config.sh
 "${COMPOSE_COMMAND[@]}" config --quiet
-"${COMPOSE_COMMAND[@]}" up -d --build
 
 deadline=$((SECONDS + STARTUP_TIMEOUT_SECONDS))
 
@@ -141,17 +167,16 @@ wait_for_infra() {
 
 wait_for_app() {
   local service="$1"
-  local container_id state
+  local container_id state health
   while (( SECONDS < deadline )); do
     container_id="$("${COMPOSE_COMMAND[@]}" ps -aq "$service")"
     if [[ -n "$container_id" ]]; then
       state="$(docker inspect --format '{{.State.Status}}' "$container_id")"
-      if [[ "$state" == "running" ]] \
-          && "${COMPOSE_COMMAND[@]}" logs --no-color "$service" 2>&1 \
-            | grep -E 'Started .*Application' >/dev/null; then
+      health="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$container_id")"
+      if [[ "$state" == "running" && "$health" == "healthy" ]]; then
         return 0
       fi
-      if [[ "$state" == "exited" || "$state" == "dead" ]]; then
+      if [[ "$state" == "exited" || "$state" == "dead" || "$health" == "unhealthy" ]]; then
         "${COMPOSE_COMMAND[@]}" logs --no-color --tail=160 "$service" >&2
         return 1
       fi
@@ -162,18 +187,57 @@ wait_for_app() {
   return 1
 }
 
+wait_for_gateway_http() {
+  local path="$1"
+  local deadline=$((SECONDS + STARTUP_TIMEOUT_SECONDS))
+  local status
+  while (( SECONDS < deadline )); do
+    status="$(curl --silent --max-time 15 -o /dev/null -w '%{http_code}' \
+      "http://127.0.0.1:8079${path}" 2>/dev/null || true)"
+    if [[ "$status" == "200" ]]; then
+      return 0
+    fi
+    sleep "$POLL_SECONDS"
+  done
+  "${COMPOSE_COMMAND[@]}" logs --no-color --tail=160 api-gateway >&2 || true
+  printf 'Gateway public smoke did not converge for %s.\n' "$path" >&2
+  return 1
+}
+
+echo "Starting control plane before config-fail-fast application workloads."
+"${COMPOSE_COMMAND[@]}" up -d --build tracing-collector "${CONTROL_PLANE_SERVICES[@]}"
+for service in "${CONTROL_PLANE_SERVICES[@]}"; do
+  wait_for_infra "$service"
+done
+
+echo "Starting local data plane."
+"${COMPOSE_COMMAND[@]}" up -d --build "${INFRA_SERVICES[@]}"
 for service in "${INFRA_SERVICES[@]}"; do
   wait_for_infra "$service"
 done
 
-for service in "${APP_SERVICES[@]}"; do
+echo "Starting monitoring dependencies."
+"${COMPOSE_COMMAND[@]}" up -d --build "${OBSERVABILITY_SERVICES[@]}"
+for service in "${OBSERVABILITY_SERVICES[@]}"; do
+  wait_for_infra "$service"
+done
+
+echo "Starting Auth before JWKS resource services."
+"${COMPOSE_COMMAND[@]}" up -d --build auth-service
+wait_for_app auth-service
+
+echo "Starting ${#RESOURCE_APP_SERVICES[@]} resource services."
+"${COMPOSE_COMMAND[@]}" up -d --build "${RESOURCE_APP_SERVICES[@]}"
+for service in "${RESOURCE_APP_SERVICES[@]}"; do
   wait_for_app "$service"
 done
 
-curl --fail --silent --show-error --max-time 15 \
-  "http://127.0.0.1:8079/api/restaurants" >/dev/null
-curl --fail --silent --show-error --max-time 15 \
-  "http://127.0.0.1:8079/api/search/restaurants?q=pho&page=0&size=1" >/dev/null
+echo "Starting Gateway after Auth and resource services."
+"${COMPOSE_COMMAND[@]}" up -d --build api-gateway
+wait_for_app api-gateway
+
+wait_for_gateway_http "/api/restaurants"
+wait_for_gateway_http "/api/search/restaurants?q=pho&page=0&size=1"
 
 printf '%s\n' \
-  "Runtime startup proof passed: canonical volumes preserved, infrastructure healthy, 17 applications started, Gateway public reads responded."
+  "Runtime startup proof passed: canonical volumes preserved, infrastructure/observability healthy, ${#APP_SERVICES[@]} application services started, Gateway public reads responded."

@@ -1,6 +1,7 @@
 # Hướng dẫn sử dụng Docker cho dự án Backend Delivery
 
-Tài liệu này tóm tắt cách chạy hạ tầng và 17 ứng dụng backend. Runbook chuẩn và
+Tài liệu này tóm tắt cách chạy hạ tầng và 13 ứng dụng backend COD core. Bốn
+capability mở rộng nằm trong Compose profile opt-in. Runbook chuẩn và
 các lưu ý phục hồi nằm tại `docs/runbook-local.md`.
 
 ## 1. Yêu cầu chuẩn bị
@@ -21,12 +22,19 @@ Dockerfile sẽ dừng build nếu `src/` hoặc Maven metadata mới hơn JAR, 
 nhầm source cũ. Có thể kiểm tra policy bằng
 `bash scripts/verify-docker-artifact-freshness.sh`.
 
-### Bước 2: Khởi động hệ thống
-Sử dụng lệnh sau để build các images và chạy toàn bộ containers:
+### Bước 2: Khởi động COD core
+Sử dụng startup proof có thứ tự phụ thuộc để build images và chạy core:
 ```bash
 bash scripts/verify-compose-config.sh
-docker compose -f docker-compose.yml -f docker-compose.secrets.yml up -d --build
+JAVA_HOME=$(/usr/libexec/java_home -v 17) \
+  STARTUP_TIMEOUT_SECONDS=480 \
+  bash scripts/verify-runtime-startup.sh
+bash scripts/verify-observability-runtime.sh
 ```
+
+`promotion-service`, `flashsale-service`, `analytics-service` và
+`livestream-service` chỉ chạy khi bật `COMPOSE_PROFILES=optional-capabilities`;
+không bật profile này trong lần khởi động MVP thông thường.
 
 ### Bước 3: Kiểm tra trạng thái
 Kiểm tra xem các container đã chạy chưa:
@@ -38,7 +46,7 @@ docker compose -f docker-compose.yml -f docker-compose.secrets.yml ps
 
 | Lệnh | Mô tả |
 |------|-------|
-| `docker compose up -d` | Chạy toàn bộ hệ thống ở chế độ background. |
+| `docker compose up -d` | Chạy topology mặc định (core; optional profile không tự bật). |
 | `docker compose stop` | Dừng containers nhưng giữ volume dữ liệu. |
 | `docker compose start` | Khởi động lại containers đã dừng. |
 | `docker compose down` | Dừng và xóa containers/network, vẫn giữ named volume nếu không thêm `-v`. |

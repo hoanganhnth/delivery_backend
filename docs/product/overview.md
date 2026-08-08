@@ -24,9 +24,9 @@ sau khi giao xong.
 | tracking-service | 8093 | Redis GEO + raw WebSocket location; internal REST mặc định tắt |
 | livestream-service | 8094 | Agora experimental; toàn bộ HTTP API ẩn trong MVP |
 | saga-orchestrator-service | 8095 | Điều phối restaurant-confirm → delivery → matching |
-| promotion-service | 8096 | Voucher reads/collect; checkout reservation tắt trong COD MVP |
+| promotion-service | 8096 | Voucher read/collect mapping; nằm trong Compose `optional-capabilities`, checkout reservation tắt trong COD MVP |
 | analytics-service | 8097 | Projection/dashboard experimental, processing tắt mặc định |
-| flashsale-service | 8092 (container riêng) | Public/admin reads; merchant/checkout reservation tắt |
+| flashsale-service | 8092 (container riêng) | Public/admin read mapping; nằm trong Compose `optional-capabilities`, merchant/checkout reservation tắt |
 
 ## Luồng đặt hàng (rút gọn)
 

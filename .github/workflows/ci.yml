@@ -29,10 +29,22 @@ jobs:
         run: ./scripts/verify-http-api-inventory.sh
       - name: Verify discovery/config/secrets Compose topology
         run: ./scripts/verify-compose-config.sh
+      - name: Verify local runtime recovery script safety
+        run: bash scripts/verify-local-runtime-operations.sh
+      - name: Set up Kubernetes renderer
+        uses: azure/setup-kubectl@v4
+        with:
+          version: v1.34.1
+      - name: Verify Kubernetes deployment foundation
+        run: bash scripts/verify-kubernetes-manifests.sh
       - name: Secret scan
         run: bash scripts/verify-secrets.sh
       - name: Package deployment artifacts
         run: mvn -B -DskipTests package
+      - name: Verify Docker artifact freshness
+        run: bash scripts/verify-docker-artifact-freshness.sh
+      - name: Verify non-root runtime image
+        run: bash scripts/verify-docker-runtime-security.sh
       - name: Upload Maven reports
         if: always()
         uses: actions/upload-artifact@v4

@@ -34,8 +34,12 @@ hidden/disabled, không được hiểu là public contract chưa xác định.
 DB/URL/Kafka/Redis/JVM env, healthcheck hạ tầng và public-port boundary đúng
 contract. Base Compose chỉ publish Gateway cho application traffic; debug port
 override là opt-in. Runtime startup proof sau đó đã PASS qua
-`scripts/verify-runtime-startup.sh`: canonical volumes được giữ, hạ tầng healthy,
-17 application started và Gateway public reads responded.
+`scripts/verify-runtime-startup.sh`: canonical volumes được giữ, hạ tầng healthy
+và Gateway public reads responded. Từ checkpoint hiện tại, script mặc định chỉ
+start 13 service thuộc COD MVP; bốn capability `livestream`/`promotion`/
+`analytics`/`flashsale` cần `RUNTIME_INCLUDE_DISABLED_CAPABILITIES=true` để
+start cùng. Checkpoint lịch sử 17 service vẫn được giữ như evidence, không phải
+default runtime policy.
 
 Analytics context test đã được cô lập sang H2 in-memory sau khi audit phát hiện
 suite cũ kết nối và chạy DDL trên `analytics_db` local. Analytics REST, listener
@@ -558,9 +562,11 @@ rehearsal đồng thời bằng Redis/PostgreSQL thật vẫn OPEN.
 - Gateway không còn auth catch-all hoặc orphan `/api/orchestrator/**`; auth,
   Firebase và Promotion routes đều được method-scope theo controller thật.
 - `scripts/verify-runtime-startup.sh` là startup proof có thể lặp lại cho 4 infra,
-  17 app và Gateway smoke; checkpoint 2026-07-28/29 đã PASS: canonical volumes
-  được giữ, hạ tầng healthy, 17 application started và Gateway public reads
-  responded. Đây là runtime proof, không còn chỉ là fail-closed.
+  control plane, observability, 13 app COD MVP và Gateway smoke; đặt
+  `RUNTIME_INCLUDE_DISABLED_CAPABILITIES=true` mới include đủ bốn capability
+  disabled. Checkpoint lịch sử 2026-07-28/29 từng PASS đủ 17 application; default
+  hiện tại không khởi động capability off để không biến resource pressure local
+  thành lỗi MVP. Đây là runtime proof, không còn chỉ là fail-closed.
 - Notification repository không còn dead unbounded list methods; Auth account
   blocking chỉ load active sessions nhưng vẫn xử lý full set để revoke chính xác.
 - Delivery/Match không còn legacy HTTP client tới Tracking port 8090; canonical
