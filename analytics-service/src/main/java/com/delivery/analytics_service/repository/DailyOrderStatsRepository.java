@@ -3,6 +3,7 @@ package com.delivery.analytics_service.repository;
 import com.delivery.analytics_service.entity.DailyOrderStats;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
@@ -13,6 +14,53 @@ import java.util.Optional;
 
 @Repository
 public interface DailyOrderStatsRepository extends JpaRepository<DailyOrderStats, Long> {
+
+    @Modifying(flushAutomatically = true)
+    @Query(value = """
+            INSERT INTO daily_order_stats (
+                stat_date, restaurant_id, total_orders, delivered_orders,
+                cancelled_orders, pending_orders, total_revenue,
+                total_shipping_fee, total_discount, avg_order_value, new_customers
+            ) VALUES (:date, :restaurantId, 1, 0, 0, 1, 0, 0, 0, 0, 0)
+            ON CONFLICT (stat_date, restaurant_id) DO UPDATE SET
+                total_orders = daily_order_stats.total_orders + 1,
+                pending_orders = daily_order_stats.pending_orders + 1
+            """, nativeQuery = true)
+    int incrementCreatedPostgres(@Param("date") LocalDate date,
+                                 @Param("restaurantId") Long restaurantId);
+
+    @Modifying(flushAutomatically = true)
+    @Query(value = """
+            INSERT INTO daily_order_stats (
+                stat_date, restaurant_id, total_orders, delivered_orders,
+                cancelled_orders, pending_orders, total_revenue,
+                total_shipping_fee, total_discount, avg_order_value, new_customers
+            ) VALUES (:date, :restaurantId, 0, 1, 0, 0, :amount, 0, 0, :amount, 0)
+            ON CONFLICT (stat_date, restaurant_id) DO UPDATE SET
+                delivered_orders = daily_order_stats.delivered_orders + 1,
+                pending_orders = GREATEST(daily_order_stats.pending_orders - 1, 0),
+                total_revenue = COALESCE(daily_order_stats.total_revenue, 0) + :amount,
+                avg_order_value = ROUND(
+                    (COALESCE(daily_order_stats.total_revenue, 0) + :amount)
+                    / (daily_order_stats.delivered_orders + 1), 0)
+            """, nativeQuery = true)
+    int incrementDeliveredPostgres(@Param("date") LocalDate date,
+                                   @Param("restaurantId") Long restaurantId,
+                                   @Param("amount") BigDecimal amount);
+
+    @Modifying(flushAutomatically = true)
+    @Query(value = """
+            INSERT INTO daily_order_stats (
+                stat_date, restaurant_id, total_orders, delivered_orders,
+                cancelled_orders, pending_orders, total_revenue,
+                total_shipping_fee, total_discount, avg_order_value, new_customers
+            ) VALUES (:date, :restaurantId, 0, 0, 1, 0, 0, 0, 0, 0, 0)
+            ON CONFLICT (stat_date, restaurant_id) DO UPDATE SET
+                cancelled_orders = daily_order_stats.cancelled_orders + 1,
+                pending_orders = GREATEST(daily_order_stats.pending_orders - 1, 0)
+            """, nativeQuery = true)
+    int incrementCancelledPostgres(@Param("date") LocalDate date,
+                                   @Param("restaurantId") Long restaurantId);
 
     Optional<DailyOrderStats> findByStatDateAndRestaurantId(LocalDate statDate, Long restaurantId);
 

@@ -9,9 +9,12 @@ class KafkaConsumerConfigTest {
 
     @Test
     void usesConfiguredBootstrapServers() {
-        KafkaConsumerConfig config = new KafkaConsumerConfig("kafka:19092");
+        KafkaConsumerConfig config = new KafkaConsumerConfig(
+                "kafka:19092", "analytics-proof", false);
 
         assertThat(config.consumerFactory().getConfigurationProperties())
                 .containsEntry(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "kafka:19092");
+        assertThat(config.consumerFactory().getConfigurationProperties())
+                .containsEntry(ConsumerConfig.GROUP_ID_CONFIG, "analytics-proof");
     }
 }

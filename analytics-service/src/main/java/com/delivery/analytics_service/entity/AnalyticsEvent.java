@@ -62,4 +62,8 @@ public class AnalyticsEvent {
     /** Raw JSON payload cho debugging/re-processing */
     @Column(name = "raw_payload", columnDefinition = "TEXT")
     private String rawPayload;
+
+    /** SHA-256 of the exact Kafka value; null only for pre-hardening rows. */
+    @Column(name = "payload_fingerprint", length = 64, updatable = false)
+    private String payloadFingerprint;
 }

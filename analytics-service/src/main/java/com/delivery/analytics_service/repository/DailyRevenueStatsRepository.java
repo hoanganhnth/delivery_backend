@@ -3,6 +3,7 @@ package com.delivery.analytics_service.repository;
 import com.delivery.analytics_service.entity.DailyRevenueStats;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
@@ -12,6 +13,30 @@ import java.util.Optional;
 
 @Repository
 public interface DailyRevenueStatsRepository extends JpaRepository<DailyRevenueStats, Long> {
+
+    @Modifying(flushAutomatically = true)
+    @Query(value = """
+            INSERT INTO daily_revenue_stats (
+                stat_date, restaurant_id, total_payment_amount,
+                successful_payments, failed_payments, total_withdrawals, platform_fee
+            ) VALUES (:date, NULL, :amount, 1, 0, 0, 0)
+            ON CONFLICT (stat_date, restaurant_id) DO UPDATE SET
+                successful_payments = daily_revenue_stats.successful_payments + 1,
+                total_payment_amount = COALESCE(daily_revenue_stats.total_payment_amount, 0) + :amount
+            """, nativeQuery = true)
+    int incrementPaymentCompletedPostgres(@Param("date") LocalDate date,
+                                          @Param("amount") java.math.BigDecimal amount);
+
+    @Modifying(flushAutomatically = true)
+    @Query(value = """
+            INSERT INTO daily_revenue_stats (
+                stat_date, restaurant_id, total_payment_amount,
+                successful_payments, failed_payments, total_withdrawals, platform_fee
+            ) VALUES (:date, NULL, 0, 0, 1, 0, 0)
+            ON CONFLICT (stat_date, restaurant_id) DO UPDATE SET
+                failed_payments = daily_revenue_stats.failed_payments + 1
+            """, nativeQuery = true)
+    int incrementPaymentFailedPostgres(@Param("date") LocalDate date);
 
     Optional<DailyRevenueStats> findByStatDateAndRestaurantId(LocalDate statDate, Long restaurantId);
 

@@ -8,6 +8,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.annotation.RetryableTopic;
+import org.springframework.retry.annotation.Backoff;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Component;
@@ -31,7 +33,14 @@ public class OrderEventListener {
     private final EventProcessingService eventService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    @KafkaListener(topics = KafkaTopicConstants.ORDER_CREATED, groupId = "analytics-service-group")
+    @RetryableTopic(attempts = "${app.kafka.retry.attempts:4}",
+            backoff = @Backoff(delayExpression = "${app.kafka.retry.initial-delay-ms:1000}",
+                    multiplierExpression = "${app.kafka.retry.multiplier:2.0}",
+                    maxDelayExpression = "${app.kafka.retry.max-delay-ms:10000}"),
+            exclude = IllegalArgumentException.class,
+            kafkaTemplate = "analyticsRetryKafkaTemplate", autoCreateTopics = "false",
+            retryTopicSuffix = "-retry-analytics", dltTopicSuffix = ".analytics.DLT")
+    @KafkaListener(topics = KafkaTopicConstants.ORDER_CREATED)
     public void onOrderCreated(@Payload String message, Acknowledgment ack) {
         try {
             log.info("📥 [Analytics] Received ORDER_CREATED event");
@@ -52,11 +61,19 @@ public class OrderEventListener {
             ack.acknowledge();
         } catch (Exception e) {
             log.error("❌ [Analytics] Failed to process ORDER_CREATED event: {}", e.getMessage(), e);
+            if (e instanceof IllegalArgumentException invalid) throw invalid;
             throw new IllegalStateException("Failed to process ORDER_CREATED event", e);
         }
     }
 
-    @KafkaListener(topics = KafkaTopicConstants.ORDER_STATUS_UPDATED, groupId = "analytics-service-group")
+    @RetryableTopic(attempts = "${app.kafka.retry.attempts:4}",
+            backoff = @Backoff(delayExpression = "${app.kafka.retry.initial-delay-ms:1000}",
+                    multiplierExpression = "${app.kafka.retry.multiplier:2.0}",
+                    maxDelayExpression = "${app.kafka.retry.max-delay-ms:10000}"),
+            exclude = IllegalArgumentException.class,
+            kafkaTemplate = "analyticsRetryKafkaTemplate", autoCreateTopics = "false",
+            retryTopicSuffix = "-retry-analytics", dltTopicSuffix = ".analytics.DLT")
+    @KafkaListener(topics = KafkaTopicConstants.ORDER_STATUS_UPDATED)
     public void onOrderStatusUpdated(@Payload String message, Acknowledgment ack) {
         try {
             log.info("📥 [Analytics] Received ORDER_STATUS_UPDATED event");
@@ -78,11 +95,19 @@ public class OrderEventListener {
             ack.acknowledge();
         } catch (Exception e) {
             log.error("❌ [Analytics] Failed to process ORDER_STATUS_UPDATED event: {}", e.getMessage(), e);
+            if (e instanceof IllegalArgumentException invalid) throw invalid;
             throw new IllegalStateException("Failed to process ORDER_STATUS_UPDATED event", e);
         }
     }
 
-    @KafkaListener(topics = KafkaTopicConstants.ORDER_CANCELLED, groupId = "analytics-service-group")
+    @RetryableTopic(attempts = "${app.kafka.retry.attempts:4}",
+            backoff = @Backoff(delayExpression = "${app.kafka.retry.initial-delay-ms:1000}",
+                    multiplierExpression = "${app.kafka.retry.multiplier:2.0}",
+                    maxDelayExpression = "${app.kafka.retry.max-delay-ms:10000}"),
+            exclude = IllegalArgumentException.class,
+            kafkaTemplate = "analyticsRetryKafkaTemplate", autoCreateTopics = "false",
+            retryTopicSuffix = "-retry-analytics", dltTopicSuffix = ".analytics.DLT")
+    @KafkaListener(topics = KafkaTopicConstants.ORDER_CANCELLED)
     public void onOrderCancelled(@Payload String message, Acknowledgment ack) {
         try {
             log.info("📥 [Analytics] Received ORDER_CANCELLED event");
@@ -96,6 +121,7 @@ public class OrderEventListener {
             ack.acknowledge();
         } catch (Exception e) {
             log.error("❌ [Analytics] Failed to process ORDER_CANCELLED event: {}", e.getMessage(), e);
+            if (e instanceof IllegalArgumentException invalid) throw invalid;
             throw new IllegalStateException("Failed to process ORDER_CANCELLED event", e);
         }
     }
