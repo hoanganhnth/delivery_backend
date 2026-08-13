@@ -40,7 +40,9 @@ curl -fsS -X POST http://localhost:8079/api/firebase/register-token \
   -d '{"token":"<FCM_TOKEN>"}'
 ```
 
-Không tự cấp `X-User-Id`/`X-Role`; Gateway sở hữu trusted identity headers.
+Không tự cấp `X-User-Id`/`X-Role`; client chỉ gửi
+`Authorization: Bearer <access-token>`. Gateway không sở hữu hay inject trusted identity headers;
+Notification tự validate JWT qua Auth JWKS.
 Internal send endpoint yêu cầu `Internal-Token` và không public qua Gateway.
 
 ## Firebase

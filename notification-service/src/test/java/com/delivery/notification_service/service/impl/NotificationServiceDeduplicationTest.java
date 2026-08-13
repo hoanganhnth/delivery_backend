@@ -134,12 +134,12 @@ class NotificationServiceDeduplicationTest {
         FirebaseService firebaseService = mock(FirebaseService.class);
         NotificationServiceImpl service = new NotificationServiceImpl(
                 repository, new NotificationMapper(), firebaseService);
-        when(repository.findByDeduplicationKey("order-created:7:42")).thenReturn(Optional.empty());
-        when(repository.saveAndFlush(any())).thenAnswer(invocation -> {
-            Notification saved = invocation.getArgument(0);
-            saved.setId(9L);
-            return saved;
-        });
+        Notification pending = storedPendingNotification();
+        when(repository.findByDeduplicationKey("order-created:7:42"))
+                .thenReturn(Optional.empty(), Optional.of(pending));
+        when(repository.insertIfAbsentPostgres(
+                anyLong(), anyString(), anyString(), anyString(), anyString(), anyString(), anyBoolean(),
+                any(), any(), any(), anyString())).thenReturn(1);
         when(repository.findByIdForUpdate(9L)).thenReturn(Optional.of(storedPendingNotification()));
         doThrow(new IllegalStateException("firebase unavailable"))
                 .when(firebaseService).sendPushNotificationToUser(
@@ -147,8 +147,10 @@ class NotificationServiceDeduplicationTest {
 
         assertThrows(IllegalStateException.class, () -> service.sendNotification(completeRequest()));
 
-        verify(repository).saveAndFlush(argThat(notification ->
-                NotificationConstants.STATUS_PENDING.equals(notification.getStatus())));
+        verify(repository).insertIfAbsentPostgres(
+                eq(42L), eq("Existing"), eq("Existing message"), eq("ORDER_CREATED"), eq("MEDIUM"),
+                eq(NotificationConstants.STATUS_PENDING), eq(false), isNull(), isNull(), isNull(),
+                eq("order-created:7:42"));
         verify(repository, never()).save(argThat(notification ->
                 NotificationConstants.STATUS_SENT.equals(notification.getStatus())));
     }

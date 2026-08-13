@@ -21,6 +21,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.springframework.stereotype.Component;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -28,7 +29,6 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import java.math.BigDecimal;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.time.LocalDateTime;
 import java.util.HexFormat;
 import com.delivery.settlement_service.metrics.BusinessMetrics;
 
@@ -52,6 +52,9 @@ public class DeliveryCompletedEventListener {
     private final BusinessMetrics businessMetrics;
     private final ObjectMapper objectMapper = new ObjectMapper()
             .registerModule(new JavaTimeModule());
+
+    @Value("${spring.datasource.url:}")
+    private String dataSourceUrl;
 
     @Autowired
     public DeliveryCompletedEventListener(TransactionService transactionService,
@@ -275,14 +278,29 @@ public class DeliveryCompletedEventListener {
             throw new IllegalArgumentException("order already settled by a different event: " + byOrder.getEventId());
         }
 
-        settlementReceiptRepository.saveAndFlush(SettlementReceipt.builder()
-                .eventId(event.getEventId())
-                .orderId(event.getOrderId())
-                .deliveryId(event.getDeliveryId())
-                .payloadFingerprint(fingerprint)
-                .createdAt(LocalDateTime.now())
-                .build());
-        return false;
+        // The receipt and all financial postings share this listener
+        // transaction. PostgreSQL blocks a competing event-id claimant until
+        // this transaction commits, then returns zero for the exact replay;
+        // the loser can ACK rather than spending a Kafka retry on a harmless
+        // duplicate-key exception.
+        if (insertIfAbsent(event, fingerprint) == 1) {
+            return false;
+        }
+
+        SettlementReceipt concurrentReceipt = settlementReceiptRepository.findById(event.getEventId())
+                .orElseThrow(() -> new IllegalStateException(
+                        "settlement receipt conflict resolved without a committed receipt"));
+        requireMatchingReceipt(concurrentReceipt, event, fingerprint);
+        return true;
+    }
+
+    private int insertIfAbsent(DeliveryCompletedEvent event, String fingerprint) {
+        if (dataSourceUrl != null && dataSourceUrl.startsWith("jdbc:h2:")) {
+            return settlementReceiptRepository.insertIfAbsentH2(
+                    event.getEventId(), event.getOrderId(), event.getDeliveryId(), fingerprint);
+        }
+        return settlementReceiptRepository.insertIfAbsentPostgres(
+                event.getEventId(), event.getOrderId(), event.getDeliveryId(), fingerprint);
     }
 
     private void requireMatchingReceipt(SettlementReceipt receipt, DeliveryCompletedEvent event, String fingerprint) {

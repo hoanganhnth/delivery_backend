@@ -1,6 +1,7 @@
 package com.delivery.notification_service.listener;
 
 import com.delivery.notification_service.dto.event.OrderEvent;
+import com.delivery.notification_service.exception.NotificationConflictException;
 import com.delivery.notification_service.service.NotificationService;
 import com.delivery.observability.SafeLog;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -38,10 +39,13 @@ public class OrderEventListener {
             backoff = @Backoff(delayExpression = "${app.kafka.retry.initial-delay-ms:1000}",
                     multiplierExpression = "${app.kafka.retry.multiplier:2.0}",
                     maxDelayExpression = "${app.kafka.retry.max-delay-ms:10000}"),
-            exclude = IllegalArgumentException.class,
+            exclude = {IllegalArgumentException.class, NotificationConflictException.class},
             kafkaTemplate = "retryKafkaTemplate",
             autoCreateTopics = "${app.kafka.retry.auto-create-topics:false}",
-            dltTopicSuffix = ".DLT")
+            // order.created is shared with Saga; notifications need their own
+            // retry group and destinations.
+            retryTopicSuffix = "-retry-notification",
+            dltTopicSuffix = ".notification.DLT")
     @KafkaListener(topics = "${app.kafka.topics.order-created:order.created}")
     public void handleOrderCreatedEvent(
             String message,
@@ -68,7 +72,7 @@ public class OrderEventListener {
             log.info("✅ Successfully processed OrderCreatedEvent for order: {}", event.getOrderId());
             acknowledgment.acknowledge();
 
-        } catch (IllegalArgumentException poison) {
+        } catch (IllegalArgumentException | NotificationConflictException poison) {
             log.warn("Rejecting poison order.created record: topic={}, partition={}, reason={}",
                     topic, partition, SafeLog.exceptionMessage(poison));
             throw poison;

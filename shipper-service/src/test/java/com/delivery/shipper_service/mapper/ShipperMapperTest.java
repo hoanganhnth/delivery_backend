@@ -34,14 +34,17 @@ class ShipperMapperTest {
         shipper.setUserId(2L);
         shipper.setFullName("Binh");
         shipper.setPhone("old");
+        shipper.setIsOnline(true);
         UpdateShipperRequest request = new UpdateShipperRequest();
         request.setPhone("new");
+        request.setIsOnline(false);
 
         mapper.updateEntityFromRequest(request, shipper);
 
         assertThat(shipper.getUserId()).isEqualTo(2L);
         assertThat(shipper.getFullName()).isEqualTo("Binh");
         assertThat(shipper.getPhone()).isEqualTo("new");
+        assertThat(shipper.getIsOnline()).isTrue();
         assertThat(mapper.toEntity(null)).isNull();
         assertThat(mapper.toResponse(null)).isNull();
     }

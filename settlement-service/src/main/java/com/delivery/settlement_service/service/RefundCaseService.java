@@ -42,6 +42,9 @@ public class RefundCaseService {
     private final ObjectMapper objectMapper;
     private final boolean providerProcessingEnabled;
 
+    @Value("${spring.datasource.url:}")
+    private String dataSourceUrl;
+
     public RefundCaseService(RefundCaseRepository repository,
                              RefundOutboxService outboxService,
                              ObjectMapper objectMapper,
@@ -59,22 +62,10 @@ public class RefundCaseService {
         RefundTrigger trigger = resolveTrigger(event);
         String idempotencyKey = event.getOrderId() + ":" + trigger.name() + ":ORDER_TOTAL";
 
-        RefundCase byEvent = repository.findByEventId(event.getEventId()).orElse(null);
-        if (byEvent != null) {
-            requireExactReplay(byEvent, event, fingerprint, idempotencyKey);
-            return byEvent;
-        }
-
-        RefundCase byKey = repository.findByIdempotencyKey(idempotencyKey).orElse(null);
-        if (byKey != null) {
-            requireExactReplay(byKey, event, fingerprint, idempotencyKey);
-            return byKey;
-        }
-
-        RefundCase byOrder = repository.findByOrderIdAndTriggerAndComponent(
-                event.getOrderId(), trigger, RefundComponent.ORDER_TOTAL).orElse(null);
-        if (byOrder != null) {
-            throw new IllegalArgumentException("order already has a different refund cancellation event");
+        RefundCase existing = findExisting(event, trigger, idempotencyKey);
+        if (existing != null) {
+            requireExactReplay(existing, event, fingerprint, idempotencyKey);
+            return existing;
         }
 
         RefundStatus status = decideStatus(event, trigger);
@@ -113,12 +104,72 @@ public class RefundCaseService {
                 .attempts(0)
                 .build();
 
-        RefundCase saved = repository.saveAndFlush(refundCase);
-        if (status == RefundStatus.REQUESTED) {
-            outboxService.enqueue(saved);
+        // A retry from another Kafka partition can arrive before this listener
+        // commits. Let PostgreSQL resolve all refund identity constraints, then
+        // distinguish exact replay from a conflicting event before anything is
+        // sent to the provider outbox.
+        if (insertIfAbsent(refundCase) == 0) {
+            RefundCase concurrent = findExisting(event, trigger, idempotencyKey);
+            if (concurrent == null) {
+                throw new IllegalStateException(
+                        "refund case conflict resolved without a committed refund case");
+            }
+            requireExactReplay(concurrent, event, fingerprint, idempotencyKey);
+            return concurrent;
         }
-        log.info("Refund case {} created for order {} with status {}", saved.getRefundId(), saved.getOrderId(), status);
-        return saved;
+
+        if (status == RefundStatus.REQUESTED) {
+            outboxService.enqueue(refundCase);
+        }
+        log.info("Refund case {} created for order {} with status {}",
+                refundCase.getRefundId(), refundCase.getOrderId(), status);
+        return refundCase;
+    }
+
+    private RefundCase findExisting(OrderCancelledEvent event, RefundTrigger trigger, String idempotencyKey) {
+        RefundCase byEvent = repository.findByEventId(event.getEventId()).orElse(null);
+        if (byEvent != null) {
+            return byEvent;
+        }
+        RefundCase byKey = repository.findByIdempotencyKey(idempotencyKey).orElse(null);
+        if (byKey != null) {
+            return byKey;
+        }
+        return repository.findByOrderIdAndTriggerAndComponent(
+                event.getOrderId(), trigger, RefundComponent.ORDER_TOTAL).orElse(null);
+    }
+
+    private int insertIfAbsent(RefundCase refundCase) {
+        if (dataSourceUrl != null && dataSourceUrl.startsWith("jdbc:h2:")) {
+            return insertIfAbsentH2(refundCase);
+        }
+        return insertIfAbsentPostgres(refundCase);
+    }
+
+    private int insertIfAbsentPostgres(RefundCase refundCase) {
+        return repository.insertIfAbsentPostgres(
+                refundCase.getRefundId(), refundCase.getEventId(), refundCase.getIdempotencyKey(),
+                refundCase.getOrderId(), refundCase.getUserId(), refundCase.getRestaurantId(),
+                refundCase.getPreviousOrderStatus(), refundCase.getCurrentOrderStatus(),
+                refundCase.getPaymentMethod(), refundCase.getTrigger().name(), refundCase.getComponent().name(),
+                refundCase.getStatus().name(), refundCase.getCurrency(), refundCase.getSubtotalAmount(),
+                refundCase.getDiscountAmount(), refundCase.getShippingFee(), refundCase.getTotalAmount(),
+                refundCase.getCapturedAmount(), refundCase.getRefundAmount(), refundCase.getActorSource(),
+                refundCase.getActorId(), refundCase.getReason(), refundCase.getPayloadFingerprint(),
+                refundCase.getAttempts());
+    }
+
+    private int insertIfAbsentH2(RefundCase refundCase) {
+        return repository.insertIfAbsentH2(
+                refundCase.getRefundId(), refundCase.getEventId(), refundCase.getIdempotencyKey(),
+                refundCase.getOrderId(), refundCase.getUserId(), refundCase.getRestaurantId(),
+                refundCase.getPreviousOrderStatus(), refundCase.getCurrentOrderStatus(),
+                refundCase.getPaymentMethod(), refundCase.getTrigger().name(), refundCase.getComponent().name(),
+                refundCase.getStatus().name(), refundCase.getCurrency(), refundCase.getSubtotalAmount(),
+                refundCase.getDiscountAmount(), refundCase.getShippingFee(), refundCase.getTotalAmount(),
+                refundCase.getCapturedAmount(), refundCase.getRefundAmount(), refundCase.getActorSource(),
+                refundCase.getActorId(), refundCase.getReason(), refundCase.getPayloadFingerprint(),
+                refundCase.getAttempts());
     }
 
     @Transactional(readOnly = true)

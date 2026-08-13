@@ -13,6 +13,7 @@ import com.google.gson.Gson;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,6 +35,9 @@ public class NotificationServiceImpl implements NotificationService {
     private final NotificationRepository notificationRepository;
     private final NotificationMapper notificationMapper;
     private final NotificationDeliveryCoordinator deliveryCoordinator;
+
+    @Value("${spring.datasource.url:}")
+    private String dataSourceUrl;
 
     @Autowired
     public NotificationServiceImpl(NotificationRepository notificationRepository,
@@ -73,8 +77,9 @@ public class NotificationServiceImpl implements NotificationService {
             }
         }
 
-        // saveAndFlush commits through the repository transaction before external I/O.
-        // The PENDING row is the durable retry record and keeps a stable notification id.
+        // The PENDING row must commit before external I/O. The atomic insert
+        // also makes parallel Kafka partitions converge to one stable delivery
+        // record; the coordinator below owns the later PENDING -> SENT lock.
         NotificationResponse notification = createNotification(request);
 
         deliverAndMarkSent(request, notification);
@@ -101,10 +106,39 @@ public class NotificationServiceImpl implements NotificationService {
         notification.setDeduplicationKey(request.getDeduplicationKey());
         notification.setStatus(NotificationConstants.STATUS_PENDING);
 
-        Notification saved = notificationRepository.saveAndFlush(notification);
+        if (request.getDeduplicationKey() == null || request.getDeduplicationKey().isBlank()) {
+            Notification saved = notificationRepository.saveAndFlush(notification);
+            log.info("✅ Created notification {} for user {}", saved.getId(), saved.getUserId());
+            return notificationMapper.toResponse(saved);
+        }
 
-        log.info("✅ Created notification {} for user {}", saved.getId(), saved.getUserId());
+        int inserted = insertIfAbsent(notification);
+        Notification saved = notificationRepository.findByDeduplicationKey(request.getDeduplicationKey())
+                .orElseThrow(() -> new IllegalStateException(
+                        "notification deduplication claim resolved without a committed row"));
+        assertReplayMatches(saved, request);
+
+        if (inserted == 1) {
+            log.info("✅ Created notification {} for user {}", saved.getId(), saved.getUserId());
+        }
         return notificationMapper.toResponse(saved);
+    }
+
+    private int insertIfAbsent(Notification notification) {
+        if (dataSourceUrl != null && dataSourceUrl.startsWith("jdbc:h2:")) {
+            return notificationRepository.insertIfAbsentH2(
+                    notification.getUserId(), notification.getTitle(), notification.getMessage(),
+                    notification.getType(), notification.getPriority(), notification.getStatus(),
+                    notification.getIsRead(), notification.getRelatedEntityId(),
+                    notification.getRelatedEntityType(), notification.getData(),
+                    notification.getDeduplicationKey());
+        }
+        return notificationRepository.insertIfAbsentPostgres(
+                notification.getUserId(), notification.getTitle(), notification.getMessage(),
+                notification.getType(), notification.getPriority(), notification.getStatus(),
+                notification.getIsRead(), notification.getRelatedEntityId(),
+                notification.getRelatedEntityType(), notification.getData(),
+                notification.getDeduplicationKey());
     }
 
     private void assertReplayMatches(Notification existing, SendNotificationRequest request) {

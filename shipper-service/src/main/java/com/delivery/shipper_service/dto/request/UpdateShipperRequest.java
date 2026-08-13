@@ -1,6 +1,7 @@
 package com.delivery.shipper_service.dto.request;
 
 import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.Null;
 
 public class UpdateShipperRequest {
     @Size(max = 50)
@@ -10,6 +11,12 @@ public class UpdateShipperRequest {
     @Size(max = 20)
     private String idCard;
     private String driverImage;
+    /**
+     * Availability is not profile data. Retain the JSON field solely to return
+     * a validation error to legacy callers instead of silently accepting it;
+     * callers must use PATCH /api/shippers/online-status.
+     */
+    @Null(message = "isOnline must be changed through /api/shippers/online-status")
     private Boolean isOnline;
     @Size(max = 15)
     private String phone;

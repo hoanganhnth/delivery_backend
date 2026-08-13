@@ -1,53 +1,37 @@
 package com.delivery.flashsale_service.listener;
 
-import com.delivery.flashsale_service.service.FlashSaleStockService;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.delivery.flashsale_service.service.FlashSaleOrderReservationEventProcessor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.annotation.RetryableTopic;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
-import org.springframework.beans.factory.annotation.Value;
-
-import java.util.UUID;
+import org.springframework.retry.annotation.Backoff;
 
 @Component @RequiredArgsConstructor
 @ConditionalOnProperty(name = "app.flashsale.checkout-enabled", havingValue = "true")
 public class OrderReservationEventListener {
-    private final FlashSaleStockService stockService;
-    private final ObjectMapper objectMapper;
-    @Value("${app.kafka.topics.order-created:order.created}") private String orderCreatedTopic;
+    private final FlashSaleOrderReservationEventProcessor processor;
 
+    @RetryableTopic(
+            attempts = "${app.kafka.retry.attempts:4}",
+            backoff = @Backoff(delayExpression = "${app.kafka.retry.initial-delay-ms:1000}",
+                    multiplierExpression = "${app.kafka.retry.multiplier:2.0}",
+                    maxDelayExpression = "${app.kafka.retry.max-delay-ms:10000}"),
+            exclude = IllegalArgumentException.class,
+            kafkaTemplate = "retryKafkaTemplate",
+            autoCreateTopics = "${app.kafka.retry.auto-create-topics:false}",
+            retryTopicSuffix = "-retry-flashsale",
+            dltTopicSuffix = ".flashsale.DLT")
     @KafkaListener(topics = {"${app.kafka.topics.order-created:order.created}",
             "${app.kafka.topics.order-cancelled:order.cancelled}",
             "${app.kafka.topics.refund-eligible:order.refund-eligible}"})
     public void consume(String payload, @Header(KafkaHeaders.RECEIVED_TOPIC) String topic,
                         Acknowledgment acknowledgment) throws Exception {
-        JsonNode event = objectMapper.readTree(payload);
-        requireText(event, "eventId");
-        JsonNode node = event.get("flashSaleReservationId");
-        if (node != null && !node.isNull()) {
-            UUID reservationId = UUID.fromString(node.asText());
-            long orderId = requirePositiveLong(event, "orderId");
-            if (orderCreatedTopic.equals(topic))
-                stockService.commit(reservationId, orderId);
-            else stockService.release(reservationId, orderId);
-        }
+        processor.process(payload, topic);
         acknowledgment.acknowledge();
-    }
-
-    private String requireText(JsonNode event, String field) {
-        JsonNode value = event.get(field);
-        if (value == null || value.asText().isBlank()) throw new IllegalArgumentException(field + " is required");
-        return value.asText();
-    }
-    private long requirePositiveLong(JsonNode event, String field) {
-        JsonNode value = event.get(field);
-        if (value == null || !value.canConvertToLong() || value.asLong() <= 0)
-            throw new IllegalArgumentException(field + " must be positive");
-        return value.asLong();
     }
 }

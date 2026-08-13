@@ -17,10 +17,12 @@ import java.time.Instant;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 @DataJpaTest(properties = {
+        "spring.datasource.url=jdbc:h2:mem:tracking_history;MODE=PostgreSQL;DB_CLOSE_DELAY=-1",
         "spring.jpa.hibernate.ddl-auto=none",
         "spring.flyway.enabled=true",
         "app.location-history.max-query-size=500"
@@ -36,15 +38,15 @@ class LocationHistoryServiceIntegrationTest {
     @Test
     void samplesRoundsAndHandlesOutOfOrderEventsAgainstBothNeighbours() {
         long base = Instant.parse("2026-07-30T01:00:00Z").toEpochMilli();
-        assertThat(service.record(event(base, 10.770001, 106.700001)))
+        assertThat(record(event(base, 10.770001, 106.700001)))
                 .isEqualTo(LocationHistoryReceipt.Outcome.PERSISTED);
-        assertThat(service.record(event(base + 5_000, 10.770002, 106.700002)))
+        assertThat(record(event(base + 5_000, 10.770002, 106.700002)))
                 .isEqualTo(LocationHistoryReceipt.Outcome.SAMPLED_OUT);
-        assertThat(service.record(event(base + 6_000, 10.771000, 106.701000)))
+        assertThat(record(event(base + 6_000, 10.771000, 106.701000)))
                 .isEqualTo(LocationHistoryReceipt.Outcome.PERSISTED);
-        assertThat(service.record(event(base + 3_000, 10.770003, 106.700003)))
+        assertThat(record(event(base + 3_000, 10.770003, 106.700003)))
                 .isEqualTo(LocationHistoryReceipt.Outcome.SAMPLED_OUT);
-        assertThat(service.record(event(base + 20_000, 10.771001, 106.701001)))
+        assertThat(record(event(base + 20_000, 10.771001, 106.701001)))
                 .isEqualTo(LocationHistoryReceipt.Outcome.PERSISTED);
 
         var points = service.byDelivery(100L, 500);
@@ -74,7 +76,7 @@ class LocationHistoryServiceIntegrationTest {
 
     @Test
     void cleanupDeletesHistoryAndReceiptsOlderThanRetentionCutoff() {
-        service.record(event(Instant.parse("2025-01-01T00:00:00Z").toEpochMilli(), 10.77, 106.70));
+        record(event(Instant.parse("2025-01-01T00:00:00Z").toEpochMilli(), 10.77, 106.70));
 
         var result = service.cleanup(Instant.parse("2027-01-01T00:00:00Z"));
 
@@ -90,7 +92,7 @@ class LocationHistoryServiceIntegrationTest {
                 Instant.parse("2026-07-30T03:00:00Z").toEpochMilli(), 10.77, 106.70);
         event.setDeliveryId(null);
 
-        assertThat(service.record(event)).isEqualTo(LocationHistoryReceipt.Outcome.NO_DELIVERY);
+        assertThat(record(event)).isEqualTo(LocationHistoryReceipt.Outcome.NO_DELIVERY);
         assertThat(history.count()).isZero();
         assertThat(receipts.count()).isEqualTo(1);
     }
@@ -116,9 +118,36 @@ class LocationHistoryServiceIntegrationTest {
         verify(replay).acknowledge();
     }
 
+    @Test
+    void changedRawPayloadForStableEventIdIsRejectedWithoutAnotherHistoryPoint() throws Exception {
+        ShipperLocationUpdatedEvent event = event(
+                Instant.parse("2026-07-30T04:00:00Z").toEpochMilli(), 10.77, 106.70);
+        ObjectMapper mapper = new ObjectMapper();
+        String canonical = mapper.writeValueAsString(event);
+        assertThat(service.record(event, canonical)).isEqualTo(LocationHistoryReceipt.Outcome.PERSISTED);
+
+        ShipperLocationUpdatedEvent contradictory = new ShipperLocationUpdatedEvent(
+                event.getShipperId(), event.getLatitude(), event.getLongitude(), event.getIsOnline(),
+                event.getTimestamp(), event.getEventId(), event.getDeliveryId(), event.getAccuracy(),
+                event.getSpeed(), event.getHeading(), "REST");
+
+        assertThrows(IllegalArgumentException.class,
+                () -> service.record(contradictory, mapper.writeValueAsString(contradictory)));
+        assertThat(history.count()).isEqualTo(1);
+        assertThat(receipts.count()).isEqualTo(1);
+    }
+
     private ShipperLocationUpdatedEvent event(long timestamp, double latitude, double longitude) {
         return new ShipperLocationUpdatedEvent(
                 42L, latitude, longitude, true, timestamp, UUID.randomUUID(), 100L,
                 4.25, 8.5, 180.0, "WEBSOCKET");
+    }
+
+    private LocationHistoryReceipt.Outcome record(ShipperLocationUpdatedEvent event) {
+        try {
+            return service.record(event, new ObjectMapper().writeValueAsString(event));
+        } catch (Exception exception) {
+            throw new AssertionError("Cannot serialize test location event", exception);
+        }
     }
 }

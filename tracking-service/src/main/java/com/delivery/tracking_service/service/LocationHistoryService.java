@@ -12,9 +12,15 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.HexFormat;
 import java.util.List;
+import java.util.Objects;
+import java.util.UUID;
 
 @Service
 public class LocationHistoryService {
@@ -24,27 +30,40 @@ public class LocationHistoryService {
     private final ShipperLocationHistoryRepository history;
     private final LocationHistoryReceiptRepository receipts;
     private final int maxQuerySize;
+    private final String dataSourceUrl;
 
     public LocationHistoryService(ShipperLocationHistoryRepository history,
                                   LocationHistoryReceiptRepository receipts,
-                                  @Value("${app.location-history.max-query-size:500}") int maxQuerySize) {
+                                  @Value("${app.location-history.max-query-size:500}") int maxQuerySize,
+                                  @Value("${spring.datasource.url:}") String dataSourceUrl) {
         this.history = history;
         this.receipts = receipts;
         this.maxQuerySize = Math.max(1, Math.min(maxQuerySize, 500));
+        this.dataSourceUrl = dataSourceUrl;
     }
 
     @Transactional
-    public LocationHistoryReceipt.Outcome record(ShipperLocationUpdatedEvent event) {
+    public LocationHistoryReceipt.Outcome record(ShipperLocationUpdatedEvent event, String rawPayload) {
         validateIdentity(event);
-        if (receipts.existsById(event.getEventId())) {
-            return receipts.findById(event.getEventId()).orElseThrow().getOutcome();
-        }
+        requirePayload(rawPayload);
         Instant occurredAt = Instant.ofEpochMilli(event.getTimestamp());
+        String fingerprint = fingerprint(rawPayload);
+
+        LocationHistoryReceipt existing = receipts.findById(event.getEventId()).orElse(null);
+        if (existing != null) {
+            return exactReplay(existing, event, occurredAt, fingerprint);
+        }
+        if (claim(event, occurredAt, fingerprint) == 0) {
+            existing = receipts.findById(event.getEventId()).orElseThrow(() ->
+                    new IllegalStateException("location-history receipt conflict resolved without a committed row"));
+            return exactReplay(existing, event, occurredAt, fingerprint);
+        }
+
         if (event.getDeliveryId() == null) {
-            return receipt(event, occurredAt, LocationHistoryReceipt.Outcome.NO_DELIVERY);
+            return complete(event.getEventId(), LocationHistoryReceipt.Outcome.NO_DELIVERY);
         }
         if (!Boolean.TRUE.equals(event.getIsOnline())) {
-            return receipt(event, occurredAt, LocationHistoryReceipt.Outcome.OFFLINE_TOMBSTONE);
+            return complete(event.getEventId(), LocationHistoryReceipt.Outcome.OFFLINE_TOMBSTONE);
         }
         validateCoordinates(event);
 
@@ -62,14 +81,14 @@ public class LocationHistoryService {
                 && next.map(point -> separated(point, occurredAt, latitude, longitude))
                 .orElse(true);
         if (!keep) {
-            return receipt(event, occurredAt, LocationHistoryReceipt.Outcome.SAMPLED_OUT);
+            return complete(event.getEventId(), LocationHistoryReceipt.Outcome.SAMPLED_OUT);
         }
 
         history.save(new ShipperLocationHistory(
                 event.getEventId(), event.getDeliveryId(), event.getShipperId(), occurredAt,
                 latitude, longitude, telemetry(event.getAccuracy()), telemetry(event.getSpeed()),
                 telemetry(event.getHeading()), normalizedSource(event.getSource())));
-        return receipt(event, occurredAt, LocationHistoryReceipt.Outcome.PERSISTED);
+        return complete(event.getEventId(), LocationHistoryReceipt.Outcome.PERSISTED);
     }
 
     @Transactional(readOnly = true)
@@ -87,12 +106,58 @@ public class LocationHistoryService {
         return new CleanupResult(historyRows, receiptRows);
     }
 
-    private LocationHistoryReceipt.Outcome receipt(
-            ShipperLocationUpdatedEvent event, Instant occurredAt,
-            LocationHistoryReceipt.Outcome outcome) {
-        receipts.save(new LocationHistoryReceipt(event.getEventId(), event.getDeliveryId(),
-                event.getShipperId(), occurredAt, outcome));
+    private int claim(ShipperLocationUpdatedEvent event, Instant occurredAt, String fingerprint) {
+        if (dataSourceUrl != null && dataSourceUrl.startsWith("jdbc:h2:")) {
+            return receipts.claimIfAbsentH2(event.getEventId(), event.getDeliveryId(), event.getShipperId(),
+                    occurredAt, LocationHistoryReceipt.Outcome.PENDING.name(), fingerprint);
+        }
+        return receipts.claimIfAbsentPostgres(event.getEventId(), event.getDeliveryId(), event.getShipperId(),
+                occurredAt, LocationHistoryReceipt.Outcome.PENDING.name(), fingerprint);
+    }
+
+    private LocationHistoryReceipt.Outcome complete(UUID eventId, LocationHistoryReceipt.Outcome outcome) {
+        if (receipts.completeClaim(eventId, outcome) != 1) {
+            throw new IllegalStateException("location-history receipt claim was not pending at completion");
+        }
         return outcome;
+    }
+
+    private LocationHistoryReceipt.Outcome exactReplay(LocationHistoryReceipt existing,
+                                                        ShipperLocationUpdatedEvent event,
+                                                        Instant occurredAt,
+                                                        String fingerprint) {
+        if (!Objects.equals(existing.getDeliveryId(), event.getDeliveryId())
+                || !Objects.equals(existing.getShipperId(), event.getShipperId())
+                || !Objects.equals(existing.getOccurredAt(), occurredAt)) {
+            throw new IllegalArgumentException("location-history eventId replay has contradictory identity");
+        }
+        // Pre-fingerprint receipts are retained for their bounded 90-day
+        // support-history window. They can prove immutable identity but cannot
+        // prove complete raw payload equality; all post-migration receipts are
+        // strict raw-payload fences.
+        if (existing.getPayloadFingerprint() != null
+                && !existing.getPayloadFingerprint().equals(fingerprint)) {
+            throw new IllegalArgumentException("location-history eventId replay has contradictory payload");
+        }
+        if (existing.getOutcome() == LocationHistoryReceipt.Outcome.PENDING) {
+            throw new IllegalStateException("location-history receipt remained pending after commit");
+        }
+        return existing.getOutcome();
+    }
+
+    private void requirePayload(String rawPayload) {
+        if (rawPayload == null || rawPayload.isBlank()) {
+            throw new IllegalArgumentException("raw location payload is required");
+        }
+    }
+
+    private String fingerprint(String payload) {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest(payload.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException("SHA-256 is unavailable", impossible);
+        }
     }
 
     private boolean separated(ShipperLocationHistory point, Instant occurredAt,

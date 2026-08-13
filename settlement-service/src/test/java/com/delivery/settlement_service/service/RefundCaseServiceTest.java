@@ -21,8 +21,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -42,8 +41,10 @@ class RefundCaseServiceTest {
         lenient().when(repository.findByEventId(any())).thenReturn(Optional.empty());
         lenient().when(repository.findByIdempotencyKey(any())).thenReturn(Optional.empty());
         lenient().when(repository.findByOrderIdAndTriggerAndComponent(any(), any(), any())).thenReturn(Optional.empty());
-        lenient().when(repository.saveAndFlush(any(RefundCase.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
+        lenient().when(repository.insertIfAbsentPostgres(
+                any(), any(), any(), anyLong(), anyLong(), anyLong(), any(), any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), anyInt()))
+                .thenReturn(1);
     }
 
     @Test
@@ -131,7 +132,9 @@ class RefundCaseServiceTest {
         RefundCase replay = service.processOrderCancellation(event);
 
         assertThat(replay).isSameAs(existing);
-        verify(repository).saveAndFlush(any(RefundCase.class));
+        verify(repository).insertIfAbsentPostgres(
+                any(), any(), any(), anyLong(), anyLong(), anyLong(), any(), any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), anyInt());
         verify(outboxService, never()).enqueue(any());
     }
 
@@ -157,7 +160,9 @@ class RefundCaseServiceTest {
         assertThatThrownBy(() -> service.processOrderCancellation(event))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("monetary snapshot");
-        verify(repository, never()).saveAndFlush(any());
+        verify(repository, never()).insertIfAbsentPostgres(
+                any(), any(), any(), anyLong(), anyLong(), anyLong(), any(), any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), anyInt());
     }
 
     @Test

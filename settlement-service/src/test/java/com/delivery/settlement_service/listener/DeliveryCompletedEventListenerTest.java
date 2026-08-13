@@ -18,6 +18,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.kafka.support.Acknowledgment;
 
 import java.math.BigDecimal;
+import java.security.MessageDigest;
+import java.util.HexFormat;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -46,6 +48,8 @@ class DeliveryCompletedEventListenerTest {
     void setUp() {
         listener = new DeliveryCompletedEventListener(
                 transactionService, transactionRepository, settlementReceiptRepository);
+        lenient().when(settlementReceiptRepository.insertIfAbsentPostgres(
+                any(), anyLong(), anyLong(), anyString())).thenReturn(1);
     }
 
     @Test
@@ -82,15 +86,13 @@ class DeliveryCompletedEventListenerTest {
     @Test
     void exactEventReplayDoesNotPostAgain() throws Exception {
         DeliveryCompletedEvent event = validEvent("COD");
+        SettlementReceipt receipt = receiptFor(event);
+        when(settlementReceiptRepository.findById(event.getEventId()))
+                .thenReturn(Optional.empty(), Optional.of(receipt));
 
         listener.handleDeliveryCompleted(
                 new ObjectMapper().findAndRegisterModules().writeValueAsString(event),
                 "delivery.completed", 0, System.currentTimeMillis(), acknowledgment);
-
-        var receiptCaptor = org.mockito.ArgumentCaptor.forClass(SettlementReceipt.class);
-        verify(settlementReceiptRepository).saveAndFlush(receiptCaptor.capture());
-        when(settlementReceiptRepository.findById(event.getEventId()))
-                .thenReturn(Optional.of(receiptCaptor.getValue()));
 
         listener.handleDeliveryCompleted(
                 new ObjectMapper().findAndRegisterModules().writeValueAsString(event),
@@ -104,14 +106,13 @@ class DeliveryCompletedEventListenerTest {
     @Test
     void sameEventIdWithDifferentPayloadIsRejected() throws Exception {
         DeliveryCompletedEvent event = validEvent("COD");
+        SettlementReceipt receipt = receiptFor(event);
+        when(settlementReceiptRepository.findById(event.getEventId()))
+                .thenReturn(Optional.empty(), Optional.of(receipt));
         listener.handleDeliveryCompleted(
                 new ObjectMapper().findAndRegisterModules().writeValueAsString(event),
                 "delivery.completed", 0, 1L, acknowledgment);
 
-        var receiptCaptor = org.mockito.ArgumentCaptor.forClass(SettlementReceipt.class);
-        verify(settlementReceiptRepository).saveAndFlush(receiptCaptor.capture());
-        when(settlementReceiptRepository.findById(event.getEventId()))
-                .thenReturn(Optional.of(receiptCaptor.getValue()));
         event.setRestaurantName("Contradictory restaurant");
 
         assertThrows(IllegalArgumentException.class, () -> listener.handleDeliveryCompleted(
@@ -195,6 +196,17 @@ class DeliveryCompletedEventListenerTest {
                 .shippingCommission(new BigDecimal("3000"))
                 .totalPlatformEarnings(new BigDecimal("23000"))
                 .paymentMethod(paymentMethod)
+                .build();
+    }
+
+    private SettlementReceipt receiptFor(DeliveryCompletedEvent event) throws Exception {
+        byte[] payload = new ObjectMapper().findAndRegisterModules().writeValueAsBytes(event);
+        return SettlementReceipt.builder()
+                .eventId(event.getEventId())
+                .orderId(event.getOrderId())
+                .deliveryId(event.getDeliveryId())
+                .payloadFingerprint(HexFormat.of().formatHex(
+                        MessageDigest.getInstance("SHA-256").digest(payload)))
                 .build();
     }
 }

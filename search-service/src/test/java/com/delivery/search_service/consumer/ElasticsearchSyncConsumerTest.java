@@ -1,20 +1,11 @@
 package com.delivery.search_service.consumer;
 
-import com.delivery.search_service.document.DishDocument;
-import com.delivery.search_service.document.RestaurantDocument;
 import com.delivery.search_service.dto.EntitySyncEvent;
-import com.delivery.search_service.document.EntitySyncCheckpoint;
-import com.delivery.search_service.repository.DishSearchRepository;
-import com.delivery.search_service.repository.RestaurantSearchRepository;
-import com.delivery.search_service.repository.EntitySyncCheckpointRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.ObjectProvider;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.Mockito.*;
-import org.mockito.ArgumentCaptor;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -22,11 +13,9 @@ class ElasticsearchSyncConsumerTest {
 
     @Test
     void invalidEventFailsSoKafkaCanRetryAndDeadLetterIt() {
-        ObjectProvider<RestaurantSearchRepository> restaurants = mock(ObjectProvider.class);
-        ObjectProvider<DishSearchRepository> dishes = mock(ObjectProvider.class);
-        EntitySyncCheckpointRepository checkpoints = mock(EntitySyncCheckpointRepository.class);
-        ElasticsearchSyncConsumer consumer = new ElasticsearchSyncConsumer(
-                restaurants, dishes, checkpoints, new ObjectMapper());
+        EntitySyncCheckpointStore checkpoints = mock(EntitySyncCheckpointStore.class);
+        SearchProjectionWriter projections = mock(SearchProjectionWriter.class);
+        ElasticsearchSyncConsumer consumer = new ElasticsearchSyncConsumer(checkpoints, projections, new ObjectMapper());
         EntitySyncEvent event = EntitySyncEvent.builder()
                 .eventId(UUID.randomUUID())
                 .occurredAt(LocalDateTime.now())
@@ -39,16 +28,14 @@ class ElasticsearchSyncConsumerTest {
         assertThrows(IllegalArgumentException.class,
                 () -> consumer.consumeEntitySyncEvent(event));
 
-        verifyNoInteractions(restaurants, dishes, checkpoints);
+        verifyNoInteractions(checkpoints, projections);
     }
 
     @Test
     void staleReplayCannotOverwriteNewerSearchDocument() {
-        ObjectProvider<RestaurantSearchRepository> restaurants = mock(ObjectProvider.class);
-        ObjectProvider<DishSearchRepository> dishes = mock(ObjectProvider.class);
-        EntitySyncCheckpointRepository checkpoints = mock(EntitySyncCheckpointRepository.class);
-        ElasticsearchSyncConsumer consumer = new ElasticsearchSyncConsumer(
-                restaurants, dishes, checkpoints, new ObjectMapper());
+        EntitySyncCheckpointStore checkpoints = mock(EntitySyncCheckpointStore.class);
+        SearchProjectionWriter projections = mock(SearchProjectionWriter.class);
+        ElasticsearchSyncConsumer consumer = new ElasticsearchSyncConsumer(checkpoints, projections, new ObjectMapper());
         LocalDateTime oldTime = LocalDateTime.of(2026, 1, 1, 0, 0);
         EntitySyncEvent event = EntitySyncEvent.builder()
                 .eventId(UUID.fromString("11111111-1111-1111-1111-111111111111"))
@@ -56,103 +43,71 @@ class ElasticsearchSyncConsumerTest {
                 .entityType("RESTAURANT").entityId("1").action("UPDATE")
                 .payload(java.util.Map.of("name", "Old"))
                 .build();
-        when(checkpoints.findById("RESTAURANT:1")).thenReturn(java.util.Optional.of(
-                EntitySyncCheckpoint.builder()
-                        .id("RESTAURANT:1")
-                        .eventId("22222222-2222-2222-2222-222222222222")
-                        .occurredAt(oldTime.plusMinutes(1))
-                        .action("UPDATE")
-                        .build()));
+        when(checkpoints.claim(eq(event), anyString()))
+                .thenReturn(EntitySyncCheckpointStore.ClaimResult.STALE);
 
         consumer.consumeEntitySyncEvent(event);
 
-        verify(checkpoints).findById("RESTAURANT:1");
-        verifyNoInteractions(restaurants, dishes);
-        verify(checkpoints, never()).save(any());
+        verify(checkpoints).claim(eq(event), anyString());
+        verifyNoInteractions(projections);
     }
 
     @Test
     void exactReplayCanReapplyDocumentAfterCheckpointBeforeMutationCrash() {
-        ObjectProvider<RestaurantSearchRepository> restaurants = mock(ObjectProvider.class);
-        ObjectProvider<DishSearchRepository> dishes = mock(ObjectProvider.class);
-        RestaurantSearchRepository restaurantRepository = mock(RestaurantSearchRepository.class);
-        EntitySyncCheckpointRepository checkpoints = mock(EntitySyncCheckpointRepository.class);
-        ElasticsearchSyncConsumer consumer = new ElasticsearchSyncConsumer(
-                restaurants, dishes, checkpoints, new ObjectMapper());
-        when(restaurants.getIfAvailable()).thenReturn(restaurantRepository);
+        EntitySyncCheckpointStore checkpoints = mock(EntitySyncCheckpointStore.class);
+        SearchProjectionWriter projections = mock(SearchProjectionWriter.class);
+        ElasticsearchSyncConsumer consumer = new ElasticsearchSyncConsumer(checkpoints, projections, new ObjectMapper());
         EntitySyncEvent event = event(java.util.Map.of("name", "Canonical"));
 
-        ArgumentCaptor<EntitySyncCheckpoint> saved = ArgumentCaptor.forClass(EntitySyncCheckpoint.class);
-        when(checkpoints.findById("RESTAURANT:1"))
-                .thenReturn(java.util.Optional.empty())
-                .thenAnswer(ignored -> java.util.Optional.of(saved.getValue()));
+        when(checkpoints.claim(eq(event), anyString()))
+                .thenReturn(EntitySyncCheckpointStore.ClaimResult.APPLY,
+                        EntitySyncCheckpointStore.ClaimResult.EXACT_REPLAY);
 
         consumer.consumeEntitySyncEvent(event);
-        verify(checkpoints).save(saved.capture());
+        consumer.consumeEntitySyncEvent(event);
 
-        assertDoesNotThrow(() -> consumer.consumeEntitySyncEvent(event));
-        verify(restaurantRepository, times(2)).save(any(RestaurantDocument.class));
+        verify(projections, times(2)).apply(event);
     }
 
     @Test
     void sameEventIdWithChangedPayloadIsRejected() {
-        ObjectProvider<RestaurantSearchRepository> restaurants = mock(ObjectProvider.class);
-        ObjectProvider<DishSearchRepository> dishes = mock(ObjectProvider.class);
-        RestaurantSearchRepository restaurantRepository = mock(RestaurantSearchRepository.class);
-        EntitySyncCheckpointRepository checkpoints = mock(EntitySyncCheckpointRepository.class);
-        ElasticsearchSyncConsumer consumer = new ElasticsearchSyncConsumer(
-                restaurants, dishes, checkpoints, new ObjectMapper());
-        when(restaurants.getIfAvailable()).thenReturn(restaurantRepository);
+        EntitySyncCheckpointStore checkpoints = mock(EntitySyncCheckpointStore.class);
+        SearchProjectionWriter projections = mock(SearchProjectionWriter.class);
+        ElasticsearchSyncConsumer consumer = new ElasticsearchSyncConsumer(checkpoints, projections, new ObjectMapper());
         EntitySyncEvent original = event(java.util.Map.of("name", "Canonical"));
         EntitySyncEvent contradiction = event(java.util.Map.of("name", "Tampered"));
 
-        ArgumentCaptor<EntitySyncCheckpoint> saved = ArgumentCaptor.forClass(EntitySyncCheckpoint.class);
-        when(checkpoints.findById("RESTAURANT:1"))
-                .thenReturn(java.util.Optional.empty())
-                .thenAnswer(ignored -> java.util.Optional.of(saved.getValue()));
+        when(checkpoints.claim(eq(original), anyString()))
+                .thenReturn(EntitySyncCheckpointStore.ClaimResult.APPLY);
+        when(checkpoints.claim(eq(contradiction), anyString()))
+                .thenThrow(new IllegalArgumentException("contradictory payload"));
         consumer.consumeEntitySyncEvent(original);
-        verify(checkpoints).save(saved.capture());
 
         assertThrows(IllegalArgumentException.class,
                 () -> consumer.consumeEntitySyncEvent(contradiction));
-        verify(restaurantRepository, times(1)).save(any(RestaurantDocument.class));
+        verify(projections).apply(original);
+        verify(projections, never()).apply(contradiction);
     }
 
     @Test
-    void exactReplayUpgradesLegacyCheckpointWithPayloadFingerprint() {
-        ObjectProvider<RestaurantSearchRepository> restaurants = mock(ObjectProvider.class);
-        ObjectProvider<DishSearchRepository> dishes = mock(ObjectProvider.class);
-        RestaurantSearchRepository restaurantRepository = mock(RestaurantSearchRepository.class);
-        EntitySyncCheckpointRepository checkpoints = mock(EntitySyncCheckpointRepository.class);
-        ElasticsearchSyncConsumer consumer = new ElasticsearchSyncConsumer(
-                restaurants, dishes, checkpoints, new ObjectMapper());
-        when(restaurants.getIfAvailable()).thenReturn(restaurantRepository);
-        EntitySyncEvent event = event(java.util.Map.of("name", "Canonical"));
-        EntitySyncCheckpoint legacy = EntitySyncCheckpoint.builder()
-                .id("RESTAURANT:1")
-                .eventId(event.getEventId().toString())
-                .occurredAt(event.getOccurredAt())
-                .action("UPDATE")
-                .build();
-        when(checkpoints.findById("RESTAURANT:1"))
-                .thenReturn(java.util.Optional.of(legacy));
+    void checkpointFailurePropagatesSoKafkaCanRetryRatherThanMutateProjection() {
+        EntitySyncCheckpointStore checkpoints = mock(EntitySyncCheckpointStore.class);
+        SearchProjectionWriter projections = mock(SearchProjectionWriter.class);
+        ElasticsearchSyncConsumer consumer = new ElasticsearchSyncConsumer(checkpoints, projections, new ObjectMapper());
+        EntitySyncEvent event = event(java.util.Map.of("name", "Retry me"));
+        when(checkpoints.claim(eq(event), anyString()))
+                .thenThrow(new IllegalStateException("Elasticsearch unavailable"));
 
-        consumer.consumeEntitySyncEvent(event);
+        assertThrows(IllegalStateException.class, () -> consumer.consumeEntitySyncEvent(event));
 
-        verify(checkpoints).save(argThat(checkpoint ->
-                checkpoint == legacy
-                        && checkpoint.getPayloadFingerprint() != null
-                        && !checkpoint.getPayloadFingerprint().isBlank()));
-        verify(restaurantRepository).save(any(RestaurantDocument.class));
+        verifyNoInteractions(projections);
     }
 
     @Test
     void removedShipperSearchEventIsRejectedBeforeCheckpointOrDocumentMutation() {
-        ObjectProvider<RestaurantSearchRepository> restaurants = mock(ObjectProvider.class);
-        ObjectProvider<DishSearchRepository> dishes = mock(ObjectProvider.class);
-        EntitySyncCheckpointRepository checkpoints = mock(EntitySyncCheckpointRepository.class);
-        ElasticsearchSyncConsumer consumer = new ElasticsearchSyncConsumer(
-                restaurants, dishes, checkpoints, new ObjectMapper());
+        EntitySyncCheckpointStore checkpoints = mock(EntitySyncCheckpointStore.class);
+        SearchProjectionWriter projections = mock(SearchProjectionWriter.class);
+        ElasticsearchSyncConsumer consumer = new ElasticsearchSyncConsumer(checkpoints, projections, new ObjectMapper());
         EntitySyncEvent event = EntitySyncEvent.builder()
                 .eventId(UUID.randomUUID())
                 .occurredAt(LocalDateTime.now())
@@ -165,24 +120,23 @@ class ElasticsearchSyncConsumerTest {
         assertThrows(IllegalArgumentException.class,
                 () -> consumer.consumeEntitySyncEvent(event));
 
-        verifyNoInteractions(restaurants, dishes, checkpoints);
+        verifyNoInteractions(checkpoints, projections);
     }
 
     @Test
     void missingRepositoryFailsAfterCheckpointSoKafkaCanRetryProjection() {
-        ObjectProvider<RestaurantSearchRepository> restaurants = mock(ObjectProvider.class);
-        ObjectProvider<DishSearchRepository> dishes = mock(ObjectProvider.class);
-        EntitySyncCheckpointRepository checkpoints = mock(EntitySyncCheckpointRepository.class);
-        ElasticsearchSyncConsumer consumer = new ElasticsearchSyncConsumer(
-                restaurants, dishes, checkpoints, new ObjectMapper());
+        EntitySyncCheckpointStore checkpoints = mock(EntitySyncCheckpointStore.class);
+        SearchProjectionWriter projections = mock(SearchProjectionWriter.class);
+        ElasticsearchSyncConsumer consumer = new ElasticsearchSyncConsumer(checkpoints, projections, new ObjectMapper());
         EntitySyncEvent event = event(java.util.Map.of("name", "Retry me"));
+        when(checkpoints.claim(eq(event), anyString()))
+                .thenReturn(EntitySyncCheckpointStore.ClaimResult.APPLY);
+        doThrow(new IllegalStateException("repository unavailable")).when(projections).apply(event);
 
         assertThrows(IllegalStateException.class,
                 () -> consumer.consumeEntitySyncEvent(event));
 
-        verify(checkpoints).save(any(EntitySyncCheckpoint.class));
-        verify(restaurants).getIfAvailable();
-        verifyNoInteractions(dishes);
+        verify(projections).apply(event);
     }
 
     private static EntitySyncEvent event(java.util.Map<String, Object> payload) {

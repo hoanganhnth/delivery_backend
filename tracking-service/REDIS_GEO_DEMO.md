@@ -64,8 +64,7 @@ GeoResults<GeoLocation<Object>> results = geoOps.radius(
 ```bash
 POST /api/shipper-locations/update
 Headers:
-  X-User-Id: 123
-  X-Role: SHIPPER
+  Authorization: Bearer <access-token>
 Body:
 {
   "latitude": 10.8231,

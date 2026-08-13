@@ -11,6 +11,12 @@ app:
     outbox-relay-enabled: ${PROMOTION_OUTBOX_RELAY_ENABLED:false}
     outbox-relay-ms: ${PROMOTION_OUTBOX_RELAY_MS:500}
   kafka:
+    retry:
+      attempts: ${KAFKA_RETRY_ATTEMPTS:4}
+      initial-delay-ms: ${KAFKA_RETRY_INITIAL_DELAY_MS:1000}
+      multiplier: ${KAFKA_RETRY_MULTIPLIER:2.0}
+      max-delay-ms: ${KAFKA_RETRY_MAX_DELAY_MS:10000}
+      auto-create-topics: ${KAFKA_RETRY_AUTO_CREATE_TOPICS:false}
     topics:
       voucher-reservation-events: ${VOUCHER_RESERVATION_EVENTS_TOPIC:voucher.reservation.events}
       order-created: ${ORDER_CREATED_TOPIC:order.created}
@@ -57,6 +63,7 @@ spring:
         spring.json.trusted.packages: "*"
     listener:
       ack-mode: manual_immediate
+      auto-startup: ${KAFKA_LISTENER_AUTO_STARTUP:true}
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer

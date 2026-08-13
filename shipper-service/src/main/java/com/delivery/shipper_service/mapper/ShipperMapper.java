@@ -61,7 +61,6 @@ public class ShipperMapper {
         if (request.getIdCard() != null) shipper.setIdCard(request.getIdCard());
         if (request.getPhone() != null) shipper.setPhone(request.getPhone());
         if (request.getDriverImage() != null) shipper.setDriverImage(request.getDriverImage());
-        if (request.getIsOnline() != null) shipper.setIsOnline(request.getIsOnline());
         if (request.getIdCardFrontImage() != null) shipper.setIdCardFrontImage(request.getIdCardFrontImage());
         if (request.getIdCardBackImage() != null) shipper.setIdCardBackImage(request.getIdCardBackImage());
         if (request.getLicenseImage() != null) shipper.setLicenseImage(request.getLicenseImage());

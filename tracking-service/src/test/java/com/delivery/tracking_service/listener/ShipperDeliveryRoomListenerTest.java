@@ -45,7 +45,7 @@ class ShipperDeliveryRoomListenerTest {
     void malformedEventIsNotAcknowledged() {
         Acknowledgment acknowledgment = mock(Acknowledgment.class);
         assertThatThrownBy(() -> listener.handle("{\"shipperId\":42}", acknowledgment))
-                .isInstanceOf(IllegalStateException.class);
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     private String event(String status, long deliveryId) {

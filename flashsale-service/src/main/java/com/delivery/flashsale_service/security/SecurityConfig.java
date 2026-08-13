@@ -1,6 +1,7 @@
 package com.delivery.flashsale_service.security;
 
 import com.delivery.auth.resourceserver.security.DeliveryJwtAuthenticationConverter;
+import org.springframework.http.HttpMethod;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -20,6 +21,7 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/flashsales/public/**").permitAll()
                         .requestMatchers("/api/flashsales/internal/**").permitAll()
                         .anyRequest().authenticated()
                 )

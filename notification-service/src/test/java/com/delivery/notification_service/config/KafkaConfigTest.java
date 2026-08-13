@@ -50,10 +50,31 @@ class KafkaConfigTest {
         ArgumentCaptor<ProducerRecord<String, String>> sent =
                 ArgumentCaptor.forClass(ProducerRecord.class);
         verify(template).send(sent.capture());
-        assertThat(sent.getValue().topic()).isEqualTo("delivery.status-updated.DLT");
+        assertThat(sent.getValue().topic()).isEqualTo("delivery.status-updated.notification.DLT");
         assertThat(sent.getValue().partition()).isEqualTo(4);
         assertThat(sent.getValue().key()).isEqualTo("delivery-101");
         assertThat(sent.getValue().value()).isEqualTo("bad-json");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void retryTopicFallbackReturnsToTheCanonicalNotificationDlt() {
+        KafkaConfig config = new KafkaConfig("kafka:19092", "notification-test-group", true);
+        KafkaTemplate<String, String> template = mock(KafkaTemplate.class);
+        when(template.send(any(ProducerRecord.class)))
+                .thenReturn(CompletableFuture.completedFuture(mock(SendResult.class)));
+        var recoverer = config.notificationDeadLetterRecoverer(template);
+        ConsumerRecord<String, String> retry = new ConsumerRecord<>(
+                "delivery.status-updated-retry-notification-1000", 4, 9L,
+                "delivery-101", "bad-json");
+
+        recoverer.accept(retry, new IllegalArgumentException("poison"));
+
+        ArgumentCaptor<ProducerRecord<String, String>> sent =
+                ArgumentCaptor.forClass(ProducerRecord.class);
+        verify(template).send(sent.capture());
+        assertThat(sent.getValue().topic()).isEqualTo("delivery.status-updated.notification.DLT");
+        assertThat(sent.getValue().partition()).isEqualTo(4);
     }
 
     @Test

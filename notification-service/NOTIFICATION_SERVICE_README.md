@@ -20,7 +20,9 @@ truth khi tài liệu có mâu thuẫn.
 
 ## Public HTTP qua Gateway
 
-Tất cả route dưới đây cần JWT; `X-User-Id` do Gateway strip rồi derive lại:
+Tất cả route dưới đây cần `Authorization: Bearer <access-token>`. Gateway chỉ
+route và strip `X-User-Id`/`X-Role` giả mạo; Notification tự validate access token
+qua Auth JWKS và derive actor từ JWT claims.
 
 | Method | Path | Quyền |
 |---|---|---|

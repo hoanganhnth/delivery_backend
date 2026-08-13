@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
@@ -106,5 +107,17 @@ public class ShipperControllerTest {
                 .andExpect(jsonPath("$.status").value(1))
                 .andExpect(jsonPath("$.data.id").value(1))
                 .andExpect(jsonPath("$.data.isOnline").value(true));
+    }
+
+    @Test
+    void genericProfileUpdateRejectsOnlineStatusField() throws Exception {
+        mockMvc.perform(put("/api/shippers")
+                .with(testActor(1L, "SHIPPER"))
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"isOnline\":false}"))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(shipperService);
     }
 }

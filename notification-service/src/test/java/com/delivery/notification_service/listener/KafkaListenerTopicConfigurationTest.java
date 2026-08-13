@@ -4,6 +4,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.annotation.RetryableTopic;
 
+import com.delivery.notification_service.exception.NotificationConflictException;
+
 import java.lang.reflect.Method;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -42,8 +44,10 @@ class KafkaListenerTopicConfigurationTest {
         assertThat(retry).isNotNull();
         assertThat(retry.attempts()).isEqualTo("${app.kafka.retry.attempts:4}");
         assertThat(retry.autoCreateTopics()).isEqualTo("${app.kafka.retry.auto-create-topics:false}");
-        assertThat(retry.exclude()).containsExactly(IllegalArgumentException.class);
+        assertThat(retry.exclude()).containsExactly(
+                IllegalArgumentException.class, NotificationConflictException.class);
         assertThat(retry.kafkaTemplate()).isEqualTo("retryKafkaTemplate");
-        assertThat(retry.dltTopicSuffix()).isEqualTo(".DLT");
+        assertThat(retry.retryTopicSuffix()).isEqualTo("-retry-notification");
+        assertThat(retry.dltTopicSuffix()).isEqualTo(".notification.DLT");
     }
 }

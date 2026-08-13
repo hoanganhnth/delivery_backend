@@ -107,7 +107,9 @@ public class KafkaConfig {
         DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(
                 kafkaTemplate,
                 (record, exception) -> new TopicPartition(
-                        record.topic() + ".DLT", record.partition()));
+                        // Keep the common-error-handler escape path in the
+                        // same owner-isolated DLT topology as @RetryableTopic.
+                        ownerDltTopic(record.topic()), record.partition()));
         recoverer.setFailIfSendResultIsError(true);
         return recoverer;
     }
@@ -128,5 +130,9 @@ public class KafkaConfig {
         });
         handler.setCommitRecovered(true);
         return handler;
+    }
+
+    private static String ownerDltTopic(String topic) {
+        return topic.replaceFirst("-retry-notification-\\d+$", "") + ".notification.DLT";
     }
 }

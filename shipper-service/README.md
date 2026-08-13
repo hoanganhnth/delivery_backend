@@ -150,8 +150,7 @@ Service chạy trên port **8086**
 ```bash
 POST /api/shippers
 Headers:
-  X-User-Id: 1
-  X-Role: USER
+  Authorization: Bearer <access-token>
   Content-Type: application/json
 
 Body:
@@ -187,7 +186,7 @@ Response:
 ```bash
 PUT /api/shippers/1
 Headers:
-  X-User-Id: 1
+  Authorization: Bearer <access-token>
   Content-Type: application/json
 
 Body:
@@ -221,7 +220,7 @@ Response:
 ```bash
 PATCH /api/shippers/1/online-status?isOnline=true
 Headers:
-  X-User-Id: 1
+  Authorization: Bearer <access-token>
 
 Response:
 {
@@ -245,9 +244,11 @@ Response:
 - **USER**: Chỉ có thể tạo/cập nhật/xóa shipper cho chính mình
 - **SHIPPER**: Có thể cập nhật thông tin cá nhân và trạng thái online
 
-### Headers yêu cầu
-- `X-User-Id`: ID của user thực hiện request
-- `X-Role`: Role của user (ADMIN, USER, SHIPPER)
+### Xác thực và headers
+- Client gửi `Authorization: Bearer <access-token>`.
+- Shipper Service tự validate access token qua Auth JWKS và lấy actor/role từ JWT.
+- Gateway chỉ strip `X-User-Id`/`X-Role` do client gửi; không inject lại các header
+  này. Không dùng các header legacy để phân quyền.
 
 ## Validation Rules
 

@@ -1,5 +1,7 @@
 package com.delivery.shipper_service.service.impl;
 
+import com.delivery.shipper_service.client.TrackingAvailabilityClient;
+import com.delivery.shipper_service.dto.request.UpdateShipperRequest;
 import com.delivery.shipper_service.dto.response.ShipperResponse;
 import com.delivery.shipper_service.entity.Shipper;
 import com.delivery.shipper_service.mapper.ShipperMapper;
@@ -19,7 +21,9 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 
@@ -31,6 +35,9 @@ public class ShipperServiceImplTest {
 
     @Mock
     private ShipperMapper shipperMapper;
+
+    @Mock
+    private TrackingAvailabilityClient trackingAvailabilityClient;
 
     @InjectMocks
     private ShipperServiceImpl shipperService;
@@ -87,6 +94,64 @@ public class ShipperServiceImplTest {
         assertThrows(IllegalArgumentException.class,
                 () -> shipperService.updateOnlineStatusByUserId(7L, null));
 
-        verifyNoInteractions(shipperRepository, shipperMapper);
+        verifyNoInteractions(shipperRepository, shipperMapper, trackingAvailabilityClient);
+    }
+
+    @Test
+    void offlineStatusPublishesTrackingTombstoneBeforeSavingProfileProjection() {
+        Shipper shipper = new Shipper();
+        shipper.setUserId(7L);
+        ShipperResponse response = new ShipperResponse();
+        response.setIsOnline(false);
+        when(shipperRepository.findByUserId(7L)).thenReturn(Optional.of(shipper));
+        when(shipperRepository.save(shipper)).thenReturn(shipper);
+        when(shipperMapper.toResponse(shipper)).thenReturn(response);
+
+        shipperService.updateOnlineStatusByUserId(7L, false);
+
+        var ordered = inOrder(trackingAvailabilityClient, shipperRepository);
+        ordered.verify(trackingAvailabilityClient).markOffline(7L);
+        ordered.verify(shipperRepository).save(shipper);
+    }
+
+    @Test
+    void offlineStatusDoesNotSaveProfileWhenTrackingRejectsTombstone() {
+        Shipper shipper = new Shipper();
+        shipper.setUserId(7L);
+        when(shipperRepository.findByUserId(7L)).thenReturn(Optional.of(shipper));
+        org.mockito.Mockito.doThrow(new IllegalStateException("Tracking unavailable"))
+                .when(trackingAvailabilityClient).markOffline(7L);
+
+        assertThrows(IllegalStateException.class,
+                () -> shipperService.updateOnlineStatusByUserId(7L, false));
+
+        verify(shipperRepository, never()).save(any());
+    }
+
+    @Test
+    void onlineStatusOnlyUpdatesPublisherIntent() {
+        Shipper shipper = new Shipper();
+        shipper.setUserId(7L);
+        ShipperResponse response = new ShipperResponse();
+        response.setIsOnline(true);
+        when(shipperRepository.findByUserId(7L)).thenReturn(Optional.of(shipper));
+        when(shipperRepository.save(shipper)).thenReturn(shipper);
+        when(shipperMapper.toResponse(shipper)).thenReturn(response);
+
+        shipperService.updateOnlineStatusByUserId(7L, true);
+
+        verifyNoInteractions(trackingAvailabilityClient);
+        verify(shipperRepository).save(shipper);
+    }
+
+    @Test
+    void genericProfileUpdateRejectsAvailabilityMutationBeforeRepositoryAccess() {
+        UpdateShipperRequest request = new UpdateShipperRequest();
+        request.setIsOnline(false);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> shipperService.updateShipperByUserId(7L, request));
+
+        verifyNoInteractions(shipperRepository, shipperMapper, trackingAvailabilityClient);
     }
 }

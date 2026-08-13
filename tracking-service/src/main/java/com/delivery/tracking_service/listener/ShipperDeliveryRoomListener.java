@@ -27,8 +27,9 @@ public class ShipperDeliveryRoomListener {
         this.assignments = assignments;
     }
 
-    @KafkaListener(topics = "shipper.status-change",
-            groupId = "${app.kafka.groups.delivery-rooms:tracking-delivery-rooms}")
+    @KafkaListener(topics = "${app.kafka.topics.shipper-status-change:shipper.status-change}",
+            groupId = "${app.kafka.groups.delivery-rooms:tracking-delivery-rooms}",
+            containerFactory = "deliveryRoomsKafkaListenerContainerFactory")
     @SuppressWarnings("unchecked")
     public void handle(String payload, Acknowledgment acknowledgment) {
         try {
@@ -51,6 +52,8 @@ public class ShipperDeliveryRoomListener {
                 rooms.end(deliveryId, shipperId);
             }
             acknowledgment.acknowledge();
+        } catch (IllegalArgumentException poison) {
+            throw poison;
         } catch (Exception exception) {
             throw new IllegalStateException("Cannot update delivery WebSocket room", exception);
         }

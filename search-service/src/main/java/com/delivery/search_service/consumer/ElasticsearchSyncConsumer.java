@@ -1,17 +1,10 @@
 package com.delivery.search_service.consumer;
 
-import com.delivery.search_service.document.DishDocument;
-import com.delivery.search_service.document.RestaurantDocument;
-import com.delivery.search_service.document.EntitySyncCheckpoint;
 import com.delivery.search_service.dto.EntitySyncEvent;
-import com.delivery.search_service.repository.DishSearchRepository;
-import com.delivery.search_service.repository.RestaurantSearchRepository;
-import com.delivery.search_service.repository.EntitySyncCheckpointRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -28,15 +21,15 @@ import java.util.TreeMap;
 @ConditionalOnProperty(name = "app.elasticsearch.enabled", havingValue = "true")
 public class ElasticsearchSyncConsumer {
 
-    private final ObjectProvider<RestaurantSearchRepository> restaurantRepository;
-    private final ObjectProvider<DishSearchRepository> dishRepository;
-    private final EntitySyncCheckpointRepository checkpointRepository;
+    private final EntitySyncCheckpointStore checkpointStore;
+    private final SearchProjectionWriter projectionWriter;
     private final ObjectMapper objectMapper;
 
-    @KafkaListener(topics = "entity-sync", groupId = "search-service-group")
+    @KafkaListener(topics = "entity-sync", groupId = "${spring.kafka.consumer.group-id}")
     public void consumeEntitySyncEvent(EntitySyncEvent event) {
         validateEvent(event);
-        if (isSuperseded(event)) {
+        EntitySyncCheckpointStore.ClaimResult claim = checkpointStore.claim(event, fingerprint(event));
+        if (claim == EntitySyncCheckpointStore.ClaimResult.STALE) {
             log.info("Skipping stale entity-sync event {} for {}:{}",
                     event.getEventId(), event.getEntityType(), event.getEntityId());
             return;
@@ -45,74 +38,10 @@ public class ElasticsearchSyncConsumer {
                 event.getEntityType(), event.getAction(), event.getEntityId());
 
         try {
-            switch (event.getEntityType().toUpperCase()) {
-                case "RESTAURANT":
-                    handleRestaurantSync(event);
-                    break;
-                case "DISH":
-                    handleDishSync(event);
-                    break;
-                default:
-                    throw new IllegalArgumentException("Unknown entity type: " + event.getEntityType());
-            }
+            projectionWriter.apply(event);
         } catch (Exception e) {
             log.error("Error processing sync event: {}", event, e);
             throw new IllegalStateException("Failed to synchronize search entity", e);
-        }
-    }
-
-    private boolean isSuperseded(EntitySyncEvent event) {
-        String checkpointId = event.getEntityType().toUpperCase(java.util.Locale.ROOT)
-                + ":" + event.getEntityId();
-        String fingerprint = fingerprint(event);
-        EntitySyncCheckpoint existing = checkpointRepository.findById(checkpointId).orElse(null);
-        if (existing != null) {
-            if (existing.getEventId().equals(event.getEventId().toString())) {
-                requireExactReplay(existing, event, fingerprint, checkpointId);
-                return false;
-            }
-            int ordering = existing.getOccurredAt().compareTo(event.getOccurredAt());
-            if (ordering > 0) return true;
-            if (ordering == 0) {
-                throw new IllegalArgumentException(
-                        "Conflicting entity-sync events share the same occurredAt for " + checkpointId);
-            }
-        }
-
-        // Claim the version before applying the document mutation. If the mutation
-        // fails, the exact same event is allowed through on Kafka retry; older events
-        // remain fenced out.
-        checkpointRepository.save(EntitySyncCheckpoint.builder()
-                .id(checkpointId)
-                .eventId(event.getEventId().toString())
-                .occurredAt(event.getOccurredAt())
-                .action(event.getAction().toUpperCase(java.util.Locale.ROOT))
-                .payloadFingerprint(fingerprint)
-                .build());
-        return false;
-    }
-
-    private void requireExactReplay(
-            EntitySyncCheckpoint existing,
-            EntitySyncEvent event,
-            String fingerprint,
-            String checkpointId) {
-        String canonicalAction = event.getAction().toUpperCase(java.util.Locale.ROOT);
-        if (!existing.getOccurredAt().equals(event.getOccurredAt())
-                || !canonicalAction.equals(existing.getAction())) {
-            throw new IllegalArgumentException(
-                    "entity-sync eventId replay has contradictory metadata for " + checkpointId);
-        }
-        if (existing.getPayloadFingerprint() == null) {
-            // Upgrade a checkpoint written before payload fingerprints existed.
-            // Metadata still has to match; the exact retry establishes the new fence.
-            existing.setPayloadFingerprint(fingerprint);
-            checkpointRepository.save(existing);
-            return;
-        }
-        if (!existing.getPayloadFingerprint().equals(fingerprint)) {
-            throw new IllegalArgumentException(
-                    "entity-sync eventId replay has contradictory payload for " + checkpointId);
         }
     }
 
@@ -154,44 +83,6 @@ public class ElasticsearchSyncConsumer {
         }
         if (!"DELETE".equalsIgnoreCase(event.getAction()) && event.getPayload() == null) {
             throw new IllegalArgumentException("payload is required for create/update");
-        }
-    }
-
-    private void handleRestaurantSync(EntitySyncEvent event) {
-        RestaurantSearchRepository repository = restaurantRepository.getIfAvailable();
-        if (repository == null) {
-            throw new IllegalStateException("Restaurant search repository is unavailable");
-        }
-
-        if ("DELETE".equalsIgnoreCase(event.getAction())) {
-            repository.deleteById(event.getEntityId());
-            return;
-        }
-        
-        Map<String, Object> payload = event.getPayload();
-        if (payload != null) {
-            RestaurantDocument doc = objectMapper.convertValue(payload, RestaurantDocument.class);
-            doc.setId(event.getEntityId());
-            repository.save(doc);
-        }
-    }
-
-    private void handleDishSync(EntitySyncEvent event) {
-        DishSearchRepository repository = dishRepository.getIfAvailable();
-        if (repository == null) {
-            throw new IllegalStateException("Dish search repository is unavailable");
-        }
-
-        if ("DELETE".equalsIgnoreCase(event.getAction())) {
-            repository.deleteById(event.getEntityId());
-            return;
-        }
-        
-        Map<String, Object> payload = event.getPayload();
-        if (payload != null) {
-            DishDocument doc = objectMapper.convertValue(payload, DishDocument.class);
-            doc.setId(event.getEntityId());
-            repository.save(doc);
         }
     }
 

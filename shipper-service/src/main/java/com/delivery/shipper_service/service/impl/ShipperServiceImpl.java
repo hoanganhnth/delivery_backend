@@ -3,6 +3,7 @@ package com.delivery.shipper_service.service.impl;
 import com.delivery.shipper_service.dto.request.CreateShipperRequest;
 import com.delivery.shipper_service.dto.request.UpdateShipperRequest;
 import com.delivery.shipper_service.dto.response.ShipperResponse;
+import com.delivery.shipper_service.client.TrackingAvailabilityClient;
 import com.delivery.shipper_service.entity.Shipper;
 import com.delivery.shipper_service.exception.ResourceNotFoundException;
 import com.delivery.shipper_service.mapper.ShipperMapper;
@@ -25,11 +26,14 @@ public class ShipperServiceImpl implements ShipperService {
 
     private final ShipperRepository shipperRepository;
     private final ShipperMapper shipperMapper;
+    private final TrackingAvailabilityClient trackingAvailabilityClient;
 
     public ShipperServiceImpl(ShipperRepository shipperRepository,
-            ShipperMapper shipperMapper) {
+            ShipperMapper shipperMapper,
+            TrackingAvailabilityClient trackingAvailabilityClient) {
         this.shipperRepository = shipperRepository;
         this.shipperMapper = shipperMapper;
+        this.trackingAvailabilityClient = trackingAvailabilityClient;
     }
 
     @Override
@@ -113,6 +117,12 @@ public class ShipperServiceImpl implements ShipperService {
         Shipper shipper = shipperRepository.findByUserId(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy shipper của user với ID: " + userId));
 
+        // Tracking publishes the timestamped offline tombstone that Match
+        // consumes. Do this before updating our profile/read-model projection;
+        // a failed remote command must not claim that the shipper is offline.
+        if (!isOnline) {
+            trackingAvailabilityClient.markOffline(userId);
+        }
         shipper.setIsOnline(isOnline);
         Shipper savedShipper = shipperRepository.save(shipper);
         
@@ -171,6 +181,9 @@ public class ShipperServiceImpl implements ShipperService {
     private void requireUpdateRequest(UpdateShipperRequest request) {
         if (request == null) {
             throw new IllegalArgumentException("Update shipper request is required");
+        }
+        if (request.getIsOnline() != null) {
+            throw new IllegalArgumentException("isOnline must be changed through /api/shippers/online-status");
         }
     }
 }

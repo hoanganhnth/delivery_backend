@@ -18,7 +18,8 @@ import java.util.UUID;
 @NoArgsConstructor
 public class LocationHistoryReceipt {
 
-    public enum Outcome { PERSISTED, SAMPLED_OUT, NO_DELIVERY, OFFLINE_TOMBSTONE }
+    /** PENDING exists only inside the transaction that owns the first claim. */
+    public enum Outcome { PENDING, PERSISTED, SAMPLED_OUT, NO_DELIVERY, OFFLINE_TOMBSTONE }
 
     @Id
     @Column(name = "event_id", nullable = false, updatable = false)
@@ -40,13 +41,23 @@ public class LocationHistoryReceipt {
     @Column(name = "processed_at", nullable = false)
     private Instant processedAt;
 
+    /** Null only for receipts committed before the fingerprint migration. */
+    @Column(name = "payload_fingerprint", length = 64)
+    private String payloadFingerprint;
+
     public LocationHistoryReceipt(UUID eventId, Long deliveryId, Long shipperId,
                                   Instant occurredAt, Outcome outcome) {
+        this(eventId, deliveryId, shipperId, occurredAt, outcome, null);
+    }
+
+    public LocationHistoryReceipt(UUID eventId, Long deliveryId, Long shipperId,
+                                  Instant occurredAt, Outcome outcome, String payloadFingerprint) {
         this.eventId = eventId;
         this.deliveryId = deliveryId;
         this.shipperId = shipperId;
         this.occurredAt = occurredAt;
         this.outcome = outcome;
         this.processedAt = Instant.now();
+        this.payloadFingerprint = payloadFingerprint;
     }
 }

@@ -23,7 +23,9 @@ curl -fsS 'http://localhost:8079/api/notifications/unread?page=0&size=20' \
   -H 'Authorization: Bearer <JWT>'
 ```
 
-Không tự gửi `X-User-Id` hoặc `X-Role`; Gateway strip và derive identity từ JWT.
+Không tự gửi `X-User-Id` hoặc `X-Role`; client chỉ gửi
+`Authorization: Bearer <access-token>`. Gateway strip các legacy identity headers, còn Notification
+derive identity từ JWT đã tự validate qua Auth JWKS.
 Internal send API cần `Internal-Token` và không được public route qua Gateway.
 
 ## Canonical cross-service proof

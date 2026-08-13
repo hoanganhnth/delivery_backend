@@ -17,8 +17,7 @@ Dịch vụ tracking đơn giản để quản lý vị trí shipper theo thời
 ```bash
 POST /api/shipper-locations/update
 Headers:
-  X-User-Id: 123
-  X-Role: SHIPPER
+  Authorization: Bearer <access-token>
 Body:
 {
   "latitude": 10.762622,
@@ -74,8 +73,7 @@ Response:
 ```bash
 POST /api/shipper-locations/offline
 Headers:
-  X-User-Id: 123
-  X-Role: SHIPPER
+  Authorization: Bearer <access-token>
 ```
 
 ### Health Check
