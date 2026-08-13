@@ -74,7 +74,7 @@ class UserControllerInternalAuthorizationTest {
 
     @Test
     void currentProfileReadFailsClosedWithoutTrustedIdentityHeaders() {
-        var missingActor = controller.getUserById(null);
+        var missingActor = controller.getCurrentUser(null);
         var missingUserActor = controller.updateCurrentUser(new UserRequest(), null);
 
         assertThat(missingActor.getStatusCode().value()).isEqualTo(403);

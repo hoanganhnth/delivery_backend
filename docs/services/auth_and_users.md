@@ -101,7 +101,8 @@ sequenceDiagram
    stateless-valid tới khi hết 15 phút.
 2. Các request tiếp theo từ App phải đính kèm header `Authorization: Bearer <Access_Token>`.
 3. `api-gateway` chỉ forward request theo exact route/method và strip mọi
-   `X-User-Id`/`X-Role` do client gửi; Gateway không parse hoặc xác thực JWT.
+   `X-User-Id`/`X-Role` do client gửi; Gateway không parse, xác thực JWT hoặc
+   inject lại identity header.
 4. Mỗi resource service lấy public keys từ
    `GET /.well-known/jwks.json` của Auth và xác thực RS256, `kid`, issuer,
    audience và `token_type=access`. Converter chung dựng `AuthenticatedActor`

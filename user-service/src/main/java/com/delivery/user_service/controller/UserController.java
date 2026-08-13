@@ -91,16 +91,6 @@ public class UserController {
         return ResponseEntity.ok(new BaseResponse<>(1, user));
     }
 
-    @GetMapping("/{id}")
-    public ResponseEntity<BaseResponse<UserResponse>> getUserById(
-            @AuthenticationPrincipal AuthenticatedActor actor) {
-        if (actor == null || actor.getUserId() == null) {
-            return forbiddenUserAccess();
-        }
-        UserResponse user = userService.getUserById(actor.getUserId());
-        return ResponseEntity.ok(new BaseResponse<>(1, user));
-    }
-
     @PutMapping
     public ResponseEntity<BaseResponse<UserResponse>> updateCurrentUser(
             @Valid @RequestBody UserRequest request,

@@ -58,6 +58,8 @@ class GatewayRouteSecurityTest {
         assertThat(matches(routes, HttpMethod.GET, "/api/auth/forgot-password")).isFalse();
         assertThat(matches(routes, HttpMethod.GET, "/api/auth/sessions")).isTrue();
         assertThat(matches(routes, HttpMethod.POST, "/api/auth/sessions")).isFalse();
+        assertThat(matches(routes, HttpMethod.DELETE, "/api/auth/sessions/phone-1")).isTrue();
+        assertThat(matches(routes, HttpMethod.DELETE, "/api/auth/sessions")).isFalse();
         assertThat(matches(routes, HttpMethod.GET, "/api/auth/unknown")).isFalse();
         assertThat(matches(routes, HttpMethod.GET, "/api/orchestrator/sagas/42")).isFalse();
         assertThat(matches(routes, HttpMethod.GET, "/actuator/health")).isFalse();
@@ -126,6 +128,7 @@ class GatewayRouteSecurityTest {
 
         assertThat(matches(routes, HttpMethod.GET, "/api/tracking/shipper-locations/42")).isFalse();
         assertThat(matches(routes, HttpMethod.POST, "/api/tracking/shipper-locations/update")).isTrue();
+        assertThat(matches(routes, HttpMethod.POST, "/api/tracking/internal/shippers/42/offline")).isFalse();
         assertThat(matches(routes, HttpMethod.GET, "/api/tracking/shipper-locations/nearby")).isFalse();
         assertThat(matches(routes, HttpMethod.PUT, "/api/tracking/shipper-locations/42/busy")).isFalse();
         assertThat(matches(routes, HttpMethod.GET,

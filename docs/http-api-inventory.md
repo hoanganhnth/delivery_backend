@@ -1,6 +1,6 @@
 # HTTP API Inventory
 
-Ngày cập nhật inventory: 2026-08-08
+Ngày cập nhật inventory: 2026-08-09
 
 Tài liệu này liệt kê toàn bộ method có mapping trong 16 service có controller.
 `saga-orchestrator-service` không có HTTP controller. Danh sách được sinh trực
@@ -94,12 +94,13 @@ sửa.
 | delivery status update | assigned SHIPPER self | shipper app | public-client/restrict | Gateway exact SHIPPER role + service owner; chỉ tuần tự PICKED_UP→DELIVERING→DELIVERED, same-state retry no-op; PostgreSQL concurrency rehearsal còn OPEN |
 | delivery shipper lists | SHIPPER self hoặc ADMIN | shipper app/web | public-client/keep | ownership đã enforce; history/active compatibility lists cap repository query ở 100 |
 | delivery admin cancel-all | none | không có polyrepo consumer | dead/deleted | controller/service/repository query đã xóa vì có thể động tới pickup/delivering mà không có canonical per-delivery recovery/audit contract |
-| shipper profile/create/update/online | SHIPPER self | shipper app | create/profile/update/online public; delete dead/deleted | delete API đã xóa sau zero-call-site proof; trusted user identity dùng typed Long; canonical online vẫn cần hội tụ với tracking |
+| shipper profile/create/update/online | SHIPPER self | shipper app | create/profile/update/online public; delete dead/deleted | delete API đã xóa sau zero-call-site proof; trusted user identity dùng typed Long; generic profile update không còn nhận `isOnline`; `PATCH /online-status?isOnline=false` gọi internal Tracking tombstone trước khi lưu projection, còn `true` chỉ là publisher intent chờ heartbeat GPS |
 | shipper by id | ADMIN until a limited participant DTO exists | web admin only | public-admin/restrict | full DTO chứa giấy phép/CCCD nên không public cho customer. Flutter tracking không còn gọi `/shippers/{id}` hoặc giữ `in-area` discovery graph; customer chỉ dùng Delivery `shipperId` + participant raw location. |
 | shipper all/online | ADMIN | web admin | public-admin/keep | Gateway/controller bắt ADMIN; fleet page và online compatibility list đều cap 100 |
 | legacy shipper PostgreSQL location | none | không có polyrepo HTTP consumer | dead/deleted | controller/service/repository/entity/DTO/mapper đã xóa sau zero-call-site proof; legacy DB table được giữ để tránh drop dữ liệu không được authorize; Tracking Redis/raw WebSocket là canonical |
 | shipper ratings | SHIPPER self read only hiện tại | shipper app | self read keep; write dead/deleted | arbitrary profile-ID read route đã xóa; `/me/ratings` bắt service-level SHIPPER, resolve JWT userId→profileId và trả `BaseResponse<List<ShipperRatingResponse>>`. Profile rating là null khi chưa có rating row; write controller đã xóa sau zero-call-site proof |
-| tracking update/offline | SHIPPER self from JWT/socket session | shipper app | public-client/keep one transport | REST và raw socket derive identity từ JWT; client phải gửi Authorization khi handshake |
+| tracking update/offline | SHIPPER self from JWT/socket session | shipper app | public-client/keep one transport | REST và raw socket derive identity từ JWT; client phải gửi Authorization khi handshake; explicit offline luôn phát timestamped tombstone sang Match |
+| tracking internal offline command | shipper-service credential | shipper-service | internal/keep | `POST /api/tracking/internal/shippers/{shipperId}/offline` chỉ nhận `Internal-Token`, không có Gateway route, và là authority để Match loại shipper khỏi availability |
 | tracking socket subscribe | active order participants | Flutter tracking | public-client/keep | socket bắt `deliveryId` và internal Delivery participant check; arbitrary REST point-read đã bỏ khỏi public edge |
 | tracking online/nearby/distance diagnostics | none | không có consumer | dead/deleted | HTTP controller và dead Redis query/health helpers đã xóa; matching đọc replica riêng trong Match |
 | match busy/available replica | Kafka status event | delivery lifecycle | internal-event/keep | REST mutation và Tracking write-only consumer đã xóa; Match là consumer duy nhất, áp dụng offer release + BUSY/AVAILABLE + timestamp/event fence atomically trong Redis |
@@ -283,6 +284,7 @@ sửa.
 | shipper-service | ShipperRatingController | GET | `/api/shippers/me/ratings` | `getMyRatings` |
 | tracking-service | ShipperLocationController | POST | `/api/tracking/shipper-locations/update` | `updateLocation` |
 | tracking-service | ShipperLocationController | POST | `/api/tracking/shipper-locations/offline` | `markOffline` |
+| tracking-service | InternalShipperAvailabilityController | POST | `/api/tracking/internal/shippers/{shipperId}/offline` | `markOffline` |
 | tracking-service | InternalLocationHistoryController | GET | `/internal/tracking/location-history/deliveries/{deliveryId}` | `byDelivery` |
 | user-service | UserAddressController | GET | `/api/addresses/users/{userId}/addresses` | `getUserAddresses` |
 | user-service | UserAddressController | GET | `/api/addresses/{id}` | `getAddress` |
@@ -293,7 +295,6 @@ sửa.
 | user-service | UserController | POST | `/api/users` | `createUser` |
 | user-service | UserController | POST | `/api/users/registrations` | `registerUser` |
 | user-service | UserController | GET | `/api/users` | `getCurrentUser` |
-| user-service | UserController | GET | `/api/users/{id}` | `getUserById` |
 | user-service | UserController | GET | `/api/users/by-auth/{authId}` | `getUserByAuthId` |
 | user-service | UserController | PUT | `/api/users` | `updateCurrentUser` |
 | user-service | UserController | GET | `/api/users/admin/statistics` | `getUserStatistics` |

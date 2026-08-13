@@ -100,6 +100,9 @@ public class GatewayRouteConfig {
                                 .route("auth-service-protected", r -> r.path("/api/auth/sessions")
                                                 .and().method(HttpMethod.GET)
                                                 .uri(authServiceUri))
+                                .route("auth-service-session-revoke", r -> r.path("/api/auth/sessions/{deviceId}")
+                                                .and().method(HttpMethod.DELETE)
+                                                .uri(authServiceUri))
 
                                 // POST /api/users and GET /by-auth/** remain internal linkage APIs.
                                 // Only the exact /registrations handoff path is public above.
