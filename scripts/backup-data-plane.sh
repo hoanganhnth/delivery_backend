@@ -51,6 +51,7 @@ service_databases=(
   'restaurant-service:restaurant_db'
   'order-service:order_db'
   'delivery-service:delivery_db'
+  'match-service:match_db'
   'shipper-service:shipper_db'
   'settlement-service:settlement_db'
   'notification-service:notification_service_db'

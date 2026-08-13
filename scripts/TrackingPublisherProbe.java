@@ -112,7 +112,12 @@ public final class TrackingPublisherProbe {
         shipper.await("connection_established", 10);
         shipper.send("{\"action\":\"update_location\",\"shipperId\":999999999,"
                 + "\"latitude\":10.7755,\"longitude\":106.7035,\"isOnline\":true}");
-        String location = customer.await("location_update", 15);
+        // Subscription intentionally replays the last Redis location first. Wait
+        // for the newly published coordinate rather than mistaking that replay
+        // for the live propagation under test.
+        String location = customer.await("\"latitude\":10.7755", 15);
+        require(location.contains("\"type\":\"location_update\""),
+                "expected coordinate was not delivered as a location update");
         require(containsIdentity(location, "shipperId", shipperId),
                 "location update did not derive shipper identity from JWT");
         require(!containsIdentity(location, "shipperId", 999999999L),

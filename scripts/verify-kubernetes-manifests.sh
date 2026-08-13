@@ -65,7 +65,13 @@ require_count 60 '^    delivery\.platform/wave:' "$base_rendered" 'wave labels'
 
 require_absent '^kind: Ingress$' "$base_rendered" 'Ingress'
 require_absent '^  type: LoadBalancer$' "$base_rendered" 'LoadBalancer Service'
+require_absent '^  type: NodePort$' "$base_rendered" 'NodePort Service'
 require_absent '^kind: Secret$' "$base_rendered" 'plaintext Secret'
+
+if ! rg -Fq 'type: (LoadBalancer|NodePort)' scripts/rollout-kubernetes.sh; then
+  echo "Kubernetes manifest verification: rollout guard must reject both LoadBalancer and NodePort Services." >&2
+  exit 1
+fi
 
 if ! grep -q '^  namespace: delivery$' "$base_rendered"; then
   echo "Kubernetes manifest verification: base render must remain in the delivery namespace." >&2

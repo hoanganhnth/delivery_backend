@@ -43,6 +43,14 @@ rendered_secret_config="$(COMPOSE_PROFILES=optional-capabilities docker compose 
 COMPOSE_PROFILES=optional-capabilities docker compose -f docker-compose.yml -f docker-compose.secrets.yml -f docker-compose.jwt-overlap.yml config --quiet
 rendered_rotation_config="$(COMPOSE_PROFILES=optional-capabilities docker compose -f docker-compose.yml -f docker-compose.secrets.yml -f docker-compose.jwt-overlap.yml config --format json)"
 rendered_static_route_config="$(COMPOSE_PROFILES=optional-capabilities docker compose -f docker-compose.yml -f docker-compose.static-routes.yml config --format json)"
+rendered_isolated_e2e_config="$(
+  COMPOSE_PROFILES=optional-capabilities \
+  COMPOSE_PROJECT_NAME=delivery_e2e_contract \
+  POSTGRES_VOLUME_NAME=delivery_e2e_contract_postgres \
+  KAFKA_VOLUME_NAME=delivery_e2e_contract_kafka \
+    docker compose -f docker-compose.yml -f docker-compose.secrets.yml \
+      -f docker-compose.isolated-e2e.yml config --format json
+)"
 expected_kafka_volume_name="${KAFKA_VOLUME_NAME:-backend_delivery_kafka_data}"
 
 printf '%s' "$default_profile_config" | jq -e '
@@ -68,7 +76,7 @@ printf '%s' "$rendered_config" | jq -e \
     and (.services.postgres.secrets | map(.source) | index("db-password") != null)
     and ([
       "auth-service", "user-service", "restaurant-service", "order-service",
-      "delivery-service", "shipper-service", "settlement-service",
+      "delivery-service", "match-service", "shipper-service", "settlement-service",
       "notification-service", "livestream-service", "saga-orchestrator-service",
       "promotion-service", "analytics-service", "flashsale-service"
     ] | all(. as $service |
@@ -341,6 +349,29 @@ printf '%s' "$rendered_static_route_config" | jq -e '
           "notification-service", "match-service", "tracking-service", "saga-orchestrator-service"]
       | all(. as $service | (($root.services[$service].ports // []) | length == 0)
           or $service == "api-gateway"))
+' >/dev/null
+
+# The disposable E2E overlay must never collide with an already-running local
+# stack. It deliberately removes every fixed container name and infrastructure
+# host port; Gateway alone receives a Docker-assigned loopback port.
+printf '%s' "$rendered_isolated_e2e_config" | jq -e '
+  . as $root
+  | ([
+    "postgres", "redis", "kafka", "elasticsearch", "api-gateway",
+    "auth-service", "user-service", "restaurant-service", "order-service",
+    "delivery-service", "search-service", "shipper-service", "settlement-service",
+    "notification-service", "match-service", "tracking-service", "livestream-service",
+    "saga-orchestrator-service", "promotion-service", "analytics-service",
+    "flashsale-service", "prometheus", "grafana"
+  ] | all(. as $service | ($root.services[$service].container_name // null) == null))
+  and (["tracing-collector", "postgres", "redis", "kafka", "elasticsearch"]
+       | all(. as $service | (($root.services[$service].ports // []) | length) == 0))
+  and (($root.services["api-gateway"].ports // []) | length) == 1
+  and $root.services["api-gateway"].ports[0].target == 8079
+  and $root.services["api-gateway"].ports[0].host_ip == "127.0.0.1"
+  and ($root.services["api-gateway"].ports[0].published // null) == null
+  and $root.volumes.postgres_data.name == "delivery_e2e_contract_postgres"
+  and $root.volumes.kafka_data.name == "delivery_e2e_contract_kafka"
 ' >/dev/null
 
 printf '%s\n' "Compose configuration contract is valid."

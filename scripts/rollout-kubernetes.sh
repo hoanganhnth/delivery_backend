@@ -40,8 +40,8 @@ if rg -n 'example\.invalid|registry\.example\.invalid|REPLACE_ME|REPLACE_WITH_' 
   rg -n 'example\.invalid|registry\.example\.invalid|REPLACE_ME|REPLACE_WITH_' "$rendered" >&2
   exit 1
 fi
-if rg -n '^kind: Secret$|^  type: LoadBalancer$|^kind: NodePort$' "$rendered" >/dev/null; then
-  echo "Refusing rollout: plaintext Secret or public service exposure is present in the overlay." >&2
+if rg -n '^kind: Secret$|^[[:space:]]+type: (LoadBalancer|NodePort)[[:space:]]*$' "$rendered" >/dev/null; then
+  echo "Refusing rollout: plaintext Secret or public LoadBalancer/NodePort Service is present in the overlay." >&2
   exit 1
 fi
 if ! rg -q "^  namespace: ${KUBE_NAMESPACE//./\\.}$" "$rendered"; then

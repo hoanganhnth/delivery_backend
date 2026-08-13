@@ -94,6 +94,10 @@
               {
                 "name": "SPRING_DATASOURCE_URL",
                 "value": "jdbc:postgresql://$(DATABASE_HOST):$(DATABASE_PORT)/shipper_db"
+              },
+              {
+                "name": "PLATFORM_SECRETS_INTERNAL_SECRET_REQUIRED",
+                "value": "true"
               }
             ],
             "volumeMounts": [
@@ -177,6 +181,17 @@
             "projected": {
               "defaultMode": 288,
               "sources": [
+                {
+                  "secret": {
+                    "name": "delivery-shared-internal",
+                    "items": [
+                      {
+                        "key": "value",
+                        "path": "internal-secret"
+                      }
+                    ]
+                  }
+                },
                 {
                   "secret": {
                     "name": "delivery-shipper-service-db",

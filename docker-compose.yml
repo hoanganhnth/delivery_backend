@@ -341,6 +341,7 @@ services:
     expose: ["8089", "9090"]
     environment:
       <<: *runtime-platform-environment
+      PLATFORM_SECRETS_INTERNAL_SECRET_REQUIRED: "true"
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/shipper_db
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
@@ -349,12 +350,15 @@ services:
       JAVA_TOOL_OPTIONS: "-Xmx384m -Xms256m"
     deploy: { resources: { limits: { memory: 512M } } }
     secrets:
+      - source: internal-secret
+        target: internal-secret
       - source: db-password
         target: spring.datasource.password
     depends_on:
       <<: *control-plane-depends-on
       postgres: { condition: service_healthy }
       kafka: { condition: service_healthy }
+      tracking-service: { condition: service_started }
     networks: [delivery-network]
 
   settlement-service:
@@ -417,14 +421,24 @@ services:
       <<: [*tracing-environment, *runtime-platform-environment]
       PLATFORM_SECRETS_INTERNAL_SECRET_REQUIRED: "true"
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_HOST: "${MATCH_REDIS_HOST:-redis}"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/match_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      MATCH_OUTBOX_RELAY_ENABLED: "${MATCH_OUTBOX_RELAY_ENABLED:-true}"
+      MATCH_CANCELLATION_PROJECTION_RELAY_ENABLED: "${MATCH_CANCELLATION_PROJECTION_RELAY_ENABLED:-true}"
+      MATCH_REDIS_TIMEOUT: "${MATCH_REDIS_TIMEOUT:-60000ms}"
+      MATCH_KAFKA_FIND_LISTENER_AUTO_STARTUP: "${MATCH_KAFKA_FIND_LISTENER_AUTO_STARTUP:-${MATCH_KAFKA_LISTENER_AUTO_STARTUP:-true}}"
+      MATCH_KAFKA_STOP_LISTENER_AUTO_STARTUP: "${MATCH_KAFKA_STOP_LISTENER_AUTO_STARTUP:-${MATCH_KAFKA_LISTENER_AUTO_STARTUP:-true}}"
       JAVA_TOOL_OPTIONS: "-Xmx384m -Xms256m"
     deploy: { resources: { limits: { memory: 512M } } }
     secrets:
       - source: internal-secret
         target: internal-secret
+      - source: db-password
+        target: spring.datasource.password
     depends_on:
       <<: *control-plane-depends-on
+      postgres: { condition: service_healthy }
       kafka: { condition: service_healthy }
       redis: { condition: service_healthy }
       settlement-service: { condition: service_started }

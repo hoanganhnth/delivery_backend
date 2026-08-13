@@ -44,9 +44,18 @@ command -v grep >/dev/null || { echo "❌ Cần grep để xác nhận fixture l
 # public-auth rate-limit policy for test automation.
 CURL_RETRY_ARGS=(--retry 4 --retry-all-errors --retry-max-time 240)
 
-COMPOSE_COMMAND=(docker compose -f "$BACKEND_DIR/docker-compose.yml")
-if [[ -f "$BACKEND_DIR/docker-compose.secrets.yml" ]]; then
-  COMPOSE_COMMAND+=( -f "$BACKEND_DIR/docker-compose.secrets.yml" )
+# A caller may supply a run-scoped COMPOSE_FILE/COMPOSE_PROJECT_NAME pair (for
+# example, the disposable clean E2E harness).  Do not replace it with the
+# canonical stack here: seed writes local fixture rows and must stay inside the
+# same project as the Gateway passed through BASE.  For direct local use, keep
+# the historical base + secrets fallback.
+if [[ -n "${COMPOSE_FILE:-}" ]]; then
+  COMPOSE_COMMAND=(docker compose)
+else
+  COMPOSE_COMMAND=(docker compose -f "$BACKEND_DIR/docker-compose.yml")
+  if [[ -f "$BACKEND_DIR/docker-compose.secrets.yml" ]]; then
+    COMPOSE_COMMAND+=( -f "$BACKEND_DIR/docker-compose.secrets.yml" )
+  fi
 fi
 
 # Trích token: thử cả dạng bọc BaseResponse (.data) lẫn phẳng.
@@ -204,7 +213,7 @@ fi
   -f - < "$BACKEND_DIR/scripts/seed-settlement.sql" >/dev/null
 echo "✅ Ký quỹ local shipper userId=$SHIPPER_USER_ID: $SHIPPER_DEPOSIT VND"
 
-# Bật online (shipperId lấy từ X-User-Id do gateway set từ JWT)
+# Bật online; resource service lấy shipper identity từ JWT claims.
 curl --fail-with-body --silent --show-error -X PATCH "$BASE/api/shippers/online-status?isOnline=true" \
   -H "Authorization: Bearer $SHIPPER_TOKEN" >/dev/null
 echo "✅ Shipper online"

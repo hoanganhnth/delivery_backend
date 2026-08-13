@@ -91,3 +91,34 @@ CREATE TABLE notifications (
 INSERT INTO notifications VALUES
   (401, 1001, 'ORDER_DELIVERED', 'SENT', false, 101, 'ORDER',
    'delivery-completed:201:1001', '2026-07-30 01:20:02');
+
+\connect match_db
+CREATE TABLE match_commands (
+  event_id uuid PRIMARY KEY,
+  order_id bigint NOT NULL,
+  delivery_id bigint NOT NULL,
+  payload_fingerprint varchar(64) NOT NULL,
+  status varchar(32) NOT NULL,
+  created_at timestamp NOT NULL
+);
+CREATE TABLE match_outbox_events (
+  event_id uuid PRIMARY KEY,
+  command_event_id uuid NOT NULL,
+  aggregate_id varchar(255) NOT NULL,
+  event_type varchar(128) NOT NULL,
+  topic varchar(255) NOT NULL,
+  event_key varchar(255) NOT NULL,
+  status varchar(16) NOT NULL,
+  payload text NOT NULL,
+  created_at timestamp NOT NULL
+);
+INSERT INTO match_commands VALUES
+  ('00000000-0000-0000-0000-000000000501', 101, 201,
+   'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+   'RESULT_STAGED', '2026-07-30 01:02:00');
+INSERT INTO match_outbox_events VALUES
+  ('00000000-0000-0000-0000-000000000502',
+   '00000000-0000-0000-0000-000000000501', '101', 'shipper.found',
+   'shipper.found', '101', 'PENDING',
+   '{\"eventId\":\"00000000-0000-0000-0000-000000000502\"}',
+   '2026-07-30 01:02:01');

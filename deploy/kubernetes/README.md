@@ -142,7 +142,7 @@ bash scripts/rollout-kubernetes.sh
 For the no-legacy-token JWKS migration, additionally set
 `JWKS_MIGRATION=true` and `K8S_JWKS_WAIT_SECONDS` to the approved 15-minute
 access-token TTL plus clock-skew buffer. The script refuses placeholders,
-plaintext Secrets, public service types, missing namespace confirmation and a
+plaintext Secrets, `LoadBalancer`/`NodePort` Services, missing namespace confirmation and a
 JWKS migration with no wait. It has not been run in this workspace because no
 Kubernetes API server/context is configured.
 

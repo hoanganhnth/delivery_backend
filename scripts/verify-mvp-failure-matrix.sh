@@ -8,14 +8,25 @@ readonly BASE="${BASE:-http://127.0.0.1:8079}"
 readonly FLOW_TIMEOUT_SECONDS="${FLOW_TIMEOUT_SECONDS:-420}"
 readonly POLL_SECONDS=2
 readonly PASS="${PASS:-Password123!}"
+# The clean runner creates all fixture identities through one Gateway peer IP.
+# Respect the public-auth retry contract instead of weakening that rate limit.
+readonly -a AUTH_CURL_RETRY_ARGS=(--retry 4 --retry-all-errors --retry-max-time 240)
 
 command -v curl >/dev/null
 command -v jq >/dev/null
 command -v docker >/dev/null
 
-COMPOSE_COMMAND=(docker compose)
-if [[ -f docker-compose.secrets.yml ]]; then
-  COMPOSE_COMMAND=(docker compose -f docker-compose.yml -f docker-compose.secrets.yml)
+# The runner may inherit a disposable COMPOSE_FILE/COMPOSE_PROJECT_NAME pair.
+# In that case every operator fixture and direct database assertion must use
+# that exact project rather than falling back to the developer's canonical
+# Compose stack.  Keep base + secrets for standalone local invocation.
+if [[ -n "${COMPOSE_FILE:-}" ]]; then
+  COMPOSE_COMMAND=(docker compose)
+else
+  COMPOSE_COMMAND=(docker compose -f docker-compose.yml)
+  if [[ -f docker-compose.secrets.yml ]]; then
+    COMPOSE_COMMAND+=( -f docker-compose.secrets.yml )
+  fi
 fi
 
 step() {
@@ -187,7 +198,7 @@ wait_for_status "/api/orders/$rejected_order_id" "$customer_token" CANCELLED \
 wait_for_status "/api/deliveries/order/$rejected_order_id" "$customer_token" CANCELLED \
   '.data.status // .status'
 expect_status 403 GET "/api/orders/$rejected_order_id" "$outsider_token"
-rejected_ledger_count="$(docker compose exec -T postgres psql -U postgres \
+rejected_ledger_count="$("${COMPOSE_COMMAND[@]}" exec -T postgres psql -U postgres \
   -d settlement_db -At -c \
   "SELECT count(*) FROM transactions WHERE order_id = $rejected_order_id;")"
 [[ "$rejected_ledger_count" == "0" ]]
@@ -208,7 +219,7 @@ sleep 5
 
 secondary_email="secondary-shipper+$run_id@test.dev"
 operator_provision_shipper "$secondary_email" "secondary"
-secondary_shipper_token="$(curl --fail-with-body --silent --show-error -X POST \
+secondary_shipper_token="$(curl "${AUTH_CURL_RETRY_ARGS[@]}" --fail-with-body --silent --show-error -X POST \
   "$BASE/api/auth/login" -H 'Content-Type: application/json' \
   -d "{\"email\":\"$secondary_email\",\"password\":\"$PASS\",\"deviceId\":\"matrix-$run_id-secondary\",\"deviceName\":\"Failure matrix\",\"deviceType\":\"WEB\"}" \
   | jq -er '.accessToken // .data.accessToken')"
@@ -219,7 +230,7 @@ curl --fail-with-body --silent --show-error -X POST "$BASE/api/shippers" \
 secondary_shipper_id="$(curl --fail-with-body --silent --show-error \
   "$BASE/api/shippers/my-profile" -H "Authorization: Bearer $secondary_shipper_token" \
   | jq -er '.data.userId // .userId')"
-docker compose exec -T postgres psql -U postgres -d settlement_db \
+"${COMPOSE_COMMAND[@]}" exec -T postgres psql -U postgres -d settlement_db \
   -v shipper_id="$secondary_shipper_id" -v deposit_amount=500000 \
   -f - < scripts/seed-settlement.sql >/dev/null
 
@@ -258,7 +269,7 @@ expect_status 200 PUT "/api/deliveries/$rematch_delivery_id/status?status=DELIVE
 ledger_deadline=$((SECONDS + FLOW_TIMEOUT_SECONDS))
 rematch_ledger_count=0
 while (( SECONDS < ledger_deadline )); do
-  rematch_ledger_count="$(docker compose exec -T postgres psql -U postgres \
+  rematch_ledger_count="$("${COMPOSE_COMMAND[@]}" exec -T postgres psql -U postgres \
     -d settlement_db -At -c \
     "SELECT count(*) FROM transactions WHERE order_id = $rematch_order_id;")"
   [[ "$rematch_ledger_count" == "4" ]] && break

@@ -74,6 +74,28 @@
                 "value": "-Xms128m -Xmx384m -Djava.io.tmpdir=/tmp"
               },
               {
+                "name": "DATABASE_HOST",
+                "valueFrom": {
+                  "configMapKeyRef": {
+                    "name": "delivery-data-plane",
+                    "key": "DATABASE_HOST"
+                  }
+                }
+              },
+              {
+                "name": "DATABASE_PORT",
+                "valueFrom": {
+                  "configMapKeyRef": {
+                    "name": "delivery-data-plane",
+                    "key": "DATABASE_PORT"
+                  }
+                }
+              },
+              {
+                "name": "SPRING_DATASOURCE_URL",
+                "value": "jdbc:postgresql://$(DATABASE_HOST):$(DATABASE_PORT)/match_db"
+              },
+              {
                 "name": "PLATFORM_SECRETS_INTERNAL_SECRET_REQUIRED",
                 "value": "true"
               }
@@ -166,6 +188,21 @@
                       {
                         "key": "value",
                         "path": "internal-secret"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "secret": {
+                    "name": "delivery-match-service-db",
+                    "items": [
+                      {
+                        "key": "username",
+                        "path": "spring.datasource.username"
+                      },
+                      {
+                        "key": "password",
+                        "path": "spring.datasource.password"
                       }
                     ]
                   }

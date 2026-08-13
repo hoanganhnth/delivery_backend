@@ -3,11 +3,59 @@ set -euo pipefail
 
 readonly STARTUP_TIMEOUT_SECONDS="${STARTUP_TIMEOUT_SECONDS:-420}"
 readonly POLL_SECONDS=5
-readonly -a COMPOSE_COMMAND=(
+readonly EUREKA_REGISTRATION_TIMEOUT_SECONDS="${EUREKA_REGISTRATION_TIMEOUT_SECONDS:-120}"
+readonly RUNTIME_ISOLATED="${RUNTIME_ISOLATED:-false}"
+readonly RUNTIME_REBUILD_IMAGES="${RUNTIME_REBUILD_IMAGES:-false}"
+case "$RUNTIME_ISOLATED" in
+  true|false)
+    ;;
+  *)
+    printf 'RUNTIME_ISOLATED must be true or false, got %s\n' "$RUNTIME_ISOLATED" >&2
+    exit 1
+    ;;
+esac
+if [[ ! "$EUREKA_REGISTRATION_TIMEOUT_SECONDS" =~ ^[0-9]+$ || "$EUREKA_REGISTRATION_TIMEOUT_SECONDS" -le 0 ]]; then
+  printf 'EUREKA_REGISTRATION_TIMEOUT_SECONDS must be a positive integer, got %s\n' \
+    "$EUREKA_REGISTRATION_TIMEOUT_SECONDS" >&2
+  exit 1
+fi
+case "$RUNTIME_REBUILD_IMAGES" in
+  true|false)
+    ;;
+  *)
+    printf 'RUNTIME_REBUILD_IMAGES must be true or false, got %s\n' \
+      "$RUNTIME_REBUILD_IMAGES" >&2
+    exit 1
+    ;;
+esac
+
+COMPOSE_COMMAND=(
   docker compose
   -f docker-compose.yml
   -f docker-compose.secrets.yml
 )
+if [[ "$RUNTIME_ISOLATED" == "true" ]]; then
+  if [[ -z "${COMPOSE_PROJECT_NAME:-}" || "${COMPOSE_PROJECT_NAME}" == "backend_delivery" ]]; then
+    printf '%s\n' \
+      'RUNTIME_ISOLATED=true requires a non-canonical COMPOSE_PROJECT_NAME.' >&2
+    exit 1
+  fi
+  COMPOSE_COMMAND+=(-f docker-compose.isolated-e2e.yml)
+fi
+readonly -a COMPOSE_COMMAND
+
+# The canonical runtime verifier defaults to reconciling existing images. An
+# unconditional Compose --build generates fresh image IDs and recreates every
+# service even when source/configuration did not change. Opt into that release
+# behavior with RUNTIME_REBUILD_IMAGES=true; the disposable E2E runner always
+# does so because it must consume the just-packaged artifacts.
+compose_up() {
+  if [[ "$RUNTIME_REBUILD_IMAGES" == "true" ]]; then
+    "${COMPOSE_COMMAND[@]}" up -d --build "$@"
+  else
+    "${COMPOSE_COMMAND[@]}" up -d "$@"
+  fi
+}
 
 readonly INFRA_SERVICES=(postgres redis kafka elasticsearch)
 readonly OBSERVABILITY_SERVICES=(prometheus grafana)
@@ -79,49 +127,53 @@ fi
 # The canonical stack may have been promoted from an isolated B8 rehearsal and
 # therefore legitimately differ from Compose's generated defaults. Recreating
 # it with guessed defaults can boot an older/empty database or collide with a
-# host PostgreSQL process.
-existing_postgres_project="$(docker inspect delivery-postgres \
-  --format '{{index .Config.Labels "com.docker.compose.project"}}' 2>/dev/null || true)"
-if [[ -n "$existing_postgres_project" && "$existing_postgres_project" != "backend_delivery" ]]; then
-  printf 'Container delivery-postgres belongs to unexpected project %s; refusing startup reconcile.\n' \
-    "$existing_postgres_project" >&2
-  exit 1
-fi
-
-if [[ -n "$existing_postgres_project" ]]; then
-  existing_postgres_running="$(docker inspect delivery-postgres \
-    --format '{{.State.Running}}')"
-  detected_postgres_volume="$(docker inspect delivery-postgres --format \
-    '{{range .Mounts}}{{if eq .Destination "/var/lib/postgresql/data"}}{{.Name}}{{end}}{{end}}')"
-  detected_postgres_host_port=""
-  if [[ "$existing_postgres_running" == "true" ]]; then
-    detected_postgres_host_port="$(docker inspect delivery-postgres --format \
-      '{{(index (index .NetworkSettings.Ports "5432/tcp") 0).HostPort}}')"
-  fi
-  detected_kafka_volume="$(docker inspect delivery-kafka --format \
-    '{{range .Mounts}}{{if eq .Destination "/var/lib/kafka/data"}}{{.Name}}{{end}}{{end}}')"
-
-  if [[ -n "${POSTGRES_VOLUME_NAME:-}" && "$POSTGRES_VOLUME_NAME" != "$detected_postgres_volume" ]]; then
-    printf 'Configured PostgreSQL volume %s does not match mounted volume %s.\n' \
-      "$POSTGRES_VOLUME_NAME" "$detected_postgres_volume" >&2
-    exit 1
-  fi
-  if [[ -n "${POSTGRES_HOST_PORT:-}" \
-      && -n "$detected_postgres_host_port" \
-      && "$POSTGRES_HOST_PORT" != "$detected_postgres_host_port" ]]; then
-    printf 'Configured PostgreSQL host port %s does not match published port %s.\n' \
-      "$POSTGRES_HOST_PORT" "$detected_postgres_host_port" >&2
-    exit 1
-  fi
-  if [[ -n "${KAFKA_VOLUME_NAME:-}" && "$KAFKA_VOLUME_NAME" != "$detected_kafka_volume" ]]; then
-    printf 'Configured Kafka volume %s does not match mounted volume %s.\n' \
-      "$KAFKA_VOLUME_NAME" "$detected_kafka_volume" >&2
+# host PostgreSQL process. An isolated run must intentionally skip this lookup:
+# it has project-scoped containers and fresh volumes and must never inspect or
+# reconcile the developer's canonical stack.
+if [[ "$RUNTIME_ISOLATED" == "false" ]]; then
+  existing_postgres_project="$(docker inspect delivery-postgres \
+    --format '{{index .Config.Labels "com.docker.compose.project"}}' 2>/dev/null || true)"
+  if [[ -n "$existing_postgres_project" && "$existing_postgres_project" != "backend_delivery" ]]; then
+    printf 'Container delivery-postgres belongs to unexpected project %s; refusing startup reconcile.\n' \
+      "$existing_postgres_project" >&2
     exit 1
   fi
 
-  export POSTGRES_VOLUME_NAME="${POSTGRES_VOLUME_NAME:-$detected_postgres_volume}"
-  export POSTGRES_HOST_PORT="${POSTGRES_HOST_PORT:-$detected_postgres_host_port}"
-  export KAFKA_VOLUME_NAME="${KAFKA_VOLUME_NAME:-$detected_kafka_volume}"
+  if [[ -n "$existing_postgres_project" ]]; then
+    existing_postgres_running="$(docker inspect delivery-postgres \
+      --format '{{.State.Running}}')"
+    detected_postgres_volume="$(docker inspect delivery-postgres --format \
+      '{{range .Mounts}}{{if eq .Destination "/var/lib/postgresql/data"}}{{.Name}}{{end}}{{end}}')"
+    detected_postgres_host_port=""
+    if [[ "$existing_postgres_running" == "true" ]]; then
+      detected_postgres_host_port="$(docker inspect delivery-postgres --format \
+        '{{(index (index .NetworkSettings.Ports "5432/tcp") 0).HostPort}}')"
+    fi
+    detected_kafka_volume="$(docker inspect delivery-kafka --format \
+      '{{range .Mounts}}{{if eq .Destination "/var/lib/kafka/data"}}{{.Name}}{{end}}{{end}}')"
+
+    if [[ -n "${POSTGRES_VOLUME_NAME:-}" && "$POSTGRES_VOLUME_NAME" != "$detected_postgres_volume" ]]; then
+      printf 'Configured PostgreSQL volume %s does not match mounted volume %s.\n' \
+        "$POSTGRES_VOLUME_NAME" "$detected_postgres_volume" >&2
+      exit 1
+    fi
+    if [[ -n "${POSTGRES_HOST_PORT:-}" \
+        && -n "$detected_postgres_host_port" \
+        && "$POSTGRES_HOST_PORT" != "$detected_postgres_host_port" ]]; then
+      printf 'Configured PostgreSQL host port %s does not match published port %s.\n' \
+        "$POSTGRES_HOST_PORT" "$detected_postgres_host_port" >&2
+      exit 1
+    fi
+    if [[ -n "${KAFKA_VOLUME_NAME:-}" && "$KAFKA_VOLUME_NAME" != "$detected_kafka_volume" ]]; then
+      printf 'Configured Kafka volume %s does not match mounted volume %s.\n' \
+        "$KAFKA_VOLUME_NAME" "$detected_kafka_volume" >&2
+      exit 1
+    fi
+
+    export POSTGRES_VOLUME_NAME="${POSTGRES_VOLUME_NAME:-$detected_postgres_volume}"
+    export POSTGRES_HOST_PORT="${POSTGRES_HOST_PORT:-$detected_postgres_host_port}"
+    export KAFKA_VOLUME_NAME="${KAFKA_VOLUME_NAME:-$detected_kafka_volume}"
+  fi
 fi
 
 if [[ -z "${INTERNAL_SECRET:-}" ]]; then
@@ -187,13 +239,68 @@ wait_for_app() {
   return 1
 }
 
+# A healthy JVM is not enough to receive Gateway traffic. Eureka can lose its
+# in-memory registry when the control plane is recreated while unchanged
+# application containers keep running. Wait for the service's actual UP lease,
+# and recreate only that service once if it never re-registers. This preserves
+# local volumes and avoids the previous failure mode where Gateway started with
+# an empty registry and returned 503 for otherwise healthy services.
+eureka_registration_is_up() {
+  local service="$1"
+  local app_name
+  local response
+  app_name="$(printf '%s' "$service" | tr '[:lower:]' '[:upper:]')"
+  response="$("${COMPOSE_COMMAND[@]}" exec -T discovery-server wget -q -T 3 -O - \
+    "http://localhost:8761/eureka/apps/${app_name}" 2>/dev/null || true)"
+  [[ "$response" == *"<name>${app_name}</name>"* \
+      && "$response" == *"<status>UP</status>"* ]]
+}
+
+wait_for_eureka_registration() {
+  local service="$1"
+  local registration_deadline=$((SECONDS + EUREKA_REGISTRATION_TIMEOUT_SECONDS))
+  while (( SECONDS < registration_deadline )); do
+    if eureka_registration_is_up "$service"; then
+      return 0
+    fi
+    sleep "$POLL_SECONDS"
+  done
+  return 1
+}
+
+ensure_eureka_registration() {
+  local service="$1"
+  if wait_for_eureka_registration "$service"; then
+    return 0
+  fi
+
+  printf 'Eureka registration missing for %s; recreating only that service to refresh its lease.\n' \
+    "$service" >&2
+  "${COMPOSE_COMMAND[@]}" up -d --no-deps --force-recreate "$service"
+  wait_for_app "$service" || return 1
+  if ! wait_for_eureka_registration "$service"; then
+    "${COMPOSE_COMMAND[@]}" logs --no-color --tail=160 "$service" >&2 || true
+    printf 'Eureka registration did not converge for %s after targeted restart.\n' \
+      "$service" >&2
+    return 1
+  fi
+}
+
 wait_for_gateway_http() {
   local path="$1"
   local deadline=$((SECONDS + STARTUP_TIMEOUT_SECONDS))
-  local status
+  local status published_port gateway_port base
   while (( SECONDS < deadline )); do
+    base="${GATEWAY_BASE:-}"
+    if [[ -z "$base" ]]; then
+      published_port="$("${COMPOSE_COMMAND[@]}" port api-gateway 8079 2>/dev/null | head -n 1 || true)"
+      gateway_port="${published_port##*:}"
+      if [[ "$gateway_port" =~ ^[0-9]+$ ]]; then
+        base="http://127.0.0.1:${gateway_port}"
+      fi
+    fi
     status="$(curl --silent --max-time 15 -o /dev/null -w '%{http_code}' \
-      "http://127.0.0.1:8079${path}" 2>/dev/null || true)"
+      "${base}${path}" 2>/dev/null || true)"
     if [[ "$status" == "200" ]]; then
       return 0
     fi
@@ -205,39 +312,49 @@ wait_for_gateway_http() {
 }
 
 echo "Starting control plane before config-fail-fast application workloads."
-"${COMPOSE_COMMAND[@]}" up -d --build tracing-collector "${CONTROL_PLANE_SERVICES[@]}"
+compose_up tracing-collector "${CONTROL_PLANE_SERVICES[@]}"
 for service in "${CONTROL_PLANE_SERVICES[@]}"; do
   wait_for_infra "$service"
 done
 
 echo "Starting local data plane."
-"${COMPOSE_COMMAND[@]}" up -d --build "${INFRA_SERVICES[@]}"
+compose_up "${INFRA_SERVICES[@]}"
 for service in "${INFRA_SERVICES[@]}"; do
   wait_for_infra "$service"
 done
 
 echo "Starting monitoring dependencies."
-"${COMPOSE_COMMAND[@]}" up -d --build "${OBSERVABILITY_SERVICES[@]}"
+compose_up "${OBSERVABILITY_SERVICES[@]}"
 for service in "${OBSERVABILITY_SERVICES[@]}"; do
   wait_for_infra "$service"
 done
 
 echo "Starting Auth before JWKS resource services."
-"${COMPOSE_COMMAND[@]}" up -d --build auth-service
+# Control plane and the data plane have already passed their explicit health
+# gates. Do not let Compose traverse depends_on here and recreate Config/Eureka
+# while the application wave is starting.
+compose_up --no-deps auth-service
 wait_for_app auth-service
+ensure_eureka_registration auth-service
 
 echo "Starting ${#RESOURCE_APP_SERVICES[@]} resource services."
-"${COMPOSE_COMMAND[@]}" up -d --build "${RESOURCE_APP_SERVICES[@]}"
+compose_up --no-deps "${RESOURCE_APP_SERVICES[@]}"
 for service in "${RESOURCE_APP_SERVICES[@]}"; do
   wait_for_app "$service"
+  ensure_eureka_registration "$service"
 done
 
 echo "Starting Gateway after Auth and resource services."
-"${COMPOSE_COMMAND[@]}" up -d --build api-gateway
+compose_up --no-deps api-gateway
 wait_for_app api-gateway
+ensure_eureka_registration api-gateway
 
 wait_for_gateway_http "/api/restaurants"
 wait_for_gateway_http "/api/search/restaurants?q=pho&page=0&size=1"
 
+runtime_scope="canonical volumes preserved"
+if [[ "$RUNTIME_ISOLATED" == "true" ]]; then
+  runtime_scope="isolated project/volumes"
+fi
 printf '%s\n' \
-  "Runtime startup proof passed: canonical volumes preserved, infrastructure/observability healthy, ${#APP_SERVICES[@]} application services started, Gateway public reads responded."
+  "Runtime startup proof passed: ${runtime_scope}, infrastructure/observability healthy, ${#APP_SERVICES[@]} application services started, Gateway public reads responded."

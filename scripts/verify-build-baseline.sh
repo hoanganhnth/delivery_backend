@@ -442,10 +442,11 @@ if rg -q 'ALTER TABLE[[:space:]]+deliveries' \
 fi
 
 order_kafka_config="${ROOT_DIR}/order-service/src/main/java/com/delivery/order_service/config/KafkaConfig.java"
-if ! rg -Fq 'record.topic() + ".DLT"' "${order_kafka_config}" \
+if ! rg -Fq 'ownerDltTopic(record.topic())' "${order_kafka_config}" \
+    || ! rg -Fq 'replaceFirst("-retry-order-\\d+$", "") + ".order.DLT"' "${order_kafka_config}" \
     || ! rg -Fq 'new FixedBackOff(1000L, 2)' "${order_kafka_config}" \
     || ! rg -Fq 'recoverer.setFailIfSendResultIsError(true)' "${order_kafka_config}"; then
-  echo "order-service: Kafka consumer failures must use finite retry and fail-closed same-partition DLT recovery." >&2
+  echo "order-service: Kafka consumer failures must use finite retry and fail-closed owner-isolated same-partition DLT recovery." >&2
   exit 1
 fi
 
@@ -467,10 +468,33 @@ if rg -Fq '<artifactId>spring-boot-starter-websocket</artifactId>' "${delivery_p
 fi
 
 notification_kafka_config="${ROOT_DIR}/notification-service/src/main/java/com/delivery/notification_service/config/KafkaConfig.java"
-if ! rg -Fq 'record.topic() + ".DLT"' "${notification_kafka_config}" \
+if ! rg -Fq 'ownerDltTopic(record.topic())' "${notification_kafka_config}" \
+    || ! rg -Fq 'replaceFirst("-retry-notification-\\d+$", "") + ".notification.DLT"' "${notification_kafka_config}" \
     || ! rg -Fq 'new FixedBackOff(1000L, 2)' "${notification_kafka_config}" \
     || ! rg -Fq 'recoverer.setFailIfSendResultIsError(true)' "${notification_kafka_config}"; then
-  echo "notification-service: Kafka event failures must use finite retry and fail-closed same-partition DLT recovery." >&2
+  echo "notification-service: Kafka event failures must use finite retry and fail-closed owner-isolated same-partition DLT recovery." >&2
+  exit 1
+fi
+
+notification_repository="${ROOT_DIR}/notification-service/src/main/java/com/delivery/notification_service/repository/NotificationRepository.java"
+notification_service_impl="${ROOT_DIR}/notification-service/src/main/java/com/delivery/notification_service/service/impl/NotificationServiceImpl.java"
+if ! rg -Fq 'ON CONFLICT (deduplication_key) DO NOTHING' "${notification_repository}" \
+    || ! rg -Fq '@Transactional(propagation = Propagation.REQUIRES_NEW)' "${notification_repository}" \
+    || ! rg -Fq 'int insertIfAbsentPostgres(' "${notification_repository}" \
+    || ! rg -Fq 'int inserted = insertIfAbsent(notification);' "${notification_service_impl}" \
+    || ! rg -Fq 'return notificationRepository.insertIfAbsentPostgres(' "${notification_service_impl}" \
+    || ! rg -Fq 'assertReplayMatches(saved, request);' "${notification_service_impl}" \
+    || ! rg -Fq 'if (request.getDeduplicationKey() == null || request.getDeduplicationKey().isBlank())' "${notification_service_impl}"; then
+  echo "notification-service: keyed Kafka notifications must atomically commit one durable PENDING row before external delivery." >&2
+  exit 1
+fi
+
+saga_kafka_config="${ROOT_DIR}/saga-orchestrator-service/src/main/java/com/delivery/saga_orchestrator_service/config/KafkaConfig.java"
+if ! rg -Fq 'ownerDltTopic(record.topic())' "${saga_kafka_config}" \
+    || ! rg -Fq 'replaceFirst("-retry-saga-\\d+$", "") + ".saga.DLT"' "${saga_kafka_config}" \
+    || ! rg -Fq 'new FixedBackOff(1000L, 2)' "${saga_kafka_config}" \
+    || ! rg -Fq 'recoverer.setFailIfSendResultIsError(true)' "${saga_kafka_config}"; then
+  echo "saga-orchestrator-service: Kafka command failures must use finite retry and fail-closed owner-isolated same-partition DLT recovery." >&2
   exit 1
 fi
 
@@ -492,7 +516,6 @@ if ! rg -Fq 'record.topic() + ".DLT"' "${match_kafka_config}" \
 fi
 
 for core_kafka_config in \
-  "${ROOT_DIR}/saga-orchestrator-service/src/main/java/com/delivery/saga_orchestrator_service/config/KafkaConfig.java" \
   "${ROOT_DIR}/settlement-service/src/main/java/com/delivery/settlement_service/config/KafkaConsumerConfig.java"; do
   if ! rg -Fq 'record.topic() + ".DLT"' "${core_kafka_config}" \
       || ! rg -Fq 'new FixedBackOff(1000L, 2)' "${core_kafka_config}" \
@@ -550,7 +573,22 @@ for core_consumer in delivery-service saga-orchestrator-service match-service; d
     exit 1
   fi
 done
-for manual_dlt_consumer in delivery-service saga-orchestrator-service match-service order-service notification-service; do
+
+if [[ ! -f "${ROOT_DIR}/kafka-operations-tool/src/main/java/com/delivery/kafka_operations/DltReplayApplication.java" \
+    || ! -x "${ROOT_DIR}/scripts/replay-kafka-dlt-record.sh" \
+    || ! -x "${ROOT_DIR}/scripts/test-replay-kafka-dlt-record.sh" ]]; then
+  echo "Kafka DLT recovery must retain the guarded single-record operator tool and wrapper." >&2
+  exit 1
+fi
+if ! rg -Fq 'DLT_REPLAY_CONFIRMATION must exactly equal' \
+      "${ROOT_DIR}/kafka-operations-tool/src/main/java/com/delivery/kafka_operations/DltReplayApplication.java" \
+    || ! rg -Fq 'defaults to dry-run' \
+      "${ROOT_DIR}/kafka-operations-tool/src/main/java/com/delivery/kafka_operations/DltReplayApplication.java" \
+    || ! rg -Fq 'has no bulk mode' "${ROOT_DIR}/docs/runbooks/resilience-operations.md"; then
+  echo "Kafka DLT recovery must remain coordinate-confirmed, dry-run by default, and single-record only." >&2
+  exit 1
+fi
+for manual_dlt_consumer in delivery-service saga-orchestrator-service match-service order-service notification-service promotion-service; do
   if ! rg -Fq 'setCommitRecovered(true)' \
       "${ROOT_DIR}/${manual_dlt_consumer}/src/main/java"; then
     echo "${manual_dlt_consumer}: manual-immediate DLT recovery must commit the recovered source offset." >&2
@@ -567,19 +605,73 @@ if ! rg -Fq '@KafkaListener(topics = "${app.kafka.topics.delivery-completed:deli
   echo "settlement-service: delivery.completed topic must keep an overridable recovery boundary." >&2
   exit 1
 fi
+settlement_receipt_repository="${ROOT_DIR}/settlement-service/src/main/java/com/delivery/settlement_service/repository/SettlementReceiptRepository.java"
+settlement_completed_listener="${ROOT_DIR}/settlement-service/src/main/java/com/delivery/settlement_service/listener/DeliveryCompletedEventListener.java"
+if ! rg -Fq 'ON CONFLICT (event_id) DO NOTHING' "${settlement_receipt_repository}" \
+    || ! rg -Fq 'insertIfAbsentPostgres' "${settlement_completed_listener}" \
+    || rg -Fq 'saveAndFlush(SettlementReceipt.builder()' "${settlement_completed_listener}"; then
+  echo "settlement-service: delivery.completed must use an atomic receipt claim before financial postings." >&2
+  exit 1
+fi
+refund_case_repository="${ROOT_DIR}/settlement-service/src/main/java/com/delivery/settlement_service/repository/RefundCaseRepository.java"
+refund_case_service="${ROOT_DIR}/settlement-service/src/main/java/com/delivery/settlement_service/service/RefundCaseService.java"
+if ! rg -Fq 'ON CONFLICT DO NOTHING' "${refund_case_repository}" \
+    || ! rg -Fq 'insertIfAbsentPostgres' "${refund_case_service}" \
+    || rg -Fq 'saveAndFlush(refundCase)' "${refund_case_service}"; then
+  echo "settlement-service: feature-gated refund intake must atomically claim its durable case before an outbox handoff." >&2
+  exit 1
+fi
+promotion_kafka_config="${ROOT_DIR}/promotion-service/src/main/java/com/delivery/promotion_service/config/KafkaConfig.java"
+promotion_order_listener="${ROOT_DIR}/promotion-service/src/main/java/com/delivery/promotion_service/listener/OrderReservationEventListener.java"
+promotion_order_processor="${ROOT_DIR}/promotion-service/src/main/java/com/delivery/promotion_service/service/PromotionOrderReservationEventProcessor.java"
+promotion_order_receipt_repository="${ROOT_DIR}/promotion-service/src/main/java/com/delivery/promotion_service/repository/PromotionOrderReservationReceiptRepository.java"
+promotion_order_receipt_migration="${ROOT_DIR}/promotion-service/src/main/resources/db/migration/V4__promotion_order_reservation_receipts.sql"
+if [[ ! -f "${promotion_order_receipt_migration}" ]] \
+    || ! rg -Fq 'promotion_order_reservation_receipts' "${promotion_order_receipt_migration}" \
+    || ! rg -Fq 'ON CONFLICT (event_id) DO NOTHING' "${promotion_order_receipt_repository}" \
+    || ! rg -Fq 'insertIfAbsentPostgres' "${promotion_order_processor}" \
+    || ! rg -Fq '@Transactional' "${promotion_order_processor}" \
+    || ! rg -Fq 'PromotionOrderReservationEventProcessor' "${promotion_order_listener}" \
+    || ! rg -Fq 'retryTopicSuffix = "-retry-promotion"' "${promotion_order_listener}" \
+    || ! rg -Fq 'dltTopicSuffix = ".promotion.DLT"' "${promotion_order_listener}" \
+    || ! rg -Fq 'ownerDltTopic(record.topic())' "${promotion_kafka_config}" \
+    || ! rg -Fq 'replaceFirst("-retry-promotion-\\d+$", "") + ".promotion.DLT"' "${promotion_kafka_config}" \
+    || ! rg -Fq 'recoverer.setFailIfSendResultIsError(true)' "${promotion_kafka_config}"; then
+  echo "promotion-service: feature-gated reservation events must atomically receipt/fingerprint before a commit or release and recover through owner-isolated retry/DLT topics." >&2
+  exit 1
+fi
 if ! rg -Fq 'factory.setAutoStartup(listenerAutoStartup)' \
     "${ROOT_DIR}/delivery-service/src/main/java/com/delivery/delivery_service/config/KafkaConfig.java"; then
   echo "delivery-service: isolated recovery must be able to disable Kafka listener startup." >&2
   exit 1
 fi
 delivery_command_listener="${ROOT_DIR}/delivery-service/src/main/java/com/delivery/delivery_service/listener/OrderEventListener.java"
+delivery_inbound_receipt_service="${ROOT_DIR}/delivery-service/src/main/java/com/delivery/delivery_service/service/DeliveryInboundReceiptService.java"
+delivery_saga_processor="${ROOT_DIR}/delivery-service/src/main/java/com/delivery/delivery_service/service/DeliverySagaCommandProcessor.java"
+delivery_inbound_receipt_migration="${ROOT_DIR}/delivery-service/src/main/resources/db/migration/V14__delivery_inbound_command_receipts.sql"
 if rg -q 'groupId\s*=\s*"delivery-service"' "${delivery_command_listener}" \
     || [[ "$(rg -c '\$\{app\.kafka\.topics\.' "${delivery_command_listener}")" -ne 5 ]]; then
   echo "delivery-service: command group/topics must be configurable for isolated recovery rehearsal." >&2
   exit 1
 fi
+if [[ ! -f "${delivery_inbound_receipt_migration}" ]] \
+    || ! rg -Fq 'delivery_inbound_receipts' "${delivery_inbound_receipt_migration}" \
+    || ! rg -Fq 'insertIfAbsentPostgres' "${delivery_inbound_receipt_service}" \
+    || ! rg -Fq 'ON CONFLICT (event_id) DO NOTHING' \
+      "${ROOT_DIR}/delivery-service/src/main/java/com/delivery/delivery_service/repository/DeliveryInboundReceiptRepository.java" \
+    || ! rg -Fq 'DeliverySagaCommandProcessor' "${delivery_command_listener}" \
+    || rg -q '@Transactional' "${delivery_command_listener}" \
+    || ! rg -Fq '@Transactional' "${delivery_saga_processor}" \
+    || [[ "$(rg -F -c 'receipts.claim(' "${delivery_saga_processor}")" -ne 1 ]] \
+    || [[ "$(rg -F -c 'return receipts.claim(eventId' "${delivery_saga_processor}")" -ne 1 ]]; then
+  echo "delivery-service: every Saga command must commit its durable receipt/mutation before listener ACK." >&2
+  exit 1
+fi
 order_restaurant_listener="${ROOT_DIR}/order-service/src/main/java/com/delivery/order_service/listener/RestaurantEventListener.java"
 order_saga_listener="${ROOT_DIR}/order-service/src/main/java/com/delivery/order_service/listener/SagaCommandListener.java"
+order_saga_processor="${ROOT_DIR}/order-service/src/main/java/com/delivery/order_service/service/SagaOrderCommandProcessor.java"
+order_saga_receipt_service="${ROOT_DIR}/order-service/src/main/java/com/delivery/order_service/service/SagaCommandReceiptService.java"
+order_saga_receipt_migration="${ROOT_DIR}/order-service/src/main/resources/db/migration/V9__create_saga_command_receipts.sql"
 order_properties="${ROOT_DIR}/order-service/src/main/resources/application.properties"
 if [[ "$(rg -c '\$\{app\.kafka\.input-topics\.restaurant-' "${order_restaurant_listener}")" -ne 2 ]] \
     || ! rg -Fq '${app.kafka.input-topics.saga-update-order-status:saga.command.update-order-status}' \
@@ -592,17 +684,37 @@ if [[ "$(rg -c '\$\{app\.kafka\.input-topics\.restaurant-' "${order_restaurant_l
   echo "order-service: active input group/topics and outbox destinations must support isolated recovery." >&2
   exit 1
 fi
+if [[ ! -f "${order_saga_receipt_migration}" ]] \
+    || ! rg -Fq 'saga_command_receipts' "${order_saga_receipt_migration}" \
+    || ! rg -Fq 'insertIfAbsentPostgres' "${order_saga_receipt_service}" \
+    || ! rg -Fq 'ON CONFLICT (event_id) DO NOTHING' \
+      "${ROOT_DIR}/order-service/src/main/java/com/delivery/order_service/repository/SagaCommandReceiptRepository.java" \
+    || ! rg -Fq 'SagaOrderCommandProcessor' "${order_saga_listener}" \
+    || ! rg -Fq '@Transactional' "${order_saga_processor}" \
+    || ! rg -Fq 'SagaCommandReceiptService.UPDATE_ORDER_STATUS' "${order_saga_processor}" \
+    || ! rg -Fq 'RawStringPreservingJsonMessageConverter' \
+      "${ROOT_DIR}/order-service/src/main/java/com/delivery/order_service/config/KafkaConfig.java" \
+    || ! rg -Fq '@Qualifier("retryKafkaTemplate") KafkaTemplate<String, String> kafkaTemplate' \
+      "${ROOT_DIR}/order-service/src/main/java/com/delivery/order_service/config/KafkaConfig.java"; then
+  echo "order-service: Saga update-status must retain raw-payload ingress, transactional receipt, and raw DLT recovery." >&2
+  exit 1
+fi
 
 cod_harness="${ROOT_DIR}/scripts/verify-mvp-cod-flow.sh"
 failure_harness="${ROOT_DIR}/scripts/verify-mvp-failure-matrix.sh"
+seed_harness="${ROOT_DIR}/scripts/seed.sh"
 clean_harness="${ROOT_DIR}/scripts/verify-clean-compose-e2e.sh"
 compose_harness="${ROOT_DIR}/scripts/verify-compose-config.sh"
 runtime_startup_harness="${ROOT_DIR}/scripts/verify-runtime-startup.sh"
+isolated_e2e_compose="${ROOT_DIR}/docker-compose.isolated-e2e.yml"
 dockerfile="${ROOT_DIR}/Dockerfile"
 docker_artifact_freshness_harness="${ROOT_DIR}/scripts/verify-docker-artifact-freshness.sh"
 settlement_crash_harness="${ROOT_DIR}/scripts/verify-settlement-crash-window.sh"
 settlement_crash_probe="${ROOT_DIR}/scripts/JdwpBreakpointProbe.java"
 auth_user_outage_harness="${ROOT_DIR}/scripts/verify-auth-user-outage-retry.sh"
+legacy_retry_drain_harness="${ROOT_DIR}/scripts/verify-kafka-legacy-retry-drain.sh"
+legacy_retry_drain_test="${ROOT_DIR}/scripts/test-verify-kafka-legacy-retry-drain.sh"
+prometheus_resilience_rule_verifier="${ROOT_DIR}/scripts/verify-prometheus-resilience-rules.sh"
 compatibility_flow="${ROOT_DIR}/scripts/test-order-flow.sh"
 if [[ ! -f "${settlement_crash_harness}" || ! -f "${settlement_crash_probe}" ]] \
     || ! rg -Fq "DeliveryCompletedEventListener\$1" "${settlement_crash_harness}" \
@@ -617,6 +729,21 @@ if [[ ! -f "${settlement_crash_harness}" || ! -f "${settlement_crash_probe}" ]] 
     || ! rg -Fq 'USER_SERVICE_URL=http://$USER_CONTAINER:8082' "${auth_user_outage_harness}" \
     || ! rg -Fq 'user_status_sync_pending = true AND user_status_sync_attempts > 0' "${auth_user_outage_harness}" \
     || ! rg -Fq 'user_status_sync_pending = false AND user_status_sync_attempts = 0' "${auth_user_outage_harness}" \
+    || [[ ! -f "${legacy_retry_drain_harness}" ]] \
+    || [[ ! -f "${legacy_retry_drain_test}" ]] \
+    || [[ ! -f "${prometheus_resilience_rule_verifier}" ]] \
+    || ! rg -Fq 'PROVISION_LEGACY_SHARED_RETRY_TOPICS=false' "${legacy_retry_drain_harness}" \
+    || ! rg -Fq 'KAFKA_RETRY_ATTEMPTS' "${legacy_retry_drain_harness}" \
+    || ! rg -Fq 'KAFKA_RETRY_MULTIPLIER' "${legacy_retry_drain_harness}" \
+    || ! rg -Fq 'ConsumerFactory group-id' "${legacy_retry_drain_harness}" \
+    || ! rg -Fq 'Legacy retry topic end offsets advanced during the quiet window' "${legacy_retry_drain_harness}" \
+    || ! rg -Fq 'still has an active consumer assigned' "${legacy_retry_drain_harness}" \
+    || ! rg -Fq 'configured base consumer groups' "${legacy_retry_drain_test}" \
+    || ! rg -Fq 'derive retry topics from the supplied retry policy' "${legacy_retry_drain_test}" \
+    || ! rg -Fq 'Kafka legacy retry drain verifier contract tests passed.' "${legacy_retry_drain_test}" \
+    || ! rg -Fq 'DeliveryKafkaDltIncreasing' "${prometheus_resilience_rule_verifier}" \
+    || ! rg -Fq 'check rules /etc/prometheus/rules/resilience.yml' "${prometheus_resilience_rule_verifier}" \
+    || ! rg -Fq 'test rules /etc/prometheus/tests/resilience-rules.test.yml' "${prometheus_resilience_rule_verifier}" \
     || rg -q 'compose (stop|rm).*user-service|docker rm -f user-service' "${auth_user_outage_harness}" \
     || rg -Fq '/api/deliveries/order/$order_id' "${cod_harness}" \
     || ! rg -Fq '/api/notifications/unread' "${cod_harness}" \
@@ -630,17 +757,39 @@ if [[ ! -f "${settlement_crash_harness}" || ! -f "${settlement_crash_probe}" ]] 
     || ! rg -Fq '/api/deliveries/cancel-assignment' "${failure_harness}" \
     || ! rg -Fq 'status=DELIVERED' "${failure_harness}" \
     || ! rg -Fq 'recoveryEndpoint' "${failure_harness}" \
-    || ! rg -Fq 'ALLOW_CANONICAL_DOWNTIME' "${clean_harness}" \
+    || ! rg -Fq 'COMPOSE_FILE:-' "${seed_harness}" \
+    || ! rg -Fq 'COMPOSE_FILE:-' "${cod_harness}" \
+    || ! rg -Fq 'COMPOSE_FILE:-' "${failure_harness}" \
+    || rg -Fq 'docker compose exec' "${seed_harness}" \
+    || rg -Fq 'docker compose exec' "${cod_harness}" \
+    || rg -Fq 'docker compose exec' "${failure_harness}" \
+    || rg -Fq 'docker compose run' "${seed_harness}" \
+    || rg -Fq 'docker compose run' "${failure_harness}" \
+    || [[ ! -f "${isolated_e2e_compose}" ]] \
+    || ! rg -Fq 'docker-compose.isolated-e2e.yml' "${clean_harness}" \
+    || ! rg -Fq 'RUNTIME_ISOLATED=true' "${clean_harness}" \
+    || ! rg -Fq 'CLEAN_E2E_CONFIG_ONLY' "${clean_harness}" \
+    || ! rg -Fq 'COMPOSE_FILE="$CLEAN_COMPOSE_FILE"' "${clean_harness}" \
+    || rg -Fq 'ALLOW_CANONICAL_DOWNTIME' "${clean_harness}" \
+    || rg -Fq 'canonical_compose' "${clean_harness}" \
     || ! rg -Fq 'mvn -q -DskipTests package' "${clean_harness}" \
-    || ! rg -Fq 'detected_postgres_volume' "${clean_harness}" \
-    || ! rg -Fq 'detected_postgres_host_port' "${clean_harness}" \
-    || ! rg -Fq 'POSTGRES_HOST_PORT="$CLEAN_POSTGRES_HOST_PORT"' "${clean_harness}" \
+    || ! rg -Fq 'CLEAN_BASE' "${clean_harness}" \
+    || ! rg -Fq 'clean_compose port api-gateway 8079' "${clean_harness}" \
     || ! rg -Fq 'MATCHING_INITIAL_MAX_RETRY_ATTEMPTS="$CLEAN_MATCHING_MAX_RETRY_ATTEMPTS"' "${clean_harness}" \
+    || ! rg -Fq 'rendered_isolated_e2e_config' "${compose_harness}" \
     || ! rg -Fq 'expected_kafka_volume_name="${KAFKA_VOLUME_NAME:-backend_delivery_kafka_data}"' "${compose_harness}" \
     || ! rg -Fq 'detected_postgres_volume' "${runtime_startup_harness}" \
     || ! rg -Fq 'detected_postgres_host_port' "${runtime_startup_harness}" \
     || ! rg -Fq 'detected_kafka_volume' "${runtime_startup_harness}" \
     || ! rg -Fq 'export POSTGRES_VOLUME_NAME=' "${runtime_startup_harness}" \
+    || ! rg -Fq 'EUREKA_REGISTRATION_TIMEOUT_SECONDS' "${runtime_startup_harness}" \
+    || ! rg -Fq 'ensure_eureka_registration' "${runtime_startup_harness}" \
+    || ! rg -Fq 'wait_for_eureka_registration' "${runtime_startup_harness}" \
+    || ! rg -Fq 'RUNTIME_REBUILD_IMAGES' "${runtime_startup_harness}" \
+    || ! rg -Fq 'compose_up --no-deps auth-service' "${runtime_startup_harness}" \
+    || ! rg -Fq 'compose_up --no-deps "${RESOURCE_APP_SERVICES[@]}"' "${runtime_startup_harness}" \
+    || ! rg -Fq 'compose_up --no-deps api-gateway' "${runtime_startup_harness}" \
+    || ! rg -Fq 'RUNTIME_REBUILD_IMAGES=true' "${clean_harness}" \
     || ! rg -Fq 'COPY ${SERVICE_PATH}/src service/src' "${dockerfile}" \
     || ! rg -Fq 'find service/src service/pom.xml reactor-pom.xml -type f -newer "$artifact"' "${dockerfile}" \
     || ! rg -Fq 'run Maven package first' "${dockerfile}" \
@@ -648,10 +797,9 @@ if [[ ! -f "${settlement_crash_harness}" || ! -f "${settlement_crash_probe}" ]] 
     || ! rg -Fq 'Docker accepted a stale packaged JAR.' "${docker_artifact_freshness_harness}" \
     || ! rg -Fq 'is stale (newer input:' "${docker_artifact_freshness_harness}" \
     || ! rg -Fq 'clean_compose down -v --remove-orphans' "${clean_harness}" \
-    || ! rg -Fq 'canonical_compose down --remove-orphans' "${clean_harness}" \
     || ! rg -Fq 'verify-mvp-cod-flow.sh' "${compatibility_flow}" \
     || rg -q '/api/(deliveries/order|settlement/balances)' "${compatibility_flow}"; then
-  echo "Gate B8 harness must preserve settlement crash recovery, durable offer recovery/raw WebSocket and canonical volumes." >&2
+  echo "Gate B8 harness must preserve settlement crash recovery, durable offer recovery/raw WebSocket and isolated-volume safety." >&2
   exit 1
 fi
 user_service_contract="${ROOT_DIR}/user-service/src/main/java/com/delivery/user_service/service/UserService.java"
@@ -666,5 +814,6 @@ fi
 
 "${ROOT_DIR}/scripts/verify-http-api-inventory.sh"
 bash "${ROOT_DIR}/scripts/verify-actuator-config.sh"
+bash "${ROOT_DIR}/scripts/verify-prometheus-resilience-rules.sh"
 
 echo "Build baseline is valid: Java and Maven use JDK 17, Spring Boot ${BOOT_VERSION}, Spring Cloud ${CLOUD_VERSION}."

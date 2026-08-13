@@ -21,6 +21,18 @@ java_version="$($JAVA_BIN -XshowSettings:properties -version 2>&1 \
   exit 1
 }
 
+# Keep database/Kafka assertions in the same Compose project as the Gateway
+# under test.  The clean E2E runner provides COMPOSE_FILE for its disposable
+# overlay; direct local use still resolves the canonical base/secrets files.
+if [[ -n "${COMPOSE_FILE:-}" ]]; then
+  COMPOSE_COMMAND=(docker compose)
+else
+  COMPOSE_COMMAND=(docker compose -f docker-compose.yml)
+  if [[ -f docker-compose.secrets.yml ]]; then
+    COMPOSE_COMMAND+=( -f docker-compose.secrets.yml )
+  fi
+fi
+
 step() {
   printf '[COD] %s\n' "$1"
 }
@@ -148,7 +160,7 @@ step "verify canonical settlement ledger"
 ledger_deadline=$((SECONDS + FLOW_TIMEOUT_SECONDS))
 ledger_count="0"
 while (( SECONDS < ledger_deadline )); do
-  ledger_count="$(docker compose exec -T postgres psql -U postgres -d settlement_db -At \
+  ledger_count="$("${COMPOSE_COMMAND[@]}" exec -T postgres psql -U postgres -d settlement_db -At \
     -c "SELECT count(*) FROM transactions WHERE order_id = $order_id;")"
   [[ "$ledger_count" == "4" ]] && break
   sleep "$POLL_SECONDS"
@@ -160,21 +172,21 @@ if [[ "$ledger_count" != "4" ]]; then
   exit 1
 fi
 
-marker_count="$(docker compose exec -T postgres psql -U postgres -d settlement_db -At \
+marker_count="$("${COMPOSE_COMMAND[@]}" exec -T postgres psql -U postgres -d settlement_db -At \
   -c "SELECT count(*) FROM transactions WHERE order_id = $order_id AND entity_type = 'SYSTEM' AND reason = 'PLATFORM_COMMISSION' AND direction = 'CREDIT';")"
 [[ "$marker_count" == "1" ]] || { printf '%s\n' "Missing unique platform completion marker" >&2; exit 1; }
 
 step "replay delivery.completed and verify idempotency"
-payload="$(docker compose exec -T postgres psql -U postgres -d delivery_db -At \
+payload="$("${COMPOSE_COMMAND[@]}" exec -T postgres psql -U postgres -d delivery_db -At \
   -c "SELECT payload FROM outbox_events WHERE aggregate_id = '$delivery_id' AND topic = 'delivery.completed' ORDER BY id DESC LIMIT 1;")"
 [[ -n "$payload" ]] || { printf '%s\n' "Missing delivery.completed outbox payload" >&2; exit 1; }
 
-printf '%s:%s\n' "$delivery_id" "$payload" | docker compose exec -T kafka \
+printf '%s:%s\n' "$delivery_id" "$payload" | "${COMPOSE_COMMAND[@]}" exec -T kafka \
   kafka-console-producer --bootstrap-server kafka:9092 --topic delivery.completed \
   --property parse.key=true --property key.separator=: >/dev/null
 sleep 5
 
-replay_count="$(docker compose exec -T postgres psql -U postgres -d settlement_db -At \
+replay_count="$("${COMPOSE_COMMAND[@]}" exec -T postgres psql -U postgres -d settlement_db -At \
   -c "SELECT count(*) FROM transactions WHERE order_id = $order_id;")"
 [[ "$replay_count" == "4" ]] || {
   printf 'Replay changed ledger cardinality for order %s: %s\n' "$order_id" "$replay_count" >&2

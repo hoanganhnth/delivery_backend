@@ -147,7 +147,7 @@ fi
 
 printf '[REHEARSAL] delete isolated source databases\n'
 service_databases=(
-  auth_db user_db restaurant_db order_db delivery_db shipper_db settlement_db
+  auth_db user_db restaurant_db order_db delivery_db match_db shipper_db settlement_db
   notification_service_db tracking_db livestream_db saga_db promotion_db analytics_db flashsale_db
 )
 for database in "${service_databases[@]}"; do
@@ -192,5 +192,5 @@ docker exec -i -e PGPASSWORD=phase4-rehearsal-only "$CONTAINER_NAME" \
   "SELECT CASE WHEN count(*) = 1 THEN 'ok' ELSE 'failed' END FROM notifications WHERE related_entity_id=101 AND deduplication_key='delivery-completed:201:1001'" \
   | grep -Fxq ok
 
-printf 'Backup/restore rehearsal passed: 14 service databases restored in %ss; critical fingerprints, uniqueness and smoke flow match.\n' \
+printf 'Backup/restore rehearsal passed: 15 service databases restored in %ss; critical fingerprints, uniqueness and smoke flow match.\n' \
   "$restore_elapsed"

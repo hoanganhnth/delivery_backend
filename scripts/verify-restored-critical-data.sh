@@ -52,6 +52,10 @@ capture settlement_ledger settlement_db \
   'SELECT id,entity_id,entity_type,order_id,direction,reason,amount,status,wallet_type,created_at FROM transactions ORDER BY id'
 capture notification_projection notification_service_db \
   'SELECT id,user_id,type,status,is_read,related_entity_id,related_entity_type,deduplication_key,created_at FROM notifications ORDER BY id'
+capture match_commands match_db \
+  'SELECT event_id,order_id,delivery_id,payload_fingerprint,status,created_at FROM match_commands ORDER BY event_id'
+capture match_outbox match_db \
+  'SELECT event_id,command_event_id,aggregate_id,event_type,topic,event_key,status,payload,created_at FROM match_outbox_events ORDER BY event_id'
 
 duplicate_receipts="$(run_psql settlement_db \
   'SELECT count(*) FROM (SELECT event_id FROM settlement_receipts GROUP BY event_id HAVING count(*) > 1) duplicate')"
@@ -61,9 +65,14 @@ duplicate_order_outbox="$(run_psql order_db \
   'SELECT count(*) FROM (SELECT event_id FROM outbox_events GROUP BY event_id HAVING count(*) > 1) duplicate')"
 duplicate_delivery_outbox="$(run_psql delivery_db \
   'SELECT count(*) FROM (SELECT event_id FROM outbox_events GROUP BY event_id HAVING count(*) > 1) duplicate')"
+duplicate_match_commands="$(run_psql match_db \
+  'SELECT count(*) FROM (SELECT event_id FROM match_commands GROUP BY event_id HAVING count(*) > 1) duplicate')"
+duplicate_match_outbox="$(run_psql match_db \
+  'SELECT count(*) FROM (SELECT event_id FROM match_outbox_events GROUP BY event_id HAVING count(*) > 1) duplicate')"
 
 if [[ "$duplicate_receipts" != "0" || "$duplicate_ledger" != "0" \
-   || "$duplicate_order_outbox" != "0" || "$duplicate_delivery_outbox" != "0" ]]; then
+   || "$duplicate_order_outbox" != "0" || "$duplicate_delivery_outbox" != "0" \
+   || "$duplicate_match_commands" != "0" || "$duplicate_match_outbox" != "0" ]]; then
   printf 'Critical uniqueness reconciliation failed.\n' >&2
   exit 1
 fi
