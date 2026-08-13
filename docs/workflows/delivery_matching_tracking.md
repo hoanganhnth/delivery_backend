@@ -57,9 +57,11 @@ sequenceDiagram
   `FINDING_SHIPPER`; Saga rematch và loại shipper vừa từ chối.
 - Shipper hủy assignment trước pickup: giải phóng availability rồi rematch.
 - Order cancellation: `saga.command.cancel-delivery` đưa Delivery về `CANCELLED`
-  và `saga.command.stop-matching` ghi cancellation tombstone rồi giải phóng exact
-  Redis offer ownership. Reserve kiểm tombstone atomically nên in-flight find
-  không thể giữ lại shipper sau cancel; stale release không xoá offer mới.
+  và `saga.command.stop-matching` mang `matchingSessionId` hiện hành. Match ghi
+  durable tombstone `(deliveryId, matchingSessionId)` trước projection Redis;
+  stop-before-find làm find cùng session `CANCELLED` không query GEO. Reserve và
+  release kiểm session atomically, nên in-flight find không giữ shipper sau
+  cancel và stale stop không xóa offer rematch mới.
 - Hết retry/candidate: command riêng `saga.command.mark-shipper-not-found` đưa
   Delivery về `SHIPPER_NOT_FOUND`; không dùng cancellation command. Order vẫn
   giữ terminal status riêng nhưng phát `order.refund-eligible` với immutable

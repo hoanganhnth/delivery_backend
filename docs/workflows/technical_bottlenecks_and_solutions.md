@@ -58,7 +58,8 @@ Trong `Match Service`, khi không tìm thấy Shipper, hệ thống chờ một 
 ## 5. Security: Lỗ hổng giả mạo Định danh (Identity Spoofing)
 **🔍 Vấn đề:**
 Mỗi resource service xác thực Bearer JWT qua JWKS của Auth và tự dựng actor từ
-claims, thay vì tin định danh do Gateway inject.
+claims. Gateway không inject identity; nó chỉ strip các header legacy trước khi
+forward request.
 - Nếu Hacker chủ động gửi kèm `X-User-Id: 1` hoặc `X-Role: ADMIN` từ bên ngoài
 Internet, các header này không được dùng để xác thực/quyền và Gateway loại bỏ
 chúng trước routing.

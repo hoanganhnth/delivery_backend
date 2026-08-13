@@ -7,7 +7,9 @@ WebSocket. gRPC, STOMP/SockJS và topic-style subscription không thuộc contra
 MVP.
 
 - Raw socket qua Gateway: `/ws/shipper-locations`.
-- REST retained: shipper tự update/offline; internal Delivery participant check
+- REST retained: shipper tự update/offline; Shipper's explicit `false` status
+  command calls the credential-protected internal Tracking offline endpoint so
+  Tracking remains the availability authority; internal Delivery participant check
   bảo vệ subscription. REST update dùng cùng policy fail-closed với socket:
   tọa độ phải hữu hạn trong range hợp lệ, optional `accuracy/speed/heading` nếu
   gửi phải hữu hạn, và `isOnline` không được null/sai kiểu.
@@ -45,18 +47,26 @@ location raw WebSocket, không phát offer hoặc delivery state; shipper offer 
 khôi phục qua `GET /api/deliveries/offers/current`.
 
 Subscription nội bộ được index theo delivery room, không theo shipper đơn thuần.
-Assignment BUSY/AVAILABLE fence room cũ/mới; Redis Pub/Sub chuyển exact
-`deliveryId` giữa các Tracking instance. Slow session dùng bounded coalescing
-queue và subscribe/reconnect luôn đọc location cuối từ Redis nên không mất final
-state.
+Assignment BUSY/AVAILABLE fence room cũ/mới bằng Redis Lua compare-and-set trên
+`(deliveryId,timestamp,eventId)`: event cũ là no-op, còn hai BUSY facts khác
+nhau cùng timestamp fail-closed. Redis Pub/Sub chuyển exact `deliveryId` giữa
+các Tracking instance. Routing listener có bounded retry và owner DLT
+`shipper.status-change.tracking.DLT`; nó không đổi Match availability state.
+Slow session dùng bounded coalescing queue và subscribe/reconnect luôn đọc
+location cuối từ Redis nên không mất final state.
 
 ## Location history support
 
 History là audit/support-only: giữ 90 ngày, tọa độ 5 chữ số thập phân, sample
 10 giây hoặc 25 m. Consumer `tracking-location-history` ghi PostgreSQL async với
-receipt unique theo event ID; replay không tạo duplicate và out-of-order được so
-với cả điểm trước/sau. Chỉ internal secret + ADMIN support được query bounded
-theo một delivery; không có public/client/fleet history API. Chi tiết vận hành:
+receipt atomic theo event ID, identity delivery/shipper/time và SHA-256 raw
+payload. Hai replica cùng claim bằng PostgreSQL `ON CONFLICT DO NOTHING`; replay
+exact là no-op, còn tái dùng event ID với identity/payload khác fail-closed vào
+`shipper.location-updated.tracking.DLT`. Out-of-order được so với cả điểm
+trước/sau. Chỉ internal secret + ADMIN support được query bounded theo một
+delivery; không có public/client/fleet history API. Retry/DLT owner riêng là
+`shipper.location-updated-retry-tracking-*` / `.tracking.DLT`; nó không đổi
+Redis/WebSocket realtime hay Match eligibility. Chi tiết vận hành:
 `../operations/location-history.md`.
 
 ## Trạng thái và proof còn mở

@@ -20,15 +20,26 @@ hữu dữ liệu nghiệp vụ gốc.
 2. Outbox relay publish event có stable UUID, `occurredAt`, entity/action/id và
    payload.
 3. Search validate metadata/action/entity trước mọi mutation.
-4. Search ghi checkpoint theo entity, gồm event ID, thời điểm, action và SHA-256
-   fingerprint của payload, rồi upsert/delete Elasticsearch document.
-5. Exact retry được phép chạy lại document mutation để phục hồi crash sau
+4. Search atomically claim checkpoint theo entity bằng Elasticsearch scripted
+   upsert, gồm event ID, thời điểm, action và SHA-256 fingerprint của payload.
+   Claim cũ hơn là no-op; cùng ID chỉ được replay khi metadata/payload khớp.
+   Checkpoint legacy thiếu fingerprint chỉ được nâng cấp bằng compare-and-set
+   `_seq_no`/`_primary_term` sau khi metadata đã được chuẩn hoá/kiểm tra (cả
+   legacy timestamp có giây rỗng hoặc UTC offset).
+5. Search upsert/delete document bằng `version_type=external_gte`, version là
+   `occurredAt` đến nanosecond. Vì vậy nếu hai partition/replica đã cùng claim
+   các version khác nhau rồi write theo thứ tự đảo, update cũ không thể ghi đè
+   update mới hoặc hồi sinh document đã DELETE.
+6. Exact retry được phép chạy lại document mutation để phục hồi crash sau
    checkpoint; event cũ và replay cùng ID nhưng metadata/payload mâu thuẫn bị
    fail-closed.
 
-Khi repository hoặc Elasticsearch lỗi, consumer ném lỗi để Kafka retry/DLT;
-không ACK hoặc bỏ qua projection im lặng. PostgreSQL/Kafka/Elasticsearch recovery
-và multi-instance checkpoint CAS vẫn là Gate B8 chưa hoàn tất.
+Khi Elasticsearch lỗi, consumer ném lỗi để Kafka retry/DLT; không ACK hoặc bỏ
+qua projection im lặng. Rehearsal Testcontainers đã cover hai Search replica,
+hai partition reorder, exact same/fresh-group replay, contradictory ID tới DLT
+và delayed old writer sau update/delete mới. Search vẫn là rebuildable
+projection: Elasticsearch cluster outage/index recreation và vận hành replay có
+kiểm soát vẫn là Gate B8 chưa hoàn tất.
 
 ## Luồng query
 
@@ -43,5 +54,5 @@ API trả HTTP `503` với `status=0`, `data=null` và message đã làm sạch;
 
 Backend restaurant/dish API, validation, response contract và projection safety
 có focused proof. Flutter parser chỉ nhận canonical `BaseResponse` + stable page
-và reject raw Spring Page. Runtime Elasticsearch recovery chưa được coi là hoàn
-tất. Search HTTP chỉ còn restaurant/dish public contract.
+và reject raw Spring Page. Runtime Elasticsearch cluster recovery chưa được coi
+là hoàn tất. Search HTTP chỉ còn restaurant/dish public contract.

@@ -43,6 +43,14 @@ failure and restaurant/customer cancellation, releases it. A 15-minute expiry
 sweep releases an uncommitted hold. Consumers ACK only after the state
 transition succeeds; repeated commit/release/expiry is a no-op.
 
+Each consumed Order event also has a durable
+`promotion_order_reservation_receipts` primary-key receipt carrying source
+topic, `COMMIT`/`RELEASE` action, order/reservation identity and a SHA-256 of
+the raw payload. PostgreSQL atomically claims it with the local transition;
+exact replay is an ACK/no-op and a reused event ID with different source,
+identity or payload fails closed to the owner `.promotion.DLT`. This hardens
+the disabled capability only—none of the checkout or outbox flags are enabled.
+
 ```mermaid
 sequenceDiagram
     participant A as Flutter
@@ -72,3 +80,8 @@ sequenceDiagram
   changed-payload rejection.
 - Order timeout/later-failure release with the same stable identity.
 - Preview/create totals and no-stacking contract tests.
+- Kafka + PostgreSQL 16 two-replica `order.created`, `order.cancelled` and
+  `order.refund-eligible` duplicate partitions, same/fresh-group replay and
+  contradictory identity reuse: one receipt and the expected committed/released
+  reservation/outbox transition; contradiction reaches same-partition
+  `.promotion.DLT`.

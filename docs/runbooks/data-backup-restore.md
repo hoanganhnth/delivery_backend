@@ -17,15 +17,14 @@ request.
 
 | Data class | Service databases | MVP RPO / RTO | Production RPO / RTO |
 |---|---|---:|---:|
-| Critical lifecycle/finance | `order_db`, `delivery_db`, `settlement_db` and their outboxes/receipts | 4h / 2h | 5m / 60m |
+| Critical lifecycle/finance | `order_db`, `delivery_db`, `match_db`, `settlement_db` and their outboxes/receipts | 4h / 2h | 5m / 60m |
 | Durable identity/product/support state | `auth_db`, `user_db`, `restaurant_db`, `shipper_db`, `notification_service_db`, `tracking_db` (sampled support history only), `livestream_db`, `saga_db`, `promotion_db`, `analytics_db`, `flashsale_db` | 24h / 4h | 15m / 2h |
 | Search projection | Elasticsearch indices | rebuild from durable producers; no independent RPO | rebuild within 2h |
 | Match/tracking realtime | Redis GEO, online/freshness, offers, publisher leases/fences | reconnect/rebuild; never restore stale state | reconnect/rebuild; never restore stale state |
 
-The PostgreSQL list is encoded in `scripts/backup-data-plane.sh`. `search_db`
-and `match_db` are legacy/unused init entries and are not claimed
-as protected stores. If a service begins using one, update the ownership table
-and backup inventory in the same change.
+The PostgreSQL list is encoded in `scripts/backup-data-plane.sh`. `match_db`
+is a protected Match command/result store; `search_db` remains a legacy/unused
+init entry and is not claimed as a protected store.
 
 ## Backup policy
 
@@ -68,9 +67,9 @@ scripts/backup-data-plane.sh
 
 1. Declare an incident owner and recovery timestamp. Stop external ingress,
    service writers, outbox relays and consumers for the affected environment.
-2. Select one consistent recovery point for order, delivery, settlement and
-   saga/outbox databases. Do not mix a newer settlement ledger with older order
-   or delivery state.
+2. Select one consistent recovery point for order, delivery, Match, settlement
+   and saga/outbox databases. Do not mix a newer settlement ledger or Match
+   result outbox with older order or delivery state.
 3. Verify the encrypted artifact SHA-256 sidecar and decrypt/verify all inner
    checksums. Failure means the artifact is unusable; choose another recovery
    point.
@@ -87,8 +86,9 @@ scripts/backup-data-plane.sh
 
 5. Run `verify-restored-critical-data.sh` against both the source snapshot (when
    readable) and restored prefix. Compare fingerprints and counts for orders,
-   deliveries, settlement receipts/ledger, both outboxes and notification
-   projection. Run service migration and smoke tests against the isolated copy.
+   deliveries, Match command/result rows, settlement receipts/ledger, all
+   lifecycle outboxes and notification projection. Run service migration and
+   smoke tests against the isolated copy.
 6. Rebuild Elasticsearch/search projections from durable source events or a
    controlled export. Require projection checkpoints to reach the selected
    recovery point before opening reads.
@@ -109,8 +109,9 @@ scripts/backup-data-plane.sh
   broker offsets. A database restored behind an offset needs controlled replay;
   a database ahead of an offset will naturally see duplicates.
 - Settlement replay is safe only because `settlement_receipts.event_id`, the
-  order guard and ledger business-key constraints remain restored. Notification,
-  Saga and history consumers likewise require their durable receipt/unique keys.
+  order guard and ledger business-key constraints remain restored. Match,
+  Notification, Saga and history consumers likewise require their durable
+  receipt/unique keys.
 - Rehearse replay with a new isolated consumer-group ID. For production, reset a
   group only while all its consumers are stopped, retain the audit export, and
   advance in small ranges while checking DLT/duplicate metrics.

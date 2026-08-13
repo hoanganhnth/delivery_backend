@@ -16,6 +16,7 @@ bash scripts/gen-keys.sh
 JAVA_HOME=$(/usr/libexec/java_home -v 17) mvn -DskipTests package
 ./scripts/verify-compose-config.sh
 JAVA_HOME=$(/usr/libexec/java_home -v 17) \
+  RUNTIME_REBUILD_IMAGES=true \
   STARTUP_TIMEOUT_SECONDS=480 \
   bash scripts/verify-runtime-startup.sh
 bash scripts/verify-observability-runtime.sh
@@ -24,6 +25,21 @@ bash scripts/verify-observability-runtime.sh
 The standard proof starts the 13-service COD core in dependency order and keeps
 the four non-core capabilities stopped. A plain Compose command is useful for
 interactive debugging, but it is not the rebuild acceptance gate.
+
+Readiness alone is not treated as proof that a service can receive Gateway
+traffic. After Auth and each resource service becomes healthy, the startup
+script also waits for its `UP` lease in Eureka before starting the next stage.
+If a recreated Config/Eureka control plane has lost an otherwise healthy
+container's lease, the script recreates only that service once and rechecks its
+registration; it never removes PostgreSQL or Kafka volumes. Set
+`EUREKA_REGISTRATION_TIMEOUT_SECONDS` (default `120`) only when a constrained
+machine needs a longer registration window.
+
+`verify-runtime-startup.sh` defaults to reconciling existing images so a routine
+health proof does not recreate every canonical application container. Set
+`RUNTIME_REBUILD_IMAGES=true` after packaging a new release or on first local
+startup; the isolated E2E runner sets it automatically. Image freshness remains
+separately protected by `verify-docker-artifact-freshness.sh`.
 
 Docker images consume the host-built Maven JARs. The shared Dockerfile compares
 the packaged artifact with the module `pom.xml`, root reactor `pom.xml` and all
@@ -118,6 +134,40 @@ mỗi run, script đưa các shipper fixture cũ `shipper+*@test.dev` offline qu
 The two flow scripts use Gateway only. A successful Compose render or Maven
 package does not prove the order lifecycle; record container health/logs and the
 flow script result separately.
+
+### Disposable full-stack E2E
+
+Use the clean runner when the proof must start from empty PostgreSQL/Kafka
+volumes rather than append fixtures to the canonical local stack:
+
+```bash
+# Render and prove the isolation boundary without starting containers.
+CLEAN_E2E_CONFIG_ONLY=true bash scripts/verify-clean-compose-e2e.sh
+
+# Start a separate project, run COD + WebSocket + settlement/failure-matrix
+# proof, then remove only that project's containers and run-scoped volumes.
+JAVA_HOME=$(/usr/libexec/java_home -v 17) \
+  bash scripts/verify-clean-compose-e2e.sh
+```
+
+The runner uses `docker-compose.isolated-e2e.yml`: it removes fixed container
+names and infrastructure host ports, gives Gateway a Docker-assigned loopback
+port, and uses project-scoped PostgreSQL/Kafka volumes. It must not stop,
+recreate, inspect or mount the canonical `backend_delivery` containers/volumes.
+It passes the same `COMPOSE_FILE`/project environment to seed, COD and
+failure-matrix children, including their PostgreSQL/Kafka fixture commands, so
+those children cannot fall back to the canonical Compose project. The build
+baseline statically rejects a direct `docker compose exec` regression in that
+path.
+It still starts a second full COD stack, so run it only when Docker Desktop has
+enough free memory; it is a local proof, not a production load/HA test.
+
+Capacity is a hard safety gate, not a reason to stop the existing stack. On
+2026-08-08 this workstation's Docker Desktop had 7.75 GiB total memory while
+the 22-container canonical core used roughly 6.2 GiB, so a concurrent second
+core was deliberately not started. Use a dedicated CI/runner or raise Docker
+Desktop capacity before the full runner; do not free memory by taking down the
+canonical developer project.
 
 Do not run `docker compose down -v` against an existing developer environment
 unless removal of local databases is intentional.

@@ -20,7 +20,7 @@ sau khi giao xong.
 | shipper-service | 8089 | Profile/fleet; legacy location/rating-write/delete ẩn |
 | settlement-service | 8090 | COD ledger; payment/self-service mutation ẩn trong MVP |
 | notification-service | 8091 | FCM + inbox/read state + Redis token ownership |
-| match-service | 8092 | Match một offer cho đúng một shipper từ Redis GEO replica |
+| match-service | 8092 | Durable Saga command/result boundary plus one live offer from Redis GEO replica |
 | tracking-service | 8093 | Redis GEO + raw WebSocket location; internal REST mặc định tắt |
 | livestream-service | 8094 | Agora experimental; toàn bộ HTTP API ẩn trong MVP |
 | saga-orchestrator-service | 8095 | Điều phối restaurant-confirm → delivery → matching |

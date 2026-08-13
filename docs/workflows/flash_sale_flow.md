@@ -42,6 +42,13 @@ Reservation identity is stable `reservationId + orderId`; `orderId` is unique.
 Exact replay returns the stored line fingerprint and terminal state. A changed
 line, quantity, restaurant, user, order, or reservation identity fails closed.
 `order.created` commits; `order.cancelled` releases; a 15-minute sweep expires.
+Each consumed Order event also claims a durable
+`flash_sale_order_reservation_receipts` receipt carrying source topic,
+`COMMIT`/`RELEASE` action, order/reservation identity and SHA-256 raw payload.
+PostgreSQL atomically claims the receipt with the stock transition; an exact
+replay ACKs as a no-op, while a reused event ID with a changed source, identity
+or payload fails closed to the owner `.flashsale.DLT`. This hardens the disabled
+capability only—the checkout and outbox-relay flags remain false.
 
 ```mermaid
 sequenceDiagram
@@ -69,5 +76,12 @@ sequenceDiagram
   creates no reservation/outbox row.
 - Exact terminal replay, expiry, compensating release, outbox cardinality, and
   malformed-event no-ACK tests.
+- Kafka + PostgreSQL 16 two Flash-sale replicas consume duplicate
+  `order.created`, `order.cancelled` and `order.refund-eligible` identities on
+  separate partitions; same/fresh-group replay converges to one receipt and the
+  expected `COMMITTED` or `RELEASED` reservation/outbox transition, while changed
+  reuse reaches the same-partition `.flashsale.DLT`. PostgreSQL concurrency
+  additionally proves a failed local transition rolls its receipt back for Kafka
+  replay.
 - Flutter catalog contract rejects malformed or duplicate active selections and
   persists the authoritative `flashSaleItemId` through preview/create.

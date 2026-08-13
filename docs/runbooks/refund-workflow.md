@@ -31,7 +31,10 @@ idempotently from either compensation topic.
 ## Enablement rehearsal (staging/operator only)
 
 1. Apply Flyway V4 in Settlement and confirm the `refund_cases` and
-   `refund_outbox_events` constraints are present.
+   `refund_outbox_events` constraints are present. The consumer claims a case
+   atomically by event, idempotency key and order/trigger before any outbox
+   handoff: exact replay is a no-op; a changed payload with the same event ID
+   is a poison record for the source topic's same-partition DLT.
 2. Confirm Gateway exposes only the customer-owned `GET /api/settlement/refunds/my`
    plus the two `GET` admin refund paths. The customer route requires `USER` and
    a trusted user identity; the admin paths require `ADMIN`. There is no
