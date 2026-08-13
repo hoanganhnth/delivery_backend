@@ -43,6 +43,21 @@ class InternalDeliveryControllerAuthorizationTest {
     }
 
     @Test
+    void restaurantOwnerCanTrackOnlyOwnActiveDelivery() {
+        Delivery delivery = new Delivery();
+        delivery.setId(1L);
+        delivery.setRestaurantOwnerId(70L);
+        delivery.setShipperId(42L);
+        delivery.setStatus(DeliveryStatus.DELIVERING);
+        when(repository.findById(1L)).thenReturn(Optional.of(delivery));
+
+        assertThat(controller.canTrack(1L, 70L, "SHOP_OWNER", 42L, "shared-secret")
+                .getBody().getData()).isEqualTo(Boolean.TRUE);
+        assertThat(controller.canTrack(1L, 71L, "SHOP_OWNER", 42L, "shared-secret")
+                .getBody().getData()).isEqualTo(Boolean.FALSE);
+    }
+
+    @Test
     void terminalDeliveryCannotBeTracked() {
         Delivery delivery = new Delivery();
         delivery.setId(1L);

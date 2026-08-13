@@ -257,8 +257,10 @@ class SagaManagerConvergenceTest {
 
         manager.handleRestaurantConfirmed(7L, "{\"orderId\":7,\"restaurantId\":3}");
 
+        ArgumentCaptor<Object> matchPayload = ArgumentCaptor.forClass(Object.class);
         verify(outboxService).saveCommand(eq("7"), eq(SagaManager.CMD_FIND_SHIPPER),
-                eq("7"), any());
+                eq("7"), matchPayload.capture());
+        assertThat(((JsonNode) matchPayload.getValue()).path("matchingDeadlineAt").asText()).isNotBlank();
         ArgumentCaptor<Object> statusPayload = ArgumentCaptor.forClass(Object.class);
         verify(outboxService).saveCommand(eq("7"), eq(SagaManager.CMD_UPDATE_ORDER_STATUS),
                 eq("7"), statusPayload.capture());
@@ -305,6 +307,67 @@ class SagaManagerConvergenceTest {
         assertThat((JsonNode) payload.getValue()).isEqualTo(
                 new com.fasterxml.jackson.databind.ObjectMapper()
                         .createObjectNode().put("orderId", 7).put("deliveryId", 8));
+    }
+
+    @Test
+    void lateDeliveryCreatedAfterStartedTimeoutFailureIsCancelledInsteadOfOrphaned() {
+        SagaInstance saga = saga(7L, SagaInstance.SagaStatus.FAILED);
+        saga.addStep("TIMEOUT_STARTED_FAILED", "TIMEOUT_STARTED.failed", "{\"orderId\":7}");
+        when(repository.findByOrderIdForUpdate(7L)).thenReturn(Optional.of(saga));
+
+        manager.handleDeliveryCreated(7L, 8L, "{\"orderId\":7,\"deliveryId\":8}");
+
+        assertThat(saga.getStatus()).isEqualTo(SagaInstance.SagaStatus.FAILED);
+        assertThat(saga.getDeliveryId()).isEqualTo(8L);
+        verify(outboxService).saveCommand(eq("7"), eq(SagaManager.CMD_CANCEL_DELIVERY),
+                eq("7"), any());
+    }
+
+    @Test
+    void knownDeliveryCancellationWaitsForDurableDeliveryConfirmation() {
+        SagaInstance saga = saga(7L, SagaInstance.SagaStatus.FINDING_SHIPPER);
+        saga.setDeliveryId(8L);
+        saga.addStep("MATCHING_STARTED", SagaManager.CMD_FIND_SHIPPER,
+                "{\"orderId\":7,\"deliveryId\":8,"
+                        + "\"matchingSessionId\":\"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa\"}");
+        when(repository.findByOrderIdForUpdate(7L)).thenReturn(Optional.of(saga));
+
+        manager.handleOrderCancelled(7L, "{\"orderId\":7}");
+
+        assertThat(saga.getStatus()).isEqualTo(SagaInstance.SagaStatus.COMPENSATING);
+        assertThat(saga.getCompletedAt()).isNull();
+        verify(outboxService).saveCommand(eq("7"), eq(SagaManager.CMD_CANCEL_DELIVERY), eq("7"), any());
+        ArgumentCaptor<Object> stopPayload = ArgumentCaptor.forClass(Object.class);
+        verify(outboxService).saveCommand(eq("7"), eq(SagaManager.CMD_STOP_MATCHING),
+                eq("7"), stopPayload.capture());
+        assertThat(((JsonNode) stopPayload.getValue()).get("matchingSessionId").asText())
+                .isEqualTo("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+
+        manager.handleDeliveryStatusUpdated(7L, 8L, "CANCELLED",
+                "{\"orderId\":7,\"deliveryId\":8,\"status\":\"CANCELLED\"}");
+
+        assertThat(saga.getStatus()).isEqualTo(SagaInstance.SagaStatus.CANCELLED);
+        assertThat(saga.getCompletedAt()).isNotNull();
+        verify(outboxService, never()).saveCommand(eq("7"), eq(SagaManager.CMD_UPDATE_ORDER_STATUS),
+                eq("7"), any());
+    }
+
+    @Test
+    void deliveryCancellationFailureIsRecordedEvenAfterSagaWasCancelled() {
+        SagaInstance saga = saga(7L, SagaInstance.SagaStatus.CANCELLED);
+        saga.setDeliveryId(8L);
+        when(repository.findByOrderIdForUpdate(7L)).thenReturn(Optional.of(saga));
+
+        manager.handleStepFailed("DELIVERY_CANCEL", 7L, "already picked up",
+                "{\"orderId\":7,\"deliveryId\":8}");
+
+        assertThat(saga.getStatus()).isEqualTo(SagaInstance.SagaStatus.FAILED);
+        assertThat(saga.getSteps()).anySatisfy(step -> {
+            assertThat(step.getStepName()).isEqualTo("DELIVERY_CANCEL_FAILED");
+            assertThat(step.getEventType()).isEqualTo("delivery.cancel.failed");
+        });
+        verify(repository).save(saga);
+        verifyNoInteractions(outboxService);
     }
 
     @Test

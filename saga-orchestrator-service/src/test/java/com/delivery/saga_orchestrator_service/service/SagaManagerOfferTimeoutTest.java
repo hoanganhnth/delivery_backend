@@ -30,6 +30,8 @@ class SagaManagerOfferTimeoutTest {
         saga.setDeliveryId(20L);
         saga.setSagaType("ORDER_CREATION");
         saga.setStatus(SagaInstance.SagaStatus.SHIPPER_FOUND);
+        saga.setVersion(1L);
+        saga.setUpdatedAt(LocalDateTime.now().minusMinutes(5));
         saga.setPayload("""
                 {"orderId":10,"totalPrice":120000,"shippingFee":20000,
                  "paymentMethod":"COD","restaurantId":40,"restaurantName":"Test"}
@@ -76,6 +78,8 @@ class SagaManagerOfferTimeoutTest {
         saga.setDeliveryId(20L);
         saga.setSagaType("ORDER_CREATION");
         saga.setStatus(SagaInstance.SagaStatus.SHIPPER_FOUND);
+        saga.setVersion(1L);
+        saga.setUpdatedAt(LocalDateTime.now().minusMinutes(5));
         saga.setPayload("""
                 {"orderId":10,"totalPrice":120000,"shippingFee":20000,
                  "paymentMethod":"COD","restaurantId":40}
@@ -135,6 +139,8 @@ class SagaManagerOfferTimeoutTest {
         saga.setDeliveryId(20L);
         saga.setSagaType("ORDER_CREATION");
         saga.setStatus(SagaInstance.SagaStatus.SHIPPER_FOUND);
+        saga.setVersion(1L);
+        saga.setUpdatedAt(LocalDateTime.now().minusMinutes(5));
         saga.setPayload("{\"orderId\":10,\"totalPrice\":120000,\"shippingFee\":20000,"
                 + "\"paymentMethod\":\"COD\",\"restaurantId\":40}");
         saga.addStep("DELIVERY_CREATED", "delivery.created.result",

@@ -9,6 +9,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -68,7 +69,8 @@ public class SagaTimeoutScheduler {
 
         for (SagaInstance saga : candidates) {
             try {
-                sagaManager.handleShipperOfferTimeout(saga.getOrderId());
+                sagaManager.handleTimeout(SagaTimeoutCommand.forShipperOffer(
+                        saga, "Shipper offer timeout"));
             } catch (Exception failure) {
                 log.error("Failed to process shipper-offer timeout for orderId={}",
                         saga.getOrderId(), failure);
@@ -86,20 +88,12 @@ public class SagaTimeoutScheduler {
                 log.warn("⏰ [Saga] TIMEOUT — orderId={}, status={}, stuck since {}, reason={}",
                         saga.getOrderId(), status, saga.getUpdatedAt(), reason);
 
-                if (status == SagaStatus.SHIPPER_FOUND) {
-                    sagaManager.handleShipperOfferTimeout(saga.getOrderId());
-                    continue;
-                }
-
-                // Other stuck stages require compensation.
-                String timeoutEvent = String.format(
-                        "{\"orderId\":%d,\"deliveryId\":%d,\"reason\":\"%s\",\"timeout\":true,\"stuckStatus\":\"%s\"}",
-                        saga.getOrderId(), 
-                        saga.getDeliveryId() != null ? saga.getDeliveryId() : 0,
-                        reason, 
-                        status);
-                sagaManager.handleStepFailed("TIMEOUT_" + status.name(),
-                        saga.getOrderId(), reason, timeoutEvent);
+                // A scheduler observation is not a transition authority. The
+                // manager re-locks and verifies this exact status/version before
+                // it creates compensation side effects.
+                SagaTimeoutCommand timeout = SagaTimeoutCommand.forStage(
+                        saga, status, Duration.ofMinutes(timeoutMinutes), reason);
+                sagaManager.handleTimeout(timeout);
             } catch (Exception failure) {
                 // Leave this Saga eligible for the next poll, but do not let one
                 // poison aggregate starve every later timeout in the batch.

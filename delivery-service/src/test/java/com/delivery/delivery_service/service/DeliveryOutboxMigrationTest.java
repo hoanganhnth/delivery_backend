@@ -65,6 +65,30 @@ class DeliveryOutboxMigrationTest {
     }
 
     @Test
+    void inboundCommandReceiptMigrationAddsAUniqueDurableIdentityFence() throws Exception {
+        var dataSource = new DriverManagerDataSource(
+                databaseUrl("inbound_command_receipts"), "sa", "");
+        new ResourceDatabasePopulator(new ClassPathResource(
+                "db/migration/V14__delivery_inbound_command_receipts.sql")).execute(dataSource);
+        JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+        UUID eventId = UUID.randomUUID();
+        LocalDateTime now = LocalDateTime.now();
+
+        jdbc.update("""
+                INSERT INTO delivery_inbound_receipts(event_id, command_type, order_id,
+                    delivery_id, payload_fingerprint, received_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """, eventId, "CACHE_SHIPPER_OFFER", 20L, 30L, "a".repeat(64), now);
+
+        assertThatThrownBy(() -> jdbc.update("""
+                INSERT INTO delivery_inbound_receipts(event_id, command_type, order_id,
+                    delivery_id, payload_fingerprint, received_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """, eventId, "CACHE_SHIPPER_OFFER", 20L, 30L, "a".repeat(64), now))
+                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+    }
+
+    @Test
     void versionSixThroughElevenRepairsEmptyLegacyOutboxTable() throws Exception {
         var dataSource = new DriverManagerDataSource(
                 databaseUrl("empty_legacy_outbox"), "sa", "");

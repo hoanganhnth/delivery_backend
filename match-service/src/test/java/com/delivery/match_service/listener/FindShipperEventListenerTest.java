@@ -2,12 +2,16 @@ package com.delivery.match_service.listener;
 
 import com.delivery.match_service.dto.event.FindShipperEvent;
 import com.delivery.match_service.dto.event.ShipperFoundEvent;
+import com.delivery.match_service.dto.event.ShipperNotFoundEvent;
 import com.delivery.match_service.dto.request.FindNearbyShippersRequest;
 import com.delivery.match_service.dto.response.NearbyShipperResponse;
 import com.delivery.match_service.service.MatchService;
 import com.delivery.match_service.service.MatchCancellationService;
-import com.delivery.match_service.service.MatchEventPublisher;
+import com.delivery.match_service.service.MatchCancellationProjectionRelay;
+import com.delivery.match_service.service.MatchCommandStore;
 import com.delivery.match_service.service.SettlementEligibilityClient;
+import com.delivery.match_service.metrics.BusinessMetrics;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -22,9 +26,15 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
@@ -43,13 +53,15 @@ class FindShipperEventListenerTest {
     private MatchService matchService;
 
     @Mock
-    private MatchEventPublisher matchEventPublisher;
+    private MatchCommandStore matchCommandStore;
 
     private FindShipperEventListener listener;
 
     private FindShipperEvent testEvent;
     @Mock
     private MatchCancellationService matchCancellationService;
+    @Mock
+    private MatchCancellationProjectionRelay cancellationProjectionRelay;
     @Mock
     private SettlementEligibilityClient settlementEligibilityClient;
     private ObjectMapper objectMapper;
@@ -58,12 +70,14 @@ class FindShipperEventListenerTest {
     void setUp() {
         // ✅ Constructor Injection với simplified dependencies
         listener = new FindShipperEventListener(
-                matchService, matchEventPublisher, matchCancellationService, settlementEligibilityClient, 20);
+                matchService, matchCommandStore, matchCancellationService, cancellationProjectionRelay,
+                settlementEligibilityClient, 20);
         objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
         // Setup test event
         testEvent = new FindShipperEvent();
         testEvent.setEventId(UUID.fromString("11111111-1111-1111-1111-111111111111"));
+        testEvent.setMatchingSessionId(UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"));
         testEvent.setDeliveryId(123L);
         testEvent.setOrderId(456L);
         testEvent.setPickupLat(10.762622);
@@ -78,9 +92,20 @@ class FindShipperEventListenerTest {
         testEvent.setMaxDelaySeconds(1);
         testEvent.setTotalPrice(new BigDecimal("120000"));
         testEvent.setPaymentMethod("COD");
-        lenient().when(matchService.tryReserveShipperOffer(anyLong(), anyLong(), anyInt())).thenReturn(true);
+        lenient().when(matchService.tryReserveShipperOffer(
+                anyLong(), anyLong(), any(UUID.class), anyInt())).thenReturn(true);
         lenient().when(settlementEligibilityClient.isCodEligible(anyLong(), any(BigDecimal.class)))
                 .thenReturn(Mono.just(true));
+        lenient().when(matchCommandStore.acceptFindCommand(
+                anyString(), anyString(), any(FindShipperEvent.class)))
+                .thenReturn(MatchCommandStore.CommandDecision.process());
+        lenient().when(matchCommandStore.stageCandidate(any(), any(ShipperFoundEvent.class)))
+                .thenAnswer(invocation -> invocation.getArgument(1, ShipperFoundEvent.class));
+        lenient().when(matchCommandStore.stageFoundResult(any(), any(ShipperFoundEvent.class)))
+                .thenReturn(true);
+        lenient().when(matchCommandStore.stageNotFoundResult(
+                any(), any(ShipperNotFoundEvent.class), anyBoolean()))
+                .thenReturn(MatchCommandStore.TerminalResultDecision.persisted());
     }
 
     @Test
@@ -103,9 +128,9 @@ class FindShipperEventListenerTest {
 
         // Then - Verify ShipperFoundEvent is published
         var eventCaptor = org.mockito.ArgumentCaptor.forClass(ShipperFoundEvent.class);
-        verify(matchEventPublisher).publishShipperFoundEvent(eventCaptor.capture());
+        verify(matchCommandStore).stageFoundResult(eq(testEvent.getEventId()), eventCaptor.capture());
         assertEquals(outcomeEventId("shipper-found"), eventCaptor.getValue().getEventId());
-        assertEquals(testEvent.getEventId().toString(), eventCaptor.getValue().getMatchingSessionId());
+        assertEquals(testEvent.getMatchingSessionId().toString(), eventCaptor.getValue().getMatchingSessionId());
         assertEquals(1, eventCaptor.getValue().getAvailableShippers().size());
         assertEquals(1L, eventCaptor.getValue().getAvailableShippers().get(0).getShipperId());
     }
@@ -131,7 +156,7 @@ class FindShipperEventListenerTest {
         }
 
         // Then - Verify ShipperFoundEvent is published after retry
-        verify(matchEventPublisher).publishShipperFoundEvent(any(ShipperFoundEvent.class));
+        verify(matchCommandStore).stageFoundResult(eq(testEvent.getEventId()), any(ShipperFoundEvent.class));
     }
 
     @Test
@@ -149,12 +174,66 @@ class FindShipperEventListenerTest {
         }
 
         // Then - Should publish ShipperNotFoundEvent after max retries
-        var eventCaptor = org.mockito.ArgumentCaptor.forClass(
-                com.delivery.match_service.dto.event.ShipperNotFoundEvent.class);
-        verify(matchEventPublisher).publishShipperNotFoundEvent(eventCaptor.capture());
+        var eventCaptor = org.mockito.ArgumentCaptor.forClass(ShipperNotFoundEvent.class);
+        verify(matchCommandStore).stageNotFoundResult(
+                eq(testEvent.getEventId()), eventCaptor.capture(), eq(false));
         assertEquals(outcomeEventId("shipper-not-found"), eventCaptor.getValue().getEventId());
+        assertEquals(testEvent.getMatchingSessionId().toString(), eventCaptor.getValue().getMatchingSessionId());
         // Should not publish ShipperFoundEvent
-        verify(matchEventPublisher, never()).publishShipperFoundEvent(any());
+        verify(matchCommandStore, never()).stageFoundResult(any(), any());
+    }
+
+    @Test
+    void expiredSagaDeadlinePublishesTerminalNoShipperWithoutStartingRetryLoop() throws Exception {
+        testEvent.setMatchingDeadlineAt(LocalDateTime.now().minusSeconds(1));
+
+        listener.handleFindShipperEvent(
+                objectMapper.writeValueAsString(testEvent), "test-topic", 0, System.currentTimeMillis()).block();
+
+        verifyNoInteractions(matchService);
+        verify(matchCommandStore).stageNotFoundResult(
+                eq(testEvent.getEventId()), any(ShipperNotFoundEvent.class), eq(true));
+        verify(matchCommandStore, never()).stageFoundResult(any(), any());
+    }
+
+    @Test
+    void deadlineBeforeRetryPreventsASecondGeoSearch() throws Exception {
+        Instant now = Instant.parse("2026-08-09T00:00:00Z");
+        listener = listenerAt(Clock.fixed(now, ZoneOffset.UTC));
+        testEvent.setMatchingDeadlineAt(LocalDateTime.ofInstant(now.plusMillis(500), ZoneOffset.UTC));
+        when(matchService.findNearbyShippers(any(FindNearbyShippersRequest.class), anyLong(), anyString()))
+                .thenReturn(Mono.just(Collections.emptyList()));
+
+        listener.handleFindShipperEvent(
+                objectMapper.writeValueAsString(testEvent), "test-topic", 0, System.currentTimeMillis()).block();
+
+        verify(matchService, times(1)).findNearbyShippers(any(FindNearbyShippersRequest.class), anyLong(), anyString());
+        verify(matchCommandStore).stageNotFoundResult(
+                eq(testEvent.getEventId()), any(ShipperNotFoundEvent.class), eq(true));
+        verify(matchCommandStore, never()).stageFoundResult(any(), any());
+    }
+
+    @Test
+    void deadlineAfterReservationReleasesOfferBeforePublishingNoShipper() throws Exception {
+        Instant beforeDeadline = Instant.parse("2026-08-09T00:00:00Z");
+        listener = listenerAt(new SequenceClock(
+                ZoneOffset.UTC,
+                List.of(beforeDeadline, beforeDeadline, beforeDeadline, beforeDeadline,
+                        beforeDeadline, beforeDeadline.plusSeconds(1))));
+        testEvent.setMatchingDeadlineAt(
+                LocalDateTime.ofInstant(beforeDeadline.plusMillis(500), ZoneOffset.UTC));
+        NearbyShipperResponse shipper = createTestShipper(1L, 10.763000, 106.661000);
+        when(matchService.findNearbyShippers(any(FindNearbyShippersRequest.class), anyLong(), anyString()))
+                .thenReturn(Mono.just(List.of(shipper)));
+
+        listener.handleFindShipperEvent(
+                objectMapper.writeValueAsString(testEvent), "test-topic", 0, System.currentTimeMillis()).block();
+
+        verify(matchService).tryReserveShipperOffer(1L, 123L, testEvent.getMatchingSessionId(), 180);
+        verify(matchService).releaseShipperOffer(1L, 123L, testEvent.getMatchingSessionId());
+        verify(matchCommandStore).stageNotFoundResult(
+                eq(testEvent.getEventId()), any(ShipperNotFoundEvent.class), eq(true));
+        verify(matchCommandStore, never()).stageFoundResult(any(), any());
     }
 
     @Test
@@ -174,8 +253,8 @@ class FindShipperEventListenerTest {
         assertThrows(RuntimeException.class,
                 () -> listener.handleFindShipperEvent(
                         json, "test-topic", 0, System.currentTimeMillis()).block());
-        verify(matchEventPublisher, never()).publishShipperNotFoundEvent(any());
-        verify(matchEventPublisher, never()).publishShipperFoundEvent(any());
+        verify(matchCommandStore, never()).stageNotFoundResult(any(), any(), anyBoolean());
+        verify(matchCommandStore, never()).stageFoundResult(any(), any());
     }
 
     @Test
@@ -197,7 +276,7 @@ class FindShipperEventListenerTest {
 
         // Then
         verifyNoInteractions(matchService);
-        verifyNoInteractions(matchEventPublisher);
+        verifyNoInteractions(matchCommandStore);
     }
 
     @Test
@@ -210,7 +289,7 @@ class FindShipperEventListenerTest {
         assertThrows(IllegalStateException.class,
                 () -> listener.handleFindShipperEvent(
                         json, "test-topic", 0, System.currentTimeMillis()));
-        verifyNoInteractions(matchService, matchEventPublisher);
+        verifyNoInteractions(matchService, matchCommandStore);
     }
 
     @Test
@@ -223,7 +302,7 @@ class FindShipperEventListenerTest {
         assertThrows(IllegalStateException.class,
                 () -> listener.handleFindShipperEvent(
                         json, "test-topic", 0, System.currentTimeMillis()));
-        verifyNoInteractions(matchService, matchEventPublisher);
+        verifyNoInteractions(matchService, matchCommandStore);
     }
 
     @Test
@@ -235,7 +314,7 @@ class FindShipperEventListenerTest {
         assertThrows(IllegalStateException.class,
                 () -> listener.handleFindShipperEvent(
                         json, "test-topic", 0, System.currentTimeMillis()));
-        verifyNoInteractions(matchService, matchEventPublisher);
+        verifyNoInteractions(matchService, matchCommandStore);
     }
 
     @Test
@@ -264,7 +343,7 @@ class FindShipperEventListenerTest {
         // Then
         verify(matchService).findNearbyShippers(any(FindNearbyShippersRequest.class), anyLong(),
                 anyString());
-        verify(matchEventPublisher).publishShipperFoundEvent(any(ShipperFoundEvent.class));
+        verify(matchCommandStore).stageFoundResult(eq(testEvent.getEventId()), any(ShipperFoundEvent.class));
     }
 
     @Test
@@ -283,10 +362,10 @@ class FindShipperEventListenerTest {
                 System.currentTimeMillis()).block();
 
         var eventCaptor = org.mockito.ArgumentCaptor.forClass(ShipperFoundEvent.class);
-        verify(matchEventPublisher, timeout(1000)).publishShipperFoundEvent(eventCaptor.capture());
+        verify(matchCommandStore, timeout(1000)).stageFoundResult(eq(testEvent.getEventId()), eventCaptor.capture());
         assertEquals(2L, eventCaptor.getValue().getAvailableShippers().get(0).getShipperId());
         assertEquals(new BigDecimal("120000"), eventCaptor.getValue().getTotalPrice());
-        verify(matchService).tryReserveShipperOffer(2L, 123L, 180);
+        verify(matchService).tryReserveShipperOffer(2L, 123L, testEvent.getMatchingSessionId(), 180);
     }
 
     @Test
@@ -302,19 +381,20 @@ class FindShipperEventListenerTest {
                 () -> listener.handleFindShipperEvent(
                         json, "test-topic", 0, System.currentTimeMillis()).block());
 
-        verify(matchEventPublisher, never()).publishShipperFoundEvent(any());
-        verify(matchEventPublisher, never()).publishShipperNotFoundEvent(any());
+        verify(matchCommandStore, never()).stageFoundResult(any(), any());
+        verify(matchCommandStore, never()).stageNotFoundResult(any(), any(), anyBoolean());
     }
 
     @Test
     void cancelledDeliveryCannotBeResurrectedByDelayedFindCommand() throws Exception {
-        when(matchCancellationService.isCancelled(123L)).thenReturn(true);
+        when(matchCancellationService.isCancelled(123L, testEvent.getMatchingSessionId())).thenReturn(true);
 
         listener.handleFindShipperEvent(
                 objectMapper.writeValueAsString(testEvent), "test-topic", 0,
                 System.currentTimeMillis()).block();
 
-        verifyNoInteractions(matchService, matchEventPublisher);
+        verifyNoInteractions(matchService);
+        verify(matchCommandStore).cancelCommand(testEvent.getEventId());
     }
 
     @Test
@@ -322,21 +402,22 @@ class FindShipperEventListenerTest {
         NearbyShipperResponse shipper = createTestShipper(1L, 10.763000, 106.661000);
         when(matchService.findNearbyShippers(any(), anyLong(), anyString()))
                 .thenReturn(Mono.just(List.of(shipper)));
-        when(matchCancellationService.isCancelled(123L)).thenReturn(false, false, true);
+        when(matchCancellationService.isCancelled(123L, testEvent.getMatchingSessionId()))
+                .thenReturn(false, false, false, true);
 
         listener.handleFindShipperEvent(
                 objectMapper.writeValueAsString(testEvent), "test-topic", 0,
                 System.currentTimeMillis()).block();
 
-        verify(matchService).tryReserveShipperOffer(1L, 123L, 180);
-        verify(matchService).releaseShipperOffer(1L, 123L);
-        verify(matchEventPublisher, never()).publishShipperFoundEvent(any());
-        verify(matchEventPublisher, never()).publishShipperNotFoundEvent(any());
+        verify(matchService).tryReserveShipperOffer(1L, 123L, testEvent.getMatchingSessionId(), 180);
+        verify(matchService).releaseShipperOffer(1L, 123L, testEvent.getMatchingSessionId());
+        verify(matchCommandStore, never()).stageFoundResult(any(), any());
+        verify(matchCommandStore, never()).stageNotFoundResult(any(), any(), anyBoolean());
     }
 
     @Test
     void cancellationStoreFailurePropagatesToKafkaRetry() throws Exception {
-        when(matchCancellationService.isCancelled(123L))
+        when(matchCancellationService.isCancelled(123L, testEvent.getMatchingSessionId()))
                 .thenThrow(new IllegalStateException("redis unavailable"));
 
         String json = objectMapper.writeValueAsString(testEvent);
@@ -344,7 +425,9 @@ class FindShipperEventListenerTest {
                 () -> listener.handleFindShipperEvent(
                         json, "test-topic", 0, System.currentTimeMillis()));
 
-        verifyNoInteractions(matchService, matchEventPublisher);
+        verifyNoInteractions(matchService);
+        verify(matchCommandStore, never()).stageFoundResult(any(), any());
+        verify(matchCommandStore, never()).stageNotFoundResult(any(), any(), anyBoolean());
     }
 
     @Test
@@ -360,7 +443,7 @@ class FindShipperEventListenerTest {
                 System.currentTimeMillis()).block();
 
         var eventCaptor = org.mockito.ArgumentCaptor.forClass(ShipperFoundEvent.class);
-        verify(matchEventPublisher).publishShipperFoundEvent(eventCaptor.capture());
+        verify(matchCommandStore).stageFoundResult(eq(testEvent.getEventId()), eventCaptor.capture());
         var selected = eventCaptor.getValue().getAvailableShippers().get(0);
         assertNull(selected.getShipperName());
         assertNull(selected.getShipperPhone());
@@ -368,18 +451,26 @@ class FindShipperEventListenerTest {
     }
 
     @Test
-    void stopMatchingRedisFailureIsNotAcknowledged() {
+    void stopMatchingAcknowledgesAfterDurableFenceWhenRedisProjectionIsPending() {
         org.springframework.kafka.support.Acknowledgment acknowledgment =
                 mock(org.springframework.kafka.support.Acknowledgment.class);
-        doThrow(new IllegalStateException("redis unavailable"))
-                .when(matchCancellationService).markCancelled(123L);
+        UUID matchingSessionId = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+        when(cancellationProjectionRelay.projectNow(123L, matchingSessionId)).thenReturn(false);
 
-        assertThrows(IllegalStateException.class,
-                () -> listener.handleStopMatchingCommand(
-                        "{\"eventId\":\"22222222-2222-2222-2222-222222222222\","
-                                + "\"orderId\":456,\"deliveryId\":123}", acknowledgment));
+        listener.handleStopMatchingCommand(
+                "{\"eventId\":\"22222222-2222-2222-2222-222222222222\","
+                        + "\"orderId\":456,\"deliveryId\":123,"
+                        + "\"matchingSessionId\":\"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa\"}",
+                acknowledgment);
 
-        verify(acknowledgment, never()).acknowledge();
+        verify(matchCommandStore).recordStopMatching(
+                UUID.fromString("22222222-2222-2222-2222-222222222222"),
+                456L, 123L, matchingSessionId,
+                "{\"eventId\":\"22222222-2222-2222-2222-222222222222\","
+                        + "\"orderId\":456,\"deliveryId\":123,"
+                        + "\"matchingSessionId\":\"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa\"}");
+        verify(cancellationProjectionRelay).projectNow(123L, matchingSessionId);
+        verify(acknowledgment).acknowledge();
     }
 
     private NearbyShipperResponse createTestShipper(Long shipperId, Double lat, Double lng) {
@@ -397,5 +488,43 @@ class FindShipperEventListenerTest {
     private String outcomeEventId(String outcome) {
         return UUID.nameUUIDFromBytes(("match:" + outcome + ":" + testEvent.getEventId())
                 .getBytes(StandardCharsets.UTF_8)).toString();
+    }
+
+    private FindShipperEventListener listenerAt(Clock clock) {
+        return new FindShipperEventListener(
+                matchService,
+                matchCommandStore,
+                matchCancellationService,
+                cancellationProjectionRelay,
+                settlementEligibilityClient,
+                new BusinessMetrics(new SimpleMeterRegistry()),
+                20,
+                clock);
+    }
+
+    private static final class SequenceClock extends Clock {
+        private final ZoneId zone;
+        private final List<Instant> instants;
+        private final AtomicInteger reads = new AtomicInteger();
+
+        private SequenceClock(ZoneId zone, List<Instant> instants) {
+            this.zone = zone;
+            this.instants = instants;
+        }
+
+        @Override
+        public ZoneId getZone() {
+            return zone;
+        }
+
+        @Override
+        public Clock withZone(ZoneId requestedZone) {
+            return new SequenceClock(requestedZone, instants);
+        }
+
+        @Override
+        public Instant instant() {
+            return instants.get(Math.min(reads.getAndIncrement(), instants.size() - 1));
+        }
     }
 }

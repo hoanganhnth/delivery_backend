@@ -7,6 +7,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
+import java.util.UUID;
 
 @Service
 @Slf4j
@@ -25,27 +26,27 @@ public class MatchCancellationServiceImpl implements MatchCancellationService {
     }
 
     @Override
-    public void markCancelled(Long deliveryId) {
-        if (deliveryId == null) {
+    public void markCancelled(Long deliveryId, UUID matchingSessionId) {
+        if (deliveryId == null || matchingSessionId == null) {
             return;
         }
 
-        String key = CANCEL_KEY_PREFIX + deliveryId;
+        String key = cancellationKey(deliveryId, matchingSessionId);
         try {
             redisTemplate.opsForValue().set(key, Boolean.TRUE, CANCEL_TTL);
-            matchRedisGeoRepository.releaseOfferForDelivery(deliveryId);
+            matchRedisGeoRepository.releaseOfferForDelivery(deliveryId, matchingSessionId);
         } catch (Exception e) {
             throw new IllegalStateException("Cannot persist matching cancellation", e);
         }
     }
 
     @Override
-    public boolean isCancelled(Long deliveryId) {
-        if (deliveryId == null) {
+    public boolean isCancelled(Long deliveryId, UUID matchingSessionId) {
+        if (deliveryId == null || matchingSessionId == null) {
             return false;
         }
 
-        String key = CANCEL_KEY_PREFIX + deliveryId;
+        String key = cancellationKey(deliveryId, matchingSessionId);
         try {
             Object v = redisTemplate.opsForValue().get(key);
             if (v == null) {
@@ -58,5 +59,9 @@ public class MatchCancellationServiceImpl implements MatchCancellationService {
         } catch (Exception e) {
             throw new IllegalStateException("Cannot verify matching cancellation", e);
         }
+    }
+
+    private String cancellationKey(Long deliveryId, UUID matchingSessionId) {
+        return CANCEL_KEY_PREFIX + deliveryId + ":" + matchingSessionId;
     }
 }

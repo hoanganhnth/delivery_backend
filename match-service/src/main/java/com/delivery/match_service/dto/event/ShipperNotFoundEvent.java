@@ -17,6 +17,7 @@ public class ShipperNotFoundEvent {
     private String eventId;
     private Long deliveryId;
     private Long orderId;
+    private String matchingSessionId;
     private String reason;
     private LocalDateTime occurredAt;
     private Integer retryAttempts;

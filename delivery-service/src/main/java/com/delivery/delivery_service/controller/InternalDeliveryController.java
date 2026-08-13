@@ -60,6 +60,7 @@ public class InternalDeliveryController {
             case "ADMIN" -> true;
             case "USER" -> delivery.getCreatorId().equals(userId);
             case "SHIPPER" -> delivery.getShipperId().equals(userId);
+            case "SHOP_OWNER" -> userId != null && userId.equals(delivery.getRestaurantOwnerId());
             default -> false;
         };
         return ResponseEntity.ok(new BaseResponse<>(1, allowed));

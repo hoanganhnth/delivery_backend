@@ -137,8 +137,7 @@ public class PricingConstants {
 ```bash
 POST http://localhost:8084/api/orders
 Content-Type: application/json
-X-User-Id: 1
-X-Role: USER
+Authorization: Bearer <user-access-token>
 
 {
   "restaurantId": 1,
@@ -172,8 +171,7 @@ X-Role: USER
 ### 2. Shipper xem danh sách đơn có thể nhận
 ```bash
 GET http://localhost:8085/api/deliveries/available
-X-User-Id: 5
-X-Role: SHIPPER
+Authorization: Bearer <shipper-access-token>
 ```
 
 **Response:**
@@ -202,8 +200,7 @@ X-Role: SHIPPER
 ### 3. Shipper accept đơn hàng
 ```bash
 POST http://localhost:8085/api/deliveries/{deliveryId}/accept
-X-User-Id: 5
-X-Role: SHIPPER
+Authorization: Bearer <shipper-access-token>
 ```
 
 **Response:**
@@ -223,8 +220,7 @@ X-Role: SHIPPER
 ### 4. Hoàn thành giao hàng
 ```bash
 PUT http://localhost:8085/api/deliveries/{deliveryId}/status
-X-User-Id: 5
-X-Role: SHIPPER
+Authorization: Bearer <shipper-access-token>
 
 {
   "status": "DELIVERED",
@@ -249,8 +245,7 @@ X-Role: SHIPPER
 ### 5. Kiểm tra balance của shipper
 ```bash
 GET http://localhost:8086/api/shippers/balance
-X-User-Id: 5
-X-Role: SHIPPER
+Authorization: Bearer <shipper-access-token>
 ```
 
 **Response:**

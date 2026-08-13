@@ -3,9 +3,10 @@ package com.delivery.saga_orchestrator_service.service;
 import com.delivery.saga_orchestrator_service.entity.SagaInstance;
 import com.delivery.saga_orchestrator_service.entity.SagaInstance.SagaStatus;
 import com.delivery.saga_orchestrator_service.entity.SagaStep;
-import com.delivery.saga_orchestrator_service.entity.SagaInboundReceipt;
+import com.delivery.saga_orchestrator_service.entity.SagaEarlyEvent;
 import com.delivery.saga_orchestrator_service.repository.SagaInstanceRepository;
 import com.delivery.saga_orchestrator_service.repository.SagaInboundReceiptRepository;
+import com.delivery.saga_orchestrator_service.repository.SagaEarlyEventRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -42,6 +43,7 @@ public class SagaManager {
     private final SagaInstanceRepository sagaInstanceRepository;
     private final SagaOutboxService outboxService;
     private final SagaInboundReceiptRepository inboundReceiptRepository;
+    private final SagaEarlyEventRepository earlyEventRepository;
     private final ObjectMapper objectMapper;
 
     // ======== Saga Command Topics ========
@@ -78,20 +80,33 @@ public class SagaManager {
     private int initialMatchMaxDelaySeconds = 300;
     @Value("${matching.initial.backoff-multiplier:1.5}")
     private double initialMatchBackoffMultiplier = 1.5;
+    @Value("${app.saga.timeout.finding-shipper-minutes:5}")
+    private int findingShipperTimeoutMinutes = 5;
+    @Value("${spring.datasource.url:}")
+    private String dataSourceUrl;
 
     @Autowired
     public SagaManager(SagaInstanceRepository sagaInstanceRepository,
                        SagaOutboxService outboxService,
-                       SagaInboundReceiptRepository inboundReceiptRepository) {
+                       SagaInboundReceiptRepository inboundReceiptRepository,
+                       SagaEarlyEventRepository earlyEventRepository) {
         this.sagaInstanceRepository = sagaInstanceRepository;
         this.outboxService = outboxService;
         this.inboundReceiptRepository = inboundReceiptRepository;
+        this.earlyEventRepository = earlyEventRepository;
         this.objectMapper = new ObjectMapper();
+    }
+
+    /** Compatibility constructor for tests that exercise the durable inbox but not early-event staging. */
+    public SagaManager(SagaInstanceRepository sagaInstanceRepository,
+                       SagaOutboxService outboxService,
+                       SagaInboundReceiptRepository inboundReceiptRepository) {
+        this(sagaInstanceRepository, outboxService, inboundReceiptRepository, null);
     }
 
     /** Compatibility constructor for focused tests that do not exercise the inbox boundary. */
     public SagaManager(SagaInstanceRepository sagaInstanceRepository, SagaOutboxService outboxService) {
-        this(sagaInstanceRepository, outboxService, null);
+        this(sagaInstanceRepository, outboxService, null, null);
     }
 
     // ==================== EVENT HANDLERS ====================
@@ -123,6 +138,16 @@ public class SagaManager {
 
         log.info("🆕 [Saga] Created saga for orderId={}, id={}", orderId, saga.getId());
 
+        // A cancellation/restaurant decision may have arrived on another topic
+        // while order.created was delayed. Promote those durable facts before
+        // dispatching create-delivery so cancellation cannot create an orphan.
+        drainEarlyEventsForSaga(saga);
+        if (saga.getStatus() != SagaStatus.STARTED) {
+            log.info("[Saga] orderId={} has early terminal/advance fact; skipping create-delivery in status={}",
+                    orderId, saga.getStatus());
+            return;
+        }
+
         // ✅ PHÁT LỆNH: Tạo delivery
         sendCommand(CMD_CREATE_DELIVERY, orderId.toString(), rawEvent);
         log.info("📤 [Saga] Sent command: {} for orderId={}", CMD_CREATE_DELIVERY, orderId);
@@ -147,13 +172,13 @@ public class SagaManager {
                         orderId, deliveryId);
                 return;
             }
-            // order.cancelled can overtake the result of the create-delivery
-            // command on a different Kafka topic. The late result is a valid
-            // consequence of work already dispatched, not a contradictory
+            // A cancellation or timeout may overtake the result of an in-flight
+            // create-delivery command on another topic. The late result is a
+            // valid consequence of work already dispatched, not a contradictory
             // terminal transition. Record its single identity and re-issue the
-            // cancellation so Delivery converges even if the first command ran
-            // before the row existed.
-            if (saga.getStatus() == SagaStatus.CANCELLED
+            // cancellation so a Delivery cannot remain orphaned after either a
+            // customer cancellation or a failed STARTED timeout.
+            if ((saga.getStatus() == SagaStatus.CANCELLED || saga.getStatus() == SagaStatus.FAILED)
                     && saga.getDeliveryId() == null
                     && !hasStep(saga, "DELIVERY_CREATED")) {
                 if (deliveryId == null || deliveryId <= 0) {
@@ -164,8 +189,9 @@ public class SagaManager {
                 saga.addStep("DELIVERY_CREATED", "delivery.created.result", rawEvent);
                 sagaInstanceRepository.save(saga);
                 sendCommand(CMD_CANCEL_DELIVERY, orderId.toString(), rawEvent);
-                log.info("[Saga] Late delivery-created result for cancelled orderId={}, "
-                        + "deliveryId={}; cancellation re-issued", orderId, deliveryId);
+                log.info("[Saga] Late delivery-created result for terminal orderId={}, "
+                        + "deliveryId={}; cancellation re-issued after {}", orderId, deliveryId,
+                        saga.getStatus());
                 return;
             }
             throw new IllegalStateException("Contradictory delivery-created event for order "
@@ -193,9 +219,17 @@ public class SagaManager {
      */
     @Transactional
     public void handleRestaurantConfirmed(Long orderId, String rawEvent) {
+        SagaInstance saga = sagaInstanceRepository.findByOrderIdForUpdate(orderId).orElse(null);
+        if (saga == null) {
+            stageEarlyEvent("restaurant.order-confirmed", orderId, rawEvent);
+            return;
+        }
         if (!claimInbound("restaurant.order-confirmed", orderId, rawEvent)) return;
-        SagaInstance saga = findSagaByOrderId(orderId);
+        applyRestaurantConfirmedLocked(saga, rawEvent);
+    }
 
+    private void applyRestaurantConfirmedLocked(SagaInstance saga, String rawEvent) {
+        Long orderId = saga.getOrderId();
         // Chỉ chấp nhận confirm khi còn ở giai đoạn đầu (chưa tìm shipper / chưa kết thúc).
         if (saga.getStatus() != SagaStatus.STARTED && saga.getStatus() != SagaStatus.DELIVERY_CREATED) {
             log.warn("⚠️ [Saga] handleRestaurantConfirmed - orderId={} đang ở {}, bỏ qua", orderId, saga.getStatus());
@@ -229,15 +263,17 @@ public class SagaManager {
      * Dùng chung cho: delivery-created (đã confirm) và restaurant-confirmed (delivery đã tạo).
      */
     private void triggerFindShipper(SagaInstance saga, Long orderId, Long deliveryId, String deliveryResultEvent) {
+        String modifiedEvent;
         try {
             ObjectNode payloadNode = buildFindShipperPayload(saga, deliveryResultEvent);
             payloadNode.put("maxRetryAttempts", initialMatchMaxRetryAttempts);
             payloadNode.put("initialDelaySeconds", initialMatchDelaySeconds);
             payloadNode.put("maxDelaySeconds", initialMatchMaxDelaySeconds);
             payloadNode.put("backoffMultiplier", initialMatchBackoffMultiplier);
+            payloadNode.put("matchingDeadlineAt", LocalDateTime.now()
+                    .plusMinutes(Math.max(1, findingShipperTimeoutMinutes)).toString());
 
-            String modifiedEvent = objectMapper.writeValueAsString(payloadNode);
-            sendCommand(CMD_FIND_SHIPPER, orderId.toString(), modifiedEvent);
+            modifiedEvent = dispatchFindShipperCommand(saga, orderId, payloadNode);
             sendOrderStatusCommand(orderId, "FINDING_SHIPPER", modifiedEvent);
             log.info("📤 [Saga] Sent command: {} for orderId={}, deliveryId={} with retry settings", CMD_FIND_SHIPPER, orderId, deliveryId);
         } catch (Exception e) {
@@ -259,6 +295,10 @@ public class SagaManager {
         if (!claimInbound("shipper.found", orderId, rawEvent)) return;
         SagaInstance saga = findSagaByOrderId(orderId);
         requireDeliveryIdentity(saga, deliveryId, orderId);
+        if (!isCurrentMatchingResult(saga, rawEvent)) {
+            log.info("[Saga] Ignoring stale shipper.found generation for orderId={}", orderId);
+            return;
+        }
 
         // Idempotency check: chỉ xử lý khi đang FINDING_SHIPPER
         if (saga.getStatus() != SagaStatus.FINDING_SHIPPER) {
@@ -287,6 +327,10 @@ public class SagaManager {
         if (!claimInbound("shipper.not-found", orderId, rawEvent)) return;
         SagaInstance saga = findSagaByOrderId(orderId);
         requireDeliveryIdentity(saga, deliveryId, orderId);
+        if (!isCurrentMatchingResult(saga, rawEvent)) {
+            log.info("[Saga] Ignoring stale shipper.not-found generation for orderId={}", orderId);
+            return;
+        }
 
         // Idempotency check
         if (saga.getStatus() != SagaStatus.FINDING_SHIPPER) {
@@ -457,8 +501,8 @@ public class SagaManager {
             }
             payloadNode.set("excludedShipperIds", excludedArray);
 
-            String modifiedEvent = objectMapper.writeValueAsString(payloadNode);
-            sendCommand(CMD_FIND_SHIPPER, orderId.toString(), modifiedEvent);
+            String modifiedEvent = dispatchFindShipperCommand(saga, orderId, payloadNode);
+            sagaInstanceRepository.save(saga);
 
             log.info("📤 [Saga] Re-sent {} for orderId={} with excludedShippers={}",
                     CMD_FIND_SHIPPER, orderId, excludedShipperIds);
@@ -474,8 +518,55 @@ public class SagaManager {
     }
 
     /**
-     * A shipper did not answer the single active offer. Re-run matching with the
-     * timed-out shipper excluded; only compensate after the shared attempt limit.
+     * Applies a scheduler observation only when the Saga has not changed since
+     * it was selected. This is deliberately a first-class inbox command rather
+     * than anonymous synthetic JSON: a repeated poll is an exact replay and a
+     * stale poll cannot compensate a newer state.
+     */
+    @Transactional
+    public void handleTimeout(SagaTimeoutCommand command) {
+        if (command == null || command.orderId() == null || command.orderId() <= 0
+                || command.eventId() == null || command.expectedStatus() == null) {
+            throw new IllegalArgumentException("Timeout command identity, orderId and expected status are required");
+        }
+        SagaInstance saga = findSagaByOrderId(command.orderId());
+        if (!matchesTimeoutObservation(saga, command)) {
+            log.info("[Saga] Ignoring stale timeout for orderId={} expected={}/{} observed={}/{}",
+                    command.orderId(), command.expectedStatus(), command.expectedVersion(),
+                    saga.getStatus(), versionOf(saga));
+            return;
+        }
+
+        // A shipper-offer candidate is intentionally queried from a very small
+        // minimum age. Do not consume an inbox receipt until its exact offer
+        // deadline has actually elapsed.
+        if (command.expectedStatus() == SagaStatus.SHIPPER_FOUND) {
+            if (!isShipperOfferTimeoutDue(saga)) {
+                return;
+            }
+        } else if (LocalDateTime.now().isBefore(command.deadline())) {
+            log.info("[Saga] Ignoring early timeout for orderId={} status={} deadline={}",
+                    command.orderId(), command.expectedStatus(), command.deadlineAt());
+            return;
+        }
+
+        String rawTimeoutEvent = command.toJson(objectMapper);
+        if (!claimInbound("saga.timeout." + command.expectedStatus().name(),
+                command.orderId(), rawTimeoutEvent)) {
+            return;
+        }
+
+        if (command.expectedStatus() == SagaStatus.SHIPPER_FOUND) {
+            handleShipperOfferTimeoutLocked(saga, rawTimeoutEvent);
+            return;
+        }
+        handleStepFailedLocked("TIMEOUT_" + command.expectedStatus().name(), saga,
+                command.reason(), rawTimeoutEvent);
+    }
+
+    /**
+     * Compatibility entry point for focused callers. Production scheduling uses
+     * {@link #handleTimeout(SagaTimeoutCommand)} so it carries a snapshot fence.
      */
     @Transactional
     public void handleShipperOfferTimeout(Long orderId) {
@@ -483,6 +574,16 @@ public class SagaManager {
         if (saga.getStatus() != SagaStatus.SHIPPER_FOUND) {
             return;
         }
+        handleTimeout(SagaTimeoutCommand.forShipperOffer(saga, "Shipper offer timeout"));
+    }
+
+    /**
+     * A shipper did not answer the single active offer. Re-run matching with the
+     * timed-out shipper excluded; only compensate after the shared attempt limit.
+     * The aggregate is already locked and the timeout has already been claimed.
+     */
+    private void handleShipperOfferTimeoutLocked(SagaInstance saga, String rawTimeoutEvent) {
+        Long orderId = saga.getOrderId();
 
         SagaStep foundStep = null;
         for (int i = saga.getSteps().size() - 1; i >= 0; i--) {
@@ -493,8 +594,8 @@ public class SagaManager {
             }
         }
         if (foundStep == null || foundStep.getEventData() == null) {
-            handleStepFailed("SHIPPER_OFFER_TIMEOUT", orderId,
-                    "Missing shipper offer payload", "{\"orderId\":" + orderId + "}");
+            handleStepFailedLocked("SHIPPER_OFFER_TIMEOUT", saga,
+                    "Missing shipper offer payload", rawTimeoutEvent);
             return;
         }
 
@@ -503,8 +604,8 @@ public class SagaManager {
                         || step.getStepName().startsWith("SHIPPER_OFFER_TIMEOUT"))
                 .count();
         if (previousFailedOffers >= 5) {
-            handleStepFailed("SHIPPER_OFFER_TIMEOUT_LIMIT", orderId,
-                    "Shipper offer attempts exhausted", foundStep.getEventData());
+            handleStepFailedLocked("SHIPPER_OFFER_TIMEOUT_LIMIT", saga,
+                    "Shipper offer attempts exhausted", rawTimeoutEvent);
             return;
         }
 
@@ -565,7 +666,6 @@ public class SagaManager {
             saga.setStatus(SagaStatus.FINDING_SHIPPER);
             saga.addStep("SHIPPER_OFFER_TIMEOUT_" + (previousFailedOffers + 1),
                     "shipper.offer-timeout", rematchEvent);
-            sagaInstanceRepository.save(saga);
 
             ObjectNode expireCommand = objectMapper.createObjectNode();
             expireCommand.put("orderId", orderId);
@@ -575,7 +675,8 @@ public class SagaManager {
 
             sendCommand(CMD_EXPIRE_SHIPPER_OFFER, orderId.toString(),
                     objectMapper.writeValueAsString(expireCommand));
-            sendCommand(CMD_FIND_SHIPPER, orderId.toString(), rematchEvent);
+            rematchEvent = dispatchFindShipperCommand(saga, orderId, payload);
+            sagaInstanceRepository.save(saga);
             sendOrderStatusCommand(orderId, "FINDING_SHIPPER", rematchEvent);
             log.info("🔄 [Saga] Offer timed out for shipper {}, rematching orderId={} exclusions={}",
                     timedOutShipperId, orderId, excluded);
@@ -584,8 +685,8 @@ public class SagaManager {
                 throw publishException;
             }
             log.error("[Saga] Cannot build offer-timeout rematch command for orderId={}", orderId, e);
-            handleStepFailed("SHIPPER_OFFER_TIMEOUT", orderId,
-                    "Cannot build rematch command: " + e.getMessage(), foundStep.getEventData());
+            handleStepFailedLocked("SHIPPER_OFFER_TIMEOUT", saga,
+                    "Cannot build rematch command: " + e.getMessage(), rawTimeoutEvent);
         }
     }
 
@@ -620,6 +721,17 @@ public class SagaManager {
             }
             throw new IllegalStateException("Conflicting delivery status replay " + newStatus
                     + " for orderId=" + orderId);
+        }
+        if (targetStatus == SagaStatus.CANCELLED && isCancellationConfirmation(saga)) {
+            if (saga.getStatus() == SagaStatus.COMPENSATING) {
+                saga.setStatus(SagaStatus.CANCELLED);
+                saga.setCompletedAt(LocalDateTime.now());
+            }
+            saga.addStep(stepName, "delivery.status-updated", rawEvent);
+            sagaInstanceRepository.save(saga);
+            log.info("[Saga] Recorded delivery cancellation confirmation for terminal/compensating "
+                    + "orderId={} status={}", orderId, saga.getStatus());
+            return;
         }
         if (saga.getStatus() == SagaStatus.COMPLETED
                 || saga.getStatus() == SagaStatus.CANCELLED
@@ -672,10 +784,19 @@ public class SagaManager {
      */
     @Transactional
     public void handleOrderCancelled(Long orderId, String rawEvent) {
+        SagaInstance saga = sagaInstanceRepository.findByOrderIdForUpdate(orderId).orElse(null);
+        if (saga == null) {
+            stageEarlyEvent("order.cancelled", orderId, rawEvent);
+            return;
+        }
         if (!claimInbound("order.cancelled", orderId, rawEvent)) return;
-        SagaInstance saga = findSagaByOrderId(orderId);
+        applyOrderCancelledLocked(saga, rawEvent);
+    }
 
-        if (saga.getStatus() == SagaStatus.CANCELLED) {
+    private void applyOrderCancelledLocked(SagaInstance saga, String rawEvent) {
+        Long orderId = saga.getOrderId();
+        if (saga.getStatus() == SagaStatus.CANCELLED
+                || (saga.getStatus() == SagaStatus.COMPENSATING && hasStep(saga, "ORDER_CANCELLED"))) {
             String applied = getStepEventData(saga, "ORDER_CANCELLED");
             if (sameJson(applied, rawEvent)) {
                 log.info("[Saga] Exact order-cancelled replay for orderId={}, skipping", orderId);
@@ -694,8 +815,17 @@ public class SagaManager {
             return;
         }
 
-        saga.setStatus(SagaStatus.CANCELLED);
-        saga.setCompletedAt(LocalDateTime.now());
+        // If a Delivery is known, wait for its durable CANCELLED status event
+        // before declaring Saga cancellation complete. When create-delivery is
+        // still in flight there is nothing to await; a late result is handled
+        // explicitly by handleDeliveryCreated.
+        if (saga.getDeliveryId() == null) {
+            saga.setStatus(SagaStatus.CANCELLED);
+            saga.setCompletedAt(LocalDateTime.now());
+        } else {
+            saga.setStatus(SagaStatus.COMPENSATING);
+            saga.setCompletedAt(null);
+        }
         saga.addStep("ORDER_CANCELLED", "order.cancelled", rawEvent);
         sagaInstanceRepository.save(saga);
 
@@ -710,15 +840,15 @@ public class SagaManager {
             // ✅ COMPENSATION: Huỷ delivery
             sendCommand(CMD_CANCEL_DELIVERY, orderId.toString(), enrichedEvent);
 
-            // ✅ COMPENSATION: Dừng tìm shipper
-            sendCommand(CMD_STOP_MATCHING, orderId.toString(), enrichedEvent);
+            // ✅ COMPENSATION: Dừng đúng matching generation hiện hành.
+            sendStopMatchingCommand(saga, orderId, enrichedEvent);
         } catch (Exception e) {
             if (e instanceof SagaCommandPublishException publishException) {
                 throw publishException;
             }
             // Fallback
             sendCommand(CMD_CANCEL_DELIVERY, orderId.toString(), rawEvent);
-            sendCommand(CMD_STOP_MATCHING, orderId.toString(), rawEvent);
+            sendStopMatchingCommand(saga, orderId, rawEvent);
         }
 
         log.warn("🚨 [Saga] COMPENSATION — order cancelled, orderId={}", orderId);
@@ -761,6 +891,32 @@ public class SagaManager {
     public void handleStepFailed(String stepName, Long orderId, String reason, String rawEvent) {
         if (!claimInbound(stepName + ".failed", orderId, rawEvent)) return;
         SagaInstance saga = findSagaByOrderId(orderId);
+        handleStepFailedLocked(stepName, saga, reason, rawEvent);
+    }
+
+    /**
+     * Applies failure compensation while the Saga aggregate is already locked.
+     * Scheduler-originated failures call this directly after their timeout inbox
+     * command has been claimed, preventing a second claim with a different topic.
+     */
+    private void handleStepFailedLocked(String stepName, SagaInstance saga, String reason, String rawEvent) {
+        Long orderId = saga.getOrderId();
+
+        // A Delivery refusal after the Order cancellation command is an
+        // invariant breach, not an ignorable terminal replay. Record it so the
+        // reconciliation/alerting path can recover the Order/Delivery drift.
+        if ("DELIVERY_CANCEL".equals(stepName)
+                && (saga.getStatus() == SagaStatus.COMPENSATING
+                        || saga.getStatus() == SagaStatus.CANCELLED
+                        || saga.getStatus() == SagaStatus.FAILED)) {
+            saga.addStep("DELIVERY_CANCEL_FAILED", "delivery.cancel.failed", rawEvent);
+            saga.setStatus(SagaStatus.FAILED);
+            saga.setCompletedAt(LocalDateTime.now());
+            sagaInstanceRepository.save(saga);
+            log.error("[Saga] Delivery cancellation failed after compensation for orderId={}: {}. "
+                    + "Manual reconciliation is required.", orderId, reason);
+            return;
+        }
 
         if (saga.getStatus() == SagaStatus.FAILED || saga.getStatus() == SagaStatus.CANCELLED || saga.getStatus() == SagaStatus.COMPLETED) {
             log.warn("⚠️ [Saga] handleStepFailed - Saga cho orderId={} đã ở trạng thái cuối {}, bỏ qua", orderId, saga.getStatus());
@@ -799,7 +955,7 @@ public class SagaManager {
                                     : CMD_MARK_SHIPPER_NOT_FOUND,
                             orderId.toString(), enrichedEvent);
                     if (prevStatus != SagaStatus.DELIVERY_CREATED) {
-                        sendCommand(CMD_STOP_MATCHING, orderId.toString(), enrichedEvent);
+                        sendStopMatchingCommand(saga, orderId, enrichedEvent);
                     }
                 } catch (Exception e) {
                     if (e instanceof SagaCommandPublishException publishException) {
@@ -826,7 +982,146 @@ public class SagaManager {
         sagaInstanceRepository.save(saga);
     }
 
+    /**
+     * Replays one valid fact that was durably staged before its Saga existed.
+     * The Saga row is locked before the early-event row, matching the creation
+     * path's lock order and preventing a lock-order inversion.
+     */
+    @Transactional
+    public void processEarlyEvent(UUID eventId) {
+        if (earlyEventRepository == null || eventId == null) {
+            return;
+        }
+        SagaEarlyEvent observed = earlyEventRepository.findById(eventId).orElse(null);
+        if (observed == null) {
+            return;
+        }
+        SagaInstance saga = sagaInstanceRepository.findByOrderIdForUpdate(observed.getOrderId()).orElse(null);
+        if (saga == null) {
+            return;
+        }
+        SagaEarlyEvent staged = earlyEventRepository.findByIdForUpdate(eventId).orElse(null);
+        if (staged == null) {
+            return;
+        }
+        applyEarlyEventLocked(saga, staged);
+    }
+
     // ==================== HELPERS ====================
+
+    private void drainEarlyEventsForSaga(SagaInstance saga) {
+        if (earlyEventRepository == null) {
+            return;
+        }
+        for (SagaEarlyEvent staged : earlyEventRepository.findByOrderIdForUpdate(saga.getOrderId())) {
+            applyEarlyEventLocked(saga, staged);
+        }
+    }
+
+    private void applyEarlyEventLocked(SagaInstance saga, SagaEarlyEvent staged) {
+        if (!claimInbound(staged.getTopic(), saga.getOrderId(), staged.getPayload())) {
+            earlyEventRepository.delete(staged);
+            return;
+        }
+        switch (staged.getTopic()) {
+            case "order.cancelled" -> applyOrderCancelledLocked(saga, staged.getPayload());
+            case "restaurant.order-confirmed" -> applyRestaurantConfirmedLocked(saga, staged.getPayload());
+            default -> throw new IllegalArgumentException("Unsupported staged Saga topic: " + staged.getTopic());
+        }
+        earlyEventRepository.delete(staged);
+        log.info("[Saga] Applied staged {} for orderId={} eventId={}",
+                staged.getTopic(), saga.getOrderId(), staged.getEventId());
+    }
+
+    private void stageEarlyEvent(String topic, Long orderId, String rawEvent) {
+        if (earlyEventRepository == null) {
+            throw new IllegalStateException("Early Saga event staging is unavailable for orderId=" + orderId);
+        }
+        try {
+            JsonNode event = objectMapper.readTree(rawEvent);
+            JsonNode id = event.get("eventId");
+            if (id == null || !id.isTextual()) {
+                throw new IllegalArgumentException("Saga early eventId is required");
+            }
+            UUID eventId = UUID.fromString(id.asText());
+            String fingerprint = sha256(rawEvent);
+            SagaEarlyEvent existing = earlyEventRepository.findById(eventId).orElse(null);
+            if (existing == null) {
+                if (insertEarlyEventIfAbsent(eventId, topic, orderId, rawEvent, fingerprint) == 1) {
+                    log.info("[Saga] Staged {} before Saga creation for orderId={}, eventId={}",
+                            topic, orderId, eventId);
+                    return;
+                }
+                existing = earlyEventRepository.findById(eventId).orElseThrow(() ->
+                        new IllegalStateException("Saga early-event conflict resolved without a committed row"));
+            }
+            requireExactEarlyReplay(existing, topic, orderId, fingerprint);
+            log.info("[Saga] Exact early {} replay staged for orderId={}, eventId={}",
+                    topic, orderId, eventId);
+        } catch (IllegalArgumentException exception) {
+            throw exception;
+        } catch (Exception exception) {
+            throw new IllegalStateException("Failed to stage early Saga event", exception);
+        }
+    }
+
+    private boolean matchesTimeoutObservation(SagaInstance saga, SagaTimeoutCommand command) {
+        if (saga.getStatus() != command.expectedStatus()
+                || versionOf(saga) != command.expectedVersion()
+                || saga.getUpdatedAt() == null) {
+            return false;
+        }
+        return saga.getUpdatedAt().equals(command.observedAt());
+    }
+
+    private long versionOf(SagaInstance saga) {
+        return saga.getVersion() == null ? 0L : saga.getVersion();
+    }
+
+    /**
+     * A malformed persisted offer is treated as due so the timeout command can
+     * fail closed through the normal compensation path instead of staying
+     * invisible in the scheduler forever.
+     */
+    private boolean isShipperOfferTimeoutDue(SagaInstance saga) {
+        SagaStep foundStep = null;
+        for (int i = saga.getSteps().size() - 1; i >= 0; i--) {
+            SagaStep step = saga.getSteps().get(i);
+            if ("SHIPPER_FOUND".equals(step.getStepName())) {
+                foundStep = step;
+                break;
+            }
+        }
+        if (foundStep == null || foundStep.getEventData() == null) {
+            return true;
+        }
+        try {
+            JsonNode foundPayload = objectMapper.readTree(foundStep.getEventData());
+            int offerTimeoutSeconds = foundPayload.hasNonNull("waitingTimeoutSeconds")
+                    ? Math.max(1, Math.min(foundPayload.get("waitingTimeoutSeconds").asInt(), 180))
+                    : 180;
+            LocalDateTime offerFoundAt = foundPayload.hasNonNull("foundAt")
+                    ? LocalDateTime.parse(foundPayload.get("foundAt").asText())
+                    : foundStep.getExecutedAt();
+            if (offerFoundAt == null) {
+                return true;
+            }
+            return !offerFoundAt.plusSeconds(offerTimeoutSeconds).isAfter(LocalDateTime.now());
+        } catch (Exception malformed) {
+            return true;
+        }
+    }
+
+    private boolean isCancellationConfirmation(SagaInstance saga) {
+        if (saga.getStatus() == SagaStatus.COMPENSATING) {
+            return hasStep(saga, "ORDER_CANCELLED");
+        }
+        // A late create-delivery result can be cancelled after the generic
+        // STARTED timeout has already marked the Saga failed. Record that
+        // cleanup confirmation rather than sending it to DLT as a contradictory
+        // terminal delivery status.
+        return saga.getStatus() == SagaStatus.CANCELLED || saga.getStatus() == SagaStatus.FAILED;
+    }
 
     private SagaInstance findSagaByOrderId(Long orderId) {
         if (orderId == null) {
@@ -911,6 +1206,104 @@ public class SagaManager {
     }
 
     /**
+     * Every Find command carries a Saga-owned generation that is independent
+     * of the outbox event ID. The persisted MATCHING_STARTED step is the
+     * authoritative target for later stop-matching and stale-result fences.
+     */
+    private String dispatchFindShipperCommand(
+            SagaInstance saga,
+            Long orderId,
+            ObjectNode payload) throws Exception {
+        UUID matchingSessionId = nextMatchingSessionId(saga);
+        payload.put("matchingSessionId", matchingSessionId.toString());
+        String command = objectMapper.writeValueAsString(payload);
+        sendCommand(CMD_FIND_SHIPPER, orderId.toString(), command);
+        saga.addStep("MATCHING_STARTED", CMD_FIND_SHIPPER, command);
+        return command;
+    }
+
+    private UUID nextMatchingSessionId(SagaInstance saga) {
+        long generation = saga.getSteps() == null ? 1L : saga.getSteps().stream()
+                .filter(step -> "MATCHING_STARTED".equals(step.getStepName()))
+                .count() + 1L;
+        String sagaIdentity = saga.getId() == null
+                ? "order:" + saga.getOrderId()
+                : saga.getId().toString();
+        return UUID.nameUUIDFromBytes(
+                ("saga:matching-session:" + sagaIdentity + ":" + generation)
+                        .getBytes(StandardCharsets.UTF_8));
+    }
+
+    private UUID currentMatchingSessionId(SagaInstance saga) {
+        String matchingStart = getStepEventData(saga, "MATCHING_STARTED");
+        if (matchingStart == null) {
+            return null;
+        }
+        try {
+            JsonNode payload = objectMapper.readTree(matchingStart);
+            if (!payload.hasNonNull("matchingSessionId")) {
+                // Pre-contract active Sagas cannot safely target a generation.
+                // Do not emit a broad stop that could cancel a later rematch.
+                return null;
+            }
+            return UUID.fromString(payload.get("matchingSessionId").asText());
+        } catch (Exception malformed) {
+            throw new IllegalStateException("Persisted matching session identity is malformed", malformed);
+        }
+    }
+
+    private boolean isCurrentMatchingResult(SagaInstance saga, String rawEvent) {
+        UUID expected = currentMatchingSessionId(saga);
+        if (expected == null) {
+            // A Saga begun before the generation contract has no safe expected
+            // value. Preserve its in-flight compatibility during rollout; new
+            // matching attempts always persist the explicit session above.
+            return true;
+        }
+        try {
+            JsonNode result = objectMapper.readTree(rawEvent);
+            if (!result.hasNonNull("matchingSessionId")) {
+                throw new IllegalArgumentException(
+                        "Match result matchingSessionId is required for a generation-aware Saga");
+            }
+            UUID actual = UUID.fromString(result.get("matchingSessionId").asText());
+            return expected.equals(actual);
+        } catch (IllegalArgumentException exception) {
+            throw exception;
+        } catch (Exception malformed) {
+            throw new IllegalArgumentException("Match result matchingSessionId is malformed", malformed);
+        }
+    }
+
+    private void sendStopMatchingCommand(SagaInstance saga, Long orderId, String causeEvent) {
+        UUID matchingSessionId = currentMatchingSessionId(saga);
+        if (matchingSessionId == null) {
+            log.info("[Saga] No generation-scoped Match command exists for orderId={}; skipping stop-matching",
+                    orderId);
+            return;
+        }
+        if (saga.getDeliveryId() == null || saga.getDeliveryId() <= 0) {
+            throw new IllegalStateException(
+                    "Cannot stop matching generation without a persisted deliveryId for orderId=" + orderId);
+        }
+        try {
+            ObjectNode stop = objectMapper.createObjectNode();
+            stop.put("orderId", orderId);
+            stop.put("deliveryId", saga.getDeliveryId());
+            stop.put("matchingSessionId", matchingSessionId.toString());
+            JsonNode parsedCause = objectMapper.readTree(causeEvent);
+            if (parsedCause.hasNonNull("eventId")) {
+                stop.put("causeEventId", parsedCause.get("eventId").asText());
+            }
+            sendCommand(CMD_STOP_MATCHING, orderId.toString(), objectMapper.writeValueAsString(stop));
+        } catch (SagaCommandPublishException exception) {
+            throw exception;
+        } catch (Exception exception) {
+            throw new IllegalStateException("Cannot build generation-scoped stop-matching command", exception);
+        }
+    }
+
+    /**
      * Every matching attempt is rebuilt from Saga-owned canonical state. Rejection
      * and timeout events are control signals, not authorities for price/payment or
      * delivery coordinates.
@@ -924,13 +1317,19 @@ public class SagaManager {
         copyIfPresent(parsedAttempt, payload,
                 "orderId", "deliveryId", "pickupAddress", "pickupLat", "pickupLng",
                 "deliveryAddress", "deliveryLat", "deliveryLng", "totalPrice",
-                "shippingFee", "paymentMethod", "restaurantId", "restaurantName");
+                "shippingFee", "paymentMethod", "restaurantId", "restaurantName", "matchingDeadlineAt");
 
         String deliveryData = getStepEventData(saga, "DELIVERY_CREATED");
         if (deliveryData != null) {
             JsonNode delivery = objectMapper.readTree(deliveryData);
             copyIfPresent(delivery, payload, "deliveryId", "pickupAddress", "pickupLat", "pickupLng",
                     "deliveryAddress", "deliveryLat", "deliveryLng");
+        }
+
+        String matchingStartData = getStepEventData(saga, "MATCHING_STARTED");
+        if (matchingStartData != null) {
+            JsonNode matchingStart = objectMapper.readTree(matchingStartData);
+            copyIfPresent(matchingStart, payload, "matchingDeadlineAt");
         }
 
         JsonNode order = objectMapper.readTree(saga.getPayload());
@@ -961,8 +1360,9 @@ public class SagaManager {
 
     /**
      * Claims a Kafka event before any Saga mutation or command-outbox write. The
-     * unique receipt is flushed first so a concurrent duplicate cannot perform a
-     * side effect and a conflicting replay is never silently acknowledged.
+     * primary-key claim commits with the Saga mutation/outbox so a concurrent
+     * duplicate cannot perform a side effect and a conflicting replay is never
+     * silently acknowledged.
      */
     private boolean claimInbound(String topic, Long orderId, String rawEvent) {
         if (inboundReceiptRepository == null) return true;
@@ -974,22 +1374,53 @@ public class SagaManager {
             }
             UUID eventId = UUID.fromString(id.asText());
             String fingerprint = sha256(rawEvent);
-            SagaInboundReceipt existing = inboundReceiptRepository.findById(eventId).orElse(null);
-            if (existing != null) {
-                if (!existing.getTopic().equals(topic) || !existing.getOrderId().equals(orderId)
-                        || !existing.getPayloadFingerprint().equals(fingerprint)) {
-                    throw new IllegalArgumentException("Saga eventId replay has a contradictory payload");
+            var existing = inboundReceiptRepository.findById(eventId).orElse(null);
+            if (existing == null) {
+                if (insertInboundReceiptIfAbsent(eventId, topic, orderId, fingerprint) == 1) {
+                    return true;
                 }
-                log.info("[Saga] Exact inbound replay eventId={}, topic={}, orderId={}, skipping",
-                        eventId, topic, orderId);
-                return false;
+                existing = inboundReceiptRepository.findById(eventId).orElseThrow(() ->
+                        new IllegalStateException("Saga inbound receipt conflict resolved without a committed row"));
             }
-            inboundReceiptRepository.saveAndFlush(new SagaInboundReceipt(eventId, topic, orderId, fingerprint));
-            return true;
+            requireExactInboundReplay(existing, topic, orderId, fingerprint);
+            log.info("[Saga] Exact inbound replay eventId={}, topic={}, orderId={}, skipping",
+                    eventId, topic, orderId);
+            return false;
         } catch (IllegalArgumentException exception) {
             throw exception;
         } catch (Exception exception) {
             throw new IllegalStateException("Failed to claim Saga inbound event", exception);
+        }
+    }
+
+    private int insertInboundReceiptIfAbsent(UUID eventId, String topic, Long orderId, String fingerprint) {
+        if (dataSourceUrl != null && dataSourceUrl.startsWith("jdbc:h2:")) {
+            return inboundReceiptRepository.insertIfAbsentH2(eventId, topic, orderId, fingerprint);
+        }
+        return inboundReceiptRepository.insertIfAbsentPostgres(eventId, topic, orderId, fingerprint);
+    }
+
+    private int insertEarlyEventIfAbsent(UUID eventId, String topic, Long orderId,
+                                         String payload, String fingerprint) {
+        if (dataSourceUrl != null && dataSourceUrl.startsWith("jdbc:h2:")) {
+            return earlyEventRepository.insertIfAbsentH2(eventId, topic, orderId, payload, fingerprint);
+        }
+        return earlyEventRepository.insertIfAbsentPostgres(eventId, topic, orderId, payload, fingerprint);
+    }
+
+    private void requireExactInboundReplay(
+            com.delivery.saga_orchestrator_service.entity.SagaInboundReceipt existing,
+            String topic, Long orderId, String fingerprint) {
+        if (!existing.getTopic().equals(topic) || !existing.getOrderId().equals(orderId)
+                || !existing.getPayloadFingerprint().equals(fingerprint)) {
+            throw new IllegalArgumentException("Saga eventId replay has a contradictory payload");
+        }
+    }
+
+    private void requireExactEarlyReplay(SagaEarlyEvent existing, String topic, Long orderId, String fingerprint) {
+        if (!existing.getTopic().equals(topic) || !existing.getOrderId().equals(orderId)
+                || !existing.getPayloadFingerprint().equals(fingerprint)) {
+            throw new IllegalArgumentException("Saga early eventId replay has a contradictory payload");
         }
     }
 

@@ -109,7 +109,11 @@ public class KafkaConfig {
         DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(
                 kafkaTemplate,
                 (record, exception) -> new TopicPartition(
-                        record.topic() + ".DLT", record.partition()));
+                        // Keep the blocking/error-handler escape path aligned
+                        // with the owner-isolated @RetryableTopic DLT. If a
+                        // retry container invokes the common handler, strip
+                        // its delay suffix so it joins the canonical source DLT.
+                        ownerDltTopic(record.topic()), record.partition()));
         recoverer.setFailIfSendResultIsError(true);
         return recoverer;
     }
@@ -136,5 +140,9 @@ public class KafkaConfig {
     DefaultErrorHandler sagaKafkaErrorHandler(DeadLetterPublishingRecoverer recoverer) {
         return sagaKafkaErrorHandler(recoverer,
                 new io.micrometer.core.instrument.simple.SimpleMeterRegistry());
+    }
+
+    private static String ownerDltTopic(String topic) {
+        return topic.replaceFirst("-retry-saga-\\d+$", "") + ".saga.DLT";
     }
 }

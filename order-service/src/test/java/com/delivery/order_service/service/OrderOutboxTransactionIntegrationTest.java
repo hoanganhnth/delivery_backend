@@ -1,12 +1,14 @@
 package com.delivery.order_service.service;
 
 import com.delivery.order_service.dto.event.RestaurantEvent;
+import com.delivery.order_service.dto.event.DeliveryStatusUpdatedEvent;
 import com.delivery.order_service.entity.Order;
 import com.delivery.order_service.entity.OrderItem;
 import com.delivery.order_service.entity.OrderStatus;
 import com.delivery.order_service.repository.OrderItemRepository;
 import com.delivery.order_service.repository.OrderRepository;
 import com.delivery.order_service.repository.RestaurantDecisionReceiptRepository;
+import com.delivery.order_service.repository.SagaCommandReceiptRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -29,9 +31,11 @@ class OrderOutboxTransactionIntegrationTest {
     @Autowired OrderItemRepository orderItemRepository;
     @Autowired com.delivery.order_service.repository.OutboxEventRepository outboxRepository;
     @Autowired RestaurantDecisionReceiptRepository restaurantDecisionReceiptRepository;
+    @Autowired SagaCommandReceiptRepository sagaCommandReceiptRepository;
     @Autowired OrderEventPublisher eventPublisher;
     @Autowired OrderEventService orderEventService;
     @Autowired OrderService orderService;
+    @Autowired SagaOrderCommandProcessor sagaOrderCommandProcessor;
     @Autowired TransactionTemplate transactionTemplate;
     @Autowired ObjectMapper objectMapper;
 
@@ -39,6 +43,7 @@ class OrderOutboxTransactionIntegrationTest {
     void clean() {
         outboxRepository.deleteAll();
         restaurantDecisionReceiptRepository.deleteAll();
+        sagaCommandReceiptRepository.deleteAll();
         orderItemRepository.deleteAll();
         orderRepository.deleteAll();
     }
@@ -144,6 +149,36 @@ class OrderOutboxTransactionIntegrationTest {
         assertThat(orderRepository.findById(order.getId()).orElseThrow().getStatus())
                 .isEqualTo(OrderStatus.FINDING_SHIPPER);
         assertThat(outboxRepository.count()).isZero();
+    }
+
+    @Test
+    void sagaCommandReceiptAndOrderMutationCommitOrRollbackTogether() {
+        Order order = orderRepository.save(newOrder());
+        UUID successfulEventId = UUID.randomUUID();
+        String successPayload = "{\"eventId\":\"" + successfulEventId + "\"}";
+        DeliveryStatusUpdatedEvent findingShipper = new DeliveryStatusUpdatedEvent();
+        findingShipper.setOrderId(order.getId());
+        findingShipper.setStatus("FINDING_SHIPPER");
+
+        assertThat(sagaOrderCommandProcessor.applyDeliveryStatus(successfulEventId, order.getId(),
+                "FINDING_SHIPPER", successPayload, findingShipper)).isTrue();
+        assertThat(sagaCommandReceiptRepository.findById(successfulEventId)).isPresent();
+        assertThat(orderRepository.findById(order.getId()).orElseThrow().getStatus())
+                .isEqualTo(OrderStatus.FINDING_SHIPPER);
+        assertThat(sagaOrderCommandProcessor.applyDeliveryStatus(successfulEventId, order.getId(),
+                "FINDING_SHIPPER", successPayload, findingShipper)).isFalse();
+
+        UUID failingEventId = UUID.randomUUID();
+        DeliveryStatusUpdatedEvent invalidDelivery = new DeliveryStatusUpdatedEvent();
+        invalidDelivery.setOrderId(order.getId());
+        invalidDelivery.setStatus("DELIVERED");
+        assertThatThrownBy(() -> sagaOrderCommandProcessor.applyDeliveryStatus(failingEventId, order.getId(),
+                "DELIVERED", "{\"eventId\":\"" + failingEventId + "\"}", invalidDelivery))
+                .isInstanceOf(IllegalStateException.class);
+
+        assertThat(sagaCommandReceiptRepository.findById(failingEventId)).isEmpty();
+        assertThat(orderRepository.findById(order.getId()).orElseThrow().getStatus())
+                .isEqualTo(OrderStatus.FINDING_SHIPPER);
     }
 
     private Order newOrder() {

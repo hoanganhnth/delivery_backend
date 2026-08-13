@@ -32,7 +32,11 @@ import org.springframework.stereotype.Component;
         exclude = IllegalArgumentException.class,
         kafkaTemplate = "retryKafkaTemplate",
         autoCreateTopics = "${app.kafka.retry.auto-create-topics:false}",
-        dltTopicSuffix = ".DLT")
+        // This service shares order.created, restaurant.order-confirmed and
+        // delivery.status-updated with other consumer groups. Spring Kafka
+        // requires an isolated retry/DLT topology per listener owner.
+        retryTopicSuffix = "-retry-saga",
+        dltTopicSuffix = ".saga.DLT")
 public class KafkaEventListener {
 
     private final SagaManager sagaManager;

@@ -50,6 +50,14 @@ public class FindShipperEvent {
     private Integer initialDelaySeconds;
     private Integer maxDelaySeconds;
     private Double backoffMultiplier;
+    /** Absolute Saga-owned cutoff; Match must never continue retrying past it. */
+    private LocalDateTime matchingDeadlineAt;
+
+    /**
+     * Saga-owned matching generation. Unlike the Kafka command event ID it
+     * remains stable as the target of stop-matching and result fencing.
+     */
+    private UUID matchingSessionId;
     
     // ✅ NEW: Excluded shipper IDs (shippers who already rejected this order)
     private java.util.List<Long> excludedShipperIds;

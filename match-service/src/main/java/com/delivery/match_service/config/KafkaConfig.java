@@ -32,10 +32,13 @@ import java.util.Map;
 public class KafkaConfig {
     
     private final String bootstrapServers;
-    private static final String CONSUMER_GROUP_ID = "match-service";
+    private final String consumerGroupId;
 
-    public KafkaConfig(@Value("${spring.kafka.bootstrap-servers:localhost:9092}") String bootstrapServers) {
+    public KafkaConfig(
+            @Value("${spring.kafka.bootstrap-servers:localhost:9092}") String bootstrapServers,
+            @Value("${spring.kafka.consumer.group-id:match-service}") String consumerGroupId) {
         this.bootstrapServers = bootstrapServers;
+        this.consumerGroupId = consumerGroupId;
     }
     
     // ✅ Producer Configuration để publish events
@@ -66,7 +69,10 @@ public class KafkaConfig {
     public ConsumerFactory<String, Object> consumerFactory() {
         Map<String, Object> props = new HashMap<>();
         props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
-        props.put(ConsumerConfig.GROUP_ID_CONFIG, CONSUMER_GROUP_ID);
+        // All Match listeners must honor the deployed consumer group. A
+        // hard-coded value would make independently booted replicas consume
+        // durable commands outside the intended group during a rollout.
+        props.put(ConsumerConfig.GROUP_ID_CONFIG, consumerGroupId);
         props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         

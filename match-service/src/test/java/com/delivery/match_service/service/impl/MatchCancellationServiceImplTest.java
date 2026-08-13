@@ -10,12 +10,16 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 
 import java.time.Duration;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class MatchCancellationServiceImplTest {
+
+    private static final UUID MATCHING_SESSION =
+            UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
 
     @Mock RedisTemplate<String, Object> redisTemplate;
     @Mock ValueOperations<String, Object> values;
@@ -31,19 +35,20 @@ class MatchCancellationServiceImplTest {
 
     @Test
     void persistsTombstoneBeforeReleasingCurrentOffer() {
-        service.markCancelled(11L);
+        service.markCancelled(11L, MATCHING_SESSION);
 
         var order = inOrder(values, repository);
-        order.verify(values).set("match:cancelled:11", Boolean.TRUE, Duration.ofHours(2));
-        order.verify(repository).releaseOfferForDelivery(11L);
+        order.verify(values).set("match:cancelled:11:" + MATCHING_SESSION,
+                Boolean.TRUE, Duration.ofHours(2));
+        order.verify(repository).releaseOfferForDelivery(11L, MATCHING_SESSION);
     }
 
     @Test
     void offerReleaseFailurePropagatesForKafkaRetry() {
         doThrow(new IllegalStateException("redis unavailable"))
-                .when(repository).releaseOfferForDelivery(11L);
+                .when(repository).releaseOfferForDelivery(11L, MATCHING_SESSION);
 
-        assertThatThrownBy(() -> service.markCancelled(11L))
+        assertThatThrownBy(() -> service.markCancelled(11L, MATCHING_SESSION))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Cannot persist matching cancellation");
     }

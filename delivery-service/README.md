@@ -36,8 +36,10 @@ single shipper selected by Match accepts a persisted, unexpired offer.
 
 ## Public HTTP API
 
-All public calls go through the API Gateway. `X-User-Id` and `X-Role` are trusted
-headers recreated from the JWT by the Gateway, not client inputs.
+All public calls go through the API Gateway with
+`Authorization: Bearer <access-token>`. The Gateway strips client-supplied
+`X-User-Id`/`X-Role` headers and does not recreate them; Delivery validates the
+access token through Auth JWKS and authorizes from its `AuthenticatedActor`.
 
 | Method | Path | Actor and behavior |
 |---|---|---|

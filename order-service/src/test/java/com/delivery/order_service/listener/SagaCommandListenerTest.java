@@ -1,14 +1,9 @@
 package com.delivery.order_service.listener;
 
-import com.delivery.order_service.service.OrderEventService;
-import com.delivery.order_service.service.OrderService;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
+import com.delivery.order_service.service.SagaOrderCommandProcessor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.springframework.kafka.support.converter.StringJsonMessageConverter;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.kafka.support.Acknowledgment;
@@ -18,27 +13,26 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class SagaCommandListenerTest {
 
-    @Mock OrderEventService orderEventService;
-    @Mock OrderService orderService;
+    @Mock SagaOrderCommandProcessor commandProcessor;
     @Mock Acknowledgment acknowledgment;
 
     private SagaCommandListener listener;
-    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
     void setUp() {
-        listener = new SagaCommandListener(orderEventService, orderService);
+        listener = new SagaCommandListener(commandProcessor);
     }
 
     @Test
     void invalidCommandIsNotAcknowledged() {
         assertThrows(IllegalArgumentException.class,
                 () -> listener.handleUpdateOrderStatusCommand(
-                        json("{\"sagaStatus\":\"DELIVERED\"}"), acknowledgment));
+                        "{\"sagaStatus\":\"DELIVERED\"}", acknowledgment));
 
         verify(acknowledgment, never()).acknowledge();
     }
@@ -46,11 +40,11 @@ class SagaCommandListenerTest {
     @Test
     void serviceFailureIsNotAcknowledged() {
         org.mockito.Mockito.doThrow(new IllegalStateException("invalid transition"))
-                .when(orderEventService).handleDeliveryStatusUpdate(any());
+                .when(commandProcessor).applyDeliveryStatus(any(), any(), any(), any(), any());
 
         assertThrows(IllegalStateException.class,
                 () -> listener.handleUpdateOrderStatusCommand(
-                        json(command("DELIVERED", 1L)),
+                        command("DELIVERED", 1L),
                         acknowledgment));
 
         verify(acknowledgment, never()).acknowledge();
@@ -60,7 +54,7 @@ class SagaCommandListenerTest {
     void unknownStatusIsNotAcknowledgedAsSuccess() {
         assertThrows(IllegalArgumentException.class,
                 () -> listener.handleUpdateOrderStatusCommand(
-                        json(command("TYPO_STATUS", 1L)),
+                        command("TYPO_STATUS", 1L),
                         acknowledgment));
 
         verify(acknowledgment, never()).acknowledge();
@@ -70,7 +64,7 @@ class SagaCommandListenerTest {
     void nonPositiveOrderIdentityIsNotAcknowledged() {
         assertThrows(IllegalArgumentException.class,
                 () -> listener.handleUpdateOrderStatusCommand(
-                        json(command("DELIVERED", 0L)),
+                        command("DELIVERED", 0L),
                         acknowledgment));
 
         verify(acknowledgment, never()).acknowledge();
@@ -78,18 +72,13 @@ class SagaCommandListenerTest {
 
     @Test
     void successfulCommandIsAcknowledgedOnce() {
-        StringJsonMessageConverter converter = new StringJsonMessageConverter(objectMapper);
-        ConsumerRecord<String, String> record = new ConsumerRecord<>(
-                "saga.command.update-order-status", 0, 0L, "1",
+        when(commandProcessor.applyDeliveryStatus(any(), any(), any(), any(), any())).thenReturn(true);
+        listener.handleUpdateOrderStatusCommand(
                 command("FINDING_SHIPPER", 1L,
-                        "{\"orderId\":1,\"deliveryId\":8,\"timestamp\":1785044842775}"));
-        JsonNode converted = (JsonNode) converter
-                .toMessage(record, null, null, JsonNode.class)
-                .getPayload();
+                        "{\"orderId\":1,\"deliveryId\":8,\"timestamp\":1785044842775}"),
+                acknowledgment);
 
-        listener.handleUpdateOrderStatusCommand(converted, acknowledgment);
-
-        verify(orderEventService).handleDeliveryStatusUpdate(argThat(event ->
+        verify(commandProcessor).applyDeliveryStatus(any(), any(), any(), any(), argThat(event ->
                 Long.valueOf(1L).equals(event.getOrderId())
                         && Long.valueOf(8L).equals(event.getDeliveryId())
                         && "FINDING_SHIPPER".equals(event.getStatus())));
@@ -97,13 +86,25 @@ class SagaCommandListenerTest {
     }
 
     @Test
+    void exactReplayAcknowledgesWithoutRepeatingOrderMutation() {
+        when(commandProcessor.applyDeliveryStatus(any(), any(), any(), any(), any())).thenReturn(false);
+
+        listener.handleUpdateOrderStatusCommand(
+                command("FINDING_SHIPPER", 1L, "{\"orderId\":1,\"deliveryId\":8}"),
+                acknowledgment);
+
+        verify(commandProcessor).applyDeliveryStatus(any(), any(), any(), any(), any());
+        verify(acknowledgment).acknowledge();
+    }
+
+    @Test
     void malformedShipperNotFoundCorrelationIsNotAcknowledged() {
         assertThrows(IllegalArgumentException.class,
                 () -> listener.handleUpdateOrderStatusCommand(
-                        json(command("SHIPPER_NOT_FOUND", 1L, "not-json")),
+                        command("SHIPPER_NOT_FOUND", 1L, "not-json"),
                         acknowledgment));
 
-        verify(orderService, never()).updateOrderStatusFromShipperNotFoundEvent(any());
+        verify(commandProcessor, never()).applyShipperNotFound(any(), any(), any(), any(), any());
         verify(acknowledgment, never()).acknowledge();
     }
 
@@ -111,10 +112,10 @@ class SagaCommandListenerTest {
     void shipperNotFoundWithoutDeliveryIdentityIsNotAcknowledged() {
         assertThrows(IllegalArgumentException.class,
                 () -> listener.handleUpdateOrderStatusCommand(
-                        json(command("SHIPPER_NOT_FOUND", 1L, "{\"orderId\":1}")),
+                        command("SHIPPER_NOT_FOUND", 1L, "{\"orderId\":1}"),
                         acknowledgment));
 
-        verify(orderService, never()).updateOrderStatusFromShipperNotFoundEvent(any());
+        verify(commandProcessor, never()).applyShipperNotFound(any(), any(), any(), any(), any());
         verify(acknowledgment, never()).acknowledge();
     }
 
@@ -122,22 +123,23 @@ class SagaCommandListenerTest {
     void contradictoryOriginalOrderIdentityIsNotAcknowledged() {
         assertThrows(IllegalArgumentException.class,
                 () -> listener.handleUpdateOrderStatusCommand(
-                        json(command("FINDING_SHIPPER", 1L,
-                                "{\"orderId\":2,\"deliveryId\":8}")),
+                        command("FINDING_SHIPPER", 1L,
+                                "{\"orderId\":2,\"deliveryId\":8}"),
                         acknowledgment));
 
-        verify(orderEventService, never()).handleDeliveryStatusUpdate(any());
+        verify(commandProcessor, never()).applyDeliveryStatus(any(), any(), any(), any(), any());
         verify(acknowledgment, never()).acknowledge();
     }
 
     @Test
     void correlatedShipperNotFoundIsAcknowledged() {
+        when(commandProcessor.applyShipperNotFound(any(), any(), any(), any(), any())).thenReturn(true);
         listener.handleUpdateOrderStatusCommand(
-                json(command("SHIPPER_NOT_FOUND", 1L,
-                        "{\"orderId\":1,\"deliveryId\":8,\"retryAttempts\":5}")),
+                command("SHIPPER_NOT_FOUND", 1L,
+                        "{\"orderId\":1,\"deliveryId\":8,\"retryAttempts\":5}"),
                 acknowledgment);
 
-        verify(orderService).updateOrderStatusFromShipperNotFoundEvent(argThat(event ->
+        verify(commandProcessor).applyShipperNotFound(any(), any(), any(), any(), argThat(event ->
                 Long.valueOf(1L).equals(event.getOrderId())
                         && Long.valueOf(8L).equals(event.getDeliveryId())
                         && Integer.valueOf(5).equals(event.getRetryAttempts())));
@@ -153,13 +155,5 @@ class SagaCommandListenerTest {
         return "{\"eventId\":\"11111111-1111-1111-1111-111111111111\","
                 + "\"orderId\":" + orderId + ",\"sagaStatus\":\"" + status
                 + "\",\"originalEvent\":\"" + escapedOriginalEvent + "\"}";
-    }
-
-    private JsonNode json(String value) {
-        try {
-            return objectMapper.readTree(value);
-        } catch (Exception exception) {
-            throw new IllegalArgumentException(exception);
-        }
     }
 }

@@ -24,7 +24,10 @@ import org.springframework.kafka.support.Acknowledgment;
                 maxDelayExpression = "${app.kafka.retry.max-delay-ms:10000}"),
         exclude = IllegalArgumentException.class,
         autoCreateTopics = "${app.kafka.retry.auto-create-topics:false}",
-        dltTopicSuffix = ".DLT")
+        // restaurant.order-confirmed is also consumed by Saga. Keep this
+        // order-service retry stream isolated from the Saga retry consumer.
+        retryTopicSuffix = "-retry-order",
+        dltTopicSuffix = ".order.DLT")
 public class RestaurantEventListener {
 
     private final OrderEventService orderEventService;

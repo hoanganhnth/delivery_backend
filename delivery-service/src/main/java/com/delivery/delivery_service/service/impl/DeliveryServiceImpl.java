@@ -146,6 +146,12 @@ public class DeliveryServiceImpl implements DeliveryService {
 
             return deliveryMapper.deliveryToDeliveryResponse(savedDelivery);
 
+        } catch (IllegalArgumentException | InvalidStatusException businessFailure) {
+            // The Kafka boundary must distinguish a deterministic business
+            // refusal (which needs a correlated Saga failure event) from an
+            // unavailable database/outbox (which must retry). Do not erase the
+            // exception type here.
+            throw businessFailure;
         } catch (Exception e) {
             throw new RuntimeException("Failed to create delivery from order event: " + e.getMessage(), e);
         }
@@ -933,6 +939,8 @@ public class DeliveryServiceImpl implements DeliveryService {
                     delivery.getStatus() == DeliveryStatus.SHIPPER_NOT_FOUND ||
                     delivery.getStatus() == DeliveryStatus.ASSIGNED) {
 
+                DeliveryStatus previousStatus = delivery.getStatus();
+
                 // Cập nhật trạng thái delivery thành CANCELLED
                 delivery.setStatus(DeliveryStatus.CANCELLED);
                 delivery.setOfferedShipperId(null);
@@ -948,6 +956,15 @@ public class DeliveryServiceImpl implements DeliveryService {
                             delivery.getShipperId(), "AVAILABLE", delivery.getId(), delivery.getOrderId());
                 }
 
+                // This is the durable acknowledgement that allows Saga to
+                // finish cancellation compensation. It shares the same local
+                // transaction as the Delivery state transition, so a crash
+                // cannot leave a committed cancellation without an eventual
+                // confirmation event.
+                deliveryEventPublisher.publishDeliveryStatusUpdated(
+                        delivery.getId(), delivery.getOrderId(), delivery.getCreatorId(), delivery.getShipperId(),
+                        DeliveryStatus.CANCELLED.name(), previousStatus.name());
+
                 log.info("✅ Successfully cancelled delivery {} for order: {}",
                         delivery.getId(), event.getOrderId());
 
@@ -959,6 +976,8 @@ public class DeliveryServiceImpl implements DeliveryService {
                         "Cannot cancel delivery " + delivery.getId() + " in status " + delivery.getStatus());
             }
 
+        } catch (IllegalArgumentException | InvalidStatusException businessFailure) {
+            throw businessFailure;
         } catch (Exception e) {
             log.error("💥 Error processing order cancellation for orderId: {}",
                     event.getOrderId(), e);

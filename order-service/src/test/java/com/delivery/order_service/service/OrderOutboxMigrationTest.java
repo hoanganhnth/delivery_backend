@@ -2,8 +2,10 @@ package com.delivery.order_service.service;
 
 import com.delivery.order_service.entity.OutboxEvent;
 import com.delivery.order_service.entity.RestaurantDecisionReceipt;
+import com.delivery.order_service.entity.SagaCommandReceipt;
 import com.delivery.order_service.repository.OutboxEventRepository;
 import com.delivery.order_service.repository.RestaurantDecisionReceiptRepository;
+import com.delivery.order_service.repository.SagaCommandReceiptRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -27,6 +29,7 @@ class OrderOutboxMigrationTest {
 
     @Autowired OutboxEventRepository repository;
     @Autowired RestaurantDecisionReceiptRepository restaurantDecisionReceiptRepository;
+    @Autowired SagaCommandReceiptRepository sagaCommandReceiptRepository;
     @Autowired TransactionTemplate transactionTemplate;
 
     @Test
@@ -58,6 +61,19 @@ class OrderOutboxMigrationTest {
         assertThat(stored.getOrderId()).isEqualTo(42L);
         assertThat(stored.getRestaurantId()).isEqualTo(7L);
         assertThat(stored.getDecision()).isEqualTo("CONFIRMED");
+    }
+
+    @Test
+    void flywayMigrationCreatesSagaCommandReceiptIdentityFence() {
+        UUID eventId = UUID.randomUUID();
+        transactionTemplate.executeWithoutResult(status ->
+                sagaCommandReceiptRepository.saveAndFlush(new SagaCommandReceipt(
+                        eventId, "UPDATE_ORDER_STATUS", 42L, "FINDING_SHIPPER", "a".repeat(64))));
+
+        SagaCommandReceipt stored = sagaCommandReceiptRepository.findById(eventId).orElseThrow();
+        assertThat(stored.getOrderId()).isEqualTo(42L);
+        assertThat(stored.getSagaStatus()).isEqualTo("FINDING_SHIPPER");
+        assertThat(stored.getPayloadFingerprint()).hasSize(64);
     }
 
     private OutboxEvent event(UUID eventId) {

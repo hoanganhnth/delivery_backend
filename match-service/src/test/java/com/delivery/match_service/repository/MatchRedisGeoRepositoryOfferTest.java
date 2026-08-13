@@ -6,13 +6,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.core.GeoOperations;
 import org.springframework.data.redis.core.SetOperations;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 
-import java.util.concurrent.TimeUnit;
 import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -21,10 +20,12 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class MatchRedisGeoRepositoryOfferTest {
 
+    private static final UUID MATCHING_SESSION =
+            UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+
     @Mock RedisTemplate<String, Object> redisTemplate;
     @Mock ValueOperations<String, Object> values;
     @Mock SetOperations<String, Object> sets;
-    @Mock GeoOperations<String, Object> geo;
 
     private MatchRedisGeoRepository repository;
 
@@ -40,11 +41,12 @@ class MatchRedisGeoRepositoryOfferTest {
         when(redisTemplate.execute(
                 any(DefaultRedisScript.class),
                 eq(List.of("match:shipper:offer:7", "match:delivery:offer:11",
-                        "match:cancelled:11")),
-                eq("11"), eq("7"), eq(180)))
+                        "match:cancelled:11:" + MATCHING_SESSION,
+                        "match:delivery:offer-session:11")),
+                eq("11"), eq("7"), eq(180), eq(MATCHING_SESSION.toString())))
                 .thenReturn(1L);
 
-        assertThat(repository.tryReserveShipperOffer(7L, 11L, 180)).isTrue();
+        assertThat(repository.tryReserveShipperOffer(7L, 11L, MATCHING_SESSION, 180)).isTrue();
     }
 
     @Test
@@ -52,10 +54,10 @@ class MatchRedisGeoRepositoryOfferTest {
     void rejectsReservationOwnedByAnotherDelivery() {
         when(redisTemplate.execute(
                 any(DefaultRedisScript.class), anyList(),
-                eq("11"), eq("7"), eq(180)))
+                eq("11"), eq("7"), eq(180), eq(MATCHING_SESSION.toString())))
                 .thenReturn(0L);
 
-        assertThat(repository.tryReserveShipperOffer(7L, 11L, 180)).isFalse();
+        assertThat(repository.tryReserveShipperOffer(7L, 11L, MATCHING_SESSION, 180)).isFalse();
     }
 
     @Test
@@ -63,10 +65,10 @@ class MatchRedisGeoRepositoryOfferTest {
     void cancelledDeliveryCannotAcquireOfferAfterTombstone() {
         when(redisTemplate.execute(
                 any(DefaultRedisScript.class), anyList(),
-                eq("11"), eq("7"), eq(180)))
+                eq("11"), eq("7"), eq(180), eq(MATCHING_SESSION.toString())))
                 .thenReturn(-2L);
 
-        assertThat(repository.tryReserveShipperOffer(7L, 11L, 180)).isFalse();
+        assertThat(repository.tryReserveShipperOffer(7L, 11L, MATCHING_SESSION, 180)).isFalse();
     }
 
     @Test
@@ -74,10 +76,10 @@ class MatchRedisGeoRepositoryOfferTest {
     void propagatesRedisFailureInsteadOfReportingReservationRace() {
         when(redisTemplate.execute(
                 any(DefaultRedisScript.class), anyList(),
-                eq("11"), eq("7"), eq(180)))
+                eq("11"), eq("7"), eq(180), eq(MATCHING_SESSION.toString())))
                 .thenThrow(new RuntimeException("redis unavailable"));
 
-        assertThatThrownBy(() -> repository.tryReserveShipperOffer(7L, 11L, 180))
+        assertThatThrownBy(() -> repository.tryReserveShipperOffer(7L, 11L, MATCHING_SESSION, 180))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Cannot reserve shipper offer");
     }
@@ -88,11 +90,12 @@ class MatchRedisGeoRepositoryOfferTest {
         when(values.get("match:delivery:offer:11")).thenReturn("7");
         when(redisTemplate.execute(
                 any(DefaultRedisScript.class),
-                eq(List.of("match:shipper:offer:7", "match:delivery:offer:11")),
-                eq("11"), eq("7")))
+                eq(List.of("match:shipper:offer:7", "match:delivery:offer:11",
+                        "match:delivery:offer-session:11")),
+                eq("11"), eq("7"), eq(MATCHING_SESSION.toString())))
                 .thenReturn(1L);
 
-        assertThat(repository.releaseOfferForDelivery(11L)).isTrue();
+        assertThat(repository.releaseOfferForDelivery(11L, MATCHING_SESSION)).isTrue();
     }
 
     @Test
@@ -100,35 +103,57 @@ class MatchRedisGeoRepositoryOfferTest {
     void staleReleaseCannotDeleteDifferentOfferGeneration() {
         when(redisTemplate.execute(
                 any(DefaultRedisScript.class),
-                eq(List.of("match:shipper:offer:7", "match:delivery:offer:11")),
-                eq("11"), eq("7")))
+                eq(List.of("match:shipper:offer:7", "match:delivery:offer:11",
+                        "match:delivery:offer-session:11")),
+                eq("11"), eq("7"), eq(MATCHING_SESSION.toString())))
                 .thenReturn(0L);
 
-        assertThat(repository.releaseShipperOffer(7L, 11L)).isFalse();
+        assertThat(repository.releaseShipperOffer(7L, 11L, MATCHING_SESSION)).isFalse();
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     void offlineTombstoneRemovesMatchingMembershipAndFencesOlderUpdates() {
-        when(values.get("match:shipper:location-fresh:7")).thenReturn(100L);
-        when(redisTemplate.opsForSet()).thenReturn(sets);
-        when(redisTemplate.opsForGeo()).thenReturn(geo);
+        when(redisTemplate.execute(
+                any(DefaultRedisScript.class),
+                eq(List.of("match:shipper:location-fresh:7", "match:shippers:geo", "match:shippers:online")),
+                eq(200L), eq("7"), eq(300L))).thenReturn(1L);
 
         repository.markShipperOffline(7L, 200L);
 
-        verify(sets).remove("match:shippers:online", "7");
-        verify(geo).remove("match:shippers:geo", "7");
-        verify(values).set("match:shipper:location-fresh:7", 200L, 300L, TimeUnit.SECONDS);
+        verify(redisTemplate).execute(
+                any(DefaultRedisScript.class),
+                eq(List.of("match:shipper:location-fresh:7", "match:shippers:geo", "match:shippers:online")),
+                eq(200L), eq("7"), eq(300L));
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     void staleOfflineTombstoneCannotRemoveNewerOnlineState() {
-        when(values.get("match:shipper:location-fresh:7")).thenReturn(300L);
+        when(redisTemplate.execute(any(DefaultRedisScript.class), anyList(), eq(200L), eq("7"), eq(300L)))
+                .thenReturn(0L);
 
         repository.markShipperOffline(7L, 200L);
 
-        verify(redisTemplate, never()).opsForSet();
+        verify(redisTemplate).execute(any(DefaultRedisScript.class), anyList(), eq(200L), eq("7"), eq(300L));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void legacyOfflineLocationCallUsesTheAtomicOfflineTombstone() {
+        when(redisTemplate.execute(
+                any(DefaultRedisScript.class),
+                eq(List.of("match:shipper:location-fresh:7", "match:shippers:geo", "match:shippers:online")),
+                eq(200L), eq("7"), eq(300L))).thenReturn(1L);
+
+        repository.addOrUpdateShipperLocation(7L, 10.77, 106.70, false, 200L);
+
+        verify(redisTemplate).execute(
+                any(DefaultRedisScript.class),
+                eq(List.of("match:shipper:location-fresh:7", "match:shippers:geo", "match:shippers:online")),
+                eq(200L), eq("7"), eq(300L));
         verify(redisTemplate, never()).opsForGeo();
-        verify(values, never()).set(anyString(), any(), anyLong(), any(TimeUnit.class));
+        verify(redisTemplate, never()).opsForSet();
     }
 
     @Test
@@ -139,7 +164,7 @@ class MatchRedisGeoRepositoryOfferTest {
                 any(DefaultRedisScript.class),
                 eq(List.of("match:shipper:status-version:7",
                         "match:shipper:offer:7", "match:shipper:busy:7",
-                        "match:delivery:offer:11")),
+                        "match:delivery:offer:11", "match:delivery:offer-session:11")),
                 eq(200L), eq(eventId), eq("11"), eq(1L), eq("7")))
                 .thenReturn(1L);
 

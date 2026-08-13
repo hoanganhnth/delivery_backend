@@ -12,6 +12,7 @@ import com.delivery.delivery_service.dto.request.AcceptDeliveryRequest;
 import com.delivery.delivery_service.entity.Delivery;
 import com.delivery.delivery_service.entity.DeliveryStatus;
 import com.delivery.delivery_service.exception.AccessDeniedException;
+import com.delivery.delivery_service.exception.InvalidStatusException;
 import com.delivery.delivery_service.mapper.DeliveryMapper;
 import com.delivery.delivery_service.repository.DeliveryRepository;
 import com.delivery.delivery_service.service.impl.DeliveryServiceImpl;
@@ -227,8 +228,8 @@ class DeliveryShipperOfferTest {
         event.setOrderId(20L);
 
         assertThatThrownBy(() -> service.cancelDeliveryFromOrderCancelledEvent(event))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("Failed to cancel delivery");
+                .isInstanceOf(InvalidStatusException.class)
+                .hasMessageContaining("Cannot cancel delivery");
 
         verify(repository, never()).save(any());
         verifyNoInteractions(eventPublisher, outboxService);
@@ -247,7 +248,9 @@ class DeliveryShipperOfferTest {
 
         org.assertj.core.api.Assertions.assertThat(delivery.getStatus()).isEqualTo(DeliveryStatus.CANCELLED);
         verify(repository).save(delivery);
-        verifyNoInteractions(eventPublisher, outboxService);
+        verify(eventPublisher).publishDeliveryStatusUpdated(
+                1L, 20L, 40L, null, "CANCELLED", "FINDING_SHIPPER");
+        verifyNoInteractions(outboxService);
     }
 
     @Test
@@ -554,7 +557,7 @@ class DeliveryShipperOfferTest {
         when(repository.findByOrderId(20L)).thenReturn(Optional.of(existing));
 
         assertThatThrownBy(() -> service.createDeliveryFromOrderEvent(event))
-                .isInstanceOf(RuntimeException.class)
+                .isInstanceOf(InvalidStatusException.class)
                 .hasMessageContaining("Create-delivery replay conflicts");
 
         verifyNoInteractions(outboxService);
@@ -568,7 +571,7 @@ class DeliveryShipperOfferTest {
         when(repository.findByOrderId(20L)).thenReturn(Optional.of(existing));
 
         assertThatThrownBy(() -> service.createDeliveryFromOrderEvent(event))
-                .isInstanceOf(RuntimeException.class)
+                .isInstanceOf(InvalidStatusException.class)
                 .hasMessageContaining("replay conflicts");
 
         verify(repository, never()).save(any());

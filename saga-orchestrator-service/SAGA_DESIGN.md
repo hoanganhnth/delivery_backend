@@ -1,6 +1,6 @@
 # Saga Orchestrator — Canonical MVP Contract
 
-> Cập nhật: 2026-07-25. Source, tests và
+> Cập nhật: 2026-08-09. Source, tests và
 > `../docs/system-contract-inventory.md` là executable truth. Tài liệu này không
 > mô tả các topic legacy `shipper.matched`, `no.shipper.available` hay
 > `delivery.find-shipper`; chúng đã bị xóa khỏi runtime contract.
@@ -19,8 +19,9 @@ khi relay sang Kafka.
    `delivery.created.result` hoặc `delivery.created.failed`.
 3. Chờ nhà hàng quyết định. Chỉ `restaurant.order-confirmed` mới cho phép ghi
    `saga.command.find-shipper`; reject/cancel đi compensation.
-4. Match đọc Redis GEO replica và trả đúng một `shipper.found`, hoặc
-   `shipper.not-found` sau retry policy.
+4. Mỗi `saga.command.find-shipper` mang `matchingSessionId` do Saga tạo theo
+   `MATCHING_STARTED`. Match đọc Redis GEO replica và trả đúng một
+   `shipper.found`, hoặc `shipper.not-found` sau retry policy, cùng generation.
 5. Với `shipper.found`, Saga ghi `saga.command.cache-shipper-found`; Delivery
    persist offer/expiry rồi phát `delivery.shipper-offered` cho Notification.
 6. `delivery.shipper-accepted` gắn shipper vào Saga/Order. Reject, timeout hoặc
@@ -30,8 +31,11 @@ khi relay sang Kafka.
 
 ## Cancellation và failure
 
-- `order.cancelled` dừng matching bằng `saga.command.stop-matching` và yêu cầu
-  Delivery cancel bằng `saga.command.cancel-delivery`.
+- `order.cancelled` dừng đúng matching generation hiện hành bằng
+  `saga.command.stop-matching(orderId, deliveryId, matchingSessionId)` và yêu cầu
+  Delivery cancel bằng `saga.command.cancel-delivery`. Stop không có session bị
+  từ chối thay vì đoán/broad-cancel; Saga gặp `MATCHING_STARTED` legacy không có
+  session sẽ không phát stop.
 - Cancel sau pickup phải fail-closed qua `delivery.cancel.failed`; không được báo
   Saga đã cancel trong khi Delivery vẫn giao.
 - Không tìm thấy shipper hội tụ Order/Delivery về `SHIPPER_NOT_FOUND` theo state
@@ -49,6 +53,10 @@ khi relay sang Kafka.
   delivery identity đã persist trong Saga, không phụ thuộc payload lỗi ban đầu.
 - Saga state được pessimistic-lock; exact replay là idempotent, event ID hoặc
   payload mâu thuẫn fail-closed để Kafka retry/DLT.
+- Match result phải mang session bằng session trong `MATCHING_STARTED` hiện
+  hành; result generation cũ bị bỏ qua. Match fence `stop-before-find` bằng
+  durable tombstone `(deliveryId, matchingSessionId)` trước Redis, nên một stop
+  cũ không thể hủy rematch mới.
 - Outbox giữ ordering theo order. H2/static tests không thay thế PostgreSQL/Kafka
   duplicate, crash-after-commit, restart và DLT rehearsal ở Gate B8.
 

@@ -3,11 +3,11 @@ package com.delivery.order_service.listener;
 import com.delivery.order_service.dto.event.DeliveryStatusUpdatedEvent;
 import com.delivery.order_service.dto.event.ShipperEvent;
 import com.delivery.order_service.dto.event.ShipperNotFoundEvent;
-import com.delivery.order_service.service.OrderEventService;
-import com.delivery.order_service.service.OrderService;
+import com.delivery.order_service.service.SagaOrderCommandProcessor;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.annotation.RetryableTopic;
 import org.springframework.kafka.support.Acknowledgment;
@@ -35,24 +35,25 @@ import org.springframework.retry.annotation.Backoff;
         exclude = IllegalArgumentException.class,
         kafkaTemplate = "retryKafkaTemplate",
         autoCreateTopics = "${app.kafka.retry.auto-create-topics:false}",
-        dltTopicSuffix = ".DLT")
+        retryTopicSuffix = "-retry-order",
+        dltTopicSuffix = ".order.DLT")
 public class SagaCommandListener {
 
-    private final OrderEventService orderEventService;
-    private final OrderService orderService;
+    private final SagaOrderCommandProcessor commandProcessor;
     private final ObjectMapper objectMapper;
 
-    public SagaCommandListener(OrderEventService orderEventService, OrderService orderService) {
-        this.orderEventService = orderEventService;
-        this.orderService = orderService;
+    @Autowired
+    public SagaCommandListener(SagaOrderCommandProcessor commandProcessor) {
+        this.commandProcessor = commandProcessor;
         this.objectMapper = new ObjectMapper()
                 .registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule())
                 .configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     }
 
     @KafkaListener(topics = "${app.kafka.input-topics.saga-update-order-status:saga.command.update-order-status}")
-    public void handleUpdateOrderStatusCommand(JsonNode json, Acknowledgment acknowledgment) {
+    public void handleUpdateOrderStatusCommand(String message, Acknowledgment acknowledgment) {
         try {
+            JsonNode json = parseCommandTree(message);
             if (json == null || !json.isObject()) {
                 throw new IllegalArgumentException("Saga command must be a JSON object");
             }
@@ -71,6 +72,8 @@ public class SagaCommandListener {
             java.util.UUID.fromString(eventId);
             JsonNode originalJson = parseOriginalEventTree(originalEvent);
             requireMatchingOrderIdentity(originalJson, orderId);
+            java.util.UUID commandEventId = java.util.UUID.fromString(eventId);
+            boolean applied;
 
             // Delegate thẳng vào service dựa trên sagaStatus
             switch (sagaStatus) {
@@ -79,7 +82,8 @@ public class SagaCommandListener {
                         "PICKED_UP", "DELIVERING", "DELIVERED", "CANCELLED" -> {
                     DeliveryStatusUpdatedEvent deliveryEvent = deliveryStatusEvent(
                             originalJson, orderId, sagaStatus);
-                    orderEventService.handleDeliveryStatusUpdate(deliveryEvent);
+                    applied = commandProcessor.applyDeliveryStatus(commandEventId, orderId, sagaStatus,
+                            message, deliveryEvent);
                 }
 
                 // ===== Shipper events =====
@@ -87,14 +91,19 @@ public class SagaCommandListener {
                     ShipperEvent shipperEvent = parseOriginalEvent(originalEvent, ShipperEvent.class);
                     if (shipperEvent != null) {
                         shipperEvent.setOrderId(orderId);
-                        orderEventService.handleShipperAccepted(shipperEvent);
+                        applied = commandProcessor.applyShipperAccepted(commandEventId, orderId, sagaStatus,
+                                message, shipperEvent);
+                    } else {
+                        throw new IllegalArgumentException(
+                                "SHIPPER_ASSIGNED command requires an originalEvent");
                     }
                 }
 
                 case "SHIPPER_FOUND" -> {
                     DeliveryStatusUpdatedEvent deliveryEvent = deliveryStatusEvent(
                             originalJson, orderId, "WAIT_SHIPPER_CONFIRM");
-                    orderEventService.handleDeliveryStatusUpdate(deliveryEvent);
+                    applied = commandProcessor.applyDeliveryStatus(commandEventId, orderId, sagaStatus,
+                            message, deliveryEvent);
                 }
 
                 case "SHIPPER_NOT_FOUND" -> {
@@ -105,14 +114,16 @@ public class SagaCommandListener {
                                 "SHIPPER_NOT_FOUND command requires a positive deliveryId");
                     }
                     notFoundEvent.setOrderId(orderId);
-                    orderService.updateOrderStatusFromShipperNotFoundEvent(notFoundEvent);
+                    applied = commandProcessor.applyShipperNotFound(commandEventId, orderId, sagaStatus,
+                            message, notFoundEvent);
                 }
 
                 default -> throw new IllegalArgumentException(
                         "Unknown sagaStatus: " + sagaStatus + " for orderId=" + orderId);
             }
 
-            log.info("✅ [Order] Processed saga command for orderId={}, sagaStatus={}", orderId, sagaStatus);
+            log.info("✅ [Order] {} saga command for orderId={}, sagaStatus={}",
+                    applied ? "Processed" : "Skipped exact replay of", orderId, sagaStatus);
             acknowledgment.acknowledge();
 
         } catch (IllegalArgumentException poison) {
@@ -131,6 +142,19 @@ public class SagaCommandListener {
             log.warn("⚠️ [Order] Could not parse originalEvent into {}: {}", clazz.getSimpleName(), e.getMessage());
             throw new IllegalArgumentException(
                     "Could not parse originalEvent into " + clazz.getSimpleName(), e);
+        }
+    }
+
+    private JsonNode parseCommandTree(String message) {
+        try {
+            if (message == null || message.isBlank()) {
+                throw new IllegalArgumentException("Saga command must be a JSON object");
+            }
+            return objectMapper.readTree(message);
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Could not parse Saga command JSON", e);
         }
     }
 

@@ -100,8 +100,7 @@ criticalInvalid.setOrderId(null); // ❌ Critical field missing
 # Test với valid order data
 curl -X POST http://localhost:8084/api/orders \
   -H "Content-Type: application/json" \
-  -H "X-User-Id: 123" \
-  -H "X-Role: USER" \
+  -H "Authorization: Bearer <access-token>" \
   -d '{
     "restaurantId": 1,
     "restaurantName": "Valid Restaurant",

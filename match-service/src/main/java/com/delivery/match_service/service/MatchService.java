@@ -5,6 +5,7 @@ import com.delivery.match_service.dto.response.NearbyShipperResponse;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
+import java.util.UUID;
 
 /**
  * ✅ Interface cho Match Service với Non-blocking approach
@@ -21,10 +22,10 @@ public interface MatchService {
     Mono<List<NearbyShipperResponse>> findNearbyShippers(FindNearbyShippersRequest request, Long userId, String role);
 
     /** Atomically reserve a shipper for one outstanding offer. */
-    boolean tryReserveShipperOffer(Long shipperId, Long deliveryId, int timeoutSeconds);
+    boolean tryReserveShipperOffer(Long shipperId, Long deliveryId, UUID matchingSessionId, int timeoutSeconds);
 
     /** Release only the offer still owned by this shipper and delivery pair. */
-    boolean releaseShipperOffer(Long shipperId, Long deliveryId);
+    boolean releaseShipperOffer(Long shipperId, Long deliveryId, UUID matchingSessionId);
     
     /**
      * Dừng quá trình matching cho một delivery cụ thể

@@ -22,17 +22,19 @@ class KafkaConfigTest {
 
     @Test
     void usesConfiguredBootstrapServersForProducerAndConsumer() {
-        KafkaConfig config = new KafkaConfig("kafka:19092");
+        KafkaConfig config = new KafkaConfig("kafka:19092", "match-proof");
 
         assertThat(config.producerFactory().getConfigurationProperties())
                 .containsEntry(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "kafka:19092");
         assertThat(config.consumerFactory().getConfigurationProperties())
                 .containsEntry(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "kafka:19092");
+        assertThat(config.consumerFactory().getConfigurationProperties())
+                .containsEntry(ConsumerConfig.GROUP_ID_CONFIG, "match-proof");
     }
 
     @Test
     void isolatesOutOfOrderAcknowledgmentsToMonoListenerFactory() {
-        KafkaConfig config = new KafkaConfig("kafka:19092");
+        KafkaConfig config = new KafkaConfig("kafka:19092", "match-proof");
         var recoverer = config.matchDeadLetterRecoverer(mock(KafkaTemplate.class));
         var errorHandler = config.matchKafkaErrorHandler(recoverer);
 
@@ -53,7 +55,7 @@ class KafkaConfigTest {
     @Test
     @SuppressWarnings("unchecked")
     void poisonProjectionEventIsPublishedUnchangedToSamePartitionDlt() {
-        KafkaConfig config = new KafkaConfig("kafka:19092");
+        KafkaConfig config = new KafkaConfig("kafka:19092", "match-proof");
         KafkaTemplate<String, String> template = mock(KafkaTemplate.class);
         when(template.send(any(ProducerRecord.class)))
                 .thenReturn(CompletableFuture.completedFuture(mock(SendResult.class)));
@@ -74,7 +76,7 @@ class KafkaConfigTest {
 
     @Test
     void commonErrorHandlerCommitsOnlyAfterFiniteRetryRecovery() {
-        KafkaConfig config = new KafkaConfig("kafka:19092");
+        KafkaConfig config = new KafkaConfig("kafka:19092", "match-proof");
         var recoverer = config.matchDeadLetterRecoverer(mock(KafkaTemplate.class));
         var handler = config.matchKafkaErrorHandler(recoverer);
 

@@ -7,6 +7,7 @@ import org.apache.kafka.common.serialization.StringSerializer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.annotation.EnableKafka;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
@@ -91,11 +92,14 @@ public class KafkaConfig {
 
     @Bean
     public DeadLetterPublishingRecoverer orderDeadLetterRecoverer(
-            KafkaTemplate<String, Object> kafkaTemplate) {
+            @Qualifier("retryKafkaTemplate") KafkaTemplate<String, String> kafkaTemplate) {
         DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(
                 kafkaTemplate,
                 (record, exception) -> new TopicPartition(
-                        record.topic() + ".DLT", record.partition()));
+                        // The common handler is a fallback for retryable
+                        // listeners too, so it must not route an Order record
+                        // into a DLT shared with Saga or Notification.
+                        ownerDltTopic(record.topic()), record.partition()));
         recoverer.setFailIfSendResultIsError(true);
         return recoverer;
     }
@@ -141,10 +145,31 @@ public class KafkaConfig {
         // Enable manual acknowledgment so listeners can inject Acknowledgment
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
         factory.setCommonErrorHandler(orderKafkaErrorHandler);
-        // ✅ Convert JSON String value → POJO @Payload (Payment/Restaurant listeners).
-        //    Dùng ObjectMapper của Spring (đã có JavaTimeModule cho LocalDateTime).
-        //    Listener nhận String (Saga) vẫn pass-through bình thường.
-        factory.setRecordMessageConverter(new StringJsonMessageConverter(objectMapper));
+        // Saga commands are raw JSON text and their SHA-256 receipt fingerprint
+        // is calculated over that exact text. JsonMessageConverter returns the
+        // original String when the listener parameter is String, while still
+        // deserializing Restaurant/Payment payloads into their DTO types.
+        factory.setRecordMessageConverter(new RawStringPreservingJsonMessageConverter(objectMapper));
         return factory;
+    }
+
+    private static final class RawStringPreservingJsonMessageConverter extends StringJsonMessageConverter {
+        private RawStringPreservingJsonMessageConverter(ObjectMapper objectMapper) {
+            super(objectMapper);
+        }
+
+        @Override
+        protected Object extractAndConvertValue(
+                org.apache.kafka.clients.consumer.ConsumerRecord<?, ?> record,
+                java.lang.reflect.Type type) {
+            if (type == String.class) {
+                return record.value();
+            }
+            return super.extractAndConvertValue(record, type);
+        }
+    }
+
+    private static String ownerDltTopic(String topic) {
+        return topic.replaceFirst("-retry-order-\\d+$", "") + ".order.DLT";
     }
 }

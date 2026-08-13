@@ -11,7 +11,7 @@ import org.springframework.stereotype.Repository;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
+import java.util.UUID;
 
 /**
  * ✅ Local Redis Geo Repository cho Match Service
@@ -30,6 +30,7 @@ public class MatchRedisGeoRepository {
     private static final String BUSY_PREFIX = "match:shipper:busy:";
     private static final String OFFER_PREFIX = "match:shipper:offer:";
     private static final String DELIVERY_OFFER_PREFIX = "match:delivery:offer:";
+    private static final String DELIVERY_OFFER_SESSION_PREFIX = "match:delivery:offer-session:";
     private static final String CANCELLED_PREFIX = "match:cancelled:";
     private static final String STATUS_VERSION_PREFIX = "match:shipper:status-version:";
     private static final String LOCATION_FRESH_PREFIX = "match:shipper:location-fresh:";
@@ -42,12 +43,17 @@ public class MatchRedisGeoRepository {
             if currentDelivery and currentDelivery ~= ARGV[1] then
               return 0
             end
+            local currentSession = redis.call('GET', KEYS[4])
+            if currentDelivery and (not currentSession or currentSession ~= ARGV[4]) then
+              return 0
+            end
             local currentShipper = redis.call('GET', KEYS[2])
             if currentShipper and currentShipper ~= ARGV[2] then
               return -1
             end
             redis.call('SET', KEYS[1], ARGV[1], 'EX', tonumber(ARGV[3]))
             redis.call('SET', KEYS[2], ARGV[2], 'EX', tonumber(ARGV[3]))
+            redis.call('SET', KEYS[4], ARGV[4], 'EX', tonumber(ARGV[3]))
             return 1
             """, Long.class);
     private static final DefaultRedisScript<Long> RELEASE_SHIPPER_OFFER = new DefaultRedisScript<>("""
@@ -56,8 +62,13 @@ public class MatchRedisGeoRepository {
             if currentDelivery ~= ARGV[1] or currentShipper ~= ARGV[2] then
               return 0
             end
+            local currentSession = redis.call('GET', KEYS[3])
+            if ARGV[3] ~= '' and currentSession ~= ARGV[3] then
+              return 0
+            end
             redis.call('DEL', KEYS[1])
             redis.call('DEL', KEYS[2])
+            redis.call('DEL', KEYS[3])
             return 1
             """, Long.class);
     private static final DefaultRedisScript<Long> APPLY_SHIPPER_STATUS = new DefaultRedisScript<>("""
@@ -88,6 +99,7 @@ public class MatchRedisGeoRepository {
             local currentDeliveryOffer = redis.call('GET', KEYS[4])
             if currentDeliveryOffer and currentDeliveryOffer == ARGV[5] then
               redis.call('DEL', KEYS[4])
+              redis.call('DEL', KEYS[5])
             end
             if tonumber(ARGV[4]) == 1 then
               redis.call('SET', KEYS[3], 'BUSY', 'EX', 7200)
@@ -95,6 +107,39 @@ public class MatchRedisGeoRepository {
               redis.call('DEL', KEYS[3])
             end
             redis.call('SET', KEYS[1], tostring(incomingTimestamp) .. ':' .. ARGV[2])
+            return 1
+            """, Long.class);
+    /**
+     * The live location projection is shared across Match replicas. A Java
+     * get/check/write sequence lets an old online record read before a newer
+     * offline tombstone then resurrect the shipper after it commits. Keep the
+     * freshness fence and all GEO/online membership mutation inside one Redis
+     * script so cross-partition/replay order is monotonic.
+     */
+    private static final DefaultRedisScript<Long> APPLY_ONLINE_LOCATION = new DefaultRedisScript<>("""
+            local current = redis.call('GET', KEYS[1])
+            local incomingTimestamp = tonumber(ARGV[1])
+            if current then
+              local currentTimestamp = tonumber(current)
+              if not currentTimestamp then return -2 end
+              if currentTimestamp >= incomingTimestamp then return 0 end
+            end
+            redis.call('GEOADD', KEYS[2], ARGV[2], ARGV[3], ARGV[4])
+            redis.call('SADD', KEYS[3], ARGV[4])
+            redis.call('SET', KEYS[1], ARGV[1], 'EX', tonumber(ARGV[5]))
+            return 1
+            """, Long.class);
+    private static final DefaultRedisScript<Long> APPLY_OFFLINE_LOCATION = new DefaultRedisScript<>("""
+            local current = redis.call('GET', KEYS[1])
+            local incomingTimestamp = tonumber(ARGV[1])
+            if current then
+              local currentTimestamp = tonumber(current)
+              if not currentTimestamp then return -2 end
+              if currentTimestamp >= incomingTimestamp then return 0 end
+            end
+            redis.call('SREM', KEYS[3], ARGV[2])
+            redis.call('ZREM', KEYS[2], ARGV[2])
+            redis.call('SET', KEYS[1], ARGV[1], 'EX', tonumber(ARGV[3]))
             return 1
             """, Long.class);
 
@@ -109,31 +154,32 @@ public class MatchRedisGeoRepository {
                 throw new IllegalArgumentException("positive shipperId/timestamp and coordinates are required");
             }
 
-            String freshnessKey = LOCATION_FRESH_PREFIX + shipperId;
-            Object storedTimestamp = redisTemplate.opsForValue().get(freshnessKey);
-            if (storedTimestamp instanceof Number number && number.longValue() >= timestamp) {
+            // Keep this repository API compatible with its earlier contract:
+            // callers that pass an explicit offline location must still remove
+            // the shipper. The listener currently calls markShipperOffline
+            // directly, but other callers must not turn an offline fact into
+            // an online GEO entry merely because the shared Redis fence moved
+            // into Lua.
+            if (!Boolean.TRUE.equals(isOnline)) {
+                markShipperOffline(shipperId, timestamp);
+                return;
+            }
+
+            Long result = redisTemplate.execute(APPLY_ONLINE_LOCATION,
+                    List.of(LOCATION_FRESH_PREFIX + shipperId, GEO_KEY, ONLINE_SET_KEY), timestamp,
+                    longitude, latitude, shipperId.toString(), LOCATION_TTL_SECONDS);
+            if (result == null || result == -2L) {
+                throw new IllegalStateException("Invalid Match location freshness state");
+            }
+            if (result == 0L) {
                 log.debug("Ignoring stale location for shipper {} at {}", shipperId, timestamp);
                 return;
             }
 
-            GeoOperations<String, Object> geoOps = redisTemplate.opsForGeo();
-            Point point = new Point(longitude, latitude);
-            geoOps.add(GEO_KEY, point, shipperId.toString());
-
-            // Quản lý online set
-            if (Boolean.TRUE.equals(isOnline)) {
-                redisTemplate.opsForSet().add(ONLINE_SET_KEY, shipperId.toString());
-            } else {
-                redisTemplate.opsForSet().remove(ONLINE_SET_KEY, shipperId.toString());
-                // Nếu offline, xoá khỏi geo luôn
-                geoOps.remove(GEO_KEY, shipperId.toString());
-            }
-
-            redisTemplate.opsForValue().set(
-                    freshnessKey, timestamp, LOCATION_TTL_SECONDS, TimeUnit.SECONDS);
-
             log.debug("📍 [MatchGeo] Updated shipper {} at ({}, {}) online={}", shipperId, latitude, longitude, isOnline);
 
+        } catch (IllegalArgumentException | IllegalStateException exception) {
+            throw exception;
         } catch (Exception e) {
             log.error("💥 [MatchGeo] Error updating shipper {}: {}", shipperId, e.getMessage());
             throw new IllegalStateException("Cannot update Match Geo location replica", e);
@@ -149,18 +195,17 @@ public class MatchRedisGeoRepository {
             throw new IllegalArgumentException("positive shipperId and timestamp are required");
         }
 
-        String freshnessKey = LOCATION_FRESH_PREFIX + shipperId;
         try {
-            Object storedTimestamp = redisTemplate.opsForValue().get(freshnessKey);
-            if (storedTimestamp instanceof Number number && number.longValue() >= timestamp) {
+            Long result = redisTemplate.execute(APPLY_OFFLINE_LOCATION,
+                    List.of(LOCATION_FRESH_PREFIX + shipperId, GEO_KEY, ONLINE_SET_KEY), timestamp,
+                    shipperId.toString(), LOCATION_TTL_SECONDS);
+            if (result == null || result == -2L) {
+                throw new IllegalStateException("Invalid Match location freshness state");
+            }
+            if (result == 0L) {
                 log.debug("Ignoring stale offline tombstone for shipper {} at {}", shipperId, timestamp);
                 return;
             }
-
-            redisTemplate.opsForSet().remove(ONLINE_SET_KEY, shipperId.toString());
-            redisTemplate.opsForGeo().remove(GEO_KEY, shipperId.toString());
-            redisTemplate.opsForValue().set(
-                    freshnessKey, timestamp, LOCATION_TTL_SECONDS, TimeUnit.SECONDS);
             log.debug("🔴 [MatchGeo] Marked shipper {} offline at {}", shipperId, timestamp);
         } catch (Exception e) {
             log.error("💥 [MatchGeo] Error marking shipper {} offline: {}", shipperId, e.getMessage());
@@ -224,8 +269,13 @@ public class MatchRedisGeoRepository {
         return results;
     }
 
-    public boolean tryReserveShipperOffer(Long shipperId, Long deliveryId, int timeoutSeconds) {
-        if (shipperId == null || shipperId <= 0 || deliveryId == null || deliveryId <= 0) {
+    public boolean tryReserveShipperOffer(
+            Long shipperId,
+            Long deliveryId,
+            UUID matchingSessionId,
+            int timeoutSeconds) {
+        if (shipperId == null || shipperId <= 0 || deliveryId == null || deliveryId <= 0
+                || matchingSessionId == null) {
             return false;
         }
         int ttlSeconds = Math.max(1, timeoutSeconds);
@@ -234,8 +284,9 @@ public class MatchRedisGeoRepository {
                     RESERVE_SHIPPER_OFFER,
                     List.of(OFFER_PREFIX + shipperId,
                             DELIVERY_OFFER_PREFIX + deliveryId,
-                            CANCELLED_PREFIX + deliveryId),
-                    deliveryId.toString(), shipperId.toString(), ttlSeconds);
+                            cancellationKey(deliveryId, matchingSessionId),
+                            DELIVERY_OFFER_SESSION_PREFIX + deliveryId),
+                    deliveryId.toString(), shipperId.toString(), ttlSeconds, matchingSessionId.toString());
             if (result == null || result == -1L) {
                 throw new IllegalStateException("Contradictory Match offer ownership state");
             }
@@ -247,15 +298,18 @@ public class MatchRedisGeoRepository {
         }
     }
 
-    public boolean releaseShipperOffer(Long shipperId, Long deliveryId) {
+    public boolean releaseShipperOffer(Long shipperId, Long deliveryId, UUID matchingSessionId) {
         if (shipperId == null || shipperId <= 0 || deliveryId == null || deliveryId <= 0) {
             return false;
         }
         try {
             Long result = redisTemplate.execute(
                     RELEASE_SHIPPER_OFFER,
-                    List.of(OFFER_PREFIX + shipperId, DELIVERY_OFFER_PREFIX + deliveryId),
-                    deliveryId.toString(), shipperId.toString());
+                    List.of(OFFER_PREFIX + shipperId,
+                            DELIVERY_OFFER_PREFIX + deliveryId,
+                            DELIVERY_OFFER_SESSION_PREFIX + deliveryId),
+                    deliveryId.toString(), shipperId.toString(),
+                    matchingSessionId == null ? "" : matchingSessionId.toString());
             if (result == null) {
                 throw new IllegalStateException("Missing Match offer release result");
             }
@@ -267,8 +321,8 @@ public class MatchRedisGeoRepository {
         }
     }
 
-    public boolean releaseOfferForDelivery(Long deliveryId) {
-        if (deliveryId == null || deliveryId <= 0) {
+    public boolean releaseOfferForDelivery(Long deliveryId, UUID matchingSessionId) {
+        if (deliveryId == null || deliveryId <= 0 || matchingSessionId == null) {
             return false;
         }
         try {
@@ -280,7 +334,7 @@ public class MatchRedisGeoRepository {
             if (shipperId <= 0) {
                 throw new IllegalStateException("Invalid Match reverse offer owner");
             }
-            return releaseShipperOffer(shipperId, deliveryId);
+            return releaseShipperOffer(shipperId, deliveryId, matchingSessionId);
         } catch (IllegalStateException exception) {
             throw exception;
         } catch (Exception exception) {
@@ -302,7 +356,8 @@ public class MatchRedisGeoRepository {
                     List.of(STATUS_VERSION_PREFIX + shipperId,
                             OFFER_PREFIX + shipperId,
                             BUSY_PREFIX + shipperId,
-                            DELIVERY_OFFER_PREFIX + deliveryId),
+                            DELIVERY_OFFER_PREFIX + deliveryId,
+                            DELIVERY_OFFER_SESSION_PREFIX + deliveryId),
                     timestamp, eventId, deliveryId.toString(),
                     "BUSY".equals(status) ? 1L : 0L, shipperId.toString());
             if (result == null || result == -2L) {
@@ -318,6 +373,10 @@ public class MatchRedisGeoRepository {
         } catch (Exception exception) {
             throw new IllegalStateException("Cannot apply Match shipper status", exception);
         }
+    }
+
+    private String cancellationKey(Long deliveryId, UUID matchingSessionId) {
+        return CANCELLED_PREFIX + deliveryId + ":" + matchingSessionId;
     }
 
     /**

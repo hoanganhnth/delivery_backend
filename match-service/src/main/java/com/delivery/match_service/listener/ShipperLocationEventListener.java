@@ -32,8 +32,9 @@ public class ShipperLocationEventListener {
     /**
      * ✅ Consume vị trí shipper từ tracking-service → GEOADD vào local Redis
      */
-    @KafkaListener(topics = "shipper.location-updated", groupId = "match-service",
-            containerFactory = "locationKafkaListenerContainerFactory")
+    @KafkaListener(topics = "shipper.location-updated", groupId = "${spring.kafka.consumer.group-id:match-service}",
+            containerFactory = "locationKafkaListenerContainerFactory",
+            autoStartup = "${match.kafka.listener.auto-startup:true}")
     @SuppressWarnings("unchecked")
     public void handleShipperLocationUpdated(String message, Acknowledgment acknowledgment) {
         try {
@@ -79,7 +80,8 @@ public class ShipperLocationEventListener {
     /**
      * ✅ Consume trạng thái busy/available từ delivery-service
      */
-    @KafkaListener(topics = "shipper.status-change", groupId = "match-service")
+    @KafkaListener(topics = "shipper.status-change", groupId = "${spring.kafka.consumer.group-id:match-service}",
+            autoStartup = "${match.kafka.listener.auto-startup:true}")
     @SuppressWarnings("unchecked")
     public void handleShipperStatusChange(String message, Acknowledgment acknowledgment) {
         try {

@@ -2,6 +2,7 @@ package com.delivery.saga_orchestrator_service.listener;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.annotation.RetryableTopic;
 
 import java.lang.reflect.Method;
 import java.util.Arrays;
@@ -23,6 +24,16 @@ class KafkaListenerTopicConfigurationTest {
         assertListener("handleShipperNotFound", "${app.kafka.input-topics.shipper-not-found:shipper.not-found}");
         assertListener("handleDeliveryCreationFailed", "${app.kafka.input-topics.delivery-created-failed:delivery.created.failed}");
         assertListener("handleDeliveryCancelFailed", "${app.kafka.input-topics.delivery-cancel-failed:delivery.cancel.failed}");
+    }
+
+    @Test
+    void sharedSourceRetryTopologyIsOwnedBySaga() {
+        RetryableTopic retry = KafkaEventListener.class.getAnnotation(RetryableTopic.class);
+
+        assertThat(retry).isNotNull();
+        assertThat(retry.retryTopicSuffix()).isEqualTo("-retry-saga");
+        assertThat(retry.dltTopicSuffix()).isEqualTo(".saga.DLT");
+        assertThat(retry.autoCreateTopics()).isEqualTo("${app.kafka.retry.auto-create-topics:false}");
     }
 
     private void assertListener(String methodName, String topic) {

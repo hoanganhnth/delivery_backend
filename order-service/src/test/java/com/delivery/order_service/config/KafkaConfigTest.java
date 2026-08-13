@@ -38,13 +38,16 @@ class KafkaConfigTest {
                                 config.orderDeadLetterRecoverer(mock(KafkaTemplate.class)),
                                 mock(com.delivery.order_service.metrics.BusinessMetrics.class)));
         assertThat(ReflectionTestUtils.getField(factory, "autoStartup")).isEqualTo(false);
+        Object converter = ReflectionTestUtils.getField(factory, "recordMessageConverter");
+        assertThat(converter.getClass().getSimpleName())
+                .isEqualTo("RawStringPreservingJsonMessageConverter");
     }
 
     @Test
     @SuppressWarnings("unchecked")
     void poisonRecordIsPublishedToSamePartitionDeadLetterTopic() {
         KafkaConfig config = new KafkaConfig("kafka:19092");
-        KafkaTemplate<String, Object> template = mock(KafkaTemplate.class);
+        KafkaTemplate<String, String> template = mock(KafkaTemplate.class);
         when(template.send(any(ProducerRecord.class)))
                 .thenReturn(CompletableFuture.completedFuture(mock(SendResult.class)));
         var recoverer = config.orderDeadLetterRecoverer(template);
@@ -56,10 +59,10 @@ class KafkaConfigTest {
 
         recoverer.accept(source, new IllegalArgumentException("poison"));
 
-        ArgumentCaptor<ProducerRecord<String, Object>> sent =
+        ArgumentCaptor<ProducerRecord<String, String>> sent =
                 ArgumentCaptor.forClass(ProducerRecord.class);
         verify(template).send(sent.capture());
-        assertThat(sent.getValue().topic()).isEqualTo("restaurant.order-confirmed.DLT");
+        assertThat(sent.getValue().topic()).isEqualTo("restaurant.order-confirmed.order.DLT");
         assertThat(sent.getValue().partition()).isEqualTo(3);
         assertThat(sent.getValue().key()).isEqualTo("order-9");
         assertThat(sent.getValue().value()).isEqualTo("bad-json");
@@ -75,6 +78,26 @@ class KafkaConfigTest {
                 .isEqualTo("11111111-1111-1111-1111-111111111111");
         assertThat(new String(sent.getValue().headers().lastHeader("correlationId").value(), StandardCharsets.UTF_8))
                 .isEqualTo("corr-restaurant-9");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void retryTopicFallbackReturnsToTheCanonicalOrderDlt() {
+        KafkaConfig config = new KafkaConfig("kafka:19092");
+        KafkaTemplate<String, String> template = mock(KafkaTemplate.class);
+        when(template.send(any(ProducerRecord.class)))
+                .thenReturn(CompletableFuture.completedFuture(mock(SendResult.class)));
+        var recoverer = config.orderDeadLetterRecoverer(template);
+        ConsumerRecord<String, Object> retry = new ConsumerRecord<>(
+                "restaurant.order-confirmed-retry-order-1000", 3, 7L, "order-9", "bad-json");
+
+        recoverer.accept(retry, new IllegalArgumentException("poison"));
+
+        ArgumentCaptor<ProducerRecord<String, String>> sent =
+                ArgumentCaptor.forClass(ProducerRecord.class);
+        verify(template).send(sent.capture());
+        assertThat(sent.getValue().topic()).isEqualTo("restaurant.order-confirmed.order.DLT");
+        assertThat(sent.getValue().partition()).isEqualTo(3);
     }
 
     @Test

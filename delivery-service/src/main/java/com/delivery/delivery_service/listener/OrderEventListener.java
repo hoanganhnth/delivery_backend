@@ -5,10 +5,7 @@ import com.delivery.delivery_service.dto.event.OrderCancelledEvent;
 import com.delivery.delivery_service.dto.event.ShipperFoundEvent;
 import com.delivery.delivery_service.dto.event.ShipperNotFoundEvent;
 import com.delivery.delivery_service.dto.event.ExpireShipperOfferCommand;
-import com.delivery.delivery_service.dto.response.DeliveryResponse;
-import com.delivery.delivery_service.service.DeliveryService;
-import com.delivery.delivery_service.service.EventValidationService;
-import com.delivery.delivery_service.exception.InvalidStatusException;
+import com.delivery.delivery_service.service.DeliverySagaCommandProcessor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.annotation.RetryableTopic;
@@ -17,9 +14,7 @@ import org.springframework.retry.annotation.Backoff;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.springframework.stereotype.Component;
-
-import java.util.HashMap;
-import java.util.Map;
+import org.springframework.beans.factory.annotation.Autowired;
 
 /**
  * ✅ Saga Command Listener — Nhận lệnh từ Saga Orchestrator
@@ -40,17 +35,12 @@ import java.util.Map;
         dltTopicSuffix = ".DLT")
 public class OrderEventListener {
 
-    private final DeliveryService deliveryService;
-    private final EventValidationService eventValidationService;
-    private final com.delivery.delivery_service.service.OutboxService outboxService;
+    private final DeliverySagaCommandProcessor commandProcessor;
     private final ObjectMapper objectMapper;
 
-    public OrderEventListener(DeliveryService deliveryService,
-                             EventValidationService eventValidationService,
-                             com.delivery.delivery_service.service.OutboxService outboxService) {
-        this.deliveryService = deliveryService;
-        this.eventValidationService = eventValidationService;
-        this.outboxService = outboxService;
+    @Autowired
+    public OrderEventListener(DeliverySagaCommandProcessor commandProcessor) {
+        this.commandProcessor = commandProcessor;
         this.objectMapper = new ObjectMapper()
                 .registerModule(new JavaTimeModule())
                 .configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
@@ -76,36 +66,10 @@ public class OrderEventListener {
             throw new IllegalArgumentException(
                     "Invalid create command: stable eventId and positive orderId are required");
         }
-        EventValidationService.ValidationResult validationResult =
-                eventValidationService.validateOrderCreatedEvent(event);
-        if (!validationResult.isValid()) {
-            log.error("🚫 [Delivery] Invalid event for orderId={}, reporting correlated failure",
-                    event.getOrderId());
-            publishFailure("delivery.created.failed", event.getEventId(), event.getOrderId(),
-                    validationResult.getErrorMessage());
-            acknowledgment.acknowledge();
-            return;
-        }
-
-        try {
-            DeliveryResponse response = deliveryService.createDeliveryFromOrderEvent(event);
-            log.info("✅ [Delivery] Created delivery record for orderId={}, deliveryId={}",
-                    event.getOrderId(), response.getId());
-        } catch (IllegalArgumentException | InvalidStatusException businessFailure) {
-            // A validated, terminal business refusal has a durable compensation
-            // record. Only after that outbox write succeeds may this source
-            // command be acknowledged.
-            log.warn("[Delivery] Business refusal creating delivery for orderId={}: {}",
-                    event.getOrderId(), businessFailure.getMessage());
-            publishFailure("delivery.created.failed", event.getEventId(), event.getOrderId(),
-                    businessFailure.getMessage());
-        } catch (RuntimeException transientFailure) {
-            // Never turn an unavailable database/outbox/broker into a fabricated
-            // business result. Propagate so the configured retry/DLT path owns it.
-            throw transientFailure;
-        }
-        // ACK is deliberately outside the processing catch. An ACK failure after
-        // a committed success must trigger redelivery, never a false Saga failure.
+        boolean applied = commandProcessor.applyCreate(event, message);
+        log.info("✅ [Delivery] {} create-delivery command for orderId={}",
+                applied ? "Processed" : "Skipped exact replay of", event.getOrderId());
+        // The processor transaction has committed before the listener can ACK.
         acknowledgment.acknowledge();
     }
 
@@ -129,19 +93,9 @@ public class OrderEventListener {
             throw new IllegalArgumentException(
                     "Invalid cancel command: stable eventId and positive orderId are required");
         }
-        try {
-            deliveryService.cancelDeliveryFromOrderCancelledEvent(event);
-            log.info("✅ [Delivery] Cancelled delivery for orderId={}", event.getOrderId());
-        } catch (IllegalArgumentException | InvalidStatusException businessFailure) {
-            log.warn("[Delivery] Business refusal cancelling delivery for orderId={}: {}",
-                    event.getOrderId(), businessFailure.getMessage());
-            publishFailure("delivery.cancel.failed", event.getEventId(), event.getOrderId(),
-                    businessFailure.getMessage());
-        } catch (RuntimeException transientFailure) {
-            throw transientFailure;
-        }
-        // Keep ACK failures outside the business-failure mapping for the same
-        // reason as create-delivery above.
+        boolean applied = commandProcessor.applyCancel(event, message);
+        log.info("✅ [Delivery] {} cancel-delivery command for orderId={}",
+                applied ? "Processed" : "Skipped exact replay of", event.getOrderId());
         acknowledgment.acknowledge();
     }
 
@@ -149,15 +103,17 @@ public class OrderEventListener {
     @KafkaListener(topics = "${app.kafka.topics.cache-shipper-found:saga.command.cache-shipper-found}")
     public void handleCacheShipperOfferCommand(String message, Acknowledgment acknowledgment) throws Exception {
         ShipperFoundEvent event = objectMapper.readValue(message, ShipperFoundEvent.class);
+        requireCommandIdentity(event.getEventId(), event.getOrderId(), event.getDeliveryId(), "cache-shipper-found");
         log.info("📥 [Delivery] Saga command: cache-shipper-found for orderId={}", event.getOrderId());
-        deliveryService.cacheShipperOffer(event);
+        commandProcessor.applyCacheShipperOffer(event, message);
         acknowledgment.acknowledge();
     }
 
     @KafkaListener(topics = "${app.kafka.topics.expire-shipper-offer:saga.command.expire-shipper-offer}")
     public void handleExpireShipperOfferCommand(String message, Acknowledgment acknowledgment) throws Exception {
         ExpireShipperOfferCommand command = objectMapper.readValue(message, ExpireShipperOfferCommand.class);
-        deliveryService.expireShipperOffer(command);
+        requireCommandIdentity(command.getEventId(), command.getOrderId(), command.getDeliveryId(), "expire-shipper-offer");
+        commandProcessor.applyExpireShipperOffer(command, message);
         acknowledgment.acknowledge();
     }
 
@@ -171,25 +127,18 @@ public class OrderEventListener {
             throw new IllegalArgumentException(
                     "Shipper-not-found command requires eventId and positive order/delivery IDs");
         }
-        deliveryService.updateDeliveryStatusFromShipperNotFoundEvent(event);
+        commandProcessor.applyShipperNotFound(event, message);
         acknowledgment.acknowledge();
     }
 
 
 
-    // ==================== HELPER ====================
-
-    /**
-     * ✅ Gửi thông báo lỗi cho Saga để nó kích hoạt compensation
-     */
-    private void publishFailure(String topic, java.util.UUID commandEventId, Long orderId, String reason) {
-            Map<String, Object> failure = new HashMap<>();
-            failure.put("commandEventId", commandEventId.toString());
-            failure.put("orderId", orderId);
-            failure.put("success", false);
-            failure.put("reason", reason);
-            outboxService.saveEvent(commandEventId, "ORDER", orderId.toString(), "DELIVERY_COMMAND_FAILED",
-                    topic, orderId.toString(), failure);
-            log.warn("🚨 [Delivery] Stored failure in outbox for {} orderId={}: {}", topic, orderId, reason);
+    private void requireCommandIdentity(java.util.UUID eventId, Long orderId, Long deliveryId,
+                                        String commandType) {
+        if (eventId == null || orderId == null || orderId <= 0
+                || deliveryId == null || deliveryId <= 0) {
+            throw new IllegalArgumentException(
+                    commandType + " command requires eventId and positive order/delivery IDs");
+        }
     }
 }

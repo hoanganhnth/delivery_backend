@@ -10,6 +10,7 @@ import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
@@ -64,13 +65,18 @@ public class MatchServiceImpl implements MatchService {
     }
 
     @Override
-    public boolean tryReserveShipperOffer(Long shipperId, Long deliveryId, int timeoutSeconds) {
-        return matchRedisGeoRepository.tryReserveShipperOffer(shipperId, deliveryId, timeoutSeconds);
+    public boolean tryReserveShipperOffer(
+            Long shipperId,
+            Long deliveryId,
+            UUID matchingSessionId,
+            int timeoutSeconds) {
+        return matchRedisGeoRepository.tryReserveShipperOffer(
+                shipperId, deliveryId, matchingSessionId, timeoutSeconds);
     }
 
     @Override
-    public boolean releaseShipperOffer(Long shipperId, Long deliveryId) {
-        return matchRedisGeoRepository.releaseShipperOffer(shipperId, deliveryId);
+    public boolean releaseShipperOffer(Long shipperId, Long deliveryId, UUID matchingSessionId) {
+        return matchRedisGeoRepository.releaseShipperOffer(shipperId, deliveryId, matchingSessionId);
     }
 
 }

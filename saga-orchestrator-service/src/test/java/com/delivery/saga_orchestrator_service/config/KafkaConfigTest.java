@@ -7,6 +7,9 @@ import org.apache.kafka.clients.producer.ProducerConfig;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.config.MethodKafkaListenerEndpoint;
+import org.springframework.kafka.retrytopic.DestinationTopic;
+import org.springframework.kafka.retrytopic.SuffixingRetryTopicNamesProviderFactory;
 import org.springframework.kafka.support.SendResult;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -42,6 +45,26 @@ class KafkaConfigTest {
     }
 
     @Test
+    void retryEndpointWithoutListenerGroupKeepsFactoryConsumerGroup() {
+        KafkaConfig config = new KafkaConfig("kafka:19092", "saga-legacy-group", false);
+        MethodKafkaListenerEndpoint<String, String> endpoint = new MethodKafkaListenerEndpoint<>();
+        endpoint.setId("saga-listener");
+        DestinationTopic.Properties retryProperties = mock(DestinationTopic.Properties.class);
+        when(retryProperties.suffix()).thenReturn("-retry-1000");
+
+        String retryEndpointGroup = new SuffixingRetryTopicNamesProviderFactory()
+                .createRetryTopicNamesProvider(retryProperties)
+                .getGroupId(endpoint);
+
+        // @KafkaListener has no groupId, therefore retry-topic registration has
+        // no endpoint override to suffix. The ConsumerFactory group-id is the
+        // actual group inherited by the retry container.
+        assertThat(retryEndpointGroup).isNull();
+        assertThat(config.consumerFactory().getConfigurationProperties())
+                .containsEntry(ConsumerConfig.GROUP_ID_CONFIG, "saga-legacy-group");
+    }
+
+    @Test
     @SuppressWarnings("unchecked")
     void poisonSagaEventIsPublishedUnchangedToSamePartitionDlt() {
         KafkaConfig config = new KafkaConfig("kafka:19092", true);
@@ -57,10 +80,30 @@ class KafkaConfigTest {
         ArgumentCaptor<ProducerRecord<String, String>> sent =
                 ArgumentCaptor.forClass(ProducerRecord.class);
         verify(template).send(sent.capture());
-        assertThat(sent.getValue().topic()).isEqualTo("delivery.created.result.DLT");
+        assertThat(sent.getValue().topic()).isEqualTo("delivery.created.result.saga.DLT");
         assertThat(sent.getValue().partition()).isEqualTo(2);
         assertThat(sent.getValue().key()).isEqualTo("order-101");
         assertThat(sent.getValue().value()).isEqualTo("bad-json");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void retryTopicFallbackReturnsToTheCanonicalSagaDlt() {
+        KafkaConfig config = new KafkaConfig("kafka:19092", true);
+        KafkaTemplate<String, String> template = mock(KafkaTemplate.class);
+        when(template.send(any(ProducerRecord.class)))
+                .thenReturn(CompletableFuture.completedFuture(mock(SendResult.class)));
+        var recoverer = config.sagaDeadLetterRecoverer(template);
+        ConsumerRecord<String, String> retry = new ConsumerRecord<>(
+                "delivery.created.result-retry-saga-1000", 2, 9L, "order-101", "bad-json");
+
+        recoverer.accept(retry, new IllegalArgumentException("poison"));
+
+        ArgumentCaptor<ProducerRecord<String, String>> sent =
+                ArgumentCaptor.forClass(ProducerRecord.class);
+        verify(template).send(sent.capture());
+        assertThat(sent.getValue().topic()).isEqualTo("delivery.created.result.saga.DLT");
+        assertThat(sent.getValue().partition()).isEqualTo(2);
     }
 
     @Test

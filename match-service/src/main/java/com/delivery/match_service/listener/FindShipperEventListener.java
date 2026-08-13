@@ -1,14 +1,14 @@
 package com.delivery.match_service.listener;
 
-import com.delivery.match_service.common.constants.KafkaTopicConstants;
 import com.delivery.match_service.dto.event.FindShipperEvent;
 import com.delivery.match_service.dto.event.ShipperNotFoundEvent;
 import com.delivery.match_service.dto.event.ShipperFoundEvent;
 import com.delivery.match_service.dto.request.FindNearbyShippersRequest;
 import com.delivery.match_service.dto.response.NearbyShipperResponse;
 import com.delivery.match_service.service.MatchCancellationService;
+import com.delivery.match_service.service.MatchCancellationProjectionRelay;
+import com.delivery.match_service.service.MatchCommandStore;
 import com.delivery.match_service.service.MatchService;
-import com.delivery.match_service.service.MatchEventPublisher;
 import com.delivery.match_service.service.SettlementEligibilityClient;
 import com.delivery.match_service.metrics.BusinessMetrics;
 import lombok.extern.slf4j.Slf4j;
@@ -22,12 +22,15 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Flux;
+import reactor.core.scheduler.Schedulers;
 import reactor.util.retry.Retry;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.List;
+import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.retry.annotation.Backoff;
@@ -44,12 +47,14 @@ import org.springframework.retry.annotation.Backoff;
 public class FindShipperEventListener {
 
         private final MatchService matchService;
-        private final MatchEventPublisher matchEventPublisher;
+        private final MatchCommandStore matchCommandStore;
         private final MatchCancellationService matchCancellationService;
+        private final MatchCancellationProjectionRelay cancellationProjectionRelay;
         private final SettlementEligibilityClient settlementEligibilityClient;
         private final int candidatePoolSize;
-        private final ObjectMapper objectMapper;
-        private final BusinessMetrics businessMetrics;
+	private final ObjectMapper objectMapper;
+	private final BusinessMetrics businessMetrics;
+	private final Clock clock;
 
         // ✅ Default retry configuration (nếu Saga không gửi)
         private static final int DEFAULT_MAX_RETRY_ATTEMPTS = 10;
@@ -59,31 +64,48 @@ public class FindShipperEventListener {
 
         // ✅ Constructor Injection Pattern (MANDATORY)
         @Autowired
-        public FindShipperEventListener(
+	public FindShipperEventListener(
                         MatchService matchService,
-                        MatchEventPublisher matchEventPublisher,
+                        MatchCommandStore matchCommandStore,
                         MatchCancellationService matchCancellationService,
+                        MatchCancellationProjectionRelay cancellationProjectionRelay,
                         SettlementEligibilityClient settlementEligibilityClient,
-                        BusinessMetrics businessMetrics,
-                        @Value("${matching.candidate-pool-size:20}") int candidatePoolSize) {
-                this.matchService = matchService;
-                this.matchEventPublisher = matchEventPublisher;
-                this.matchCancellationService = matchCancellationService;
-                this.settlementEligibilityClient = settlementEligibilityClient;
-                this.businessMetrics = businessMetrics;
-                this.candidatePoolSize = candidatePoolSize;
-                this.objectMapper = new ObjectMapper()
+				BusinessMetrics businessMetrics,
+				@Value("${matching.candidate-pool-size:20}") int candidatePoolSize) {
+		this(matchService, matchCommandStore, matchCancellationService, cancellationProjectionRelay, settlementEligibilityClient,
+				businessMetrics, candidatePoolSize, Clock.systemDefaultZone());
+	}
+
+	FindShipperEventListener(
+				MatchService matchService,
+				MatchCommandStore matchCommandStore,
+				MatchCancellationService matchCancellationService,
+				MatchCancellationProjectionRelay cancellationProjectionRelay,
+				SettlementEligibilityClient settlementEligibilityClient,
+				BusinessMetrics businessMetrics,
+				int candidatePoolSize,
+				Clock clock) {
+		this.matchService = matchService;
+		this.matchCommandStore = matchCommandStore;
+		this.matchCancellationService = matchCancellationService;
+		this.cancellationProjectionRelay = cancellationProjectionRelay;
+		this.settlementEligibilityClient = settlementEligibilityClient;
+		this.businessMetrics = businessMetrics;
+		this.candidatePoolSize = candidatePoolSize;
+		this.clock = clock;
+		this.objectMapper = new ObjectMapper()
                                 .registerModule(new JavaTimeModule())
                                 .configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         }
 
         /** Compatibility constructor for focused listener tests; application wiring uses MeterRegistry. */
-        FindShipperEventListener(MatchService matchService, MatchEventPublisher matchEventPublisher,
-                        MatchCancellationService matchCancellationService,
-                        SettlementEligibilityClient settlementEligibilityClient, int candidatePoolSize) {
-                this(matchService, matchEventPublisher, matchCancellationService, settlementEligibilityClient,
-                                new BusinessMetrics(new io.micrometer.core.instrument.simple.SimpleMeterRegistry()),
-                                candidatePoolSize);
+	FindShipperEventListener(MatchService matchService, MatchCommandStore matchCommandStore,
+				MatchCancellationService matchCancellationService,
+				MatchCancellationProjectionRelay cancellationProjectionRelay,
+				SettlementEligibilityClient settlementEligibilityClient, int candidatePoolSize) {
+		this(matchService, matchCommandStore, matchCancellationService, cancellationProjectionRelay, settlementEligibilityClient,
+						new BusinessMetrics(new io.micrometer.core.instrument.simple.SimpleMeterRegistry()),
+						candidatePoolSize, Clock.systemDefaultZone());
         }
 
         /**
@@ -97,8 +119,9 @@ public class FindShipperEventListener {
                         dltTopicSuffix = ".DLT",
                         autoCreateTopics = "false")
         @KafkaListener(
-                        topics = "saga.command.find-shipper",
-                        containerFactory = "reactiveKafkaListenerContainerFactory")
+                        topics = "${app.kafka.topics.find-shipper:saga.command.find-shipper}",
+                        containerFactory = "reactiveKafkaListenerContainerFactory",
+                        autoStartup = "${match.kafka.find-listener.auto-startup:${match.kafka.listener.auto-startup:true}}")
         public Mono<Void> handleFindShipperEvent(
                         String message,
                         @Header(KafkaHeaders.RECEIVED_TOPIC) String topic,
@@ -134,7 +157,19 @@ public class FindShipperEventListener {
                                                 "Invalid match contract: canonical restaurant and address text are required");
                         }
 
-                        // ✅ Start continuous shipper search with retry mechanism
+                        MatchCommandStore.CommandDecision decision =
+                                        matchCommandStore.acceptFindCommand(
+                                                        "saga.command.find-shipper", message, event);
+                        if (decision.mode() == MatchCommandStore.CommandMode.TERMINAL) {
+                                log.info("Durable Match command {} is already terminal; skipping replay",
+                                                event.getEventId());
+                                return Mono.empty();
+                        }
+                        if (decision.mode() == MatchCommandStore.CommandMode.RESUME_CANDIDATE) {
+                                return resumeStagedCandidate(event, decision.stagedCandidate());
+                        }
+
+                        // Start continuous shipper search only after the command inbox commits.
                         return startContinuousShipperSearch(event);
 
                 } catch (Exception e) {
@@ -149,7 +184,9 @@ public class FindShipperEventListener {
         /**
          * ✅ Nhận lệnh từ Saga Orchestrator: Dừng tìm shipper (khi Saga timeout hoặc Order bị huỷ)
          */
-        @KafkaListener(topics = "saga.command.stop-matching")
+        @KafkaListener(
+                        topics = "saga.command.stop-matching",
+                        autoStartup = "${match.kafka.stop-listener.auto-startup:${match.kafka.listener.auto-startup:true}}")
         public void handleStopMatchingCommand(
                         String message,
                         Acknowledgment acknowledgment) {
@@ -163,20 +200,29 @@ public class FindShipperEventListener {
                         if (!node.hasNonNull("eventId")) {
                                 throw new IllegalArgumentException("stop-matching eventId is required");
                         }
-                        java.util.UUID.fromString(node.get("eventId").asText());
+                        UUID stopEventId = UUID.fromString(node.get("eventId").asText());
                         Long deliveryId = node.has("deliveryId") ? node.get("deliveryId").asLong() : null;
                         Long orderId = node.has("orderId") ? node.get("orderId").asLong() : null;
-                        if (orderId == null || orderId <= 0) {
-                                throw new IllegalArgumentException("stop-matching orderId must be positive");
+                        if (!node.hasNonNull("matchingSessionId")) {
+                                throw new IllegalArgumentException("stop-matching matchingSessionId is required");
+                        }
+                        UUID matchingSessionId = UUID.fromString(node.get("matchingSessionId").asText());
+                        if (orderId == null || orderId <= 0 || deliveryId == null || deliveryId <= 0) {
+                                throw new IllegalArgumentException(
+                                                "stop-matching orderId and deliveryId must be positive");
                         }
                         
-                        if (deliveryId != null && deliveryId > 0) {
-                                log.warn("🛑 Received STOP_MATCHING command from Saga for delivery: {}", deliveryId);
-                                matchCancellationService.markCancelled(deliveryId);
-                        } else {
-                                log.info("STOP_MATCHING for order {} has no delivery yet; nothing to cancel", orderId);
+                        log.warn("🛑 Received STOP_MATCHING command for delivery {} generation {}",
+                                        deliveryId, matchingSessionId);
+                        // Persist the generation fence before touching the volatile Redis
+                        // projection. Once durable, Redis failure is retried from PostgreSQL
+                        // rather than exhausting the finite Kafka retry budget into a DLT.
+                        matchCommandStore.recordStopMatching(
+                                        stopEventId, orderId, deliveryId, matchingSessionId, message);
+                        if (!cancellationProjectionRelay.projectNow(deliveryId, matchingSessionId)) {
+                                log.warn("Stop-matching {} is durably fenced; Redis projection is pending recovery",
+                                                stopEventId);
                         }
-                        
                 } catch (Exception e) {
                         log.error("💥 Error processing STOP_MATCHING command: {}", e.getMessage());
                         throw new IllegalStateException("Failed to process stop-matching command", e);
@@ -190,13 +236,14 @@ public class FindShipperEventListener {
         private Mono<Void> startContinuousShipperSearch(FindShipperEvent event) {
                 AtomicInteger attemptCount = new AtomicInteger(0);
 
-                // A cancellation tombstone is monotonic for a delivery ID. Never
-                // clear it here: a delayed/retried find command must not resurrect
-                // matching after order cancellation.
-                if (matchCancellationService.isCancelled(event.getDeliveryId())) {
-                        log.info("Matching command {} ignored because delivery {} is cancelled",
-                                        event.getEventId(), event.getDeliveryId());
-                        return Mono.empty();
+                // A tombstone is monotonic for this matching generation. A
+                // delayed find must not resurrect it, while a later rematch has
+                // a different generation and remains eligible to proceed.
+                if (matchCancellationService.isCancelled(
+                                event.getDeliveryId(), matchingSessionId(event))) {
+                        log.info("Matching command {} generation {} is cancelled",
+                                        event.getEventId(), matchingSessionId(event));
+                        return cancelCommand(event);
                 }
 
                 // ✅ Convert event to request một lần
@@ -210,12 +257,27 @@ public class FindShipperEventListener {
                 final int maxDelay = event.getMaxDelaySeconds() != null ? event.getMaxDelaySeconds() : DEFAULT_MAX_DELAY_SECONDS;
                 final double backoffMulti = event.getBackoffMultiplier() != null ? event.getBackoffMultiplier() : DEFAULT_BACKOFF_MULTIPLIER;
 
+                if (matchingDeadlineReached(event)) {
+                        log.info("Matching command {} reached Saga deadline before search for delivery {}",
+                                        event.getEventId(), event.getDeliveryId());
+                        return stageShipperNotFound(event, request, 0, true);
+                }
+
                 // ✅ Reactive retry với exponential backoff
-                return matchService.findNearbyShippers(request, systemUserId, systemRole)
+		return Mono.defer(() -> {
+				if (matchingDeadlineReached(event)) {
+					return Mono.<List<NearbyShipperResponse>>error(new MatchingDeadlineExceededException());
+				}
+				return matchService.findNearbyShippers(request, systemUserId, systemRole);
+			})
                                 // ✅ Cancel fast: if delivery already cancelled, stop chain immediately
                                 .flatMap(shippers -> {
-                                        if (matchCancellationService.isCancelled(event.getDeliveryId())) {
+                                        if (matchCancellationService.isCancelled(
+                                                        event.getDeliveryId(), matchingSessionId(event))) {
                                                 return Mono.error(new MatchingCancelledException());
+                                        }
+                                        if (matchingDeadlineReached(event)) {
+                                                return Mono.error(new MatchingDeadlineExceededException());
                                         }
                                         return Mono.just(shippers);
                                 })
@@ -246,25 +308,31 @@ public class FindShipperEventListener {
                                                 new NoShipperAvailableException("No shippers found for delivery: "
                                                                 + event.getDeliveryId()));
                         }
-                })
+                                })
                                 .flatMap(shippers -> selectEligibleShipper(event, shippers))
                                 .flatMap(shippers -> {
-                                        NearbyShipperResponse selected = shippers.get(0);
-                                        if (matchService.tryReserveShipperOffer(
-                                                        selected.getShipperId(), event.getDeliveryId(), 180)) {
-                                                return Mono.just(List.of(selected));
+                                        if (matchingDeadlineReached(event)) {
+                                                return Mono.error(new MatchingDeadlineExceededException());
                                         }
-                                        return Mono.error(new NoShipperAvailableException(
-                                                        "No shippers found for delivery: " + event.getDeliveryId()
-                                                                        + " (reservation race)"));
+                                        ShipperFoundEvent proposed = createShipperFoundEvent(event, shippers);
+                                        return Mono.fromCallable(() -> matchCommandStore.stageCandidate(
+                                                        event.getEventId(), proposed))
+                                                        .subscribeOn(Schedulers.boundedElastic())
+                                                        .flatMap(candidate -> {
+                                                                if (candidate == null) {
+                                                                        return Mono.<Void>empty();
+                                                                }
+                                                                return reserveAndStageCandidate(event, candidate);
+                                                        });
                                 })
-                                .retryWhen(Retry.backoff(maxRetries, Duration.ofSeconds(initialDelay))
-                                                .maxBackoff(Duration.ofSeconds(maxDelay))
-                                                .multiplier(backoffMulti)
+			.retryWhen(Retry.backoff(maxRetries, Duration.ofSeconds(initialDelay))
+						.maxBackoff(Duration.ofSeconds(maxDelay))
+						.multiplier(backoffMulti)
+						.jitter(0d)
                                                 .doBeforeRetry(retrySignal -> {
                                                         // ✅ Nếu đã cancel thì đừng schedule retry nữa
-                                                        if (matchCancellationService
-                                                                        .isCancelled(event.getDeliveryId())) {
+                                                        if (matchCancellationService.isCancelled(
+                                                                        event.getDeliveryId(), matchingSessionId(event))) {
                                                                 throw new MatchingCancelledException();
                                                         }
 
@@ -278,6 +346,10 @@ public class FindShipperEventListener {
                                                                                                         * 1000),
                                                                                         maxDelay * 1000L);
 
+                                                        if (!canRetryBeforeDeadline(event, delayMs)) {
+                                                                throw new MatchingDeadlineExceededException();
+                                                        }
+
                                                         log.info("🔄 Retry attempt {}/{} for delivery: {} - Next retry in {}ms",
                                                                         attempt, maxRetries,
                                                                         event.getDeliveryId(), delayMs);
@@ -285,31 +357,21 @@ public class FindShipperEventListener {
                                                 .filter(throwable -> {
                                                         // ✅ Chỉ retry nếu không tìm thấy shipper (empty result)
                                                         // Không retry nếu có lỗi system khác
-                                                        return throwable instanceof NoShipperAvailableException;
+                                                        return throwable instanceof NoShipperAvailableException
+                                                                        && !matchingDeadlineReached(event);
                                                 }))
-                                .flatMap(shippers -> {
-                                        if (matchCancellationService.isCancelled(event.getDeliveryId())) {
-                                                NearbyShipperResponse selected = shippers.get(0);
-                                                matchService.releaseShipperOffer(
-                                                                selected.getShipperId(), event.getDeliveryId());
-                                                log.info("🛑 Delivery {} cancelled while matching; skip publish found event",
-                                                                event.getDeliveryId());
-                                                return Mono.<Void>empty();
-                                        }
-
-                                        log.info("✅ Selected nearest shipper from {} candidates for delivery: {} after {} attempts",
-                                                        shippers.size(), event.getDeliveryId(), attemptCount.get() + 1);
-                                        matchEventPublisher.publishShipperFoundEvent(
-                                                        createShipperFoundEvent(event, shippers));
-                                        log.info("✅ Published single-shipper offer candidate for delivery: {}",
-                                                        event.getDeliveryId());
-                                        return Mono.<Void>empty();
-                                })
                                 .onErrorResume(error -> {
                                         if (hasCause(error, MatchingCancelledException.class)) {
                                                 log.info("🛑 Matching stopped because delivery {} was cancelled",
                                                                 event.getDeliveryId());
-                                                return Mono.<Void>empty();
+                                                return cancelCommand(event);
+                                        }
+
+                                        if (hasCause(error, MatchingDeadlineExceededException.class)) {
+                                                log.info("Matching deadline reached for delivery {} after {} attempts",
+                                                                event.getDeliveryId(), attemptCount.get() + 1);
+                                                return stageShipperNotFound(
+                                                                event, request, attemptCount.get() + 1, true);
                                         }
 
                                         log.error("💥 Failed to find shippers for delivery: {} after {} attempts - Error: {}",
@@ -320,19 +382,143 @@ public class FindShipperEventListener {
                                                 return Mono.<Void>error(error);
                                         }
 
-                                        ShipperNotFoundEvent notFoundEvent = new ShipperNotFoundEvent(
-                                                        event.getDeliveryId(), event.getOrderId(), maxRetries);
-                                        notFoundEvent.setEventId(outcomeEventId(
-                                                        "shipper-not-found", event.getEventId()).toString());
-                                        notFoundEvent.setSearchRadius(request.getRadiusKm());
-                                        notFoundEvent.setPickupLat(request.getLatitude());
-                                        notFoundEvent.setPickupLng(request.getLongitude());
-                                        matchEventPublisher.publishShipperNotFoundEvent(notFoundEvent);
-                                        businessMetrics.record("shipper_not_found");
-                                        log.info("✅ Published ShipperNotFoundEvent for delivery: {} after {} failed attempts",
-                                                        event.getDeliveryId(), maxRetries);
+                                        return stageShipperNotFound(event, request, maxRetries, false);
+                                });
+        }
+
+        private Mono<Void> resumeStagedCandidate(
+                        FindShipperEvent event,
+                        ShipperFoundEvent candidate) {
+                if (candidate == null) {
+                        return startContinuousShipperSearch(event);
+                }
+                FindNearbyShippersRequest request = createFindShippersRequest(event);
+                if (matchCancellationService.isCancelled(
+                                event.getDeliveryId(), matchingSessionId(event))) {
+                        return cancelCommand(event);
+                }
+                if (matchingDeadlineReached(event)) {
+                        return stageShipperNotFound(event, request, 0, true);
+                }
+                return reserveAndStageCandidate(event, candidate)
+                                .onErrorResume(error -> {
+                                        if (hasCause(error, MatchingDeadlineExceededException.class)) {
+                                                return stageShipperNotFound(event, request, 0, true);
+                                        }
+                                        if (hasCause(error, NoShipperAvailableException.class)) {
+                                                return startContinuousShipperSearch(event);
+                                        }
+                                        return Mono.error(error);
+                                });
+        }
+
+        private Mono<Void> reserveAndStageCandidate(
+                        FindShipperEvent event,
+                        ShipperFoundEvent candidate) {
+                Long shipperId = candidate.getAvailableShippers().get(0).getShipperId();
+                return Mono.defer(() -> {
+                        if (matchCancellationService.isCancelled(
+                                        event.getDeliveryId(), matchingSessionId(event))) {
+                                return cancelCommand(event);
+                        }
+                        if (matchingDeadlineReached(event)) {
+                                return Mono.<Void>error(new MatchingDeadlineExceededException());
+                        }
+                        return Mono.fromCallable(() -> matchService.tryReserveShipperOffer(
+                                        shipperId, event.getDeliveryId(), matchingSessionId(event), 180))
+                                        .subscribeOn(Schedulers.boundedElastic())
+                                        .flatMap(reserved -> {
+                                                if (!reserved) {
+                                                        return clearCandidateAndRetry(event,
+                                                                        "reservation race");
+                                                }
+                                                if (matchCancellationService.isCancelled(
+                                                                event.getDeliveryId(), matchingSessionId(event))) {
+                                                        return releaseCandidate(event, shipperId)
+                                                                        .then(cancelCommand(event));
+                                                }
+                                                if (matchingDeadlineReached(event)) {
+                                                        return releaseCandidate(event, shipperId)
+                                                                        .then(Mono.<Void>error(
+                                                                                        new MatchingDeadlineExceededException()));
+                                                }
+                                                return Mono.fromCallable(() -> matchCommandStore.stageFoundResult(
+                                                                event.getEventId(), candidate))
+                                                                .subscribeOn(Schedulers.boundedElastic())
+                                                                .flatMap(staged -> {
+                                                                        if (!staged) {
+                                                                                return releaseCandidate(event, shipperId);
+                                                                        }
+                                                                        businessMetrics.record("shipper_found");
+                                                                        log.info("✅ Staged durable single-shipper result for delivery: {}",
+                                                                                        event.getDeliveryId());
+                                                                        return Mono.<Void>empty();
+                                                                });
+                                        });
+                });
+        }
+
+        private Mono<Void> clearCandidateAndRetry(FindShipperEvent event, String reason) {
+                return Mono.fromRunnable(() -> matchCommandStore.clearStagedCandidate(event.getEventId()))
+                                .subscribeOn(Schedulers.boundedElastic())
+                                .then(Mono.<Void>error(new NoShipperAvailableException(
+                                                "No shippers found for delivery: " + event.getDeliveryId()
+                                                                + " (" + reason + ")")));
+        }
+
+        private Mono<Void> releaseCandidate(FindShipperEvent event, Long shipperId) {
+                return Mono.fromRunnable(() -> matchService.releaseShipperOffer(
+                                shipperId, event.getDeliveryId(), matchingSessionId(event)))
+                                .subscribeOn(Schedulers.boundedElastic())
+                                .then();
+        }
+
+        private Mono<Void> cancelCommand(FindShipperEvent event) {
+                return Mono.fromRunnable(() -> matchCommandStore.cancelCommand(event.getEventId()))
+                                .subscribeOn(Schedulers.boundedElastic())
+                                .then();
+        }
+
+        private Mono<Void> stageShipperNotFound(
+                        FindShipperEvent event,
+                        FindNearbyShippersRequest request,
+                        int attempts,
+                        boolean deadlineTerminal) {
+                ShipperNotFoundEvent notFoundEvent = new ShipperNotFoundEvent(
+                                event.getDeliveryId(), event.getOrderId(), Math.max(0, attempts));
+                notFoundEvent.setEventId(outcomeEventId(
+                                "shipper-not-found", event.getEventId()).toString());
+                notFoundEvent.setMatchingSessionId(matchingSessionId(event).toString());
+                notFoundEvent.setSearchRadius(request.getRadiusKm());
+                notFoundEvent.setPickupLat(request.getLatitude());
+                notFoundEvent.setPickupLng(request.getLongitude());
+                return Mono.fromCallable(() -> matchCommandStore.stageNotFoundResult(
+                                event.getEventId(), notFoundEvent, deadlineTerminal))
+                                .subscribeOn(Schedulers.boundedElastic())
+                                .flatMap(decision -> {
+                                        if (decision.stagedCandidate() != null) {
+                                                return resumeStagedCandidate(event, decision.stagedCandidate());
+                                        }
+                                        if (decision.staged()) {
+                                                businessMetrics.record("shipper_not_found");
+                                                log.info("✅ Staged durable ShipperNotFoundEvent for delivery: {} after {} failed attempts",
+                                                                event.getDeliveryId(), attempts);
+                                        }
                                         return Mono.<Void>empty();
                                 });
+        }
+
+	private boolean matchingDeadlineReached(FindShipperEvent event) {
+		return event.getMatchingDeadlineAt() != null
+				&& !event.getMatchingDeadlineAt().isAfter(java.time.LocalDateTime.now(clock));
+        }
+
+        private boolean canRetryBeforeDeadline(FindShipperEvent event, long delayMs) {
+                if (event.getMatchingDeadlineAt() == null) {
+                        return true;
+                }
+		return java.time.LocalDateTime.now(clock).plusNanos(delayMs * 1_000_000L)
+				.isBefore(event.getMatchingDeadlineAt());
         }
 
         private boolean hasCause(Throwable error, Class<? extends Throwable> causeType) {
@@ -355,6 +541,12 @@ public class FindShipperEventListener {
         private static final class MatchingCancelledException extends RuntimeException {
                 private MatchingCancelledException() {
                         super("DELIVERY_CANCELLED");
+                }
+        }
+
+        private static final class MatchingDeadlineExceededException extends RuntimeException {
+                private MatchingDeadlineExceededException() {
+                        super("MATCHING_DEADLINE_EXCEEDED");
                 }
         }
 
@@ -416,7 +608,7 @@ public class FindShipperEventListener {
                 ShipperFoundEvent foundEvent = new ShipperFoundEvent(event.getDeliveryId(), event.getOrderId(),
                                 matchResults);
                 foundEvent.setEventId(outcomeEventId("shipper-found", event.getEventId()).toString());
-                foundEvent.setMatchingSessionId(event.getEventId().toString());
+                foundEvent.setMatchingSessionId(matchingSessionId(event).toString());
 
                 // ✅ Set additional info từ FindShipperEvent
                 foundEvent.setRestaurantName(event.getRestaurantName());
@@ -430,6 +622,14 @@ public class FindShipperEventListener {
                 foundEvent.setPaymentMethod(event.getPaymentMethod());
 
                 return foundEvent;
+        }
+
+        private UUID matchingSessionId(FindShipperEvent event) {
+                // V1 commands had no explicit session; their command event ID
+                // is the only safe generation identity during the rollout.
+                return event.getMatchingSessionId() == null
+                                ? event.getEventId()
+                                : event.getMatchingSessionId();
         }
 
         private java.util.UUID outcomeEventId(String outcome, java.util.UUID commandEventId) {
