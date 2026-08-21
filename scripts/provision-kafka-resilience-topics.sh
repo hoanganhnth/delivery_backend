@@ -444,6 +444,18 @@ if [[ "$PROVISION_LEGACY_SHARED_RETRY_TOPICS" == "true" ]]; then
 fi
 provision_match_retry_source "saga.command.find-shipper"
 
+# The simulator's algorithm observer consumes this source with a separate,
+# read-only group. It intentionally has no business retry/DLT topology; verify
+# that an operator provisioned the canonical source before enabling the
+# observer instead of relying on Kafka auto-creation.
+observer_source_topics=(
+  matching.decision-trace
+)
+for source in "${observer_source_topics[@]}"; do
+  printf 'Verified read-only observer source=%s partitions=%s\n' \
+    "$source" "$(topic_partitions "$source")"
+done
+
 # Normal (blocking-retry) listeners that publish source.DLT directly. Some
 # sources also have a non-blocking retry owner above; provisioning is
 # intentionally idempotent in that case.

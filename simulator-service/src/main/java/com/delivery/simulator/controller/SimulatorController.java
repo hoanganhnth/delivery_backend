@@ -54,6 +54,13 @@ public class SimulatorController {
         return simulationService.snapshot(runId);
     }
 
+    @GetMapping("/runs/{runId}/algorithm-traces")
+    public Object traces(@RequestHeader(value = "X-Simulator-Token", required = false) String token,
+                         @PathVariable String runId) {
+        authorize(token);
+        return simulationService.snapshot(runId).get("algorithmTraces");
+    }
+
     @GetMapping(value = "/runs/{runId}/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter stream(@RequestHeader(value = "X-Simulator-Token", required = false) String token,
                              @PathVariable String runId) {

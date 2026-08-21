@@ -1,6 +1,7 @@
 package com.delivery.match_service.listener;
 
 import com.delivery.match_service.dto.event.FindShipperEvent;
+import com.delivery.match_service.dto.event.MatchingDecisionTraceEvent;
 import com.delivery.match_service.dto.event.ShipperNotFoundEvent;
 import com.delivery.match_service.dto.event.ShipperFoundEvent;
 import com.delivery.match_service.dto.request.FindNearbyShippersRequest;
@@ -27,8 +28,13 @@ import reactor.util.retry.Retry;
 
 import java.time.Clock;
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.ArrayList;
+import java.util.EnumMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
@@ -235,6 +241,7 @@ public class FindShipperEventListener {
          */
         private Mono<Void> startContinuousShipperSearch(FindShipperEvent event) {
                 AtomicInteger attemptCount = new AtomicInteger(0);
+                DecisionTraceAccumulator trace = new DecisionTraceAccumulator();
 
                 // A tombstone is monotonic for this matching generation. A
                 // delayed find must not resurrect it, while a later rematch has
@@ -260,7 +267,7 @@ public class FindShipperEventListener {
                 if (matchingDeadlineReached(event)) {
                         log.info("Matching command {} reached Saga deadline before search for delivery {}",
                                         event.getEventId(), event.getDeliveryId());
-                        return stageShipperNotFound(event, request, 0, true);
+                        return stageShipperNotFound(event, request, 0, true, trace);
                 }
 
                 // ✅ Reactive retry với exponential backoff
@@ -268,7 +275,10 @@ public class FindShipperEventListener {
 				if (matchingDeadlineReached(event)) {
 					return Mono.<List<NearbyShipperResponse>>error(new MatchingDeadlineExceededException());
 				}
-				return matchService.findNearbyShippers(request, systemUserId, systemRole);
+				trace.recordSearchAttempt();
+				trace.startStage(TraceStage.GEO_QUERY);
+				return matchService.findNearbyShippers(request, systemUserId, systemRole)
+						.doFinally(signal -> trace.finishStage(TraceStage.GEO_QUERY));
 			})
                                 // ✅ Cancel fast: if delivery already cancelled, stop chain immediately
                                 .flatMap(shippers -> {
@@ -282,6 +292,7 @@ public class FindShipperEventListener {
                                         return Mono.just(shippers);
                                 })
                 .flatMap(shippers -> {
+                        trace.observeGeo(shippers);
                         if (shippers != null && !shippers.isEmpty()) {
                                 // ✅ Filter out excluded shippers (previously rejected this order)
                                 java.util.List<Long> excluded = event.getExcludedShipperIds();
@@ -289,6 +300,10 @@ public class FindShipperEventListener {
                                         List<NearbyShipperResponse> filtered = shippers.stream()
                                                 .filter(s -> !excluded.contains(s.getShipperId()))
                                                 .collect(java.util.stream.Collectors.toList());
+
+                                        shippers.stream()
+                                                .filter(s -> excluded.contains(s.getShipperId()))
+                                                .forEach(s -> trace.markExcluded(s.getShipperId()));
                                         
                                         log.info("🔍 Filtered shippers: {} total, {} excluded, {} remaining for delivery: {}",
                                                 shippers.size(), excluded.size(), filtered.size(), event.getDeliveryId());
@@ -309,7 +324,7 @@ public class FindShipperEventListener {
                                                                 + event.getDeliveryId()));
                         }
                                 })
-                                .flatMap(shippers -> selectEligibleShipper(event, shippers))
+                                .flatMap(shippers -> selectEligibleShipper(event, shippers, trace))
                                 .flatMap(shippers -> {
                                         if (matchingDeadlineReached(event)) {
                                                 return Mono.error(new MatchingDeadlineExceededException());
@@ -322,7 +337,8 @@ public class FindShipperEventListener {
                                                                 if (candidate == null) {
                                                                         return Mono.<Void>empty();
                                                                 }
-                                                                return reserveAndStageCandidate(event, candidate);
+                                                                return reserveAndStageCandidate(
+                                                                                event, candidate, request, trace);
                                                         });
                                 })
 			.retryWhen(Retry.backoff(maxRetries, Duration.ofSeconds(initialDelay))
@@ -371,7 +387,7 @@ public class FindShipperEventListener {
                                                 log.info("Matching deadline reached for delivery {} after {} attempts",
                                                                 event.getDeliveryId(), attemptCount.get() + 1);
                                                 return stageShipperNotFound(
-                                                                event, request, attemptCount.get() + 1, true);
+                                                        event, request, attemptCount.get() + 1, true, trace);
                                         }
 
                                         log.error("💥 Failed to find shippers for delivery: {} after {} attempts - Error: {}",
@@ -382,7 +398,7 @@ public class FindShipperEventListener {
                                                 return Mono.<Void>error(error);
                                         }
 
-                                        return stageShipperNotFound(event, request, maxRetries, false);
+                                        return stageShipperNotFound(event, request, maxRetries, false, trace);
                                 });
         }
 
@@ -393,17 +409,19 @@ public class FindShipperEventListener {
                         return startContinuousShipperSearch(event);
                 }
                 FindNearbyShippersRequest request = createFindShippersRequest(event);
+                DecisionTraceAccumulator trace = new DecisionTraceAccumulator();
+                trace.markResumed(candidate);
                 if (matchCancellationService.isCancelled(
                                 event.getDeliveryId(), matchingSessionId(event))) {
                         return cancelCommand(event);
                 }
                 if (matchingDeadlineReached(event)) {
-                        return stageShipperNotFound(event, request, 0, true);
+                        return stageShipperNotFound(event, request, 0, true, trace);
                 }
-                return reserveAndStageCandidate(event, candidate)
+                return reserveAndStageCandidate(event, candidate, request, trace)
                                 .onErrorResume(error -> {
                                         if (hasCause(error, MatchingDeadlineExceededException.class)) {
-                                                return stageShipperNotFound(event, request, 0, true);
+                                                return stageShipperNotFound(event, request, 0, true, trace);
                                         }
                                         if (hasCause(error, NoShipperAvailableException.class)) {
                                                 return startContinuousShipperSearch(event);
@@ -414,7 +432,9 @@ public class FindShipperEventListener {
 
         private Mono<Void> reserveAndStageCandidate(
                         FindShipperEvent event,
-                        ShipperFoundEvent candidate) {
+                        ShipperFoundEvent candidate,
+                        FindNearbyShippersRequest request,
+                        DecisionTraceAccumulator trace) {
                 Long shipperId = candidate.getAvailableShippers().get(0).getShipperId();
                 return Mono.defer(() -> {
                         if (matchCancellationService.isCancelled(
@@ -424,20 +444,26 @@ public class FindShipperEventListener {
                         if (matchingDeadlineReached(event)) {
                                 return Mono.<Void>error(new MatchingDeadlineExceededException());
                         }
+                        trace.startStage(TraceStage.RESERVE);
+                        trace.markReservationAttempted();
                         return Mono.fromCallable(() -> matchService.tryReserveShipperOffer(
                                         shipperId, event.getDeliveryId(), matchingSessionId(event), 180))
                                         .subscribeOn(Schedulers.boundedElastic())
+                                        .doFinally(signal -> trace.finishStage(TraceStage.RESERVE))
                                         .flatMap(reserved -> {
                                                 if (!reserved) {
+                                                        trace.markReservation(false);
                                                         return clearCandidateAndRetry(event,
                                                                         "reservation race");
                                                 }
                                                 if (matchCancellationService.isCancelled(
                                                                 event.getDeliveryId(), matchingSessionId(event))) {
+                                                        trace.markReservationReleased("Reservation released after cancellation");
                                                         return releaseCandidate(event, shipperId)
                                                                         .then(cancelCommand(event));
                                                 }
                                                 if (matchingDeadlineReached(event)) {
+                                                        trace.markReservationReleased("Reservation released after matching deadline");
                                                         return releaseCandidate(event, shipperId)
                                                                         .then(Mono.<Void>error(
                                                                                         new MatchingDeadlineExceededException()));
@@ -445,11 +471,24 @@ public class FindShipperEventListener {
                                                 return Mono.fromCallable(() -> matchCommandStore.stageFoundResult(
                                                                 event.getEventId(), candidate))
                                                                 .subscribeOn(Schedulers.boundedElastic())
-                                                                .flatMap(staged -> {
-                                                                        if (!staged) {
-                                                                                return releaseCandidate(event, shipperId);
-                                                                        }
-                                                                        businessMetrics.record("shipper_found");
+                                                                        .flatMap(staged -> {
+                                                                                if (!staged) {
+                                                                                        return releaseCandidate(event, shipperId);
+                                                                                }
+                                                                                trace.markReservation(true);
+                                                                                trace.markSelected(shipperId);
+                                                                                MatchingDecisionTraceEvent decisionTrace =
+                                                                                                createDecisionTrace(
+                                                                                                                event,
+                                                                                                                request,
+                                                                                                                trace,
+                                                                                                                "SHIPPER_SELECTED",
+                                                                                                                shipperId,
+                                                                                                                trace.attemptCount());
+                                                                                persistDecisionTraceBestEffort(
+                                                                                                event.getEventId(),
+                                                                                                decisionTrace);
+                                                                                businessMetrics.record("shipper_found");
                                                                         log.info("✅ Staged durable single-shipper result for delivery: {}",
                                                                                         event.getDeliveryId());
                                                                         return Mono.<Void>empty();
@@ -483,7 +522,8 @@ public class FindShipperEventListener {
                         FindShipperEvent event,
                         FindNearbyShippersRequest request,
                         int attempts,
-                        boolean deadlineTerminal) {
+                        boolean deadlineTerminal,
+                        DecisionTraceAccumulator trace) {
                 ShipperNotFoundEvent notFoundEvent = new ShipperNotFoundEvent(
                                 event.getDeliveryId(), event.getOrderId(), Math.max(0, attempts));
                 notFoundEvent.setEventId(outcomeEventId(
@@ -500,6 +540,16 @@ public class FindShipperEventListener {
                                                 return resumeStagedCandidate(event, decision.stagedCandidate());
                                         }
                                         if (decision.staged()) {
+                                                MatchingDecisionTraceEvent decisionTrace =
+                                                                createDecisionTrace(
+                                                                                event,
+                                                                                request,
+                                                                                trace,
+                                                                                "SHIPPER_NOT_FOUND",
+                                                                                null,
+                                                                                attempts);
+                                                persistDecisionTraceBestEffort(
+                                                                event.getEventId(), decisionTrace);
                                                 businessMetrics.record("shipper_not_found");
                                                 log.info("✅ Staged durable ShipperNotFoundEvent for delivery: {} after {} failed attempts",
                                                                 event.getDeliveryId(), attempts);
@@ -639,15 +689,274 @@ public class FindShipperEventListener {
 
         private Mono<List<NearbyShipperResponse>> selectEligibleShipper(
                         FindShipperEvent event,
-                        List<NearbyShipperResponse> shippers) {
+                        List<NearbyShipperResponse> shippers,
+                        DecisionTraceAccumulator trace) {
+                trace.startStage(TraceStage.COD_ELIGIBILITY);
                 return Flux.fromIterable(shippers)
                                 .concatMap(shipper -> settlementEligibilityClient
                                                 .isCodEligible(shipper.getShipperId(), event.getTotalPrice())
-                                                .filter(Boolean::booleanValue)
-                                                .map(ignored -> shipper))
+                                                .flatMap(eligible -> {
+                                                        trace.markCodEligibility(
+                                                                        shipper.getShipperId(), eligible);
+                                                        return Boolean.TRUE.equals(eligible)
+                                                                        ? Mono.just(shipper)
+                                                                        : Mono.empty();
+                                                }))
                                 .next()
                                 .map(List::of)
                                 .switchIfEmpty(Mono.error(new NoShipperAvailableException(
-                                                "No COD-eligible shipper found for delivery: " + event.getDeliveryId())));
+                                        "No COD-eligible shipper found for delivery: " + event.getDeliveryId())))
+                                .doFinally(signal -> trace.finishStage(TraceStage.COD_ELIGIBILITY));
+        }
+
+        private void persistDecisionTraceBestEffort(
+                        UUID commandId,
+                        MatchingDecisionTraceEvent trace) {
+                try {
+                        matchCommandStore.stageDecisionTrace(commandId, trace);
+                } catch (RuntimeException exception) {
+                        // A trace is observability only. Do not turn a durable
+                        // assignment/not-found result into a business retry.
+                        log.warn("Unable to persist Match decision trace for command {}: {}",
+                                        commandId, exception.getMessage());
+                }
+        }
+
+        private MatchingDecisionTraceEvent createDecisionTrace(
+                        FindShipperEvent event,
+                        FindNearbyShippersRequest request,
+                        DecisionTraceAccumulator trace,
+                        String decision,
+                        Long selectedShipperId,
+                        int attempts) {
+                MatchingDecisionTraceEvent result = new MatchingDecisionTraceEvent();
+                result.setEventId(outcomeEventId("decision-trace", event.getEventId()));
+                result.setCommandEventId(event.getEventId());
+                result.setMatchingSessionId(matchingSessionId(event).toString());
+                result.setOrderId(event.getOrderId());
+                result.setDeliveryId(event.getDeliveryId());
+                result.setDecision(decision);
+                result.setPickupLat(request.getLatitude());
+                result.setPickupLng(request.getLongitude());
+                result.setRadiusKm(request.getRadiusKm());
+                result.setCandidatePoolSize(candidatePoolSize);
+                result.setAttempts(Math.max(Math.max(0, attempts), trace.attemptCount()));
+                result.setLatencyMs(trace.elapsedMs());
+                result.setOccurredAt(java.time.Instant.now(clock));
+                result.setSelectedShipperId(selectedShipperId);
+                result.setCandidates(trace.snapshot());
+                result.setNotes(new ArrayList<>(trace.notes()));
+
+                MatchingDecisionTraceEvent.Stage geo = new MatchingDecisionTraceEvent.Stage();
+                geo.setName("GEO_QUERY");
+                geo.setResult(trace.geoResult());
+                geo.setCandidateCount(trace.geoCandidateCount());
+                geo.setLatencyMs(trace.stageLatencyMs(TraceStage.GEO_QUERY));
+                geo.setDetail("Candidate list is post GEO online/fresh/busy/offer filtering");
+                result.getStages().add(geo);
+
+                MatchingDecisionTraceEvent.Stage cod = new MatchingDecisionTraceEvent.Stage();
+                cod.setName("COD_ELIGIBILITY");
+                cod.setResult(trace.codResult());
+                cod.setCandidateCount(trace.codChecks());
+                cod.setLatencyMs(trace.stageLatencyMs(TraceStage.COD_ELIGIBILITY));
+                cod.setDetail("Settlement eligibility checked sequentially before reserve");
+                result.getStages().add(cod);
+
+                MatchingDecisionTraceEvent.Stage reserve = new MatchingDecisionTraceEvent.Stage();
+                reserve.setName("RESERVE");
+                reserve.setResult(trace.reservationResult());
+                reserve.setCandidateCount(selectedShipperId == null ? 0 : 1);
+                reserve.setLatencyMs(trace.stageLatencyMs(TraceStage.RESERVE));
+                result.getStages().add(reserve);
+
+                MatchingDecisionTraceEvent.Stage outcome = new MatchingDecisionTraceEvent.Stage();
+                outcome.setName("OUTCOME");
+                outcome.setResult(decision);
+                outcome.setCandidateCount(selectedShipperId == null ? 0 : 1);
+                outcome.setDetail(selectedShipperId == null
+                        ? "No candidate passed the active matching path"
+                        : "One candidate was selected and the durable result was staged");
+                result.getStages().add(outcome);
+                return result;
+        }
+
+        private enum TraceStage {
+                GEO_QUERY,
+                COD_ELIGIBILITY,
+                RESERVE
+        }
+
+        private static final class DecisionTraceAccumulator {
+                private final Map<Long, MatchingDecisionTraceEvent.Candidate> candidates =
+                                new LinkedHashMap<>();
+                private final List<String> notes = new ArrayList<>();
+                private final Map<TraceStage, Long> stageStartedNanos = new EnumMap<>(TraceStage.class);
+                private final Map<TraceStage, Long> stageElapsedNanos = new EnumMap<>(TraceStage.class);
+                private final long startedNanos = System.nanoTime();
+                private int geoCandidateCount;
+                private int codChecks;
+                private int codRejected;
+                private int searchAttempts;
+                private boolean geoObserved;
+                private boolean geoHadCandidates;
+                private boolean resumed;
+                private boolean reservationAttempted;
+                private boolean reservationLost;
+                private boolean reservationReleased;
+                private boolean reservationWon;
+
+                void recordSearchAttempt() {
+                        searchAttempts++;
+                }
+
+                int attemptCount() {
+                        return searchAttempts;
+                }
+
+                long elapsedMs() {
+                        return Math.max(0L, (System.nanoTime() - startedNanos) / 1_000_000L);
+                }
+
+                void startStage(TraceStage stage) {
+                        stageStartedNanos.put(stage, System.nanoTime());
+                }
+
+                void finishStage(TraceStage stage) {
+                        Long started = stageStartedNanos.remove(stage);
+                        if (started != null) {
+                                stageElapsedNanos.merge(stage, System.nanoTime() - started, Long::sum);
+                        }
+                }
+
+                long stageLatencyMs(TraceStage stage) {
+                        return Math.max(0L, stageElapsedNanos.getOrDefault(stage, 0L) / 1_000_000L);
+                }
+
+                void observeGeo(List<NearbyShipperResponse> shippers) {
+                        geoObserved = true;
+                        geoCandidateCount = Math.max(geoCandidateCount, shippers == null ? 0 : shippers.size());
+                        if (shippers == null) return;
+                        geoHadCandidates |= !shippers.isEmpty();
+                        int rank = 1;
+                        for (NearbyShipperResponse shipper : shippers) {
+                                if (shipper == null || shipper.getShipperId() == null) continue;
+                                MatchingDecisionTraceEvent.Candidate candidate = candidates.computeIfAbsent(
+                                                shipper.getShipperId(), ignored -> new MatchingDecisionTraceEvent.Candidate());
+                                candidate.setShipperId(shipper.getShipperId());
+                                candidate.setLatitude(shipper.getLatitude());
+                                candidate.setLongitude(shipper.getLongitude());
+                                candidate.setDistanceKm(shipper.getDistanceKm());
+                                candidate.setOnline(shipper.isOnline());
+                                candidate.setRank(rank++);
+                                if (!"REJECTED".equals(candidate.getState())) {
+                                        candidate.setState("GEO_ELIGIBLE");
+                                }
+                        }
+                }
+
+                void markExcluded(Long shipperId) {
+                        MatchingDecisionTraceEvent.Candidate candidate = candidates.get(shipperId);
+                        if (candidate != null) {
+                                candidate.setState("REJECTED");
+                                addReason(candidate, "EXCLUDED_BY_SAGA");
+                        }
+                }
+
+                void markCodEligibility(Long shipperId, Boolean eligible) {
+                        codChecks++;
+                        MatchingDecisionTraceEvent.Candidate candidate = candidates.get(shipperId);
+                        if (candidate == null) return;
+                        candidate.setCodEligible(eligible);
+                        if (!Boolean.TRUE.equals(eligible)) {
+                                codRejected++;
+                                candidate.setState("REJECTED");
+                                addReason(candidate, "COD_NOT_ELIGIBLE");
+                        } else if (!"REJECTED".equals(candidate.getState())) {
+                                candidate.setState("COD_ELIGIBLE");
+                        }
+                }
+
+                void markResumed(ShipperFoundEvent candidateEvent) {
+                        resumed = true;
+                        notes.add("Resumed a durable candidate staged by an earlier Match attempt");
+                        if (candidateEvent == null || candidateEvent.getAvailableShippers() == null
+                                        || candidateEvent.getAvailableShippers().isEmpty()) {
+                                return;
+                        }
+                        ShipperFoundEvent.ShipperMatchResult source = candidateEvent.getAvailableShippers().get(0);
+                        if (source == null || source.getShipperId() == null) return;
+                        MatchingDecisionTraceEvent.Candidate candidate = candidates.computeIfAbsent(
+                                        source.getShipperId(), ignored -> new MatchingDecisionTraceEvent.Candidate());
+                        candidate.setShipperId(source.getShipperId());
+                        candidate.setLatitude(source.getLatitude());
+                        candidate.setLongitude(source.getLongitude());
+                        candidate.setDistanceKm(source.getDistanceKm());
+                        candidate.setOnline(source.getIsOnline());
+                        candidate.setRank(1);
+                        candidate.setState("STAGED_REPLAY");
+                        addReason(candidate, "RESUMED_FROM_DURABLE_CANDIDATE");
+                        geoObserved = true;
+                        geoHadCandidates = true;
+                        geoCandidateCount = Math.max(geoCandidateCount, 1);
+                }
+
+                void markReservationAttempted() {
+                        reservationAttempted = true;
+                }
+
+                void markReservation(boolean won) {
+                        reservationWon = won;
+                        reservationLost = !won;
+                        if (!won) addNote("Reservation lost a concurrent ownership race");
+                }
+
+                void markReservationReleased(String reason) {
+                        reservationReleased = true;
+                        addNote(reason);
+                }
+
+                void markSelected(Long shipperId) {
+                        MatchingDecisionTraceEvent.Candidate candidate = candidates.get(shipperId);
+                        if (candidate != null) candidate.setState("SELECTED");
+                }
+
+                List<MatchingDecisionTraceEvent.Candidate> snapshot() {
+                        return new ArrayList<>(candidates.values());
+                }
+
+                String geoResult() {
+                        if (resumed) return "RESUMED";
+                        if (!geoObserved) return "NOT_RUN";
+                        return geoHadCandidates ? "OBSERVED" : "EMPTY";
+                }
+
+                String codResult() {
+                        if (codChecks == 0) return "NOT_RUN";
+                        return codRejected > 0 ? "FILTERED" : "PASSED";
+                }
+
+                String reservationResult() {
+                        if (reservationWon) return "WON";
+                        if (reservationReleased) return "RELEASED";
+                        if (reservationLost) return "LOST";
+                        return reservationAttempted ? "NOT_CONFIRMED" : "NOT_RUN";
+                }
+
+                private void addNote(String note) {
+                        if (!notes.contains(note)) notes.add(note);
+                }
+
+                private void addReason(MatchingDecisionTraceEvent.Candidate candidate, String reason) {
+                        if (candidate != null && !candidate.getReasons().contains(reason)) {
+                                candidate.getReasons().add(reason);
+                        }
+                }
+
+                List<String> notes() { return notes; }
+                int geoCandidateCount() { return geoCandidateCount; }
+                int codChecks() { return codChecks; }
+                int codRejected() { return codRejected; }
+                boolean reservationWon() { return reservationWon; }
         }
 }

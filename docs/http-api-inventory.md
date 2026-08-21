@@ -1,10 +1,10 @@
 # HTTP API Inventory
 
-Ngày cập nhật inventory: 2026-08-09
+Ngày cập nhật inventory: 2026-08-21
 
 Tài liệu này liệt kê toàn bộ method có mapping trong 17 service có controller.
 `saga-orchestrator-service` không có HTTP controller. Danh sách được sinh trực
-tiếp từ annotation Java và hiện có **173 method**.
+tiếp từ annotation Java và hiện có **174 method**.
 
 Contract backend MVP được freeze ngày 2026-07-26 sau clean Gate B8, API surface
 classification và full reactor 602 test. Các capability ghi hidden/disabled hoặc
@@ -276,6 +276,7 @@ sửa.
 | simulator-service | SimulatorController | POST | `/api/simulator/validate` | `validate` |
 | simulator-service | SimulatorController | POST | `/api/simulator/runs` | `start` |
 | simulator-service | SimulatorController | GET | `/api/simulator/runs/{runId}` | `get` |
+| simulator-service | SimulatorController | GET | `/api/simulator/runs/{runId}/algorithm-traces` | `traces` |
 | simulator-service | SimulatorController | GET | `/api/simulator/runs/{runId}/stream` | `stream` |
 | simulator-service | SimulatorController | POST | `/api/simulator/runs/{runId}/pause` | `pause` |
 | simulator-service | SimulatorController | POST | `/api/simulator/runs/{runId}/resume` | `resume` |

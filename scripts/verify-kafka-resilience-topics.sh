@@ -54,6 +54,10 @@ readonly SOURCE_TOPICS=(
   delivery.created.failed
   delivery.cancel.failed
   saga.command.find-shipper
+  # Read-only Match algorithm explanations observed by simulator-service. It
+  # has no business retry/DLT consumer, but the source must exist explicitly
+  # because broker auto-creation is disabled.
+  matching.decision-trace
   order.refund-eligible
   saga.command.stop-matching
   shipper.location-updated

@@ -1,6 +1,6 @@
 # System Contract Inventory
 
-Ngày kiểm kê: 2026-08-09
+Ngày kiểm kê: 2026-08-21
 
 Tài liệu này là inventory thực thi cho Phase 0 của
 `../../docs/plans/active/priority-roadmap.md`. Source code, test và runtime vẫn là
@@ -156,6 +156,7 @@ hidden/disabled, không phải public surface ngầm được phép mở.
 | `saga.command.find-shipper` | saga | match | active; canonical COD payload mang Saga-owned `matchingSessionId` cho từng initial find/rematch; `DELIVERY_CREATED` phải có persisted `delivery.created.result`, không dùng restaurant event làm fallback cho delivery/location; per-order ordered transactional outbox; Match ghi source fingerprint, unique `(deliveryId, matchingSessionId)`, stage candidate trước Redis reserve và chỉ ACK sau durable command persistence. Consumer group được cấu hình qua `spring.kafka.consumer.group-id` thay vì hard-code. Kafka/PostgreSQL/Redis rehearsal với hai Match application replica và hai partition chứng minh duplicate cross-partition, same/fresh-group exact replay hội tụ đúng một command/result/offer; reuse cùng eventId nhưng raw payload khác đi vào same-partition DLT. Find V1 thiếu session chỉ tương thích tạm thời bằng `eventId` của command. |
 | `shipper.found` | match | saga | active; đúng một shipper đủ deposit; `eventId` được dẫn xuất ổn định từ UUID command + outcome và `matchingSessionId` là command generation, durable result outbox fail-closed nếu thiếu identity thay vì sinh UUID mới; key `orderId`, relay retry không chạy lại GEO; concurrent exact replay giữ Redis offer của cùng delivery/session khi result đã staged, không được release nhầm. Match chỉ sở hữu GEO/availability nên không bịa shipper name/phone/rating. |
 | `shipper.not-found` | match | saga | active; `eventId` được dẫn xuất ổn định từ UUID command + terminal outcome và luôn mang `matchingSessionId`; durable result outbox key `orderId`; Saga chỉ nhận result thuộc generation hiện hành rồi phát hai command terminal riêng để Order và Delivery cùng hội tụ `SHIPPER_NOT_FOUND`. Hai-replica find ingress proof gồm cùng/fresh-group replay và contradiction-to-DLT cũng áp dụng cho durable result boundary; no-candidate happy path vẫn có Kafka/PostgreSQL/Redis integration coverage. |
+| `matching.decision-trace` | match | simulator-service (read-only, dev/test only) | active observability contract; Match ghi versioned `MATCHING_DECISION_TRACE` sau khi business result đã durable, với `nearest-cod-v1`, stage/total latency, attempts, candidates và rejection reasons. Outbox key `orderId`; simulator dùng consumer group riêng và không có business retry/DLT path. Trace mất hoặc malformed không được thay đổi reservation/assignment/Saga state; candidate list là post-GEO filter, không phải raw Redis pool. |
 | `saga.command.cache-shipper-found` | saga | delivery | active; `delivery_inbound_receipts` exact-replay/fingerprint fence, then persist offer + expiry trước notification. Kafka/PostgreSQL two-replica/two-partition same/fresh-group rehearsal converges to one receipt, `WAIT_SHIPPER_CONFIRM` offer and one `SHIPPER_OFFERED` outbox; contradictory reuse reaches same-partition DLT. |
 | `delivery.offer-persisted` | delivery | saga | active; Delivery emits this transactional-outbox confirmation only after the offer row commits. It carries the source cache command and matching session; Saga uses it as the sole authority to advance Order to `WAIT_SHIPPER_CONFIRM`. |
 | `saga.command.expire-shipper-offer` | saga | delivery | active; `delivery_inbound_receipts` exact-replay/fingerprint fence; timeout command mang exact delivery/shipper/deadline generation, Delivery lock row rồi chỉ clear matching expired offer. Kafka/PostgreSQL two-replica/two-partition same/fresh-group rehearsal converges to one receipt and cleared `FINDING_SHIPPER` offer; contradictory reuse reaches same-partition DLT. PostgreSQL/Kafka two-instance accept-vs-expired-timeout, delayed stale timeout và exact timeout replay PASS; source lag 0, DLT không tăng sau valid replay và offsets giữ nguyên qua broker OOM restart; intentionally early timeout fail-closed vào DLT; isolated Saga scheduler→outbox→Kafka→Delivery timeout/rematch, pending relay recovery và peer restart idempotency PASS |
@@ -837,6 +838,14 @@ rehearsal đồng thời bằng Redis/PostgreSQL thật vẫn OPEN.
   receipt + Flyway/H2 transaction proof raises the clean suite to 57/57.
 - Promotion orphan `order.events` listener was removed after producer search found
   none. Flash Sale `payment.failed` no-op listener was removed; checkout remains off.
+- Match algorithm explainability vertical slice is now explicit: the active
+  `nearest-cod-v1` path writes a versioned, read-only `matching.decision-trace`
+  outbox row after its durable `shipper.found`/`shipper.not-found` result. The
+  simulator observer uses a dedicated group and renders stage/total latency,
+  candidate rank/COD decisions and durable-candidate resume notes. The trace is
+  deliberately source-only (no retry/DLT business topology) and cannot gate
+  reservation, assignment or Saga convergence. Shadow algorithms and
+  baseline-vs-candidate comparison remain follow-up work.
 - Container startup proof vẫn bị tách riêng: package/test xanh không chứng minh
   datasource, Kafka, Redis và WebSocket có thể khởi động cùng nhau.
 - Runtime COD rehearsal hiện có executable harness tại

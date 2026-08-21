@@ -2,6 +2,7 @@ package com.delivery.match_service.service;
 
 import com.delivery.match_service.MatchServiceApplication;
 import com.delivery.match_service.dto.event.FindShipperEvent;
+import com.delivery.match_service.dto.event.MatchingDecisionTraceEvent;
 import com.delivery.match_service.dto.event.ShipperFoundEvent;
 import com.delivery.match_service.dto.event.ShipperNotFoundEvent;
 import com.delivery.match_service.entity.MatchCancellationTombstone;
@@ -75,6 +76,39 @@ class MatchCommandStoreIntegrationTest {
         assertThat(store.acceptFindCommand("saga.command.find-shipper", raw, command).mode())
                 .isEqualTo(MatchCommandStore.CommandMode.TERMINAL);
         assertThat(outboxRepository.count()).isOne();
+    }
+
+    @Test
+    void persistsReadOnlyDecisionTraceAfterTheBusinessResultWithoutReplacingIt() throws Exception {
+        FindShipperEvent command = command(UUID.fromString("12121212-1212-1212-1212-121212121212"));
+        String raw = objectMapper.writeValueAsString(command);
+        store.acceptFindCommand("saga.command.find-shipper", raw, command);
+        ShipperFoundEvent candidate = found(command, 906L);
+        store.stageCandidate(command.getEventId(), candidate);
+        store.stageFoundResult(command.getEventId(), candidate);
+
+        MatchingDecisionTraceEvent trace = new MatchingDecisionTraceEvent();
+        trace.setEventId(UUID.fromString("13131313-1313-1313-1313-131313131313"));
+        trace.setCommandEventId(command.getEventId());
+        trace.setMatchingSessionId(command.getMatchingSessionId().toString());
+        trace.setOrderId(command.getOrderId());
+        trace.setDeliveryId(command.getDeliveryId());
+        trace.setDecision("SHIPPER_SELECTED");
+        trace.setSelectedShipperId(906L);
+
+        store.stageDecisionTrace(command.getEventId(), trace);
+        store.stageDecisionTrace(command.getEventId(), trace);
+
+        assertThat(outboxRepository.findAll()).hasSize(2);
+        assertThat(outboxRepository.findByEventId(trace.getEventId())).get()
+                .satisfies(outbox -> {
+                    assertThat(outbox.getEventType()).isEqualTo(MatchingDecisionTraceEvent.EVENT_TYPE);
+                    assertThat(outbox.getTopic()).isEqualTo(MatchingDecisionTraceEvent.TOPIC);
+                    assertThat(outbox.getCommandEventId()).isEqualTo(command.getEventId());
+                    assertThat(outbox.getPayload()).contains("SHIPPER_SELECTED");
+                });
+        assertThat(commandRepository.findById(command.getEventId()).orElseThrow().getStatus())
+                .isEqualTo(MatchCommand.Status.RESULT_STAGED);
     }
 
     @Test

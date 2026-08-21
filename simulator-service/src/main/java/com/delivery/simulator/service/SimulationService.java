@@ -32,7 +32,11 @@ public class SimulationService {
     private final SimulatorProperties properties;
     private final GatewayClient gateway;
     private final Map<String, SimulationRunState> runs = new ConcurrentHashMap<>();
+    private final Map<String, PendingAlgorithmTrace> pendingAlgorithmTraces = new ConcurrentHashMap<>();
     private final ExecutorService executor;
+
+    private static final Duration PENDING_TRACE_RETENTION = Duration.ofMinutes(20);
+    private static final int MAX_PENDING_ALGORITHM_TRACES = 2048;
 
     public SimulationService(ObjectMapper objectMapper,
                              SimulatorProperties properties,
@@ -74,11 +78,33 @@ public class SimulationService {
     }
 
     public Map<String, Object> snapshot(String runId) {
-        return requireRun(runId).snapshot();
+        SimulationRunState state = requireRun(runId);
+        attachPendingAlgorithmTraces(state);
+        return state.snapshot();
+    }
+
+    /** Attach a read-only Match decision trace to the matching active run. */
+    public void recordAlgorithmTrace(JsonNode trace) {
+        if (trace == null || !trace.isObject() || !trace.path("eventId").isTextual()) {
+            return;
+        }
+        prunePendingAlgorithmTraces();
+        for (SimulationRunState state : runs.values()) {
+            if (state.matchesAlgorithmTrace(trace)) {
+                state.addAlgorithmTrace(trace);
+                return;
+            }
+        }
+        // Kafka can deliver the trace between Match's result publication and
+        // the runner's next order/delivery poll. Keep it briefly instead of
+        // dropping an otherwise valid explanation that can be correlated once
+        // the run learns its IDs.
+        bufferPendingAlgorithmTrace(trace);
     }
 
     public SseEmitter stream(String runId) {
         SimulationRunState state = requireRun(runId);
+        attachPendingAlgorithmTraces(state);
         SseEmitter emitter = new SseEmitter(0L);
         state.addEmitter(emitter);
         return emitter;
@@ -187,6 +213,38 @@ public class SimulationService {
             }
             state.completeEmitters();
         }
+    }
+
+    private void attachPendingAlgorithmTraces(SimulationRunState state) {
+        prunePendingAlgorithmTraces();
+        for (Map.Entry<String, PendingAlgorithmTrace> entry : pendingAlgorithmTraces.entrySet()) {
+            PendingAlgorithmTrace pending = entry.getValue();
+            if (state.matchesAlgorithmTrace(pending.trace())) {
+                state.addAlgorithmTrace(pending.trace());
+                pendingAlgorithmTraces.remove(entry.getKey(), pending);
+            }
+        }
+    }
+
+    private void prunePendingAlgorithmTraces() {
+        Instant cutoff = Instant.now().minus(PENDING_TRACE_RETENTION);
+        pendingAlgorithmTraces.entrySet().removeIf(entry -> entry.getValue().receivedAt().isBefore(cutoff));
+    }
+
+    private void bufferPendingAlgorithmTrace(JsonNode trace) {
+        String eventId = trace.path("eventId").asText();
+        while (pendingAlgorithmTraces.size() >= MAX_PENDING_ALGORITHM_TRACES) {
+            pendingAlgorithmTraces.entrySet().stream()
+                    .min(Map.Entry.comparingByValue(java.util.Comparator.comparing(
+                            PendingAlgorithmTrace::receivedAt)))
+                    .map(Map.Entry::getKey)
+                    .ifPresent(pendingAlgorithmTraces::remove);
+        }
+        pendingAlgorithmTraces.put(eventId,
+                new PendingAlgorithmTrace(trace.deepCopy(), Instant.now()));
+    }
+
+    private record PendingAlgorithmTrace(JsonNode trace, Instant receivedAt) {
     }
 
     private void seedLocations(SimulationRunState state) {

@@ -1,6 +1,7 @@
 package com.delivery.match_service.service;
 
 import com.delivery.match_service.dto.event.FindShipperEvent;
+import com.delivery.match_service.dto.event.MatchingDecisionTraceEvent;
 import com.delivery.match_service.dto.event.ShipperFoundEvent;
 import com.delivery.match_service.dto.event.ShipperNotFoundEvent;
 import com.delivery.match_service.entity.MatchCancellationTombstone;
@@ -321,6 +322,33 @@ public class MatchCommandStore {
         return TerminalResultDecision.persisted();
     }
 
+    /**
+     * Persist a best-effort, read-only explanation after the business result
+     * is durable. The trace has its own deterministic event identity and is
+     * relayed through the same outbox, but it never gates shipper assignment.
+     */
+    @Transactional
+    public void stageDecisionTrace(UUID commandId, MatchingDecisionTraceEvent trace) {
+        if (trace == null || trace.getEventId() == null
+                || trace.getCommandEventId() == null
+                || !Objects.equals(commandId, trace.getCommandEventId())) {
+            throw new IllegalArgumentException("Matching decision trace identity is invalid");
+        }
+        MatchCommand command = requireCommandForUpdate(commandId);
+        if (command.getStatus() == MatchCommand.Status.CANCELLED) {
+            return;
+        }
+        if (command.getStatus() != MatchCommand.Status.RESULT_STAGED) {
+            throw new IllegalStateException("Matching decision trace requires a durable Match result");
+        }
+        if (!Objects.equals(command.getOrderId(), trace.getOrderId())
+                || !Objects.equals(command.getDeliveryId(), trace.getDeliveryId())
+                || !Objects.equals(command.getMatchingSessionId().toString(), trace.getMatchingSessionId())) {
+            throw new IllegalArgumentException("Matching decision trace does not match the durable command");
+        }
+        persistDecisionTraceOutbox(command, trace.getEventId().toString(), serialize(trace));
+    }
+
     /** Clear an unreserved candidate after a Redis reservation race so retry can search again. */
     @Transactional
     public void clearStagedCandidate(UUID commandId) {
@@ -385,12 +413,30 @@ public class MatchCommandStore {
             String eventType,
             String eventKey,
             String payload) {
+        persistOutbox(command, eventIdValue, eventType, eventType, eventKey, payload);
+    }
+
+    private void persistDecisionTraceOutbox(
+            MatchCommand command,
+            String eventIdValue,
+            String payload) {
+        persistOutbox(command, eventIdValue, MatchingDecisionTraceEvent.EVENT_TYPE,
+                MatchingDecisionTraceEvent.TOPIC, command.getOrderId().toString(), payload);
+    }
+
+    private void persistOutbox(
+            MatchCommand command,
+            String eventIdValue,
+            String eventType,
+            String topic,
+            String eventKey,
+            String payload) {
         UUID eventId = parseUuid(eventIdValue, "result eventId");
         MatchOutboxEvent existing = outboxRepository.findByEventId(eventId).orElse(null);
         if (existing != null) {
             if (!Objects.equals(existing.getCommandEventId(), command.getEventId())
                     || !Objects.equals(existing.getEventType(), eventType)
-                    || !Objects.equals(existing.getTopic(), eventType)
+                    || !Objects.equals(existing.getTopic(), topic)
                     || !Objects.equals(existing.getEventKey(), eventKey)
                     || !Objects.equals(existing.getPayload(), payload)) {
                 throw new IllegalStateException("Match result eventId conflicts with durable outbox payload");
@@ -404,7 +450,7 @@ public class MatchCommandStore {
         event.setCommandEventId(command.getEventId());
         event.setAggregateId(command.getOrderId().toString());
         event.setEventType(eventType);
-        event.setTopic(eventType);
+        event.setTopic(topic);
         event.setEventKey(eventKey);
         event.setPayload(payload);
         event.setTraceparent(currentTraceparent());

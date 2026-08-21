@@ -1,6 +1,7 @@
 package com.delivery.match_service.listener;
 
 import com.delivery.match_service.dto.event.FindShipperEvent;
+import com.delivery.match_service.dto.event.MatchingDecisionTraceEvent;
 import com.delivery.match_service.dto.event.ShipperFoundEvent;
 import com.delivery.match_service.dto.event.ShipperNotFoundEvent;
 import com.delivery.match_service.dto.request.FindNearbyShippersRequest;
@@ -233,6 +234,11 @@ class FindShipperEventListenerTest {
         verify(matchService).releaseShipperOffer(1L, 123L, testEvent.getMatchingSessionId());
         verify(matchCommandStore).stageNotFoundResult(
                 eq(testEvent.getEventId()), any(ShipperNotFoundEvent.class), eq(true));
+        var traceCaptor = org.mockito.ArgumentCaptor.forClass(MatchingDecisionTraceEvent.class);
+        verify(matchCommandStore).stageDecisionTrace(eq(testEvent.getEventId()), traceCaptor.capture());
+        assertEquals("RELEASED", traceCaptor.getValue().getStages().stream()
+                .filter(stage -> "RESERVE".equals(stage.getName()))
+                .findFirst().orElseThrow().getResult());
         verify(matchCommandStore, never()).stageFoundResult(any(), any());
     }
 
@@ -366,6 +372,56 @@ class FindShipperEventListenerTest {
         assertEquals(2L, eventCaptor.getValue().getAvailableShippers().get(0).getShipperId());
         assertEquals(new BigDecimal("120000"), eventCaptor.getValue().getTotalPrice());
         verify(matchService).tryReserveShipperOffer(2L, 123L, testEvent.getMatchingSessionId(), 180);
+    }
+
+    @Test
+    void emitsVersionedTraceWithCandidateReasonsAndStageMeasurements() throws Exception {
+        NearbyShipperResponse first = createTestShipper(1L, 10.763000, 106.661000);
+        NearbyShipperResponse second = createTestShipper(2L, 10.764000, 106.662000);
+        when(matchService.findNearbyShippers(any(), anyLong(), anyString()))
+                .thenReturn(Mono.just(List.of(first, second)));
+        when(settlementEligibilityClient.isCodEligible(1L, testEvent.getTotalPrice()))
+                .thenReturn(Mono.just(false));
+        when(settlementEligibilityClient.isCodEligible(2L, testEvent.getTotalPrice()))
+                .thenReturn(Mono.just(true));
+
+        listener.handleFindShipperEvent(
+                objectMapper.writeValueAsString(testEvent), "test-topic", 0,
+                System.currentTimeMillis()).block();
+
+        var traceCaptor = org.mockito.ArgumentCaptor.forClass(MatchingDecisionTraceEvent.class);
+        verify(matchCommandStore).stageDecisionTrace(eq(testEvent.getEventId()), traceCaptor.capture());
+        MatchingDecisionTraceEvent trace = traceCaptor.getValue();
+        assertEquals(MatchingDecisionTraceEvent.EVENT_VERSION, trace.getEventVersion());
+        assertEquals(MatchingDecisionTraceEvent.EVENT_TYPE, trace.getEventType());
+        assertEquals("nearest-cod", trace.getAlgorithmId());
+        assertEquals("v1", trace.getAlgorithmVersion());
+        assertEquals("SHIPPER_SELECTED", trace.getDecision());
+        org.junit.jupiter.api.Assertions.assertTrue(trace.getLatencyMs() >= 0);
+        assertEquals(2, trace.getCandidates().size());
+        assertEquals(List.of("COD_NOT_ELIGIBLE"), trace.getCandidates().get(0).getReasons());
+        assertEquals("SELECTED", trace.getCandidates().get(1).getState());
+        assertEquals(2, trace.getStages().stream()
+                .filter(stage -> "COD_ELIGIBILITY".equals(stage.getName()))
+                .findFirst().orElseThrow().getCandidateCount());
+    }
+
+    @Test
+    void emitsEmptyGeoTraceForNoShipperTerminalOutcome() throws Exception {
+        when(matchService.findNearbyShippers(any(), anyLong(), anyString()))
+                .thenReturn(Mono.just(Collections.emptyList()));
+
+        listener.handleFindShipperEvent(
+                objectMapper.writeValueAsString(testEvent), "test-topic", 0,
+                System.currentTimeMillis()).block();
+
+        var traceCaptor = org.mockito.ArgumentCaptor.forClass(MatchingDecisionTraceEvent.class);
+        verify(matchCommandStore).stageDecisionTrace(eq(testEvent.getEventId()), traceCaptor.capture());
+        MatchingDecisionTraceEvent trace = traceCaptor.getValue();
+        assertEquals("SHIPPER_NOT_FOUND", trace.getDecision());
+        assertEquals("EMPTY", trace.getStages().get(0).getResult());
+        assertEquals("NOT_RUN", trace.getStages().get(1).getResult());
+        assertEquals("NOT_RUN", trace.getStages().get(2).getResult());
     }
 
     @Test

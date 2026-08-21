@@ -76,6 +76,14 @@ Match starts with `autoCreateTopics=false`:
 | `shipper.location-updated` | blocking retry in the listener factory | `.DLT` |
 | `shipper.status-change` | blocking retry in the listener factory | `.DLT` |
 
+The read-only simulator observer also requires the canonical source topic
+`matching.decision-trace` to be provisioned before enabling
+`SIMULATOR_KAFKA_OBSERVER_ENABLED=true`. It uses a dedicated consumer group and
+has no business retry/DLT topology: a missing trace may reduce explainability,
+but must not affect Match assignment or Saga convergence. The provisioner
+verifies this source explicitly, while the disposable topic verifier creates it
+alongside the other source topics.
+
 The shared-source non-blocking topology is isolated by listener owner. The
 three retry topics use the normal configured delays (`1000`, `2000`, `4000` ms
 by default); the provisioning script is the canonical full manifest.

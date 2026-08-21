@@ -26,6 +26,7 @@ final class SimulationRunState {
     private final Instant startedAt = Instant.now();
     private final List<Map<String, Object>> timeline = new ArrayList<>();
     private final List<Map<String, Object>> candidates = new ArrayList<>();
+    private final List<Map<String, Object>> algorithmTraces = new ArrayList<>();
     private final Map<String, Map<String, Object>> shippers = new LinkedHashMap<>();
     private final List<Map<String, Object>> assertions = new ArrayList<>();
     private final Set<String> firedTriggers = ConcurrentHashMap.newKeySet();
@@ -130,6 +131,41 @@ final class SimulationRunState {
         if (deliveryStatus != null && !deliveryStatus.isBlank()) {
             this.deliveryStatus = deliveryStatus;
         }
+    }
+
+    boolean matchesAlgorithmTrace(JsonNode trace) {
+        long traceOrderId = trace.path("orderId").asLong(-1);
+        long traceDeliveryId = trace.path("deliveryId").asLong(-1);
+        if (traceOrderId <= 0 || traceDeliveryId <= 0) {
+            return false;
+        }
+        if (orderId != null && orderId.longValue() != traceOrderId) {
+            return false;
+        }
+        if (deliveryId != null && deliveryId.longValue() != traceDeliveryId) {
+            return false;
+        }
+        return orderId != null || deliveryId != null;
+    }
+
+    synchronized void addAlgorithmTrace(JsonNode trace) {
+        Map<String, Object> value = objectMapper.convertValue(trace, LinkedHashMap.class);
+        boolean alreadyObserved = algorithmTraces.stream()
+                .anyMatch(existing -> String.valueOf(existing.get("eventId"))
+                        .equals(String.valueOf(value.get("eventId"))));
+        algorithmTraces.removeIf(existing -> String.valueOf(existing.get("eventId"))
+                .equals(String.valueOf(value.get("eventId"))));
+        algorithmTraces.add(value);
+        if (alreadyObserved) {
+            return;
+        }
+        String decision = String.valueOf(value.getOrDefault("decision", "UNKNOWN"));
+        String version = String.valueOf(value.getOrDefault("algorithmVersion", "unknown"));
+        String title = "Matching trace " + decision + " · " + version;
+        String details = "Trace thật từ Match Service; candidate view sau GEO filter";
+        addEvent("MATCH_SERVICE", title, details,
+                "SHIPPER_SELECTED".equals(decision) ? "SUCCESS" : "WARNING",
+                "matching.decision-trace", value);
     }
 
     Long getOrderId() {
@@ -323,6 +359,7 @@ final class SimulationRunState {
         result.put("elapsedSeconds", Duration.between(startedAt, Instant.now()).toSeconds());
         result.put("timeline", new ArrayList<>(timeline));
         result.put("candidates", new ArrayList<>(candidates));
+        result.put("algorithmTraces", new ArrayList<>(algorithmTraces));
         result.put("liveShippers", new ArrayList<>(shippers.values()));
         result.put("assertions", new ArrayList<>(assertions));
         return result;

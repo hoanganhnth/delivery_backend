@@ -22,6 +22,9 @@ public class SimulatorProperties {
     private int runTimeoutSeconds = 900;
     private int maxShippers = 50;
     private int maxConcurrentRuns = 4;
+    private boolean kafkaObserverEnabled = false;
+    private String kafkaDecisionTraceTopic = "matching.decision-trace";
+    private String kafkaObserverGroupId = "simulator-algorithm-observer";
 
     public boolean isEnabled() {
         return enabled;
@@ -113,5 +116,33 @@ public class SimulatorProperties {
 
     public void setMaxConcurrentRuns(int maxConcurrentRuns) {
         this.maxConcurrentRuns = Math.max(1, Math.min(16, maxConcurrentRuns));
+    }
+
+    public boolean isKafkaObserverEnabled() {
+        return kafkaObserverEnabled;
+    }
+
+    public void setKafkaObserverEnabled(boolean kafkaObserverEnabled) {
+        this.kafkaObserverEnabled = kafkaObserverEnabled;
+    }
+
+    public String getKafkaDecisionTraceTopic() {
+        return kafkaDecisionTraceTopic;
+    }
+
+    public void setKafkaDecisionTraceTopic(String kafkaDecisionTraceTopic) {
+        this.kafkaDecisionTraceTopic = kafkaDecisionTraceTopic == null || kafkaDecisionTraceTopic.isBlank()
+                ? "matching.decision-trace"
+                : kafkaDecisionTraceTopic;
+    }
+
+    public String getKafkaObserverGroupId() {
+        return kafkaObserverGroupId;
+    }
+
+    public void setKafkaObserverGroupId(String kafkaObserverGroupId) {
+        this.kafkaObserverGroupId = kafkaObserverGroupId == null || kafkaObserverGroupId.isBlank()
+                ? "simulator-algorithm-observer"
+                : kafkaObserverGroupId;
     }
 }

@@ -29,6 +29,7 @@ Set `SIMULATOR_API_TOKEN` when the console must authenticate to the runner.
 - `POST /api/simulator/validate`
 - `POST /api/simulator/runs`
 - `GET /api/simulator/runs/{runId}`
+- `GET /api/simulator/runs/{runId}/algorithm-traces`
 - `GET /api/simulator/runs/{runId}/stream` (SSE)
 - `POST /api/simulator/runs/{runId}/pause|resume|abort`
 - `DELETE /api/simulator/runs/{runId}`
@@ -37,9 +38,12 @@ The current MVP performs real Gateway checkout-quote/order, restaurant,
 delivery actions and Tracking REST location updates. It sends a server-issued
 checkout quote plus UUID idempotency key when the Gateway returns a quote, so
 the runner can be used with quote enforcement enabled in an isolated stack.
-Kafka/Settlement read-only observation and durable run storage remain later
-phases; such assertions are reported as `SKIPPED`/`PARTIAL`, never silently
-passed.
+The runner now has a read-only Kafka observer for Match's
+`matching.decision-trace` source. It correlates versioned `nearest-cod-v1`
+decisions by both order and delivery IDs and exposes them in the endpoint/SSE
+snapshot. It does not consume or mutate any business aggregate. Settlement/DB
+ledger observation and durable run storage remain later phases; such assertions
+are reported as `SKIPPED`/`PARTIAL`, never silently passed.
 
 Runner authentication uses the `X-Simulator-Token` request header when
 `SIMULATOR_API_TOKEN` is configured. SSE deliberately does not accept a
