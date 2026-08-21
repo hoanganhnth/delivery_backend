@@ -6,19 +6,25 @@ COPY pom.xml reactor-pom.xml
 COPY ${SERVICE_PATH}/pom.xml service/pom.xml
 COPY ${SERVICE_PATH}/src service/src
 COPY ${SERVICE_PATH}/target/*.jar service/target/
+COPY ${SERVICE_PATH}/target/.docker-artifact-input.sha256 service/target/
 
 # Compose images intentionally consume Maven artifacts built on the host. Refuse
-# to package an older JAR when source or build metadata changed after Maven ran.
+# an older JAR when source or build metadata changed after Maven ran. Maven may
+# intentionally produce reproducible JARs with a fixed timestamp, so compare a
+# package-time input checksum manifest instead of file modification times.
 RUN set -eu; \
     set -- service/target/*.jar; \
     if [ "$#" -ne 1 ]; then \
-      echo "Expected exactly one packaged JAR for ${SERVICE_PATH}; run Maven package first." >&2; \
+      echo "Expected exactly one packaged JAR for ${SERVICE_PATH}; run scripts/package-compose-services.sh first." >&2; \
       exit 1; \
     fi; \
-    artifact="$1"; \
-    stale_input="$(find service/src service/pom.xml reactor-pom.xml -type f -newer "$artifact" -print -quit)"; \
-    if [ -n "$stale_input" ]; then \
-      echo "Packaged JAR for ${SERVICE_PATH} is stale (newer input: ${stale_input}); run Maven package first." >&2; \
+    test -s service/target/.docker-artifact-input.sha256 || { \
+      echo "Missing package input manifest for ${SERVICE_PATH}; run scripts/package-compose-services.sh first." >&2; \
+      exit 1; \
+    }; \
+    actual_digest="$( { sha256sum reactor-pom.xml service/pom.xml; find service/src -type f -print | LC_ALL=C sort | xargs sha256sum; } | awk '{print $1}' | sha256sum | awk '{print $1}' )"; \
+    if [ "$actual_digest" != "$(cat service/target/.docker-artifact-input.sha256)" ]; then \
+      echo "Packaged JAR for ${SERVICE_PATH} is stale (input checksum changed); run scripts/package-compose-services.sh first." >&2; \
       exit 1; \
     fi
 

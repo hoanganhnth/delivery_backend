@@ -33,6 +33,9 @@ public class Restaurant {
     @Column(name = "creator_id", nullable = false)
     private Long creatorId;
 
+    @Column(name = "owner_principal_id")
+    private Long ownerPrincipalId;
+
     @Column(name = "opening_hour")
     private LocalTime openingHour;
 
@@ -137,6 +140,10 @@ public class Restaurant {
     public void setCreatorId(Long creatorId) {
         this.creatorId = creatorId;
     }
+
+    public Long getOwnerPrincipalId() { return ownerPrincipalId; }
+
+    public void setOwnerPrincipalId(Long ownerPrincipalId) { this.ownerPrincipalId = ownerPrincipalId; }
 
     public LocalTime getOpeningHour() {
         return openingHour;

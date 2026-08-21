@@ -2,9 +2,9 @@
 
 Ngày cập nhật inventory: 2026-08-09
 
-Tài liệu này liệt kê toàn bộ method có mapping trong 16 service có controller.
+Tài liệu này liệt kê toàn bộ method có mapping trong 17 service có controller.
 `saga-orchestrator-service` không có HTTP controller. Danh sách được sinh trực
-tiếp từ annotation Java và hiện có **166 method**.
+tiếp từ annotation Java và hiện có **173 method**.
 
 Contract backend MVP được freeze ngày 2026-07-26 sau clean Gate B8, API surface
 classification và full reactor 602 test. Các capability ghi hidden/disabled hoặc
@@ -56,19 +56,19 @@ sửa.
 
 | Service/surface | Target actor and ownership | Known consumer | Class/disposition | Current gap |
 |---|---|---|---|---|
-| auth password register | anonymous; Auth owns immutable identity and opaque handoff | Flutter | public-client/keep | `POST /api/auth/register` chỉ tạo/resume Auth identity, phát digest-only 15-minute provisioning token; không gọi User trong request này |
+| auth password register | anonymous; Auth owns immutable identity and opaque handoff | Flutter | public-client/keep | `POST /api/auth/register` chỉ tạo/resume Auth identity, trả `principalId` canonical cùng `authId` compatibility alias và signed 15-minute provisioning token; không gọi User trong request này |
 | auth login/social/refresh | anonymous; refresh token rotation | cả 3 client | public-client/keep | Mỗi device là một token family; refresh token chỉ lưu SHA-256 fingerprint, rotate dưới row lock và consumed-token reuse revoke toàn family trước khi trả 401; ba client single-flight và bắt buộc lưu cặp token mới |
 | auth forgot/reset + email verification | anonymous; exact one-time token owns account | all clients | public-client/keep | uniform request response; AWS SES SMTP async after commit; token digest/expiry/consumption persisted; public-auth Gateway quota 10/min/IP; password reset revokes all refresh families/sessions |
 | auth logout/sessions | authenticated account, own sessions | Flutter/web | public-client/keep | Logout bằng current/rotated refresh token và authenticated `DELETE /sessions/{deviceId}` revoke đúng device family; session khác không bị ảnh hưởng. Access token đã cấp vẫn stateless-valid tối đa 15 phút; immediate access invalidation không thuộc MVP. |
-| auth account by id/admin actions | ADMIN | web admin | public-admin/keep | Auth resource server bắt `ADMIN`; Gateway chỉ route exact method. Block/unblock dùng account row lock transaction, revoke active sessions và ghi durable pending projection trước commit; User projection sync chạy after-commit + scheduled retry bằng internal credential với version guard; block reason bound 500 và typed admin identity; compatibility list hard-cap 100, paginated envelope chờ client migration |
+| auth account by id/admin actions | ADMIN | web admin | public-admin/keep | Auth resource server bắt `ADMIN`; Gateway chỉ route exact method. Block/unblock dùng account row lock transaction, revoke active sessions và ghi transactional `identity.status.changed` outbox trong event mode; User/Shipper project theo version/event receipt. Legacy Auth→User internal retry chỉ là event-off rollback rail. Block reason bound 500 và typed admin identity; compatibility list hard-cap 100, paginated envelope chờ client migration |
 | auth account by email | authenticated service identity | auth→user/internal admin lookup | internal/keep | đã ẩn khỏi Gateway và fail-closed bằng shared secret; rotation/integration proof còn OPEN |
-| user public registration handoff | anonymous bearer handoff; identity resolved from Auth | Flutter | public-client/keep | exact `POST /api/users/registrations`; client chỉ gửi opaque token + profile, User resolve/complete qua internal Auth credential, create idempotent theo authId và retry được sau callback failure |
+| user public registration handoff | anonymous signed provisioning JWT; identity verified locally through Auth JWKS | Flutter | public-client/keep | exact `POST /api/users/registrations`; client chỉ gửi signed provisioning token + profile, User derives identity locally, creates idempotently by principalId and atomically emits `identity.profile.created`; Auth links asynchronously through its consumer. No User→Auth registration RPC or Internal-Token callback exists in this public flow. |
 | user internal create/by-auth | auth-service only | social/operator provisioning | internal/keep | không có Gateway route và bắt shared secret; create idempotent theo authId, từ chối rebinding theo authId hoặc email khác auth identity, DB migration khóa unique email case-insensitive; PostgreSQL concurrent proof còn OPEN |
 | user current read/update | authenticated account owns its profile projection | Flutter/web/shipper | public-client/keep | canonical `GET/PUT /api/users` derive ID từ JWT actor đã được User resource server xác thực qua JWKS; path-ID mutation không còn public |
 | user delete | auth-owned soft deactivate only | không có consumer | dead/deleted | user xác nhận không hard-delete nghiệp vụ; orphan `DELETE /api/users/{id}` controller/service/repository branch và feature flag đã xóa. Canonical admin block vô hiệu hóa Auth + User projection và revoke sessions; self-deactivate sau MVP phải được orchestration từ Auth, không được xóa profile trực tiếp. |
 | user addresses | USER owns address and path userId; ADMIN support | Flutter | public-client/keep | exact path+method Gateway allow-list; User resource server/controller từ chối role khác dù numeric identity trùng; tất cả read/mutation đã đối chiếu owner; runtime self read 200 và cross-user read 403, spoof identity headers không đổi JWT actor; default mutation serialize bằng pessimistic owner lock |
 | user admin statistics/list | ADMIN | web admin | public-admin/keep | exact GET Gateway allow-list + User resource server/controller bắt `ADMIN`; compatibility list hard-cap 100, paginated envelope chờ client migration |
-| user block/unblock projection | auth-service only | auth admin block/unblock orchestration | internal/keep | không còn Gateway route; Auth gọi `POST /api/internal/users/{id}/block-status` bằng shared secret, mang `adminId`, `blocked`, `reason` làm audit payload. Auth là source-of-truth, chỉ gọi User after-commit hoặc scheduled retry từ pending marker nên không còn remote User commit trước Auth commit; stale sync clear/failure bị chặn bằng version guard. Compose startup + PostgreSQL V2 schema proof PASS; live outage retry rehearsal vẫn OPEN |
+| user block/unblock projection | Auth lifecycle event consumer | Auth `identity.status.changed` outbox | internal projection/keep | không có Gateway route. Auth là source-of-truth và User applies versioned, deduped Kafka projection; retry/DLT preserves version gaps/conflicts. Legacy internal block-status endpoint is retained only for event-off rollback and is not executed while Auth event mode is enabled. |
 | restaurant public reads/search/menu available | anonymous read-only | Flutter/web | public-client/keep | exact GET allow-list, gồm cả Flash Sale public campaign/items; compatibility catalog/search/menu/rating lists cap 100; cache/location/validation không public. Flutter orphan `/restaurants/nearby` + `/restaurants/categories` graph đã xóa vì không có backend route/UI caller. |
 | restaurant/menu writes and `my-*` | SHOP_OWNER owns restaurant/menu; ADMIN quản trị bằng entity route | web restaurant/admin | public-client+admin/keep | Gateway và service cùng yêu cầu `SHOP_OWNER` cho self list; mutation yêu cầu owner hoặc `ADMIN`; controller truyền trusted role xuống service, thiếu role fail-closed; DTO bounds trả 400 trước JPA |
 | restaurant creator lookup | SHOP_OWNER self | web owner | public-self/keep | arbitrary creatorId endpoints removed; `my-restaurants`/`my-menu-items` là self contract canonical và bắt `SHOP_OWNER` ở Gateway + controller |
@@ -78,7 +78,7 @@ sửa.
 | restaurant rating moderation | ADMIN | web admin | public-admin/keep | Gateway và controller cùng bắt `ADMIN`; focused authorization test xanh |
 | cache mutation/warmup | none | không có polyrepo consumer | dead/deleted | controller/warmup graph đã xóa; canonical catalog mutation tự đồng bộ cache |
 | geocode endpoints | none | không có polyrepo consumer | dead/deleted | controller/service/Mapbox backend dependency đã xóa; client map không phụ thuộc API này |
-| order checkout/create/my-orders/detail/cancel | USER owns order; detail cho participant; ADMIN override detail/cancel only | Flutter/web | public-client/keep | checkout-preview/create/my-orders bắt đúng role USER ở Gateway và controller; preview và create cùng dùng atomic restaurant validation qua `Internal-Token`, không tự suy luận từ public catalog và fail-closed nếu thiếu pickup coordinate canonical; detail tiếp tục participant-scoped; cancel excludes SHIPPER; service ownership + pre-pickup state guard, pessimistic row lock + outbox; exact cancel retry cùng actor/reason no-op và không ghi outbox lần hai, replay khác actor/reason bị reject; shipper phải dùng Delivery cancel-assignment để availability/rematch hội tụ; canonical COD |
+| order checkout/create/my-orders/detail/cancel | USER owns order; detail cho participant; ADMIN override detail/cancel only | Flutter/web | public-client/keep | checkout-preview/create/my-orders bắt đúng role USER ở Gateway và controller; preview trả server-issued `quoteId` + 5-minute expiry, create re-prices canonically and accepts UUID `Idempotency-Key` for transport retry (same principal/key/effective request returns original order; conflicting reuse/price/expiry are typed HTTP 409). Compatibility mode accepts requests missing both fields until `ORDER_QUOTE_ENFORCEMENT_ENABLED` is enabled. Preview và create cùng dùng atomic restaurant validation qua `Internal-Token`, không tự suy luận từ public catalog và fail-closed nếu thiếu pickup coordinate canonical; detail tiếp tục participant-scoped; cancel excludes SHIPPER; service ownership + pre-pickup state guard, pessimistic row lock + outbox; exact cancel retry cùng actor/reason no-op và không ghi outbox lần hai, replay khác actor/reason bị reject; shipper phải dùng Delivery cancel-assignment để availability/rematch hội tụ; canonical COD |
 | order restaurant views | SHOP_OWNER owns restaurant | web restaurant | public-client/keep | chỉ `my-restaurant-orders` còn public và bắt `SHOP_OWNER` ở Gateway + controller; legacy arbitrary restaurantId/ownerId controller đã xóa hoàn toàn sau khi không còn consumer hợp lệ |
 | order shipper view | none; Delivery owns fulfilment history | không có consumer | dead/deleted | arbitrary shipperId Order path/service/repository query đã xóa; shipper dùng scoped Delivery history/active APIs |
 | order admin list/status | ADMIN | web admin | public-admin/keep | exact list/filter reads bắt `ADMIN`; unsafe bulk cancel và generic status/assign đã xóa khỏi controller public; admin recovery nếu bổ sung sau phải là công cụ riêng có audit |
@@ -141,6 +141,7 @@ sửa.
 | analytics-service | DashboardController | GET | `/api/analytics/dashboard/my-restaurant` | `getMyRestaurantDashboard` |
 | analytics-service | DashboardController | POST | `/api/analytics/reconcile` | `manualReconcile` |
 | auth-service | AuthController | POST | `/api/auth/register` | `register` |
+| auth-service | AuthController | GET | `/api/auth/registrations/{handle}` | `registrationStatus` |
 | auth-service | AuthController | POST | `/api/auth/login` | `login` |
 | auth-service | AuthController | POST | `/api/auth/social-login` | `socialLogin` |
 | auth-service | AuthController | POST | `/api/auth/refresh-token` | `refreshToken` |
@@ -149,8 +150,6 @@ sửa.
 | auth-service | AuthController | POST | `/api/auth/reset-password` | `resetPassword` |
 | auth-service | AuthController | POST | `/api/auth/email-verification/request` | `requestEmailVerification` |
 | auth-service | AuthController | POST | `/api/auth/email-verification/confirm` | `confirmEmailVerification` |
-| auth-service | InternalRegistrationController | POST | `/api/auth/internal/registrations/resolve` | `resolve` |
-| auth-service | InternalRegistrationController | POST | `/api/auth/internal/registrations/complete` | `complete` |
 | auth-service | AuthController | GET | `/api/auth/sessions` | `getSessions` |
 | auth-service | AuthController | DELETE | `/api/auth/sessions/{deviceId}` | `revokeDeviceSession` |
 | auth-service | AuthController | GET | `/api/auth/accounts/{id}` | `getAccountById` |
@@ -274,6 +273,14 @@ sửa.
 | settlement-service | TransactionController | GET | `/api/settlement/transactions/restaurant/{entityId}` | `getRestaurantTransactions` |
 | settlement-service | TransactionController | GET | `/api/settlement/transactions/shipper/{entityId}` | `getShipperTransactions` |
 | settlement-service | TransactionController | GET | `/api/settlement/transactions/{id}` | `getTransactionById` |
+| simulator-service | SimulatorController | POST | `/api/simulator/validate` | `validate` |
+| simulator-service | SimulatorController | POST | `/api/simulator/runs` | `start` |
+| simulator-service | SimulatorController | GET | `/api/simulator/runs/{runId}` | `get` |
+| simulator-service | SimulatorController | GET | `/api/simulator/runs/{runId}/stream` | `stream` |
+| simulator-service | SimulatorController | POST | `/api/simulator/runs/{runId}/pause` | `pause` |
+| simulator-service | SimulatorController | POST | `/api/simulator/runs/{runId}/resume` | `resume` |
+| simulator-service | SimulatorController | POST | `/api/simulator/runs/{runId}/abort` | `abort` |
+| simulator-service | SimulatorController | DELETE | `/api/simulator/runs/{runId}` | `cleanup` |
 | shipper-service | ShipperController | POST | `/api/shippers` | `create` |
 | shipper-service | ShipperController | GET | `/api/shippers/my-profile` | `getMyProfile` |
 | shipper-service | ShipperController | PUT | `/api/shippers` | `update` |

@@ -28,7 +28,8 @@ public class MerchantFlashSaleController {
         if (actor == null || !actor.isShopOwner()) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "SHOP_OWNER role required");
         }
-        restaurantOwnershipClient.requireOwnedBy(req.getRestaurantId(), actor.getUserId());
+        restaurantOwnershipClient.requireOwnedBy(
+                req.getRestaurantId(), actor.getPrincipalId(), actor.getLegacyUserId());
         return ResponseEntity.ok(BaseResponse.success(service.registerItem(req)));
     }
 }

@@ -132,6 +132,36 @@ class SagaManagerMatchingGenerationTest {
     }
 
     @Test
+    void orderWaitsForDeliveryOfferPersistenceConfirmation() {
+        SagaInstance saga = matchingSaga(SagaInstance.SagaStatus.FINDING_SHIPPER);
+        saga.addStep("MATCHING_STARTED", SagaManager.CMD_FIND_SHIPPER,
+                matchingStart(FIRST_SESSION, "2026-08-09T12:00:00"));
+        when(repository.findByOrderIdForUpdate(7L)).thenReturn(Optional.of(saga));
+        UUID cacheCommandId = UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc");
+        when(outboxService.saveCommand(eq("7"), eq(SagaManager.CMD_CACHE_SHIPPER_FOUND), eq("7"), any()))
+                .thenReturn(cacheCommandId);
+
+        manager.handleShipperFound(7L, 8L, matchingFound(cacheCommandId, FIRST_SESSION));
+
+        assertThat(saga.getStatus()).isEqualTo(SagaInstance.SagaStatus.OFFER_PERSISTING);
+        verify(outboxService, never()).saveCommand(eq("7"), eq(SagaManager.CMD_UPDATE_ORDER_STATUS), eq("7"), any());
+
+        manager.handleOfferPersisted(7L, 8L, "{" +
+                "\"eventId\":\"dddddddd-dddd-dddd-dddd-dddddddddddd\"," +
+                "\"sourceCommandEventId\":\"" + cacheCommandId + "\"," +
+                "\"orderId\":7,\"deliveryId\":8," +
+                "\"matchingSessionId\":\"" + FIRST_SESSION + "\"," +
+                "\"offeredShipperId\":9,\"offerExpiresAt\":\"2026-08-09T12:03:00\"}");
+
+        assertThat(saga.getStatus()).isEqualTo(SagaInstance.SagaStatus.SHIPPER_FOUND);
+        ArgumentCaptor<Object> statusCommand = ArgumentCaptor.forClass(Object.class);
+        verify(outboxService).saveCommand(eq("7"), eq(SagaManager.CMD_UPDATE_ORDER_STATUS),
+                eq("7"), statusCommand.capture());
+        assertThat(((JsonNode) statusCommand.getValue()).path("sagaStatus").asText())
+                .isEqualTo("WAIT_SHIPPER_CONFIRM");
+    }
+
+    @Test
     void legacyMatchingStepNeverEmitsABroadStopCommandDuringRollout() {
         SagaInstance saga = matchingSaga(SagaInstance.SagaStatus.FINDING_SHIPPER);
         saga.addStep("MATCHING_STARTED", SagaManager.CMD_FIND_SHIPPER,
@@ -176,5 +206,11 @@ class SagaManagerMatchingGenerationTest {
     private String matchingResult(String eventId, UUID matchingSessionId) {
         return "{\"eventId\":\"" + eventId + "\",\"orderId\":7,\"deliveryId\":8,"
                 + "\"matchingSessionId\":\"" + matchingSessionId + "\"}";
+    }
+
+    private String matchingFound(UUID eventId, UUID matchingSessionId) {
+        return "{\"eventId\":\"" + eventId + "\",\"orderId\":7,\"deliveryId\":8,"
+                + "\"matchingSessionId\":\"" + matchingSessionId + "\","
+                + "\"availableShippers\":[{\"shipperId\":9}]}";
     }
 }

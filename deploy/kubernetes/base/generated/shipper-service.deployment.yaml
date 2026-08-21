@@ -98,6 +98,24 @@
               {
                 "name": "PLATFORM_SECRETS_INTERNAL_SECRET_REQUIRED",
                 "value": "true"
+              },
+              {
+                "name": "IDENTITY_EVENTS_ENABLED",
+                "valueFrom": {
+                  "configMapKeyRef": {
+                    "name": "delivery-runtime",
+                    "key": "SHIPPER_IDENTITY_EVENTS_ENABLED"
+                  }
+                }
+              },
+              {
+                "name": "SHIPPER_IDENTITY_OUTBOX_RELAY_ENABLED",
+                "valueFrom": {
+                  "configMapKeyRef": {
+                    "name": "delivery-runtime",
+                    "key": "SHIPPER_IDENTITY_OUTBOX_RELAY_ENABLED"
+                  }
+                }
               }
             ],
             "volumeMounts": [

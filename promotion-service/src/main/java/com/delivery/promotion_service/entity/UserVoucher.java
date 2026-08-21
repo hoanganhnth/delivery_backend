@@ -26,6 +26,10 @@ public class UserVoucher {
     @Column(nullable = false)
     private Long userId;
 
+    /** Stable Auth ownership; userId remains the legacy User-profile key. */
+    @Column(name = "user_principal_id")
+    private Long userPrincipalId;
+
     @Column(nullable = false)
     private Long voucherId;
 

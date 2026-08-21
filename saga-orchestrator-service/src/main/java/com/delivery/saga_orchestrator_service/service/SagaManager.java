@@ -288,7 +288,8 @@ public class SagaManager {
     }
 
     /**
-     * Step 3a: shipper.found → Phát lệnh cache shipper + update order status
+     * Step 3a: shipper.found → request Delivery persist the offer. Order must
+     * remain FINDING_SHIPPER until Delivery confirms its own transaction.
      */
     @Transactional
     public void handleShipperFound(Long orderId, Long deliveryId, String rawEvent) {
@@ -306,17 +307,57 @@ public class SagaManager {
             return;
         }
 
-        saga.setStatus(SagaStatus.SHIPPER_FOUND);
+        saga.setStatus(SagaStatus.OFFER_PERSISTING);
         saga.addStep("SHIPPER_FOUND", "shipper.found", rawEvent);
+        UUID cacheCommandId = sendCommand(CMD_CACHE_SHIPPER_FOUND, orderId.toString(), rawEvent);
+        ObjectNode requested = objectMapper.createObjectNode();
+        requested.put("cacheCommandEventId", cacheCommandId.toString());
+        try {
+            requested.put("matchingSessionId", objectMapper.readTree(rawEvent).path("matchingSessionId").asText());
+        } catch (Exception invalid) {
+            throw new IllegalArgumentException("Invalid shipper.found payload", invalid);
+        }
+        saga.addStep("OFFER_PERSIST_REQUESTED", CMD_CACHE_SHIPPER_FOUND, requested.toString());
         sagaInstanceRepository.save(saga);
 
-        // ✅ PHÁT LỆNH 1: Cache shipper found cho delivery-service
-        sendCommand(CMD_CACHE_SHIPPER_FOUND, orderId.toString(), rawEvent);
+        log.info("📤 [Saga] Sent cache-shipper command for orderId={}; awaiting Delivery confirmation", orderId);
+    }
 
-        // ✅ PHÁT LỆNH 2: Cập nhật order status
-        sendOrderStatusCommand(orderId, "SHIPPER_FOUND", rawEvent);
-
-        log.info("📤 [Saga] Sent commands: cache-shipper + update-order for orderId={}", orderId);
+    /** Delivery owns the offer. Only this committed confirmation may expose WAIT to Order. */
+    @Transactional
+    public void handleOfferPersisted(Long orderId, Long deliveryId, String rawEvent) {
+        if (!claimInbound("delivery.offer-persisted", orderId, rawEvent)) return;
+        SagaInstance saga = findSagaByOrderId(orderId);
+        requireDeliveryIdentity(saga, deliveryId, orderId);
+        JsonNode event;
+        try {
+            event = objectMapper.readTree(rawEvent);
+            UUID.fromString(event.path("sourceCommandEventId").asText());
+            UUID.fromString(event.path("matchingSessionId").asText());
+            if (event.path("offeredShipperId").asLong() <= 0 || !event.hasNonNull("offerExpiresAt")) {
+                throw new IllegalArgumentException("offer-persisted identity is incomplete");
+            }
+        } catch (IllegalArgumentException invalid) {
+            throw invalid;
+        } catch (Exception invalid) {
+            throw new IllegalArgumentException("Invalid delivery.offer-persisted payload", invalid);
+        }
+        if (saga.getStatus() == SagaStatus.SHIPPER_ASSIGNED
+                || saga.getStatus() == SagaStatus.CANCELLED || saga.getStatus() == SagaStatus.FAILED) {
+            log.info("[Saga] Offer confirmation arrived after stronger state {} for orderId={}",
+                    saga.getStatus(), orderId);
+            return;
+        }
+        if (saga.getStatus() != SagaStatus.OFFER_PERSISTING
+                || !isCurrentMatchingResult(saga, rawEvent)
+                || !isExpectedOfferPersistenceCommand(saga, event.path("sourceCommandEventId").asText())) {
+            log.info("[Saga] Ignoring stale/unexpected offer confirmation for orderId={}", orderId);
+            return;
+        }
+        saga.setStatus(SagaStatus.SHIPPER_FOUND);
+        saga.addStep("OFFER_PERSISTED", "delivery.offer-persisted", rawEvent);
+        sagaInstanceRepository.save(saga);
+        sendOrderStatusCommand(saga, "WAIT_SHIPPER_CONFIRM", rawEvent);
     }
 
     /**
@@ -672,6 +713,10 @@ public class SagaManager {
             expireCommand.put("deliveryId", saga.getDeliveryId());
             expireCommand.put("timedOutShipperId", timedOutShipperId);
             expireCommand.put("expectedOfferExpiresAt", offerExpiresAt.toString());
+            UUID matchingSessionId = currentMatchingSessionId(saga);
+            if (matchingSessionId != null) {
+                expireCommand.put("matchingSessionId", matchingSessionId.toString());
+            }
 
             sendCommand(CMD_EXPIRE_SHIPPER_OFFER, orderId.toString(),
                     objectMapper.writeValueAsString(expireCommand));
@@ -1436,11 +1481,11 @@ public class SagaManager {
         }
     }
 
-    private void sendCommand(String topic, String key, String payload) {
+    private UUID sendCommand(String topic, String key, String payload) {
         try {
             JsonNode jsonNode = objectMapper.readTree(payload);
             String destination = resolveCommandTopic(topic);
-            outboxService.saveCommand(key, destination, key, jsonNode);
+            return outboxService.saveCommand(key, destination, key, jsonNode);
         } catch (Exception e) {
             log.error("💥 [Saga] Failed to store command for {}: {}", topic, e.getMessage(), e);
             throw new SagaCommandPublishException("Failed to store saga command for " + topic, e);
@@ -1451,18 +1496,34 @@ public class SagaManager {
      * Gửi lệnh update order status (bọc thêm trường sagaStatus)
      */
     private void sendOrderStatusCommand(Long orderId, String sagaStatus, String rawEvent) {
+        sendOrderStatusCommand(findSagaByOrderId(orderId), sagaStatus, rawEvent);
+    }
+
+    private void sendOrderStatusCommand(SagaInstance saga, String sagaStatus, String rawEvent) {
         try {
+            Long orderId = saga.getOrderId();
             ObjectNode command = objectMapper.createObjectNode();
             command.put("orderId", orderId);
             command.put("sagaStatus", sagaStatus);
+            command.put("orderStatusSequence", saga.getOrderStatusSequence() + 1);
             command.put("originalEvent", rawEvent);
             command.put("timestamp", System.currentTimeMillis());
-
+            saga.setOrderStatusSequence(saga.getOrderStatusSequence() + 1);
             outboxService.saveCommand(orderId.toString(), updateOrderStatusTopic,
                     orderId.toString(), command);
         } catch (Exception e) {
             log.error("💥 [Saga] Failed to store order status command: {}", e.getMessage(), e);
             throw new SagaCommandPublishException("Failed to store saga order status command", e);
+        }
+    }
+
+    private boolean isExpectedOfferPersistenceCommand(SagaInstance saga, String commandId) {
+        String requested = getStepEventData(saga, "OFFER_PERSIST_REQUESTED");
+        if (requested == null) return false;
+        try {
+            return commandId.equals(objectMapper.readTree(requested).path("cacheCommandEventId").asText());
+        } catch (Exception ignored) {
+            return false;
         }
     }
 

@@ -32,7 +32,8 @@ public class RestaurantController {
             @Valid @RequestBody CreateRestaurantRequest request,
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireActor(actor);
-        RestaurantResponse response = restaurantService.createRestaurant(request, actor.getUserId(), getRoleString(actor));
+        RestaurantResponse response = restaurantService.createRestaurant(
+                request, actor.getPrincipalId(), actor.getLegacyUserId(), getRoleString(actor));
         return ResponseEntity.ok(new BaseResponse<>(1, response));
     }
 
@@ -42,7 +43,8 @@ public class RestaurantController {
             @Valid @RequestBody UpdateRestaurantRequest request,
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireActor(actor);
-        RestaurantResponse response = restaurantService.updateRestaurant(id, request, actor.getUserId(), getRoleString(actor));
+        RestaurantResponse response = restaurantService.updateRestaurant(
+                id, request, actor.getPrincipalId(), actor.getLegacyUserId(), getRoleString(actor));
         return ResponseEntity.ok(new BaseResponse<>(1, response));
     }
 
@@ -51,7 +53,7 @@ public class RestaurantController {
             @PathVariable Long id,
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireActor(actor);
-        restaurantService.deleteRestaurant(id, actor.getUserId(), getRoleString(actor));
+        restaurantService.deleteRestaurant(id, actor.getPrincipalId(), actor.getLegacyUserId(), getRoleString(actor));
         return ResponseEntity.ok(new BaseResponse<>(1, null));
     }
 
@@ -77,19 +79,20 @@ public class RestaurantController {
     public ResponseEntity<BaseResponse<List<RestaurantResponse>>> getMyRestaurants(
             @AuthenticationPrincipal AuthenticatedActor actor) {
         
-        if (actor == null || actor.getUserId() == null) {
+        if (actor == null || actor.getPrincipalId() == null || actor.getLegacyUserId() == null) {
             throw new IllegalArgumentException("User ID is required");
         }
         if (!actor.isShopOwner()) {
             throw new AccessDeniedException("Only SHOP_OWNER can view owned restaurants");
         }
         
-        List<RestaurantResponse> list = restaurantService.getRestaurantsByCreatorId(actor.getUserId());
+        List<RestaurantResponse> list = restaurantService.getRestaurantsByOwnerPrincipalId(
+                actor.getPrincipalId(), actor.getLegacyUserId());
         return ResponseEntity.ok(new BaseResponse<>(1, list));
     }
 
     private void requireActor(AuthenticatedActor actor) {
-        if (actor == null || actor.getUserId() == null) {
+        if (actor == null || actor.getPrincipalId() == null || actor.getLegacyUserId() == null) {
             throw new AccessDeniedException("Yêu cầu đăng nhập");
         }
     }

@@ -24,10 +24,10 @@ class UserServiceProvisioningTest {
     private final UserServiceImpl service = new UserServiceImpl(repository);
 
     @Test
-    void repeatedProvisioningByAuthIdReturnsTheExistingUser() {
+    void repeatedProvisioningByPrincipalIdReturnsTheExistingUser() {
         User existing = provisionedUser(7L, 42L, "user@example.com", "USER");
         UserRequest request = request(42L, "USER@example.com", "USER");
-        when(repository.findByAuthId(42L)).thenReturn(Optional.of(existing));
+        when(repository.findByPrincipalId(42L)).thenReturn(Optional.of(existing));
 
         var result = service.createUser(request);
 
@@ -36,9 +36,9 @@ class UserServiceProvisioningTest {
     }
 
     @Test
-    void repeatedAuthIdCannotBeReboundToAnotherIdentity() {
+    void repeatedPrincipalIdCannotBeReboundToAnotherIdentity() {
         User existing = provisionedUser(7L, 42L, "user@example.com", "USER");
-        when(repository.findByAuthId(42L)).thenReturn(Optional.of(existing));
+        when(repository.findByPrincipalId(42L)).thenReturn(Optional.of(existing));
 
         assertThatThrownBy(() -> service.createUser(request(42L, "attacker@example.com", "USER")))
                 .isInstanceOf(ResponseStatusException.class)
@@ -48,7 +48,7 @@ class UserServiceProvisioningTest {
     @Test
     void newProvisioningPersistsTheAuthLink() {
         UserRequest request = request(42L, "user@example.com", "USER");
-        when(repository.findByAuthId(42L)).thenReturn(Optional.empty());
+        when(repository.findByPrincipalId(42L)).thenReturn(Optional.empty());
         when(repository.findByEmailIgnoreCase("user@example.com")).thenReturn(Optional.empty());
         when(repository.saveAndFlush(org.mockito.ArgumentMatchers.any(User.class)))
                 .thenAnswer(invocation -> {
@@ -64,14 +64,26 @@ class UserServiceProvisioningTest {
     }
 
     @Test
-    void newAuthIdCannotReuseAnExistingEmail() {
+    void newPrincipalIdCannotReuseAnExistingEmail() {
         User existing = provisionedUser(7L, 42L, "user@example.com", "USER");
-        when(repository.findByAuthId(99L)).thenReturn(Optional.empty());
+        when(repository.findByPrincipalId(99L)).thenReturn(Optional.empty());
         when(repository.findByEmailIgnoreCase("USER@example.com")).thenReturn(Optional.of(existing));
 
         assertThatThrownBy(() -> service.createUser(request(99L, "USER@example.com", "USER")))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("409 CONFLICT");
+        verify(repository, never()).saveAndFlush(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void rejectsDivergentLegacyAuthIdAndPrincipalId() {
+        UserRequest divergent = UserRequest.builder()
+                .authId(42L).principalId(99L).email("user@example.com").role("USER").build();
+
+        assertThatThrownBy(() -> service.createUser(divergent))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("400 BAD_REQUEST");
+        verify(repository, never()).findByPrincipalId(org.mockito.ArgumentMatchers.any());
         verify(repository, never()).saveAndFlush(org.mockito.ArgumentMatchers.any());
     }
 
@@ -114,11 +126,11 @@ class UserServiceProvisioningTest {
     }
 
     private UserRequest request(Long authId, String email, String role) {
-        return UserRequest.builder().authId(authId).email(email).role(role).build();
+        return UserRequest.builder().authId(authId).principalId(authId).email(email).role(role).build();
     }
 
     private User provisionedUser(Long id, Long authId, String email, String role) {
-        User user = User.builder().authId(authId).email(email).role(role).build();
+        User user = User.builder().authId(authId).principalId(authId).email(email).role(role).build();
         ReflectionTestUtils.setField(user, "id", id);
         return user;
     }

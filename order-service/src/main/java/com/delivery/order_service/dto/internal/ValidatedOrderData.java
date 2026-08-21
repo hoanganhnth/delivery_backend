@@ -9,6 +9,7 @@ import java.util.List;
  */
 public record ValidatedOrderData(
                 Long creatorId,
+                Long creatorPrincipalId,
                 String restaurantName,
                 String restaurantAddress,
                 String restaurantPhone,

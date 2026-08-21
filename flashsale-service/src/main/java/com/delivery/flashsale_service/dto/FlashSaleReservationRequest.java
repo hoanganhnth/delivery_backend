@@ -14,6 +14,7 @@ public class FlashSaleReservationRequest {
     @NotNull private UUID reservationId;
     @NotNull @Positive private Long orderId;
     @NotNull @Positive private Long userId;
+    @Positive private Long userPrincipalId;
     @NotNull @Positive private Long restaurantId;
     @NotEmpty private List<@Valid @NotNull ReserveItemRequest> items;
 }

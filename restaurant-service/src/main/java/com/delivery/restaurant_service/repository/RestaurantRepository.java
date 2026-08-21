@@ -21,10 +21,27 @@ public interface RestaurantRepository extends JpaRepository<Restaurant, Long> {
      */
     Page<Restaurant> findByCreatorId(Long creatorId, Pageable pageable);
 
+    @org.springframework.data.jpa.repository.Query("select r from Restaurant r where r.ownerPrincipalId = :principalId "
+            + "or (r.ownerPrincipalId is null and r.creatorId = :legacyCreatorId)")
+    Page<Restaurant> findByOwnerPrincipalOrUnmigratedCreator(
+            @org.springframework.data.repository.query.Param("principalId") Long principalId,
+            @org.springframework.data.repository.query.Param("legacyCreatorId") Long legacyCreatorId,
+            Pageable pageable);
+
     /**
      * Kiểm tra xem một nhà hàng có tồn tại với ID và creatorId hay không.
      * Dùng để xác thực quyền sở hữu.
      */
     boolean existsByIdAndCreatorId(Long id, Long creatorId);
+
+    boolean existsByIdAndOwnerPrincipalId(Long id, Long ownerPrincipalId);
+
+    @org.springframework.data.jpa.repository.Query("select count(r) > 0 from Restaurant r where r.id = :restaurantId and "
+            + "(r.ownerPrincipalId = :principalId or "
+            + "(r.ownerPrincipalId is null and r.creatorId = :legacyCreatorId))")
+    boolean existsByIdAndOwnerPrincipalOrUnmigratedCreator(
+            @org.springframework.data.repository.query.Param("restaurantId") Long restaurantId,
+            @org.springframework.data.repository.query.Param("principalId") Long principalId,
+            @org.springframework.data.repository.query.Param("legacyCreatorId") Long legacyCreatorId);
 
 }

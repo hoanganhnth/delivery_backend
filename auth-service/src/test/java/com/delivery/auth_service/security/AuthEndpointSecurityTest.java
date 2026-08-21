@@ -18,13 +18,14 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.delivery.auth_service.controller.AuthController;
-import com.delivery.auth_service.controller.InternalRegistrationController;
 import com.delivery.auth_service.controller.JwksController;
 import com.delivery.auth_service.dto.AuthResponse;
 import com.delivery.auth_service.entity.AuthAccount;
 import com.delivery.auth_service.service.AuthService;
 import com.delivery.auth_service.service.AccountSecurityService;
 import com.delivery.auth_service.service.TokenService;
+import com.delivery.auth_service.service.IdentityRegistrationService;
+import com.delivery.auth_service.service.RegistrationAdmissionPolicy;
 import org.springframework.web.client.RestTemplate;
 
 import com.delivery.auth.resourceserver.security.DeliveryJwtAuthenticationConverter;
@@ -32,7 +33,7 @@ import com.delivery.auth.resourceserver.security.DeliveryJwtAuthenticationConver
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 
 @WebMvcTest(
-        controllers = { AuthController.class, InternalRegistrationController.class, JwksController.class },
+        controllers = { AuthController.class, JwksController.class },
         properties = "app.internal.secret=service-secret",
         excludeAutoConfiguration = UserDetailsServiceAutoConfiguration.class)
 @Import({ SecurityConfig.class, DeliveryJwtAuthenticationConverter.class })
@@ -52,6 +53,12 @@ class AuthEndpointSecurityTest {
 
     @MockitoBean
     private AccountSecurityService accountSecurityService;
+
+    @MockitoBean
+    private IdentityRegistrationService identityRegistrationService;
+
+    @MockitoBean
+    private RegistrationAdmissionPolicy registrationAdmissionPolicy;
 
     @MockitoBean
     private RestTemplate restTemplate;
@@ -74,17 +81,18 @@ class AuthEndpointSecurityTest {
     }
 
     @Test
-    void registrationReturnsAuthIdentityAndOpaqueUserHandoff() throws Exception {
+    void registrationReturnsAuthIdentityAndSignedUserHandoff() throws Exception {
         AuthAccount account = new AuthAccount();
         org.springframework.test.util.ReflectionTestUtils.setField(account, "id", 11L);
         account.setEmail("user@example.com");
         account.setRole(AuthAccount.Role.USER);
         account.setIsActive(true);
         when(authService.register(org.mockito.ArgumentMatchers.any())).thenReturn(account);
-        when(accountSecurityService.issueUserProvisioning(
-                org.mockito.ArgumentMatchers.eq(account),
-                org.mockito.ArgumentMatchers.nullable(String.class)))
-                .thenReturn("opaque-handoff");
+        when(tokenService.generateProvisioningToken(11L, "user@example.com", "USER"))
+                .thenReturn("signed-handoff");
+        when(identityRegistrationService.issue(account)).thenReturn(
+                new IdentityRegistrationService.IssuedHandle("opaque-handle", java.time.LocalDateTime.now().plusMinutes(15)));
+        when(registrationAdmissionPolicy.admits("user@example.com")).thenReturn(true);
 
         mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -101,29 +109,13 @@ class AuthEndpointSecurityTest {
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
                         .jsonPath("$.data.role").value("USER"))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
-                        .jsonPath("$.data.provisioningToken").value("opaque-handoff"));
+                        .jsonPath("$.data.provisioningToken").value("signed-handoff"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .jsonPath("$.data.registrationHandle").value("opaque-handle"));
 
         verify(accountSecurityService).requestEmailVerification(
                 org.mockito.ArgumentMatchers.eq("user@example.com"),
                 org.mockito.ArgumentMatchers.nullable(String.class));
-    }
-
-    @Test
-    void internalRegistrationEndpointsRequireTheServiceCredential() throws Exception {
-        when(accountSecurityService.resolveUserProvisioning("opaque-handoff"))
-                .thenReturn(new com.delivery.auth_service.dto.UserProvisioningIdentityResponse(
-                        11L, "user@example.com", "USER"));
-
-        mockMvc.perform(post("/api/auth/internal/registrations/resolve")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"provisioningToken\":\"opaque-handoff\"}"))
-                .andExpect(status().isForbidden());
-
-        mockMvc.perform(post("/api/auth/internal/registrations/resolve")
-                        .header("Internal-Token", "service-secret")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"provisioningToken\":\"opaque-handoff\"}"))
-                .andExpect(status().isOk());
     }
 
     @Test

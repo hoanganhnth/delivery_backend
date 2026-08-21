@@ -98,6 +98,15 @@
               {
                 "name": "PLATFORM_SECRETS_INTERNAL_SECRET_REQUIRED",
                 "value": "true"
+              },
+              {
+                "name": "SHIPPER_IDENTITY_PROJECTION_ENFORCED",
+                "valueFrom": {
+                  "configMapKeyRef": {
+                    "name": "delivery-runtime",
+                    "key": "TRACKING_SHIPPER_IDENTITY_PROJECTION_ENFORCED"
+                  }
+                }
               }
             ],
             "volumeMounts": [

@@ -33,6 +33,17 @@ public class User {
     @Column(name = "auth_id", nullable = false, unique = true)
     private Long authId;
 
+    @Column(name = "principal_id", nullable = false, unique = true)
+    private Long principalId;
+
+    @Column(name = "identity_status", nullable = false)
+    @Builder.Default
+    private String identityStatus = "ACTIVE";
+
+    @Column(name = "identity_status_version", nullable = false)
+    @Builder.Default
+    private Long identityStatusVersion = 0L;
+
     @Column(nullable = false, unique = true)
     private String email;
 

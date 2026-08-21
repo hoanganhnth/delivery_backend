@@ -15,6 +15,15 @@ public class Shipper {
     @Column(name = "user_id", nullable = false, unique = true)
     private Long userId;
 
+    @Column(name = "principal_id", unique = true)
+    private Long principalId;
+
+    @Column(name = "identity_status", nullable = false)
+    private String identityStatus = "ACTIVE";
+
+    @Column(name = "identity_status_version", nullable = false)
+    private Long identityStatusVersion = 0L;
+
     @Column(name = "full_name", length = 100)
     private String fullName;
 
@@ -97,6 +106,14 @@ public class Shipper {
     public void setUserId(Long userId) {
         this.userId = userId;
     }
+
+    public Long getPrincipalId() { return principalId; }
+    public void setPrincipalId(Long principalId) { this.principalId = principalId; }
+
+    public String getIdentityStatus() { return identityStatus; }
+    public void setIdentityStatus(String identityStatus) { this.identityStatus = identityStatus; }
+    public Long getIdentityStatusVersion() { return identityStatusVersion; }
+    public void setIdentityStatusVersion(Long identityStatusVersion) { this.identityStatusVersion = identityStatusVersion; }
 
     public String getFullName() {
         return fullName;

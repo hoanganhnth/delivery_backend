@@ -34,14 +34,14 @@ public interface RefundCaseRepository extends JpaRepository<RefundCase, UUID> {
     @Modifying(flushAutomatically = true)
     @Query(value = """
             INSERT INTO refund_cases (
-                refund_id, event_id, idempotency_key, order_id, user_id, restaurant_id,
+                refund_id, event_id, idempotency_key, order_id, user_id, user_principal_id, restaurant_id,
                 previous_order_status, current_order_status, payment_method,
                 refund_trigger, component, status, currency, subtotal_amount,
                 discount_amount, shipping_fee, total_amount, captured_amount,
                 refund_amount, actor_source, actor_id, reason, payload_fingerprint,
                 attempts, created_at, updated_at
             ) VALUES (
-                :refundId, :eventId, :idempotencyKey, :orderId, :userId, :restaurantId,
+                :refundId, :eventId, :idempotencyKey, :orderId, :userId, :userPrincipalId, :restaurantId,
                 :previousOrderStatus, :currentOrderStatus, :paymentMethod,
                 :trigger, :component, :status, :currency, :subtotalAmount,
                 :discountAmount, :shippingFee, :totalAmount, :capturedAmount,
@@ -55,6 +55,7 @@ public interface RefundCaseRepository extends JpaRepository<RefundCase, UUID> {
             @Param("idempotencyKey") String idempotencyKey,
             @Param("orderId") Long orderId,
             @Param("userId") Long userId,
+            @Param("userPrincipalId") Long userPrincipalId,
             @Param("restaurantId") Long restaurantId,
             @Param("previousOrderStatus") String previousOrderStatus,
             @Param("currentOrderStatus") String currentOrderStatus,
@@ -83,14 +84,14 @@ public interface RefundCaseRepository extends JpaRepository<RefundCase, UUID> {
     @Modifying(flushAutomatically = true)
     @Query(value = """
             INSERT INTO refund_cases (
-                refund_id, event_id, idempotency_key, order_id, user_id, restaurant_id,
+                refund_id, event_id, idempotency_key, order_id, user_id, user_principal_id, restaurant_id,
                 previous_order_status, current_order_status, payment_method,
                 refund_trigger, component, status, currency, subtotal_amount,
                 discount_amount, shipping_fee, total_amount, captured_amount,
                 refund_amount, actor_source, actor_id, reason, payload_fingerprint,
                 attempts, created_at, updated_at
             ) SELECT
-                :refundId, :eventId, :idempotencyKey, :orderId, :userId, :restaurantId,
+                :refundId, :eventId, :idempotencyKey, :orderId, :userId, :userPrincipalId, :restaurantId,
                 :previousOrderStatus, :currentOrderStatus, :paymentMethod,
                 :trigger, :component, :status, :currency, :subtotalAmount,
                 :discountAmount, :shippingFee, :totalAmount, :capturedAmount,
@@ -111,6 +112,7 @@ public interface RefundCaseRepository extends JpaRepository<RefundCase, UUID> {
             @Param("idempotencyKey") String idempotencyKey,
             @Param("orderId") Long orderId,
             @Param("userId") Long userId,
+            @Param("userPrincipalId") Long userPrincipalId,
             @Param("restaurantId") Long restaurantId,
             @Param("previousOrderStatus") String previousOrderStatus,
             @Param("currentOrderStatus") String currentOrderStatus,
@@ -136,4 +138,11 @@ public interface RefundCaseRepository extends JpaRepository<RefundCase, UUID> {
     List<RefundCase> findByStatusOrderByCreatedAtDesc(RefundStatus status, Pageable pageable);
 
     List<RefundCase> findByUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable);
+
+    List<RefundCase> findByUserPrincipalIdOrderByCreatedAtDesc(Long principalId, Pageable pageable);
+
+    @Query("select r from RefundCase r where r.userPrincipalId = :principalId "
+            + "or (r.userPrincipalId is null and r.userId = :legacyUserId) order by r.createdAt desc")
+    List<RefundCase> findByPrincipalOrUnmigratedLegacyUserOrderByCreatedAtDesc(
+            @Param("principalId") Long principalId, @Param("legacyUserId") Long legacyUserId, Pageable pageable);
 }

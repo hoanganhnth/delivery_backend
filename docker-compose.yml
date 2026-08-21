@@ -205,6 +205,21 @@ services:
       PASSWORD_RESET_URL: ${PASSWORD_RESET_URL:-http://localhost:3000/reset-password}
       EMAIL_VERIFICATION_URL: ${EMAIL_VERIFICATION_URL:-http://localhost:3000/verify-email}
       JWT_ACCESS_TOKEN_TTL_SECONDS: "900"
+      # Local Compose runs the coherent two-request registration/profile flow
+      # by default.
+      # Production/Kubernetes keeps every migration control false until its
+      # owner-specific rollout gate is passed.
+      IDENTITY_EVENTS_ENABLED: ${AUTH_IDENTITY_EVENTS_ENABLED:-true}
+      IDENTITY_OUTBOX_RELAY_ENABLED: ${AUTH_IDENTITY_OUTBOX_RELAY_ENABLED:-true}
+      IDENTITY_STATUS_BOOTSTRAP_ENABLED: ${AUTH_IDENTITY_STATUS_BOOTSTRAP_ENABLED:-true}
+      PUBLIC_REGISTRATION_ENABLED: ${AUTH_PUBLIC_REGISTRATION_ENABLED:-true}
+      # Compose is a fully-open local environment, not a canary rehearsal.
+      REGISTRATION_CANARY_PERCENTAGE: ${AUTH_PUBLIC_REGISTRATION_CANARY_PERCENTAGE:-100}
+      REGISTRATION_CANARY_ALLOWLIST: ${AUTH_PUBLIC_REGISTRATION_CANARY_ALLOWLIST:-}
+      REGISTRATION_CANARY_HASH_KEY: ${AUTH_PUBLIC_REGISTRATION_CANARY_HASH_KEY:-}
+      # R5 is opt-in even in Compose; the normal local topology retains the
+      # same legacy subject semantics as production R0-R4.
+      JWT_ACCESS_TOKEN_SUBJECT_MODE: ${AUTH_JWT_ACCESS_TOKEN_SUBJECT_MODE:-LEGACY_USER_ID}
       JAVA_TOOL_OPTIONS: "-Xmx384m -Xms256m"
     deploy: { resources: { limits: { memory: 512M } } }
     secrets:
@@ -228,6 +243,8 @@ services:
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       PLATFORM_SECRETS_INTERNAL_SECRET_REQUIRED: "true"
+      IDENTITY_EVENTS_ENABLED: ${USER_IDENTITY_EVENTS_ENABLED:-true}
+      IDENTITY_OUTBOX_RELAY_ENABLED: ${USER_IDENTITY_OUTBOX_RELAY_ENABLED:-true}
       JAVA_TOOL_OPTIONS: "-Xmx384m -Xms256m"
     deploy: { resources: { limits: { memory: 512M } } }
     secrets:
@@ -279,6 +296,10 @@ services:
       ORDER_PAYMENT_EVENT_PROCESSING_ENABLED: "false"
       ORDER_VOUCHER_CHECKOUT_ENABLED: "${ORDER_VOUCHER_CHECKOUT_ENABLED:-false}"
       ORDER_FLASHSALE_CHECKOUT_ENABLED: "${ORDER_FLASHSALE_CHECKOUT_ENABLED:-false}"
+      ORDER_QUOTE_ENFORCEMENT_ENABLED: "${ORDER_QUOTE_ENFORCEMENT_ENABLED:-false}"
+      ORDER_QUOTE_TTL: "${ORDER_QUOTE_TTL:-PT5M}"
+      ORDER_QUOTE_CLEANUP_RETENTION: "${ORDER_QUOTE_CLEANUP_RETENTION:-PT24H}"
+      ORDER_QUOTE_CLEANUP_DELAY_MS: "${ORDER_QUOTE_CLEANUP_DELAY_MS:-3600000}"
       PROMOTION_SERVICE_URL: http://promotion-service:8096
       FLASHSALE_SERVICE_URL: http://flashsale-service:8092
       JAVA_TOOL_OPTIONS: "-Xmx384m -Xms256m"

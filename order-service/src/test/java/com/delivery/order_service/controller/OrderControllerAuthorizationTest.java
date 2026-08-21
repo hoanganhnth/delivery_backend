@@ -42,4 +42,16 @@ class OrderControllerAuthorizationTest {
 
         verifyNoInteractions(orderService, previewService);
     }
+
+    @Test
+    void orderManagementListsRejectNonAdminBeforeQuery() {
+        AuthenticatedActor ownerActor = new AuthenticatedActor(7L, "shop@example.com", Set.of("SHOP_OWNER"));
+
+        assertThatThrownBy(() -> controller.getAllOrders(ownerActor, 0, 10))
+                .isInstanceOf(AccessDeniedException.class);
+        assertThatThrownBy(() -> controller.getOrdersByStatus("PENDING", ownerActor, 0, 10))
+                .isInstanceOf(AccessDeniedException.class);
+
+        verifyNoInteractions(orderService, previewService);
+    }
 }

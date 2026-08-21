@@ -16,6 +16,7 @@ public class ShipperMapper {
         ShipperResponse response = new ShipperResponse();
         response.setId(shipper.getId());
         response.setUserId(shipper.getUserId());
+        response.setPrincipalId(shipper.getPrincipalId());
         response.setFullName(shipper.getFullName());
         response.setVehicleType(shipper.getVehicleType());
         response.setLicenseNumber(shipper.getLicenseNumber());

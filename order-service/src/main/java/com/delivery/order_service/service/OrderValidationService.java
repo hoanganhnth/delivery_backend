@@ -385,6 +385,15 @@ public class OrderValidationService {
             }
         }
 
+        Long creatorPrincipalId = null;
+        if (restaurantInfo.get("ownerPrincipalId") != null) {
+            try {
+                creatorPrincipalId = Long.valueOf(restaurantInfo.get("ownerPrincipalId").toString());
+            } catch (NumberFormatException e) {
+                log.warn("⚠️ Invalid ownerPrincipalId: {}", restaurantInfo.get("ownerPrincipalId"));
+            }
+        }
+
         if (name == null || name.isBlank()) {
             errors.add("Restaurant service thiếu tên nhà hàng canonical");
         }
@@ -429,7 +438,8 @@ public class OrderValidationService {
 
         log.info("✅ Server-validated restaurant data: name={}, creatorId={}, items={}",
                 name, creatorId, items.size());
-        return new ValidatedOrderData(creatorId, name, address, phone, lat, lng, List.copyOf(items));
+        return new ValidatedOrderData(creatorId, creatorPrincipalId, name, address, phone, lat, lng,
+                List.copyOf(items));
     }
 
     private boolean isFiniteInRange(Double value, double min, double max) {

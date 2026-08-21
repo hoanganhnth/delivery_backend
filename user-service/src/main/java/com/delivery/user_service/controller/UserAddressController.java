@@ -3,6 +3,7 @@ package com.delivery.user_service.controller;
 import com.delivery.user_service.dto.UserAddressRequest;
 import com.delivery.user_service.dto.UserAddressResponse;
 import com.delivery.user_service.service.UserAddressService;
+import com.delivery.user_service.service.UserService;
 import com.delivery.auth.resourceserver.security.AuthenticatedActor;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +20,7 @@ import java.util.List;
 public class UserAddressController {
 
     private final UserAddressService addressService;
+    private final UserService userService;
 
     @GetMapping("/users/{userId}/addresses")
     public ResponseEntity<BaseResponse<List<UserAddressResponse>>> getUserAddresses(
@@ -99,7 +101,12 @@ public class UserAddressController {
         if (actor.isAdmin()) {
             return true;
         }
-        return actor.isUser() && actor.getUserId() != null && actor.getUserId().equals(ownerId);
+        if (!actor.isUser() || actor.getPrincipalId() == null || ownerId == null) {
+            return false;
+        }
+        // Address rows stay keyed by profile ID. Resolve that profile inside the
+        // service that owns it instead of trusting the migration-era JWT subject.
+        return ownerId.equals(userService.getUserByPrincipalId(actor.getPrincipalId()).getId());
     }
 
     private <T> ResponseEntity<BaseResponse<T>> forbidden() {

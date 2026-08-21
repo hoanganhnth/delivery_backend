@@ -22,6 +22,7 @@ public class OrderCreatedEvent {
     // Order basic info
     private Long orderId;
     private Long userId;
+    private Long userPrincipalId;
     private Long restaurantId;
     private String status;
 
@@ -50,6 +51,7 @@ public class OrderCreatedEvent {
     // Timestamps
     private LocalDateTime createdAt;
     private Long creatorId;
+    private Long creatorPrincipalId;
 
     // location pickup
     private Double pickupLat;

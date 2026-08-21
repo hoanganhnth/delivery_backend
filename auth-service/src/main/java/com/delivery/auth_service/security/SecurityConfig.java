@@ -37,13 +37,11 @@ public class SecurityConfig {
                                 "/api/auth/email-verification/request",
                                 "/api/auth/email-verification/confirm").permitAll()
                         .requestMatchers(HttpMethod.GET, "/.well-known/jwks.json").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/auth/registrations/*").permitAll()
                         .requestMatchers(
                                 "/actuator/health",
                                 "/actuator/health/**",
                                 "/error").permitAll()
-                        .requestMatchers(HttpMethod.POST,
-                                "/api/auth/internal/registrations/resolve",
-                                "/api/auth/internal/registrations/complete").permitAll()
                         .requestMatchers("/api/auth/admin/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/auth/accounts/*").hasRole("ADMIN")
                         .requestMatchers("/api/auth/**").authenticated()

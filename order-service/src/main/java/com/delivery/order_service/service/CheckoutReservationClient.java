@@ -30,10 +30,17 @@ public class CheckoutReservationClient {
 
     public VoucherQuote reserveVoucher(UUID reservationId, Long orderId, Long userId, Long voucherId,
             Long restaurantId, BigDecimal subtotal, BigDecimal shippingFee) {
-        Map<String, Object> data = post(promotionUrl + "/api/promotions/internal/reserve", Map.of(
-                "reservationId", reservationId, "orderId", orderId, "userId", userId,
-                "voucherId", voucherId, "restaurantId", restaurantId,
-                "subtotal", subtotal, "shippingFee", shippingFee));
+        return reserveVoucher(reservationId, orderId, userId, null, voucherId, restaurantId, subtotal, shippingFee);
+    }
+
+    public VoucherQuote reserveVoucher(UUID reservationId, Long orderId, Long userId, Long userPrincipalId, Long voucherId,
+            Long restaurantId, BigDecimal subtotal, BigDecimal shippingFee) {
+        Map<String, Object> request = new LinkedHashMap<>();
+        request.put("reservationId", reservationId); request.put("orderId", orderId); request.put("userId", userId);
+        if (userPrincipalId != null) request.put("userPrincipalId", userPrincipalId);
+        request.put("voucherId", voucherId); request.put("restaurantId", restaurantId);
+        request.put("subtotal", subtotal); request.put("shippingFee", shippingFee);
+        Map<String, Object> data = post(promotionUrl + "/api/promotions/internal/reserve", request);
         requireIdentity(data, reservationId, orderId, "voucher");
         if (!"RESERVED".equals(text(data.get("state")))) throw new IllegalStateException("Voucher was not reserved");
         return new VoucherQuote(decimal(data.get("discountAmount")));
@@ -42,11 +49,21 @@ public class CheckoutReservationClient {
     @SuppressWarnings("unchecked")
     public VoucherQuote quoteVoucher(Long userId, Long voucherId, Long restaurantId,
                                      BigDecimal subtotal, BigDecimal shippingFee) {
+        return quoteVoucher(userId, null, voucherId, restaurantId, subtotal, shippingFee);
+    }
+
+    @SuppressWarnings("unchecked")
+    public VoucherQuote quoteVoucher(Long userId, Long userPrincipalId, Long voucherId, Long restaurantId,
+                                     BigDecimal subtotal, BigDecimal shippingFee) {
         requireSecret();
+        Map<String, Object> request = new LinkedHashMap<>();
+        request.put("shopId", restaurantId); request.put("userId", userId);
+        if (userPrincipalId != null) request.put("userPrincipalId", userPrincipalId);
+        request.put("subTotal", subtotal); request.put("shippingFee", shippingFee);
+        request.put("selectedVoucherId", voucherId);
         Map<String, Object> envelope = webClient.post().uri(promotionUrl + "/api/promotions/internal/calculate")
                 .header("Internal-Token", internalSecret)
-                .bodyValue(Map.of("shopId", restaurantId, "userId", userId, "subTotal", subtotal,
-                        "shippingFee", shippingFee, "selectedVoucherId", voucherId))
+                .bodyValue(request)
                 .retrieve().bodyToMono(Map.class).timeout(timeout).block();
         if (envelope == null || !Integer.valueOf(1).equals(envelope.get("status"))
                 || !(envelope.get("data") instanceof Map<?, ?> data))
@@ -65,12 +82,19 @@ public class CheckoutReservationClient {
 
     public FlashQuote reserveFlash(UUID reservationId, Long orderId, Long userId, Long restaurantId,
             List<CreateOrderRequest.OrderItemRequest> requestItems) {
+        return reserveFlash(reservationId, orderId, userId, null, restaurantId, requestItems);
+    }
+
+    public FlashQuote reserveFlash(UUID reservationId, Long orderId, Long userId, Long userPrincipalId, Long restaurantId,
+            List<CreateOrderRequest.OrderItemRequest> requestItems) {
         List<Map<String, Object>> lines = requestItems.stream().filter(item -> item.getFlashSaleItemId() != null)
                 .map(item -> Map.<String, Object>of("flashSaleItemId", item.getFlashSaleItemId(),
                         "quantity", item.getQuantity())).toList();
-        Map<String, Object> data = post(flashSaleUrl + "/api/flashsales/internal/reserve", Map.of(
-                "reservationId", reservationId, "orderId", orderId, "userId", userId,
-                "restaurantId", restaurantId, "items", lines));
+        Map<String, Object> request = new LinkedHashMap<>();
+        request.put("reservationId", reservationId); request.put("orderId", orderId); request.put("userId", userId);
+        if (userPrincipalId != null) request.put("userPrincipalId", userPrincipalId);
+        request.put("restaurantId", restaurantId); request.put("items", lines);
+        Map<String, Object> data = post(flashSaleUrl + "/api/flashsales/internal/reserve", request);
         requireIdentity(data, reservationId, orderId, "flash-sale");
         if (!"RESERVED".equals(text(data.get("state")))) throw new IllegalStateException("Flash sale was not reserved");
         return parseFlashQuote(data, lines.size());

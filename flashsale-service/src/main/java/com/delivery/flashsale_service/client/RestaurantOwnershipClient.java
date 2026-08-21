@@ -24,8 +24,8 @@ public class RestaurantOwnershipClient {
         this.internalSecret = internalSecret;
     }
 
-    public void requireOwnedBy(Long restaurantId, Long ownerId) {
-        if (restaurantId == null || ownerId == null) {
+    public void requireOwnedBy(Long restaurantId, Long ownerPrincipalId, Long legacyOwnerId) {
+        if (restaurantId == null || ownerPrincipalId == null || legacyOwnerId == null) {
             throw new IllegalArgumentException("Restaurant and owner identity are required");
         }
         if (internalSecret == null || internalSecret.isBlank()) {
@@ -35,13 +35,33 @@ public class RestaurantOwnershipClient {
         HttpHeaders headers = new HttpHeaders();
         headers.set("Internal-Token", internalSecret);
         String url = restaurantServiceUrl + "/api/restaurants/internal/"
-                + restaurantId + "/owners/" + ownerId;
+                + restaurantId + "/owners/" + ownerPrincipalId + "?legacyOwnerId=" + legacyOwnerId;
         InternalBaseResponse<Boolean> response = restTemplate.exchange(
                 url,
                 HttpMethod.GET,
                 new HttpEntity<>(headers),
                 new ParameterizedTypeReference<InternalBaseResponse<Boolean>>() {
                 }).getBody();
+        if (response == null || response.status() != 1 || !Boolean.TRUE.equals(response.data())) {
+            throw new IllegalArgumentException("Merchant does not own restaurant " + restaurantId);
+        }
+    }
+
+    /** Compatibility rail for pre-principal internal callers. */
+    public void requireOwnedBy(Long restaurantId, Long legacyOwnerId) {
+        if (restaurantId == null || legacyOwnerId == null) {
+            throw new IllegalArgumentException("Restaurant and owner identity are required");
+        }
+        if (internalSecret == null || internalSecret.isBlank()) {
+            throw new IllegalStateException("INTERNAL_SECRET is required for restaurant ownership validation");
+        }
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Internal-Token", internalSecret);
+        String url = restaurantServiceUrl + "/api/restaurants/internal/"
+                + restaurantId + "/owners/" + legacyOwnerId;
+        InternalBaseResponse<Boolean> response = restTemplate.exchange(
+                url, HttpMethod.GET, new HttpEntity<>(headers),
+                new ParameterizedTypeReference<InternalBaseResponse<Boolean>>() {}).getBody();
         if (response == null || response.status() != 1 || !Boolean.TRUE.equals(response.data())) {
             throw new IllegalArgumentException("Merchant does not own restaurant " + restaurantId);
         }

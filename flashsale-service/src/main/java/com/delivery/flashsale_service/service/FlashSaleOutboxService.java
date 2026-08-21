@@ -38,6 +38,7 @@ public class FlashSaleOutboxService {
         payload.put("eventId", eventId); payload.put("eventType", eventType); payload.put("occurredAt", now);
         payload.put("reservationId", reservation.getReservationId()); payload.put("orderId", reservation.getOrderId());
         payload.put("userId", reservation.getUserId()); payload.put("restaurantId", reservation.getRestaurantId());
+        payload.put("userPrincipalId", reservation.getUserPrincipalId());
         payload.put("state", reservation.getState()); payload.put("expiresAt", reservation.getExpiresAt());
         payload.put("items", reservation.getLines().stream().map(line -> Map.of(
                 "flashSaleItemId", line.getFlashSaleItemId(), "menuItemId", line.getMenuItemId(),

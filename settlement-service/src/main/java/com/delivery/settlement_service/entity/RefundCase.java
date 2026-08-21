@@ -59,6 +59,9 @@ public class RefundCase {
     @Column(name = "user_id", nullable = false, updatable = false)
     private Long userId;
 
+    @Column(name = "user_principal_id", updatable = false)
+    private Long userPrincipalId;
+
     @Column(name = "restaurant_id", nullable = false, updatable = false)
     private Long restaurantId;
 

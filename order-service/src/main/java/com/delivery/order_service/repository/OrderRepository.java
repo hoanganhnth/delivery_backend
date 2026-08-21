@@ -24,6 +24,17 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
      * Tìm đơn hàng theo user ID
      */
     Page<Order> findByUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable);
+
+    Page<Order> findByUserPrincipalIdOrderByCreatedAtDesc(Long principalId, Pageable pageable);
+
+    Page<Order> findByCreatorPrincipalIdOrderByCreatedAtDesc(Long principalId, Pageable pageable);
+
+    @Query("select o from Order o where o.userPrincipalId = :principalId "
+            + "or (o.userPrincipalId is null and o.userId = :legacyUserId) order by o.createdAt desc")
+    Page<Order> findByPrincipalOrUnmigratedLegacyUserOrderByCreatedAtDesc(
+            @Param("principalId") Long principalId,
+            @Param("legacyUserId") Long legacyUserId,
+            Pageable pageable);
     
     /**
      * Tìm đơn hàng theo restaurant ID
@@ -48,5 +59,12 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
      * Query trực tiếp từ bảng orders mà không cần JOIN với restaurant
      */
     Page<Order> findByCreatorIdOrderByCreatedAtDesc(Long creatorId, Pageable pageable);
+
+    @Query("select o from Order o where o.creatorPrincipalId = :principalId "
+            + "or (o.creatorPrincipalId is null and o.creatorId = :legacyCreatorId) order by o.createdAt desc")
+    Page<Order> findByRestaurantOwnerPrincipalOrUnmigratedLegacyOrderByCreatedAtDesc(
+            @Param("principalId") Long principalId,
+            @Param("legacyCreatorId") Long legacyCreatorId,
+            Pageable pageable);
 
 }

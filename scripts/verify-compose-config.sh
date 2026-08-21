@@ -91,6 +91,14 @@ printf '%s' "$rendered_config" | jq -e \
       and ($root.services[$service].secrets | map(.source) | index("internal-secret") != null)))
     and (.services["user-service"].environment | has("USER_LEGACY_DELETE_API_ENABLED") | not)
     and .services["auth-service"].environment.JWT_ACCESS_TOKEN_TTL_SECONDS == "900"
+    and .services["auth-service"].environment.JWT_ACCESS_TOKEN_SUBJECT_MODE == "LEGACY_USER_ID"
+    and .services["auth-service"].environment.IDENTITY_EVENTS_ENABLED == "true"
+    and .services["auth-service"].environment.IDENTITY_OUTBOX_RELAY_ENABLED == "true"
+    and .services["auth-service"].environment.IDENTITY_STATUS_BOOTSTRAP_ENABLED == "true"
+    and .services["auth-service"].environment.PUBLIC_REGISTRATION_ENABLED == "true"
+    and .services["auth-service"].environment.REGISTRATION_CANARY_PERCENTAGE == "100"
+    and .services["user-service"].environment.IDENTITY_EVENTS_ENABLED == "true"
+    and .services["user-service"].environment.IDENTITY_OUTBOX_RELAY_ENABLED == "true"
     and .services["auth-service"].environment.MANAGEMENT_HEALTH_MAIL_ENABLED == "false"
     and (.services["restaurant-service"].environment | has("ORDER_SERVICE_URL") | not)
     and .services["restaurant-service"].environment.SPRING_DATA_REDIS_HOST == "redis"

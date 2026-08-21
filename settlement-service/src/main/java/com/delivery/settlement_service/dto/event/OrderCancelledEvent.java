@@ -23,6 +23,7 @@ public class OrderCancelledEvent {
 
     private Long orderId;
     private Long userId;
+    private Long userPrincipalId;
     private Long restaurantId;
     private String previousStatus;
     private String currentStatus;

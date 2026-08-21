@@ -16,6 +16,8 @@ public class KafkaTopicConstants {
     // ✅ NEW: Shipper rejected event — triggers re-assignment flow
     public static final String SHIPPER_REJECTED_TOPIC = "delivery.shipper-rejected";
     public static final String SHIPPER_OFFERED_TOPIC = "delivery.shipper-offered";
+    public static final String OFFER_PERSISTED_TOPIC = "delivery.offer-persisted";
+    public static final String OFFER_RETIRED_TOPIC = "delivery.offer-retired";
     
     private KafkaTopicConstants() {
         // Utility class

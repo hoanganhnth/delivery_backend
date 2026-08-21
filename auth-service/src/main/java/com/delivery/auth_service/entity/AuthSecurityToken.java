@@ -21,6 +21,12 @@ import java.time.LocalDateTime;
         uniqueConstraints = @UniqueConstraint(name = "uk_auth_security_token_hash", columnNames = "token_hash"))
 public class AuthSecurityToken {
 
+    /**
+     * USER_PROVISIONING is retained only so an additive rollout can still read
+     * rows issued by a previous release. No current endpoint/service creates
+     * or consumes it; remove the enum only after the documented token-retention
+     * drain has deleted every legacy row.
+     */
     public enum Purpose { PASSWORD_RESET, EMAIL_VERIFICATION, USER_PROVISIONING }
 
     @Id

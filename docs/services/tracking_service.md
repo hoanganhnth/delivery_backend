@@ -21,7 +21,9 @@ MVP.
 
 ## Luồng publisher
 
-Shipper handshake bằng JWT; server derive shipper identity từ principal, không
+Shipper handshake bằng JWT. Tracking consume `shipper.identity.upserted` vào
+projection local `principalId ↔ legacyUserId ↔ shipper.id`, rồi server derive
+đúng `shipper.id` từ principal; không
 tin shipper ID/header do client tự khai. Mỗi location update phải có tọa độ hợp
 lệ; optional telemetry không có dữ liệu được giữ `null`, còn giá trị không hữu
 hạn bị reject trước khi ghi Redis/Kafka. Update được ghi Redis trước, broadcast

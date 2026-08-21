@@ -37,6 +37,10 @@ PROVISION_LEGACY_SHARED_RETRY_TOPICS="${PROVISION_LEGACY_SHARED_RETRY_TOPICS:-tr
 # sources. Do not require absent optional source topics in the normal manifest.
 PROVISION_ORDER_PAYMENT_DLTS="${PROVISION_ORDER_PAYMENT_DLTS:-false}"
 PROVISION_ANALYTICS_RETRY_TOPICS="${PROVISION_ANALYTICS_RETRY_TOPICS:-false}"
+# Identity consumers are deployed dormant in R0 but their retry/DLT topology is
+# a precondition for R1/R2/R4. Keep this explicit: do not let a runtime flag
+# first enable depend on broker auto-topic creation.
+PROVISION_IDENTITY_RETRY_TOPICS="${PROVISION_IDENTITY_RETRY_TOPICS:-true}"
 
 if [[ -n "${DLT_PARTITIONS:-}" ]]; then
   printf 'DLT_PARTITIONS is ignored: retry/DLT targets inherit their source partition count.\n' >&2
@@ -75,6 +79,11 @@ fi
 if [[ "$PROVISION_ANALYTICS_RETRY_TOPICS" != "true" \
       && "$PROVISION_ANALYTICS_RETRY_TOPICS" != "false" ]]; then
   printf 'PROVISION_ANALYTICS_RETRY_TOPICS must be true or false.\n' >&2
+  exit 2
+fi
+if [[ "$PROVISION_IDENTITY_RETRY_TOPICS" != "true" \
+      && "$PROVISION_IDENTITY_RETRY_TOPICS" != "false" ]]; then
+  printf 'PROVISION_IDENTITY_RETRY_TOPICS must be true or false.\n' >&2
   exit 2
 fi
 
@@ -301,6 +310,8 @@ saga_retry_sources=(
   shipper.not-found
   delivery.created.failed
   delivery.cancel.failed
+  delivery.offer-persisted
+  delivery.offer-retired
 )
 order_retry_sources=(
   restaurant.order-confirmed
@@ -335,6 +346,24 @@ tracking_retry_sources=(
 # provision both destinations rather than collapsing two independent owners.
 tracking_dlt_only_sources=(
   shipper.status-change
+)
+# Auth, User, Shipper, Delivery and Tracking each own an isolated retry/DLT
+# topology on identity contracts. The suffixes mirror their @RetryableTopic
+# annotations exactly; do not merge them even though source topics are shared.
+auth_identity_retry_sources=(
+  identity.profile.created
+)
+user_identity_retry_sources=(
+  identity.status.changed
+)
+shipper_identity_retry_sources=(
+  identity.status.changed
+)
+delivery_shipper_identity_retry_sources=(
+  shipper.identity.upserted
+)
+tracking_shipper_identity_retry_sources=(
+  shipper.identity.upserted
 )
 
 # Generic names emitted by the pre-isolation annotations. These are migration
@@ -390,6 +419,23 @@ for source in "${tracking_dlt_only_sources[@]}"; do
   source_partitions="$(topic_partitions "$source")"
   provision_topic "${source}.tracking.DLT" "$source_partitions"
 done
+if [[ "$PROVISION_IDENTITY_RETRY_TOPICS" == "true" ]]; then
+  for source in "${auth_identity_retry_sources[@]}"; do
+    provision_retry_source "$source" "-retry-auth-identity" ".auth-identity.DLT"
+  done
+  for source in "${user_identity_retry_sources[@]}"; do
+    provision_retry_source "$source" "-retry-user-identity" ".user-identity.DLT"
+  done
+  for source in "${shipper_identity_retry_sources[@]}"; do
+    provision_retry_source "$source" "-retry-shipper-identity" ".shipper-identity.DLT"
+  done
+  for source in "${delivery_shipper_identity_retry_sources[@]}"; do
+    provision_retry_source "$source" "-retry-delivery-shipper-identity" ".delivery-shipper-identity.DLT"
+  done
+  for source in "${tracking_shipper_identity_retry_sources[@]}"; do
+    provision_retry_source "$source" "-retry-tracking-shipper-identity" ".tracking-shipper-identity.DLT"
+  done
+fi
 if [[ "$PROVISION_LEGACY_SHARED_RETRY_TOPICS" == "true" ]]; then
   printf 'Provisioning legacy shared retry/DLT targets for the rolling drain.\n'
   for source in "${legacy_shared_retry_sources[@]}"; do

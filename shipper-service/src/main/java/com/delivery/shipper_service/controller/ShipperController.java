@@ -35,7 +35,7 @@ public class ShipperController {
             @Valid @RequestBody CreateShipperRequest request,
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireShipper(actor);
-        ShipperResponse response = shipperService.createShipper(request, actor.getUserId(), RoleConstants.SHIPPER);
+        ShipperResponse response = shipperService.createShipper(request, actor.getPrincipalId(), actor.getLegacyUserId(), RoleConstants.SHIPPER);
         return ResponseEntity.ok(new BaseResponse<>(1, response));
     }
 
@@ -43,7 +43,7 @@ public class ShipperController {
     public ResponseEntity<BaseResponse<ShipperResponse>> getMyProfile(
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireShipper(actor);
-        ShipperResponse response = shipperService.getShipperByUserId(actor.getUserId());
+        ShipperResponse response = shipperService.getShipperByPrincipalId(actor.getPrincipalId());
         return ResponseEntity.ok(new BaseResponse<>(1, response));
     }
 
@@ -52,7 +52,7 @@ public class ShipperController {
             @Valid @RequestBody UpdateShipperRequest request,
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireShipper(actor);
-        ShipperResponse response = shipperService.updateShipperByUserId(actor.getUserId(), request);
+        ShipperResponse response = shipperService.updateShipperByPrincipalId(actor.getPrincipalId(), request);
         return ResponseEntity.ok(new BaseResponse<>(1, response));
     }
 
@@ -61,7 +61,7 @@ public class ShipperController {
             @RequestParam Boolean isOnline,
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireShipper(actor);
-        ShipperResponse response = shipperService.updateOnlineStatusByUserId(actor.getUserId(), isOnline);
+        ShipperResponse response = shipperService.updateOnlineStatusByPrincipalId(actor.getPrincipalId(), isOnline);
         return ResponseEntity.ok(new BaseResponse<>(1, response));
     }
 

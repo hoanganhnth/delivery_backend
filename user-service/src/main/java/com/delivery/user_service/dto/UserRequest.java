@@ -21,6 +21,9 @@ public class UserRequest {
     @Positive(message = "authId must be positive")
     private Long authId;
 
+    @Positive(message = "principalId must be positive")
+    private Long principalId;
+
     @Email(message = "email must be valid")
     @Size(max = 255, message = "email must not exceed 255 characters")
     private String email;

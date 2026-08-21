@@ -7,27 +7,39 @@ import com.delivery.order_service.dto.response.OrderResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import java.util.UUID;
+
 public interface OrderService {
     
     /**
      * Tạo đơn hàng mới
      */
     OrderResponse createOrder(CreateOrderRequest request, Long userId, String role);
+
+    OrderResponse createOrder(CreateOrderRequest request, Long principalId, Long legacyUserId, String role);
+
+    OrderResponse createOrder(CreateOrderRequest request, UUID idempotencyKey,
+                              Long principalId, Long legacyUserId, String role);
     
     /**
      * Lấy thông tin đơn hàng theo ID
      */
     OrderResponse getOrderById(Long id, Long userId, String role);
 
+    OrderResponse getOrderById(Long id, Long principalId, Long legacyUserId, String role);
+
     /**
      * Lấy danh sách đơn hàng của user
      */
     Page<OrderResponse> getOrdersByUser(Long userId, Long requesterId, String role, Pageable pageable);
 
+    Page<OrderResponse> getOrdersByPrincipal(Long principalId, Long legacyUserId, String role, Pageable pageable);
+
     /**
-     * Lấy danh sách đơn hàng theo restaurant owner (creator ID)
+     * Lấy đơn hàng của restaurant owner bằng principal, với legacy profile-ID fallback.
      */
-    Page<OrderResponse> getOrdersByRestaurantOwner(Long ownerId, Long userId, String role, Pageable pageable);
+    Page<OrderResponse> getOrdersByRestaurantOwner(Long principalId, Long legacyOwnerId, String role,
+            Pageable pageable);
 
     /**
      * Lấy đơn hàng theo trạng thái
@@ -43,6 +55,8 @@ public interface OrderService {
      * Hủy đơn hàng
      */
     OrderResponse cancelOrder(Long orderId, Long userId, String role, String reason);
+
+    OrderResponse cancelOrder(Long orderId, Long principalId, Long legacyUserId, String role, String reason);
     
     /**
      * ✅ Cập nhật order status khi không tìm được shipper

@@ -10,13 +10,14 @@ broker hay message DTO; raw WebSocket chỉ thuộc Tracking location contract.
 
 | Topic | Hành vi |
 |---|---|
-| `order.created` | Tạo notification cho customer theo stable event/order/user identity và canonical non-blank `restaurantName`; thiếu tên thì fail-closed, không dùng placeholder |
-| `delivery.status-updated` | Tạo notification theo canonical delivery status; chỉ dùng `shipperName` nếu producer gửi, nếu thiếu thì message phải generic và không bịa tên |
+| `order.created` | Tạo notification cho customer theo stable event/order/user identity và canonical non-blank `restaurantName`; event có `userPrincipalId` thì inbox dual-write principal, nếu thiếu giữ legacy compatibility |
+| `delivery.status-updated` | Tạo notification theo canonical delivery status và `userPrincipalId` khi producer có; chỉ dùng `shipperName` nếu producer gửi, nếu thiếu thì message phải generic và không bịa tên |
 | `delivery.shipper-offered` | Tạo đúng một inbox record cho shipper được chọn và FCM wake-up |
 
 Listener chỉ ACK sau khi notification được lưu và external delivery thành công.
 Deduplication key có unique constraint; replay của row `SENT` là no-op, row
-`PENDING` dùng lại cùng notification ID. Replay chỉ hợp lệ khi `userId` và các
+`PENDING` dùng lại cùng notification ID. Replay chỉ hợp lệ khi `userId`,
+`userPrincipalId` (nếu có) và các
 immutable notification fields khớp row đã lưu; tái sử dụng key cho payload khác
 bị từ chối để không làm lộ hoặc ghi đè notification của account khác.
 

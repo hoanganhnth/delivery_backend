@@ -2,6 +2,7 @@ package com.delivery.auth.resourceserver.security;
 
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -13,13 +14,22 @@ public class DeliveryJwtAuthenticationConverter implements Converter<Jwt, Abstra
 
     @Override
     public AbstractAuthenticationToken convert(Jwt jwt) {
-        String subject = jwt.getSubject();
-        Long userId = null;
-        if (subject != null && subject.matches("\\d+")) {
-            try {
-                userId = Long.parseLong(subject);
-            } catch (NumberFormatException ignored) {
-            }
+        Long legacyUserId = numeric(jwt.getClaim("legacy_user_id"));
+        Long principalId = numeric(jwt.getClaim("principal_id"));
+        Long identityClaimsVersion = numeric(jwt.getClaim("identity_claims_version"));
+
+        /*
+         * `sub` remains the legacy user profile during dual-claim rollout, but
+         * it is never a substitute for an explicit stable principal. Treating
+         * a legacy profile ID as auth_account.id would silently authorize the
+         * wrong aggregate after the IDs diverge. The JWKS migration has no
+         * legacy-token fallback: every access token carries both claims.
+         */
+        if (principalId == null || legacyUserId == null || identityClaimsVersion == null) {
+            throw new BadCredentialsException("Access token is missing required identity claims");
+        }
+        if (identityClaimsVersion != 1L) {
+            throw new BadCredentialsException("Unsupported access token identity claims version");
         }
 
         String email = jwt.getClaimAsString("email");
@@ -35,7 +45,7 @@ public class DeliveryJwtAuthenticationConverter implements Converter<Jwt, Abstra
             }
         }
 
-        AuthenticatedActor actor = new AuthenticatedActor(userId, email, rolesSet);
+        AuthenticatedActor actor = new AuthenticatedActor(principalId, legacyUserId, email, rolesSet);
 
         Set<GrantedAuthority> authorities = rolesSet.stream()
                 .filter(Objects::nonNull)
@@ -46,5 +56,19 @@ public class DeliveryJwtAuthenticationConverter implements Converter<Jwt, Abstra
                 .collect(Collectors.toSet());
 
         return new AuthenticatedActorAuthenticationToken(jwt, actor, authorities);
+    }
+
+    private Long numeric(Object value) {
+        if (value instanceof Number number) {
+            long parsed = number.longValue();
+            return parsed > 0 ? parsed : null;
+        }
+        if (!(value instanceof String string) || !string.matches("\\d+")) return null;
+        try {
+            long parsed = Long.parseLong(string);
+            return parsed > 0 ? parsed : null;
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
 }

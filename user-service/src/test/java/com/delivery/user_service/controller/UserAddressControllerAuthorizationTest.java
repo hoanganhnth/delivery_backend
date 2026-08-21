@@ -6,6 +6,8 @@ import com.delivery.auth.resourceserver.security.AuthenticatedActor;
 import com.delivery.user_service.dto.UserAddressRequest;
 import com.delivery.user_service.dto.UserAddressResponse;
 import com.delivery.user_service.service.UserAddressService;
+import com.delivery.user_service.service.UserService;
+import com.delivery.user_service.dto.UserResponse;
 
 import java.util.Set;
 
@@ -18,11 +20,18 @@ import static org.mockito.Mockito.when;
 class UserAddressControllerAuthorizationTest {
 
     private final UserAddressService addressService = mock(UserAddressService.class);
-    private final UserAddressController controller = new UserAddressController(addressService);
+    private final UserService userService = mock(UserService.class);
+    private final UserAddressController controller = new UserAddressController(addressService, userService);
+
+    private void profile(Long principalId, Long profileId) {
+        when(userService.getUserByPrincipalId(principalId))
+                .thenReturn(UserResponse.builder().id(profileId).principalId(principalId).build());
+    }
 
     @Test
     void cannotListAnotherUsersAddresses() {
         AuthenticatedActor actor = new AuthenticatedActor(11L, "user@example.com", Set.of("USER"));
+        profile(11L, 11L);
         var response = controller.getUserAddresses(22L, actor);
 
         assertThat(response.getStatusCode().value()).isEqualTo(403);
@@ -34,6 +43,7 @@ class UserAddressControllerAuthorizationTest {
         when(addressService.getAddressById(7L))
                 .thenReturn(UserAddressResponse.builder().id(7L).userId(22L).build());
         AuthenticatedActor actor = new AuthenticatedActor(11L, "user@example.com", Set.of("USER"));
+        profile(11L, 11L);
 
         var response = controller.getAddress(7L, actor);
 
@@ -48,6 +58,7 @@ class UserAddressControllerAuthorizationTest {
         when(addressService.getAddressById(7L)).thenReturn(address);
         when(addressService.updateAddress(7L, request)).thenReturn(address);
         AuthenticatedActor actor = new AuthenticatedActor(11L, "user@example.com", Set.of("USER"));
+        profile(11L, 11L);
 
         var response = controller.updateAddress(7L, request, actor);
 

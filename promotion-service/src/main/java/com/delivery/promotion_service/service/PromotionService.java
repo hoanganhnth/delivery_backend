@@ -18,6 +18,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.dao.DataIntegrityViolationException;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import org.springframework.beans.factory.annotation.Autowired;
 import com.delivery.promotion_service.exception.PromotionConflictException;
 
 import java.math.BigDecimal;
@@ -28,7 +32,6 @@ import java.util.stream.Collectors;
 import com.delivery.promotion_service.dto.CreateVoucherRequest;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class PromotionService {
 
@@ -39,6 +42,35 @@ public class PromotionService {
     private final VoucherGroupRepository voucherGroupRepository;
     private final VoucherReservationRepository voucherReservationRepository;
     private final PromotionOutboxService outboxService;
+    private final MeterRegistry meterRegistry;
+
+    @org.springframework.beans.factory.annotation.Value("${app.identity.principal-ownership.enforced:false}")
+    private boolean principalOwnershipEnforced;
+
+    @Autowired
+    public PromotionService(VoucherRepository voucherRepository,
+            UserVoucherRepository userVoucherRepository,
+            VoucherGroupRepository voucherGroupRepository,
+            VoucherReservationRepository voucherReservationRepository,
+            PromotionOutboxService outboxService,
+            MeterRegistry meterRegistry) {
+        this.voucherRepository = voucherRepository;
+        this.userVoucherRepository = userVoucherRepository;
+        this.voucherGroupRepository = voucherGroupRepository;
+        this.voucherReservationRepository = voucherReservationRepository;
+        this.outboxService = outboxService;
+        this.meterRegistry = meterRegistry;
+    }
+
+    /** Compatibility constructor for existing focused fixtures; production injects Prometheus registry. */
+    public PromotionService(VoucherRepository voucherRepository,
+            UserVoucherRepository userVoucherRepository,
+            VoucherGroupRepository voucherGroupRepository,
+            VoucherReservationRepository voucherReservationRepository,
+            PromotionOutboxService outboxService) {
+        this(voucherRepository, userVoucherRepository, voucherGroupRepository,
+                voucherReservationRepository, outboxService, new SimpleMeterRegistry());
+    }
 
     @Transactional
     public Voucher createVoucher(CreateVoucherRequest request) {
@@ -74,7 +106,8 @@ public class PromotionService {
     }
 
     @Transactional
-    public void collectVoucher(Long userId, String voucherCode) {
+    public void collectVoucher(Long principalId, Long userId, String voucherCode) {
+        validatePositiveId(principalId, "principalId");
         validatePositiveId(userId, "userId");
         if (voucherCode == null || voucherCode.isBlank()) {
             throw new IllegalArgumentException("Voucher code is required");
@@ -94,13 +127,19 @@ public class PromotionService {
             throw new IllegalArgumentException("Voucher is out of stock");
         }
 
-        Optional<UserVoucher> existing = userVoucherRepository.findByUserIdAndVoucherId(userId, voucher.getId());
+        Optional<UserVoucher> existing = principalOwnershipEnforced
+                ? userVoucherRepository.findByUserPrincipalIdAndVoucherId(principalId, voucher.getId())
+                : userVoucherRepository.findByPrincipalOrUnbackfilledLegacyAndVoucherId(principalId, userId, voucher.getId());
         if (existing.isPresent()) {
+            if (!principalOwnershipEnforced && existing.get().getUserPrincipalId() == null) {
+                legacyWalletFallback().increment();
+            }
             throw new PromotionConflictException("Voucher already collected");
         }
 
         UserVoucher userVoucher = UserVoucher.builder()
                 .userId(userId)
+                .userPrincipalId(principalId)
                 .voucherId(voucher.getId())
                 .status(UserVoucher.Status.SAVED)
                 .build();
@@ -112,12 +151,17 @@ public class PromotionService {
         }
     }
 
+    /** Legacy compatibility rail for internal callers that do not yet carry principalId. */
+    @Transactional
+    public void collectVoucher(Long userId, String voucherCode) {
+        collectVoucher(userId, userId, voucherCode);
+    }
+
     @Transactional(readOnly = true)
     public CalculateResponse calculate(CartContextRequest request) {
         validateCalculateRequest(request);
-        List<UserVoucher> savedVouchers = userVoucherRepository.findByUserIdAndStatus(
-                request.getUserId(), UserVoucher.Status.SAVED,
-                PageRequest.of(0, COMPATIBILITY_LIST_LIMIT));
+        List<UserVoucher> savedVouchers = walletVouchers(request.getUserPrincipalId(), request.getUserId(),
+                UserVoucher.Status.SAVED);
         Map<Long, Voucher> vouchersById = voucherRepository.findAllById(savedVouchers.stream()
                         .map(UserVoucher::getVoucherId)
                         .distinct()
@@ -209,10 +253,8 @@ public class PromotionService {
             return VoucherReservationResponse.from(sameOrder.get());
         }
 
-        UserVoucher userVoucher = userVoucherRepository.findByUserIdAndVoucherIdForUpdate(
-                        request.getUserId(), request.getVoucherId())
-                .orElseThrow(() -> new IllegalArgumentException("User has not collected voucher "
-                        + request.getVoucherId()));
+        UserVoucher userVoucher = walletVoucherForUpdate(
+                request.getUserPrincipalId(), request.getUserId(), request.getVoucherId());
         if (userVoucher.getStatus() != UserVoucher.Status.SAVED) {
             throw new PromotionConflictException("Voucher is already reserved or used");
         }
@@ -222,6 +264,7 @@ public class PromotionService {
         String unavailable = checkVoucherAvailability(voucher,
                 CartContextRequest.builder()
                         .userId(request.getUserId())
+                        .userPrincipalId(request.getUserPrincipalId())
                         .shopId(request.getRestaurantId())
                         .subTotal(request.getSubtotal())
                         .shippingFee(request.getShippingFee())
@@ -234,6 +277,7 @@ public class PromotionService {
                 .reservationId(request.getReservationId())
                 .orderId(request.getOrderId())
                 .userId(request.getUserId())
+                .userPrincipalId(request.getUserPrincipalId())
                 .voucherId(request.getVoucherId())
                 .restaurantId(request.getRestaurantId())
                 .subtotal(request.getSubtotal())
@@ -265,9 +309,8 @@ public class PromotionService {
                 && !LocalDateTime.now().isBefore(reservation.getExpiresAt())) {
             expireReservation(reservation);
         } else if (reservation.getState() == VoucherReservation.State.RESERVED) {
-            UserVoucher userVoucher = userVoucherRepository.findByUserIdAndVoucherIdForUpdate(
-                            reservation.getUserId(), reservation.getVoucherId())
-                    .orElseThrow(() -> new IllegalStateException("Reserved wallet voucher is missing"));
+            UserVoucher userVoucher = walletVoucherForUpdate(reservation.getUserPrincipalId(), reservation.getUserId(),
+                    reservation.getVoucherId());
             userVoucher.setStatus(UserVoucher.Status.USED);
             userVoucher.setUsedAt(LocalDateTime.now());
             reservation.setState(VoucherReservation.State.COMMITTED);
@@ -320,9 +363,8 @@ public class PromotionService {
     }
 
     private void releaseCapacity(VoucherReservation reservation, VoucherReservation.State state) {
-        UserVoucher userVoucher = userVoucherRepository.findByUserIdAndVoucherIdForUpdate(
-                        reservation.getUserId(), reservation.getVoucherId())
-                .orElseThrow(() -> new IllegalStateException("Reserved wallet voucher is missing"));
+        UserVoucher userVoucher = walletVoucherForUpdate(reservation.getUserPrincipalId(), reservation.getUserId(),
+                reservation.getVoucherId());
         Voucher voucher = voucherRepository.findByIdForUpdate(reservation.getVoucherId())
                 .orElseThrow(() -> new IllegalStateException("Reserved voucher is missing"));
         if (voucher.getUsedQuantity() <= 0) {
@@ -351,6 +393,7 @@ public class PromotionService {
         if (!reservation.getReservationId().equals(request.getReservationId())
                 || !reservation.getOrderId().equals(request.getOrderId())
                 || !reservation.getUserId().equals(request.getUserId())
+                || !java.util.Objects.equals(reservation.getUserPrincipalId(), request.getUserPrincipalId())
                 || !reservation.getVoucherId().equals(request.getVoucherId())
                 || !reservation.getRestaurantId().equals(request.getRestaurantId())
                 || reservation.getSubtotal().compareTo(request.getSubtotal()) != 0
@@ -360,15 +403,20 @@ public class PromotionService {
     }
 
     @Transactional(readOnly = true)
-    public List<Voucher> getCollectedVouchers(Long userId) {
+    public List<Voucher> getCollectedVouchers(Long principalId, Long userId) {
+        validatePositiveId(principalId, "principalId");
         validatePositiveId(userId, "userId");
-        List<UserVoucher> userVouchers = userVoucherRepository.findByUserIdAndStatus(
-                userId, UserVoucher.Status.SAVED,
-                PageRequest.of(0, COMPATIBILITY_LIST_LIMIT));
+        List<UserVoucher> userVouchers = walletVouchers(principalId, userId, UserVoucher.Status.SAVED);
         List<Long> voucherIds = userVouchers.stream()
                 .map(UserVoucher::getVoucherId)
                 .collect(Collectors.toList());
         return voucherRepository.findAllById(voucherIds);
+    }
+
+    /** Legacy compatibility rail for callers compiled before the principal claim. */
+    @Transactional(readOnly = true)
+    public List<Voucher> getCollectedVouchers(Long userId) {
+        return getCollectedVouchers(userId, userId);
     }
 
     @Transactional(readOnly = true)
@@ -452,6 +500,7 @@ public class PromotionService {
             throw new IllegalArgumentException("Cart context request is required");
         }
         validatePositiveId(request.getUserId(), "userId");
+        if (principalOwnershipEnforced) validatePositiveId(request.getUserPrincipalId(), "userPrincipalId");
         validatePositiveId(request.getShopId(), "shopId");
         if (request.getSubTotal() == null || request.getSubTotal().compareTo(BigDecimal.ZERO) < 0) {
             throw new IllegalArgumentException("subTotal must be non-negative");
@@ -466,6 +515,7 @@ public class PromotionService {
             throw new IllegalArgumentException("Reserve request is required");
         }
         validatePositiveId(request.getUserId(), "userId");
+        if (principalOwnershipEnforced) validatePositiveId(request.getUserPrincipalId(), "userPrincipalId");
         validatePositiveId(request.getOrderId(), "orderId");
         if (request.getReservationId() == null) throw new IllegalArgumentException("reservationId is required");
         validatePositiveId(request.getVoucherId(), "voucherId");
@@ -480,5 +530,53 @@ public class PromotionService {
         if (value == null || value <= 0) {
             throw new IllegalArgumentException(fieldName + " must be positive");
         }
+    }
+
+    private List<UserVoucher> walletVouchers(Long principalId, Long legacyUserId, UserVoucher.Status status) {
+        validatePositiveId(legacyUserId, "userId");
+        if (principalOwnershipEnforced) {
+            validatePositiveId(principalId, "userPrincipalId");
+            return userVoucherRepository.findByUserPrincipalIdAndStatus(
+                    principalId, status, PageRequest.of(0, COMPATIBILITY_LIST_LIMIT));
+        }
+        if (principalId == null) {
+            return userVoucherRepository.findByUserIdAndStatus(legacyUserId, status,
+                    PageRequest.of(0, COMPATIBILITY_LIST_LIMIT));
+        }
+        validatePositiveId(principalId, "userPrincipalId");
+        List<UserVoucher> wallets = userVoucherRepository.findByPrincipalOrUnbackfilledLegacyAndStatus(
+                principalId, legacyUserId, status, PageRequest.of(0, COMPATIBILITY_LIST_LIMIT));
+        long legacyRows = wallets.stream().filter(wallet -> wallet.getUserPrincipalId() == null).count();
+        if (legacyRows > 0) {
+            legacyWalletFallback().increment(legacyRows);
+        }
+        return wallets;
+    }
+
+    private UserVoucher walletVoucherForUpdate(Long principalId, Long legacyUserId, Long voucherId) {
+        validatePositiveId(legacyUserId, "userId");
+        if (principalOwnershipEnforced) {
+            validatePositiveId(principalId, "userPrincipalId");
+            return userVoucherRepository.findByUserPrincipalIdAndVoucherIdForUpdate(principalId, voucherId)
+                    .orElseThrow(() -> new IllegalArgumentException("User has not collected voucher " + voucherId));
+        }
+        Optional<UserVoucher> result = principalId == null
+                ? userVoucherRepository.findByUserIdAndVoucherIdForUpdate(legacyUserId, voucherId)
+                : userVoucherRepository.findByPrincipalOrUnbackfilledLegacyAndVoucherIdForUpdate(
+                        principalId, legacyUserId, voucherId);
+        UserVoucher wallet = result.orElseThrow(() -> new IllegalArgumentException("User has not collected voucher " + voucherId));
+        if (principalId != null && wallet.getUserPrincipalId() == null) {
+            legacyWalletFallback().increment();
+            // Safe lazy backfill: selection already proves principal and legacy
+            // profile ownership jointly, and the row is pessimistically locked.
+            wallet.setUserPrincipalId(principalId);
+        }
+        return wallet;
+    }
+
+    private Counter legacyWalletFallback() {
+        return Counter.builder("delivery.identity.legacy.fallback")
+                .tag("service", "promotion").tag("surface", "user_voucher")
+                .register(meterRegistry);
     }
 }

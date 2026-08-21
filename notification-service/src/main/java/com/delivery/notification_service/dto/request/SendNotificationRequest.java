@@ -18,6 +18,9 @@ public class SendNotificationRequest {
     @NotNull
     @Positive
     private Long userId;
+    /** Stable Auth principal when the producer has migrated; userId remains legacy routing compatibility. */
+    @Positive
+    private Long userPrincipalId;
     @NotBlank
     @Size(max = 255)
     private String title;

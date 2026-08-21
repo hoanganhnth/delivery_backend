@@ -25,6 +25,7 @@ public class RefundCaseResponse {
     private String idempotencyKey;
     private Long orderId;
     private Long userId;
+    private Long userPrincipalId;
     private Long restaurantId;
     private String previousOrderStatus;
     private String currentOrderStatus;

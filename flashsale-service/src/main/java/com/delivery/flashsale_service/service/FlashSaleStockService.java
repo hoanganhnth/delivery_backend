@@ -15,6 +15,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.beans.factory.annotation.Value;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -29,6 +32,10 @@ public class FlashSaleStockService {
     private final FlashSaleItemRepository itemRepository;
     private final FlashSaleReservationRepository reservationRepository;
     private final FlashSaleOutboxService outboxService;
+    private final MeterRegistry meterRegistry;
+
+    @Value("${app.identity.principal-ownership.enforced:false}")
+    private boolean principalOwnershipEnforced;
 
     @Transactional(readOnly = true)
     public FlashSaleQuoteResponse quote(FlashSaleQuoteRequest request) {
@@ -54,6 +61,9 @@ public class FlashSaleStockService {
     @Transactional
     public FlashSaleReservationResponse reserveStock(FlashSaleReservationRequest request) {
         validateRequest(request);
+        if (!principalOwnershipEnforced && request.getUserPrincipalId() == null) {
+            legacyReservationFallback().increment();
+        }
         Optional<FlashSaleReservation> replay = reservationRepository.findById(request.getReservationId());
         if (replay.isPresent()) return exactReplay(replay.get(), request);
         Optional<FlashSaleReservation> sameOrder = reservationRepository.findByOrderId(request.getOrderId());
@@ -70,7 +80,7 @@ public class FlashSaleStockService {
         LocalDateTime createdAt = LocalDateTime.now();
         FlashSaleReservation reservation = FlashSaleReservation.builder()
                 .reservationId(request.getReservationId()).orderId(request.getOrderId())
-                .userId(request.getUserId()).restaurantId(request.getRestaurantId())
+                .userId(request.getUserId()).userPrincipalId(request.getUserPrincipalId()).restaurantId(request.getRestaurantId())
                 .state(FlashSaleReservation.State.RESERVED).expiresAt(createdAt.plusMinutes(15))
                 .createdAt(createdAt).updatedAt(createdAt).build();
 
@@ -168,6 +178,7 @@ public class FlashSaleStockService {
         if (!reservation.getReservationId().equals(request.getReservationId())
                 || !reservation.getOrderId().equals(request.getOrderId())
                 || !reservation.getUserId().equals(request.getUserId())
+                || !java.util.Objects.equals(reservation.getUserPrincipalId(), request.getUserPrincipalId())
                 || !reservation.getRestaurantId().equals(request.getRestaurantId())
                 || !existing.equals(incoming)) {
             throw new IllegalArgumentException("Reservation replay payload does not match");
@@ -194,5 +205,14 @@ public class FlashSaleStockService {
                 || request.getRestaurantId() == null || request.getRestaurantId() <= 0
                 || request.getItems() == null || request.getItems().isEmpty())
             throw new IllegalArgumentException("Invalid flash sale reservation request");
+        if (principalOwnershipEnforced && (request.getUserPrincipalId() == null || request.getUserPrincipalId() <= 0)) {
+            throw new IllegalArgumentException("userPrincipalId is required when principal ownership is enforced");
+        }
+    }
+
+    private Counter legacyReservationFallback() {
+        return Counter.builder("delivery.identity.legacy.fallback")
+                .tag("service", "flashsale").tag("surface", "reservation")
+                .register(meterRegistry);
     }
 }

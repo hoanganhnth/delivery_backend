@@ -1,6 +1,7 @@
 package com.delivery.auth_service.entity;
 
 import jakarta.persistence.*;
+import com.delivery.identity.contracts.IdentityLifecycleStatus;
 import java.time.LocalDateTime;
 
 @Entity
@@ -20,6 +21,13 @@ public class AuthAccount {
 
     @Column(name = "user_id", nullable = true)
     private Long userId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "lifecycle_status", nullable = false)
+    private IdentityLifecycleStatus lifecycleStatus = IdentityLifecycleStatus.PENDING_PROFILE;
+
+    @Column(name = "lifecycle_version", nullable = false)
+    private Long lifecycleVersion = 0L;
 
     @Column(nullable = false)
     private String email;
@@ -71,6 +79,12 @@ public class AuthAccount {
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
         this.updatedAt = this.createdAt;
+        if (this.lifecycleStatus == null) {
+            this.lifecycleStatus = IdentityLifecycleStatus.PENDING_PROFILE;
+        }
+        if (this.lifecycleVersion == null) {
+            this.lifecycleVersion = 0L;
+        }
     }
 
     @PreUpdate
@@ -202,4 +216,9 @@ public class AuthAccount {
     public void setUserId(Long userId) {
         this.userId = userId;
     }
+
+    public IdentityLifecycleStatus getLifecycleStatus() { return lifecycleStatus; }
+    public void setLifecycleStatus(IdentityLifecycleStatus lifecycleStatus) { this.lifecycleStatus = lifecycleStatus; }
+    public Long getLifecycleVersion() { return lifecycleVersion; }
+    public void setLifecycleVersion(Long lifecycleVersion) { this.lifecycleVersion = lifecycleVersion; }
 }

@@ -46,6 +46,7 @@ public class PromotionOutboxService {
         payload.put("reservationId", reservation.getReservationId());
         payload.put("orderId", reservation.getOrderId());
         payload.put("userId", reservation.getUserId());
+        payload.put("userPrincipalId", reservation.getUserPrincipalId());
         payload.put("voucherId", reservation.getVoucherId());
         payload.put("restaurantId", reservation.getRestaurantId());
         payload.put("discountAmount", reservation.getDiscountAmount());

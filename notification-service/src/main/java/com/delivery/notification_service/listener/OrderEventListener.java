@@ -65,6 +65,7 @@ public class OrderEventListener {
             notificationService.sendOrderCreatedNotification(
                     event.getEventId(),
                     event.getUserId(),
+                    event.getUserPrincipalId(),
                     event.getOrderId(),
                     event.getRestaurantName()
             );

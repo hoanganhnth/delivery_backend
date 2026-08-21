@@ -78,6 +78,9 @@ public class GatewayRouteConfig {
                                                 "/api/auth/email-verification/confirm")
                                                 .and().method(HttpMethod.POST)
                                                 .uri(authServiceUri))
+                                .route("auth-service-registration-status", r -> r.path("/api/auth/registrations/{handle}")
+                                                .and().method(HttpMethod.GET)
+                                                .uri(authServiceUri))
                                 .route("search-service-public", r -> r.path(
                                                 "/api/search/restaurants",
                                                 "/api/search/dishes")

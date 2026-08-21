@@ -15,4 +15,8 @@ public class BusinessMetrics {
     public void kafka(String event) {
         Counter.builder("delivery.kafka.events").tag("event", event).register(registry).increment();
     }
+    public void identityLegacyFallback(String surface) {
+        Counter.builder("delivery.identity.legacy.fallback")
+                .tag("service", "settlement").tag("surface", surface).register(registry).increment();
+    }
 }

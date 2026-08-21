@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.delivery.auth_service.dto.AuthAccountDto;
 import com.delivery.auth_service.dto.AuthRegisterResponse;
@@ -31,6 +32,10 @@ import com.delivery.auth_service.dto.ResetPasswordRequest;
 import com.delivery.auth_service.payload.BaseResponse;
 import com.delivery.auth_service.service.AuthService;
 import com.delivery.auth_service.service.AccountSecurityService;
+import com.delivery.auth_service.service.TokenService;
+import com.delivery.auth_service.service.IdentityRegistrationService;
+import com.delivery.auth_service.service.RegistrationAdmissionPolicy;
+import com.delivery.auth_service.dto.RegistrationStatusResponse;
 
 import jakarta.validation.Valid;
 import jakarta.servlet.http.HttpServletRequest;
@@ -41,32 +46,58 @@ public class AuthController {
 
     private final AuthService authService;
     private final AccountSecurityService accountSecurityService;
+    private final TokenService tokenService;
+    private final IdentityRegistrationService identityRegistrationService;
+    private final RegistrationAdmissionPolicy registrationAdmissionPolicy;
 
     public AuthController(AuthService authService) {
-        this(authService, null);
+        this(authService, null, null, null, null);
     }
 
     @Autowired
-    public AuthController(AuthService authService, AccountSecurityService accountSecurityService) {
+    public AuthController(AuthService authService, AccountSecurityService accountSecurityService, TokenService tokenService,
+            IdentityRegistrationService identityRegistrationService,
+            RegistrationAdmissionPolicy registrationAdmissionPolicy) {
         this.authService = authService;
         this.accountSecurityService = accountSecurityService;
+        this.tokenService = tokenService;
+        this.identityRegistrationService = identityRegistrationService;
+        this.registrationAdmissionPolicy = registrationAdmissionPolicy;
     }
 
     @PostMapping("/register")
     public ResponseEntity<BaseResponse<AuthRegisterResponse>> register(
             @Valid @RequestBody RegisterRequest request,
             HttpServletRequest servletRequest) {
+        // Public password registration is an Auth -> User two-request flow. Do
+        // not create an identity until the paired profile outbox/consumer path
+        // is enabled; otherwise a Wave-1 deployment would manufacture accounts
+        // that cannot complete onboarding or log in.
+        if (registrationAdmissionPolicy == null || !registrationAdmissionPolicy.admits(request.getEmail())) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "Registration is temporarily unavailable while onboarding is being deployed");
+        }
         var account = authService.register(request);
-        String provisioningToken = accountSecurityService.issueUserProvisioning(account, clientIp(servletRequest));
+        String provisioningToken = tokenService.generateProvisioningToken(
+                account.getId(), account.getEmail(), account.getRole().name());
+        var handle = identityRegistrationService.issue(account);
         accountSecurityService.requestEmailVerification(account.getEmail(), clientIp(servletRequest));
         AuthRegisterResponse registration = new AuthRegisterResponse(
                 account.getId(),
                 account.getEmail(),
                 account.getRole().name(),
-                provisioningToken);
+                provisioningToken, handle.rawHandle(), handle.expiresAt(), account.getLifecycleStatus());
         BaseResponse<AuthRegisterResponse> response = BaseResponse.success(registration,
                 "Auth identity registered; create the user profile to finish registration");
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/registrations/{handle}")
+    public ResponseEntity<BaseResponse<RegistrationStatusResponse>> registrationStatus(@PathVariable String handle) {
+        RegistrationStatusResponse status = identityRegistrationService.status(handle);
+        return ResponseEntity.ok().header("Cache-Control", "no-store")
+                .header("Retry-After", status.status().name().startsWith("PENDING") ? "3" : "0")
+                .body(BaseResponse.success(status));
     }
 
     @PostMapping("/forgot-password")
@@ -238,16 +269,18 @@ public class AuthController {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication != null) {
             if (authentication.getPrincipal() instanceof com.delivery.auth.resourceserver.security.AuthenticatedActor actor) {
-                if (actor.getUserId() != null) return actor.getUserId();
+                if (actor.getPrincipalId() != null) return actor.getPrincipalId();
                 if (actor.getEmail() != null && !actor.getEmail().isBlank()) {
                     var account = authService.getAccountByEmail(actor.getEmail());
                     if (account.isPresent()) return account.get().getId();
                 }
             }
             if (authentication.getPrincipal() instanceof org.springframework.security.oauth2.jwt.Jwt jwt) {
-                try {
-                    return Long.parseLong(jwt.getSubject());
-                } catch (NumberFormatException ignored) {}
+                Object principal = jwt.getClaim("principal_id");
+                if (principal instanceof Number number && number.longValue() > 0) return number.longValue();
+                if (principal instanceof String value && value.matches("\\d+")) {
+                    try { return Long.parseLong(value); } catch (NumberFormatException ignored) {}
+                }
                 String email = jwt.getClaimAsString("email");
                 if (email != null && !email.isBlank()) {
                     var account = authService.getAccountByEmail(email);

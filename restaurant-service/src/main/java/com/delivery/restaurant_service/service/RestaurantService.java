@@ -11,13 +11,20 @@ public interface RestaurantService {
     RestaurantResponse createRestaurant(CreateRestaurantRequest restaurant,
                                         Long creatorId,
                                         String role);
+    RestaurantResponse createRestaurant(CreateRestaurantRequest restaurant,
+                                        Long ownerPrincipalId,
+                                        Long legacyCreatorId,
+                                        String role);
 
     RestaurantResponse updateRestaurant(Long id,
                                         UpdateRestaurantRequest restaurant,
                                         Long creatorId,
                                         String role);
+    RestaurantResponse updateRestaurant(Long id, UpdateRestaurantRequest restaurant,
+                                        Long ownerPrincipalId, Long legacyCreatorId, String role);
 
     void deleteRestaurant(Long id, Long creatorId, String role);
+    void deleteRestaurant(Long id, Long ownerPrincipalId, Long legacyCreatorId, String role);
 
     RestaurantResponse getRestaurantById(Long id);
 
@@ -26,4 +33,5 @@ public interface RestaurantService {
     List<RestaurantResponse> findByName(String keyword);
     
     List<RestaurantResponse> getRestaurantsByCreatorId(Long creatorId);
+    List<RestaurantResponse> getRestaurantsByOwnerPrincipalId(Long ownerPrincipalId, Long legacyCreatorId);
 }

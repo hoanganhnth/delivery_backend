@@ -7,7 +7,6 @@ import com.delivery.auth_service.entity.AuthSecurityToken;
 import com.delivery.auth_service.entity.AuthSession;
 import com.delivery.auth_service.entity.RefreshTokenRecord;
 import com.delivery.auth_service.exception.InvalidTokenException;
-import com.delivery.auth_service.exception.ProvisioningConflictException;
 import com.delivery.auth_service.repository.AuthAccountRepository;
 import com.delivery.auth_service.repository.AuthSecurityAuditRepository;
 import com.delivery.auth_service.repository.AuthSecurityTokenRepository;
@@ -42,8 +41,7 @@ import static org.mockito.Mockito.verify;
         "spring.flyway.enabled=false",
         "spring.kafka.listener.auto-startup=false",
         "app.security-token.password-reset-ttl=PT15M",
-        "app.security-token.email-verification-ttl=PT24H",
-        "app.security-token.user-provisioning-ttl=PT15M"
+        "app.security-token.email-verification-ttl=PT24H"
 })
 class AccountSecurityServiceIntegrationTest {
     @DynamicPropertySource
@@ -180,45 +178,6 @@ class AccountSecurityServiceIntegrationTest {
         });
     }
 
-    @Test
-    void userProvisioningHandoffLinksExactlyOneUserAndIsRetryable() {
-        AuthAccount account = unlinkedAccount("registration@example.com");
-
-        String raw = security.issueUserProvisioning(account, "127.0.0.1");
-        var identity = security.resolveUserProvisioning(raw);
-
-        assertThat(identity.getAuthId()).isEqualTo(account.getId());
-        assertThat(identity.getEmail()).isEqualTo(account.getEmail());
-        assertThat(identity.getRole()).isEqualTo("USER");
-        assertThat(tokens.findAll()).singleElement().satisfies(token -> {
-            assertThat(token.getPurpose()).isEqualTo(AuthSecurityToken.Purpose.USER_PROVISIONING);
-            assertThat(token.getTokenHash()).hasSize(64).isNotEqualTo(raw);
-            assertThat(token.getConsumedAt()).isNull();
-        });
-
-        security.completeUserProvisioning(raw, 77L);
-        security.resolveUserProvisioning(raw);
-        security.completeUserProvisioning(raw, 77L);
-
-        assertThat(accounts.findById(account.getId()).orElseThrow().getUserId()).isEqualTo(77L);
-        assertThat(tokens.findAll()).singleElement()
-                .satisfies(token -> assertThat(token.getConsumedAt()).isNotNull());
-        assertThatThrownBy(() -> security.completeUserProvisioning(raw, 78L))
-                .isInstanceOf(ProvisioningConflictException.class);
-    }
-
-    @Test
-    void freshUserProvisioningHandoffInvalidatesThePreviousOne() {
-        AuthAccount account = unlinkedAccount("retry-registration@example.com");
-        String first = security.issueUserProvisioning(account, "127.0.0.1");
-        String replacement = security.issueUserProvisioning(account, "127.0.0.1");
-
-        assertThatThrownBy(() -> security.resolveUserProvisioning(first))
-                .isInstanceOf(InvalidTokenException.class);
-        assertThat(security.resolveUserProvisioning(replacement).getAuthId())
-                .isEqualTo(account.getId());
-    }
-
     private AuthAccount account(String email, boolean requiresVerification) {
         AuthAccount account = new AuthAccount();
         account.setEmail(email);
@@ -228,18 +187,6 @@ class AccountSecurityServiceIntegrationTest {
         account.setUserId(Math.abs((long) email.hashCode()) + 1);
         account.setEmailVerificationRequired(requiresVerification);
         account.setEmailVerifiedAt(requiresVerification ? null : LocalDateTime.now());
-        return accounts.saveAndFlush(account);
-    }
-
-    private AuthAccount unlinkedAccount(String email) {
-        AuthAccount account = new AuthAccount();
-        account.setEmail(email);
-        account.setPasswordHash(passwordEncoder.encode("OriginalPassword1!"));
-        account.setRole(AuthAccount.Role.USER);
-        account.setIsActive(true);
-        account.setUserId(null);
-        account.setEmailVerificationRequired(true);
-        account.setEmailVerifiedAt(null);
         return accounts.saveAndFlush(account);
     }
 

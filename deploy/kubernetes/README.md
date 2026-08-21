@@ -80,6 +80,15 @@ must patch at least:
 - Config Server/Eureka endpoints if they do not use in-namespace services.
 - `APP_CORS_ALLOWED_ORIGINS`, trusted proxy CIDR policy and release-specific
   immutable configuration label.
+- Identity migration flags as **per-service** keys. Do not introduce a shared
+  `IDENTITY_EVENTS_ENABLED`: the base maps Auth, User and Shipper event flags
+  separately so each rollout wave is independently reversible. See
+  `docs/runbooks/identity-principal-event-rollout.md` for the required order.
+- Auth registration rollout controls: keep
+  `AUTH_PUBLIC_REGISTRATION_CANARY_PERCENTAGE=0` until the profile event path
+  is proven. The optional `delivery-auth-registration-canary` secret supplies
+  `allowlist` and `hash-key`; a 1–99% cohort cannot start without the HMAC key.
+  Do not put canary email addresses or the key in ConfigMaps.
 - Every image reference to an approved registry **digest**, not a mutable tag.
 - `base/data-plane-config.yaml` private PostgreSQL hostname/port and all
   resource/replica policy based on measured staging load.
@@ -101,6 +110,7 @@ Kubernetes delivery objects in the target namespace:
 | `delivery-shared-internal` | `value` | `internal-secret`; only services with internal HTTP credentials |
 | `delivery-<service>-db` | `username`, `password` | `spring.datasource.username`, `spring.datasource.password`; each database-owning service gets its own secret/role |
 | `delivery-auth-jwt` | `private.pem`, `public.pem` | Auth only at `/run/secrets/jwt-private.pem` and `/run/secrets/jwt-public.pem` |
+| `delivery-auth-registration-canary` (optional while cohort is 0% or 100%) | `allowlist`, `hash-key` | Auth only at `/run/secrets/registration-canary-allowlist` and `/run/secrets/registration-canary-hash-key`; supports a private canary allowlist and keyed 1–99% cohort |
 | `delivery-config-repository` | `username`, `password` | Config Server Git credentials through config-tree property paths |
 
 JWT retiring-key overlap, SMTP/OAuth, Firebase/FCM, backup and future payment
@@ -138,6 +148,12 @@ KUBE_NAMESPACE=delivery-staging \
 CONFIRM_K8S_ROLLOUT=YES \
 bash scripts/rollout-kubernetes.sh
 ```
+
+That command rolls out an immutable release image set. It does not activate the
+identity/principal flags. After R0, follow
+[`docs/runbooks/identity-principal-event-rollout.md`](../../docs/runbooks/identity-principal-event-rollout.md)
+and use `scripts/rollout-identity-principal-kubernetes.sh` only for its
+per-owner progressive activation/rollback steps.
 
 For the no-legacy-token JWKS migration, additionally set
 `JWKS_MIGRATION=true` and `K8S_JWKS_WAIT_SECONDS` to the approved 15-minute

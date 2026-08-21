@@ -21,6 +21,8 @@ public class ReserveRequest {
     @NotNull
     @Positive
     private Long userId;
+    @Positive
+    private Long userPrincipalId;
     @NotNull
     @Positive
     private Long orderId;

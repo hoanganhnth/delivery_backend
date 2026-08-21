@@ -48,25 +48,85 @@ Hai runner không mở public API, không ghi log password, chỉ resume account
 role và cùng password; existing account lệch role/password hoặc inactive sẽ
 fail-closed. Public self-registration vẫn không được tạo `ADMIN` hoặc `SHIPPER`.
 
-Public password registration là contract hai request do client điều phối:
+Public password registration đang chuyển dần sang contract hai request do client
+điều phối, không có User → Auth synchronous callback trong event mode:
 
-1. `POST /api/auth/register` chỉ tạo/resume credential identity trong Auth và
-   trả `authId/email/role` cùng `provisioningToken` opaque, thời hạn 15 phút.
+1. `POST /api/auth/register` tạo/resume credential identity trong Auth và
+   trả `principalId` canonical cùng `authId` compatibility alias, provisioningToken RS256 với audience
+   `delivery-user-registration`, cùng opaque `registrationHandle` TTL 15 phút.
+   Email verification được tạo bền vững trước khi notification được gửi sau
+   commit.
 2. `POST /api/users/registrations` nhận token và profile fields. User service
-   resolve identity qua internal Auth API, không tin `authId/email/role` từ
-   client, tạo profile idempotent rồi complete liên kết `auth_account.user_id`.
+   xác thực token cục bộ qua Auth JWKS, không tin identity từ client, tạo profile
+   idempotent theo `principalId` rồi ghi `identity.profile.created` vào outbox
+   trong cùng transaction.
+3. Auth consume event để liên kết legacy `auth_account.user_id` trong giai đoạn
+   migration và chuyển lifecycle `PENDING_PROFILE → PENDING_EMAIL_VERIFICATION`
+   hoặc `ACTIVE`. Client không poll trên happy path. Khi bước User bị timeout
+   hoặc trả lỗi sau khi Auth đã nhận request, client có thể đọc
+   `GET /api/auth/registrations/{handle}` đúng một lần để phân biệt profile đã
+   hội tụ với profile cần retry. Response trả `profileLinked` authoritative;
+   client không suy diễn profile tồn tại từ lifecycle/`nextAction`, vì account
+   có thể bị block trước khi profile được tạo. Sau đó client retry lại hai
+   request idempotent bằng cùng credentials nếu cần.
+
+`registrationHandle` chỉ là recovery metadata, không phải credential đăng nhập
+và không được lưu vào Hive/plain preferences. Auth lưu hash của handle; job
+cleanup xóa các handle đã hết hạn sau `REGISTRATION_HANDLE_RETENTION_DAYS`
+(mặc định một ngày) để rollout không tích lũy bảng này vô hạn.
 
 Nếu bước 2 lỗi sau khi Auth đã thành công, client chạy lại từ bước 1 để nhận
-handoff mới. Nếu profile đã persist nhưng callback complete bị gián đoạn, retry
-trả lại đúng profile theo `authId` rồi tiếp tục link; login vẫn fail-closed khi
-`user_id` chưa được link. Token chỉ lưu SHA-256 digest, one-time nhưng replay của
-một completion đã thành công được trả idempotent trong TTL. Password account vẫn
-phải verify email trước login. Social login và operator provisioning tiếp tục
-dùng internal server orchestration, không thuộc public two-request flow này.
+handoff mới. Nếu profile đã persist nhưng event relay/Auth consume bị gián đoạn,
+retry User registration trả lại đúng profile theo `authId`; User outbox sẽ tiếp
+tục hội tụ Auth link. Login vẫn fail-closed khi `user_id` chưa được link. Token
+chỉ lưu SHA-256 digest, one-time nhưng replay profile event được dedup theo
+`eventId` trong inbox. Password account vẫn phải verify email trước login.
+Social login và operator provisioning tiếp tục dùng internal server
+orchestration, không thuộc public two-request flow này.
+
+User service không giữ Auth registration HTTP client hay `Internal-Token` cho
+public flow: signed provisioning JWT + JWKS là boundary duy nhất. Legacy opaque
+Auth resolve/complete registration endpoints and `USER_PROVISIONING` security
+tokens were removed because no caller remains; they cannot be used as a public
+registration rollback rail. The enum value remains temporarily readable in
+Auth persistence for rows issued by older releases; no new value is issued and
+it is removed only in the later retention-drain cleanup release.
+
+`authId` trên bảng `users` chỉ là tên cột compatibility; mọi public handoff và
+internal fixture path phải đặt `authId == principalId == auth_account.id`.
+User reject giá trị lệch thay vì cố map một profile sang hai credential. Handoff
+JWT cũng bắt buộc `principal_id`; không fallback sang `sub` vì `sub` thay đổi
+nghĩa ở R5 và không phải registration authority.
+
+Auth canonicalize email bằng `trim + lowercase` trước registration/login/social
+lookup. Auth DB có unique expression index cùng rule; T0 fail-closed nếu data
+lịch sử chứa hai identity chỉ khác hoa/thường hoặc whitespace, để operator
+remediate thay vì hệ thống tự chọn nhầm account.
 
 Gateway dùng cùng limit/fail-closed policy của public auth cho bước User nhưng
 một Redis bucket riêng, để một đăng ký hợp lệ không bị tính hai lần vào quota
 Auth trong khi cả hai anonymous endpoints vẫn được giới hạn theo peer IP.
+
+### Rollout admission cho public registration
+
+`POST /api/auth/register` không được mở 0 → 100% chỉ bằng một feature flag.
+Auth áp dụng admission theo thứ tự sau, trước khi tạo `auth_account`:
+
+1. `PUBLIC_REGISTRATION_ENABLED=false`: từ chối toàn bộ (`503`), không tạo
+   identity.
+2. Master flag true, `REGISTRATION_CANARY_PERCENTAGE=0`: chỉ email trong
+   Auth-owned private allowlist được nhận; phù hợp staff/partner canary.
+3. Percentage 1–99: Auth tính `HMAC-SHA-256(normalizedEmail, private key) mod
+   100`; bucket ổn định nhỏ hơn percentage được nhận. Key không ở ConfigMap,
+   log hay metric, để client không thể chủ động chọn email thuộc cohort.
+4. Percentage 100: mở toàn bộ traffic. Allowlist vẫn hữu ích ở mức 0%.
+
+`delivery_identity_registration_admission_total{outcome,mechanism}` chỉ ghi
+outcome/mechanism (`master_disabled`, `allowlist`, `percentage`,
+`cohort_closed`), không mang PII. Các thông số cohort được đổi bằng ConfigMap
+và chỉ restart `auth-service`; private allowlist/key được mount từ secret
+`delivery-auth-registration-canary`. Runbook bắt buộc giữ mỗi cohort cho tới khi
+outbox age, consumer lag, retry/DLT và HTTP error signals sạch.
 
 ## 3. Luồng nghiệp vụ (Business Flow)
 
@@ -81,15 +141,15 @@ sequenceDiagram
 
     App->>GW: POST /api/auth/register
     GW->>Auth: email, password, role
-    Auth-->>App: auth identity + provisioningToken
+    Auth-->>App: principalId, provisioningToken, recovery handle + expiry
     App->>GW: POST /api/users/registrations
     GW->>User: provisioningToken + profile
-    User->>Auth: internal resolve(token)
-    Auth-->>User: authId, email, role
-    User->>User: create/resume profile by authId
-    User->>Auth: internal complete(token, userId)
-    Auth-->>User: linked/idempotent
+    User->>Auth: fetch/cache public JWKS when needed
+    User->>User: verify provisioning JWT, create/resume profile + outbox
+    User-->>Auth: Kafka identity.profile.created
+    Auth->>Auth: link profile and advance lifecycle idempotently
     User-->>App: user profile
+    Note over App,Auth: Chỉ một GET status sau lỗi/timeout; không polling
 ```
 
 ### 3.2. Phân quyền qua JWKS
@@ -106,10 +166,21 @@ sequenceDiagram
 4. Mỗi resource service lấy public keys từ
    `GET /.well-known/jwks.json` của Auth và xác thực RS256, `kid`, issuer,
    audience và `token_type=access`. Converter chung dựng `AuthenticatedActor`
-   từ `sub`, `email`, `roles`; service là nơi áp dụng role/ownership policy.
+   từ `principal_id`, `legacy_user_id`, `identity_claims_version=1`, `email`,
+   `roles`; service là nơi áp dụng role/ownership policy. `sub` là
+   compatibility-only: trước R5 nó là profile ID, sau R5 là principal ID,
+   nhưng resource service không đọc nó để authorize. Ownership mới ưu tiên
+   `principal_id` và chỉ fallback legacy khi row chưa backfill. Access JWT thiếu
+   các identity claim bắt buộc hoặc có version khác `1` bị reject; `sub` không
+   bao giờ được suy diễn thành `principalId`.
 
 ### 3.3. Cấu trúc an toàn cho Shipper
 Hồ sơ Shipper yêu cầu bảo mật cao do chứa dữ liệu nhạy cảm (CCCD, Bằng lái). Do đó, thông tin này được tách riêng ra `shipper-service`, không nằm chung trong bảng User thông thường để tối ưu query và phân chia rõ ràng context.
+
+Analytics chỉ là projection của event domain nên giữ `userId` làm fact aggregate
+và không có authorization ownership để migrate. Livestream đang hidden/default-off;
+`sellerId` hiện còn là Agora numeric UID nên phải có mapping contract riêng trước
+khi biến `seller_principal_id` thành authority.
 
 ## 4. Biểu đồ tuần tự (Sequence Diagram)
 

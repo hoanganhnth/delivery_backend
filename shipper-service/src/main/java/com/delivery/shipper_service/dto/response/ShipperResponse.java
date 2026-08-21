@@ -9,6 +9,7 @@ import lombok.Setter;
 public class ShipperResponse {
     private Long id;
     private Long userId;
+    private Long principalId;
     private String fullName;
     private String vehicleType;
     private String licenseNumber;
@@ -63,6 +64,10 @@ public class ShipperResponse {
     public void setUserId(Long userId) {
         this.userId = userId;
     }
+
+    public Long getPrincipalId() { return principalId; }
+
+    public void setPrincipalId(Long principalId) { this.principalId = principalId; }
 
     public String getFullName() {
         return fullName;

@@ -32,6 +32,9 @@ public class Delivery {
     @Column(name = "offer_expires_at")
     private LocalDateTime offerExpiresAt;
 
+    @Column(name = "offered_matching_session_id", length = 36)
+    private String offeredMatchingSessionId;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status")
     private DeliveryStatus status = DeliveryStatus.PENDING;
@@ -96,11 +99,17 @@ public class Delivery {
     @Column(name = "creator_id", nullable = false)
     private Long creatorId;
 
+    @Column(name = "customer_principal_id")
+    private Long customerPrincipalId;
+
     @Column(name = "restaurant_id")
     private Long restaurantId;
 
     @Column(name = "restaurant_owner_id")
     private Long restaurantOwnerId;
+
+    @Column(name = "restaurant_owner_principal_id")
+    private Long restaurantOwnerPrincipalId;
 
     @PrePersist
     protected void onCreate() {

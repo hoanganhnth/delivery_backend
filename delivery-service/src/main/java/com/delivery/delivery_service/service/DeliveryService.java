@@ -40,6 +40,8 @@ public interface DeliveryService {
      */
     DeliveryResponse acceptDelivery(AcceptDeliveryRequest request, Long shipperId, String role);
 
+    DeliveryResponse acceptDelivery(AcceptDeliveryRequest request, Long principalId, Long legacyUserId, String role);
+
     /**
      * ✅ Shipper huỷ đơn SAU khi đã accept (trước khi lấy hàng).
      * Reset đơn về FINDING_SHIPPER, giải phóng shipper, và re-trigger tìm shipper
@@ -47,32 +49,46 @@ public interface DeliveryService {
      */
     DeliveryResponse cancelAssignedDelivery(Long orderId, Long shipperId, String role, String reason);
 
+    DeliveryResponse cancelAssignedDelivery(Long orderId, Long principalId, Long legacyUserId, String role, String reason);
+
     /**
      * Cập nhật trạng thái giao hàng
      */
     DeliveryResponse updateDeliveryStatus(Long deliveryId, DeliveryStatus status, Long userId, String role);
+
+    DeliveryResponse updateDeliveryStatus(Long deliveryId, DeliveryStatus status, Long principalId, Long legacyUserId, String role);
 
     /**
      * Lấy thông tin delivery theo ID
      */
     DeliveryResponse getDeliveryById(Long deliveryId, Long userId, String role);
 
+    DeliveryResponse getDeliveryById(Long deliveryId, Long principalId, Long legacyUserId, String role);
+
     /**
      * Lấy danh sách delivery của shipper
      */
     List<DeliveryResponse> getDeliveriesByShipper(Long shipperId, Long userId, String role);
+
+    List<DeliveryResponse> getDeliveriesByShipper(Long shipperId, Long principalId, Long legacyUserId, String role);
 
     /**
      * Lấy delivery theo order ID
      */
     DeliveryResponse getDeliveryByOrderId(Long orderId, Long userId, String role);
 
+    DeliveryResponse getDeliveryByOrderId(Long orderId, Long principalId, Long legacyUserId, String role);
+
     /**
      * Lấy các delivery đang active của shipper
      */
     List<DeliveryResponse> getActiveDeliveriesByShipper(Long shipperId, Long userId, String role);
 
+    List<DeliveryResponse> getActiveDeliveriesByShipper(Long shipperId, Long principalId, Long legacyUserId, String role);
+
     /** Return the selected shipper's single unexpired offer, or null when none exists. */
     DeliveryOfferResponse getCurrentOffer(Long shipperId, String role);
+
+    DeliveryOfferResponse getCurrentOffer(Long principalId, Long legacyUserId, String role);
     
 }

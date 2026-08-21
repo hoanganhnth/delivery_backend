@@ -29,6 +29,32 @@ registry instance IDs, readiness timestamps, smoke output and rollback decision
 in the deployment record. Rehearse dependency failure, readiness recovery,
 service re-registration and rollback before production promotion.
 
+## Checkout quote and idempotency rollout
+
+`order-service` migrations V13/V14 add durable checkout quotes and scoped
+create-order idempotency receipts. Roll them out before the code that depends
+on them, then keep `ORDER_QUOTE_ENFORCEMENT_ENABLED=false` while compatible
+Flutter clients are released.
+
+1. Verify preview returns `quoteId` and ISO `expiresAt`; verify a normal create
+   with the UUID `Idempotency-Key` returns one order.
+2. Re-send the identical create request after a simulated client timeout and
+   confirm it returns the same order ID with one `order.created` outbox event.
+3. While the first request is still in flight, send the same request again and
+   confirm the second request waits for or reports `409 IDEMPOTENCY_IN_PROGRESS`
+   and never creates a second order. Retry that same key after completion and
+   confirm it returns the original order.
+4. Verify a changed current price returns `409 PRICE_CHANGED` with
+   `error.details.quote`, and an expired quote returns `409 QUOTE_EXPIRED`.
+5. Canary `ORDER_QUOTE_ENFORCEMENT_ENABLED=true` only after clients have
+   demonstrated both fields on normal checkout traffic. Watch 400 missing-pair
+   responses and typed 409 rates alongside normal create latency/error rates.
+
+To roll back enforcement, set only
+`ORDER_QUOTE_ENFORCEMENT_ENABLED=false` and redeploy configuration. Do not
+delete quote/receipt rows or roll back V13/V14: they are retry evidence for
+already accepted orders and are cleaned by their configured 24-hour retention.
+
 ## JWKS migration on local/staging Compose
 
 The final JWKS Gateway release must never be started on top of access tokens

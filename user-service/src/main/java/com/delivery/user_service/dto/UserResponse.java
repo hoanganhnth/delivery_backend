@@ -17,6 +17,7 @@ import lombok.Setter;
 public class UserResponse {
     private Long id;
     private Long authId;
+    private Long principalId;
     private String email;
     private String role;
 

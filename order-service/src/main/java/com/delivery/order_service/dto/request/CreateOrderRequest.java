@@ -2,6 +2,7 @@ package com.delivery.order_service.dto.request;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.UUID;
 
 import lombok.Getter;
 import lombok.Setter;
@@ -9,6 +10,9 @@ import lombok.Setter;
 @Getter
 @Setter
 public class CreateOrderRequest {
+
+    /** Required once quote enforcement is enabled; never supplied by a client as price authority. */
+    private UUID quoteId;
 
     private Long restaurantId;
     private String restaurantName;

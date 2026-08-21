@@ -145,7 +145,7 @@ class OrderServiceCanonicalPricingTest {
         request.setItems(List.of(itemRequest));
 
         ValidatedOrderData validated = new ValidatedOrderData(
-                11L, "Quán", "Địa chỉ", "0900000000", 10.75, 106.66,
+                11L, 12L, "Quán", "Địa chỉ", "0900000000", 10.75, 106.66,
                 List.of(new ValidatedOrderData.ValidatedItemData(
                         9L, "Cơm canonical", new BigDecimal("50000"))));
         when(orderValidationService.validateCreateOrderRequest(request, 21L)).thenReturn(validated);
@@ -287,7 +287,7 @@ class OrderServiceCanonicalPricingTest {
     }
 
     private ValidatedOrderData validatedItem(BigDecimal price) {
-        return new ValidatedOrderData(11L, "Quán", "Địa chỉ", "0900000000", 10.75, 106.66,
+        return new ValidatedOrderData(11L, 12L, "Quán", "Địa chỉ", "0900000000", 10.75, 106.66,
                 List.of(new ValidatedOrderData.ValidatedItemData(9L, "Cơm", price)));
     }
 

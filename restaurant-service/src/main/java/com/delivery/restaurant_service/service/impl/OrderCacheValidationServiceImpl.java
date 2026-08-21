@@ -243,6 +243,12 @@ public class OrderCacheValidationServiceImpl implements OrderCacheValidationServ
             catch (NumberFormatException e) { log.warn("⚠️ Invalid creatorId for restaurant {}", restaurantId); }
         }
 
+        Long ownerPrincipalId = null;
+        if (restaurant.get("ownerPrincipalId") != null) {
+            try { ownerPrincipalId = Long.valueOf(restaurant.get("ownerPrincipalId").toString()); }
+            catch (NumberFormatException e) { log.warn("⚠️ Invalid ownerPrincipalId for restaurant {}", restaurantId); }
+        }
+
         Double latitude = null;
         if (restaurant.get("latitude") != null) {
             try { latitude = Double.valueOf(restaurant.get("latitude").toString()); }
@@ -268,6 +274,7 @@ public class OrderCacheValidationServiceImpl implements OrderCacheValidationServ
                 .latitude(latitude)
                 .longitude(longitude)
                 .creatorId(creatorId)
+                .ownerPrincipalId(ownerPrincipalId)
                 .isAvailable(isAvailable && hasCanonicalName)
                 .isOpen(isAvailable && hasCanonicalName)
                 .operatingHours(operatingHours)

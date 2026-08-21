@@ -32,6 +32,7 @@ public class TokenService {
     private static final String TOKEN_FAMILY_CLAIM = "token_family";
     private static final String ACCESS_TOKEN_TYPE = "access";
     private static final String REFRESH_TOKEN_TYPE = "refresh";
+    private static final String PROVISIONING_TOKEN_TYPE = "provisioning";
 
     private final PrivateKey privateKey;
     private final PublicKey publicKey;
@@ -41,6 +42,24 @@ public class TokenService {
     private final String retiringKid;
     private final String issuer;
     private final String audience;
+    private final String provisioningAudience;
+    private final SubjectMode accessTokenSubjectMode;
+
+    /** The only two compatible access-token subject modes during R5. */
+    enum SubjectMode {
+        LEGACY_USER_ID,
+        PRINCIPAL_ID;
+
+        static SubjectMode parse(String raw) {
+            if (raw == null || raw.isBlank()) return LEGACY_USER_ID;
+            try {
+                return SubjectMode.valueOf(raw.trim().toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException invalid) {
+                throw new IllegalArgumentException(
+                        "jwt.access-token-subject-mode must be LEGACY_USER_ID or PRINCIPAL_ID", invalid);
+            }
+        }
+    }
 
     @Autowired
     public TokenService(
@@ -51,7 +70,9 @@ public class TokenService {
             @Value("${jwt.active-kid:auth-key-1}") String activeKid,
             @Value("${jwt.retiring-kid:}") String retiringKid,
             @Value("${jwt.issuer:${JWT_ISSUER:delivery-auth}}") String issuer,
-            @Value("${jwt.audience:${JWT_AUDIENCE:delivery-api}}") String audience) {
+            @Value("${jwt.audience:${JWT_AUDIENCE:delivery-api}}") String audience,
+            @Value("${jwt.provisioning-audience:${JWT_PROVISIONING_AUDIENCE:delivery-user-registration}}") String provisioningAudience,
+            @Value("${jwt.access-token-subject-mode:${JWT_ACCESS_TOKEN_SUBJECT_MODE:LEGACY_USER_ID}}") String accessTokenSubjectMode) {
         try {
             this.privateKey = loadPrivateKey(privateKeyLocation);
             this.publicKey = loadPublicKey(publicKeyLocation);
@@ -82,6 +103,8 @@ public class TokenService {
             this.retiringKid = retiringKid;
             this.issuer = issuer;
             this.audience = audience;
+            this.provisioningAudience = provisioningAudience;
+            this.accessTokenSubjectMode = SubjectMode.parse(accessTokenSubjectMode);
         } catch (Exception e) {
             throw new IllegalStateException(
                     "Failed to initialize JWT RSA keys from configured locations", e);
@@ -89,12 +112,18 @@ public class TokenService {
     }
 
     TokenService(String privateKeyLocation, String publicKeyLocation) {
-        this(privateKeyLocation, publicKeyLocation, "", 900L, "auth-key-1", "", "delivery-auth", "delivery-api");
+        this(privateKeyLocation, publicKeyLocation, "", 900L, "auth-key-1", "", "delivery-auth", "delivery-api", "delivery-user-registration", "LEGACY_USER_ID");
     }
 
     TokenService(String privateKeyLocation, String publicKeyLocation, String previousPublicKeyLocation, long accessTokenTtlSeconds) {
         this(privateKeyLocation, publicKeyLocation, previousPublicKeyLocation, accessTokenTtlSeconds,
-                "auth-key-1", "", "delivery-auth", "delivery-api");
+                "auth-key-1", "", "delivery-auth", "delivery-api", "delivery-user-registration", "LEGACY_USER_ID");
+    }
+
+    TokenService(String privateKeyLocation, String publicKeyLocation, String previousPublicKeyLocation,
+                 long accessTokenTtlSeconds, String activeKid, String retiringKid, String issuer, String audience) {
+        this(privateKeyLocation, publicKeyLocation, previousPublicKeyLocation, accessTokenTtlSeconds,
+                activeKid, retiringKid, issuer, audience, "delivery-user-registration", "LEGACY_USER_ID");
     }
 
     private PrivateKey loadPrivateKey(String location) throws Exception {
@@ -151,12 +180,19 @@ public class TokenService {
     }
 
     public String generateToken(Long userId, String email, String role) {
+        return generateToken(userId, userId, email, role);
+    }
+
+    public String generateToken(Long legacyUserId, Long principalId, String email, String role) {
         Instant issuedAt = Instant.now();
         return Jwts.builder()
                 .setHeaderParam("kid", activeKid)
                 .setIssuer(issuer)
                 .claim("aud", List.of(audience))
-                .setSubject(String.valueOf(userId))
+                .setSubject(subjectFor(legacyUserId, principalId))
+                .claim("principal_id", principalId)
+                .claim("legacy_user_id", legacyUserId)
+                .claim("identity_claims_version", 1)
                 .claim("email", email)
                 .claim("roles", List.of(role))
                 .claim("role", role)
@@ -169,15 +205,26 @@ public class TokenService {
     }
 
     public String generateRefreshToken(Long userId, String email, String role) {
-        return generateRefreshToken(userId, email, role, UUID.randomUUID().toString());
+        return generateRefreshToken(userId, userId, email, role, UUID.randomUUID().toString());
     }
 
     public String generateRefreshToken(Long userId, String email, String role, String tokenFamilyId) {
+        return generateRefreshToken(userId, userId, email, role, tokenFamilyId);
+    }
+
+    public String generateRefreshToken(Long legacyUserId, Long principalId, String email, String role, String tokenFamilyId) {
         Instant issuedAt = Instant.now();
         return Jwts.builder()
                 .setHeaderParam("kid", activeKid)
                 .setIssuer(issuer)
-                .setSubject(String.valueOf(userId))
+                // Refresh tokens stay legacy-subject for their seven-day
+                // lifetime. R5 only changes access-token `sub`, so a rollback
+                // inside the 20-minute access TTL window has no hidden
+                // seven-day compatibility tail in the refresh flow.
+                .setSubject(String.valueOf(legacyUserId))
+                .claim("principal_id", principalId)
+                .claim("legacy_user_id", legacyUserId)
+                .claim("identity_claims_version", 1)
                 .claim("email", email)
                 .claim("role", role)
                 .claim(TOKEN_TYPE_CLAIM, REFRESH_TOKEN_TYPE)
@@ -187,6 +234,32 @@ public class TokenService {
                 .setExpiration(Date.from(issuedAt.plus(REFRESH_TOKEN_TTL)))
                 .signWith(privateKey, SignatureAlgorithm.RS256)
                 .compact();
+    }
+
+    public String generateProvisioningToken(Long principalId, String email, String role) {
+        Instant issuedAt = Instant.now();
+        return Jwts.builder()
+                .setHeaderParam("kid", activeKid)
+                .setIssuer(issuer)
+                .claim("aud", List.of(provisioningAudience))
+                .setSubject(String.valueOf(principalId))
+                .claim("principal_id", principalId)
+                .claim("email", email)
+                .claim("role", role)
+                .claim(TOKEN_TYPE_CLAIM, PROVISIONING_TOKEN_TYPE)
+                .setId(UUID.randomUUID().toString())
+                .setIssuedAt(Date.from(issuedAt))
+                .setExpiration(Date.from(issuedAt.plus(Duration.ofMinutes(15))))
+                .signWith(privateKey, SignatureAlgorithm.RS256)
+                .compact();
+    }
+
+    private String subjectFor(Long legacyUserId, Long principalId) {
+        Long subject = accessTokenSubjectMode == SubjectMode.PRINCIPAL_ID ? principalId : legacyUserId;
+        if (subject == null || subject <= 0) {
+            throw new IllegalArgumentException("Access token identity claims must be positive");
+        }
+        return String.valueOf(subject);
     }
 
     public Map<String, Object> getJwks() {

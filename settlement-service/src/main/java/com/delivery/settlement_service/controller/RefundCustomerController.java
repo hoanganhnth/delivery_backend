@@ -30,13 +30,14 @@ public class RefundCustomerController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(BaseResponse.failure("Only USER can access this endpoint"));
         }
-        if (actor.getUserId() == null || actor.getUserId() <= 0) {
+        if (actor.getPrincipalId() == null || actor.getPrincipalId() <= 0
+                || actor.getLegacyUserId() == null || actor.getLegacyUserId() <= 0) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(BaseResponse.failure("Authenticated user identity is required"));
         }
         try {
             return ResponseEntity.ok(BaseResponse.success(
-                    refundCaseService.listCustomerCases(actor.getUserId(), limit)));
+                    refundCaseService.listCustomerCases(actor.getPrincipalId(), actor.getLegacyUserId(), limit)));
         } catch (IllegalArgumentException exception) {
             return ResponseEntity.badRequest().body(BaseResponse.failure(exception.getMessage()));
         }

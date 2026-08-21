@@ -77,6 +77,7 @@ public class DeliveryEventListener {
             notificationService.sendDeliveryStatusNotification(
                     event.getEventId(),
                     event.getUserId(),
+                    event.getUserPrincipalId(),
                     event.getDeliveryId(),
                     event.getStatus(),
                     hasText(event.getShipperName()) ? event.getShipperName() : null

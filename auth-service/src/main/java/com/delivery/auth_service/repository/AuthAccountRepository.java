@@ -1,6 +1,7 @@
 package com.delivery.auth_service.repository;
 
 import com.delivery.auth_service.entity.AuthAccount;
+import com.delivery.auth_service.entity.IdentityStatusBootstrap;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -19,7 +20,8 @@ import jakarta.persistence.LockModeType;
 
 @Repository
 public interface AuthAccountRepository extends JpaRepository<AuthAccount, Long> {
-    Optional<AuthAccount> findByEmail(String email);
+    @Query("select account from AuthAccount account where lower(trim(account.email)) = lower(trim(:email))")
+    Optional<AuthAccount> findByEmail(@Param("email") String email);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select account from AuthAccount account where account.id = :id")
@@ -66,4 +68,23 @@ public interface AuthAccountRepository extends JpaRepository<AuthAccount, Long> 
             @Param("version") Long version,
             @Param("error") String error,
             @Param("failedAt") LocalDateTime failedAt);
+
+    @Query("""
+            select account from AuthAccount account
+            where account.userId is not null
+              and not exists (
+                select bootstrap.accountId from IdentityStatusBootstrap bootstrap
+                where bootstrap.accountId = account.id)
+            order by account.id asc
+            """)
+    List<AuthAccount> findWithoutIdentityStatusBootstrap(Pageable pageable);
+
+    @Query("""
+            select count(account) from AuthAccount account
+            where account.userId is not null
+              and not exists (
+                select bootstrap.accountId from IdentityStatusBootstrap bootstrap
+                where bootstrap.accountId = account.id)
+            """)
+    long countWithoutIdentityStatusBootstrap();
 }

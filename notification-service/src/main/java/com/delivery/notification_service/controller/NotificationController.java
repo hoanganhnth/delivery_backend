@@ -52,8 +52,8 @@ public class NotificationController {
             @AuthenticationPrincipal AuthenticatedActor actor) {
 
         requireActor(actor);
-        requireSelf(userId, actor.getUserId());
-        List<NotificationResponse> notifications = notificationService.getUserNotifications(userId);
+        requireSelf(userId, actor.getLegacyUserId());
+        List<NotificationResponse> notifications = notificationService.getUserNotifications(actor.getPrincipalId(), actor.getLegacyUserId());
         return ResponseEntity.ok(new BaseResponse<>(1, notifications, "Lấy danh sách thông báo thành công"));
     }
 
@@ -62,7 +62,7 @@ public class NotificationController {
             @AuthenticationPrincipal AuthenticatedActor actor) {
 
         requireActor(actor);
-        List<NotificationResponse> notifications = notificationService.getUnreadNotifications(actor.getUserId());
+        List<NotificationResponse> notifications = notificationService.getUnreadNotifications(actor.getPrincipalId(), actor.getLegacyUserId());
         return ResponseEntity.ok(new BaseResponse<>(1, notifications, "Lấy danh sách thông báo chưa đọc thành công"));
     }
 
@@ -71,7 +71,7 @@ public class NotificationController {
             @AuthenticationPrincipal AuthenticatedActor actor) {
 
         requireActor(actor);
-        long count = notificationService.getUnreadCount(actor.getUserId());
+        long count = notificationService.getUnreadCount(actor.getPrincipalId(), actor.getLegacyUserId());
         return ResponseEntity.ok(new BaseResponse<>(1, count, "Lấy số lượng thông báo chưa đọc thành công"));
     }
 
@@ -81,7 +81,7 @@ public class NotificationController {
             @AuthenticationPrincipal AuthenticatedActor actor) {
 
         requireActor(actor);
-        NotificationResponse response = notificationService.markAsRead(id, actor.getUserId());
+        NotificationResponse response = notificationService.markAsRead(id, actor.getPrincipalId(), actor.getLegacyUserId());
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Đánh dấu đã đọc thành công"));
     }
 
@@ -90,7 +90,7 @@ public class NotificationController {
             @AuthenticationPrincipal AuthenticatedActor actor) {
 
         requireActor(actor);
-        int updated = notificationService.markAllAsRead(actor.getUserId());
+        int updated = notificationService.markAllAsRead(actor.getPrincipalId(), actor.getLegacyUserId());
         return ResponseEntity.ok(new BaseResponse<>(1, updated, "Đánh dấu tất cả đã đọc thành công"));
     }
 
@@ -100,7 +100,7 @@ public class NotificationController {
             @AuthenticationPrincipal AuthenticatedActor actor) {
 
         requireActor(actor);
-        NotificationResponse response = notificationService.getNotificationById(id, actor.getUserId());
+        NotificationResponse response = notificationService.getNotificationById(id, actor.getPrincipalId(), actor.getLegacyUserId());
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Lấy thông báo thành công"));
     }
 
@@ -110,12 +110,12 @@ public class NotificationController {
             @AuthenticationPrincipal AuthenticatedActor actor) {
 
         requireActor(actor);
-        notificationService.deleteNotification(id, actor.getUserId());
+        notificationService.deleteNotification(id, actor.getPrincipalId(), actor.getLegacyUserId());
         return ResponseEntity.ok(new BaseResponse<>(1, null, "Xóa thông báo thành công"));
     }
 
     private void requireActor(AuthenticatedActor actor) {
-        if (actor == null || actor.getUserId() == null
+        if (actor == null || actor.getPrincipalId() == null || actor.getLegacyUserId() == null
                 || (!actor.isUser() && !actor.isShipper() && !actor.isShopOwner() && !actor.isAdmin())) {
             throw new NotificationAccessDeniedException("Forbidden");
         }

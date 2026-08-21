@@ -34,6 +34,8 @@ readonly SOURCE_TOPICS=(
   restaurant.order-rejected
   delivery.status-updated
   delivery.shipper-offered
+  delivery.offer-persisted
+  delivery.offer-retired
   delivery.completed
   saga.command.update-order-status
   saga.command.create-delivery
@@ -56,6 +58,9 @@ readonly SOURCE_TOPICS=(
   saga.command.stop-matching
   shipper.location-updated
   shipper.status-change
+  identity.profile.created
+  identity.status.changed
+  shipper.identity.upserted
 )
 
 readonly STANDARD_RETRY_SOURCES=(
@@ -79,6 +84,8 @@ readonly SAGA_RETRY_SOURCES=(
   shipper.not-found
   delivery.created.failed
   delivery.cancel.failed
+  delivery.offer-persisted
+  delivery.offer-retired
 )
 
 readonly ORDER_RETRY_SOURCES=(
@@ -114,6 +121,12 @@ readonly TRACKING_RETRY_SOURCES=(
 readonly TRACKING_DLT_ONLY_SOURCES=(
   shipper.status-change
 )
+
+readonly AUTH_IDENTITY_RETRY_SOURCES=(identity.profile.created)
+readonly USER_IDENTITY_RETRY_SOURCES=(identity.status.changed)
+readonly SHIPPER_IDENTITY_RETRY_SOURCES=(identity.status.changed)
+readonly DELIVERY_SHIPPER_IDENTITY_RETRY_SOURCES=(shipper.identity.upserted)
+readonly TRACKING_SHIPPER_IDENTITY_RETRY_SOURCES=(shipper.identity.upserted)
 
 readonly LEGACY_SHARED_RETRY_SOURCES=(
   order.created
@@ -315,6 +328,26 @@ for source in "${TRACKING_RETRY_SOURCES[@]}"; do
 done
 for source in "${TRACKING_DLT_ONLY_SOURCES[@]}"; do
   assert_topic "${source}.tracking.DLT"
+done
+for source in "${AUTH_IDENTITY_RETRY_SOURCES[@]}"; do
+  for delay in 1000 2000 4000; do assert_topic "${source}-retry-auth-identity-${delay}"; done
+  assert_topic "${source}.auth-identity.DLT"
+done
+for source in "${USER_IDENTITY_RETRY_SOURCES[@]}"; do
+  for delay in 1000 2000 4000; do assert_topic "${source}-retry-user-identity-${delay}"; done
+  assert_topic "${source}.user-identity.DLT"
+done
+for source in "${SHIPPER_IDENTITY_RETRY_SOURCES[@]}"; do
+  for delay in 1000 2000 4000; do assert_topic "${source}-retry-shipper-identity-${delay}"; done
+  assert_topic "${source}.shipper-identity.DLT"
+done
+for source in "${DELIVERY_SHIPPER_IDENTITY_RETRY_SOURCES[@]}"; do
+  for delay in 1000 2000 4000; do assert_topic "${source}-retry-delivery-shipper-identity-${delay}"; done
+  assert_topic "${source}.delivery-shipper-identity.DLT"
+done
+for source in "${TRACKING_SHIPPER_IDENTITY_RETRY_SOURCES[@]}"; do
+  for delay in 1000 2000 4000; do assert_topic "${source}-retry-tracking-shipper-identity-${delay}"; done
+  assert_topic "${source}.tracking-shipper-identity.DLT"
 done
 for source in "${LEGACY_SHARED_RETRY_SOURCES[@]}"; do
   for delay in 1000 2000 4000; do

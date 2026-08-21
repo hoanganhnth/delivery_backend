@@ -19,6 +19,7 @@ public class OrderEvent {
 
     private Long orderId;
     private Long userId;
+    private Long userPrincipalId;
     private Long restaurantId;
     private String status;
     private String restaurantName;

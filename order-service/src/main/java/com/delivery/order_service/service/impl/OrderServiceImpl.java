@@ -18,10 +18,16 @@ import com.delivery.order_service.service.OrderService;
 import com.delivery.order_service.service.OrderValidationService;
 import com.delivery.order_service.service.ShippingFeeCalculationService;
 import com.delivery.order_service.service.CheckoutReservationClient;
+import com.delivery.order_service.service.CheckoutQuoteService;
+import com.delivery.order_service.service.CheckoutFingerprintService;
+import com.delivery.order_service.service.OrderCreateIdempotencyService;
+import com.delivery.order_service.entity.OrderCreateIdempotencyReceipt;
 import com.delivery.order_service.metrics.BusinessMetrics;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -48,6 +54,18 @@ public class OrderServiceImpl implements OrderService {
     private final BusinessMetrics businessMetrics;
     private final CheckoutReservationClient reservationClient;
 
+    @Autowired(required = false)
+    private CheckoutQuoteService checkoutQuoteService;
+
+    @Autowired(required = false)
+    private OrderCreateIdempotencyService idempotencyService;
+
+    @Autowired(required = false)
+    private CheckoutFingerprintService checkoutFingerprintService;
+
+    @Value("${app.identity.principal-ownership.enforced:false}")
+    private boolean principalOwnershipEnforced;
+
     public OrderServiceImpl(OrderRepository orderRepository,
                            OrderItemRepository orderItemRepository,
                            OrderMapper orderMapper,
@@ -69,8 +87,38 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public OrderResponse createOrder(CreateOrderRequest request, Long userId, String role) {
+        return createOrder(request, userId, userId, role);
+    }
+
+    @Override
+    @Transactional
+    public OrderResponse createOrder(CreateOrderRequest request, Long principalId, Long userId, String role) {
+        return createOrder(request, null, principalId, userId, role);
+    }
+
+    @Override
+    @Transactional
+    public OrderResponse createOrder(CreateOrderRequest request, UUID idempotencyKey,
+                                     Long principalId, Long userId, String role) {
         if (!RoleConstants.USER.equals(role)) {
             throw new AccessDeniedException("Chỉ khách hàng được tạo đơn hàng");
+        }
+        OrderCreateIdempotencyReceipt idempotencyReceipt = null;
+        if (idempotencyKey != null) {
+            if (idempotencyService == null || checkoutFingerprintService == null) {
+                throw new IllegalStateException("Create-order idempotency is unavailable");
+            }
+            idempotencyReceipt = idempotencyService.claim(principalId, idempotencyKey,
+                    checkoutFingerprintService.createCommand(request));
+            if (idempotencyReceipt.getOrderId() != null) {
+                return orderMapper.orderToOrderResponse(findOrderById(idempotencyReceipt.getOrderId()));
+            }
+        }
+        if (request.getQuoteId() != null) {
+            if (checkoutQuoteService == null) {
+                throw new IllegalStateException("Checkout quote service is unavailable");
+            }
+            checkoutQuoteService.validateAndReprice(request, principalId, userId);
         }
         // ✅ Validate request + lấy canonical restaurant data từ server (1 lần duy nhất gọi restaurant-service)
         ValidatedOrderData validated = orderValidationService.validateCreateOrderRequest(request, userId);
@@ -89,9 +137,11 @@ public class OrderServiceImpl implements OrderService {
         //   Các trường nhà hàng sẽ được set rõ ràng từ ValidatedOrderData bên dưới.
         Order order = orderMapper.createOrderRequestToOrder(request);
         order.setUserId(userId);
+        order.setUserPrincipalId(principalId);
 
         // ✅ Set canonical restaurant data từ server — không dùng bất cứ dữ liệu nào từ client
         order.setCreatorId(validated.creatorId());
+        order.setCreatorPrincipalId(validated.creatorPrincipalId());
         order.setRestaurantName(validated.restaurantName());
         order.setRestaurantAddress(validated.restaurantAddress());
         order.setRestaurantPhone(validated.restaurantPhone());
@@ -123,7 +173,7 @@ public class OrderServiceImpl implements OrderService {
             CheckoutReservationClient.FlashQuote flashQuote = null;
             if (hasFlash) {
                 flashReservationId = UUID.randomUUID();
-                flashQuote = reservationClient.reserveFlash(flashReservationId, savedOrder.getId(), userId,
+                flashQuote = reserveFlash(flashReservationId, savedOrder.getId(), userId, principalId,
                         request.getRestaurantId(), request.getItems());
                 savedOrder.setFlashSaleReservationId(flashReservationId);
             }
@@ -148,7 +198,7 @@ public class OrderServiceImpl implements OrderService {
             BigDecimal discount = BigDecimal.ZERO;
             if (request.getVoucherIds() != null && request.getVoucherIds().size() == 1) {
                 voucherReservationId = UUID.randomUUID();
-                discount = reservationClient.reserveVoucher(voucherReservationId, savedOrder.getId(), userId,
+                discount = reserveVoucher(voucherReservationId, savedOrder.getId(), userId, principalId,
                         request.getVoucherIds().get(0), request.getRestaurantId(), subtotal, shippingFee)
                         .discountAmount();
                 savedOrder.setVoucherReservationId(voucherReservationId);
@@ -174,6 +224,12 @@ public class OrderServiceImpl implements OrderService {
             orderItemRepository.saveAll(orderItems);
             savedOrder.setItems(orderItems);
             orderRepository.save(savedOrder);
+            if (request.getQuoteId() != null) {
+                checkoutQuoteService.consume(request.getQuoteId(), principalId, savedOrder.getId());
+            }
+            if (idempotencyReceipt != null) {
+                idempotencyService.complete(idempotencyReceipt, savedOrder.getId());
+            }
             orderEventPublisher.publishOrderCreatedEvent(savedOrder);
             businessMetrics.record("order_created");
             log.info("Order created id={}, subtotal={}, discount={}, shipping={}, total={}", savedOrder.getId(),
@@ -192,13 +248,44 @@ public class OrderServiceImpl implements OrderService {
         catch (RuntimeException releaseFailure) { failure.addSuppressed(releaseFailure); }
     }
 
+    /**
+     * Preserve the legacy reservation payload during the identity migration
+     * compatibility window. New principal/legacy pairs carry the stable
+     * principal ID to downstream reservation services.
+     */
+    private CheckoutReservationClient.VoucherQuote reserveVoucher(
+            UUID reservationId, Long orderId, Long userId, Long principalId,
+            Long voucherId, Long restaurantId, BigDecimal subtotal, BigDecimal shippingFee) {
+        if (principalId == null || Objects.equals(principalId, userId)) {
+            return reservationClient.reserveVoucher(reservationId, orderId, userId, voucherId,
+                    restaurantId, subtotal, shippingFee);
+        }
+        return reservationClient.reserveVoucher(reservationId, orderId, userId, principalId, voucherId,
+                restaurantId, subtotal, shippingFee);
+    }
+
+    private CheckoutReservationClient.FlashQuote reserveFlash(
+            UUID reservationId, Long orderId, Long userId, Long principalId,
+            Long restaurantId, List<CreateOrderRequest.OrderItemRequest> requestItems) {
+        if (principalId == null || Objects.equals(principalId, userId)) {
+            return reservationClient.reserveFlash(reservationId, orderId, userId, restaurantId, requestItems);
+        }
+        return reservationClient.reserveFlash(reservationId, orderId, userId, principalId, restaurantId, requestItems);
+    }
+
     @Override
     @Transactional(readOnly = true)
     public OrderResponse getOrderById(Long id, Long userId, String role) {
+        return getOrderById(id, userId, userId, role);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public OrderResponse getOrderById(Long id, Long principalId, Long legacyUserId, String role) {
         Order order = findOrderById(id);
 
         // Kiểm tra quyền xem
-        validateViewPermission(order, userId, role);
+        validateViewPermission(order, principalId, legacyUserId, role);
 
         return orderMapper.orderToOrderResponse(order);
     }
@@ -215,23 +302,46 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<OrderResponse> getOrdersByRestaurantOwner(Long ownerId, Long userId, String role, Pageable pageable) {
+    public Page<OrderResponse> getOrdersByPrincipal(Long principalId, Long legacyUserId, String role, Pageable pageable) {
+        if (principalId == null || legacyUserId == null) {
+            throw new AccessDeniedException("Missing authenticated identity");
+        }
+        Page<Order> orders = principalOwnershipEnforced
+                ? orderRepository.findByUserPrincipalIdOrderByCreatedAtDesc(principalId, pageable)
+                : orderRepository.findByPrincipalOrUnmigratedLegacyUserOrderByCreatedAtDesc(
+                        principalId, legacyUserId, pageable);
+        orders.forEach(order -> {
+            if (order.getUserPrincipalId() == null) businessMetrics.identityLegacyFallback("customer_list");
+        });
+        return orders.map(orderMapper::orderToOrderResponse);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<OrderResponse> getOrdersByRestaurantOwner(Long principalId, Long legacyOwnerId, String role,
+            Pageable pageable) {
         // Chỉ admin hoặc chính restaurant owner mới được xem
         if (!RoleConstants.ADMIN.equals(role)) {
             if (!RoleConstants.RESTAURANT_OWNER.equals(role)) {
                 throw new AccessDeniedException("Bạn không có quyền xem đơn hàng của chủ nhà hàng");
             }
-            // Restaurant owner chỉ xem được đơn hàng của chính mình
-            if (!ownerId.equals(userId)) {
-                throw new AccessDeniedException("Bạn chỉ có thể xem đơn hàng của nhà hàng mình sở hữu");
-            }
+        }
+        if (principalId == null || legacyOwnerId == null) {
+            throw new AccessDeniedException("Missing authenticated identity");
         }
 
-        // ✅ Query trực tiếp từ bảng orders theo creatorId (không cần gọi Restaurant Service)
-        log.info("📋 Getting orders for restaurant owner (creatorId): {}", ownerId);
+        // No hot-path lookup into Restaurant/Auth. New rows use the stable
+        // principal; legacy rows remain readable only while their principal is absent.
+        log.info("📋 Getting orders for restaurant owner principal={}", principalId);
 
-        Page<Order> orders = orderRepository.findByCreatorIdOrderByCreatedAtDesc(ownerId, pageable);
-        log.info("✅ Found {} orders for restaurant owner {}", orders.getTotalElements(), ownerId);
+        Page<Order> orders = principalOwnershipEnforced
+                ? orderRepository.findByCreatorPrincipalIdOrderByCreatedAtDesc(principalId, pageable)
+                : orderRepository.findByRestaurantOwnerPrincipalOrUnmigratedLegacyOrderByCreatedAtDesc(
+                        principalId, legacyOwnerId, pageable);
+        orders.forEach(order -> {
+            if (order.getCreatorPrincipalId() == null) businessMetrics.identityLegacyFallback("restaurant_owner_list");
+        });
+        log.info("✅ Found {} orders for restaurant owner principal {}", orders.getTotalElements(), principalId);
 
         return orders.map(orderMapper::orderToOrderResponse);
     }
@@ -279,18 +389,30 @@ public class OrderServiceImpl implements OrderService {
         return item;
     }
 
-    private void validateViewPermission(Order order, Long userId, String role) {
+    private void validateViewPermission(Order order, Long principalId, Long legacyUserId, String role) {
         if (RoleConstants.ADMIN.equals(role)) {
             return; // Admin có thể xem tất cả
         }
 
-        if (RoleConstants.USER.equals(role) && order.getUserId().equals(userId)) {
-            return;
+        if (RoleConstants.USER.equals(role)) {
+            if (order.getUserPrincipalId() != null && principalId != null
+                    && order.getUserPrincipalId().equals(principalId)) return;
+            if (!principalOwnershipEnforced && order.getUserPrincipalId() == null
+                    && order.getUserId().equals(legacyUserId)) {
+                businessMetrics.identityLegacyFallback("customer_read");
+                return;
+            }
         }
-        if (RoleConstants.RESTAURANT_OWNER.equals(role) && order.getCreatorId().equals(userId)) {
-            return;
+        if (RoleConstants.RESTAURANT_OWNER.equals(role)) {
+            if (order.getCreatorPrincipalId() != null && principalId != null
+                    && order.getCreatorPrincipalId().equals(principalId)) return;
+            if (!principalOwnershipEnforced && order.getCreatorPrincipalId() == null
+                    && order.getCreatorId().equals(legacyUserId)) {
+                businessMetrics.identityLegacyFallback("restaurant_owner_read");
+                return;
+            }
         }
-        if (RoleConstants.SHIPPER.equals(role) && userId.equals(order.getShipperId())) {
+        if (RoleConstants.SHIPPER.equals(role) && legacyUserId != null && legacyUserId.equals(order.getShipperId())) {
             return;
         }
 
@@ -300,15 +422,21 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public OrderResponse cancelOrder(Long orderId, Long userId, String role, String reason) {
+        return cancelOrder(orderId, userId, userId, role, reason);
+    }
+
+    @Override
+    @Transactional
+    public OrderResponse cancelOrder(Long orderId, Long principalId, Long userId, String role, String reason) {
         // Lấy thông tin đơn hàng
         Order order = orderRepository.findByIdForUpdate(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn hàng với ID: " + orderId));
 
         // Kiểm tra quyền hủy đơn hàng
-        validateCancelOrderPermission(order, userId, role);
+        validateCancelOrderPermission(order, principalId, userId, role);
 
         if (order.getStatus() == OrderStatus.CANCELLED) {
-            requireExactCancellationReplay(order, userId, reason);
+            requireExactCancellationReplay(order, principalId, userId, reason);
             return orderMapper.orderToOrderResponse(order);
         }
 
@@ -323,6 +451,7 @@ public class OrderServiceImpl implements OrderService {
         order.setStatus(OrderStatus.CANCELLED);
         order.setCancelReason(reason);
         order.setCancelledBy(userId);
+        order.setCancelledByPrincipalId(principalId);
         order.setUpdatedAt(LocalDateTime.now());
         order = orderRepository.save(order);
         businessMetrics.record("order_cancelled");
@@ -340,30 +469,45 @@ public class OrderServiceImpl implements OrderService {
         return orderMapper.orderToOrderResponse(order);
     }
 
-    private void validateCancelOrderPermission(Order order, Long userId, String role) {
+    private void validateCancelOrderPermission(Order order, Long principalId, Long legacyUserId, String role) {
         // Admin có thể hủy bất kỳ đơn hàng nào
         if (RoleConstants.ADMIN.equals(role)) {
             return;
         }
 
         // User chỉ có thể hủy đơn hàng của mình
-        if (RoleConstants.USER.equals(role) && order.getUserId().equals(userId)) {
-            return;
+        if (RoleConstants.USER.equals(role)) {
+            if (order.getUserPrincipalId() != null && principalId != null
+                    && order.getUserPrincipalId().equals(principalId)) return;
+            if (!principalOwnershipEnforced && order.getUserPrincipalId() == null
+                    && order.getUserId().equals(legacyUserId)) {
+                businessMetrics.identityLegacyFallback("customer_cancel");
+                return;
+            }
         }
 
         // Restaurant owner có thể hủy đơn hàng của nhà hàng mình
-        if (RoleConstants.RESTAURANT_OWNER.equals(role) && order.getCreatorId().equals(userId)) {
-            return;
+        if (RoleConstants.RESTAURANT_OWNER.equals(role)) {
+            if (order.getCreatorPrincipalId() != null && principalId != null
+                    && order.getCreatorPrincipalId().equals(principalId)) return;
+            if (!principalOwnershipEnforced && order.getCreatorPrincipalId() == null
+                    && order.getCreatorId().equals(legacyUserId)) {
+                businessMetrics.identityLegacyFallback("restaurant_owner_cancel");
+                return;
+            }
         }
 
         throw new AccessDeniedException("Bạn không có quyền hủy đơn hàng này");
     }
 
-    private void requireExactCancellationReplay(Order order, Long userId, String reason) {
-        if (Objects.equals(order.getCancelledBy(), userId)
+    private void requireExactCancellationReplay(Order order, Long principalId, Long legacyUserId, String reason) {
+        if ((order.getCancelledByPrincipalId() != null && Objects.equals(order.getCancelledByPrincipalId(), principalId)
+                    || !principalOwnershipEnforced && order.getCancelledByPrincipalId() == null
+                            && Objects.equals(order.getCancelledBy(), legacyUserId))
                 && Objects.equals(order.getCancelReason(), reason)) {
-            log.info("Order {} cancellation already applied by actor {}, skipping exact replay",
-                    order.getId(), userId);
+            if (order.getCancelledByPrincipalId() == null) businessMetrics.identityLegacyFallback("cancel_replay");
+            log.info("Order {} cancellation already applied by principal {}, skipping exact replay",
+                    order.getId(), principalId);
             return;
         }
         throw new IllegalStateException("Order cancellation already exists with a different actor or reason");

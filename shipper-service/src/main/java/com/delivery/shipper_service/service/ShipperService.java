@@ -11,13 +11,17 @@ import java.util.List;
 public interface ShipperService {
     // Main shipper operations based on the JWKS-authenticated actor userId.
     ShipperResponse createShipper(CreateShipperRequest request, Long userId, String role);
+    ShipperResponse createShipper(CreateShipperRequest request, Long principalId, Long userId, String role);
     ShipperResponse updateShipperByUserId(Long userId, UpdateShipperRequest request);
+    ShipperResponse updateShipperByPrincipalId(Long principalId, UpdateShipperRequest request);
     void deleteShipperByUserId(Long userId);
     ShipperResponse updateOnlineStatusByUserId(Long userId, Boolean isOnline);
+    ShipperResponse updateOnlineStatusByPrincipalId(Long principalId, Boolean isOnline);
     
     // Read operations
     ShipperResponse getShipperById(Long id);
     ShipperResponse getShipperByUserId(Long userId);
+    ShipperResponse getShipperByPrincipalId(Long principalId);
     Page<ShipperResponse> getAllShippers(Pageable pageable);
     List<ShipperResponse> getOnlineShippers();
 }

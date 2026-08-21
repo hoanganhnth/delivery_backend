@@ -53,7 +53,7 @@ public class PromotionController {
             @PathVariable String code,
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireRole(actor, "USER");
-        promotionService.collectVoucher(actor.getUserId(), code);
+        promotionService.collectVoucher(actor.getPrincipalId(), actor.getUserId(), code);
         return ResponseEntity.ok(new BaseResponse<>(1, "Collected successfully"));
     }
 
@@ -61,7 +61,8 @@ public class PromotionController {
     public ResponseEntity<BaseResponse<List<VoucherResponse>>> getMyVouchers(
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireRole(actor, "USER");
-        return ResponseEntity.ok(new BaseResponse<>(1, toResponse(promotionService.getCollectedVouchers(actor.getUserId()))));
+        return ResponseEntity.ok(new BaseResponse<>(1,
+                toResponse(promotionService.getCollectedVouchers(actor.getPrincipalId(), actor.getUserId()))));
     }
 
     @GetMapping("/merchant")

@@ -98,6 +98,15 @@
               {
                 "name": "PLATFORM_SECRETS_INTERNAL_SECRET_REQUIRED",
                 "value": "true"
+              },
+              {
+                "name": "NOTIFICATION_PRINCIPAL_OWNERSHIP_ENFORCED",
+                "valueFrom": {
+                  "configMapKeyRef": {
+                    "name": "delivery-runtime",
+                    "key": "NOTIFICATION_PRINCIPAL_OWNERSHIP_ENFORCED"
+                  }
+                }
               }
             ],
             "volumeMounts": [

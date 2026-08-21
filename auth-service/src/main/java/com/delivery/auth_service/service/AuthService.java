@@ -5,6 +5,7 @@ import java.security.MessageDigest;
 import java.time.LocalDateTime;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -73,6 +74,8 @@ public class AuthService implements UserDetailsService {
     private final GoogleTokenVerifier googleTokenVerifier;
     private final PlatformTransactionManager transactionManager;
     private final AuthUserCircuitBreaker userCircuitBreaker;
+    private final IdentityStatusOutboxService identityStatusOutboxService;
+    private final boolean identityEventsEnabled;
 
     public AuthService(
             AuthAccountRepository authAccountRepository,
@@ -93,7 +96,25 @@ public class AuthService implements UserDetailsService {
                 restTemplate,
                 googleTokenVerifier,
                 null,
-                null);
+                null,
+                null,
+                false);
+    }
+
+    public AuthService(
+            AuthAccountRepository authAccountRepository,
+            AuthSessionRepository authSessionRepository,
+            RefreshTokenRecordRepository refreshTokenRecordRepository,
+            PasswordEncoder passwordEncoder,
+            TokenService tokenService,
+            UserServiceConfig userServiceConfig,
+            RestTemplate restTemplate,
+            GoogleTokenVerifier googleTokenVerifier,
+            PlatformTransactionManager transactionManager,
+            AuthUserCircuitBreaker userCircuitBreaker) {
+        this(authAccountRepository, authSessionRepository, refreshTokenRecordRepository, passwordEncoder,
+                tokenService, userServiceConfig, restTemplate, googleTokenVerifier, transactionManager,
+                userCircuitBreaker, null, false);
     }
 
     @org.springframework.beans.factory.annotation.Autowired
@@ -107,7 +128,9 @@ public class AuthService implements UserDetailsService {
             RestTemplate restTemplate,
             GoogleTokenVerifier googleTokenVerifier,
             PlatformTransactionManager transactionManager,
-            AuthUserCircuitBreaker userCircuitBreaker) {
+            AuthUserCircuitBreaker userCircuitBreaker,
+            IdentityStatusOutboxService identityStatusOutboxService,
+            @org.springframework.beans.factory.annotation.Value("${app.identity.events.enabled:false}") boolean identityEventsEnabled) {
         this.authAccountRepository = authAccountRepository;
         this.authSessionRepository = authSessionRepository;
         this.refreshTokenRecordRepository = refreshTokenRecordRepository;
@@ -118,6 +141,8 @@ public class AuthService implements UserDetailsService {
         this.googleTokenVerifier = googleTokenVerifier;
         this.transactionManager = transactionManager;
         this.userCircuitBreaker = userCircuitBreaker;
+        this.identityStatusOutboxService = identityStatusOutboxService;
+        this.identityEventsEnabled = identityEventsEnabled;
     }
 
     /**
@@ -128,11 +153,12 @@ public class AuthService implements UserDetailsService {
             throw new IllegalArgumentException("Role is required");
         }
 
+        String email = normalizeEmail(request.getEmail());
         AuthAccount.Role roleEnum = parsePublicRegistrationRole(request.getRole());
 
-        AuthAccount account = authAccountRepository.findByEmail(request.getEmail())
+        AuthAccount account = authAccountRepository.findByEmail(email)
                 .map(existing -> resumePendingPasswordRegistration(existing, request, roleEnum))
-                .orElseGet(() -> createPasswordAccountOrResumeRace(request, roleEnum));
+                .orElseGet(() -> createPasswordAccountOrResumeRace(request, email, roleEnum));
 
         return account;
     }
@@ -150,10 +176,11 @@ public class AuthService implements UserDetailsService {
             throw new IllegalArgumentException("Operator-provisioned password is required");
         }
 
-        AuthAccount account = authAccountRepository.findByEmail(email)
+        String canonicalEmail = normalizeEmail(email);
+        AuthAccount account = authAccountRepository.findByEmail(canonicalEmail)
                 .map(existing -> resumeOperatorPasswordAccount(
-                        existing, email, password, AuthAccount.Role.SHIPPER))
-                .orElseGet(() -> createOperatorPasswordAccount(email, password, AuthAccount.Role.SHIPPER));
+                        existing, canonicalEmail, password, AuthAccount.Role.SHIPPER))
+                .orElseGet(() -> createOperatorPasswordAccount(canonicalEmail, password, AuthAccount.Role.SHIPPER));
 
         if (account.getUserId() == null) {
             provisionUserProfile(account);
@@ -175,10 +202,11 @@ public class AuthService implements UserDetailsService {
             throw new IllegalArgumentException("Operator-provisioned admin password is required");
         }
 
-        AuthAccount account = authAccountRepository.findByEmail(email)
+        String canonicalEmail = normalizeEmail(email);
+        AuthAccount account = authAccountRepository.findByEmail(canonicalEmail)
                 .map(existing -> resumeOperatorPasswordAccount(
-                        existing, email, password, AuthAccount.Role.ADMIN))
-                .orElseGet(() -> createOperatorPasswordAccount(email, password, AuthAccount.Role.ADMIN));
+                        existing, canonicalEmail, password, AuthAccount.Role.ADMIN))
+                .orElseGet(() -> createOperatorPasswordAccount(canonicalEmail, password, AuthAccount.Role.ADMIN));
 
         if (account.getUserId() == null) {
             provisionUserProfile(account);
@@ -189,7 +217,7 @@ public class AuthService implements UserDetailsService {
 
     @Transactional
     public AuthResponse login(LoginRequest request) {
-        AuthAccount account = authAccountRepository.findByEmail(request.getEmail())
+        AuthAccount account = authAccountRepository.findByEmail(normalizeEmail(request.getEmail()))
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid email or password"));
 
         if (!passwordEncoder.matches(request.getPassword(), account.getPasswordHash())) {
@@ -205,6 +233,8 @@ public class AuthService implements UserDetailsService {
             throw new InvalidCredentialsException("Email verification required");
         }
 
+        requireActiveLifecycle(account);
+
         if (request.getDeviceId() == null || request.getDeviceId().trim().isEmpty()) {
             throw new IllegalArgumentException("Device ID must not be empty");
         }
@@ -213,10 +243,10 @@ public class AuthService implements UserDetailsService {
 
         deactivateSessions(account, request.getDeviceId());
 
-        String accessToken = tokenService.generateToken(account.getUserId(), account.getEmail(),
+        String accessToken = tokenService.generateToken(account.getUserId(), account.getId(), account.getEmail(),
                 account.getRole().name());
         String tokenFamilyId = UUID.randomUUID().toString();
-        String refreshToken = tokenService.generateRefreshToken(account.getUserId(), account.getEmail(),
+        String refreshToken = tokenService.generateRefreshToken(account.getUserId(), account.getId(), account.getEmail(),
                 account.getRole().name(), tokenFamilyId);
         LocalDateTime now = LocalDateTime.now();
 
@@ -249,7 +279,7 @@ public class AuthService implements UserDetailsService {
         }
 
         var payload = googleTokenVerifier.verify(request.getToken());
-        String email = payload.getEmail();
+        String email = normalizeEmail(payload.getEmail());
 
         AuthAccount account = authAccountRepository.findByEmail(email).orElse(null);
 
@@ -296,10 +326,10 @@ public class AuthService implements UserDetailsService {
         deactivateSessions(account, deviceId);
 
         String accessToken = tokenService.generateToken(
-                account.getUserId(), account.getEmail(), account.getRole().name());
+                account.getUserId(), account.getId(), account.getEmail(), account.getRole().name());
         String tokenFamilyId = UUID.randomUUID().toString();
         String refreshToken = tokenService.generateRefreshToken(
-                account.getUserId(), account.getEmail(), account.getRole().name(), tokenFamilyId);
+                account.getUserId(), account.getId(), account.getEmail(), account.getRole().name(), tokenFamilyId);
         LocalDateTime now = LocalDateTime.now();
 
         AuthSession session = new AuthSession();
@@ -363,11 +393,12 @@ public class AuthService implements UserDetailsService {
                 && account.getEmailVerifiedAt() == null) {
             throw new InvalidTokenException("Email verification required");
         }
+        requireActiveLifecycle(account);
         requireLinkedUser(account);
 
-        String newAccessToken = tokenService.generateToken(account.getUserId(), account.getEmail(),
+        String newAccessToken = tokenService.generateToken(account.getUserId(), account.getId(), account.getEmail(),
                 account.getRole().name());
-        String newRefreshToken = tokenService.generateRefreshToken(account.getUserId(), account.getEmail(),
+        String newRefreshToken = tokenService.generateRefreshToken(account.getUserId(), account.getId(), account.getEmail(),
                 account.getRole().name(), session.getTokenFamilyId());
         LocalDateTime newExpiry = now.plusDays(7);
 
@@ -402,7 +433,7 @@ public class AuthService implements UserDetailsService {
         if (deviceId == null || deviceId.isBlank()) {
             throw new IllegalArgumentException("Device ID must not be empty");
         }
-        AuthAccount account = authAccountRepository.findByEmail(email)
+        AuthAccount account = authAccountRepository.findByEmail(normalizeEmail(email))
                 .orElseThrow(() -> new ResourceNotFoundException("Account", "email", email));
         LocalDateTime now = LocalDateTime.now();
         List<AuthSession> sessions = authSessionRepository.findAccountDeviceSessionsForUpdate(
@@ -413,7 +444,7 @@ public class AuthService implements UserDetailsService {
     }
 
     public List<SessionInfoResponse> getActiveSessions(String email) {
-        AuthAccount account = authAccountRepository.findByEmail(email)
+        AuthAccount account = authAccountRepository.findByEmail(normalizeEmail(email))
                 .orElseThrow(() -> new ResourceNotFoundException("Account", "email", email));
 
         return authSessionRepository.findActiveUnexpiredByAuthAccount(
@@ -436,11 +467,11 @@ public class AuthService implements UserDetailsService {
         if (email == null || email.isBlank()) {
             return Optional.empty();
         }
-        return authAccountRepository.findByEmail(email);
+        return authAccountRepository.findByEmail(normalizeEmail(email));
     }
 
     public AuthAccount getAccountByEmailOrThrow(String email) {
-        return authAccountRepository.findByEmail(email)
+        return authAccountRepository.findByEmail(normalizeEmail(email))
                 .orElseThrow(() -> new ResourceNotFoundException("Account", "email", email));
     }
 
@@ -492,7 +523,7 @@ public class AuthService implements UserDetailsService {
 
     @Override
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
-        AuthAccount account = authAccountRepository.findByEmail(email)
+        AuthAccount account = authAccountRepository.findByEmail(normalizeEmail(email))
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
 
         return org.springframework.security.core.userdetails.User.builder()
@@ -513,7 +544,8 @@ public class AuthService implements UserDetailsService {
                 .orElseThrow(() -> new ResourceNotFoundException("Account", "id", accountId));
 
         account.setIsActive(false);
-        if (account.getUserId() != null) {
+        transitionLifecycle(account, com.delivery.identity.contracts.IdentityLifecycleStatus.BLOCKED);
+        if (!identityEventsEnabled && account.getUserId() != null) {
             markUserStatusSyncPending(account, adminId, reason);
         }
         authAccountRepository.save(account);
@@ -523,7 +555,9 @@ public class AuthService implements UserDetailsService {
                 accountId, RefreshTokenRecord.State.REVOKED, revokedAt);
         authSessionRepository.deactivateAllActiveSessions(accountId, revokedAt);
 
-        if (account.getUserId() != null) {
+        enqueueIdentityStatus(account, adminId, "ADMIN_ACTION");
+
+        if (!identityEventsEnabled && account.getUserId() != null) {
             scheduleUserStatusSyncAfterCommit(account.getId());
         }
     }
@@ -537,17 +571,30 @@ public class AuthService implements UserDetailsService {
                 .orElseThrow(() -> new ResourceNotFoundException("Account", "id", accountId));
 
         account.setIsActive(true);
-        if (account.getUserId() != null) {
+        transitionLifecycle(account, account.getUserId() == null
+                ? com.delivery.identity.contracts.IdentityLifecycleStatus.PENDING_PROFILE
+                : (Boolean.TRUE.equals(account.getEmailVerificationRequired()) && account.getEmailVerifiedAt() == null
+                ? com.delivery.identity.contracts.IdentityLifecycleStatus.PENDING_EMAIL_VERIFICATION
+                : com.delivery.identity.contracts.IdentityLifecycleStatus.ACTIVE));
+        if (!identityEventsEnabled && account.getUserId() != null) {
             markUserStatusSyncPending(account, adminId, null);
         }
         authAccountRepository.save(account);
-        if (account.getUserId() != null) {
+        enqueueIdentityStatus(account, adminId, "ADMIN_ACTION");
+        if (!identityEventsEnabled && account.getUserId() != null) {
             scheduleUserStatusSyncAfterCommit(account.getId());
         }
     }
 
     @Scheduled(fixedDelayString = "${app.user-status-sync.poll-delay-ms:5000}")
     void reconcilePendingUserStatusSync() {
+        // Event mode is an authority boundary, not a best-effort parallel
+        // transport. Pending rows from an earlier legacy release are retained
+        // for rollback but must not result in Auth -> User HTTP calls once the
+        // status projection is enabled.
+        if (identityEventsEnabled) {
+            return;
+        }
         List<AuthAccount> pendingAccounts = authAccountRepository.findPendingUserStatusSync(
                 PageRequest.of(0, USER_STATUS_SYNC_BATCH_SIZE));
         for (AuthAccount account : pendingAccounts) {
@@ -701,6 +748,25 @@ public class AuthService implements UserDetailsService {
         }
     }
 
+    private void requireActiveLifecycle(AuthAccount account) {
+        if (account.getLifecycleStatus() != com.delivery.identity.contracts.IdentityLifecycleStatus.ACTIVE) {
+            throw new InvalidCredentialsException("Account onboarding is not complete");
+        }
+    }
+
+    private void transitionLifecycle(AuthAccount account, com.delivery.identity.contracts.IdentityLifecycleStatus target) {
+        if (account.getLifecycleStatus() != target) {
+            account.setLifecycleStatus(target);
+            account.setLifecycleVersion((account.getLifecycleVersion() == null ? 0L : account.getLifecycleVersion()) + 1L);
+        }
+    }
+
+    private void enqueueIdentityStatus(AuthAccount account, Long changedByPrincipalId, String reasonCode) {
+        if (identityStatusOutboxService != null) {
+            identityStatusOutboxService.statusChanged(account, changedByPrincipalId, reasonCode);
+        }
+    }
+
     private AuthAccount resumePendingPasswordRegistration(
             AuthAccount existing,
             RegisterRequest request,
@@ -718,10 +784,10 @@ public class AuthService implements UserDetailsService {
     }
 
     private AuthAccount createPasswordAccountOrResumeRace(
-            RegisterRequest request,
+            RegisterRequest request, String email,
             AuthAccount.Role role) {
         AuthAccount created = new AuthAccount();
-        created.setEmail(request.getEmail());
+        created.setEmail(email);
         created.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         created.setRole(role);
         created.setEmailVerificationRequired(true);
@@ -729,7 +795,7 @@ public class AuthService implements UserDetailsService {
         try {
             return authAccountRepository.save(created);
         } catch (DataIntegrityViolationException race) {
-            AuthAccount concurrent = authAccountRepository.findByEmail(request.getEmail())
+            AuthAccount concurrent = authAccountRepository.findByEmail(email)
                     .orElseThrow(() -> race);
             return resumePendingPasswordRegistration(concurrent, request, role);
         }
@@ -770,9 +836,13 @@ public class AuthService implements UserDetailsService {
         return existing;
     }
 
+    private static String normalizeEmail(String email) {
+        return email == null ? "" : email.trim().toLowerCase(Locale.ROOT);
+    }
+
     private void provisionUserProfile(AuthAccount account) {
         CreateUserRequest userRequest = new CreateUserRequest(
-                account.getId(), account.getEmail(), account.getRole().name());
+                account.getId(), account.getId(), account.getEmail(), account.getRole().name());
 
         try {
             ResponseEntity<BaseResponse<UserResponse>> responseEntity = callUserService(() -> restTemplate.exchange(
@@ -795,6 +865,8 @@ public class AuthService implements UserDetailsService {
                         "User service returned a conflicting provisioning identity");
             }
             account.setUserId(user.getId());
+            account.setLifecycleStatus(com.delivery.identity.contracts.IdentityLifecycleStatus.ACTIVE);
+            account.setLifecycleVersion((account.getLifecycleVersion() == null ? 0L : account.getLifecycleVersion()) + 1L);
             authAccountRepository.save(account);
             log.info("Provisioned user profile for authAccountId={}, userId={}", account.getId(), user.getId());
         } catch (RestClientException e) {

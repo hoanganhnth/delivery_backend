@@ -1,6 +1,7 @@
 package com.delivery.user_service.service.impl;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.data.domain.PageRequest;
@@ -13,16 +14,26 @@ import com.delivery.user_service.dto.UserStatisticsResponse;
 import com.delivery.user_service.entity.User;
 import com.delivery.user_service.repository.UserRepository;
 import com.delivery.user_service.service.UserService;
-
-import lombok.RequiredArgsConstructor;
+import com.delivery.user_service.service.IdentityOutboxService;
 
 import java.util.List;
 
 @Service
-@RequiredArgsConstructor
 public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
+    private final IdentityOutboxService identityOutboxService;
+
+    @Autowired
+    public UserServiceImpl(UserRepository userRepository, IdentityOutboxService identityOutboxService) {
+        this.userRepository = userRepository;
+        this.identityOutboxService = identityOutboxService;
+    }
+
+    /** Compatibility seam for legacy unit fixtures; production injects the outbox. */
+    public UserServiceImpl(UserRepository userRepository) {
+        this(userRepository, null);
+    }
 
     @Override
     public UserResponse getUserById(Long id) {
@@ -38,18 +49,28 @@ public class UserServiceImpl implements UserService {
         return toDto(user);
     }
 
+    public UserResponse getUserByPrincipalId(Long principalId) {
+        User user = userRepository.findByPrincipalId(principalId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found by principal ID"));
+        return toDto(user);
+    }
+
     @Override
+    @Transactional
     public UserResponse createUser(UserRequest request) {
         validateProvisioningRequest(request);
-        var existing = userRepository.findByAuthId(request.getAuthId());
+        var existing = userRepository.findByPrincipalId(request.getPrincipalId());
         if (existing.isPresent()) {
-            return toDto(requireSameProvisioningIdentity(existing.get(), request));
+            User current = requireSameProvisioningIdentity(existing.get(), request);
+            publishProfileCreated(current);
+            return toDto(current);
         }
         userRepository.findByEmailIgnoreCase(request.getEmail())
                 .ifPresent(conflict -> rejectEmailRebinding(conflict, request));
 
         User user = User.builder()
                 .authId(request.getAuthId())
+                .principalId(request.getPrincipalId())
                 .email(request.getEmail())
                 .role(request.getRole())
                 .fullName(request.getFullName())
@@ -59,10 +80,16 @@ public class UserServiceImpl implements UserService {
                 .address(request.getAddress())
                 .build();
         try {
-            return toDto(userRepository.saveAndFlush(user));
+            User saved = userRepository.saveAndFlush(user);
+            publishProfileCreated(saved);
+            return toDto(saved);
         } catch (DataIntegrityViolationException race) {
-            return userRepository.findByAuthId(request.getAuthId())
-                    .map(concurrent -> toDto(requireSameProvisioningIdentity(concurrent, request)))
+            return userRepository.findByPrincipalId(request.getPrincipalId())
+                    .map(concurrent -> {
+                        User current = requireSameProvisioningIdentity(concurrent, request);
+                        publishProfileCreated(current);
+                        return toDto(current);
+                    })
                     .or(() -> userRepository.findByEmailIgnoreCase(request.getEmail())
                             .map(conflict -> toDto(rejectEmailRebinding(conflict, request))))
                     .orElseThrow(() -> race);
@@ -88,6 +115,7 @@ public class UserServiceImpl implements UserService {
         return UserResponse.builder()
                 .id(user.getId())
                 .authId(user.getAuthId())
+                .principalId(user.getPrincipalId())
                 .email(user.getEmail())
                 .role(user.getRole())
                 .fullName(user.getFullName())
@@ -100,27 +128,44 @@ public class UserServiceImpl implements UserService {
                 .build();
     }
 
+    private void publishProfileCreated(User user) {
+        if (identityOutboxService != null) {
+            identityOutboxService.profileCreated(user.getPrincipalId(), user.getId());
+        }
+    }
+
     private void validateProvisioningRequest(UserRequest request) {
-        if (request.getAuthId() == null || request.getEmail() == null || request.getEmail().isBlank()
+        if (request.getAuthId() == null || request.getPrincipalId() == null || request.getEmail() == null || request.getEmail().isBlank()
                 || request.getRole() == null || request.getRole().isBlank()) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
-                    "authId, email and role are required for user provisioning");
+                    "authId, principalId, email and role are required for user provisioning");
+        }
+        // principalId is Auth's durable identity key (auth_account.id). authId
+        // is retained only as a legacy column/name, so accepting divergent
+        // values here could link one profile to two credentials. Every trusted
+        // provisioning path must carry the same Auth-owned value.
+        if (!request.getAuthId().equals(request.getPrincipalId())) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "authId and principalId must identify the same Auth account");
         }
     }
 
     private User requireSameProvisioningIdentity(User existing, UserRequest request) {
-        if (!existing.getEmail().equalsIgnoreCase(request.getEmail())
+        if (!existing.getAuthId().equals(request.getAuthId())
+                || !existing.getPrincipalId().equals(request.getPrincipalId())
+                || !existing.getEmail().equalsIgnoreCase(request.getEmail())
                 || !existing.getRole().equals(request.getRole())) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
-                    "authId is already linked to a different user identity");
+                    "principalId is already linked to a different user identity");
         }
         return existing;
     }
 
     private User rejectEmailRebinding(User existing, UserRequest request) {
-        if (!request.getAuthId().equals(existing.getAuthId())) {
+        if (!request.getPrincipalId().equals(existing.getPrincipalId())) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
                     "email is already linked to a different auth identity");

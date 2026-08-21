@@ -8,19 +8,31 @@ import java.util.Set;
 public class AuthenticatedActor implements Serializable {
     private static final long serialVersionUID = 1L;
 
-    private final Long userId;
+    /** Stable authentication/authorization identity: auth_account.id. */
+    private final Long principalId;
+    /** Temporary profile identity retained only while ownership data migrates. */
+    private final Long legacyUserId;
     private final String email;
     private final Set<String> roles;
 
     public AuthenticatedActor(Long userId, String email, Set<String> roles) {
-        this.userId = userId;
+        this(userId, userId, email, roles);
+    }
+
+    public AuthenticatedActor(Long principalId, Long legacyUserId, String email, Set<String> roles) {
+        this.principalId = principalId;
+        this.legacyUserId = legacyUserId;
         this.email = email;
         this.roles = roles != null ? Collections.unmodifiableSet(roles) : Collections.emptySet();
     }
 
     public Long getUserId() {
-        return userId;
+        return legacyUserId;
     }
+
+    public Long getPrincipalId() { return principalId; }
+
+    public Long getLegacyUserId() { return legacyUserId; }
 
     public String getEmail() {
         return email;
@@ -62,20 +74,22 @@ public class AuthenticatedActor implements Serializable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AuthenticatedActor that = (AuthenticatedActor) o;
-        return Objects.equals(userId, that.userId) &&
+        return Objects.equals(principalId, that.principalId) &&
+               Objects.equals(legacyUserId, that.legacyUserId) &&
                Objects.equals(email, that.email) &&
                Objects.equals(roles, that.roles);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(userId, email, roles);
+        return Objects.hash(principalId, legacyUserId, email, roles);
     }
 
     @Override
     public String toString() {
         return "AuthenticatedActor{" +
-                "userId=" + userId +
+                "principalId=" + principalId +
+                ", legacyUserId=" + legacyUserId +
                 ", email='" + email + '\'' +
                 ", roles=" + roles +
                 '}';

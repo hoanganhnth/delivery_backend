@@ -33,7 +33,6 @@ import org.springframework.retry.annotation.Backoff;
                 multiplierExpression = "${app.kafka.retry.multiplier:2.0}",
                 maxDelayExpression = "${app.kafka.retry.max-delay-ms:10000}"),
         exclude = IllegalArgumentException.class,
-        kafkaTemplate = "retryKafkaTemplate",
         autoCreateTopics = "${app.kafka.retry.auto-create-topics:false}",
         retryTopicSuffix = "-retry-order",
         dltTopicSuffix = ".order.DLT")
@@ -60,6 +59,8 @@ public class SagaCommandListener {
             Long orderId = json.has("orderId") ? json.get("orderId").asLong() : null;
             String eventId = json.hasNonNull("eventId") ? json.get("eventId").asText() : null;
             String sagaStatus = json.has("sagaStatus") ? json.get("sagaStatus").asText() : "";
+            long orderStatusSequence = json.has("orderStatusSequence")
+                    ? json.get("orderStatusSequence").asLong() : 0L;
             String originalEvent = json.has("originalEvent") ? json.get("originalEvent").asText() : "{}";
 
             log.info("📥 [Order] Saga command: update-order-status — orderId={}, sagaStatus={}",
@@ -82,8 +83,11 @@ public class SagaCommandListener {
                         "PICKED_UP", "DELIVERING", "DELIVERED", "CANCELLED" -> {
                     DeliveryStatusUpdatedEvent deliveryEvent = deliveryStatusEvent(
                             originalJson, orderId, sagaStatus);
-                    applied = commandProcessor.applyDeliveryStatus(commandEventId, orderId, sagaStatus,
-                            message, deliveryEvent);
+                    applied = orderStatusSequence == 0
+                            ? commandProcessor.applyDeliveryStatus(commandEventId, orderId, sagaStatus,
+                                    message, deliveryEvent)
+                            : commandProcessor.applyDeliveryStatus(commandEventId, orderId, sagaStatus,
+                                    message, orderStatusSequence, deliveryEvent);
                 }
 
                 // ===== Shipper events =====
@@ -91,8 +95,11 @@ public class SagaCommandListener {
                     ShipperEvent shipperEvent = parseOriginalEvent(originalEvent, ShipperEvent.class);
                     if (shipperEvent != null) {
                         shipperEvent.setOrderId(orderId);
-                        applied = commandProcessor.applyShipperAccepted(commandEventId, orderId, sagaStatus,
-                                message, shipperEvent);
+                        applied = orderStatusSequence == 0
+                                ? commandProcessor.applyShipperAccepted(commandEventId, orderId, sagaStatus,
+                                        message, shipperEvent)
+                                : commandProcessor.applyShipperAccepted(commandEventId, orderId, sagaStatus,
+                                        message, orderStatusSequence, shipperEvent);
                     } else {
                         throw new IllegalArgumentException(
                                 "SHIPPER_ASSIGNED command requires an originalEvent");
@@ -102,8 +109,11 @@ public class SagaCommandListener {
                 case "SHIPPER_FOUND" -> {
                     DeliveryStatusUpdatedEvent deliveryEvent = deliveryStatusEvent(
                             originalJson, orderId, "WAIT_SHIPPER_CONFIRM");
-                    applied = commandProcessor.applyDeliveryStatus(commandEventId, orderId, sagaStatus,
-                            message, deliveryEvent);
+                    applied = orderStatusSequence == 0
+                            ? commandProcessor.applyDeliveryStatus(commandEventId, orderId, sagaStatus,
+                                    message, deliveryEvent)
+                            : commandProcessor.applyDeliveryStatus(commandEventId, orderId, sagaStatus,
+                                    message, orderStatusSequence, deliveryEvent);
                 }
 
                 case "SHIPPER_NOT_FOUND" -> {
@@ -114,8 +124,11 @@ public class SagaCommandListener {
                                 "SHIPPER_NOT_FOUND command requires a positive deliveryId");
                     }
                     notFoundEvent.setOrderId(orderId);
-                    applied = commandProcessor.applyShipperNotFound(commandEventId, orderId, sagaStatus,
-                            message, notFoundEvent);
+                    applied = orderStatusSequence == 0
+                            ? commandProcessor.applyShipperNotFound(commandEventId, orderId, sagaStatus,
+                                    message, notFoundEvent)
+                            : commandProcessor.applyShipperNotFound(commandEventId, orderId, sagaStatus,
+                                    message, orderStatusSequence, notFoundEvent);
                 }
 
                 default -> throw new IllegalArgumentException(

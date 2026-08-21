@@ -99,6 +99,11 @@ by default); the provisioning script is the canonical full manifest.
 | `delivery.status-updated` | Notification | `delivery.status-updated-retry-notification-*` | `delivery.status-updated.notification.DLT` |
 | `shipper.location-updated` | Tracking support history | `shipper.location-updated-retry-tracking-*` | `shipper.location-updated.tracking.DLT` |
 | `shipper.status-change` | Tracking delivery-room routing | blocking retry in listener factory | `shipper.status-change.tracking.DLT` |
+| `identity.profile.created` | Auth profile linkage | `identity.profile.created-retry-auth-identity-*` | `identity.profile.created.auth-identity.DLT` |
+| `identity.status.changed` | User lifecycle projection | `identity.status.changed-retry-user-identity-*` | `identity.status.changed.user-identity.DLT` |
+| `identity.status.changed` | Shipper lifecycle projection | `identity.status.changed-retry-shipper-identity-*` | `identity.status.changed.shipper-identity.DLT` |
+| `shipper.identity.upserted` | Delivery shipper mapping | `shipper.identity.upserted-retry-delivery-shipper-identity-*` | `shipper.identity.upserted.delivery-shipper-identity.DLT` |
+| `shipper.identity.upserted` | Tracking shipper mapping | `shipper.identity.upserted-retry-tracking-shipper-identity-*` | `shipper.identity.upserted.tracking-shipper-identity.DLT` |
 
 Saga's remaining non-blocking inputs and common-error-handler fallback use
 `-retry-saga-*` / `.saga.DLT`; all Order non-blocking inputs and fallback use

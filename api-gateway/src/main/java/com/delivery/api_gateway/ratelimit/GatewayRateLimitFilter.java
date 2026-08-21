@@ -102,7 +102,8 @@ public class GatewayRateLimitFilter implements GlobalFilter, Ordered {
     }
 
     private boolean isPublicAuth(String path, HttpMethod method) {
-        return method == HttpMethod.POST && ("/api/auth/login".equals(path)
+        return (method == HttpMethod.GET && path.matches("/api/auth/registrations/[^/]+"))
+                || (method == HttpMethod.POST && ("/api/auth/login".equals(path)
                 || "/api/auth/register".equals(path)
                 || "/api/auth/social-login".equals(path)
                 || "/api/auth/refresh-token".equals(path)
@@ -110,7 +111,7 @@ public class GatewayRateLimitFilter implements GlobalFilter, Ordered {
                 || "/api/auth/forgot-password".equals(path)
                 || "/api/auth/reset-password".equals(path)
                 || "/api/auth/email-verification/request".equals(path)
-                || "/api/auth/email-verification/confirm".equals(path));
+                || "/api/auth/email-verification/confirm".equals(path)));
     }
 
     private boolean isUserRegistration(String path, HttpMethod method) {

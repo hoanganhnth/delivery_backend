@@ -303,6 +303,7 @@ public class RestaurantCacheServiceImpl implements RestaurantCacheService {
         data.put("address", restaurant.getAddress());
         data.put("phone", restaurant.getPhone());
         data.put("creatorId", restaurant.getCreatorId());
+        data.put("ownerPrincipalId", restaurant.getOwnerPrincipalId());
         data.put("image", restaurant.getImage());
         data.put("openingHour", restaurant.getOpeningHour() != null
                 ? restaurant.getOpeningHour().toString() : null);

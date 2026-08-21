@@ -20,6 +20,8 @@ public class CartContextRequest {
     @Positive
     private Long shopId;
     private Long userId;
+    @Positive
+    private Long userPrincipalId;
     @NotNull
     @DecimalMin("0.0")
     private BigDecimal subTotal;

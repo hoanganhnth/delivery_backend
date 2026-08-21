@@ -10,6 +10,8 @@ import com.delivery.delivery_service.dto.event.ShipperNotFoundEvent;
 import com.delivery.delivery_service.dto.event.ShipperFoundEvent;
 import com.delivery.delivery_service.dto.event.DeliveryCompletedEvent;
 import com.delivery.delivery_service.dto.event.ExpireShipperOfferCommand;
+import com.delivery.delivery_service.dto.event.OfferPersistedEvent;
+import com.delivery.delivery_service.dto.event.OfferRetiredEvent;
 import com.delivery.delivery_service.common.constants.ShipperActionConstants;
 import com.delivery.delivery_service.dto.request.AcceptDeliveryRequest;
 import com.delivery.delivery_service.dto.response.DeliveryResponse;
@@ -21,17 +23,24 @@ import com.delivery.delivery_service.exception.InvalidStatusException;
 import com.delivery.delivery_service.exception.ResourceNotFoundException;
 import com.delivery.delivery_service.mapper.DeliveryMapper;
 import com.delivery.delivery_service.repository.DeliveryRepository;
+import com.delivery.delivery_service.repository.ShipperIdentityProjectionRepository;
+import com.delivery.delivery_service.repository.DeliveryOfferSessionTombstoneRepository;
+import com.delivery.delivery_service.entity.DeliveryOfferSessionTombstone;
 import com.delivery.delivery_service.service.DeliveryService;
 import com.delivery.delivery_service.service.DeliveryEventPublisher;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.time.LocalDateTime;
 import java.math.BigDecimal;
 import java.util.Objects;
 import java.util.List;
+import java.util.UUID;
+import java.nio.charset.StandardCharsets;
 
 @Slf4j
 @Service
@@ -43,18 +52,36 @@ public class DeliveryServiceImpl implements DeliveryService {
     private final DeliveryMapper deliveryMapper;
     private final DeliveryEventPublisher deliveryEventPublisher;
     private final com.delivery.delivery_service.service.OutboxService outboxService;
+    private final ShipperIdentityProjectionRepository shipperIdentities;
+    private final boolean shipperIdentityProjectionEnforced;
+    private final DeliveryOfferSessionTombstoneRepository offerSessionTombstones;
 
-    // ✅ Constructor Injection Pattern
+    /** Compatibility constructor for direct fixtures; Spring uses the full production constructor below. */
     public DeliveryServiceImpl(DeliveryRepository deliveryRepository,
             DeliveryMapper deliveryMapper,
             DeliveryEventPublisher deliveryEventPublisher,
             com.delivery.delivery_service.service.OutboxService outboxService,
             BusinessMetrics businessMetrics) {
+        this(deliveryRepository, deliveryMapper, deliveryEventPublisher, outboxService, businessMetrics, null, false, null);
+    }
+
+    @Autowired
+    public DeliveryServiceImpl(DeliveryRepository deliveryRepository,
+            DeliveryMapper deliveryMapper,
+            DeliveryEventPublisher deliveryEventPublisher,
+            com.delivery.delivery_service.service.OutboxService outboxService,
+            BusinessMetrics businessMetrics,
+            ShipperIdentityProjectionRepository shipperIdentities,
+            @Value("${app.shipper.identity-projection.enforced:false}") boolean shipperIdentityProjectionEnforced,
+            DeliveryOfferSessionTombstoneRepository offerSessionTombstones) {
         this.deliveryRepository = deliveryRepository;
         this.deliveryMapper = deliveryMapper;
         this.deliveryEventPublisher = deliveryEventPublisher;
         this.outboxService = outboxService;
         this.businessMetrics = businessMetrics;
+        this.shipperIdentities = shipperIdentities;
+        this.shipperIdentityProjectionEnforced = shipperIdentityProjectionEnforced;
+        this.offerSessionTombstones = offerSessionTombstones;
     }
 
     @Override
@@ -113,8 +140,10 @@ public class DeliveryServiceImpl implements DeliveryService {
             // OrderCreatedEvent.creatorId is the restaurant owner and must never
             // be used for customer authorization or notifications.
             delivery.setCreatorId(event.getUserId());
+            delivery.setCustomerPrincipalId(event.getUserPrincipalId());
             delivery.setRestaurantId(event.getRestaurantId());
             delivery.setRestaurantOwnerId(event.getCreatorId());
+            delivery.setRestaurantOwnerPrincipalId(event.getCreatorPrincipalId());
 
             // shipperId sẽ là null cho đến khi được assign
             // delivery.setShipperId(null); // default is null
@@ -295,6 +324,8 @@ public class DeliveryServiceImpl implements DeliveryService {
             delivery.setStatus(DeliveryStatus.FINDING_SHIPPER);
             delivery.setOfferedShipperId(shipperId);
             delivery.setOfferExpiresAt(null);
+            retireSession(delivery.getId(), delivery.getOfferedMatchingSessionId());
+            delivery.setOfferedMatchingSessionId(null);
             delivery.setUpdatedAt(LocalDateTime.now());
             delivery.setRejectReason(request.getRejectReason());
 
@@ -341,6 +372,12 @@ public class DeliveryServiceImpl implements DeliveryService {
 
     @Override
     @Transactional
+    public DeliveryResponse acceptDelivery(AcceptDeliveryRequest request, Long principalId, Long legacyUserId, String role) {
+        return acceptDelivery(request, resolveShipperId(principalId, legacyUserId, role), role);
+    }
+
+    @Override
+    @Transactional
     public void cacheShipperOffer(ShipperFoundEvent event) {
         if (event == null || event.getEventId() == null
                 || event.getDeliveryId() == null || event.getDeliveryId() <= 0
@@ -356,6 +393,15 @@ public class DeliveryServiceImpl implements DeliveryService {
 
         if (!delivery.getId().equals(event.getDeliveryId())) {
             throw new InvalidStatusException("Delivery ID does not match order ID");
+        }
+        String matchingSessionId = event.getMatchingSessionId() == null || event.getMatchingSessionId().isBlank()
+                ? UUID.nameUUIDFromBytes(("legacy-offer:" + event.getEventId())
+                        .getBytes(StandardCharsets.UTF_8)).toString()
+                : requireMatchingSession(event.getMatchingSessionId());
+        if (isRetiredSession(delivery.getId(), matchingSessionId)) {
+            log.info("Ignoring delayed cache command for retired delivery/session {}/{}",
+                    delivery.getId(), matchingSessionId);
+            return;
         }
         Long offeredShipperId = event.getAvailableShippers().get(0).getShipperId();
         LocalDateTime now = LocalDateTime.now();
@@ -382,7 +428,8 @@ public class DeliveryServiceImpl implements DeliveryService {
             if (!DeliveryStatus.WAIT_SHIPPER_CONFIRM.equals(delivery.getStatus())) {
                 throw new InvalidStatusException("Persisted offer has contradictory delivery status");
             }
-            log.info("Shipper offer already applied for delivery {}, skipping duplicate", delivery.getId());
+            publishOfferPersisted(event, delivery, matchingSessionId);
+            log.info("Shipper offer already applied for delivery {}, confirming replay", delivery.getId());
             return;
         }
         if (!DeliveryStatus.FINDING_SHIPPER.equals(delivery.getStatus()) && !replacingExpiredOffer) {
@@ -391,6 +438,7 @@ public class DeliveryServiceImpl implements DeliveryService {
 
         delivery.setOfferedShipperId(offeredShipperId);
         delivery.setOfferExpiresAt(expiresAt);
+        delivery.setOfferedMatchingSessionId(matchingSessionId);
         delivery.setStatus(DeliveryStatus.WAIT_SHIPPER_CONFIRM);
         delivery.setUpdatedAt(now);
         deliveryRepository.saveAndFlush(delivery);
@@ -399,6 +447,7 @@ public class DeliveryServiceImpl implements DeliveryService {
         // database before the selected shipper sees it.
         outboxService.saveEvent("DELIVERY", delivery.getId().toString(), "SHIPPER_OFFERED",
                 KafkaTopicConstants.SHIPPER_OFFERED_TOPIC, delivery.getOrderId().toString(), event);
+        publishOfferPersisted(event, delivery, matchingSessionId);
         log.info("📤 Persisted offer for delivery {} to shipper {} until {}",
                 delivery.getId(), offeredShipperId, expiresAt);
     }
@@ -420,29 +469,93 @@ public class DeliveryServiceImpl implements DeliveryService {
             throw new InvalidStatusException("Delivery ID does not match order ID");
         }
 
-        if (DeliveryStatus.FINDING_SHIPPER.equals(delivery.getStatus())
+        String matchingSessionId = command.getMatchingSessionId();
+        if (matchingSessionId != null && !matchingSessionId.isBlank()) {
+            requireMatchingSession(matchingSessionId);
+            retireSession(delivery.getId(), matchingSessionId);
+        }
+
+        String outcome = "RETIRED";
+        if (DeliveryStatus.ASSIGNED.equals(delivery.getStatus())) {
+            outcome = "ASSIGNED";
+        } else if (DeliveryStatus.CANCELLED.equals(delivery.getStatus())
+                || DeliveryStatus.SHIPPER_NOT_FOUND.equals(delivery.getStatus())) {
+            outcome = "TERMINAL";
+        } else if (matchingSessionId != null && !matchingSessionId.isBlank()
+                && delivery.getOfferedMatchingSessionId() != null
+                && !matchingSessionId.equals(delivery.getOfferedMatchingSessionId())) {
+            // A delayed old timeout has fenced its own session but cannot clear
+            // a newer offer.
+            outcome = "RETIRED";
+        } else if (DeliveryStatus.FINDING_SHIPPER.equals(delivery.getStatus())
                 && delivery.getOfferedShipperId() == null && delivery.getOfferExpiresAt() == null) {
-            log.info("Offer timeout already applied for delivery {}, skipping replay", delivery.getId());
-            return;
+            log.info("Offer timeout already applied for delivery {}, confirming retirement", delivery.getId());
+        } else {
+            // A delayed timeout must never clear an accepted or newer offer.
+            if (!DeliveryStatus.WAIT_SHIPPER_CONFIRM.equals(delivery.getStatus())
+                    || !command.getTimedOutShipperId().equals(delivery.getOfferedShipperId())
+                    || !sameOfferDeadline(command.getExpectedOfferExpiresAt(), delivery.getOfferExpiresAt())) {
+                log.info("Skipping stale offer-timeout command for delivery {}", delivery.getId());
+            } else {
+                if (delivery.getOfferExpiresAt().isAfter(LocalDateTime.now())) {
+                    throw new InvalidStatusException("Cannot expire a shipper offer before its deadline");
+                }
+                delivery.setOfferedShipperId(null);
+                delivery.setOfferExpiresAt(null);
+                delivery.setOfferedMatchingSessionId(null);
+                delivery.setStatus(DeliveryStatus.FINDING_SHIPPER);
+                delivery.setUpdatedAt(LocalDateTime.now());
+                deliveryRepository.save(delivery);
+                log.info("Expired shipper offer for delivery {}, Saga may rematch", delivery.getId());
+            }
         }
+        publishOfferRetired(command, delivery, matchingSessionId, outcome);
+    }
 
-        // A delayed timeout must never clear an accepted or newer offer.
-        if (!DeliveryStatus.WAIT_SHIPPER_CONFIRM.equals(delivery.getStatus())
-                || !command.getTimedOutShipperId().equals(delivery.getOfferedShipperId())
-                || !sameOfferDeadline(command.getExpectedOfferExpiresAt(), delivery.getOfferExpiresAt())) {
-            log.info("Skipping stale offer-timeout command for delivery {}", delivery.getId());
-            return;
-        }
-        if (delivery.getOfferExpiresAt().isAfter(LocalDateTime.now())) {
-            throw new InvalidStatusException("Cannot expire a shipper offer before its deadline");
-        }
+    private void publishOfferPersisted(ShipperFoundEvent command, Delivery delivery, String matchingSessionId) {
+        OfferPersistedEvent result = new OfferPersistedEvent();
+        result.setSourceCommandEventId(command.getEventId());
+        result.setOrderId(delivery.getOrderId());
+        result.setDeliveryId(delivery.getId());
+        result.setMatchingSessionId(matchingSessionId);
+        result.setOfferedShipperId(delivery.getOfferedShipperId());
+        result.setOfferExpiresAt(delivery.getOfferExpiresAt());
+        deliveryEventPublisher.publishOfferPersisted(result);
+    }
 
-        delivery.setOfferedShipperId(null);
-        delivery.setOfferExpiresAt(null);
-        delivery.setStatus(DeliveryStatus.FINDING_SHIPPER);
-        delivery.setUpdatedAt(LocalDateTime.now());
-        deliveryRepository.save(delivery);
-        log.info("Expired shipper offer for delivery {}, Saga may rematch", delivery.getId());
+    private void publishOfferRetired(ExpireShipperOfferCommand command, Delivery delivery,
+                                     String matchingSessionId, String outcome) {
+        OfferRetiredEvent result = new OfferRetiredEvent();
+        result.setSourceCommandEventId(command.getEventId());
+        result.setOrderId(delivery.getOrderId());
+        result.setDeliveryId(delivery.getId());
+        result.setMatchingSessionId(matchingSessionId);
+        result.setOutcome(outcome);
+        result.setShipperId(DeliveryStatus.ASSIGNED.equals(delivery.getStatus()) ? delivery.getShipperId() : null);
+        deliveryEventPublisher.publishOfferRetired(result);
+    }
+
+    private String requireMatchingSession(String value) {
+        if (value == null || value.isBlank()) {
+            throw new InvalidStatusException("matchingSessionId is required for shipper offer caching");
+        }
+        try {
+            return UUID.fromString(value).toString();
+        } catch (IllegalArgumentException invalid) {
+            throw new InvalidStatusException("matchingSessionId must be a UUID");
+        }
+    }
+
+    private boolean isRetiredSession(Long deliveryId, String matchingSessionId) {
+        return matchingSessionId != null && !matchingSessionId.isBlank()
+                && offerSessionTombstones != null
+                && offerSessionTombstones.existsByDeliveryIdAndMatchingSessionId(deliveryId, matchingSessionId);
+    }
+
+    private void retireSession(Long deliveryId, String matchingSessionId) {
+        if (matchingSessionId == null || matchingSessionId.isBlank()
+                || offerSessionTombstones == null || isRetiredSession(deliveryId, matchingSessionId)) return;
+        offerSessionTombstones.save(new DeliveryOfferSessionTombstone(deliveryId, matchingSessionId));
     }
 
     @Override
@@ -506,6 +619,12 @@ public class DeliveryServiceImpl implements DeliveryService {
 
         DeliveryResponse response = deliveryMapper.deliveryToDeliveryResponse(savedDelivery);
         return response;
+    }
+
+    @Override
+    @Transactional
+    public DeliveryResponse cancelAssignedDelivery(Long orderId, Long principalId, Long legacyUserId, String role, String reason) {
+        return cancelAssignedDelivery(orderId, resolveShipperId(principalId, legacyUserId, role), role, reason);
     }
 
     /**
@@ -576,7 +695,7 @@ public class DeliveryServiceImpl implements DeliveryService {
 
         // ✅ Publish delivery status update event với orderId
         deliveryEventPublisher.publishDeliveryStatusUpdated(
-                deliveryId, delivery.getOrderId(), delivery.getCreatorId(), delivery.getShipperId(),
+                deliveryId, delivery.getOrderId(), delivery.getCreatorId(), delivery.getCustomerPrincipalId(), delivery.getShipperId(),
                 status.name(), oldStatus);
 
         DeliveryResponse response = deliveryMapper.deliveryToDeliveryResponse(updatedDelivery);
@@ -585,9 +704,21 @@ public class DeliveryServiceImpl implements DeliveryService {
     }
 
     @Override
+    @Transactional
+    public DeliveryResponse updateDeliveryStatus(Long deliveryId, DeliveryStatus status, Long principalId, Long legacyUserId, String role) {
+        Long actorId = RoleConstants.SHIPPER.equals(role) ? resolveShipperId(principalId, legacyUserId, role) : legacyUserId;
+        return updateDeliveryStatus(deliveryId, status, actorId, role);
+    }
+
+    @Override
     public DeliveryResponse getDeliveryById(Long deliveryId, Long userId, String role) {
+        return getDeliveryById(deliveryId, userId, userId, role);
+    }
+
+    @Override
+    public DeliveryResponse getDeliveryById(Long deliveryId, Long principalId, Long legacyUserId, String role) {
         Delivery delivery = findDeliveryById(deliveryId);
-        validateViewPermission(delivery, userId, role);
+        validateViewPermission(delivery, principalId, legacyUserId, role);
         return deliveryMapper.deliveryToDeliveryResponse(delivery);
     }
 
@@ -601,12 +732,24 @@ public class DeliveryServiceImpl implements DeliveryService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public List<DeliveryResponse> getDeliveriesByShipper(Long shipperId, Long principalId, Long legacyUserId, String role) {
+        Long actorId = RoleConstants.SHIPPER.equals(role) ? resolveShipperId(principalId, legacyUserId, role) : legacyUserId;
+        return getDeliveriesByShipper(shipperId, actorId, role);
+    }
+
+    @Override
     public DeliveryResponse getDeliveryByOrderId(Long orderId, Long userId, String role) {
+        return getDeliveryByOrderId(orderId, userId, userId, role);
+    }
+
+    @Override
+    public DeliveryResponse getDeliveryByOrderId(Long orderId, Long principalId, Long legacyUserId, String role) {
         Delivery delivery = deliveryRepository.findByOrderId(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Không tìm thấy thông tin giao hàng cho đơn hàng: " + orderId));
 
-        validateViewPermission(delivery, userId, role);
+        validateViewPermission(delivery, principalId, legacyUserId, role);
         return deliveryMapper.deliveryToDeliveryResponse(delivery);
     }
 
@@ -617,6 +760,13 @@ public class DeliveryServiceImpl implements DeliveryService {
         List<Delivery> deliveries = deliveryRepository.findActiveDeliveriesByShipper(
                 shipperId, org.springframework.data.domain.PageRequest.of(0, 100));
         return deliveryMapper.deliveriesToDeliveryResponses(deliveries);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<DeliveryResponse> getActiveDeliveriesByShipper(Long shipperId, Long principalId, Long legacyUserId, String role) {
+        Long actorId = RoleConstants.SHIPPER.equals(role) ? resolveShipperId(principalId, legacyUserId, role) : legacyUserId;
+        return getActiveDeliveriesByShipper(shipperId, actorId, role);
     }
 
     @Override
@@ -637,33 +787,71 @@ public class DeliveryServiceImpl implements DeliveryService {
         return offers.isEmpty() ? null : deliveryMapper.deliveryToOfferResponse(offers.get(0));
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public DeliveryOfferResponse getCurrentOffer(Long principalId, Long legacyUserId, String role) {
+        return getCurrentOffer(resolveShipperId(principalId, legacyUserId, role), role);
+    }
+
     private Delivery findDeliveryById(Long deliveryId) {
         return deliveryRepository.findById(deliveryId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Không tìm thấy thông tin giao hàng với ID: " + deliveryId));
     }
 
-    private void validateViewPermission(Delivery delivery, Long userId, String role) {
+    private Long resolveShipperId(Long principalId, Long legacyUserId, String role) {
+        if (!RoleConstants.SHIPPER.equals(role)) {
+            throw new AccessDeniedException("Chỉ shipper mới có thể thực hiện thao tác này");
+        }
+        if (!positive(principalId) || !positive(legacyUserId)) {
+            throw new AccessDeniedException("Missing authenticated shipper identity");
+        }
+        // Migration compatibility before the projection enforcement wave. It is
+        // intentionally controlled by one explicit flag, never inferred from a
+        // transient Kafka lag or an empty table.
+        if (!shipperIdentityProjectionEnforced) {
+            businessMetrics.identityLegacyFallback("shipper_mapping_pre_enforcement");
+            return legacyUserId;
+        }
+        if (shipperIdentities == null) {
+            throw new AccessDeniedException("Shipper identity projection is not configured");
+        }
+        return shipperIdentities.findById(principalId)
+                .filter(mapping -> legacyUserId.equals(mapping.getLegacyUserId()))
+                .map(mapping -> mapping.getShipperId())
+                .orElseThrow(() -> new AccessDeniedException("Shipper identity projection is not ready"));
+    }
+
+    private void validateViewPermission(Delivery delivery, Long principalId, Long legacyUserId, String role) {
         if (RoleConstants.ADMIN.equals(role)) {
             return; // Admin có thể xem tất cả
         }
 
         // Shipper có thể xem delivery của mình
-        if (RoleConstants.SHIPPER.equals(role) && userId != null && userId.equals(delivery.getShipperId())) {
+        if (RoleConstants.SHIPPER.equals(role)
+                && resolveShipperId(principalId, legacyUserId, role).equals(delivery.getShipperId())) {
             return;
         }
 
         // creatorId stores the canonical order userId, so users can only read
         // the delivery belonging to their own order.
-        if (RoleConstants.USER.equals(role) && userId != null && userId.equals(delivery.getCreatorId())) {
+        if (RoleConstants.USER.equals(role)
+                && ((delivery.getCustomerPrincipalId() != null && principalId != null
+                        && principalId.equals(delivery.getCustomerPrincipalId()))
+                    || (delivery.getCustomerPrincipalId() == null && legacyUserId != null
+                        && legacyUserId.equals(delivery.getCreatorId())))) {
+            if (delivery.getCustomerPrincipalId() == null) businessMetrics.identityLegacyFallback("customer_read");
             return;
         }
 
         // Restaurant owner identity is copied from the server-validated order
         // event. Legacy rows without this field remain fail-closed.
         if (RoleConstants.RESTAURANT_OWNER.equals(role)
-                && userId != null
-                && userId.equals(delivery.getRestaurantOwnerId())) {
+                && ((delivery.getRestaurantOwnerPrincipalId() != null && principalId != null
+                        && principalId.equals(delivery.getRestaurantOwnerPrincipalId()))
+                    || (delivery.getRestaurantOwnerPrincipalId() == null && legacyUserId != null
+                        && legacyUserId.equals(delivery.getRestaurantOwnerId())))) {
+            if (delivery.getRestaurantOwnerPrincipalId() == null) businessMetrics.identityLegacyFallback("restaurant_owner_read");
             return;
         }
 
@@ -962,7 +1150,7 @@ public class DeliveryServiceImpl implements DeliveryService {
                 // cannot leave a committed cancellation without an eventual
                 // confirmation event.
                 deliveryEventPublisher.publishDeliveryStatusUpdated(
-                        delivery.getId(), delivery.getOrderId(), delivery.getCreatorId(), delivery.getShipperId(),
+                        delivery.getId(), delivery.getOrderId(), delivery.getCreatorId(), delivery.getCustomerPrincipalId(), delivery.getShipperId(),
                         DeliveryStatus.CANCELLED.name(), previousStatus.name());
 
                 log.info("✅ Successfully cancelled delivery {} for order: {}",
@@ -1037,7 +1225,7 @@ public class DeliveryServiceImpl implements DeliveryService {
             // Persist this event in the same transaction as the terminal status so
             // the customer is notified without introducing a second notification path.
             deliveryEventPublisher.publishDeliveryStatusUpdated(
-                    delivery.getId(), delivery.getOrderId(), delivery.getCreatorId(), delivery.getShipperId(),
+                    delivery.getId(), delivery.getOrderId(), delivery.getCreatorId(), delivery.getCustomerPrincipalId(), delivery.getShipperId(),
                     DeliveryStatus.SHIPPER_NOT_FOUND.name(), previousStatus.name());
 
             log.info("✅ Updated delivery {} status from {} to SHIPPER_NOT_FOUND after {} retry attempts",

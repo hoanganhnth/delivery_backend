@@ -9,6 +9,7 @@ import com.delivery.shipper_service.exception.ResourceNotFoundException;
 import com.delivery.shipper_service.mapper.ShipperMapper;
 import com.delivery.shipper_service.repository.ShipperRepository;
 import com.delivery.shipper_service.service.ShipperService;
+import com.delivery.shipper_service.service.ShipperIdentityOutboxService;
 import com.delivery.shipper_service.common.constants.RoleConstants;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.data.domain.Page;
@@ -27,18 +28,28 @@ public class ShipperServiceImpl implements ShipperService {
     private final ShipperRepository shipperRepository;
     private final ShipperMapper shipperMapper;
     private final TrackingAvailabilityClient trackingAvailabilityClient;
+    private final ShipperIdentityOutboxService identityOutbox;
 
     public ShipperServiceImpl(ShipperRepository shipperRepository,
             ShipperMapper shipperMapper,
-            TrackingAvailabilityClient trackingAvailabilityClient) {
+            TrackingAvailabilityClient trackingAvailabilityClient,
+            ShipperIdentityOutboxService identityOutbox) {
         this.shipperRepository = shipperRepository;
         this.shipperMapper = shipperMapper;
         this.trackingAvailabilityClient = trackingAvailabilityClient;
+        this.identityOutbox = identityOutbox;
     }
 
     @Override
     @Transactional
     public ShipperResponse createShipper(CreateShipperRequest request, Long userId, String role) {
+        return createShipper(request, userId, userId, role);
+    }
+
+    @Override
+    @Transactional
+    public ShipperResponse createShipper(CreateShipperRequest request, Long principalId, Long userId, String role) {
+        requirePositiveUserId(principalId);
         requirePositiveUserId(userId);
         requireCreateRequest(request);
         if (!RoleConstants.SHIPPER.equals(role)) {
@@ -55,13 +66,15 @@ public class ShipperServiceImpl implements ShipperService {
         }
 
         // Kiểm tra user đã là shipper chưa
-        if (shipperRepository.findByUserId(userId).isPresent()) {
+        if (shipperRepository.findByUserId(userId).isPresent() || shipperRepository.findByPrincipalId(principalId).isPresent()) {
             throw new IllegalArgumentException("User này đã là shipper");
         }
 
         Shipper shipper = shipperMapper.toEntity(request);
         shipper.setUserId(userId); // Set userId từ header
+        shipper.setPrincipalId(principalId);
         Shipper savedShipper = shipperRepository.save(shipper);
+        identityOutbox.upsert(savedShipper);
 
         // Tự động tạo balance cho shipper mới - sử dụng userId không phải
         // shipper.getId()
@@ -99,6 +112,15 @@ public class ShipperServiceImpl implements ShipperService {
 
     @Override
     @Transactional
+    public ShipperResponse updateShipperByPrincipalId(Long principalId, UpdateShipperRequest request) {
+        requirePositiveUserId(principalId);
+        Shipper shipper = shipperRepository.findByPrincipalId(principalId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy shipper của principal với ID: " + principalId));
+        return updateShipperByUserId(shipper.getUserId(), request);
+    }
+
+    @Override
+    @Transactional
     public void deleteShipperByUserId(Long userId) {
         requirePositiveUserId(userId);
         Shipper shipper = shipperRepository.findByUserId(userId)
@@ -130,6 +152,15 @@ public class ShipperServiceImpl implements ShipperService {
     }
 
     @Override
+    @Transactional
+    public ShipperResponse updateOnlineStatusByPrincipalId(Long principalId, Boolean isOnline) {
+        requirePositiveUserId(principalId);
+        Shipper shipper = shipperRepository.findByPrincipalId(principalId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy shipper của principal với ID: " + principalId));
+        return updateOnlineStatusByUserId(shipper.getUserId(), isOnline);
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public ShipperResponse getShipperById(Long id) {
         requirePositiveUserId(id);
@@ -145,6 +176,15 @@ public class ShipperServiceImpl implements ShipperService {
         Shipper shipper = shipperRepository.findByUserId(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy shipper của user với ID: " + userId));
         return shipperMapper.toResponse(shipper);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ShipperResponse getShipperByPrincipalId(Long principalId) {
+        requirePositiveUserId(principalId);
+        return shipperRepository.findByPrincipalId(principalId)
+                .map(shipperMapper::toResponse)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy shipper của principal với ID: " + principalId));
     }
 
     @Override

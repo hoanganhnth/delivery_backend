@@ -15,4 +15,6 @@ public class ExpireShipperOfferCommand {
     private Long deliveryId;
     private Long timedOutShipperId;
     private LocalDateTime expectedOfferExpiresAt;
+    /** Saga-owned generation; optional only while draining legacy commands. */
+    private String matchingSessionId;
 }

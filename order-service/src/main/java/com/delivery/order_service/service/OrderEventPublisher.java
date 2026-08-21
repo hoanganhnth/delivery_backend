@@ -113,6 +113,7 @@ public class OrderEventPublisher {
         OrderCancelledEvent cancelEvent = new OrderCancelledEvent();
         cancelEvent.setOrderId(order.getId());
         cancelEvent.setUserId(order.getUserId());
+        cancelEvent.setUserPrincipalId(order.getUserPrincipalId());
         cancelEvent.setRestaurantId(order.getRestaurantId());
         cancelEvent.setPreviousStatus(previousStatus);
         cancelEvent.setCurrentStatus(currentStatus);
@@ -155,6 +156,7 @@ public class OrderEventPublisher {
         // Order basic info
         event.setOrderId(order.getId());
         event.setUserId(order.getUserId());
+        event.setUserPrincipalId(order.getUserPrincipalId());
         event.setRestaurantId(order.getRestaurantId());
         event.setStatus(order.getStatus().name());
         
@@ -187,6 +189,7 @@ public class OrderEventPublisher {
         // Timestamps
         event.setCreatedAt(order.getCreatedAt());
         event.setCreatorId(order.getCreatorId());
+        event.setCreatorPrincipalId(order.getCreatorPrincipalId());
         event.setVoucherReservationId(order.getVoucherReservationId());
         event.setFlashSaleReservationId(order.getFlashSaleReservationId());
         

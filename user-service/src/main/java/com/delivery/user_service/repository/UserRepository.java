@@ -16,6 +16,8 @@ import com.delivery.user_service.entity.User;
 public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByAuthId(Long authId);
 
+    Optional<User> findByPrincipalId(Long principalId);
+
     Optional<User> findByEmailIgnoreCase(String email);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
@@ -29,4 +31,23 @@ public interface UserRepository extends JpaRepository<User, Long> {
     long countByIsActive(Boolean isActive);
 
     long countByIsBlocked(Boolean isBlocked);
+
+    @Query("""
+            select user from User user
+            where user.principalId is not null
+              and not exists (
+                select event.id from IdentityOutboxEvent event
+                where event.eventType = :eventType and event.aggregateId = user.principalId)
+            order by user.id asc
+            """)
+    List<User> findWithoutIdentityProfileEvent(@Param("eventType") String eventType, Pageable pageable);
+
+    @Query("""
+            select count(user) from User user
+            where user.principalId is not null
+              and not exists (
+                select event.id from IdentityOutboxEvent event
+                where event.eventType = :eventType and event.aggregateId = user.principalId)
+            """)
+    long countWithoutIdentityProfileEvent(@Param("eventType") String eventType);
 }

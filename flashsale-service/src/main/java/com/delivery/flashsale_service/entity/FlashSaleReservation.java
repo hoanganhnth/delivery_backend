@@ -18,6 +18,7 @@ public class FlashSaleReservation {
     private UUID reservationId;
     @Column(name = "order_id", nullable = false, updatable = false) private Long orderId;
     @Column(name = "user_id", nullable = false, updatable = false) private Long userId;
+    @Column(name = "user_principal_id", updatable = false) private Long userPrincipalId;
     @Column(name = "restaurant_id", nullable = false, updatable = false) private Long restaurantId;
     @Enumerated(EnumType.STRING) @Column(nullable = false) private State state;
     @Column(name = "expires_at", nullable = false, updatable = false) private LocalDateTime expiresAt;

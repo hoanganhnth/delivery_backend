@@ -139,6 +139,21 @@ public class KafkaEventListener {
         }
     }
 
+    @KafkaListener(topics = "${app.kafka.input-topics.offer-persisted:delivery.offer-persisted}")
+    public void handleOfferPersisted(String message, Acknowledgment ack) {
+        try {
+            JsonNode json = objectMapper.readTree(message);
+            extractUuid(json, "eventId");
+            Long orderId = extractLong(json, "orderId");
+            Long deliveryId = extractLong(json, "deliveryId");
+            sagaManager.handleOfferPersisted(orderId, deliveryId, message);
+            ack.acknowledge();
+        } catch (Exception e) {
+            log.error("💥 [Saga] Error processing delivery.offer-persisted: {}", e.getMessage(), e);
+            throw processingFailure("delivery.offer-persisted", e);
+        }
+    }
+
     @KafkaListener(topics = "${app.kafka.input-topics.delivery-status:delivery.status-updated}")
     public void handleDeliveryStatusUpdated(String message, Acknowledgment ack) {
         try {

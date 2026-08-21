@@ -34,8 +34,11 @@ sequenceDiagram
     participant A as Shipper app
     participant SET as Settlement
 
-    C->>G: POST /api/orders with Bearer access token
-    G->>O: Forward Authorization; Order validates JWT and ownership
+    C->>G: POST /api/orders/checkout-preview
+    G->>O: Forward Authorization; Order calculates canonical total + quoteId (5 min)
+    C->>G: POST /api/orders with quoteId + Idempotency-Key
+    G->>O: Forward Authorization; Order validates JWT, quote and retry receipt
+    O->>O: Re-price canonical facts; 409 PRICE_CHANGED/QUOTE_EXPIRED if confirmation is stale
     O->>R: Internal canonical menu/order validation
     R-->>O: Canonical catalog facts
     O->>O: Persist order snapshot and transactional outbox

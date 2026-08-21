@@ -20,6 +20,7 @@ public class DeliveryEvent {
     private Long deliveryId;
     private Long orderId;
     private Long userId;
+    private Long userPrincipalId;
     private Long shipperId;
     private String status;
     private String shipperName;

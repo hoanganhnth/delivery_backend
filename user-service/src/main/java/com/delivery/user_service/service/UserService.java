@@ -12,6 +12,7 @@ public interface UserService {
     UserResponse getUserById(Long id);
 
     UserResponse getUserByAuthId(Long authId);
+    UserResponse getUserByPrincipalId(Long principalId);
 
     UserResponse updateUser(Long id, UserRequest request);
 

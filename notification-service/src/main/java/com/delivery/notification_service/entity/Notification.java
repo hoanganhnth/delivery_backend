@@ -22,6 +22,9 @@ public class Notification {
     @Column(name = "user_id", nullable = false)
     private Long userId;
 
+    @Column(name = "user_principal_id")
+    private Long userPrincipalId;
+
     @Column(name = "title", nullable = false)
     private String title;
 

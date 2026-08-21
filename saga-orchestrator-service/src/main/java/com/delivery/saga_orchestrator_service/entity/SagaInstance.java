@@ -40,6 +40,9 @@ public class SagaInstance {
     private Long deliveryId;
     private Long shipperId;
 
+    @Column(nullable = false)
+    private long orderStatusSequence;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private SagaStatus status;
@@ -62,7 +65,9 @@ public class SagaInstance {
         STARTED,          // Saga vừa bắt đầu (order-created)
         DELIVERY_CREATED, // Delivery đã tạo
         FINDING_SHIPPER,  // Đang tìm shipper
+        OFFER_PERSISTING, // Match found a candidate; Delivery has not confirmed its offer yet
         SHIPPER_FOUND,    // Tìm thấy shipper
+        OFFER_RETIRING,   // Waiting for Delivery to fence an expired/abandoned offer session
         SHIPPER_ASSIGNED, // Shipper đã nhận đơn
         PICKING_UP,       // Shipper đang lấy hàng
         DELIVERING,       // Đang giao

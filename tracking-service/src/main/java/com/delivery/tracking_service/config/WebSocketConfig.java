@@ -74,16 +74,22 @@ public class WebSocketConfig implements WebSocketConfigurer {
                     }
                 }
 
-                Long userId = null;
+                Long legacyUserId = null;
+                Long principalId = null;
+                Long identityClaimsVersion = null;
                 String role = null;
 
                 if (token != null && !token.isBlank()) {
                     try {
                         Jwt jwt = jwtDecoder.decode(token);
-                        String sub = jwt.getSubject();
-                        if (sub != null && sub.matches("\\d+")) {
-                            userId = Long.parseLong(sub);
-                        }
+                        // WebSocket must obey the same dual-claim rule as
+                        // HTTP resource endpoints. `sub` is deliberately not
+                        // read: R5 changes it from legacy profile ID to Auth
+                        // principal ID and treating it as a profile would map
+                        // a shipper request to the wrong aggregate.
+                        legacyUserId = positiveLong(jwt.getClaim("legacy_user_id"));
+                        principalId = positiveLong(jwt.getClaim("principal_id"));
+                        identityClaimsVersion = positiveLong(jwt.getClaim("identity_claims_version"));
                         role = selectTrackingRole(jwt);
                     } catch (JwtException e) {
                         response.setStatusCode(HttpStatus.UNAUTHORIZED);
@@ -91,12 +97,14 @@ public class WebSocketConfig implements WebSocketConfigurer {
                     }
                 }
 
-                if (userId == null || role == null || role.isBlank()) {
+                if (legacyUserId == null || principalId == null || identityClaimsVersion == null
+                        || identityClaimsVersion != 1L || role == null || role.isBlank()) {
                     response.setStatusCode(HttpStatus.UNAUTHORIZED);
                     return false;
                 }
 
-                attributes.put("authenticatedUserId", userId);
+                attributes.put("authenticatedUserId", legacyUserId);
+                attributes.put("authenticatedPrincipalId", principalId);
                 attributes.put("authenticatedRole", role);
                 try {
                     attributes.put("correlationId",
@@ -121,6 +129,22 @@ public class WebSocketConfig implements WebSocketConfigurer {
 
     private static boolean isW3cTraceparent(String value) {
         return value != null && value.matches("^[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$");
+    }
+
+    private static Long positiveLong(Object value) {
+        if (value instanceof Number number) {
+            long parsed = number.longValue();
+            return parsed > 0 ? parsed : null;
+        }
+        if (!(value instanceof String raw) || !raw.matches("\\d+")) {
+            return null;
+        }
+        try {
+            long parsed = Long.parseLong(raw);
+            return parsed > 0 ? parsed : null;
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
 
     private static String selectTrackingRole(Jwt jwt) {

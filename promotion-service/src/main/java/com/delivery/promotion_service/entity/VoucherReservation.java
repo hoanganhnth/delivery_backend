@@ -41,6 +41,9 @@ public class VoucherReservation {
     @Column(name = "user_id", nullable = false, updatable = false)
     private Long userId;
 
+    @Column(name = "user_principal_id", updatable = false)
+    private Long userPrincipalId;
+
     @Column(name = "voucher_id", nullable = false, updatable = false)
     private Long voucherId;
 

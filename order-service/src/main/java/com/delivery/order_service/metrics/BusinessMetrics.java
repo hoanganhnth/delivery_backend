@@ -29,4 +29,13 @@ public class BusinessMetrics {
                 .register(registry)
                 .increment();
     }
+
+    /** Records use of a bounded, temporary legacy ownership compatibility path. */
+    public void identityLegacyFallback(String surface) {
+        Counter.builder("delivery.identity.legacy.fallback")
+                .tag("service", "order")
+                .tag("surface", surface)
+                .register(registry)
+                .increment();
+    }
 }

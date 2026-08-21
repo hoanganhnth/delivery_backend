@@ -24,6 +24,9 @@ public class Order {
     @Column(name = "user_id", nullable = false)
     private Long userId;
 
+    @Column(name = "user_principal_id")
+    private Long userPrincipalId;
+
     @Column(name = "restaurant_id", nullable = false)
     private Long restaurantId;
 
@@ -51,6 +54,9 @@ public class Order {
     @Convert(converter = OrderStatusConverter.class)
     @Column(name = "status", nullable = false, length = 32)
     private OrderStatus status = OrderStatus.PENDING;
+
+    @Column(name = "last_saga_status_sequence", nullable = false)
+    private long lastSagaStatusSequence;
 
     @Column(name = "payment_method")
     private String paymentMethod;
@@ -94,6 +100,9 @@ public class Order {
     @Column(name = "cancelled_by")
     private Long cancelledBy;
 
+    @Column(name = "cancelled_by_principal_id")
+    private Long cancelledByPrincipalId;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
@@ -102,6 +111,10 @@ public class Order {
 
     @Column(name = "creator_id", nullable = false)
     private Long creatorId;
+
+    /** Auth-owned identity of the restaurant owner; creatorId remains profile compatibility data. */
+    @Column(name = "creator_principal_id")
+    private Long creatorPrincipalId;
 
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @BatchSize(size = 100)

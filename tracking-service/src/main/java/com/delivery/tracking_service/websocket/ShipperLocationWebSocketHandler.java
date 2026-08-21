@@ -6,6 +6,7 @@ import com.delivery.tracking_service.service.ShipperLocationEventPublisher;
 import com.delivery.tracking_service.service.DeliveryTrackingAccessClient;
 import com.delivery.tracking_service.service.ShipperPublisherSessionManager;
 import com.delivery.tracking_service.service.LocationFanoutPublisher;
+import com.delivery.tracking_service.service.ShipperIdentityResolver;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.slf4j.Logger;
@@ -39,6 +40,7 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
     private final DeliveryRoomRegistry deliveryRooms;
     private final LocationMessageDispatcher messageDispatcher;
     private final LocationFanoutPublisher locationFanoutPublisher;
+    private final ShipperIdentityResolver shipperIdentityResolver;
 
     @Autowired
     public ShipperLocationWebSocketHandler(ObjectMapper objectMapper, 
@@ -48,7 +50,8 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
                                            ShipperPublisherSessionManager publisherSessionManager,
                                            DeliveryRoomRegistry deliveryRooms,
                                            LocationMessageDispatcher messageDispatcher,
-                                           LocationFanoutPublisher locationFanoutPublisher) {
+                                           LocationFanoutPublisher locationFanoutPublisher,
+                                           ShipperIdentityResolver shipperIdentityResolver) {
         this.objectMapper = objectMapper;
         this.redisGeoRepository = redisGeoRepository;
         this.eventPublisher = eventPublisher;
@@ -57,6 +60,7 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
         this.deliveryRooms = deliveryRooms;
         this.messageDispatcher = messageDispatcher;
         this.locationFanoutPublisher = locationFanoutPublisher;
+        this.shipperIdentityResolver = shipperIdentityResolver;
     }
 
     /** Compatibility constructor retained for focused tests. */
@@ -67,7 +71,7 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
                                            ShipperPublisherSessionManager publisherSessionManager) {
         this(objectMapper, redisGeoRepository, eventPublisher, trackingAccessClient,
                 publisherSessionManager, new DeliveryRoomRegistry(),
-                new LocationMessageDispatcher(Runnable::run), null);
+                new LocationMessageDispatcher(Runnable::run), null, null);
     }
 
     @Override
@@ -78,19 +82,19 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
         }
         String sessionId = session.getId();
         activeSessions.put(sessionId, session);
-        Long userId = authenticatedUserId(session);
         PublisherLease lease = null;
         if ("SHIPPER".equals(authenticatedRole(session))) {
             try {
-                lease = publisherSessionManager.acquire(userId, sessionId);
+                Long shipperId = requireShipperId(session);
+                lease = publisherSessionManager.acquire(shipperId, sessionId);
                 publisherLeases.put(sessionId, lease);
-                String previousSessionId = localPublisherSessions.put(userId, sessionId);
+                String previousSessionId = localPublisherSessions.put(shipperId, sessionId);
                 if (previousSessionId != null && !previousSessionId.equals(sessionId)) {
                     supersedeLocalPublisher(previousSessionId);
                 }
             } catch (Exception exception) {
                 activeSessions.remove(sessionId);
-                log.error("Cannot acquire publisher generation for shipper {}", userId, exception);
+                log.error("Cannot acquire publisher generation for principal {}", authenticatedPrincipalId(session), exception);
                 session.close(CloseStatus.SERVER_ERROR.withReason("Publisher lease unavailable"));
                 return;
             }
@@ -174,7 +178,7 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
         if (!ensureCurrentPublisher(session)) {
             return;
         }
-        Long shipperId = authenticatedUserId(session);
+        Long shipperId = requireShipperId(session);
         Double latitude = requiredFiniteNumberInRange(message, "latitude", -90.0, 90.0);
         Double longitude = requiredFiniteNumberInRange(message, "longitude", -180.0, 180.0);
 
@@ -267,6 +271,19 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
     private Long authenticatedUserId(WebSocketSession session) {
         Object value = session.getAttributes().get("authenticatedUserId");
         return value instanceof Number number ? number.longValue() : null;
+    }
+
+    private Long authenticatedPrincipalId(WebSocketSession session) {
+        Object value = session.getAttributes().get("authenticatedPrincipalId");
+        return value instanceof Number number ? number.longValue() : null;
+    }
+
+    private Long requireShipperId(WebSocketSession session) {
+        if (shipperIdentityResolver == null) {
+            // Constructor used only by existing focused unit fixtures.
+            return authenticatedUserId(session);
+        }
+        return shipperIdentityResolver.requireShipperId(authenticatedPrincipalId(session), authenticatedUserId(session));
     }
 
     private String authenticatedRole(WebSocketSession session) {

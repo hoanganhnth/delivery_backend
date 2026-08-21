@@ -43,7 +43,7 @@ separately protected by `verify-docker-artifact-freshness.sh`.
 
 Docker images consume the host-built Maven JARs. The shared Dockerfile compares
 the packaged artifact with the module `pom.xml`, root reactor `pom.xml` and all
-files under `src/`; image build fails with `run Maven package first` instead of
+files under `src/`; image build fails with `run scripts/package-compose-services.sh first` instead of
 silently deploying a stale JAR. The isolated regression proof is:
 
 ```bash
@@ -75,6 +75,27 @@ also set `POSTGRES_VOLUME_NAME` to a new Docker volume name.
 paths to ignored `.env`. `docker-compose.secrets.yml` injects those files as
 Docker secrets under `/run/secrets`; neither keys nor a secret fallback are
 packaged inside a JAR. Do not point those variables at a file in the source tree.
+
+### Focused Auth/User/JWKS startup
+
+When bringing up only the identity platform for local debugging, package the
+affected host JARs first and always include the secret override: Auth has no
+development key fallback and intentionally fails closed without its mounted RSA
+keypair. If host PostgreSQL already owns `5432`, use a non-conflicting published
+port; containers continue to use `postgres:5432`.
+
+```bash
+bash scripts/package-compose-services.sh \
+  config-server discovery-server auth-service user-service api-gateway
+
+POSTGRES_HOST_PORT=55432 \
+  docker compose -f docker-compose.yml -f docker-compose.secrets.yml up -d \
+  postgres kafka redis config-server discovery-server auth-service user-service api-gateway
+```
+
+Once Auth has registered with Eureka, restart only Gateway if it began before
+that lease and returns a transient `503` for `/.well-known/jwks.json`. Do not
+restart the whole stack or recreate PostgreSQL/Kafka volumes for this case.
 
 For focused service debugging only, opt in to the port override:
 

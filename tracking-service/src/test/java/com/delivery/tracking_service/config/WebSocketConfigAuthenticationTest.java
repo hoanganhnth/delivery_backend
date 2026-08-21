@@ -25,6 +25,9 @@ class WebSocketConfigAuthenticationTest {
         Jwt jwt = Jwt.withTokenValue("valid-token")
                 .header("alg", "RS256")
                 .claim("sub", "42")
+                .claim("principal_id", 84)
+                .claim("legacy_user_id", 42)
+                .claim("identity_claims_version", 1)
                 .claim("roles", List.of("SHIPPER"))
                 .build();
         when(jwtDecoder.decode("valid-token")).thenReturn(jwt);
@@ -42,6 +45,7 @@ class WebSocketConfigAuthenticationTest {
 
         assertThat(accepted).isTrue();
         assertThat(attributes).containsEntry("authenticatedUserId", 42L)
+                .containsEntry("authenticatedPrincipalId", 84L)
                 .containsEntry("authenticatedRole", "SHIPPER");
     }
 
@@ -52,6 +56,9 @@ class WebSocketConfigAuthenticationTest {
         Jwt jwt = Jwt.withTokenValue("valid-token")
                 .header("alg", "RS256")
                 .claim("sub", "42")
+                .claim("principal_id", 84)
+                .claim("legacy_user_id", 42)
+                .claim("identity_claims_version", 1)
                 .claim("roles", List.of("USER", "SHIPPER"))
                 .build();
         when(jwtDecoder.decode("valid-token")).thenReturn(jwt);
@@ -77,6 +84,9 @@ class WebSocketConfigAuthenticationTest {
         Jwt jwt = Jwt.withTokenValue("valid-token")
                 .header("alg", "RS256")
                 .claim("sub", "42")
+                .claim("principal_id", 84)
+                .claim("legacy_user_id", 42)
+                .claim("identity_claims_version", 1)
                 .claim("roles", List.of("SHIPPER"))
                 .build();
         when(jwtDecoder.decode("valid-token")).thenReturn(jwt);
@@ -111,6 +121,28 @@ class WebSocketConfigAuthenticationTest {
                 request, response, mock(WebSocketHandler.class), new HashMap<>());
 
         assertThat(accepted).isFalse();
+        verify(response).setStatusCode(HttpStatus.UNAUTHORIZED);
+    }
+
+    @Test
+    void handshakeRejectsTokenThatOnlyCarriesLegacySubject() throws Exception {
+        ShipperLocationWebSocketHandler handler = mock(ShipperLocationWebSocketHandler.class);
+        JwtDecoder jwtDecoder = mock(JwtDecoder.class);
+        Jwt jwt = Jwt.withTokenValue("legacy-sub-only")
+                .header("alg", "RS256")
+                .claim("sub", "42")
+                .claim("roles", List.of("SHIPPER"))
+                .build();
+        when(jwtDecoder.decode("legacy-sub-only")).thenReturn(jwt);
+        WebSocketConfig config = new WebSocketConfig(handler, jwtDecoder, "http://localhost:5173");
+        ServerHttpRequest request = mock(ServerHttpRequest.class);
+        ServerHttpResponse response = mock(ServerHttpResponse.class);
+        HttpHeaders headers = new HttpHeaders();
+        headers.add("Authorization", "Bearer legacy-sub-only");
+        when(request.getHeaders()).thenReturn(headers);
+
+        assertThat(config.identityHeadersInterceptor().beforeHandshake(
+                request, response, mock(WebSocketHandler.class), new HashMap<>())).isFalse();
         verify(response).setStatusCode(HttpStatus.UNAUTHORIZED);
     }
 }

@@ -9,14 +9,17 @@ import com.delivery.settlement_service.entity.RefundCase.RefundStatus;
 import com.delivery.settlement_service.entity.RefundCase.RefundTrigger;
 import com.delivery.settlement_service.exception.ResourceNotFoundException;
 import com.delivery.settlement_service.repository.RefundCaseRepository;
+import com.delivery.settlement_service.metrics.BusinessMetrics;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 import java.math.BigDecimal;
 import java.security.MessageDigest;
@@ -41,18 +44,34 @@ public class RefundCaseService {
     private final RefundOutboxService outboxService;
     private final ObjectMapper objectMapper;
     private final boolean providerProcessingEnabled;
+    private final BusinessMetrics businessMetrics;
+
+    @Value("${app.identity.principal-ownership.enforced:false}")
+    private boolean principalOwnershipEnforced;
 
     @Value("${spring.datasource.url:}")
     private String dataSourceUrl;
 
+    @Autowired
     public RefundCaseService(RefundCaseRepository repository,
                              RefundOutboxService outboxService,
                              ObjectMapper objectMapper,
-                             @Value("${app.refund.provider-processing-enabled:false}") boolean providerProcessingEnabled) {
+                             @Value("${app.refund.provider-processing-enabled:false}") boolean providerProcessingEnabled,
+                             BusinessMetrics businessMetrics) {
         this.repository = repository;
         this.outboxService = outboxService;
         this.objectMapper = objectMapper.copy().registerModule(new JavaTimeModule());
         this.providerProcessingEnabled = providerProcessingEnabled;
+        this.businessMetrics = businessMetrics;
+    }
+
+    /** Compatibility constructor for focused fixtures; runtime wiring supplies the shared registry. */
+    public RefundCaseService(RefundCaseRepository repository,
+                             RefundOutboxService outboxService,
+                             ObjectMapper objectMapper,
+                             boolean providerProcessingEnabled) {
+        this(repository, outboxService, objectMapper, providerProcessingEnabled,
+                new BusinessMetrics(new SimpleMeterRegistry()));
     }
 
     @Transactional
@@ -83,6 +102,7 @@ public class RefundCaseService {
                 .idempotencyKey(idempotencyKey)
                 .orderId(event.getOrderId())
                 .userId(event.getUserId())
+                .userPrincipalId(event.getUserPrincipalId())
                 .restaurantId(event.getRestaurantId())
                 .previousOrderStatus(event.getPreviousStatus())
                 .currentOrderStatus(event.getCurrentStatus())
@@ -149,7 +169,7 @@ public class RefundCaseService {
     private int insertIfAbsentPostgres(RefundCase refundCase) {
         return repository.insertIfAbsentPostgres(
                 refundCase.getRefundId(), refundCase.getEventId(), refundCase.getIdempotencyKey(),
-                refundCase.getOrderId(), refundCase.getUserId(), refundCase.getRestaurantId(),
+                refundCase.getOrderId(), refundCase.getUserId(), refundCase.getUserPrincipalId(), refundCase.getRestaurantId(),
                 refundCase.getPreviousOrderStatus(), refundCase.getCurrentOrderStatus(),
                 refundCase.getPaymentMethod(), refundCase.getTrigger().name(), refundCase.getComponent().name(),
                 refundCase.getStatus().name(), refundCase.getCurrency(), refundCase.getSubtotalAmount(),
@@ -162,7 +182,7 @@ public class RefundCaseService {
     private int insertIfAbsentH2(RefundCase refundCase) {
         return repository.insertIfAbsentH2(
                 refundCase.getRefundId(), refundCase.getEventId(), refundCase.getIdempotencyKey(),
-                refundCase.getOrderId(), refundCase.getUserId(), refundCase.getRestaurantId(),
+                refundCase.getOrderId(), refundCase.getUserId(), refundCase.getUserPrincipalId(), refundCase.getRestaurantId(),
                 refundCase.getPreviousOrderStatus(), refundCase.getCurrentOrderStatus(),
                 refundCase.getPaymentMethod(), refundCase.getTrigger().name(), refundCase.getComponent().name(),
                 refundCase.getStatus().name(), refundCase.getCurrency(), refundCase.getSubtotalAmount(),
@@ -203,6 +223,23 @@ public class RefundCaseService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
+    public List<RefundCustomerCaseResponse> listCustomerCases(Long principalId, Long legacyUserId, int requestedLimit) {
+        if (principalId == null || principalId <= 0 || legacyUserId == null || legacyUserId <= 0) {
+            throw new IllegalArgumentException("principalId and legacyUserId are required");
+        }
+        int limit = Math.min(Math.max(requestedLimit, 1), ADMIN_LIST_LIMIT);
+        List<RefundCase> cases = principalOwnershipEnforced
+                ? repository.findByUserPrincipalIdOrderByCreatedAtDesc(principalId, PageRequest.of(0, limit))
+                : repository.findByPrincipalOrUnmigratedLegacyUserOrderByCreatedAtDesc(
+                        principalId, legacyUserId, PageRequest.of(0, limit));
+        if (!principalOwnershipEnforced) {
+            cases.stream().filter(refundCase -> refundCase.getUserPrincipalId() == null)
+                    .forEach(refundCase -> businessMetrics.identityLegacyFallback("customer_refund_list"));
+        }
+        return cases.stream().map(this::toCustomerResponse).toList();
+    }
+
     private RefundCaseResponse toAdminResponse(RefundCase refundCase) {
         return RefundCaseResponse.builder()
                 .refundId(refundCase.getRefundId())
@@ -210,6 +247,7 @@ public class RefundCaseService {
                 .idempotencyKey(refundCase.getIdempotencyKey())
                 .orderId(refundCase.getOrderId())
                 .userId(refundCase.getUserId())
+                .userPrincipalId(refundCase.getUserPrincipalId())
                 .restaurantId(refundCase.getRestaurantId())
                 .previousOrderStatus(refundCase.getPreviousOrderStatus())
                 .currentOrderStatus(refundCase.getCurrentOrderStatus())

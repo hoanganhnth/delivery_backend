@@ -13,6 +13,7 @@
         <module>observability-starter</module>
         <module>kafka-operations-tool</module>
         <module>runtime-platform-starter</module>
+        <module>identity-contracts</module>
         <module>auth-resource-server-starter</module>
         <module>discovery-server</module>
         <module>config-server</module>
@@ -33,6 +34,7 @@
         <module>flashsale-service</module>
         <module>analytics-service</module>
         <module>promotion-service</module>
+        <module>simulator-service</module>
     </modules>
 
     <build>

@@ -10,6 +10,9 @@ app:
     reservation-expiry-scan-ms: ${PROMOTION_RESERVATION_EXPIRY_SCAN_MS:30000}
     outbox-relay-enabled: ${PROMOTION_OUTBOX_RELAY_ENABLED:false}
     outbox-relay-ms: ${PROMOTION_OUTBOX_RELAY_MS:500}
+  identity:
+    principal-ownership:
+      enforced: ${PROMOTION_PRINCIPAL_OWNERSHIP_ENFORCED:false}
   kafka:
     retry:
       attempts: ${KAFKA_RETRY_ATTEMPTS:4}

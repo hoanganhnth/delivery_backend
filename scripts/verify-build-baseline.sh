@@ -26,6 +26,7 @@ modules=(
   flashsale-service
   analytics-service
   promotion-service
+  simulator-service
 )
 
 if [[ -n "${JAVA_HOME:-}" ]]; then

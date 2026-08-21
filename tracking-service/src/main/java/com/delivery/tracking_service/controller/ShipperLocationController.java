@@ -5,6 +5,7 @@ import com.delivery.tracking_service.dto.request.UpdateLocationRequest;
 import com.delivery.tracking_service.dto.response.ShipperLocationResponse;
 import com.delivery.tracking_service.payload.BaseResponse;
 import com.delivery.tracking_service.service.ShipperLocationService;
+import com.delivery.tracking_service.service.ShipperIdentityResolver;
 import com.delivery.auth.resourceserver.security.AuthenticatedActor;
 
 import jakarta.validation.Valid;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.*;
 public class ShipperLocationController {
 
     private final ShipperLocationService shipperLocationService;
+    private final ShipperIdentityResolver shipperIdentityResolver;
 
     @PostMapping("/update")
     public ResponseEntity<BaseResponse<ShipperLocationResponse>> updateLocation(
@@ -30,7 +32,8 @@ public class ShipperLocationController {
                 .body(new BaseResponse<>(0, null, "Không có quyền truy cập"));
         }
 
-        ShipperLocationResponse response = shipperLocationService.updateLocation(actor.getUserId(), request);
+        ShipperLocationResponse response = shipperLocationService.updateLocation(
+                shipperIdentityResolver.requireShipperId(actor.getPrincipalId(), actor.getLegacyUserId()), request);
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Cập nhật vị trí thành công"));
     }
 
@@ -43,7 +46,8 @@ public class ShipperLocationController {
                 .body(new BaseResponse<>(0, null, "Không có quyền truy cập"));
         }
 
-        shipperLocationService.markShipperOffline(actor.getUserId());
+        shipperLocationService.markShipperOffline(
+                shipperIdentityResolver.requireShipperId(actor.getPrincipalId(), actor.getLegacyUserId()));
         return ResponseEntity.ok(new BaseResponse<>(1, "Đã đánh dấu offline thành công"));
     }
 }

@@ -65,7 +65,7 @@ public class UserController {
             @Valid @RequestBody UserRegistrationRequest request) {
         UserResponse user = userRegistrationService.register(request);
         return ResponseEntity.ok(new BaseResponse<>(
-                1, user, "User profile registered and linked"));
+                1, user, "User profile registered; identity linkage is processing"));
     }
 
     @GetMapping("/by-auth/{authId}")
@@ -84,10 +84,10 @@ public class UserController {
     @GetMapping
     public ResponseEntity<BaseResponse<UserResponse>> getCurrentUser(
             @AuthenticationPrincipal AuthenticatedActor actor) {
-        if (actor == null || actor.getUserId() == null) {
+        if (actor == null || actor.getPrincipalId() == null) {
             return forbiddenUserAccess();
         }
-        UserResponse user = userService.getUserById(actor.getUserId());
+        UserResponse user = userService.getUserByPrincipalId(actor.getPrincipalId());
         return ResponseEntity.ok(new BaseResponse<>(1, user));
     }
 
@@ -95,10 +95,11 @@ public class UserController {
     public ResponseEntity<BaseResponse<UserResponse>> updateCurrentUser(
             @Valid @RequestBody UserRequest request,
             @AuthenticationPrincipal AuthenticatedActor actor) {
-        if (actor == null || actor.getUserId() == null) {
+        if (actor == null || actor.getPrincipalId() == null) {
             return forbiddenUserAccess();
         }
-        UserResponse user = userService.updateUser(actor.getUserId(), request);
+        UserResponse current = userService.getUserByPrincipalId(actor.getPrincipalId());
+        UserResponse user = userService.updateUser(current.getId(), request);
         return ResponseEntity.ok(new BaseResponse<>(1, user));
     }
 

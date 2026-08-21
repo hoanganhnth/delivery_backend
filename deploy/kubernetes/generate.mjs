@@ -72,8 +72,8 @@ function metadata(service) {
   return { name: service.id, labels: labels(service) };
 }
 
-function secretSource(name, items) {
-  return { secret: { name, items } };
+function secretSource(name, items, optional = false) {
+  return { secret: { name, items, ...(optional ? { optional: true } : {}) } };
 }
 
 function runtimeSecretSources(service) {
@@ -94,6 +94,15 @@ function runtimeSecretSources(service) {
       { key: 'private.pem', path: 'jwt-private.pem' },
       { key: 'public.pem', path: 'jwt-public.pem' },
     ]));
+  }
+  if (service.id === 'auth-service') {
+    // This secret is intentionally optional while the rollout percentage is
+    // zero. Partial percentage cohorts fail closed at Auth startup unless its
+    // HMAC key has been delivered.
+    sources.push(secretSource('delivery-auth-registration-canary', [
+      { key: 'allowlist', path: 'registration-canary-allowlist' },
+      { key: 'hash-key', path: 'registration-canary-hash-key' },
+    ], true));
   }
   if (service.controlPlane === 'config') {
     sources.push(secretSource('delivery-config-repository', [
@@ -159,6 +168,82 @@ function appEnvironment(service) {
       { name: 'JWT_PRIVATE_KEY_PATH', value: '/run/secrets/jwt-private.pem' },
       { name: 'JWT_PUBLIC_KEY_PATH', value: '/run/secrets/jwt-public.pem' },
     );
+  }
+  const identityMigrationKey = (applicationVariable, configMapKey) => ({
+    name: applicationVariable,
+    valueFrom: {
+      configMapKeyRef: { name: 'delivery-runtime', key: configMapKey },
+    },
+  });
+  if (service.id === 'auth-service') {
+    environment.push(
+      identityMigrationKey('IDENTITY_EVENTS_ENABLED', 'AUTH_IDENTITY_EVENTS_ENABLED'),
+      identityMigrationKey('IDENTITY_OUTBOX_RELAY_ENABLED', 'AUTH_IDENTITY_OUTBOX_RELAY_ENABLED'),
+      identityMigrationKey('IDENTITY_STATUS_BOOTSTRAP_ENABLED', 'AUTH_IDENTITY_STATUS_BOOTSTRAP_ENABLED'),
+      identityMigrationKey('PUBLIC_REGISTRATION_ENABLED', 'AUTH_PUBLIC_REGISTRATION_ENABLED'),
+      identityMigrationKey('REGISTRATION_CANARY_PERCENTAGE', 'AUTH_PUBLIC_REGISTRATION_CANARY_PERCENTAGE'),
+      identityMigrationKey('JWT_ACCESS_TOKEN_SUBJECT_MODE', 'AUTH_JWT_ACCESS_TOKEN_SUBJECT_MODE'),
+    );
+  }
+  if (service.id === 'user-service') {
+    environment.push(
+      identityMigrationKey('IDENTITY_EVENTS_ENABLED', 'USER_IDENTITY_EVENTS_ENABLED'),
+      identityMigrationKey('IDENTITY_OUTBOX_RELAY_ENABLED', 'USER_IDENTITY_OUTBOX_RELAY_ENABLED'),
+    );
+  }
+  if (service.id === 'shipper-service') {
+    environment.push(
+      identityMigrationKey('IDENTITY_EVENTS_ENABLED', 'SHIPPER_IDENTITY_EVENTS_ENABLED'),
+      identityMigrationKey('SHIPPER_IDENTITY_OUTBOX_RELAY_ENABLED', 'SHIPPER_IDENTITY_OUTBOX_RELAY_ENABLED'),
+    );
+  }
+  if (service.id === 'delivery-service') {
+    environment.push(identityMigrationKey(
+      'SHIPPER_IDENTITY_PROJECTION_ENFORCED',
+      'DELIVERY_SHIPPER_IDENTITY_PROJECTION_ENFORCED',
+    ));
+  }
+  if (service.id === 'tracking-service') {
+    environment.push(identityMigrationKey(
+      'SHIPPER_IDENTITY_PROJECTION_ENFORCED',
+      'TRACKING_SHIPPER_IDENTITY_PROJECTION_ENFORCED',
+    ));
+  }
+  if (service.id === 'restaurant-service') {
+    environment.push(identityMigrationKey(
+      'RESTAURANT_PRINCIPAL_OWNERSHIP_ENFORCED',
+      'RESTAURANT_PRINCIPAL_OWNERSHIP_ENFORCED',
+    ));
+  }
+  if (service.id === 'order-service') {
+    environment.push(identityMigrationKey(
+      'ORDER_PRINCIPAL_OWNERSHIP_ENFORCED',
+      'ORDER_PRINCIPAL_OWNERSHIP_ENFORCED',
+    ));
+  }
+  if (service.id === 'notification-service') {
+    environment.push(identityMigrationKey(
+      'NOTIFICATION_PRINCIPAL_OWNERSHIP_ENFORCED',
+      'NOTIFICATION_PRINCIPAL_OWNERSHIP_ENFORCED',
+    ));
+  }
+  if (service.id === 'settlement-service') {
+    environment.push(identityMigrationKey(
+      'SETTLEMENT_PRINCIPAL_OWNERSHIP_ENFORCED',
+      'SETTLEMENT_PRINCIPAL_OWNERSHIP_ENFORCED',
+    ));
+  }
+  if (service.id === 'promotion-service') {
+    environment.push(identityMigrationKey(
+      'PROMOTION_PRINCIPAL_OWNERSHIP_ENFORCED',
+      'PROMOTION_PRINCIPAL_OWNERSHIP_ENFORCED',
+    ));
+  }
+  if (service.id === 'flashsale-service') {
+    environment.push(identityMigrationKey(
+      'FLASHSALE_PRINCIPAL_OWNERSHIP_ENFORCED',
+      'FLASHSALE_PRINCIPAL_OWNERSHIP_ENFORCED',
+    ));
   }
   return environment;
 }

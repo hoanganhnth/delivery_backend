@@ -18,8 +18,9 @@ item registration remains hidden until its separate rollout is approved.
 
 - Campaigns are owned by `ADMIN`.
 - A flash-sale item belongs to a canonical restaurant. Registration verifies
-  the authenticated shop owner against `restaurantId`; activation requires
-  admin approval.
+  the authenticated shop owner against `restaurantId`; the internal Restaurant
+  ownership contract is principal-first and only checks `creator_id` when the
+  row has no `owner_principal_id` yet. Activation requires admin approval.
 - The client obtains `flashSaleItemId` only from the public approved catalog.
   It never submits a flash price.
 - Order verifies the returned `flashSaleItemId`, menu item, quantity, and price,
@@ -39,6 +40,8 @@ COMMITTED -> RELEASED   (compensation before fulfilment only)
 ```
 
 Reservation identity is stable `reservationId + orderId`; `orderId` is unique.
+Reservation records and emitted events also carry optional `userPrincipalId`
+from Order while retaining legacy `userId` for compatibility.
 Exact replay returns the stored line fingerprint and terminal state. A changed
 line, quantity, restaurant, user, order, or reservation identity fails closed.
 `order.created` commits; `order.cancelled` releases; a 15-minute sweep expires.

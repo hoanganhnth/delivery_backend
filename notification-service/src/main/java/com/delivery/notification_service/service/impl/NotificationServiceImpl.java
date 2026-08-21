@@ -17,6 +17,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.transaction.annotation.Transactional;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -35,6 +38,10 @@ public class NotificationServiceImpl implements NotificationService {
     private final NotificationRepository notificationRepository;
     private final NotificationMapper notificationMapper;
     private final NotificationDeliveryCoordinator deliveryCoordinator;
+    private final MeterRegistry meterRegistry;
+
+    @Value("${app.identity.principal-ownership.enforced:false}")
+    private boolean principalOwnershipEnforced;
 
     @Value("${spring.datasource.url:}")
     private String dataSourceUrl;
@@ -42,17 +49,26 @@ public class NotificationServiceImpl implements NotificationService {
     @Autowired
     public NotificationServiceImpl(NotificationRepository notificationRepository,
             NotificationMapper notificationMapper,
-            NotificationDeliveryCoordinator deliveryCoordinator) {
+            NotificationDeliveryCoordinator deliveryCoordinator,
+            MeterRegistry meterRegistry) {
         this.notificationRepository = notificationRepository;
         this.notificationMapper = notificationMapper;
         this.deliveryCoordinator = deliveryCoordinator;
+        this.meterRegistry = meterRegistry;
+    }
+
+    /** Compatibility constructor for existing focused fixtures. */
+    NotificationServiceImpl(NotificationRepository notificationRepository,
+            NotificationMapper notificationMapper,
+            NotificationDeliveryCoordinator deliveryCoordinator) {
+        this(notificationRepository, notificationMapper, deliveryCoordinator, new SimpleMeterRegistry());
     }
 
     NotificationServiceImpl(NotificationRepository notificationRepository,
             NotificationMapper notificationMapper,
             FirebaseService firebaseService) {
         this(notificationRepository, notificationMapper,
-                new NotificationDeliveryCoordinator(notificationRepository, firebaseService));
+                new NotificationDeliveryCoordinator(notificationRepository, firebaseService), new SimpleMeterRegistry());
     }
 
     @Override
@@ -96,6 +112,7 @@ public class NotificationServiceImpl implements NotificationService {
     private NotificationResponse createNotification(SendNotificationRequest request) {
         Notification notification = new Notification();
         notification.setUserId(request.getUserId());
+        notification.setUserPrincipalId(request.getUserPrincipalId());
         notification.setTitle(request.getTitle());
         notification.setMessage(request.getMessage());
         notification.setType(request.getType());
@@ -127,14 +144,14 @@ public class NotificationServiceImpl implements NotificationService {
     private int insertIfAbsent(Notification notification) {
         if (dataSourceUrl != null && dataSourceUrl.startsWith("jdbc:h2:")) {
             return notificationRepository.insertIfAbsentH2(
-                    notification.getUserId(), notification.getTitle(), notification.getMessage(),
+                    notification.getUserId(), notification.getUserPrincipalId(), notification.getTitle(), notification.getMessage(),
                     notification.getType(), notification.getPriority(), notification.getStatus(),
                     notification.getIsRead(), notification.getRelatedEntityId(),
                     notification.getRelatedEntityType(), notification.getData(),
                     notification.getDeduplicationKey());
         }
         return notificationRepository.insertIfAbsentPostgres(
-                notification.getUserId(), notification.getTitle(), notification.getMessage(),
+                notification.getUserId(), notification.getUserPrincipalId(), notification.getTitle(), notification.getMessage(),
                 notification.getType(), notification.getPriority(), notification.getStatus(),
                 notification.getIsRead(), notification.getRelatedEntityId(),
                 notification.getRelatedEntityType(), notification.getData(),
@@ -143,6 +160,7 @@ public class NotificationServiceImpl implements NotificationService {
 
     private void assertReplayMatches(Notification existing, SendNotificationRequest request) {
         boolean samePayload = Objects.equals(existing.getUserId(), request.getUserId())
+                && Objects.equals(existing.getUserPrincipalId(), request.getUserPrincipalId())
                 && Objects.equals(existing.getTitle(), request.getTitle())
                 && Objects.equals(existing.getMessage(), request.getMessage())
                 && Objects.equals(existing.getType(), request.getType())
@@ -165,10 +183,33 @@ public class NotificationServiceImpl implements NotificationService {
     }
 
     @Override
+    public List<NotificationResponse> getUserNotifications(Long principalId, Long legacyUserId) {
+        requireIdentity(principalId, legacyUserId);
+        List<Notification> notifications = principalOwnershipEnforced
+                ? notificationRepository.findByUserPrincipalIdOrderByCreatedAtDesc(principalId, PageRequest.of(0, 100))
+                : notificationRepository.findByPrincipalOrUnmigratedLegacyUser(
+                        principalId, legacyUserId, PageRequest.of(0, 100));
+        if (!principalOwnershipEnforced) recordLegacyFallback(notifications, "inbox_list");
+        return notificationMapper.toResponseList(notifications);
+    }
+
+    @Override
     public List<NotificationResponse> getUnreadNotifications(Long userId) {
         requirePositiveId(userId, "userId");
         List<Notification> notifications = notificationRepository.findByUserIdAndIsReadOrderByCreatedAtDesc(
                 userId, false, PageRequest.of(0, 100));
+        return notificationMapper.toResponseList(notifications);
+    }
+
+    @Override
+    public List<NotificationResponse> getUnreadNotifications(Long principalId, Long legacyUserId) {
+        requireIdentity(principalId, legacyUserId);
+        List<Notification> notifications = principalOwnershipEnforced
+                ? notificationRepository.findByUserPrincipalIdAndIsReadOrderByCreatedAtDesc(
+                        principalId, false, PageRequest.of(0, 100))
+                : notificationRepository.findUnreadByPrincipalOrUnmigratedLegacyUser(
+                        principalId, legacyUserId, false, PageRequest.of(0, 100));
+        if (!principalOwnershipEnforced) recordLegacyFallback(notifications, "inbox_unread_list");
         return notificationMapper.toResponseList(notifications);
     }
 
@@ -195,6 +236,18 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Override
     @Transactional
+    public NotificationResponse markAsRead(Long notificationId, Long principalId, Long legacyUserId) {
+        requirePositiveId(notificationId, "notificationId"); requireIdentity(principalId, legacyUserId);
+        Notification notification = findOwnedNotification(notificationId, principalId, legacyUserId);
+        if (!principalOwnershipEnforced) recordLegacyFallback(notification, "inbox_mark_read");
+        if (!Boolean.TRUE.equals(notification.getIsRead())) {
+            notification.setIsRead(true); notification.setReadAt(LocalDateTime.now()); notificationRepository.save(notification);
+        }
+        return notificationMapper.toResponse(notification);
+    }
+
+    @Override
+    @Transactional
     public int markAllAsRead(Long userId) {
         requirePositiveId(userId, "userId");
         LocalDateTime readAt = LocalDateTime.now();
@@ -205,9 +258,31 @@ public class NotificationServiceImpl implements NotificationService {
     }
 
     @Override
+    @Transactional
+    public int markAllAsRead(Long principalId, Long legacyUserId) {
+        requireIdentity(principalId, legacyUserId);
+        List<Notification> unread = principalOwnershipEnforced
+                ? notificationRepository.findByUserPrincipalIdAndIsReadOrderByCreatedAtDesc(
+                        principalId, false, PageRequest.of(0, 100))
+                : notificationRepository.findUnreadByPrincipalOrUnmigratedLegacyUser(
+                        principalId, legacyUserId, false, PageRequest.of(0, 100));
+        if (!principalOwnershipEnforced) recordLegacyFallback(unread, "inbox_mark_all_read");
+        LocalDateTime now = LocalDateTime.now(); unread.forEach(n -> { n.setIsRead(true); n.setReadAt(now); });
+        notificationRepository.saveAll(unread); return unread.size();
+    }
+
+    @Override
     public long getUnreadCount(Long userId) {
         requirePositiveId(userId, "userId");
         return notificationRepository.countByUserIdAndIsRead(userId, false);
+    }
+
+    @Override
+    public long getUnreadCount(Long principalId, Long legacyUserId) {
+        requireIdentity(principalId, legacyUserId);
+        return principalOwnershipEnforced
+                ? notificationRepository.countByUserPrincipalIdAndIsRead(principalId, false)
+                : notificationRepository.countByPrincipalOrUnmigratedLegacyUserAndIsRead(principalId, legacyUserId, false);
     }
 
     @Override
@@ -216,6 +291,14 @@ public class NotificationServiceImpl implements NotificationService {
         requirePositiveId(userId, "userId");
         Notification notification = notificationRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new NotificationNotFoundException(id));
+        return notificationMapper.toResponse(notification);
+    }
+
+    @Override
+    public NotificationResponse getNotificationById(Long id, Long principalId, Long legacyUserId) {
+        requirePositiveId(id, "notificationId"); requireIdentity(principalId, legacyUserId);
+        Notification notification = findOwnedNotification(id, principalId, legacyUserId);
+        if (!principalOwnershipEnforced) recordLegacyFallback(notification, "inbox_read");
         return notificationMapper.toResponse(notification);
     }
 
@@ -232,7 +315,48 @@ public class NotificationServiceImpl implements NotificationService {
     }
 
     @Override
+    @Transactional
+    public void deleteNotification(Long id, Long principalId, Long legacyUserId) {
+        requirePositiveId(id, "notificationId"); requireIdentity(principalId, legacyUserId);
+        Notification notification = findOwnedNotification(id, principalId, legacyUserId);
+        if (!principalOwnershipEnforced) recordLegacyFallback(notification, "inbox_delete");
+        notificationRepository.delete(notification);
+    }
+
+    private void requireIdentity(Long principalId, Long legacyUserId) {
+        requirePositiveId(principalId, "principalId"); requirePositiveId(legacyUserId, "legacyUserId");
+    }
+
+    private Notification findOwnedNotification(Long id, Long principalId, Long legacyUserId) {
+        return (principalOwnershipEnforced
+                ? notificationRepository.findByIdAndUserPrincipalId(id, principalId)
+                : notificationRepository.findByIdAndPrincipalOrUnmigratedLegacyUser(id, principalId, legacyUserId))
+                .orElseThrow(() -> new NotificationNotFoundException(id));
+    }
+
+    private void recordLegacyFallback(Notification notification, String surface) {
+        if (notification != null && notification.getUserPrincipalId() == null) {
+            legacyFallbackCounter(surface).increment();
+        }
+    }
+
+    private void recordLegacyFallback(List<Notification> notifications, String surface) {
+        long count = notifications.stream().filter(notification -> notification.getUserPrincipalId() == null).count();
+        if (count > 0) legacyFallbackCounter(surface).increment(count);
+    }
+
+    private Counter legacyFallbackCounter(String surface) {
+        return Counter.builder("delivery.identity.legacy.fallback")
+                .tag("service", "notification").tag("surface", surface).register(meterRegistry);
+    }
+
+    @Override
     public void sendOrderCreatedNotification(UUID eventId, Long userId, Long orderId, String restaurantName) {
+        sendOrderCreatedNotification(eventId, userId, null, orderId, restaurantName);
+    }
+
+    @Override
+    public void sendOrderCreatedNotification(UUID eventId, Long userId, Long userPrincipalId, Long orderId, String restaurantName) {
         requireEventId(eventId);
         requirePositiveId(userId, "userId");
         requirePositiveId(orderId, "orderId");
@@ -241,6 +365,7 @@ public class NotificationServiceImpl implements NotificationService {
         }
         SendNotificationRequest request = new SendNotificationRequest();
         request.setUserId(userId);
+        request.setUserPrincipalId(userPrincipalId);
         request.setTitle("Đơn hàng đã được tạo");
         request.setMessage("Đơn hàng #" + orderId + " từ " + restaurantName + " đã được tạo thành công");
         request.setType(NotificationConstants.ORDER_CREATED);
@@ -254,6 +379,11 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Override
     public void sendDeliveryStatusNotification(UUID eventId, Long userId, Long deliveryId, String status, String shipperName) {
+        sendDeliveryStatusNotification(eventId, userId, null, deliveryId, status, shipperName);
+    }
+
+    @Override
+    public void sendDeliveryStatusNotification(UUID eventId, Long userId, Long userPrincipalId, Long deliveryId, String status, String shipperName) {
         requireEventId(eventId);
         requirePositiveId(userId, "userId");
         requirePositiveId(deliveryId, "deliveryId");
@@ -262,6 +392,7 @@ public class NotificationServiceImpl implements NotificationService {
 
         SendNotificationRequest request = new SendNotificationRequest();
         request.setUserId(userId);
+        request.setUserPrincipalId(userPrincipalId);
         request.setTitle(title);
         request.setMessage(message);
         request.setType(getDeliveryStatusType(status));

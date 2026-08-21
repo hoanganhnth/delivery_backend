@@ -5,7 +5,9 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * ✅ Response chứa giá tính toán bởi server.
@@ -15,6 +17,10 @@ import java.util.List;
 @Setter
 @Builder
 public class CheckoutPreviewResponse {
+
+    /** Server-issued confirmation of this exact calculated checkout price. */
+    private UUID quoteId;
+    private Instant expiresAt;
 
     private Long restaurantId;
     private String restaurantName;

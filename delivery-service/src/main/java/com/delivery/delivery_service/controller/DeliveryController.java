@@ -33,7 +33,8 @@ public class DeliveryController {
             @Valid @RequestBody AcceptDeliveryRequest request,
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireActor(actor);
-        DeliveryResponse response = deliveryService.acceptDelivery(request, actor.getUserId(), getRoleString(actor));
+        DeliveryResponse response = deliveryService.acceptDelivery(
+                request, actor.getPrincipalId(), actor.getLegacyUserId(), getRoleString(actor));
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Nhận đơn hàng thành công"));
     }
 
@@ -43,7 +44,7 @@ public class DeliveryController {
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireActor(actor);
         DeliveryResponse response = deliveryService.cancelAssignedDelivery(
-                request.getOrderId(), actor.getUserId(), getRoleString(actor), request.getReason());
+                request.getOrderId(), actor.getPrincipalId(), actor.getLegacyUserId(), getRoleString(actor), request.getReason());
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Đã huỷ đơn, đang tìm shipper mới"));
     }
 
@@ -51,7 +52,8 @@ public class DeliveryController {
     public ResponseEntity<BaseResponse<DeliveryOfferResponse>> getCurrentOffer(
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireActor(actor);
-        DeliveryOfferResponse response = deliveryService.getCurrentOffer(actor.getUserId(), getRoleString(actor));
+        DeliveryOfferResponse response = deliveryService.getCurrentOffer(
+                actor.getPrincipalId(), actor.getLegacyUserId(), getRoleString(actor));
         return ResponseEntity.ok(new BaseResponse<>(1, response,
                 response == null ? "Không có offer đang hoạt động" : "Lấy offer hiện tại thành công"));
     }
@@ -61,7 +63,8 @@ public class DeliveryController {
             @PathVariable Long id,
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireActor(actor);
-        DeliveryResponse response = deliveryService.getDeliveryById(id, actor.getUserId(), getRoleString(actor));
+        DeliveryResponse response = deliveryService.getDeliveryById(
+                id, actor.getPrincipalId(), actor.getLegacyUserId(), getRoleString(actor));
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Lấy thông tin delivery thành công"));
     }
 
@@ -71,7 +74,8 @@ public class DeliveryController {
             @RequestParam DeliveryStatus status,
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireActor(actor);
-        DeliveryResponse response = deliveryService.updateDeliveryStatus(id, status, actor.getUserId(), getRoleString(actor));
+        DeliveryResponse response = deliveryService.updateDeliveryStatus(
+                id, status, actor.getPrincipalId(), actor.getLegacyUserId(), getRoleString(actor));
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Cập nhật trạng thái delivery thành công"));
     }
 
@@ -80,7 +84,8 @@ public class DeliveryController {
             @PathVariable Long shipperId,
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireActor(actor);
-        List<DeliveryResponse> response = deliveryService.getDeliveriesByShipper(shipperId, actor.getUserId(), getRoleString(actor));
+        List<DeliveryResponse> response = deliveryService.getDeliveriesByShipper(
+                shipperId, actor.getPrincipalId(), actor.getLegacyUserId(), getRoleString(actor));
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Lấy danh sách delivery của shipper thành công"));
     }
 
@@ -89,7 +94,8 @@ public class DeliveryController {
             @PathVariable Long shipperId,
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireActor(actor);
-        List<DeliveryResponse> response = deliveryService.getActiveDeliveriesByShipper(shipperId, actor.getUserId(), getRoleString(actor));
+        List<DeliveryResponse> response = deliveryService.getActiveDeliveriesByShipper(
+                shipperId, actor.getPrincipalId(), actor.getLegacyUserId(), getRoleString(actor));
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Lấy danh sách delivery đang hoạt động thành công"));
     }
 
@@ -98,12 +104,13 @@ public class DeliveryController {
             @PathVariable Long orderId,
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireActor(actor);
-        DeliveryResponse response = deliveryService.getDeliveryByOrderId(orderId, actor.getUserId(), getRoleString(actor));
+        DeliveryResponse response = deliveryService.getDeliveryByOrderId(
+                orderId, actor.getPrincipalId(), actor.getLegacyUserId(), getRoleString(actor));
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Lấy thông tin delivery theo order thành công"));
     }
 
     private void requireActor(AuthenticatedActor actor) {
-        if (actor == null || actor.getUserId() == null) {
+        if (actor == null || actor.getPrincipalId() == null || actor.getLegacyUserId() == null) {
             throw new AccessDeniedException("Yêu cầu đăng nhập");
         }
     }

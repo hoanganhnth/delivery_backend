@@ -23,8 +23,39 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
 
     List<Notification> findByUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable);
 
+    List<Notification> findByUserPrincipalIdOrderByCreatedAtDesc(Long principalId, Pageable pageable);
+
+    @Query("select n from Notification n where n.userPrincipalId = :principalId "
+            + "or (n.userPrincipalId is null and n.userId = :legacyUserId) order by n.createdAt desc")
+    List<Notification> findByPrincipalOrUnmigratedLegacyUser(
+            @Param("principalId") Long principalId, @Param("legacyUserId") Long legacyUserId, Pageable pageable);
+
     List<Notification> findByUserIdAndIsReadOrderByCreatedAtDesc(
             Long userId, Boolean isRead, Pageable pageable);
+
+    List<Notification> findByUserPrincipalIdAndIsReadOrderByCreatedAtDesc(
+            Long principalId, Boolean isRead, Pageable pageable);
+
+    long countByUserPrincipalIdAndIsRead(Long principalId, Boolean isRead);
+
+    Optional<Notification> findByIdAndUserPrincipalId(Long id, Long principalId);
+
+    @Query("select n from Notification n where (n.userPrincipalId = :principalId "
+            + "or (n.userPrincipalId is null and n.userId = :legacyUserId)) and n.isRead = :isRead order by n.createdAt desc")
+    List<Notification> findUnreadByPrincipalOrUnmigratedLegacyUser(
+            @Param("principalId") Long principalId, @Param("legacyUserId") Long legacyUserId,
+            @Param("isRead") Boolean isRead, Pageable pageable);
+
+    @Query("select count(n) from Notification n where (n.userPrincipalId = :principalId "
+            + "or (n.userPrincipalId is null and n.userId = :legacyUserId)) and n.isRead = :isRead")
+    long countByPrincipalOrUnmigratedLegacyUserAndIsRead(
+            @Param("principalId") Long principalId, @Param("legacyUserId") Long legacyUserId,
+            @Param("isRead") Boolean isRead);
+
+    @Query("select n from Notification n where n.id = :id and (n.userPrincipalId = :principalId "
+            + "or (n.userPrincipalId is null and n.userId = :legacyUserId))")
+    Optional<Notification> findByIdAndPrincipalOrUnmigratedLegacyUser(
+            @Param("id") Long id, @Param("principalId") Long principalId, @Param("legacyUserId") Long legacyUserId);
     
     @Modifying
     @Query("UPDATE Notification n SET n.isRead = true, n.readAt = :readAt "
@@ -51,17 +82,18 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     @Query(value = """
             INSERT INTO notifications (
-                user_id, title, message, type, priority, status, is_read,
+                user_id, user_principal_id, title, message, type, priority, status, is_read,
                 related_entity_id, related_entity_type, data,
                 deduplication_key, created_at, updated_at
             ) VALUES (
-                :userId, :title, :message, :type, :priority, :status, :isRead,
+                :userId, :userPrincipalId, :title, :message, :type, :priority, :status, :isRead,
                 :relatedEntityId, :relatedEntityType, :data,
                 :deduplicationKey, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
             ) ON CONFLICT (deduplication_key) DO NOTHING
             """, nativeQuery = true)
     int insertIfAbsentPostgres(
             @Param("userId") Long userId,
+            @Param("userPrincipalId") Long userPrincipalId,
             @Param("title") String title,
             @Param("message") String message,
             @Param("type") String type,
@@ -78,11 +110,11 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     @Query(value = """
             INSERT INTO notifications (
-                user_id, title, message, type, priority, status, is_read,
+                user_id, user_principal_id, title, message, type, priority, status, is_read,
                 related_entity_id, related_entity_type, data,
                 deduplication_key, created_at, updated_at
             ) SELECT
-                :userId, :title, :message, :type, :priority, :status, :isRead,
+                :userId, :userPrincipalId, :title, :message, :type, :priority, :status, :isRead,
                 :relatedEntityId, :relatedEntityType, :data,
                 :deduplicationKey, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
             WHERE NOT EXISTS (
@@ -91,6 +123,7 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
             """, nativeQuery = true)
     int insertIfAbsentH2(
             @Param("userId") Long userId,
+            @Param("userPrincipalId") Long userPrincipalId,
             @Param("title") String title,
             @Param("message") String message,
             @Param("type") String type,

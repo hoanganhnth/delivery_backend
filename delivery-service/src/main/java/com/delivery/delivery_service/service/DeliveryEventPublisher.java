@@ -3,6 +3,8 @@ package com.delivery.delivery_service.service;
 import com.delivery.delivery_service.common.constants.KafkaTopicConstants;
 import com.delivery.delivery_service.dto.event.ShipperAcceptedEvent;
 import com.delivery.delivery_service.dto.event.DeliveryCompletedEvent;
+import com.delivery.delivery_service.dto.event.OfferPersistedEvent;
+import com.delivery.delivery_service.dto.event.OfferRetiredEvent;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -10,6 +12,8 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
+import java.nio.charset.StandardCharsets;
+import java.util.UUID;
 
 /**
  * ✅ Event Publisher — Transactional Outbox Pattern
@@ -31,6 +35,10 @@ public class DeliveryEventPublisher {
     private String deliveryCompletedTopic = KafkaTopicConstants.DELIVERY_COMPLETED_TOPIC;
     @Value("${app.kafka.topics.shipper-status-change:shipper.status-change}")
     private String shipperStatusChangeTopic = KafkaTopicConstants.SHIPPER_STATUS_CHANGE_TOPIC;
+    @Value("${app.kafka.topics.offer-persisted:delivery.offer-persisted}")
+    private String offerPersistedTopic = KafkaTopicConstants.OFFER_PERSISTED_TOPIC;
+    @Value("${app.kafka.topics.offer-retired:delivery.offer-retired}")
+    private String offerRetiredTopic = KafkaTopicConstants.OFFER_RETIRED_TOPIC;
 
     public DeliveryEventPublisher(OutboxService outboxService) {
         this.outboxService = outboxService;
@@ -49,16 +57,22 @@ public class DeliveryEventPublisher {
     /**
      * Gửi delivery status update event
      */
-    public void publishDeliveryStatusUpdated(Long deliveryId, Long orderId, Long userId, Long shipperId,
+    public void publishDeliveryStatusUpdated(Long deliveryId, Long orderId, Long userId, Long userPrincipalId, Long shipperId,
                                              String status, String previousStatus) {
         log.info("📦 [Kafka] Sending delivery status update: {} -> {} for delivery: {}, order: {}",
                 previousStatus, status, deliveryId, orderId);
 
         DeliveryStatusUpdateEvent statusEvent = new DeliveryStatusUpdateEvent(
-                deliveryId, orderId, userId, shipperId, status, previousStatus
+                deliveryId, orderId, userId, userPrincipalId, shipperId, status, previousStatus
         );
 
         save(deliveryId, "DELIVERY_STATUS_UPDATED", deliveryStatusUpdatedTopic, statusEvent);
+    }
+
+    /** Source-compatible adapter for legacy callers while producers migrate principal identity. */
+    public void publishDeliveryStatusUpdated(Long deliveryId, Long orderId, Long userId, Long shipperId,
+                                             String status, String previousStatus) {
+        publishDeliveryStatusUpdated(deliveryId, orderId, userId, null, shipperId, status, previousStatus);
     }
 
     /**
@@ -68,6 +82,7 @@ public class DeliveryEventPublisher {
         public final Long deliveryId;
         public final Long orderId;
         public final Long userId;
+        public final Long userPrincipalId;
         public final Long shipperId;
         public final String status;
         public final String newStatus;
@@ -75,11 +90,12 @@ public class DeliveryEventPublisher {
         public final String eventType = "DELIVERY_STATUS_UPDATED";
         public final LocalDateTime timestamp = LocalDateTime.now();
 
-        public DeliveryStatusUpdateEvent(Long deliveryId, Long orderId, Long userId, Long shipperId,
+        public DeliveryStatusUpdateEvent(Long deliveryId, Long orderId, Long userId, Long userPrincipalId, Long shipperId,
                                          String newStatus, String oldStatus) {
             this.deliveryId = deliveryId;
             this.orderId = orderId;
             this.userId = userId;
+            this.userPrincipalId = userPrincipalId;
             this.shipperId = shipperId;
             this.status = newStatus;
             this.newStatus = newStatus;
@@ -111,6 +127,23 @@ public class DeliveryEventPublisher {
 
         outboxService.saveEvent("DELIVERY", deliveryId.toString(), "SHIPPER_STATUS_CHANGE",
                 shipperStatusChangeTopic, shipperId.toString(), event);
+    }
+
+    public void publishOfferPersisted(OfferPersistedEvent event) {
+        UUID eventId = derivedEventId("delivery.offer-persisted", event.getSourceCommandEventId());
+        outboxService.saveEvent(eventId, "DELIVERY", event.getDeliveryId().toString(), "OFFER_PERSISTED",
+                offerPersistedTopic, event.getOrderId().toString(), event);
+    }
+
+    public void publishOfferRetired(OfferRetiredEvent event) {
+        UUID eventId = derivedEventId("delivery.offer-retired", event.getSourceCommandEventId());
+        outboxService.saveEvent(eventId, "DELIVERY", event.getDeliveryId().toString(), "OFFER_RETIRED",
+                offerRetiredTopic, event.getOrderId().toString(), event);
+    }
+
+    private UUID derivedEventId(String type, UUID sourceCommandEventId) {
+        if (sourceCommandEventId == null) throw new IllegalArgumentException("sourceCommandEventId is required");
+        return UUID.nameUUIDFromBytes((type + ":" + sourceCommandEventId).getBytes(StandardCharsets.UTF_8));
     }
 
     private void save(Long deliveryId, String eventType, String topic, Object event) {

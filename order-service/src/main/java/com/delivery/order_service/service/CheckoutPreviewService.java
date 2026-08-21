@@ -55,7 +55,7 @@ public class CheckoutPreviewService {
      * 5. Trả về breakdown chi tiết
      */
     @SuppressWarnings("unchecked")
-    public CheckoutPreviewResponse calculatePreview(CheckoutPreviewRequest request, Long userId) {
+    public CheckoutPreviewResponse calculatePreview(CheckoutPreviewRequest request, Long principalId, Long userId) {
         log.info("📋 Calculating checkout preview for user={}, restaurant={}", userId, request.getRestaurantId());
 
         // COD MVP does not expose discount calculation or voucher reservation.
@@ -161,7 +161,7 @@ public class CheckoutPreviewService {
 
         // 5. Discount remains zero because coupon input was rejected at the boundary.
         BigDecimal discountAmount = request.getVoucherId() == null ? BigDecimal.ZERO
-                : reservationClient.quoteVoucher(userId, request.getVoucherId(), request.getRestaurantId(),
+                : quoteVoucher(userId, principalId, request.getVoucherId(), request.getRestaurantId(),
                         subtotal, shippingFee).discountAmount();
         if (discountAmount.signum() < 0 || discountAmount.compareTo(subtotal.add(shippingFee)) > 0)
             throw new ValidationException("Voucher quote returned an invalid discount");
@@ -185,6 +185,25 @@ public class CheckoutPreviewService {
                 .priceChanges(priceChanges)
                 .unavailableItemIds(unavailableIds)
                 .build();
+    }
+
+    /** Compatibility rail for existing callers/tests while JWT subject is still legacy profile ID. */
+    public CheckoutPreviewResponse calculatePreview(CheckoutPreviewRequest request, Long userId) {
+        return calculatePreview(request, userId, userId);
+    }
+
+    /**
+     * Keep the legacy internal reservation contract available while identity
+     * migration is in compatibility mode. Once principal and legacy IDs
+     * differ, include the stable principal in the reservation request.
+     */
+    private CheckoutReservationClient.VoucherQuote quoteVoucher(
+            Long userId, Long principalId, Long voucherId, Long restaurantId,
+            BigDecimal subtotal, BigDecimal shippingFee) {
+        if (principalId == null || java.util.Objects.equals(principalId, userId)) {
+            return reservationClient.quoteVoucher(userId, voucherId, restaurantId, subtotal, shippingFee);
+        }
+        return reservationClient.quoteVoucher(userId, principalId, voucherId, restaurantId, subtotal, shippingFee);
     }
 
     // ────────────────── Private helpers ──────────────────

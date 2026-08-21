@@ -15,4 +15,9 @@ public class BusinessMetrics {
     public void kafka(String event) {
         Counter.builder("delivery.kafka.events").tag("event", event).register(registry).increment();
     }
+    /** Records use of a bounded, temporary legacy ownership compatibility path. */
+    public void identityLegacyFallback(String surface) {
+        Counter.builder("delivery.identity.legacy.fallback")
+                .tag("service", "delivery").tag("surface", surface).register(registry).increment();
+    }
 }

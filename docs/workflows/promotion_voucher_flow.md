@@ -33,6 +33,13 @@ COMMITTED -> RELEASED   (compensation before fulfilment only)
 ```
 
 `voucher_reservations.reservation_id` is the stable request identity and
+`user_principal_id` is the additive stable Auth identity for reservations;
+`user_id` remains the legacy voucher-wallet compatibility key during migration.
+`user_vouchers.user_principal_id` is also dual-written for new collection rows.
+Wallet reads/locks are principal-first and include only a matching legacy row
+whose principal is still null; a locked legacy row is lazily backfilled after
+the request proves both principal and legacy profile identity. No cross-service
+bulk backfill guesses principal IDs.
 `order_id` is unique. Reserve locks both wallet and voucher rows, validates the
 whole fingerprint, increments capacity once, marks the wallet `RESERVED`, and
 writes the reservation plus deterministic outbox event in one transaction.

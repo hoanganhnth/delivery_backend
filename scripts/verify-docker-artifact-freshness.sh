@@ -27,11 +27,22 @@ printf '%s\n' 'package example; final class Fixture {}' \
   > "$WORK_DIR/fixture/src/main/java/example/Fixture.java"
 printf '%s\n' 'fixture artifact' > "$WORK_DIR/fixture/target/fixture.jar"
 
+write_manifest() {
+  {
+    shasum -a 256 "$WORK_DIR/pom.xml" "$WORK_DIR/fixture/pom.xml"
+    find "$WORK_DIR/fixture/src" -type f -print | LC_ALL=C sort | while IFS= read -r file; do
+      shasum -a 256 "$file"
+    done
+  } | awk '{print $1}' | shasum -a 256 | awk '{print $1}' \
+    > "$WORK_DIR/fixture/target/.docker-artifact-input.sha256"
+}
+
 # Establish deterministic ordering independent of filesystem timestamp precision.
 touch -t 202601010100 "$WORK_DIR/pom.xml" \
   "$WORK_DIR/fixture/pom.xml" \
   "$WORK_DIR/fixture/src/main/java/example/Fixture.java"
 touch -t 202601010101 "$WORK_DIR/fixture/target/fixture.jar"
+write_manifest
 
 docker build --quiet --tag "$IMAGE_TAG" --build-arg SERVICE_PATH=fixture \
   --file "$WORK_DIR/Dockerfile" "$WORK_DIR" >/dev/null
@@ -47,12 +58,12 @@ if docker build --tag "$IMAGE_TAG" --build-arg SERVICE_PATH=fixture \
   exit 1
 fi
 
-if ! grep -Fq 'is stale (newer input:' "$WORK_DIR/stale-build.log" \
-    || ! grep -Fq 'run Maven package first' "$WORK_DIR/stale-build.log"; then
+if ! grep -Fq 'is stale (input checksum changed)' "$WORK_DIR/stale-build.log" \
+    || ! grep -Fq 'run scripts/package-compose-services.sh first' "$WORK_DIR/stale-build.log"; then
   printf '%s\n' "Stale build failed without the expected operator guidance." >&2
   sed -n '1,160p' "$WORK_DIR/stale-build.log" >&2
   exit 1
 fi
 
 printf '%s\n' \
-  "Docker artifact freshness proof passed: fresh JAR accepted, stale JAR rejected."
+  "Docker artifact freshness proof passed: fresh manifest accepted, stale input rejected."

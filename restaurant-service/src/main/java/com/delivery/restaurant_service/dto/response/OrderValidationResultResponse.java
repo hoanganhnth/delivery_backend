@@ -41,6 +41,7 @@ public class OrderValidationResultResponse {
     public static class RestaurantInfo {
         private Long restaurantId;
         private Long creatorId;
+        private Long ownerPrincipalId;
         private String restaurantName;
         private String restaurantAddress;
         private String restaurantPhone;
