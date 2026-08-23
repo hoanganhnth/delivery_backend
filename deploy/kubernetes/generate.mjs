@@ -44,6 +44,7 @@ const services = [
   { id: 'notification-service', port: 8091, database: 'notification_service_db', internal: true },
   { id: 'match-service', port: 8092, database: 'match_db', internal: true },
   { id: 'tracking-service', port: 8093, database: 'tracking_db', internal: true },
+  { id: 'routing-service', port: 8094, internal: true },
   { id: 'livestream-service', port: 8094, database: 'livestream_db' },
   { id: 'saga-orchestrator-service', port: 8095, database: 'saga_db' },
   { id: 'promotion-service', port: 8096, database: 'promotion_db', internal: true },

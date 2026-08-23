@@ -55,6 +55,8 @@ public class DeliveryServiceImpl implements DeliveryService {
     private final ShipperIdentityProjectionRepository shipperIdentities;
     private final boolean shipperIdentityProjectionEnforced;
     private final DeliveryOfferSessionTombstoneRepository offerSessionTombstones;
+    private final com.delivery.delivery_service.service.DeliveryBatchProgressService batchProgressService;
+    private final com.delivery.delivery_service.service.DeliveryBatchLifecycleService batchLifecycleService;
 
     /** Compatibility constructor for direct fixtures; Spring uses the full production constructor below. */
     public DeliveryServiceImpl(DeliveryRepository deliveryRepository,
@@ -62,7 +64,8 @@ public class DeliveryServiceImpl implements DeliveryService {
             DeliveryEventPublisher deliveryEventPublisher,
             com.delivery.delivery_service.service.OutboxService outboxService,
             BusinessMetrics businessMetrics) {
-        this(deliveryRepository, deliveryMapper, deliveryEventPublisher, outboxService, businessMetrics, null, false, null);
+        this(deliveryRepository, deliveryMapper, deliveryEventPublisher, outboxService, businessMetrics,
+                null, false, null, null, null);
     }
 
     @Autowired
@@ -73,7 +76,9 @@ public class DeliveryServiceImpl implements DeliveryService {
             BusinessMetrics businessMetrics,
             ShipperIdentityProjectionRepository shipperIdentities,
             @Value("${app.shipper.identity-projection.enforced:false}") boolean shipperIdentityProjectionEnforced,
-            DeliveryOfferSessionTombstoneRepository offerSessionTombstones) {
+            DeliveryOfferSessionTombstoneRepository offerSessionTombstones,
+            com.delivery.delivery_service.service.DeliveryBatchProgressService batchProgressService,
+            com.delivery.delivery_service.service.DeliveryBatchLifecycleService batchLifecycleService) {
         this.deliveryRepository = deliveryRepository;
         this.deliveryMapper = deliveryMapper;
         this.deliveryEventPublisher = deliveryEventPublisher;
@@ -82,6 +87,8 @@ public class DeliveryServiceImpl implements DeliveryService {
         this.shipperIdentities = shipperIdentities;
         this.shipperIdentityProjectionEnforced = shipperIdentityProjectionEnforced;
         this.offerSessionTombstones = offerSessionTombstones;
+        this.batchProgressService = batchProgressService;
+        this.batchLifecycleService = batchLifecycleService;
     }
 
     @Override
@@ -122,6 +129,17 @@ public class DeliveryServiceImpl implements DeliveryService {
             // Shipping fee is server-owned by Order and validated at the Kafka boundary.
             // Delivery must never invent a financial fallback.
             delivery.setShippingFee(event.getShippingFee());
+            delivery.setGrossShippingFee(event.getGrossShippingFee() == null
+                    ? event.getShippingFee() : event.getGrossShippingFee());
+            delivery.setCustomerShippingFee(event.getCustomerShippingFee() == null
+                    ? event.getShippingFee() : event.getCustomerShippingFee());
+            delivery.setSubtotalPrice(event.getSubtotalPrice());
+            delivery.setItemDiscount(event.getItemDiscount() == null ? event.getDiscountAmount() : event.getItemDiscount());
+            delivery.setShopDiscount(event.getShopDiscount() == null ? event.getDiscountAmount() : event.getShopDiscount());
+            delivery.setShippingDiscount(event.getShippingDiscount());
+            delivery.setPlatformSubsidy(event.getPlatformSubsidy());
+            delivery.setPromotionReservationId(event.getPromotionReservationId());
+            delivery.setPromotionBreakdown(serializeBreakdown(event.getAppliedVouchers()));
 
             // ✅ Set COD info (tổng tiền khách trả + phương thức thanh toán)
             delivery.setTotalPrice(event.getTotalPrice());
@@ -199,6 +217,9 @@ public class DeliveryServiceImpl implements DeliveryService {
                 && Objects.equals(existing.getDeliveryLng(), event.getDeliveryLng())
                 && sameAmount(existing.getShippingFee(), event.getShippingFee())
                 && sameAmount(existing.getTotalPrice(), event.getTotalPrice())
+                && sameAmount(existing.getGrossShippingFee(), event.getGrossShippingFee() == null
+                        ? event.getShippingFee() : event.getGrossShippingFee())
+                && Objects.equals(existing.getPromotionReservationId(), event.getPromotionReservationId())
                 && Objects.equals(existing.getPaymentMethod(), event.getPaymentMethod());
         if (!matches) {
             throw new InvalidStatusException("Create-delivery replay conflicts with existing delivery "
@@ -582,6 +603,15 @@ public class DeliveryServiceImpl implements DeliveryService {
             return deliveryMapper.deliveryToDeliveryResponse(delivery);
         }
 
+        if (delivery.getBatchId() != null && DeliveryStatus.ASSIGNED.equals(delivery.getStatus())) {
+            if (batchLifecycleService == null) {
+                throw new InvalidStatusException("Batch cancellation support is unavailable");
+            }
+            Delivery cancelled = batchLifecycleService.cancelAcceptedBatch(
+                    delivery.getBatchId(), shipperId, cancelNote);
+            return deliveryMapper.deliveryToDeliveryResponse(cancelled);
+        }
+
         // ✅ Chỉ shipper đang được gán mới được huỷ
         if (delivery.getShipperId() == null || !delivery.getShipperId().equals(shipperId)) {
             throw new AccessDeniedException("Bạn không phải shipper được gán cho đơn này");
@@ -608,8 +638,13 @@ public class DeliveryServiceImpl implements DeliveryService {
         Delivery savedDelivery = deliveryRepository.save(delivery);
 
         // ✅ Giải phóng shipper (đánh dấu rảnh)
-        deliveryEventPublisher.publishShipperStatusChange(
-                shipperId, "AVAILABLE", savedDelivery.getId(), savedDelivery.getOrderId());
+        if (savedDelivery.getBatchId() == null) {
+            deliveryEventPublisher.publishShipperStatusChange(
+                    shipperId, "AVAILABLE", savedDelivery.getId(), savedDelivery.getOrderId());
+        } else {
+            deliveryEventPublisher.publishShipperStatusChange(
+                    shipperId, "AVAILABLE", savedDelivery.getId(), savedDelivery.getOrderId(), savedDelivery.getBatchId());
+        }
 
         // ✅ Re-trigger tìm shipper mới qua CÙNG cơ chế rematch của Saga
         //    (Saga sẽ gom rejectedShipperId vào excludedShipperIds + áp giới hạn số lần).
@@ -692,11 +727,29 @@ public class DeliveryServiceImpl implements DeliveryService {
         applyShipperStatusTransition(delivery, status);
 
         Delivery updatedDelivery = deliveryRepository.save(delivery);
+        boolean batchCompleted = batchProgressService == null
+                || batchProgressService.apply(updatedDelivery, status);
+        if (status == DeliveryStatus.DELIVERED && updatedDelivery.getShipperId() != null && batchCompleted) {
+            if (updatedDelivery.getBatchId() == null) {
+                deliveryEventPublisher.publishShipperStatusChange(
+                        updatedDelivery.getShipperId(), "AVAILABLE", updatedDelivery.getId(), updatedDelivery.getOrderId());
+            } else {
+                deliveryEventPublisher.publishShipperStatusChange(
+                        updatedDelivery.getShipperId(), "AVAILABLE", updatedDelivery.getId(),
+                        updatedDelivery.getOrderId(), updatedDelivery.getBatchId());
+            }
+        }
 
         // ✅ Publish delivery status update event với orderId
-        deliveryEventPublisher.publishDeliveryStatusUpdated(
-                deliveryId, delivery.getOrderId(), delivery.getCreatorId(), delivery.getCustomerPrincipalId(), delivery.getShipperId(),
-                status.name(), oldStatus);
+        if (delivery.getCustomerPrincipalId() == null) {
+            deliveryEventPublisher.publishDeliveryStatusUpdated(
+                    deliveryId, delivery.getOrderId(), delivery.getCreatorId(), delivery.getShipperId(),
+                    status.name(), oldStatus);
+        } else {
+            deliveryEventPublisher.publishDeliveryStatusUpdated(
+                    deliveryId, delivery.getOrderId(), delivery.getCreatorId(), delivery.getCustomerPrincipalId(),
+                    delivery.getShipperId(), status.name(), oldStatus);
+        }
 
         DeliveryResponse response = deliveryMapper.deliveryToDeliveryResponse(updatedDelivery);
 
@@ -917,11 +970,6 @@ public class DeliveryServiceImpl implements DeliveryService {
                 // ✅ Publish DeliveryCompletedEvent để tự động cộng tiền cho shipper
                 publishDeliveryCompletedEvent(delivery);
 
-                // ✅ Publish event đánh dấu shipper rảnh (thay thế REST call)
-                if (delivery.getShipperId() != null) {
-                    deliveryEventPublisher.publishShipperStatusChange(
-                            delivery.getShipperId(), "AVAILABLE", delivery.getId(), delivery.getOrderId());
-                }
                 break;
             case DELIVERING:
                 // Không cần cập nhật timestamp đặc biệt
@@ -983,19 +1031,23 @@ public class DeliveryServiceImpl implements DeliveryService {
                 throw new IllegalStateException("Completed delivery has invalid canonical totals");
             }
 
-            // ✅ 1. Tính toán phần Shipper (từ Phí Ship)
+            BigDecimal grossShippingFee = delivery.getGrossShippingFee() == null
+                    ? delivery.getShippingFee() : delivery.getGrossShippingFee();
+            // ✅ 1. Shipper and shipping commission use gross shipping. A
+            // freeship subsidy changes only the customer's payable amount.
             // Phí ship: 85% cho Shipper, 15% cho Platform
             java.math.BigDecimal shipperEarnings = com.delivery.delivery_service.common.constants.PricingConstants
-                    .calculateShipperEarnings(delivery.getShippingFee());
+                    .calculateShipperEarnings(grossShippingFee);
             java.math.BigDecimal shippingCommission = com.delivery.delivery_service.common.constants.PricingConstants
-                    .calculatePlatformCommission(delivery.getShippingFee());
+                    .calculatePlatformCommission(grossShippingFee);
 
-            // ✅ 2. Tính toán phần Nhà hàng (từ Giá món ăn)
-            // foodPrice = totalPrice - shippingFee
-            java.math.BigDecimal foodPrice = java.math.BigDecimal.ZERO;
-            if (delivery.getTotalPrice() != null && delivery.getShippingFee() != null) {
-                foodPrice = delivery.getTotalPrice().subtract(delivery.getShippingFee());
-            }
+            // ✅ 2. Restaurant commission excludes only shop-funded discount.
+            // Platform discount/freeship is a platform subsidy and must not
+            // reduce the restaurant's commission base.
+            java.math.BigDecimal foodPrice = delivery.getSubtotalPrice() == null
+                    ? delivery.getTotalPrice().subtract(grossShippingFee)
+                    : delivery.getSubtotalPrice().subtract(
+                            delivery.getShopDiscount() == null ? BigDecimal.ZERO : delivery.getShopDiscount());
 
             // Hoa hồng từ nhà hàng (ví dụ 20% giá món)
             java.math.BigDecimal restaurantCommission = foodPrice
@@ -1016,7 +1068,13 @@ public class DeliveryServiceImpl implements DeliveryService {
                     .orderId(delivery.getOrderId())
                     .shipperId(delivery.getShipperId())
                     .restaurantId(delivery.getRestaurantId())
-                    .shippingFee(delivery.getShippingFee())
+                    .shippingFee(grossShippingFee)
+                    .grossShippingFee(grossShippingFee)
+                    .customerShippingFee(delivery.getCustomerShippingFee())
+                    .subtotalPrice(delivery.getSubtotalPrice())
+                    .shopDiscount(delivery.getShopDiscount())
+                    .platformSubsidy(delivery.getPlatformSubsidy())
+                    .shippingDiscount(delivery.getShippingDiscount())
                     .totalPrice(delivery.getTotalPrice())
                     .shipperEarnings(shipperEarnings)
                     .restaurantEarnings(restaurantEarnings)
@@ -1043,6 +1101,15 @@ public class DeliveryServiceImpl implements DeliveryService {
 
     private boolean positive(Long value) {
         return value != null && value > 0;
+    }
+
+    private String serializeBreakdown(java.util.List<java.util.Map<String, Object>> lines) {
+        if (lines == null || lines.isEmpty()) return null;
+        try {
+            return new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(lines);
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     private void validateCreateDeliveryEvent(OrderCreatedEvent event) {
@@ -1140,8 +1207,13 @@ public class DeliveryServiceImpl implements DeliveryService {
 
                 // ✅ Publish event đánh dấu shipper rảnh (thay thế REST call)
                 if (delivery.getShipperId() != null) {
-                    deliveryEventPublisher.publishShipperStatusChange(
-                            delivery.getShipperId(), "AVAILABLE", delivery.getId(), delivery.getOrderId());
+                    if (delivery.getBatchId() == null) {
+                        deliveryEventPublisher.publishShipperStatusChange(
+                                delivery.getShipperId(), "AVAILABLE", delivery.getId(), delivery.getOrderId());
+                    } else {
+                        deliveryEventPublisher.publishShipperStatusChange(
+                                delivery.getShipperId(), "AVAILABLE", delivery.getId(), delivery.getOrderId(), delivery.getBatchId());
+                    }
                 }
 
                 // This is the durable acknowledgement that allows Saga to
@@ -1149,9 +1221,15 @@ public class DeliveryServiceImpl implements DeliveryService {
                 // transaction as the Delivery state transition, so a crash
                 // cannot leave a committed cancellation without an eventual
                 // confirmation event.
-                deliveryEventPublisher.publishDeliveryStatusUpdated(
-                        delivery.getId(), delivery.getOrderId(), delivery.getCreatorId(), delivery.getCustomerPrincipalId(), delivery.getShipperId(),
-                        DeliveryStatus.CANCELLED.name(), previousStatus.name());
+                if (delivery.getCustomerPrincipalId() == null) {
+                    deliveryEventPublisher.publishDeliveryStatusUpdated(
+                            delivery.getId(), delivery.getOrderId(), delivery.getCreatorId(), delivery.getShipperId(),
+                            DeliveryStatus.CANCELLED.name(), previousStatus.name());
+                } else {
+                    deliveryEventPublisher.publishDeliveryStatusUpdated(
+                            delivery.getId(), delivery.getOrderId(), delivery.getCreatorId(), delivery.getCustomerPrincipalId(),
+                            delivery.getShipperId(), DeliveryStatus.CANCELLED.name(), previousStatus.name());
+                }
 
                 log.info("✅ Successfully cancelled delivery {} for order: {}",
                         delivery.getId(), event.getOrderId());
@@ -1224,9 +1302,15 @@ public class DeliveryServiceImpl implements DeliveryService {
             // Notification consumes the canonical delivery.status-updated topic.
             // Persist this event in the same transaction as the terminal status so
             // the customer is notified without introducing a second notification path.
-            deliveryEventPublisher.publishDeliveryStatusUpdated(
-                    delivery.getId(), delivery.getOrderId(), delivery.getCreatorId(), delivery.getCustomerPrincipalId(), delivery.getShipperId(),
-                    DeliveryStatus.SHIPPER_NOT_FOUND.name(), previousStatus.name());
+            if (delivery.getCustomerPrincipalId() == null) {
+                deliveryEventPublisher.publishDeliveryStatusUpdated(
+                        delivery.getId(), delivery.getOrderId(), delivery.getCreatorId(), delivery.getShipperId(),
+                        DeliveryStatus.SHIPPER_NOT_FOUND.name(), previousStatus.name());
+            } else {
+                deliveryEventPublisher.publishDeliveryStatusUpdated(
+                        delivery.getId(), delivery.getOrderId(), delivery.getCreatorId(), delivery.getCustomerPrincipalId(),
+                        delivery.getShipperId(), DeliveryStatus.SHIPPER_NOT_FOUND.name(), previousStatus.name());
+            }
 
             log.info("✅ Updated delivery {} status from {} to SHIPPER_NOT_FOUND after {} retry attempts",
                     delivery.getId(), previousStatus, event.getRetryAttempts());

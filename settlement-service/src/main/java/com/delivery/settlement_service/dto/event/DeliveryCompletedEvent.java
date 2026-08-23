@@ -31,6 +31,12 @@ public class DeliveryCompletedEvent {
     private BigDecimal shippingCommission;
     private BigDecimal totalPlatformEarnings;
     private BigDecimal shippingFee;
+    private BigDecimal grossShippingFee;
+    private BigDecimal customerShippingFee;
+    private BigDecimal subtotalPrice;
+    private BigDecimal shopDiscount;
+    private BigDecimal platformSubsidy;
+    private BigDecimal shippingDiscount;
     private BigDecimal totalPrice;
     private LocalDateTime deliveredAt;
     private String deliveryAddress;

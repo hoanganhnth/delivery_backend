@@ -26,6 +26,17 @@ public class Delivery {
     @Column(name = "shipper_id")
     private Long shipperId; // nullable - sẽ được set khi assign shipper
 
+    /**
+     * Nullable compatibility projection. A non-null value means this delivery
+     * belongs to a multi-order batch; the DeliveryBatch aggregate remains the
+     * authority for batch assignment and route state.
+     */
+    @Column(name = "batch_id")
+    private UUID batchId;
+
+    @Column(name = "batch_sequence")
+    private Integer batchSequence;
+
     @Column(name = "offered_shipper_id")
     private Long offeredShipperId;
 
@@ -80,6 +91,33 @@ public class Delivery {
 
     @Column(name = "total_price", precision = 12, scale = 2)
     private java.math.BigDecimal totalPrice; // Tổng tiền khách phải trả (COD thu hộ)
+
+    @Column(name = "subtotal_price", precision = 12, scale = 2)
+    private java.math.BigDecimal subtotalPrice;
+
+    @Column(name = "item_discount", precision = 12, scale = 2)
+    private java.math.BigDecimal itemDiscount;
+
+    @Column(name = "shop_discount", precision = 12, scale = 2)
+    private java.math.BigDecimal shopDiscount;
+
+    @Column(name = "shipping_discount", precision = 12, scale = 2)
+    private java.math.BigDecimal shippingDiscount;
+
+    @Column(name = "customer_shipping_fee", precision = 12, scale = 2)
+    private java.math.BigDecimal customerShippingFee;
+
+    @Column(name = "gross_shipping_fee", precision = 12, scale = 2)
+    private java.math.BigDecimal grossShippingFee;
+
+    @Column(name = "platform_subsidy", precision = 12, scale = 2)
+    private java.math.BigDecimal platformSubsidy;
+
+    @Column(name = "promotion_reservation_id", unique = true)
+    private UUID promotionReservationId;
+
+    @Column(name = "promotion_breakdown", columnDefinition = "TEXT")
+    private String promotionBreakdown;
 
     @Column(name = "payment_method")
     private String paymentMethod; // Phương thức thanh toán (COD, MOMO, etc.)

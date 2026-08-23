@@ -38,6 +38,7 @@ public class OrderCancelledEvent {
     private Boolean hasActiveDelivery;
 
     private UUID voucherReservationId;
+    private UUID promotionReservationId;
     private UUID flashSaleReservationId;
     private List<Map<String, Object>> items;
     private LocalDateTime createdAt;
@@ -46,5 +47,11 @@ public class OrderCancelledEvent {
     private BigDecimal discountAmount;
     private BigDecimal shippingFee;
     private BigDecimal totalPrice;
+    private BigDecimal itemDiscount;
+    private BigDecimal shippingDiscount;
+    private BigDecimal customerShippingFee;
+    private BigDecimal grossShippingFee;
+    private BigDecimal platformSubsidy;
+    private BigDecimal shopDiscount;
     private String paymentMethod;
 }

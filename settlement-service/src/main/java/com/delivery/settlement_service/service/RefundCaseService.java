@@ -167,6 +167,18 @@ public class RefundCaseService {
     }
 
     private int insertIfAbsentPostgres(RefundCase refundCase) {
+        if (refundCase.getUserPrincipalId() == null) {
+            return repository.insertIfAbsentPostgres(
+                    refundCase.getRefundId(), refundCase.getEventId(), refundCase.getIdempotencyKey(),
+                    refundCase.getOrderId(), refundCase.getUserId(), refundCase.getRestaurantId(),
+                    refundCase.getPreviousOrderStatus(), refundCase.getCurrentOrderStatus(),
+                    refundCase.getPaymentMethod(), refundCase.getTrigger().name(), refundCase.getComponent().name(),
+                    refundCase.getStatus().name(), refundCase.getCurrency(), refundCase.getSubtotalAmount(),
+                    refundCase.getDiscountAmount(), refundCase.getShippingFee(), refundCase.getTotalAmount(),
+                    refundCase.getCapturedAmount(), refundCase.getRefundAmount(), refundCase.getActorSource(),
+                    refundCase.getActorId(), refundCase.getReason(), refundCase.getPayloadFingerprint(),
+                    refundCase.getAttempts());
+        }
         return repository.insertIfAbsentPostgres(
                 refundCase.getRefundId(), refundCase.getEventId(), refundCase.getIdempotencyKey(),
                 refundCase.getOrderId(), refundCase.getUserId(), refundCase.getUserPrincipalId(), refundCase.getRestaurantId(),

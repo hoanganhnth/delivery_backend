@@ -146,9 +146,11 @@ public class TransactionServiceImpl implements TransactionService {
             return false;
         }
 
-        boolean eligible = balance.getDepositBalance().compareTo(codAmount) >= 0;
+        BigDecimal reserved = balance.getReservedDepositBalance() == null
+                ? BigDecimal.ZERO : balance.getReservedDepositBalance();
+        boolean eligible = balance.getDepositBalance().subtract(reserved).compareTo(codAmount) >= 0;
         log.info("🔍 COD eligibility check for shipper {}: deposit={}, codAmount={}, eligible={}",
-                shipperId, balance.getDepositBalance(), codAmount, eligible);
+                shipperId, balance.getDepositBalance().subtract(reserved), codAmount, eligible);
 
         return eligible;
     }

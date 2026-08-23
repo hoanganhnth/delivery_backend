@@ -51,3 +51,10 @@ query-string token, so credentials do not leak into browser history or proxy
 logs. Direct browser access is limited to the local console origins in
 `SIMULATOR_ALLOWED_ORIGINS`; keep the list explicit when hosting the console
 on another test-only origin.
+
+For the complete production-like synthetic environment, use the backend
+runbook [`docs/runbooks/production-like-sandbox.md`](../docs/runbooks/production-like-sandbox.md)
+and run `bash scripts/sandbox-up.sh` from `backend_delivery/`. The sandbox
+starts the real Gateway/Kafka/Saga/Match/Delivery/Tracking graph with
+run-scoped secrets and volumes; do not point this service at a shared
+staging/production target.

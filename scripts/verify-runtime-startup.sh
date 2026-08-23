@@ -6,6 +6,8 @@ readonly POLL_SECONDS=5
 readonly EUREKA_REGISTRATION_TIMEOUT_SECONDS="${EUREKA_REGISTRATION_TIMEOUT_SECONDS:-120}"
 readonly RUNTIME_ISOLATED="${RUNTIME_ISOLATED:-false}"
 readonly RUNTIME_REBUILD_IMAGES="${RUNTIME_REBUILD_IMAGES:-false}"
+readonly RUNTIME_EXTRA_COMPOSE_FILES="${RUNTIME_EXTRA_COMPOSE_FILES:-}"
+readonly RUNTIME_INCLUDE_SIMULATOR="${RUNTIME_INCLUDE_SIMULATOR:-false}"
 case "$RUNTIME_ISOLATED" in
   true|false)
     ;;
@@ -28,6 +30,15 @@ case "$RUNTIME_REBUILD_IMAGES" in
     exit 1
     ;;
 esac
+case "$RUNTIME_INCLUDE_SIMULATOR" in
+  true|false)
+    ;;
+  *)
+    printf 'RUNTIME_INCLUDE_SIMULATOR must be true or false, got %s\n' \
+      "$RUNTIME_INCLUDE_SIMULATOR" >&2
+    exit 1
+    ;;
+esac
 
 COMPOSE_COMMAND=(
   docker compose
@@ -41,6 +52,19 @@ if [[ "$RUNTIME_ISOLATED" == "true" ]]; then
     exit 1
   fi
   COMPOSE_COMMAND+=(-f docker-compose.isolated-e2e.yml)
+fi
+# Optional overlays are deliberately explicit so the canonical verifier keeps
+# its historical file set. The sandbox passes simulator + sandbox overlays as
+# a colon-separated list; no value is sourced or executed.
+if [[ -n "$RUNTIME_EXTRA_COMPOSE_FILES" ]]; then
+  IFS=':' read -r -a extra_compose_files <<< "$RUNTIME_EXTRA_COMPOSE_FILES"
+  for compose_file in "${extra_compose_files[@]}"; do
+    [[ -n "$compose_file" && -f "$compose_file" ]] || {
+      printf 'Runtime extra Compose file does not exist: %s\n' "$compose_file" >&2
+      exit 1
+    }
+    COMPOSE_COMMAND+=(-f "$compose_file")
+  done
 fi
 readonly -a COMPOSE_COMMAND
 
@@ -73,6 +97,7 @@ readonly CORE_APP_SERVICES=(
   notification-service
   match-service
   tracking-service
+  routing-service
   saga-orchestrator-service
 )
 readonly OPTIONAL_CAPABILITY_SERVICES=(
@@ -352,9 +377,15 @@ ensure_eureka_registration api-gateway
 wait_for_gateway_http "/api/restaurants"
 wait_for_gateway_http "/api/search/restaurants?q=pho&page=0&size=1"
 
+if [[ "$RUNTIME_INCLUDE_SIMULATOR" == "true" ]]; then
+  echo "Starting dev/test-only simulator after Gateway public smoke."
+  compose_up --no-deps simulator-service
+  wait_for_app simulator-service
+fi
+
 runtime_scope="canonical volumes preserved"
 if [[ "$RUNTIME_ISOLATED" == "true" ]]; then
   runtime_scope="isolated project/volumes"
 fi
 printf '%s\n' \
-  "Runtime startup proof passed: ${runtime_scope}, infrastructure/observability healthy, ${#APP_SERVICES[@]} application services started, Gateway public reads responded."
+  "Runtime startup proof passed: ${runtime_scope}, infrastructure/observability healthy, ${#APP_SERVICES[@]} application services started$([[ "$RUNTIME_INCLUDE_SIMULATOR" == "true" ]] && printf ', simulator ready' || true), Gateway public reads responded."

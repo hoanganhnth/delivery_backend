@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
+import java.math.BigDecimal;
 
 /**
  * ✅ Event nhận từ match-service khi tìm được shipper
@@ -34,6 +35,24 @@ public class ShipperFoundEvent {
     private Double pickupLng;
     private Double deliveryLat;
     private Double deliveryLng;
+
+    private Boolean batchOffer;
+    private UUID batchId;
+    private List<BatchItem> batchItems;
+    private List<UUID> codHoldIds;
+    private Integer batchWave;
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class BatchItem {
+        private Long deliveryId;
+        private Long orderId;
+        private Integer pickupSequence;
+        private Integer dropoffSequence;
+        private BigDecimal totalPrice;
+        private UUID matchingSessionId;
+    }
     
     @Data
     @NoArgsConstructor

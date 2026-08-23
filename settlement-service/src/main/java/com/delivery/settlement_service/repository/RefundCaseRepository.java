@@ -76,6 +76,38 @@ public interface RefundCaseRepository extends JpaRepository<RefundCase, UUID> {
             @Param("payloadFingerprint") String payloadFingerprint,
             @Param("attempts") int attempts);
 
+    /** Source-compatible adapter for legacy refund fixtures without principal identity. */
+    default int insertIfAbsentPostgres(
+            UUID refundId,
+            UUID eventId,
+            String idempotencyKey,
+            Long orderId,
+            Long userId,
+            Long restaurantId,
+            String previousOrderStatus,
+            String currentOrderStatus,
+            String paymentMethod,
+            String trigger,
+            String component,
+            String status,
+            String currency,
+            BigDecimal subtotalAmount,
+            BigDecimal discountAmount,
+            BigDecimal shippingFee,
+            BigDecimal totalAmount,
+            BigDecimal capturedAmount,
+            BigDecimal refundAmount,
+            String actorSource,
+            Long actorId,
+            String reason,
+            String payloadFingerprint,
+            int attempts) {
+        return insertIfAbsentPostgres(refundId, eventId, idempotencyKey, orderId, userId, null,
+                restaurantId, previousOrderStatus, currentOrderStatus, paymentMethod, trigger,
+                component, status, currency, subtotalAmount, discountAmount, shippingFee, totalAmount,
+                capturedAmount, refundAmount, actorSource, actorId, reason, payloadFingerprint, attempts);
+    }
+
     /**
      * H2 does not support the PostgreSQL conflict syntax used in production.
      * This sequential fallback keeps H2 transaction tests readable while the

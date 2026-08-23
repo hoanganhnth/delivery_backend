@@ -7,8 +7,8 @@
 
 ## What this package provides
 
-- Kustomize base for all 17 backend application services plus Config Server and
-  Eureka Discovery Server (19 workloads total).
+- Kustomize base for all 18 backend application services plus Config Server and
+  Eureka Discovery Server (20 workloads total).
 - One private `ClusterIP` Service per workload. There is no Ingress,
   LoadBalancer, NodePort or plaintext `Secret` in the base.
 - A single public-edge rule by construction: only a future, explicitly approved
@@ -63,7 +63,7 @@ required by the Kubernetes pod security context.
 | Control plane | `config-server`, `discovery-server` |
 | Public edge | `api-gateway` only |
 | Identity/catalog/order | `auth-service`, `user-service`, `restaurant-service`, `order-service` |
-| Fulfilment/realtime | `delivery-service`, `match-service`, `shipper-service`, `tracking-service`, `notification-service`, `saga-orchestrator-service` |
+| Fulfilment/realtime | `delivery-service`, `match-service`, `shipper-service`, `tracking-service`, `routing-service`, `notification-service`, `saga-orchestrator-service` |
 | Search/finance/support | `search-service`, `settlement-service`, `promotion-service`, `flashsale-service`, `analytics-service`, `livestream-service` |
 
 Every service remains private. `match-service` and

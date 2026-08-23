@@ -325,6 +325,7 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/delivery_db
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      DELIVERY_BATCH_ENABLED: "${DELIVERY_BATCH_ENABLED:-false}"
       JAVA_TOOL_OPTIONS: "-Xmx384m -Xms256m"
     deploy: { resources: { limits: { memory: 512M } } }
     secrets:
@@ -450,6 +451,9 @@ services:
       MATCH_REDIS_TIMEOUT: "${MATCH_REDIS_TIMEOUT:-60000ms}"
       MATCH_KAFKA_FIND_LISTENER_AUTO_STARTUP: "${MATCH_KAFKA_FIND_LISTENER_AUTO_STARTUP:-${MATCH_KAFKA_LISTENER_AUTO_STARTUP:-true}}"
       MATCH_KAFKA_STOP_LISTENER_AUTO_STARTUP: "${MATCH_KAFKA_STOP_LISTENER_AUTO_STARTUP:-${MATCH_KAFKA_LISTENER_AUTO_STARTUP:-true}}"
+      MATCHING_BATCH_ENABLED: "${MATCHING_BATCH_ENABLED:-false}"
+      MATCHING_BATCH_SCHEDULER_ENABLED: "${MATCHING_BATCH_SCHEDULER_ENABLED:-false}"
+      MATCHING_H3_ENABLED: "${MATCHING_H3_ENABLED:-false}"
       JAVA_TOOL_OPTIONS: "-Xmx384m -Xms256m"
     deploy: { resources: { limits: { memory: 512M } } }
     secrets:
@@ -496,6 +500,24 @@ services:
       delivery-service: { condition: service_started }
     networks: [delivery-network]
 
+  routing-service:
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: routing-service } }
+    container_name: routing-service
+    expose: ["8094", "9090"]
+    environment:
+      <<: [*tracing-environment, *runtime-platform-environment]
+      PLATFORM_SECRETS_INTERNAL_SECRET_REQUIRED: "true"
+      MAPBOX_SERVER_TOKEN: "${MAPBOX_SERVER_TOKEN:-}"
+      ROUTING_PROVIDER_TIMEOUT_MS: "${ROUTING_PROVIDER_TIMEOUT_MS:-450}"
+      JAVA_TOOL_OPTIONS: "-Xmx256m -Xms128m"
+    deploy: { resources: { limits: { memory: 384M } } }
+    secrets:
+      - source: internal-secret
+        target: internal-secret
+    depends_on:
+      <<: *control-plane-depends-on
+    networks: [delivery-network]
+
   livestream-service:
     build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: livestream-service } }
     container_name: livestream-service
@@ -530,6 +552,7 @@ services:
       MATCHING_INITIAL_DELAY_SECONDS: ${MATCHING_INITIAL_DELAY_SECONDS:-30}
       MATCHING_INITIAL_MAX_DELAY_SECONDS: ${MATCHING_INITIAL_MAX_DELAY_SECONDS:-300}
       MATCHING_INITIAL_BACKOFF_MULTIPLIER: ${MATCHING_INITIAL_BACKOFF_MULTIPLIER:-1.5}
+      MATCHING_BATCH_CLIENT_CAPABILITY_ENABLED: "${MATCHING_BATCH_CLIENT_CAPABILITY_ENABLED:-false}"
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/saga_db
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092

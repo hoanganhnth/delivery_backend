@@ -20,6 +20,7 @@ public class BalanceResponse {
     private BigDecimal pendingBalance;
     private BigDecimal holdingBalance;
     private BigDecimal depositBalance;     // Ví Ký quỹ (shipper only)
+    private BigDecimal reservedDepositBalance;
     private BigDecimal totalDeposited;     // Tổng đã nạp
     private BigDecimal totalCodCollected;  // Tổng COD đã thu
     private LocalDateTime createdAt;

@@ -57,6 +57,15 @@ public class MatchCommand {
     @Column(name = "matching_session_id", nullable = false, updatable = false)
     private UUID matchingSessionId;
 
+    @Column(name = "dispatch_round_id")
+    private UUID dispatchRoundId;
+
+    @Column(name = "next_attempt_at")
+    private LocalDateTime nextAttemptAt;
+
+    @Column(name = "matching_deadline_at")
+    private LocalDateTime matchingDeadlineAt;
+
     @Column(name = "payload", nullable = false, updatable = false, columnDefinition = "TEXT")
     private String payload;
 

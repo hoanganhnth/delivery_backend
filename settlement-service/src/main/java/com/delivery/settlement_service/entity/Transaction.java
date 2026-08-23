@@ -125,7 +125,8 @@ public class Transaction {
         ADJUSTMENT_DEBIT,       // Admin adjustment (debit)
         HOLD,                   // Move to holding balance (shipper)
         COD_DEDUCTION,          // COD collection deduction (legacy)
-        COD_SETTLEMENT          // Đối trừ tiền COD thu hộ (→ Ví Ký quỹ)
+        COD_SETTLEMENT,         // Đối trừ tiền COD thu hộ (→ Ví Ký quỹ)
+        PROMOTION_SUBSIDY       // Platform-funded voucher/freeship expense
     }
 
     /**

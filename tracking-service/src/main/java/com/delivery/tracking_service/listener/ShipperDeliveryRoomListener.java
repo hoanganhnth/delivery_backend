@@ -44,11 +44,14 @@ public class ShipperDeliveryRoomListener {
                 throw new IllegalArgumentException("Unsupported shipper status");
             }
             String eventId = requiredString(event, "eventId");
+            boolean batch = event.get("batchId") instanceof String batchId && !batchId.isBlank();
             if ("BUSY".equals(status)) {
-                assignments.busy(shipperId, deliveryId, positiveLong(event, "timestamp"), eventId);
+                if (batch) assignments.busyBatch(shipperId, deliveryId, positiveLong(event, "timestamp"), eventId);
+                else assignments.busy(shipperId, deliveryId, positiveLong(event, "timestamp"), eventId);
                 rooms.activate(deliveryId, shipperId);
             } else {
-                assignments.available(shipperId, deliveryId, positiveLong(event, "timestamp"));
+                if (batch) assignments.availableBatch(shipperId, deliveryId, positiveLong(event, "timestamp"));
+                else assignments.available(shipperId, deliveryId, positiveLong(event, "timestamp"));
                 rooms.end(deliveryId, shipperId);
             }
             acknowledgment.acknowledge();

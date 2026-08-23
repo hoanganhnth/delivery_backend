@@ -71,6 +71,36 @@ public class MatchRedisGeoRepository {
             redis.call('DEL', KEYS[3])
             return 1
             """, Long.class);
+    private static final DefaultRedisScript<Long> RESERVE_BATCH_OFFER = new DefaultRedisScript<>("""
+            local current = redis.call('GET', KEYS[1])
+            if current and current ~= ARGV[1] then return 0 end
+            local offset = 2
+            local count = tonumber(ARGV[2])
+            for i = 1, count do
+              local delivery = redis.call('GET', KEYS[offset + i - 1])
+              if delivery and delivery ~= ARGV[3] then return 0 end
+              if redis.call('EXISTS', KEYS[offset + count + i - 1]) == 1 then return 0 end
+            end
+            redis.call('SET', KEYS[1], ARGV[1], 'EX', tonumber(ARGV[4]))
+            for i = 1, count do
+              redis.call('SET', KEYS[offset + i - 1], ARGV[3], 'EX', tonumber(ARGV[4]))
+              redis.call('SET', KEYS[offset + count + i - 1], ARGV[5], 'EX', tonumber(ARGV[4]))
+            end
+            return 1
+            """, Long.class);
+    private static final DefaultRedisScript<Long> RELEASE_BATCH_OFFER = new DefaultRedisScript<>("""
+            if redis.call('GET', KEYS[1]) ~= ARGV[1] then return 0 end
+            local count = tonumber(ARGV[2])
+            for i = 1, count do
+              if redis.call('GET', KEYS[1 + i]) ~= ARGV[3] then return 0 end
+            end
+            redis.call('DEL', KEYS[1])
+            for i = 1, count do
+              redis.call('DEL', KEYS[1 + i])
+              redis.call('DEL', KEYS[1 + count + i])
+            end
+            return 1
+            """, Long.class);
     private static final DefaultRedisScript<Long> APPLY_SHIPPER_STATUS = new DefaultRedisScript<>("""
             local current = redis.call('GET', KEYS[1])
             local incomingTimestamp = tonumber(ARGV[1])
@@ -93,7 +123,11 @@ public class MatchRedisGeoRepository {
             end
 
             local currentOffer = redis.call('GET', KEYS[2])
-            if currentOffer and currentOffer == ARGV[3] then
+            -- A batch offer is keyed by batch:<uuid>, so it cannot equal the
+            -- individual delivery id. AVAILABLE is emitted only after the
+            -- batch aggregate completes; clear the shipper-level reservation
+            -- unconditionally at that fence.
+            if currentOffer and (tonumber(ARGV[4]) == 0 or currentOffer == ARGV[3]) then
               redis.call('DEL', KEYS[2])
             end
             local currentDeliveryOffer = redis.call('GET', KEYS[4])
@@ -340,6 +374,41 @@ public class MatchRedisGeoRepository {
         } catch (Exception exception) {
             throw new IllegalStateException("Cannot release Match offer by delivery", exception);
         }
+    }
+
+    /** Atomically reserves one shipper for all deliveries in a proposed batch. */
+    public boolean tryReserveShipperBatchOffer(Long shipperId, List<Long> deliveryIds,
+                                               UUID batchId, UUID matchingSessionId,
+                                               int timeoutSeconds) {
+        if (shipperId == null || shipperId <= 0 || batchId == null || matchingSessionId == null
+                || deliveryIds == null || deliveryIds.isEmpty() || deliveryIds.size() > 3
+                || deliveryIds.stream().anyMatch(id -> id == null || id <= 0)) {
+            return false;
+        }
+        List<String> keys = new ArrayList<>();
+        keys.add(OFFER_PREFIX + shipperId);
+        deliveryIds.forEach(id -> keys.add(DELIVERY_OFFER_PREFIX + id));
+        deliveryIds.forEach(id -> keys.add(DELIVERY_OFFER_SESSION_PREFIX + id));
+        Long result = redisTemplate.execute(RESERVE_BATCH_OFFER, keys,
+                "batch:" + batchId, deliveryIds.size(), shipperId.toString(),
+                Math.max(1, timeoutSeconds), matchingSessionId.toString());
+        return result != null && result == 1L;
+    }
+
+    /** Releases a batch only when the shipper and every reverse delivery key still agree. */
+    public boolean releaseShipperBatchOffer(Long shipperId, List<Long> deliveryIds,
+                                            UUID batchId, UUID matchingSessionId) {
+        if (shipperId == null || shipperId <= 0 || batchId == null || matchingSessionId == null
+                || deliveryIds == null || deliveryIds.isEmpty() || deliveryIds.size() > 3) {
+            return false;
+        }
+        List<String> keys = new ArrayList<>();
+        keys.add(OFFER_PREFIX + shipperId);
+        deliveryIds.forEach(id -> keys.add(DELIVERY_OFFER_PREFIX + id));
+        deliveryIds.forEach(id -> keys.add(DELIVERY_OFFER_SESSION_PREFIX + id));
+        Long result = redisTemplate.execute(RELEASE_BATCH_OFFER, keys,
+                "batch:" + batchId, deliveryIds.size(), shipperId.toString());
+        return result != null && result == 1L;
     }
 
     public boolean applyShipperStatus(Long shipperId, Long deliveryId, String status,

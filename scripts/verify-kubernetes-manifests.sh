@@ -53,17 +53,23 @@ require_absent() {
   fi
 }
 
-# 17 backend application services plus Config Server and Eureka Discovery Server.
-require_count 19 '^kind: Deployment$' "$base_rendered" 'Deployments'
-require_count 19 '^kind: Service$' "$base_rendered" 'ClusterIP Services'
-require_count 19 '^kind: ServiceAccount$' "$base_rendered" 'ServiceAccounts'
-require_count 19 '^        readinessProbe:$' "$base_rendered" 'readiness probes'
-require_count 19 '^        livenessProbe:$' "$base_rendered" 'liveness probes'
-require_count 19 '^        startupProbe:$' "$base_rendered" 'startup probes'
-require_count 19 '^          runAsNonRoot: true$' "$base_rendered" 'non-root container declarations'
-require_count 19 '^          readOnlyRootFilesystem: true$' "$base_rendered" 'read-only root filesystem declarations'
-require_count 19 '^        image: registry\.example\.invalid/delivery/' "$base_rendered" 'safe placeholder images'
-require_count 60 '^    delivery\.platform/wave:' "$base_rendered" 'wave labels'
+# 18 backend application services plus Config Server and Eureka Discovery Server.
+# Derive the expected count from the generated inventory so adding an internal
+# service cannot silently make this deployment preflight stale.
+expected_workloads="$(find deploy/kubernetes/base/generated -type f -name '*.deployment.yaml' | wc -l | tr -d ' ')"
+require_count "$expected_workloads" '^kind: Deployment$' "$base_rendered" 'Deployments'
+require_count "$expected_workloads" '^kind: Service$' "$base_rendered" 'ClusterIP Services'
+require_count "$expected_workloads" '^kind: ServiceAccount$' "$base_rendered" 'ServiceAccounts'
+require_count "$expected_workloads" '^        readinessProbe:$' "$base_rendered" 'readiness probes'
+require_count "$expected_workloads" '^        livenessProbe:$' "$base_rendered" 'liveness probes'
+require_count "$expected_workloads" '^        startupProbe:$' "$base_rendered" 'startup probes'
+require_count "$expected_workloads" '^          runAsNonRoot: true$' "$base_rendered" 'non-root container declarations'
+require_count "$expected_workloads" '^          readOnlyRootFilesystem: true$' "$base_rendered" 'read-only root filesystem declarations'
+require_count "$expected_workloads" '^        image: registry\.example\.invalid/delivery/' "$base_rendered" 'safe placeholder images'
+# Each generated workload contributes one wave label to its Deployment,
+# ServiceAccount and Service; the three base ConfigMaps carry the control-wave
+# label as well.
+require_count "$((expected_workloads * 3 + 3))" '^    delivery\.platform/wave:' "$base_rendered" 'wave labels'
 
 require_absent '^kind: Ingress$' "$base_rendered" 'Ingress'
 require_absent '^  type: LoadBalancer$' "$base_rendered" 'LoadBalancer Service'
@@ -138,6 +144,21 @@ for expected in \
   fi
 done
 
+# Voucher stacking is a separate rollout gate from legacy voucher checkout.
+# Keep the base fail-closed and require both service-specific switches plus
+# their stable-principal allowlists to be present before an overlay can be
+# reviewed for activation.
+for expected in \
+  'ORDER_VOUCHER_STACKING_ENABLED: "false"' \
+  'ORDER_VOUCHER_STACKING_CANARY_PRINCIPALS: ""' \
+  'PROMOTION_STACKING_ENABLED: "false"' \
+  'PROMOTION_STACKING_CANARY_PRINCIPALS: ""'; do
+  if ! grep -Fq "$expected" "$base_rendered"; then
+    echo "Kubernetes manifest verification: voucher stacking rollout control is missing or not fail-closed ($expected)." >&2
+    exit 1
+  fi
+done
+
 # Every identity capability flag must enter exactly its owning workload. This
 # catches a generator/config ref regression before a ConfigMap update could
 # restart one service but silently activate behaviour in another one.
@@ -170,4 +191,4 @@ assert_owned_runtime_key settlement-service SETTLEMENT_PRINCIPAL_OWNERSHIP_ENFOR
 assert_owned_runtime_key promotion-service PROMOTION_PRINCIPAL_OWNERSHIP_ENFORCED
 assert_owned_runtime_key flashsale-service FLASHSALE_PRINCIPAL_OWNERSHIP_ENFORCED
 
-echo "PASS: Kubernetes base and staging template rendered with 19 private workloads, probes, non-root security context and no public edge/secret material."
+echo "PASS: Kubernetes base and staging template rendered with ${expected_workloads} private workloads, probes, non-root security context and no public edge/secret material."

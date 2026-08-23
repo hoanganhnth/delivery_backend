@@ -24,6 +24,8 @@ public class DeliveryMapper {
         response.setId(delivery.getId());
         response.setOrderId(delivery.getOrderId());
         response.setShipperId(delivery.getShipperId());
+        response.setBatchId(delivery.getBatchId());
+        response.setBatchSequence(delivery.getBatchSequence());
         response.setStatus(delivery.getStatus() == null ? null : delivery.getStatus().name());
         response.setPickupAddress(delivery.getPickupAddress());
         response.setPickupLat(delivery.getPickupLat());
@@ -41,6 +43,13 @@ public class DeliveryMapper {
         response.setCreatedAt(delivery.getCreatedAt());
         response.setUpdatedAt(delivery.getUpdatedAt());
         response.setShippingFee(delivery.getShippingFee());
+        response.setGrossShippingFee(delivery.getGrossShippingFee() == null
+                ? delivery.getShippingFee() : delivery.getGrossShippingFee());
+        response.setCustomerShippingFee(delivery.getCustomerShippingFee() == null
+                ? delivery.getShippingFee() : delivery.getCustomerShippingFee());
+        response.setPlatformSubsidy(delivery.getPlatformSubsidy());
+        response.setShopDiscount(delivery.getShopDiscount());
+        response.setPromotionReservationId(delivery.getPromotionReservationId());
         response.setTotalPrice(delivery.getTotalPrice());
         response.setPaymentMethod(delivery.getPaymentMethod());
         response.setRestaurantId(delivery.getRestaurantId());
@@ -76,6 +85,13 @@ public class DeliveryMapper {
         response.setDeliveryLat(delivery.getDeliveryLat());
         response.setDeliveryLng(delivery.getDeliveryLng());
         response.setShippingFee(delivery.getShippingFee());
+        response.setGrossShippingFee(delivery.getGrossShippingFee() == null
+                ? delivery.getShippingFee() : delivery.getGrossShippingFee());
+        response.setCustomerShippingFee(delivery.getCustomerShippingFee() == null
+                ? delivery.getShippingFee() : delivery.getCustomerShippingFee());
+        response.setPlatformSubsidy(delivery.getPlatformSubsidy());
+        response.setShopDiscount(delivery.getShopDiscount());
+        response.setPromotionReservationId(delivery.getPromotionReservationId());
         response.setEstimatedEarnings(calculateShipperEarnings(delivery.getShippingFee()));
         response.setTotalPrice(delivery.getTotalPrice());
         response.setPaymentMethod(delivery.getPaymentMethod());

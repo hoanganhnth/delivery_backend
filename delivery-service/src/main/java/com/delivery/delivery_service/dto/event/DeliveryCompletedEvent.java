@@ -22,6 +22,12 @@ public class DeliveryCompletedEvent {
     private Long restaurantId;
     
     private BigDecimal shippingFee; // Tổng phí ship khách hàng trả
+    private BigDecimal grossShippingFee;
+    private BigDecimal customerShippingFee;
+    private BigDecimal subtotalPrice;
+    private BigDecimal shopDiscount;
+    private BigDecimal platformSubsidy;
+    private BigDecimal shippingDiscount;
     private BigDecimal totalPrice; // Canonical customer total snapshotted from Order
     private BigDecimal shipperEarnings; // Số tiền shipper thực nhận (85% của shippingFee)
     private BigDecimal restaurantEarnings; // Số tiền nhà hàng thực nhận (Food Price - Commission)

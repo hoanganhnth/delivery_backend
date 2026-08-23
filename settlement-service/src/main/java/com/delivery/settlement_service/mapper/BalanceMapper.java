@@ -20,6 +20,7 @@ public class BalanceMapper {
                 .pendingBalance(balance.getPendingBalance())
                 .holdingBalance(balance.getHoldingBalance())
                 .depositBalance(balance.getDepositBalance())
+                .reservedDepositBalance(balance.getReservedDepositBalance())
                 .totalDeposited(balance.getTotalDeposited())
                 .totalCodCollected(balance.getTotalCodCollected())
                 .createdAt(balance.getCreatedAt())

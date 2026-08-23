@@ -11,6 +11,8 @@ import com.delivery.match_service.service.MatchCancellationProjectionRelay;
 import com.delivery.match_service.service.MatchCommandStore;
 import com.delivery.match_service.service.MatchService;
 import com.delivery.match_service.service.SettlementEligibilityClient;
+import com.delivery.match_service.service.DispatchPoolService;
+import com.delivery.match_service.config.MatchingBatchProperties;
 import com.delivery.match_service.metrics.BusinessMetrics;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -60,7 +62,9 @@ public class FindShipperEventListener {
         private final int candidatePoolSize;
 	private final ObjectMapper objectMapper;
 	private final BusinessMetrics businessMetrics;
-	private final Clock clock;
+        private final Clock clock;
+        private final DispatchPoolService dispatchPoolService;
+        private final MatchingBatchProperties matchingBatchProperties;
 
         // ✅ Default retry configuration (nếu Saga không gửi)
         private static final int DEFAULT_MAX_RETRY_ATTEMPTS = 10;
@@ -77,18 +81,22 @@ public class FindShipperEventListener {
                         MatchCancellationProjectionRelay cancellationProjectionRelay,
                         SettlementEligibilityClient settlementEligibilityClient,
 				BusinessMetrics businessMetrics,
+				DispatchPoolService dispatchPoolService,
+				MatchingBatchProperties matchingBatchProperties,
 				@Value("${matching.candidate-pool-size:20}") int candidatePoolSize) {
 		this(matchService, matchCommandStore, matchCancellationService, cancellationProjectionRelay, settlementEligibilityClient,
-				businessMetrics, candidatePoolSize, Clock.systemDefaultZone());
+				businessMetrics, dispatchPoolService, matchingBatchProperties, candidatePoolSize, Clock.systemDefaultZone());
 	}
 
-	FindShipperEventListener(
+        FindShipperEventListener(
 				MatchService matchService,
 				MatchCommandStore matchCommandStore,
 				MatchCancellationService matchCancellationService,
 				MatchCancellationProjectionRelay cancellationProjectionRelay,
 				SettlementEligibilityClient settlementEligibilityClient,
 				BusinessMetrics businessMetrics,
+				DispatchPoolService dispatchPoolService,
+				MatchingBatchProperties matchingBatchProperties,
 				int candidatePoolSize,
 				Clock clock) {
 		this.matchService = matchService;
@@ -99,9 +107,24 @@ public class FindShipperEventListener {
 		this.businessMetrics = businessMetrics;
 		this.candidatePoolSize = candidatePoolSize;
 		this.clock = clock;
-		this.objectMapper = new ObjectMapper()
+		this.dispatchPoolService = dispatchPoolService;
+		this.matchingBatchProperties = matchingBatchProperties;
+				this.objectMapper = new ObjectMapper()
                                 .registerModule(new JavaTimeModule())
                                 .configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        }
+
+        FindShipperEventListener(
+                                MatchService matchService,
+                                MatchCommandStore matchCommandStore,
+                                MatchCancellationService matchCancellationService,
+                                MatchCancellationProjectionRelay cancellationProjectionRelay,
+                                SettlementEligibilityClient settlementEligibilityClient,
+                                BusinessMetrics businessMetrics,
+                                int candidatePoolSize,
+                                Clock clock) {
+                this(matchService, matchCommandStore, matchCancellationService, cancellationProjectionRelay,
+                                settlementEligibilityClient, businessMetrics, null, null, candidatePoolSize, clock);
         }
 
         /** Compatibility constructor for focused listener tests; application wiring uses MeterRegistry. */
@@ -110,7 +133,7 @@ public class FindShipperEventListener {
 				MatchCancellationProjectionRelay cancellationProjectionRelay,
 				SettlementEligibilityClient settlementEligibilityClient, int candidatePoolSize) {
 		this(matchService, matchCommandStore, matchCancellationService, cancellationProjectionRelay, settlementEligibilityClient,
-						new BusinessMetrics(new io.micrometer.core.instrument.simple.SimpleMeterRegistry()),
+						new BusinessMetrics(new io.micrometer.core.instrument.simple.SimpleMeterRegistry()), null, null,
 						candidatePoolSize, Clock.systemDefaultZone());
         }
 
@@ -175,6 +198,13 @@ public class FindShipperEventListener {
                                 return resumeStagedCandidate(event, decision.stagedCandidate());
                         }
 
+                        if (batchDispatchEnabled(event)) {
+                                final FindShipperEvent dispatchEvent = event;
+                                return Mono.fromRunnable(() -> dispatchPoolService.enqueue(dispatchEvent, null))
+                                                .subscribeOn(Schedulers.boundedElastic())
+                                                .then();
+                        }
+
                         // Start continuous shipper search only after the command inbox commits.
                         return startContinuousShipperSearch(event);
 
@@ -185,6 +215,14 @@ public class FindShipperEventListener {
 
                         throw new IllegalStateException("Failed to process find-shipper command", e);
                 }
+        }
+
+        private boolean batchDispatchEnabled(FindShipperEvent event) {
+                return dispatchPoolService != null
+                                && matchingBatchProperties != null
+                                && matchingBatchProperties.isEnabled()
+                                && (!matchingBatchProperties.isClientCapabilityRequired()
+                                || Boolean.TRUE.equals(event.getBatchOfferEnabled()));
         }
 
         /**

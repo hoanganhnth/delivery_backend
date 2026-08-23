@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
+import java.util.Set;
 
 @Service
 @Slf4j
@@ -27,7 +28,12 @@ public class LocationFanoutPublisher {
 
     public void publish(ShipperLocationResponse location) {
         if (location == null || location.getShipperId() == null) return;
-        assignments.activeDelivery(location.getShipperId()).ifPresent(deliveryId -> {
+        Set<Long> activeDeliveries = assignments.activeDeliveries(location.getShipperId());
+        if (activeDeliveries == null || activeDeliveries.isEmpty()) {
+            java.util.Optional<Long> legacy = assignments.activeDelivery(location.getShipperId());
+            activeDeliveries = legacy.map(Set::of).orElseGet(Set::of);
+        }
+        for (Long deliveryId : activeDeliveries) {
             try {
                 redis.convertAndSend(CHANNEL,
                         objectMapper.writeValueAsString(new LocationFanoutEnvelope(deliveryId, location)));
@@ -37,6 +43,6 @@ public class LocationFanoutPublisher {
                 log.warn("Cannot publish realtime fanout for shipper {}; subscriber will recover from Redis",
                         location.getShipperId(), exception);
             }
-        });
+        }
     }
 }

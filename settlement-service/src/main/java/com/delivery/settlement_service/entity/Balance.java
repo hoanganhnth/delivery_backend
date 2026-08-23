@@ -62,6 +62,12 @@ public class Balance {
     @Column(name = "deposit_balance", nullable = false, precision = 12, scale = 2, columnDefinition = "decimal(12,2) default 0.00")
     private BigDecimal depositBalance = BigDecimal.ZERO;
 
+    /** Deposit capacity reserved by open COD matching holds. */
+    @Builder.Default
+    @Column(name = "reserved_deposit_balance", nullable = false, precision = 12, scale = 2,
+            columnDefinition = "decimal(12,2) default 0.00")
+    private BigDecimal reservedDepositBalance = BigDecimal.ZERO;
+
     /**
      * Tổng tiền shipper đã nạp vào ví ký quỹ (thống kê, không bao giờ giảm)
      */

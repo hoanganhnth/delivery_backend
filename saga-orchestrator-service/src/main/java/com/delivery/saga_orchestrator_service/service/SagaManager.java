@@ -82,6 +82,8 @@ public class SagaManager {
     private double initialMatchBackoffMultiplier = 1.5;
     @Value("${app.saga.timeout.finding-shipper-minutes:5}")
     private int findingShipperTimeoutMinutes = 5;
+    @Value("${matching.batch.client-capability-enabled:false}")
+    private boolean batchClientCapabilityEnabled;
     @Value("${spring.datasource.url:}")
     private String dataSourceUrl;
 
@@ -1363,6 +1365,8 @@ public class SagaManager {
                 "orderId", "deliveryId", "pickupAddress", "pickupLat", "pickupLng",
                 "deliveryAddress", "deliveryLat", "deliveryLng", "totalPrice",
                 "shippingFee", "paymentMethod", "restaurantId", "restaurantName", "matchingDeadlineAt");
+        copyIfPresent(parsedAttempt, payload, "batchOfferEnabled", "batchWave");
+        payload.put("batchOfferEnabled", batchClientCapabilityEnabled);
 
         String deliveryData = getStepEventData(saga, "DELIVERY_CREATED");
         if (deliveryData != null) {

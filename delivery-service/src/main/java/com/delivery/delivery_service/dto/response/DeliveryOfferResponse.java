@@ -5,6 +5,7 @@ import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 /**
  * Minimal self-scoped view used by a shipper to recover an unexpired offer.
@@ -26,6 +27,11 @@ public class DeliveryOfferResponse {
     private Double deliveryLat;
     private Double deliveryLng;
     private BigDecimal shippingFee;
+    private BigDecimal grossShippingFee;
+    private BigDecimal customerShippingFee;
+    private BigDecimal platformSubsidy;
+    private BigDecimal shopDiscount;
+    private UUID promotionReservationId;
     private BigDecimal estimatedEarnings;
     private BigDecimal totalPrice;
     private String paymentMethod;

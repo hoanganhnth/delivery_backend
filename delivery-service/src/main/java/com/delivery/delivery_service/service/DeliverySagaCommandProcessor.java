@@ -9,6 +9,7 @@ import com.delivery.delivery_service.dto.response.DeliveryResponse;
 import com.delivery.delivery_service.exception.InvalidStatusException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -32,16 +33,28 @@ public class DeliverySagaCommandProcessor {
     private final DeliveryService deliveryService;
     private final EventValidationService eventValidationService;
     private final OutboxService outboxService;
+    private final DeliveryBatchOfferService batchOfferService;
 
+    @Autowired
     public DeliverySagaCommandProcessor(
             DeliveryInboundReceiptService receipts,
             DeliveryService deliveryService,
             EventValidationService eventValidationService,
-            OutboxService outboxService) {
+            OutboxService outboxService,
+            DeliveryBatchOfferService batchOfferService) {
         this.receipts = receipts;
         this.deliveryService = deliveryService;
         this.eventValidationService = eventValidationService;
         this.outboxService = outboxService;
+        this.batchOfferService = batchOfferService;
+    }
+
+    /** Compatibility constructor retained for focused legacy unit tests. */
+    DeliverySagaCommandProcessor(DeliveryInboundReceiptService receipts,
+                                  DeliveryService deliveryService,
+                                  EventValidationService eventValidationService,
+                                  OutboxService outboxService) {
+        this(receipts, deliveryService, eventValidationService, outboxService, null);
     }
 
     /**
@@ -94,7 +107,12 @@ public class DeliverySagaCommandProcessor {
                 event.getDeliveryId(), rawPayload)) {
             return false;
         }
-        deliveryService.cacheShipperOffer(event);
+        if (Boolean.TRUE.equals(event.getBatchOffer())) {
+            if (batchOfferService == null) throw new InvalidStatusException("Batch offer support is unavailable");
+            batchOfferService.apply(event);
+        } else {
+            deliveryService.cacheShipperOffer(event);
+        }
         return true;
     }
 

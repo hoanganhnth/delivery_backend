@@ -45,6 +45,7 @@ public class BalanceServiceImpl implements BalanceService {
                     .entityType(entityType)
                     .availableBalance(BigDecimal.ZERO)
                     .depositBalance(BigDecimal.ZERO)
+                    .reservedDepositBalance(BigDecimal.ZERO)
                     .pendingBalance(BigDecimal.ZERO)
                     .holdingBalance(BigDecimal.ZERO)
                     .totalDeposited(BigDecimal.ZERO)

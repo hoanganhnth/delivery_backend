@@ -385,6 +385,15 @@ public class SimulationService {
             checkControl(state);
             String id = text(shipper, "id", "unknown");
             String token = requiredToken(shipper, "token", "shipper " + id);
+            // The sandbox may negotiate the additive batch capability with
+            // Saga. Probe the batch recovery contract first; a one-item batch
+            // is still a real batch offer and exercises the same atomic
+            // accept/hold path as a multi-order bundle. Older/single-offer
+            // stacks return null or 404, in which case the legacy endpoint is
+            // used below.
+            if (inspectBatchOffer(state, shipper, id, token)) {
+                continue;
+            }
             JsonNode response;
             try {
                 response = data(gateway.get("/api/deliveries/offers/current", token, state.getCorrelationId()));
@@ -441,6 +450,71 @@ public class SimulationService {
                         "POST /api/deliveries/accept action=ACCEPT", "SUCCESS");
             }
         }
+    }
+
+    private boolean inspectBatchOffer(SimulationRunState state, JsonNode shipper,
+                                      String id, String token) {
+        JsonNode response;
+        try {
+            response = data(gateway.get("/api/deliveries/offers/current-batch", token,
+                    state.getCorrelationId()));
+        } catch (GatewayClient.GatewayException exception) {
+            if (exception.getStatus() == 404 || exception.getStatus() == 204) return false;
+            throw exception;
+        }
+        if (response == null || response.isNull() || !response.isObject()
+                || !response.path("batchId").isTextual()
+                || !batchContainsOrder(response, state.getOrderId())) {
+            return false;
+        }
+
+        state.setActiveOfferShipperId(id);
+        state.updateShipper(id, "BATCH_OFFERED", true, null, null);
+        long seenAt = state.markOfferSeen(id);
+        long reactionDelay = Math.max(0, Math.round(number(shipper, "reactionDelaySeconds", 2)));
+        if ((System.currentTimeMillis() - seenAt) < reactionDelay * 1000L) return true;
+
+        String behavior = text(shipper, "behavior", "AUTO_ACCEPT");
+        if ("TIMEOUT_IGNORE".equals(behavior)) {
+            state.updateCandidate(id, "BATCH_OFFERED", "Shipper được cấu hình không phản hồi batch offer");
+            return true;
+        }
+
+        String offerIdentity = response.path("batchId").asText() + ":"
+                + response.path("expiresAt").asText("current");
+        String actionKey = "batch-offer:" + id + ":" + offerIdentity;
+        if (!state.markTriggerFired(actionKey)) return true;
+
+        if ("REJECT_AFTER_DELAY".equals(behavior)) {
+            ObjectNode reject = objectMapper.createObjectNode();
+            reject.put("batchId", response.path("batchId").asText());
+            reject.put("reason", "Scenario Lab configured batch rejection");
+            gateway.post("/api/deliveries/batch/reject", token, reject, state.getCorrelationId());
+            state.updateShipper(id, "BATCH_REJECTED", true, null, null);
+            state.updateCandidate(id, "REJECTED", "Shipper từ chối batch offer qua API thật");
+            state.addEvent("DELIVERY_SERVICE", "Shipper " + id + " từ chối batch offer",
+                    "POST /api/deliveries/batch/reject", "WARNING");
+        } else {
+            ObjectNode accept = objectMapper.createObjectNode();
+            accept.put("batchId", response.path("batchId").asText());
+            accept.put("currentLat", number(shipper, "currentLat", number(shipper, "initialLat", 0)));
+            accept.put("currentLng", number(shipper, "currentLng", number(shipper, "initialLng", 0)));
+            gateway.post("/api/deliveries/batch/accept", token, accept, state.getCorrelationId());
+            state.updateShipper(id, "BATCH_ACCEPTED", true, null, null);
+            state.setAssignedShipperId(id);
+            state.updateCandidate(id, "SELECTED", null);
+            state.addEvent("DELIVERY_SERVICE", "Shipper " + id + " nhận batch offer",
+                    "POST /api/deliveries/batch/accept; atomic accept path", "SUCCESS");
+        }
+        return true;
+    }
+
+    private boolean batchContainsOrder(JsonNode batchOffer, Long orderId) {
+        if (orderId == null || orderId <= 0 || !batchOffer.path("offers").isArray()) return false;
+        for (JsonNode offer : batchOffer.path("offers")) {
+            if (offer.path("orderId").asLong(-1) == orderId) return true;
+        }
+        return false;
     }
 
     private void handleAssigned(SimulationRunState state, String customerToken, String ownerToken) {

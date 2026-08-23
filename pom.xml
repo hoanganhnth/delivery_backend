@@ -29,6 +29,7 @@
         <module>saga-orchestrator-service</module>
         <module>tracking-service</module>
         <module>match-service</module>
+        <module>routing-service</module>
         <module>livestream-service</module>
         <module>settlement-service</module>
         <module>flashsale-service</module>

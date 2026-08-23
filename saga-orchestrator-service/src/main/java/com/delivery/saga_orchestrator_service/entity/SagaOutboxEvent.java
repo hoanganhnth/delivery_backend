@@ -17,7 +17,7 @@ import java.util.UUID;
 @Setter
 @NoArgsConstructor
 public class SagaOutboxEvent {
-    public enum Status { PENDING, SENT, DEAD }
+    public enum Status { PENDING, IN_FLIGHT, SENT, DEAD }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -47,6 +47,10 @@ public class SagaOutboxEvent {
     private LocalDateTime createdAt;
     @Column(name = "sent_at")
     private LocalDateTime sentAt;
+    @Column(name = "lease_token")
+    private UUID leaseToken;
+    @Column(name = "lease_until")
+    private LocalDateTime leaseUntil;
     @Column(name = "last_error", length = 2000)
     private String lastError;
 }

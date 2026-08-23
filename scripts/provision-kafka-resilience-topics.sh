@@ -464,6 +464,9 @@ dlt_only_sources=(
   saga.command.stop-matching
   shipper.location-updated
   shipper.status-change
+  delivery.batch.accepted
+  delivery.batch.released
+  delivery.batch.completed
 )
 for source in "${dlt_only_sources[@]}"; do
   source_partitions="$(topic_partitions "$source")"

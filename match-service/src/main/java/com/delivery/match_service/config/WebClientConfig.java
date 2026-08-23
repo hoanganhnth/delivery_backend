@@ -27,6 +27,9 @@ public class WebClientConfig {
 
     @Value("${app.internal.secret:}")
     private String internalSecret;
+
+    @Value("${routing.service.url:http://routing-service:8094}")
+    private String routingServiceUrl;
     
     @Bean
     @LoadBalanced
@@ -44,6 +47,15 @@ public class WebClientConfig {
                 .defaultHeader("Internal-Token", internalSecret)
                 .clientConnector(new ReactorClientHttpConnector(HttpClient.create()
                         .responseTimeout(java.time.Duration.ofMillis(resilienceProperties.getTimeoutMs()))))
+                .build();
+    }
+
+    @Bean
+    @Qualifier("routingServiceWebClient")
+    public WebClient routingServiceWebClient() {
+        return WebClient.builder()
+                .baseUrl(routingServiceUrl)
+                .defaultHeader("Internal-Token", internalSecret)
                 .build();
     }
 }

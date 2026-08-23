@@ -50,6 +50,7 @@ public class DeliveryCompletedEventListener {
     private final TransactionRepository transactionRepository;
     private final SettlementReceiptRepository settlementReceiptRepository;
     private final BusinessMetrics businessMetrics;
+    private final com.delivery.settlement_service.service.CodCapacityHoldService codCapacityHoldService;
     private final ObjectMapper objectMapper = new ObjectMapper()
             .registerModule(new JavaTimeModule());
 
@@ -60,11 +61,13 @@ public class DeliveryCompletedEventListener {
     public DeliveryCompletedEventListener(TransactionService transactionService,
                                           TransactionRepository transactionRepository,
                                           SettlementReceiptRepository settlementReceiptRepository,
-                                          BusinessMetrics businessMetrics) {
+                                          BusinessMetrics businessMetrics,
+                                          com.delivery.settlement_service.service.CodCapacityHoldService codCapacityHoldService) {
         this.transactionService = transactionService;
         this.transactionRepository = transactionRepository;
         this.settlementReceiptRepository = settlementReceiptRepository;
         this.businessMetrics = businessMetrics;
+        this.codCapacityHoldService = codCapacityHoldService;
     }
 
     // Retains the focused listener-test seam while production injection uses
@@ -73,7 +76,7 @@ public class DeliveryCompletedEventListener {
                                    TransactionRepository transactionRepository,
                                    SettlementReceiptRepository settlementReceiptRepository) {
         this(transactionService, transactionRepository, settlementReceiptRepository,
-                new BusinessMetrics(new io.micrometer.core.instrument.simple.SimpleMeterRegistry()));
+                new BusinessMetrics(new io.micrometer.core.instrument.simple.SimpleMeterRegistry()), null);
     }
 
     @RetryableTopic(
@@ -144,8 +147,23 @@ public class DeliveryCompletedEventListener {
                 throw new IllegalArgumentException("shippingFee does not match shipper earnings and commission");
             }
 
-            BigDecimal reconciledOrderTotal = event.getRestaurantEarnings()
-                    .add(event.getRestaurantCommission()).add(event.getShippingFee());
+            BigDecimal grossShippingFee = event.getGrossShippingFee() == null
+                    ? event.getShippingFee() : event.getGrossShippingFee();
+            BigDecimal platformSubsidy = event.getPlatformSubsidy() == null
+                    ? BigDecimal.ZERO : event.getPlatformSubsidy();
+            BigDecimal reconciledOrderTotal;
+            if (event.getSubtotalPrice() != null && event.getCustomerShippingFee() != null) {
+                if (!nonNegative(event.getShopDiscount()) || !nonNegative(event.getShippingDiscount())
+                        || platformSubsidy.compareTo(event.getShippingDiscount()) < 0) {
+                    throw new IllegalArgumentException("promotion attribution fields are invalid");
+                }
+                reconciledOrderTotal = event.getRestaurantEarnings()
+                        .add(event.getRestaurantCommission()).add(grossShippingFee)
+                        .subtract(platformSubsidy);
+            } else {
+                reconciledOrderTotal = event.getRestaurantEarnings()
+                        .add(event.getRestaurantCommission()).add(event.getShippingFee());
+            }
             if (!positive(event.getTotalPrice()) || event.getTotalPrice().compareTo(reconciledOrderTotal) != 0) {
                 throw new IllegalArgumentException("totalPrice does not reconcile with restaurant and shipping amounts");
             }
@@ -181,6 +199,19 @@ public class DeliveryCompletedEventListener {
                     "Doanh thu đơn #" + event.getOrderId() + " (đã trừ hoa hồng)",
                     WalletType.EARNINGS
             );
+
+            if (platformSubsidy.compareTo(BigDecimal.ZERO) > 0) {
+                transactionService.createTransaction(
+                        0L,
+                        EntityType.SYSTEM,
+                        event.getOrderId(),
+                        TransactionDirection.DEBIT,
+                        TransactionReason.PROMOTION_SUBSIDY,
+                        platformSubsidy,
+                        "Chi phí voucher nền tảng đơn #" + event.getOrderId(),
+                        WalletType.EARNINGS
+                );
+            }
 
             log.info("✅ Restaurant {} credited {} for order {}",
                     event.getRestaurantId(), event.getRestaurantEarnings(), event.getOrderId());
@@ -223,6 +254,10 @@ public class DeliveryCompletedEventListener {
 
             log.info("💵 Shipper {} COD settlement: -{} from Deposit for order {}",
                     event.getShipperId(), totalCollected, event.getOrderId());
+
+            if (codCapacityHoldService != null) {
+                codCapacityHoldService.consumeForDelivery(event.getDeliveryId());
+            }
 
             // ══════════════════════════════════════════════════
             // 4. PLATFORM — record commission as its own credit. The durable

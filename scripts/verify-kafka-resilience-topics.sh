@@ -49,6 +49,9 @@ readonly SOURCE_TOPICS=(
   delivery.created.result
   delivery.shipper-accepted
   delivery.shipper-rejected
+  delivery.batch.accepted
+  delivery.batch.released
+  delivery.batch.completed
   shipper.found
   shipper.not-found
   delivery.created.failed
@@ -154,6 +157,9 @@ readonly DLT_ONLY_SOURCES=(
   saga.command.stop-matching
   shipper.location-updated
   shipper.status-change
+  delivery.batch.accepted
+  delivery.batch.released
+  delivery.batch.completed
 )
 
 readonly ORDER_PAYMENT_DLT_SOURCES=(

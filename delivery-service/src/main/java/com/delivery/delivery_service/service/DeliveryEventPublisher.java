@@ -116,6 +116,11 @@ public class DeliveryEventPublisher {
      * Publish shipper status change event (BUSY/AVAILABLE)
      */
     public void publishShipperStatusChange(Long shipperId, String status, Long deliveryId, Long orderId) {
+        publishShipperStatusChange(shipperId, status, deliveryId, orderId, null);
+    }
+
+    public void publishShipperStatusChange(Long shipperId, String status, Long deliveryId, Long orderId,
+                                           UUID batchId) {
         log.info("📦 [Kafka] Sending shipper status change: shipper={}, status={}", shipperId, status);
 
         Map<String, Object> event = new HashMap<>();
@@ -124,6 +129,7 @@ public class DeliveryEventPublisher {
         event.put("deliveryId", deliveryId);
         event.put("orderId", orderId);
         event.put("timestamp", System.currentTimeMillis());
+        if (batchId != null) event.put("batchId", batchId.toString());
 
         outboxService.saveEvent("DELIVERY", deliveryId.toString(), "SHIPPER_STATUS_CHANGE",
                 shipperStatusChangeTopic, shipperId.toString(), event);

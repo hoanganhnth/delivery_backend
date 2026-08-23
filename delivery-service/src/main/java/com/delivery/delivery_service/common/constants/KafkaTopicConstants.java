@@ -18,6 +18,9 @@ public class KafkaTopicConstants {
     public static final String SHIPPER_OFFERED_TOPIC = "delivery.shipper-offered";
     public static final String OFFER_PERSISTED_TOPIC = "delivery.offer-persisted";
     public static final String OFFER_RETIRED_TOPIC = "delivery.offer-retired";
+    public static final String BATCH_ACCEPTED_TOPIC = "delivery.batch.accepted";
+    public static final String BATCH_RELEASED_TOPIC = "delivery.batch.released";
+    public static final String BATCH_COMPLETED_TOPIC = "delivery.batch.completed";
     
     private KafkaTopicConstants() {
         // Utility class

@@ -70,3 +70,15 @@ data:
   FLASHSALE_MERCHANT_REGISTRATION_ENABLED: "false"
   ANALYTICS_PROCESSING_ENABLED: "false"
   LIVESTREAM_API_ENABLED: "false"
+  # Production Matching v1 remains dark until PostgreSQL/Redis invariants,
+  # staging smoke and client capability rollout gates are explicitly passed.
+  ORDER_VOUCHER_STACKING_ENABLED: "false"
+  ORDER_VOUCHER_STACKING_CANARY_PRINCIPALS: ""
+  PROMOTION_STACKING_ENABLED: "false"
+  PROMOTION_STACKING_CANARY_PRINCIPALS: ""
+  MATCHING_H3_ENABLED: "false"
+  MATCHING_BATCH_ENABLED: "false"
+  MATCHING_BATCH_SCHEDULER_ENABLED: "false"
+  MATCHING_BATCH_CLIENT_CAPABILITY_ENABLED: "false"
+  DELIVERY_BATCH_ENABLED: "false"
+  BATCH_OFFER_ENABLED: "false"

@@ -31,6 +31,7 @@ public class MatchOutboxEvent {
 
     public enum Status {
         PENDING,
+        IN_FLIGHT,
         SENT,
         DEAD,
         CANCELLED
@@ -79,6 +80,12 @@ public class MatchOutboxEvent {
 
     @Column(name = "sent_at")
     private LocalDateTime sentAt;
+
+    @Column(name = "lease_token")
+    private UUID leaseToken;
+
+    @Column(name = "lease_until")
+    private LocalDateTime leaseUntil;
 
     @Column(name = "last_error", length = 2000)
     private String lastError;

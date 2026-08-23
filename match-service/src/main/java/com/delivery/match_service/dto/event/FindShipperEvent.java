@@ -61,4 +61,8 @@ public class FindShipperEvent {
     
     // ✅ NEW: Excluded shipper IDs (shippers who already rejected this order)
     private java.util.List<Long> excludedShipperIds;
+
+    /** Client capability negotiated by the order/delivery command producer. */
+    private Boolean batchOfferEnabled;
+    private Integer batchWave;
 }

@@ -43,6 +43,9 @@ resources:
   - tracking-service.deployment.yaml
   - tracking-service.service.yaml
   - tracking-service.serviceaccount.yaml
+  - routing-service.deployment.yaml
+  - routing-service.service.yaml
+  - routing-service.serviceaccount.yaml
   - livestream-service.deployment.yaml
   - livestream-service.service.yaml
   - livestream-service.serviceaccount.yaml

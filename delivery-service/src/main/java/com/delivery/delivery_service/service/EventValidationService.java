@@ -74,10 +74,15 @@ public class EventValidationService {
         }
 
         if (event.getSubtotalPrice() != null && event.getShippingFee() != null
-                && event.getDiscountAmount() != null && event.getTotalPrice() != null
-                && event.getTotalPrice().compareTo(event.getSubtotalPrice()
-                        .add(event.getShippingFee()).subtract(event.getDiscountAmount())) != 0) {
-            errors.add("Total price không khớp subtotal + shipping fee - discount");
+                && event.getDiscountAmount() != null && event.getTotalPrice() != null) {
+            BigDecimal itemDiscount = event.getItemDiscount() == null
+                    ? event.getDiscountAmount() : event.getItemDiscount();
+            BigDecimal customerShipping = event.getCustomerShippingFee() == null
+                    ? event.getShippingFee() : event.getCustomerShippingFee();
+            if (event.getTotalPrice().compareTo(event.getSubtotalPrice()
+                    .subtract(itemDiscount).add(customerShipping)) != 0) {
+                errors.add("Total price không khớp subtotal - item discount + customer shipping");
+            }
         }
         
         // Validate address fields

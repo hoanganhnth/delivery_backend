@@ -23,6 +23,7 @@ public class OrderCancelledEvent {
     // Order basic info
     private Long orderId;
     private Long userId;
+    private Long userPrincipalId;
     private Long restaurantId;
     private String previousStatus;
     private String currentStatus; // CANCELLED
@@ -38,6 +39,7 @@ public class OrderCancelledEvent {
     private Long shipperId; // null if no shipper assigned
     private Boolean hasActiveDelivery;
     private UUID voucherReservationId;
+    private UUID promotionReservationId;
     private UUID flashSaleReservationId;
     private List<Map<String, Object>> items;
     private LocalDateTime createdAt;
@@ -48,5 +50,12 @@ public class OrderCancelledEvent {
     private BigDecimal discountAmount;
     private BigDecimal shippingFee;
     private BigDecimal totalPrice;
+    private BigDecimal itemDiscount;
+    private BigDecimal shippingDiscount;
+    private BigDecimal customerShippingFee;
+    private BigDecimal grossShippingFee;
+    private BigDecimal platformSubsidy;
+    private BigDecimal shopDiscount;
+    private java.util.List<java.util.Map<String, Object>> appliedVouchers;
     private String paymentMethod;
 }

@@ -17,7 +17,7 @@ import java.util.UUID;
 @Setter
 @NoArgsConstructor
 public class OutboxEvent {
-    public enum OutboxStatus { PENDING, SENT, DEAD }
+    public enum OutboxStatus { PENDING, IN_FLIGHT, SENT, DEAD }
 
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -48,6 +48,10 @@ public class OutboxEvent {
     private LocalDateTime createdAt;
     @Column(name = "sent_at")
     private LocalDateTime sentAt;
+    @Column(name = "lease_token")
+    private UUID leaseToken;
+    @Column(name = "lease_until")
+    private LocalDateTime leaseUntil;
     @Column(name = "last_error", length = 2000)
     private String lastError;
 }

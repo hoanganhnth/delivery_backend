@@ -5,6 +5,7 @@ import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Getter
 @Setter
@@ -13,6 +14,8 @@ public class DeliveryResponse {
     private Long id;
     private Long orderId;
     private Long shipperId;
+    private UUID batchId;
+    private Integer batchSequence;
     private String status;
     private String pickupAddress;
     private Double pickupLat;
@@ -32,6 +35,11 @@ public class DeliveryResponse {
     
     // ✅ Pricing Information
     private BigDecimal shippingFee;           // Tổng phí vận chuyển (customer trả)
+    private BigDecimal grossShippingFee;
+    private BigDecimal customerShippingFee;
+    private BigDecimal platformSubsidy;
+    private BigDecimal shopDiscount;
+    private UUID promotionReservationId;
     private BigDecimal estimatedEarnings;     // Thu nhập shipper (85% của shippingFee)
     private BigDecimal platformCommission;    // Hoa hồng platform (15% của shippingFee)
 
