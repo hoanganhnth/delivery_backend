@@ -61,6 +61,9 @@ class GatewayRouteSecurityTest {
         assertThat(matches(routes, HttpMethod.DELETE, "/api/auth/sessions/phone-1")).isTrue();
         assertThat(matches(routes, HttpMethod.DELETE, "/api/auth/sessions")).isFalse();
         assertThat(matches(routes, HttpMethod.GET, "/api/auth/unknown")).isFalse();
+        assertThat(matches(routes, HttpMethod.GET, "/api/promotions/capability")).isTrue();
+        assertThat(matches(routes, HttpMethod.POST, "/api/promotions/capability")).isFalse();
+        assertThat(matches(routes, HttpMethod.POST, "/api/promotions/internal/reservations")).isFalse();
         assertThat(matches(routes, HttpMethod.GET, "/api/orchestrator/sagas/42")).isFalse();
         assertThat(matches(routes, HttpMethod.GET, "/actuator/health")).isFalse();
         assertThat(matches(routes, HttpMethod.GET, "/actuator/health/liveness")).isFalse();
@@ -110,10 +113,10 @@ class GatewayRouteSecurityTest {
     }
 
     @Test
-    void nonMvpAnalyticsAndLivestreamSurfacesAreNotRouted() {
+    void analyticsAdminReadIsRoutedButOperatorAndLivestreamSurfacesAreNot() {
         Map<String, Route> routes = routes();
 
-        assertThat(matches(routes, HttpMethod.GET, "/api/analytics/dashboard/admin")).isFalse();
+        assertThat(matches(routes, HttpMethod.GET, "/api/analytics/dashboard/admin")).isTrue();
         assertThat(matches(routes, HttpMethod.GET,
                 "/api/analytics/dashboard/restaurant/42")).isFalse();
         assertThat(matches(routes, HttpMethod.POST,
@@ -247,16 +250,22 @@ class GatewayRouteSecurityTest {
         assertThat(matches(routes, HttpMethod.POST, "/api/deliveries/accept")).isTrue();
         assertThat(matches(routes, HttpMethod.POST, "/api/deliveries/cancel-assignment")).isTrue();
         assertThat(routes.get("delivery-service-shipper-actions").getFilters()).isEmpty();
+        assertThat(matches(routes, HttpMethod.POST, "/api/deliveries/batch/accept")).isTrue();
+        assertThat(matches(routes, HttpMethod.POST, "/api/deliveries/batch/reject")).isTrue();
+        assertThat(routes.get("delivery-service-batch-actions").getFilters()).isEmpty();
         assertThat(matches(routes, HttpMethod.PUT, "/api/deliveries/42/status")).isTrue();
         assertThat(routes.get("delivery-service-status").getFilters()).isEmpty();
         assertThat(matches(routes, HttpMethod.GET, "/api/deliveries/offers/current")).isTrue();
         assertThat(routes.get("delivery-service-current-offer").getFilters()).isEmpty();
+        assertThat(matches(routes, HttpMethod.GET, "/api/deliveries/offers/current-batch")).isTrue();
+        assertThat(routes.get("delivery-service-current-batch-offer").getFilters()).isEmpty();
         assertThat(routes.get("delivery-service-current-offer").getPredicate().toString())
                 .contains("/api/deliveries/offers/current")
                 .doesNotContain("/shipper/{shipperId");
         assertThat(routes.get("delivery-service-shipper-read").getPredicate().toString())
                 .doesNotContain("/offers/current");
         assertThat(matches(routes, HttpMethod.POST, "/api/deliveries/offers/current")).isFalse();
+        assertThat(matches(routes, HttpMethod.POST, "/api/deliveries/offers/current-batch")).isFalse();
         assertThat(matches(routes, HttpMethod.GET, "/api/deliveries/order/42")).isTrue();
         assertThat(matches(routes, HttpMethod.POST, "/api/deliveries/assign")).isFalse();
         assertThat(matches(routes, HttpMethod.POST, "/api/deliveries/admin/cancel-all-pending")).isFalse();

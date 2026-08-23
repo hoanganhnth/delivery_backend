@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
 
 import java.util.List;
+import com.delivery.restaurant_service.payload.PageResponse;
 
 @RestController
 @RequestMapping("/api/restaurants")
@@ -43,6 +44,15 @@ public class RestaurantRatingController {
         return ResponseEntity.ok(new BaseResponse<>(1, responses));
     }
 
+    @GetMapping("/{restaurantId}/ratings/page")
+    public ResponseEntity<BaseResponse<PageResponse<RestaurantRatingResponse>>> getRestaurantRatingsPage(
+            @PathVariable Long restaurantId, @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        validatePage(page, size);
+        return ResponseEntity.ok(new BaseResponse<>(1, PageResponse.from(
+                ratingService.getRestaurantRatingsPage(restaurantId, page, size))));
+    }
+
     @GetMapping("/me/ratings")
     public ResponseEntity<BaseResponse<List<RestaurantRatingResponse>>> getMyRatings(
             @AuthenticationPrincipal AuthenticatedActor actor) {
@@ -60,6 +70,20 @@ public class RestaurantRatingController {
         }
         List<RestaurantRatingResponse> responses = ratingService.getAllRatings();
         return ResponseEntity.ok(new BaseResponse<>(1, responses));
+    }
+
+    @GetMapping("/admin/ratings/page")
+    public ResponseEntity<BaseResponse<PageResponse<RestaurantRatingResponse>>> getAllRatingsPage(
+            @AuthenticationPrincipal AuthenticatedActor actor,
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
+        if (actor == null || !actor.isAdmin()) return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(new BaseResponse<>(0, null, "Chỉ ADMIN được xem tất cả đánh giá"));
+        validatePage(page, size);
+        return ResponseEntity.ok(new BaseResponse<>(1, PageResponse.from(ratingService.getAllRatingsPage(page, size))));
+    }
+
+    private void validatePage(int page, int size) {
+        if (page < 0 || size < 1 || size > 100) throw new IllegalArgumentException("Invalid page or size");
     }
 
     @PutMapping("/admin/ratings/{id}/status")

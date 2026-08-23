@@ -5,6 +5,7 @@ import com.delivery.restaurant_service.dto.request.UpdateRestaurantRequest;
 import com.delivery.restaurant_service.dto.response.RestaurantResponse;
 
 import java.util.List;
+import org.springframework.data.domain.Page;
 
 public interface RestaurantService {
 
@@ -34,4 +35,5 @@ public interface RestaurantService {
     
     List<RestaurantResponse> getRestaurantsByCreatorId(Long creatorId);
     List<RestaurantResponse> getRestaurantsByOwnerPrincipalId(Long ownerPrincipalId, Long legacyCreatorId);
+    Page<RestaurantResponse> getAllRestaurantsPage(int page, int size, String keyword);
 }

@@ -144,17 +144,23 @@ public class GatewayRouteConfig {
                                 // covered by these routes.
                                 .route("restaurant-catalog-public", r -> r.path(
                                                 "/api/restaurants",
+                                                "/api/restaurants/page",
                                                 "/api/restaurants/search",
                                                 "/api/restaurants/{id:[0-9]+}",
-                                                "/api/restaurants/{restaurantId:[0-9]+}/ratings")
+                                                "/api/restaurants/{restaurantId:[0-9]+}/ratings",
+                                                "/api/restaurants/{restaurantId:[0-9]+}/ratings/page")
                                                 .and().method(HttpMethod.GET)
                                                 .uri(restaurantServiceUri))
                                 .route("restaurant-menu-public", r -> r.path(
                                                 "/api/menu-items/restaurant/{restaurantId:[0-9]+}",
-                                                "/api/menu-items/restaurant/{restaurantId:[0-9]+}/available")
+                                                "/api/menu-items/restaurant/{restaurantId:[0-9]+}/page",
+                                                "/api/menu-items/restaurant/{restaurantId:[0-9]+}/available",
+                                                "/api/menu-items/restaurant/{restaurantId:[0-9]+}/available/page")
                                                 .and().method(HttpMethod.GET)
                                                 .uri(restaurantServiceUri))
-                                .route("restaurant-admin-ratings-read", r -> r.path("/api/restaurants/admin/ratings")
+                                .route("restaurant-admin-ratings-read", r -> r.path(
+                                                "/api/restaurants/admin/ratings",
+                                                "/api/restaurants/admin/ratings/page")
                                                 .and().method(HttpMethod.GET)
                                                 .uri(restaurantServiceUri))
                                 .route("restaurant-admin-ratings-update", r -> r.path(
@@ -184,7 +190,9 @@ public class GatewayRouteConfig {
                                 .route("restaurant-update-delete", r -> r.path("/api/restaurants/{id:[0-9]+}")
                                                 .and().method(HttpMethod.PUT, HttpMethod.DELETE)
                                                 .uri(restaurantServiceUri))
-                                .route("restaurant-menu-self", r -> r.path("/api/menu-items/my-menu-items")
+                                .route("restaurant-menu-self", r -> r.path(
+                                                "/api/menu-items/my-menu-items",
+                                                "/api/menu-items/my-menu-items/page")
                                                 .and().method(HttpMethod.GET)
                                                 .uri(restaurantServiceUri))
                                 .route("restaurant-menu-create", r -> r.path("/api/menu-items")
@@ -229,6 +237,11 @@ public class GatewayRouteConfig {
                                                 "/api/deliveries/cancel-assignment")
                                                 .and().method(HttpMethod.POST)
                                                 .uri(deliveryServiceUri))
+                                .route("delivery-service-batch-actions", r -> r.path(
+                                                "/api/deliveries/batch/accept",
+                                                "/api/deliveries/batch/reject")
+                                                .and().method(HttpMethod.POST)
+                                                .uri(deliveryServiceUri))
                                 .route("delivery-service-status", r -> r.path("/api/deliveries/{id:[0-9]+}/status")
                                                 .and().method(HttpMethod.PUT)
                                                 .uri(deliveryServiceUri))
@@ -239,6 +252,10 @@ public class GatewayRouteConfig {
                                                 .uri(deliveryServiceUri))
                                 .route("delivery-service-current-offer", r -> r.path(
                                                 "/api/deliveries/offers/current")
+                                                .and().method(HttpMethod.GET)
+                                                .uri(deliveryServiceUri))
+                                .route("delivery-service-current-batch-offer", r -> r.path(
+                                                "/api/deliveries/offers/current-batch")
                                                 .and().method(HttpMethod.GET)
                                                 .uri(deliveryServiceUri))
                                 .route("delivery-service-shipper-read", r -> r.path(
@@ -332,6 +349,10 @@ public class GatewayRouteConfig {
                                                 .path("/api/promotions/my-vouchers")
                                                 .and().method(HttpMethod.GET)
                                                 .uri(promotionServiceUri))
+                                .route("promotion-service-user-capability", r -> r
+                                                .path("/api/promotions/capability")
+                                                .and().method(HttpMethod.GET)
+                                                .uri(promotionServiceUri))
                                 // Merchant voucher creation stays hidden until restaurantId is
                                 // explicit and restaurant ownership is verified. ownerId is not a
                                 // valid substitute for restaurantId.
@@ -339,13 +360,28 @@ public class GatewayRouteConfig {
                                                 .path("/api/promotions/merchant")
                                                 .and().method(HttpMethod.GET)
                                                 .uri(promotionServiceUri))
+                                .route("promotion-service-shop-create", r -> r
+                                                .path("/api/promotions/shop")
+                                                .and().method(HttpMethod.POST)
+                                                .uri(promotionServiceUri))
+                                .route("promotion-service-shop-list", r -> r
+                                                .path("/api/promotions/shop")
+                                                .and().method(HttpMethod.GET)
+                                                .uri(promotionServiceUri))
                                 .route("promotion-service-admin-create", r -> r
                                                 .path("/api/promotions/platform")
                                                 .and().method(HttpMethod.POST)
                                                 .uri(promotionServiceUri))
                                 .route("promotion-service-admin-list", r -> r
-                                                .path("/api/promotions/admin")
+                                                .path("/api/promotions/admin", "/api/promotions/admin/page")
                                                 .and().method(HttpMethod.GET)
+                                                .uri(promotionServiceUri))
+                                .route("promotion-service-admin-shop-review", r -> r
+                                                .path("/api/promotions/admin/pending-shop",
+                                                        "/api/promotions/admin/{id:[0-9]+}/approve",
+                                                        "/api/promotions/admin/{id:[0-9]+}/reject",
+                                                        "/api/promotions/admin/{id:[0-9]+}/pause",
+                                                        "/api/promotions/admin/{id:[0-9]+}/resume")
                                                 .uri(promotionServiceUri))
                                 .route("promotion-service-admin-delete", r -> r
                                                 .path("/api/promotions/{id:[0-9]+}")
@@ -361,7 +397,9 @@ public class GatewayRouteConfig {
                                                 .uri(flashsaleServiceUri))
                                 .route("flashsale-admin-read", r -> r.path(
                                                 "/api/flashsales/admin/campaigns",
-                                                "/api/flashsales/admin/campaigns/{id:[0-9]+}/items")
+                                                "/api/flashsales/admin/campaigns/page",
+                                                "/api/flashsales/admin/campaigns/{id:[0-9]+}/items",
+                                                "/api/flashsales/admin/campaigns/{id:[0-9]+}/items/page")
                                                 .and().method(HttpMethod.GET)
                                                 .uri(flashsaleServiceUri))
                                 .route("flashsale-admin-create", r -> r.path(
@@ -373,6 +411,14 @@ public class GatewayRouteConfig {
                                                 "/api/flashsales/admin/items/{id:[0-9]+}/approve")
                                                 .and().method(HttpMethod.PUT)
                                                 .uri(flashsaleServiceUri))
+
+                                // Analytics is an explicit read-only admin surface. The service
+                                // repeats the ADMIN/ownership checks; reconciliation stays
+                                // operator-only and is intentionally not routed here.
+                                .route("analytics-service-admin-dashboard", r -> r.path(
+                                                "/api/analytics/dashboard/admin")
+                                                .and().method(HttpMethod.GET)
+                                                .uri(analyticsServiceUri))
 
                                 .build();
         }

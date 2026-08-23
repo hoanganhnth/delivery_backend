@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Page;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -75,6 +76,18 @@ public class RestaurantRatingServiceImpl implements RestaurantRatingService {
         return ratingRepository.findAll(PageRequest.of(0, 100)).stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public Page<RestaurantRatingResponse> getRestaurantRatingsPage(Long restaurantId, int page, int size) {
+        return ratingRepository.findPageByRestaurantIdAndStatus(restaurantId,
+                        com.delivery.restaurant_service.entity.RatingStatus.APPROVED, PageRequest.of(page, size))
+                .map(this::mapToResponse);
+    }
+
+    @Override
+    public Page<RestaurantRatingResponse> getAllRatingsPage(int page, int size) {
+        return ratingRepository.findAll(PageRequest.of(page, size)).map(this::mapToResponse);
     }
 
     @Override

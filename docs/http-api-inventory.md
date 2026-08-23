@@ -2,9 +2,9 @@
 
 Ngày cập nhật inventory: 2026-08-21
 
-Tài liệu này liệt kê toàn bộ method có mapping trong 17 service có controller.
+Tài liệu này liệt kê toàn bộ method có mapping trong 18 service có controller.
 `saga-orchestrator-service` không có HTTP controller. Danh sách được sinh trực
-tiếp từ annotation Java và hiện có **174 method**.
+ tiếp từ annotation Java và hiện có **199 method**.
 
 Contract backend MVP được freeze ngày 2026-07-26 sau clean Gate B8, API surface
 classification và full reactor 602 test. Các capability ghi hidden/disabled hoặc
@@ -85,7 +85,7 @@ sửa.
 | generic order update/delete/status/assign | no public actor | không còn consumer hợp lệ | dead/deleted | Gateway không route; service compatibility controller, DTO update và capability flags đã xóa. Web restaurant dùng canonical confirm/reject; shipper dùng Delivery cancel-assignment; admin recovery nếu bổ sung sau phải có authority/product audit riêng |
 | order dashboard controller | none after analytics migration | không có polyrepo consumer | dead/deleted | controller/service/DTO/query graph và feature flag đã xóa; Analytics giữ capability riêng nhưng tiếp tục hidden |
 | delivery legacy assign | none; Saga/Kafka is canonical | không có polyrepo consumer | dead/deleted | controller/DTO/service/repository branch và flag đã xóa; assignment chỉ qua one-offer accept |
-| delivery accept | only currently offered SHIPPER; row lock/expiry | shipper app | public-client/keep | command DTO bắt positive order/canonical action, bounds pickup/location; đã khóa row, offered shipper + expiry và `saveAndFlush`; exact ACCEPT/REJECT HTTP replay trước rematch không phát event lần hai; PostgreSQL concurrency rehearsal còn OPEN |
+| delivery accept | currently offered SHIPPER; row lock/expiry; batch endpoint accepts all offered items atomically | shipper app | public-client/keep | legacy `/accept` remains unchanged; additive `/batch/accept` locks batch/items and commits all deliveries or rolls back; batch capability remains flag-gated; PostgreSQL concurrency rehearsal còn OPEN |
 | delivery current offer recovery | authenticated SHIPPER self | shipper app migrate trong client alignment phase | public-client/keep | exact `GET /api/deliveries/offers/current` derive shipper từ JWT, chỉ trả một offer chưa hết hạn và fail-closed nếu invariant one-offer bị vỡ; durable Notification inbox + FCM best-effort wake-up |
 | delivery shipper history/active | authenticated SHIPPER self hoặc ADMIN support | shipper app dùng history/restore; admin chưa có call-site | public-client/keep | Gateway tách khỏi current-offer; service bắt cả role và path identity, không cho USER/SHOP_OWNER đi qua chỉ vì numeric ID trùng |
 | delivery cancel-assignment | assigned SHIPPER, policy before pickup | shipper app cần dùng | public-client/keep | pessimistic order row lock serializes against pickup; reset assignment + AVAILABLE + shipper-rejected/rematch outboxes commit atomically; exact retry trước rematch trả state hiện tại và không phát event lần hai |
@@ -116,8 +116,8 @@ sửa.
 | payment create/status/provider | authenticated payer owns payment | cả 3 client còn reference legacy | hidden/disabled | không có Gateway route, controller off mặc định và Order payment-event listener cũng off (`ORDER_PAYMENT_EVENT_PROCESSING_ENABLED=false`) trong COD-first MVP |
 | VNPAY callback/IPN | payment provider signature | provider | hidden/disabled-until-verified | toàn payment bean graph off mặc định; provider không có DEMO credential và fail-closed khi env thiếu; callback/reconciliation proof OPEN |
 | fake payment confirm | developer | no production client | hidden/dev-test-only | không có production Gateway route; controller/provider cần explicit processing+fake flags và active profile `dev|test`, không thể bật ở `prod` |
-| promotion collect/my/calculate | USER own voucher/order input canonical | Flutter/web | collect/my public; calculate hidden | Promotion resource server bắt USER cho collect/my; collect kiểm active window, concurrent duplicate trả 409 qua DB unique; wallet cap 100. Calculate là `/api/promotions/internal/calculate`, chỉ Order gọi bằng `Internal-Token` với `userId` trusted trong body, và checkout flag vẫn off; calculate batch lookup nhưng chưa tính discount |
-| promotion merchant CRUD/list | SHOP_OWNER owns merchant/restaurant | web restaurant | GET list public; create hidden/disabled | create không có public Gateway route và không có active controller bean mặc định (`PROMOTION_MERCHANT_CREATE_API_ENABLED=false`); Gateway test chặn `POST /api/promotions/merchant`, chỉ giữ `GET /api/promotions/merchant` cho SHOP_OWNER. Cần explicit restaurantId + ownership proof trước khi mở lại |
+| promotion capability/collect/my/calculate | USER own voucher/order input canonical | Flutter/web | capability + collect/my public; calculate hidden | `/api/promotions/capability` returns the stable-principal canary contract; calculate remains `/api/promotions/internal/calculate` and server-owned. Stacking is default-off and gated by `PROMOTION_STACKING_ENABLED` plus `PROMOTION_STACKING_CANARY_PRINCIPALS`; legacy single-voucher rows remain readable |
+| promotion merchant CRUD/list | SHOP_OWNER owns merchant/restaurant | web restaurant | shop create/list routed; admin review required | `POST/GET /api/promotions/shop` require SHOP_OWNER and canonical Restaurant ownership; shop vouchers stay PENDING until ADMIN approval. Legacy `/merchant` remains compatibility-only |
 | promotion platform/admin list/delete | ADMIN | web admin | public-admin/keep | Gateway/controller bắt `ADMIN`; exact POST/GET/DELETE methods, list cap 100; concurrency còn OPEN |
 | promotion reserve | order-service credential | order checkout | internal/disabled-for-MVP | hidden + shared secret; feature flag false và listener compensation không tạo bean; request IDs được validate sau credential/recovery gate. Focused controller test 2026-07-29 xác nhận credential được kiểm trước checkout flag/validation và disabled path không gọi service. Cần reservation record/outbox trước khi mở |
 | flash-sale public campaigns/items | anonymous read-only | Flutter/web | public-client/keep | exact path+GET public, không còn wildcard; active campaign và approved-item lists cap 100 |
@@ -126,7 +126,7 @@ sửa.
 | flash-sale reserve | order-service credential + idempotency key | order checkout | internal/disabled-for-MVP | hidden + shared secret; feature flag false và compensation listener disabled; item/quantity/price được validate sau credential/recovery gate. Focused controller/context proof 2026-07-29 xác nhận Gateway không route internal reserve, service kiểm credential trước flag/validation, disabled path không lấy stock service, và `FlashSaleStockService`/RedisConfig không tạo bean mặc định. Reservation record/idempotency/partial rollback OPEN |
 | search restaurants/dishes | anonymous read-only | Flutter/web | public-client/keep | exact GET; query 1-100 chars, page >=0, size 1-100; disabled profile trả empty không phải functional proof; double `/api` in Flutter |
 | search shippers | none; admin fleet uses shipper-service | không có polyrepo consumer | dead/deleted | Gateway và clients không có caller; controller/index repository/document/consumer branch cùng Shipper fire-and-forget publisher đã xóa. Matching tiếp tục dùng Redis GEO, admin fleet dùng scoped Shipper API. |
-| analytics admin dashboard/reconcile | ADMIN | web admin | experimental/hidden | Gateway route đã đóng; controller/listener/job không tạo bean mặc định; enabled-mode còn thiếu role, dedup và retry/DLT proof |
+| analytics admin dashboard/reconcile | ADMIN | web admin | read route gated / operator reconcile hidden | Admin dashboard GET is routed through Gateway and controller-enforced; analytics processing remains default-off and enabled-mode still needs runtime backfill/reconciliation proof. Reconcile is not routed to browser. |
 | analytics restaurant dashboards | SHOP_OWNER owns restaurant or ADMIN | web restaurant | experimental/hidden | Gateway route đã đóng và capability off mặc định; arbitrary restaurantId/fallback userId-as-restaurantId chưa đạt ownership |
 | livestream active/detail/join/products read | authenticated/public viewer per product policy | Flutter/web | experimental/disabled | Gateway surface đóng và toàn bộ service HTTP controllers mặc định không tạo bean (`LIVESTREAM_API_ENABLED=false`) trong COD MVP; client UI là migration item |
 | livestream create/start/end/product writes | SHOP_OWNER owns restaurant/live | web restaurant | experimental/disabled | service HTTP controllers mặc định tắt; create vẫn chưa chứng minh seller sở hữu restaurant nên không được mở |
@@ -157,8 +157,11 @@ sửa.
 | auth-service | AuthController | POST | `/api/auth/admin/accounts/{id}/unblock` | `unblockAccount` |
 | auth-service | JwksController | GET | `/.well-known/jwks.json` | `getJwks` |
 | delivery-service | DeliveryController | POST | `/api/deliveries/accept` | `acceptDelivery` |
+| delivery-service | DeliveryController | POST | `/api/deliveries/batch/accept` | `acceptBatch` |
+| delivery-service | DeliveryController | POST | `/api/deliveries/batch/reject` | `rejectBatch` |
 | delivery-service | DeliveryController | POST | `/api/deliveries/cancel-assignment` | `cancelAssignedDelivery` |
 | delivery-service | DeliveryController | GET | `/api/deliveries/offers/current` | `getCurrentOffer` |
+| delivery-service | DeliveryController | GET | `/api/deliveries/offers/current-batch` | `getCurrentBatchOffer` |
 | delivery-service | DeliveryController | GET | `/api/deliveries/{id}` | `getDelivery` |
 | delivery-service | DeliveryController | PUT | `/api/deliveries/{id}/status` | `updateStatus` |
 | delivery-service | DeliveryController | GET | `/api/deliveries/shipper/{shipperId}` | `getDeliveriesByShipper` |
@@ -212,21 +215,35 @@ sửa.
 | order-service | InternalOrderController | GET | `/api/orders/internal/{orderId}/rating-eligibility` | `isRatingEligible` |
 | order-service | InternalOrderController | GET | `/api/orders/internal/{orderId}/restaurant-decision-eligibility` | `isRestaurantDecisionEligible` |
 | promotion-service | PromotionController | POST | `/api/promotions/platform` | `createPlatformVoucher` |
+| promotion-service | PromotionController | GET | `/api/promotions/capability` | `capability` |
+| promotion-service | PromotionController | POST | `/api/promotions/shop` | `createShopVoucher` |
 | promotion-service | PromotionController | POST | `/api/promotions/collect/{code}` | `collectVoucher` |
 | promotion-service | PromotionController | GET | `/api/promotions/my-vouchers` | `getMyVouchers` |
 | promotion-service | PromotionController | GET | `/api/promotions/merchant` | `listMerchantVouchers` |
+| promotion-service | PromotionController | GET | `/api/promotions/shop` | `listShopVouchers` |
 | promotion-service | PromotionController | GET | `/api/promotions/admin` | `listAllVouchers` |
+| promotion-service | PromotionController | GET | `/api/promotions/admin/pending-shop` | `listPendingShopVouchers` |
+| promotion-service | PromotionController | POST | `/api/promotions/admin/{id}/approve` | `approveShopVoucher` |
+| promotion-service | PromotionController | POST | `/api/promotions/admin/{id}/reject` | `rejectShopVoucher` |
+| promotion-service | PromotionController | POST | `/api/promotions/admin/{id}/pause` | `pauseVoucher` |
+| promotion-service | PromotionController | POST | `/api/promotions/admin/{id}/resume` | `resumeVoucher` |
 | promotion-service | PromotionController | DELETE | `/api/promotions/{id}` | `deleteVoucher` |
 | promotion-service | PromotionController | POST | `/api/promotions/internal/calculate` | `calculate` |
 | promotion-service | PromotionController | POST | `/api/promotions/internal/reserve` | `reserve` |
+| promotion-service | PromotionController | POST | `/api/promotions/internal/reservations` | `reserveBulk` |
 | promotion-service | PromotionController | POST | `/api/promotions/internal/reservations/{reservationId}/commit` | `commit` |
 | promotion-service | PromotionController | POST | `/api/promotions/internal/reservations/{reservationId}/release` | `release` |
+| promotion-service | PromotionController | POST | `/api/promotions/internal/promotion-reservations/{reservationId}/commit` | `commitBulk` |
+| promotion-service | PromotionController | POST | `/api/promotions/internal/promotion-reservations/{reservationId}/release` | `releaseBulk` |
 | restaurant-service | MenuItemController | POST | `/api/menu-items` | `create` |
 | restaurant-service | MenuItemController | PUT | `/api/menu-items/{id}` | `update` |
 | restaurant-service | MenuItemController | DELETE | `/api/menu-items/{id}` | `delete` |
 | restaurant-service | MenuItemController | GET | `/api/menu-items/restaurant/{restaurantId}` | `getByRestaurant` |
 | restaurant-service | MenuItemController | GET | `/api/menu-items/restaurant/{restaurantId}/available` | `getAvailableItems` |
+| restaurant-service | MenuItemController | GET | `/api/menu-items/restaurant/{restaurantId}/page` | `getPage` |
+| restaurant-service | MenuItemController | GET | `/api/menu-items/restaurant/{restaurantId}/available/page` | `getAvailablePage` |
 | restaurant-service | MenuItemController | GET | `/api/menu-items/my-menu-items` | `getMyMenuItems` |
+| restaurant-service | MenuItemController | GET | `/api/menu-items/my-menu-items/page` | `getMyMenuItemsPage` |
 | restaurant-service | OrderValidationController | POST | `/api/restaurants/validate/order` | `validateOrder` |
 | restaurant-service | InternalRestaurantController | GET | `/api/restaurants/internal/{restaurantId}/owners/{ownerId}` | `isOwnedBy` |
 | restaurant-service | RestaurantController | POST | `/api/restaurants` | `create` |
@@ -235,13 +252,16 @@ sửa.
 | restaurant-service | RestaurantController | GET | `/api/restaurants/{id}` | `getById` |
 | restaurant-service | RestaurantController | GET | `/api/restaurants` | `getAll` |
 | restaurant-service | RestaurantController | GET | `/api/restaurants/search` | `search` |
+| restaurant-service | RestaurantController | GET | `/api/restaurants/page` | `getPage` |
 | restaurant-service | RestaurantController | GET | `/api/restaurants/my-restaurants` | `getMyRestaurants` |
 | restaurant-service | RestaurantOrderController | POST | `/api/restaurants/orders/{orderId}/confirm` | `confirmOrder` |
 | restaurant-service | RestaurantOrderController | POST | `/api/restaurants/orders/{orderId}/reject` | `rejectOrder` |
 | restaurant-service | RestaurantRatingController | POST | `/api/restaurants/{restaurantId}/ratings` | `submitRating` |
 | restaurant-service | RestaurantRatingController | GET | `/api/restaurants/{restaurantId}/ratings` | `getRestaurantRatings` |
+| restaurant-service | RestaurantRatingController | GET | `/api/restaurants/{restaurantId}/ratings/page` | `getRestaurantRatingsPage` |
 | restaurant-service | RestaurantRatingController | GET | `/api/restaurants/me/ratings` | `getMyRatings` |
 | restaurant-service | RestaurantRatingController | GET | `/api/restaurants/admin/ratings` | `getAllRatings` |
+| restaurant-service | RestaurantRatingController | GET | `/api/restaurants/admin/ratings/page` | `getAllRatingsPage` |
 | restaurant-service | RestaurantRatingController | PUT | `/api/restaurants/admin/ratings/{id}/status` | `updateRatingStatus` |
 | search-service | SearchController | GET | `/api/search/restaurants` | `searchRestaurants` |
 | search-service | SearchController | GET | `/api/search/dishes` | `searchDishes` |
@@ -263,6 +283,9 @@ sửa.
 | settlement-service | BalanceController | POST | `/api/settlement/balances/shipper/{entityId}/deposit` | `topUpDeposit` |
 | settlement-service | BalanceController | GET | `/api/settlement/balances/shipper/{entityId}/cod-eligibility` | `checkCodEligibility` |
 | settlement-service | InternalSettlementController | GET | `/api/settlement/internal/shippers/{shipperId}/cod-eligibility` | `isCodEligible` |
+| settlement-service | InternalSettlementController | POST | `/api/settlement/internal/cod-capacity/holds` | `createCodCapacityHolds` |
+| settlement-service | InternalSettlementController | POST | `/api/settlement/internal/cod-capacity/holds/{holdId}/commit` | `commitCodCapacityHold` |
+| settlement-service | InternalSettlementController | POST | `/api/settlement/internal/cod-capacity/holds/{holdId}/release` | `releaseCodCapacityHold` |
 | settlement-service | PaymentController | POST | `/api/settlement/payments/create` | `createPayment` |
 | settlement-service | PaymentController | GET | `/api/settlement/payments/vnpay-callback` | `vnpayCallback` |
 | settlement-service | PaymentController | GET\|POST | `/api/settlement/payments/vnpay-ipn` | `vnpayIpn` |
@@ -292,6 +315,8 @@ sửa.
 | shipper-service | ShipperRatingController | GET | `/api/shippers/me/ratings` | `getMyRatings` |
 | tracking-service | ShipperLocationController | POST | `/api/tracking/shipper-locations/update` | `updateLocation` |
 | tracking-service | ShipperLocationController | POST | `/api/tracking/shipper-locations/offline` | `markOffline` |
+| routing-service | RoutingController | POST | `/internal/routing/v1/matrix` | `matrix` |
+| routing-service | RoutingController | POST | `/internal/routing/v1/route` | `route` |
 | tracking-service | InternalShipperAvailabilityController | POST | `/api/tracking/internal/shippers/{shipperId}/offline` | `markOffline` |
 | tracking-service | InternalLocationHistoryController | GET | `/internal/tracking/location-history/deliveries/{deliveryId}` | `byDelivery` |
 | user-service | UserAddressController | GET | `/api/addresses/users/{userId}/addresses` | `getUserAddresses` |

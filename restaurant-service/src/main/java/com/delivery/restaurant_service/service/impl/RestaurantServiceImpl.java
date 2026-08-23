@@ -16,6 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Page;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.beans.factory.annotation.Value;
 import io.micrometer.core.instrument.Counter;
@@ -162,6 +163,15 @@ public class RestaurantServiceImpl implements RestaurantService {
         return list.stream()
                 .map(restaurantMapper::toResponse)
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public Page<RestaurantResponse> getAllRestaurantsPage(int page, int size, String keyword) {
+        PageRequest request = PageRequest.of(page, size);
+        Page<Restaurant> source = keyword == null || keyword.isBlank()
+                ? restaurantRepository.findAll(request)
+                : restaurantRepository.findPageByNameContainingIgnoreCase(keyword.trim(), request);
+        return source.map(restaurantMapper::toResponse);
     }
 
     private boolean canManage(Restaurant restaurant, Long ownerPrincipalId, Long creatorId, String role) {

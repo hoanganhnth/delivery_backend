@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
 
 import java.util.List;
+import com.delivery.restaurant_service.payload.PageResponse;
 
 @RestController
 @RequestMapping(ApiPathConstants.MENU_ITEMS)
@@ -66,6 +67,24 @@ public class MenuItemController {
         List<MenuItemResponse> list = menuItemService.getAvailableItems(restaurantId);
         return ResponseEntity.ok(new BaseResponse<>(1, list));
     }
+
+    @GetMapping("/restaurant/{restaurantId}/page")
+    public ResponseEntity<BaseResponse<PageResponse<MenuItemResponse>>> getPage(
+            @PathVariable Long restaurantId, @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "24") int size) {
+        validatePage(page, size);
+        return ResponseEntity.ok(new BaseResponse<>(1, PageResponse.from(
+                menuItemService.getItemsByRestaurantPage(restaurantId, page, size, false))));
+    }
+
+    @GetMapping("/restaurant/{restaurantId}/available/page")
+    public ResponseEntity<BaseResponse<PageResponse<MenuItemResponse>>> getAvailablePage(
+            @PathVariable Long restaurantId, @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "24") int size) {
+        validatePage(page, size);
+        return ResponseEntity.ok(new BaseResponse<>(1, PageResponse.from(
+                menuItemService.getItemsByRestaurantPage(restaurantId, page, size, true))));
+    }
     
     @GetMapping("/my-menu-items")
     public ResponseEntity<BaseResponse<List<MenuItemResponse>>> getMyMenuItems(
@@ -80,6 +99,20 @@ public class MenuItemController {
         
         List<MenuItemResponse> list = menuItemService.getMenuItemsByCreatorId(actor.getUserId());
         return ResponseEntity.ok(new BaseResponse<>(1, list));
+    }
+
+    @GetMapping("/my-menu-items/page")
+    public ResponseEntity<BaseResponse<PageResponse<MenuItemResponse>>> getMyMenuItemsPage(
+            @AuthenticationPrincipal AuthenticatedActor actor,
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "24") int size) {
+        if (actor == null || actor.getUserId() == null || !actor.isShopOwner()) throw new AccessDeniedException("Only SHOP_OWNER can view owned menu items");
+        validatePage(page, size);
+        return ResponseEntity.ok(new BaseResponse<>(1, PageResponse.from(
+                menuItemService.getMenuItemsByCreatorPage(actor.getUserId(), page, size))));
+    }
+
+    private void validatePage(int page, int size) {
+        if (page < 0 || size < 1 || size > 100) throw new IllegalArgumentException("Invalid page or size");
     }
 
     private void requireActor(AuthenticatedActor actor) {

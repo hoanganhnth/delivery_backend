@@ -18,6 +18,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Page;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -137,6 +138,20 @@ public class MenuItemServiceImpl implements MenuItemService {
         return menuItems.stream()
                 .map(menuItemMapper::toResponse)
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public Page<MenuItemResponse> getItemsByRestaurantPage(Long restaurantId, int page, int size, boolean available) {
+        Page<MenuItem> source = available
+                ? menuItemRepository.findPageByRestaurantIdAndStatus(restaurantId, MenuItem.Status.AVAILABLE, PageRequest.of(page, size))
+                : menuItemRepository.findPageByRestaurantId(restaurantId, PageRequest.of(page, size));
+        return source.map(menuItemMapper::toResponse);
+    }
+
+    @Override
+    public Page<MenuItemResponse> getMenuItemsByCreatorPage(Long creatorId, int page, int size) {
+        return menuItemRepository.findPageByRestaurantCreatorId(creatorId, PageRequest.of(page, size))
+                .map(menuItemMapper::toResponse);
     }
     
     private void checkPermission(MenuItem item, Long creatorId, String role) {

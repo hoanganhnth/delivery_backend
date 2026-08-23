@@ -13,6 +13,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.util.Locale;
 
 @RestController
 @RequestMapping("/api/analytics")
@@ -29,7 +30,22 @@ public class DashboardController {
             @RequestParam(required = false) Integer year,
             @AuthenticationPrincipal AuthenticatedActor actor) {
 
-        DashboardResponse.AdminDashboard response = queryService.getAdminDashboard(period, year);
+        if (actor == null || !actor.isAdmin()) {
+            return ResponseEntity.status(403)
+                    .body(new BaseResponse<>(0, null, "Only ADMIN can access analytics dashboard"));
+        }
+        String normalizedPeriod = period == null ? "month" : period.trim().toLowerCase(Locale.ROOT);
+        if (!normalizedPeriod.equals("month") && !normalizedPeriod.equals("quarter")
+                && !normalizedPeriod.equals("year")) {
+            return ResponseEntity.badRequest()
+                    .body(new BaseResponse<>(0, null, "Unsupported analytics period"));
+        }
+        if (year != null && (year < 2000 || year > 2100)) {
+            return ResponseEntity.badRequest()
+                    .body(new BaseResponse<>(0, null, "Analytics year is out of range"));
+        }
+
+        DashboardResponse.AdminDashboard response = queryService.getAdminDashboard(normalizedPeriod, year);
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Lấy thống kê Admin thành công"));
     }
 
@@ -39,6 +55,11 @@ public class DashboardController {
             @RequestParam(required = false, defaultValue = "month") String period,
             @RequestParam(required = false) Integer year,
             @AuthenticationPrincipal AuthenticatedActor actor) {
+
+        if (actor == null || (!actor.isAdmin() && !actor.isShopOwner())) {
+            return ResponseEntity.status(403)
+                    .body(new BaseResponse<>(0, null, "Only ADMIN or SHOP_OWNER can access analytics"));
+        }
 
         DashboardResponse.RestaurantDashboard response = queryService.getRestaurantDashboard(
                 restaurantId, period, year);
@@ -52,7 +73,16 @@ public class DashboardController {
             @RequestParam(required = false) Long restaurantId,
             @AuthenticationPrincipal AuthenticatedActor actor) {
 
-        Long targetId = restaurantId != null ? restaurantId : (actor != null ? actor.getUserId() : null);
+        if (actor == null || (!actor.isAdmin() && !actor.isShopOwner())) {
+            return ResponseEntity.status(403)
+                    .body(new BaseResponse<>(0, null, "Only ADMIN or SHOP_OWNER can access analytics"));
+        }
+
+        Long targetId = restaurantId;
+        if (targetId == null) {
+            return ResponseEntity.badRequest()
+                    .body(new BaseResponse<>(0, null, "restaurantId is required"));
+        }
         DashboardResponse.RestaurantDashboard response = queryService.getRestaurantDashboard(
                 targetId, period, year);
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Lấy thống kê nhà hàng thành công"));
@@ -60,7 +90,12 @@ public class DashboardController {
 
     @PostMapping("/reconcile")
     public ResponseEntity<BaseResponse<String>> manualReconcile(
-            @RequestParam String date) {
+            @RequestParam String date,
+            @AuthenticationPrincipal AuthenticatedActor actor) {
+        if (actor == null || !actor.isAdmin()) {
+            return ResponseEntity.status(403)
+                    .body(new BaseResponse<>(0, null, "Only ADMIN can reconcile analytics"));
+        }
         LocalDate targetDate = LocalDate.parse(date);
         reconciliationJob.reconcileDate(targetDate);
         return ResponseEntity.ok(new BaseResponse<>(1, "Reconciliation completed for " + date, "Thành công"));

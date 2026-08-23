@@ -5,6 +5,7 @@ import com.delivery.restaurant_service.dto.request.UpdateMenuItemRequest;
 import com.delivery.restaurant_service.dto.response.MenuItemResponse;
 
 import java.util.List;
+import org.springframework.data.domain.Page;
 
 public interface MenuItemService {
 
@@ -21,4 +22,6 @@ public interface MenuItemService {
     List<MenuItemResponse> getAvailableItems(Long restaurantId);
     
     List<MenuItemResponse> getMenuItemsByCreatorId(Long creatorId);
+    Page<MenuItemResponse> getItemsByRestaurantPage(Long restaurantId, int page, int size, boolean available);
+    Page<MenuItemResponse> getMenuItemsByCreatorPage(Long creatorId, int page, int size);
 }

@@ -125,9 +125,11 @@ public class GatewayRateLimitFilter implements GlobalFilter, Ordered {
         return "/api/search/restaurants".equals(path)
                 || "/api/search/dishes".equals(path)
                 || "/api/restaurants".equals(path)
+                || "/api/restaurants/page".equals(path)
                 || "/api/restaurants/search".equals(path)
                 || path.matches("/api/restaurants/[0-9]+(?:/ratings)?")
-                || path.matches("/api/menu-items/restaurant/[0-9]+(?:/available)?");
+                || path.matches("/api/restaurants/[0-9]+/ratings/page")
+                || path.matches("/api/menu-items/restaurant/[0-9]+(?:/(?:available/)?page|/available)?");
     }
 
     private String peerIp(ServerWebExchange exchange) {

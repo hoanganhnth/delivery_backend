@@ -16,6 +16,8 @@ import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
 
 import java.util.List;
+import org.springframework.data.domain.Page;
+import com.delivery.restaurant_service.payload.PageResponse;
 
 @RestController
 @RequestMapping(ApiPathConstants.RESTAURANTS)
@@ -73,6 +75,16 @@ public class RestaurantController {
     public ResponseEntity<BaseResponse<List<RestaurantResponse>>> search(@RequestParam String keyword) {
         List<RestaurantResponse> list = restaurantService.findByName(keyword);
         return ResponseEntity.ok(new BaseResponse<>(1, list));
+    }
+
+    @GetMapping("/page")
+    public ResponseEntity<BaseResponse<PageResponse<RestaurantResponse>>> getPage(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "24") int size,
+            @RequestParam(required = false) String keyword) {
+        if (page < 0 || size < 1 || size > 100) throw new IllegalArgumentException("Invalid page or size");
+        return ResponseEntity.ok(new BaseResponse<>(1,
+                PageResponse.from(restaurantService.getAllRestaurantsPage(page, size, keyword))));
     }
     
     @GetMapping("/my-restaurants")
