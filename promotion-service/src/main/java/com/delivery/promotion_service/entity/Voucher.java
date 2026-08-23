@@ -75,6 +75,31 @@ public class Voucher {
 
     private String customerSegment;
 
+    /** Explicit layer/funding fields are additive; legacy rows are resolved by compatibility rules. */
+    @Column(name = "voucher_layer", length = 32)
+    private String layerCode;
+
+    @Column(name = "funding_source", length = 32)
+    private String fundingSource;
+
+    @Column(name = "approval_status", length = 32)
+    private String approvalStatus;
+
+    @Column(name = "owner_principal_id")
+    private Long ownerPrincipalId;
+
+    @Column(name = "restaurant_id")
+    private Long restaurantId;
+
+    @Column(name = "approved_by_principal_id")
+    private Long approvedByPrincipalId;
+
+    @Column(name = "approved_at")
+    private LocalDateTime approvedAt;
+
+    @Column(name = "rejection_reason")
+    private String rejectionReason;
+
     @Column(nullable = false)
     @Builder.Default
     private Boolean active = true;
@@ -96,7 +121,7 @@ public class Voucher {
     }
 
     public enum CreatorType {
-        PLATFORM, MERCHANT
+        PLATFORM, MERCHANT, SHOP
     }
 
     public enum RewardType {

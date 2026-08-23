@@ -9,6 +9,7 @@ import com.delivery.order_service.entity.Order;
 import com.delivery.order_service.entity.OrderItem;
 import com.delivery.order_service.entity.OrderStatus;
 import com.delivery.order_service.exception.AccessDeniedException;
+import com.delivery.order_service.exception.OrderApiException;
 import com.delivery.order_service.exception.ResourceNotFoundException;
 import com.delivery.order_service.mapper.OrderMapper;
 import com.delivery.order_service.repository.OrderItemRepository;
@@ -21,11 +22,13 @@ import com.delivery.order_service.service.CheckoutReservationClient;
 import com.delivery.order_service.service.CheckoutQuoteService;
 import com.delivery.order_service.service.CheckoutFingerprintService;
 import com.delivery.order_service.service.OrderCreateIdempotencyService;
+import com.delivery.order_service.config.OrderCreateAdmission;
 import com.delivery.order_service.entity.OrderCreateIdempotencyReceipt;
 import com.delivery.order_service.metrics.BusinessMetrics;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -38,6 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.UUID;
 
@@ -53,6 +57,7 @@ public class OrderServiceImpl implements OrderService {
     private final ShippingFeeCalculationService shippingFeeCalculationService;
     private final BusinessMetrics businessMetrics;
     private final CheckoutReservationClient reservationClient;
+    private final OrderCreateAdmission createAdmission;
 
     @Autowired(required = false)
     private CheckoutQuoteService checkoutQuoteService;
@@ -63,9 +68,19 @@ public class OrderServiceImpl implements OrderService {
     @Autowired(required = false)
     private CheckoutFingerprintService checkoutFingerprintService;
 
+    /**
+     * Explicit transaction boundary for create-order.  The old implementation
+     * opened a write transaction before calling remote dependencies.  Keeping
+     * this optional preserves source-compatible focused unit tests; production
+     * Spring wiring always supplies the template from the service DB manager.
+     */
+    @Autowired(required = false)
+    private TransactionTemplate transactionTemplate;
+
     @Value("${app.identity.principal-ownership.enforced:false}")
     private boolean principalOwnershipEnforced;
 
+    @Autowired
     public OrderServiceImpl(OrderRepository orderRepository,
                            OrderItemRepository orderItemRepository,
                            OrderMapper orderMapper,
@@ -73,7 +88,8 @@ public class OrderServiceImpl implements OrderService {
                            OrderValidationService orderValidationService,
                            ShippingFeeCalculationService shippingFeeCalculationService,
                            BusinessMetrics businessMetrics,
-                           CheckoutReservationClient reservationClient) {
+                           CheckoutReservationClient reservationClient,
+                           OrderCreateAdmission createAdmission) {
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
         this.orderMapper = orderMapper;
@@ -82,38 +98,98 @@ public class OrderServiceImpl implements OrderService {
         this.shippingFeeCalculationService = shippingFeeCalculationService;
         this.businessMetrics = businessMetrics;
         this.reservationClient = reservationClient;
+        this.createAdmission = createAdmission;
+    }
+
+    /** Source-compatible constructor for focused legacy tests/callers. */
+    public OrderServiceImpl(OrderRepository orderRepository,
+                           OrderItemRepository orderItemRepository,
+                           OrderMapper orderMapper,
+                           OrderEventPublisher orderEventPublisher,
+                           OrderValidationService orderValidationService,
+                           ShippingFeeCalculationService shippingFeeCalculationService,
+                           BusinessMetrics businessMetrics,
+                           CheckoutReservationClient reservationClient) {
+        this(orderRepository, orderItemRepository, orderMapper, orderEventPublisher,
+                orderValidationService, shippingFeeCalculationService, businessMetrics,
+                reservationClient, null);
     }
 
     @Override
-    @Transactional
     public OrderResponse createOrder(CreateOrderRequest request, Long userId, String role) {
         return createOrder(request, userId, userId, role);
     }
 
     @Override
-    @Transactional
     public OrderResponse createOrder(CreateOrderRequest request, Long principalId, Long userId, String role) {
         return createOrder(request, null, principalId, userId, role);
     }
 
     @Override
-    @Transactional
     public OrderResponse createOrder(CreateOrderRequest request, UUID idempotencyKey,
                                      Long principalId, Long userId, String role) {
+        // Reject unauthorized traffic before consuming an admission permit.
         if (!RoleConstants.USER.equals(role)) {
             throw new AccessDeniedException("Chỉ khách hàng được tạo đơn hàng");
         }
-        OrderCreateIdempotencyReceipt idempotencyReceipt = null;
+        if (createAdmission == null) {
+            return createOrderInternal(request, idempotencyKey, principalId, userId, role);
+        }
+        return createAdmission.execute(() -> createOrderInternal(
+                request, idempotencyKey, principalId, userId, role));
+    }
+
+    private OrderResponse createOrderInternal(CreateOrderRequest request, UUID idempotencyKey,
+                                              Long principalId, Long userId, String role) {
+        if (!RoleConstants.USER.equals(role)) {
+            throw new AccessDeniedException("Chỉ khách hàng được tạo đơn hàng");
+        }
+        if (request == null) {
+            throw new IllegalArgumentException("Dữ liệu đơn hàng không được để trống");
+        }
+
+        String requestFingerprint = null;
+        UUID processingToken = null;
+        OrderCreateIdempotencyReceipt processingReceipt = null;
         if (idempotencyKey != null) {
             if (idempotencyService == null || checkoutFingerprintService == null) {
                 throw new IllegalStateException("Create-order idempotency is unavailable");
             }
-            idempotencyReceipt = idempotencyService.claim(principalId, idempotencyKey,
-                    checkoutFingerprintService.createCommand(request));
-            if (idempotencyReceipt.getOrderId() != null) {
-                return orderMapper.orderToOrderResponse(findOrderById(idempotencyReceipt.getOrderId()));
+
+            requestFingerprint = checkoutFingerprintService.createCommand(request);
+            processingToken = UUID.randomUUID();
+            processingReceipt = idempotencyService.acquire(
+                    principalId, idempotencyKey, requestFingerprint, processingToken);
+            if (processingReceipt.getOrderId() != null) {
+                return loadOrderResponse(processingReceipt.getOrderId(), principalId, userId, role);
             }
         }
+
+        // All remote/read-heavy preflight work happens before the write
+        // transaction.  The final transaction still re-locks/consumes the quote
+        // and claims idempotency, so a concurrent request cannot create a second
+        // order.
+        ValidatedOrderData validated;
+        try {
+            validated = prepareCreateOrder(request, principalId, userId);
+        } catch (RuntimeException failure) {
+            releaseIdempotencyLease(processingReceipt, processingToken, failure);
+            throw failure;
+        }
+
+        String finalFingerprint = requestFingerprint;
+        UUID finalProcessingToken = processingToken;
+        try {
+            return executeWriteTransaction(() -> persistCreateOrder(
+                    request, idempotencyKey, finalFingerprint, finalProcessingToken,
+                    principalId, userId, role, validated));
+        } catch (RuntimeException failure) {
+            releaseIdempotencyLease(processingReceipt, processingToken, failure);
+            throw failure;
+        }
+    }
+
+    private ValidatedOrderData prepareCreateOrder(CreateOrderRequest request, Long principalId, Long userId) {
         if (request.getQuoteId() != null) {
             if (checkoutQuoteService == null) {
                 throw new IllegalStateException("Checkout quote service is unavailable");
@@ -121,12 +197,31 @@ public class OrderServiceImpl implements OrderService {
             checkoutQuoteService.validateAndReprice(request, principalId, userId);
         }
         // ✅ Validate request + lấy canonical restaurant data từ server (1 lần duy nhất gọi restaurant-service)
-        ValidatedOrderData validated = orderValidationService.validateCreateOrderRequest(request, userId);
+        ValidatedOrderData validated = orderValidationService.validateCreateOrderRequest(request, principalId, userId);
 
         if (validated == null || validated.creatorId() == null) {
             throw new ResourceNotFoundException(
                     "Không thể lấy thông tin nhà hàng. Restaurant ID: " + request.getRestaurantId()
             );
+        }
+
+        return validated;
+    }
+
+    private OrderResponse persistCreateOrder(CreateOrderRequest request, UUID idempotencyKey,
+                                              String requestFingerprint, UUID processingToken,
+                                              Long principalId, Long userId,
+                                              String role, ValidatedOrderData validated) {
+        OrderCreateIdempotencyReceipt idempotencyReceipt = null;
+        if (idempotencyKey != null) {
+            if (idempotencyService == null || checkoutFingerprintService == null) {
+                throw new IllegalStateException("Create-order idempotency is unavailable");
+            }
+            idempotencyReceipt = idempotencyService.claim(principalId, idempotencyKey, requestFingerprint,
+                    processingToken);
+            if (idempotencyReceipt.getOrderId() != null) {
+                return loadOrderResponse(idempotencyReceipt.getOrderId(), principalId, userId, role);
+            }
         }
 
         log.info("✅ Restaurant validated from server. creatorId={}, name={}",
@@ -156,17 +251,20 @@ public class OrderServiceImpl implements OrderService {
             throw new IllegalStateException("Restaurant service không trả đủ dữ liệu canonical của món ăn");
         }
 
-        BigDecimal regularSubtotal = request.getItems().stream()
-                .map(item -> requireCanonicalItem(canonicalItems, item.getMenuItemId()).price()
-                        .multiply(BigDecimal.valueOf(item.getQuantity())))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
         order.setSubtotalPrice(BigDecimal.ZERO);
         order.setDiscountAmount(BigDecimal.ZERO);
         order.setShippingFee(BigDecimal.ZERO);
         order.setTotalPrice(BigDecimal.ZERO);
+        order.setItemDiscount(BigDecimal.ZERO);
+        order.setShippingDiscount(BigDecimal.ZERO);
+        order.setCustomerShippingFee(BigDecimal.ZERO);
+        order.setGrossShippingFee(BigDecimal.ZERO);
+        order.setPlatformSubsidy(BigDecimal.ZERO);
+        order.setShopDiscount(BigDecimal.ZERO);
         Order savedOrder = orderRepository.saveAndFlush(order);
 
         UUID voucherReservationId = null;
+        UUID promotionReservationId = null;
         UUID flashReservationId = null;
         try {
             boolean hasFlash = request.getItems().stream().anyMatch(item -> item.getFlashSaleItemId() != null);
@@ -196,12 +294,42 @@ public class OrderServiceImpl implements OrderService {
                     validated.pickupLat(), validated.pickupLng(), request.getDeliveryLat(),
                     request.getDeliveryLng(), subtotal);
             BigDecimal discount = BigDecimal.ZERO;
-            if (request.getVoucherIds() != null && request.getVoucherIds().size() == 1) {
+            CheckoutReservationClient.PromotionQuote promotionQuote = null;
+            List<Long> selectedVoucherIds = normalizedVoucherIds(request);
+            if ("AUTO".equalsIgnoreCase(request.getSelectionMode()) && selectedVoucherIds.isEmpty()) {
+                CheckoutReservationClient.PromotionQuote autoQuote = reservationClient.quoteVouchers(
+                        userId, principalId, request.getRestaurantId(), subtotal, shippingFee,
+                        List.of(), "AUTO");
+                selectedVoucherIds = autoQuote.selectedVoucherIds();
+            }
+            if ("MANUAL".equalsIgnoreCase(request.getSelectionMode()) && selectedVoucherIds.isEmpty()) {
+                throw new IllegalArgumentException("Manual voucher mode requires selected voucher IDs");
+            }
+            if (!selectedVoucherIds.isEmpty()
+                    && (selectedVoucherIds.size() > 1 || request.getSelectionMode() != null)) {
+                promotionReservationId = UUID.randomUUID();
+                promotionQuote = reserveVouchers(promotionReservationId, savedOrder.getId(), userId, principalId,
+                        request.getRestaurantId(), subtotal, shippingFee, selectedVoucherIds);
+                savedOrder.setPromotionReservationId(promotionReservationId);
+                discount = promotionQuote.totalDiscount();
+                savedOrder.setItemDiscount(promotionQuote.itemDiscount());
+                savedOrder.setShippingDiscount(promotionQuote.shippingDiscount());
+                savedOrder.setCustomerShippingFee(promotionQuote.customerShippingFee());
+                savedOrder.setGrossShippingFee(shippingFee);
+                savedOrder.setPlatformSubsidy(promotionQuote.platformSubsidy());
+                savedOrder.setShopDiscount(promotionQuote.shopDiscount());
+                savedOrder.setPromotionBreakdown(promotionQuote.breakdownJson());
+            } else if (selectedVoucherIds.size() == 1) {
+                // Legacy single-voucher clients keep their old reservation rail
+                // until they send selectionMode/selectedVoucherIds explicitly.
                 voucherReservationId = UUID.randomUUID();
                 discount = reserveVoucher(voucherReservationId, savedOrder.getId(), userId, principalId,
-                        request.getVoucherIds().get(0), request.getRestaurantId(), subtotal, shippingFee)
+                        selectedVoucherIds.get(0), request.getRestaurantId(), subtotal, shippingFee)
                         .discountAmount();
                 savedOrder.setVoucherReservationId(voucherReservationId);
+                savedOrder.setItemDiscount(discount);
+                savedOrder.setCustomerShippingFee(shippingFee);
+                savedOrder.setGrossShippingFee(shippingFee);
             }
             if (discount.signum() < 0 || discount.compareTo(subtotal.add(shippingFee)) > 0)
                 throw new IllegalStateException("Reservation service returned an invalid discount");
@@ -209,7 +337,14 @@ public class OrderServiceImpl implements OrderService {
             savedOrder.setSubtotalPrice(subtotal);
             savedOrder.setShippingFee(shippingFee);
             savedOrder.setDiscountAmount(discount);
-            savedOrder.setTotalPrice(subtotal.add(shippingFee).subtract(discount));
+            if (promotionQuote == null) {
+                savedOrder.setItemDiscount(savedOrder.getItemDiscount() == null
+                        ? discount : savedOrder.getItemDiscount());
+                savedOrder.setCustomerShippingFee(savedOrder.getCustomerShippingFee() == null
+                        ? shippingFee : savedOrder.getCustomerShippingFee());
+            }
+            savedOrder.setTotalPrice(subtotal.subtract(savedOrder.getItemDiscount()).add(
+                    savedOrder.getCustomerShippingFee()));
 
             List<OrderItem> orderItems = request.getItems().stream().map(itemRequest -> {
                 ValidatedOrderData.ValidatedItemData canonical = requireCanonicalItem(canonicalItems,
@@ -236,16 +371,57 @@ public class OrderServiceImpl implements OrderService {
                     subtotal, discount, shippingFee, savedOrder.getTotalPrice());
             return orderMapper.orderToOrderResponse(savedOrder);
         } catch (RuntimeException failure) {
-            compensateReservation(voucherReservationId, flashReservationId, savedOrder.getId(), failure);
+            compensateReservation(voucherReservationId, promotionReservationId, flashReservationId,
+                    savedOrder.getId(), failure);
             throw failure;
         }
     }
 
-    private void compensateReservation(UUID voucherId, UUID flashId, Long orderId, RuntimeException failure) {
+    private OrderResponse loadOrderResponse(Long orderId, Long principalId, Long userId, String role) {
+        if (transactionTemplate == null) {
+            Order order = findOrderById(orderId);
+            validateViewPermission(order, principalId, userId, role);
+            return orderMapper.orderToOrderResponse(order);
+        }
+        return requireTransactionResult(transactionTemplate.execute(status -> {
+            Order order = findOrderById(orderId);
+            validateViewPermission(order, principalId, userId, role);
+            return orderMapper.orderToOrderResponse(order);
+        }));
+    }
+
+    private OrderResponse executeWriteTransaction(Supplier<OrderResponse> operation) {
+        if (transactionTemplate == null) {
+            return operation.get();
+        }
+        return requireTransactionResult(transactionTemplate.execute(status -> operation.get()));
+    }
+
+    private OrderResponse requireTransactionResult(OrderResponse response) {
+        if (response == null) {
+            throw new IllegalStateException("Order transaction returned no response");
+        }
+        return response;
+    }
+
+    private void compensateReservation(UUID voucherId, UUID promotionId, UUID flashId, Long orderId,
+                                       RuntimeException failure) {
         if (voucherId != null) try { reservationClient.releaseVoucher(voucherId, orderId); }
+        catch (RuntimeException releaseFailure) { failure.addSuppressed(releaseFailure); }
+        if (promotionId != null) try { reservationClient.releaseVouchers(promotionId, orderId); }
         catch (RuntimeException releaseFailure) { failure.addSuppressed(releaseFailure); }
         if (flashId != null) try { reservationClient.releaseFlash(flashId, orderId); }
         catch (RuntimeException releaseFailure) { failure.addSuppressed(releaseFailure); }
+    }
+
+    private void releaseIdempotencyLease(OrderCreateIdempotencyReceipt receipt, UUID processingToken,
+                                         RuntimeException originalFailure) {
+        if (receipt == null || processingToken == null || receipt.getOrderId() != null) return;
+        try {
+            idempotencyService.release(receipt.getId(), processingToken);
+        } catch (RuntimeException releaseFailure) {
+            originalFailure.addSuppressed(releaseFailure);
+        }
     }
 
     /**
@@ -271,6 +447,23 @@ public class OrderServiceImpl implements OrderService {
             return reservationClient.reserveFlash(reservationId, orderId, userId, restaurantId, requestItems);
         }
         return reservationClient.reserveFlash(reservationId, orderId, userId, principalId, restaurantId, requestItems);
+    }
+
+    private CheckoutReservationClient.PromotionQuote reserveVouchers(
+            UUID reservationId, Long orderId, Long userId, Long principalId, Long restaurantId,
+            BigDecimal subtotal, BigDecimal shippingFee, List<Long> voucherIds) {
+        return reservationClient.reserveVouchers(reservationId, orderId, userId, principalId, restaurantId,
+                subtotal, shippingFee, voucherIds);
+    }
+
+    private List<Long> normalizedVoucherIds(CreateOrderRequest request) {
+        List<Long> ids = request.getVoucherIds() == null
+                ? new ArrayList<>() : new ArrayList<>(request.getVoucherIds());
+        if (ids.size() > 3 || ids.stream().anyMatch(id -> id == null || id <= 0)
+                || ids.stream().distinct().count() != ids.size()) {
+            throw new IllegalArgumentException("At most three distinct voucher IDs are supported");
+        }
+        return ids;
     }
 
     @Override

@@ -3,6 +3,7 @@ package com.delivery.order_service.dto.response;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 import lombok.Getter;
 import lombok.Setter;
@@ -24,6 +25,14 @@ public class OrderResponse {
     private BigDecimal discountAmount;
     private BigDecimal shippingFee;
     private BigDecimal totalPrice;
+    private BigDecimal itemDiscount;
+    private BigDecimal shippingDiscount;
+    private BigDecimal customerShippingFee;
+    private BigDecimal grossShippingFee;
+    private BigDecimal platformSubsidy;
+    private BigDecimal shopDiscount;
+    private UUID promotionReservationId;
+    private List<PromotionBreakdown> appliedVouchers;
     private String status;
     private String paymentMethod;
     private String deliveryAddress;
@@ -39,6 +48,17 @@ public class OrderResponse {
     private Long creatorId; // ID của chủ nhà hàng (restaurant owner)
     private String cancelReason;
     private List<OrderItemResponse> items;
+
+    @Getter
+    @Setter
+    public static class PromotionBreakdown {
+        private Long voucherId;
+        private String code;
+        private String layer;
+        private String fundingSource;
+        private BigDecimal discountBase;
+        private BigDecimal discountAmount;
+    }
 
 
 }

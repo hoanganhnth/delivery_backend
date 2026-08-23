@@ -15,7 +15,12 @@ public class VoucherReservationExpiryJob {
 
     @Scheduled(fixedDelayString = "${app.promotion.reservation-expiry-scan-ms:30000}")
     public void expireReservations() {
-        int expired = promotionService.expireReservations();
-        if (expired > 0) log.info("Expired {} voucher reservation(s)", expired);
+        int legacyExpired = promotionService.expireReservations();
+        int stackedExpired = promotionService.expirePromotionReservations();
+        int expired = legacyExpired + stackedExpired;
+        if (expired > 0) {
+            log.info("Expired {} voucher reservation(s) (legacy={}, stacked={})",
+                    expired, legacyExpired, stackedExpired);
+        }
     }
 }

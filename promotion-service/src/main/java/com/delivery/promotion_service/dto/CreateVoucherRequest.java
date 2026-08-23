@@ -55,4 +55,10 @@ public class CreateVoucherRequest {
 
     private Long voucherGroupId;
     private String customerSegment;
+
+    /** Additive stacking contract fields. */
+    private String layerCode;
+    private String fundingSource;
+    private Long restaurantId;
+    private Long ownerPrincipalId;
 }

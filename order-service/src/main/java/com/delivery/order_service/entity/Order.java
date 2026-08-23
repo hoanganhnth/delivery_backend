@@ -51,6 +51,30 @@ public class Order {
     @Column(name = "flash_sale_reservation_id", unique = true)
     private UUID flashSaleReservationId;
 
+    @Column(name = "promotion_reservation_id", unique = true)
+    private UUID promotionReservationId;
+
+    @Column(name = "item_discount", precision = 12, scale = 2)
+    private BigDecimal itemDiscount;
+
+    @Column(name = "shipping_discount", precision = 12, scale = 2)
+    private BigDecimal shippingDiscount;
+
+    @Column(name = "customer_shipping_fee", precision = 12, scale = 2)
+    private BigDecimal customerShippingFee;
+
+    @Column(name = "gross_shipping_fee", precision = 12, scale = 2)
+    private BigDecimal grossShippingFee;
+
+    @Column(name = "platform_subsidy", precision = 12, scale = 2)
+    private BigDecimal platformSubsidy;
+
+    @Column(name = "shop_discount", precision = 12, scale = 2)
+    private BigDecimal shopDiscount;
+
+    @Column(name = "promotion_breakdown", columnDefinition = "TEXT")
+    private String promotionBreakdown;
+
     @Convert(converter = OrderStatusConverter.class)
     @Column(name = "status", nullable = false, length = 32)
     private OrderStatus status = OrderStatus.PENDING;

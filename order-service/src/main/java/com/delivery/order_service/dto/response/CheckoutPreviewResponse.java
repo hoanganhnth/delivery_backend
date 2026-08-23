@@ -32,12 +32,34 @@ public class CheckoutPreviewResponse {
     private BigDecimal discountAmount;  // Giảm giá (từ coupon nếu có)
     private BigDecimal totalPrice;      // subtotal + shippingFee - discountAmount
 
+    private BigDecimal itemDiscount;
+    private BigDecimal shippingDiscount;
+    private BigDecimal customerShippingFee;
+    private BigDecimal grossShippingFee;
+    private BigDecimal platformSubsidy;
+    private BigDecimal shopDiscount;
+
     private String couponCode;          // Coupon đã áp dụng (null nếu không có)
     private String couponMessage;       // "Giảm 20k" hoặc "Mã không hợp lệ"
     private Long voucherId;
+    private List<Long> selectedVoucherIds;
+    private String selectionMode;
+    private List<AppliedVoucherInfo> appliedVouchers;
 
     private List<PriceChangeInfo> priceChanges;     // Danh sách giá thay đổi
     private List<Long> unavailableItemIds;           // Món đã hết hàng
+
+    @Getter
+    @Setter
+    @Builder
+    public static class AppliedVoucherInfo {
+        private Long voucherId;
+        private String code;
+        private String layer;
+        private String fundingSource;
+        private BigDecimal discountBase;
+        private BigDecimal discountAmount;
+    }
 
     @Getter
     @Setter

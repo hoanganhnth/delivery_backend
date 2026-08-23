@@ -22,4 +22,17 @@ public interface VoucherRepository extends JpaRepository<Voucher, Long> {
 
     List<Voucher> findByCreatorTypeAndCreatorId(Voucher.CreatorType creatorType, Long creatorId,
                                                 Pageable pageable);
+
+    List<Voucher> findByCreatorTypeAndOwnerPrincipalId(Voucher.CreatorType creatorType, Long ownerPrincipalId,
+                                                       Pageable pageable);
+
+    @Query("select voucher from Voucher voucher where voucher.creatorType = :creatorType and "
+            + "(voucher.ownerPrincipalId = :principalId or "
+            + "(voucher.ownerPrincipalId is null and voucher.creatorId = :legacyId))")
+    List<Voucher> findByOwnerPrincipalOrLegacy(@Param("creatorType") Voucher.CreatorType creatorType,
+                                               @Param("principalId") Long principalId,
+                                               @Param("legacyId") Long legacyId,
+                                               Pageable pageable);
+
+    List<Voucher> findByApprovalStatusOrderByCreatedAtAsc(String approvalStatus, Pageable pageable);
 }

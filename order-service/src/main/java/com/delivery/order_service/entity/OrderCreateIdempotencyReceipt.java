@@ -45,6 +45,13 @@ public class OrderCreateIdempotencyReceipt {
     @Column(name = "order_id")
     private Long orderId;
 
+    /** Short-lived owner fence used while remote create-order preflight runs. */
+    @Column(name = "processing_token")
+    private UUID processingToken;
+
+    @Column(name = "processing_until")
+    private Instant processingUntil;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -60,5 +67,7 @@ public class OrderCreateIdempotencyReceipt {
 
     public void complete(Long orderId) {
         this.orderId = orderId;
+        this.processingToken = null;
+        this.processingUntil = null;
     }
 }

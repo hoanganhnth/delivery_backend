@@ -4,6 +4,7 @@ import com.delivery.order_service.dto.request.CheckoutPreviewRequest;
 import com.delivery.order_service.dto.response.CheckoutPreviewResponse;
 import com.delivery.order_service.dto.response.CheckoutPreviewResponse.PreviewItemDetail;
 import com.delivery.order_service.dto.response.CheckoutPreviewResponse.PriceChangeInfo;
+import com.delivery.order_service.exception.OrderDependencyUnavailableException;
 import com.delivery.order_service.exception.ValidationException;
 import com.delivery.order_service.config.OrderRestaurantCircuitBreaker;
 import lombok.extern.slf4j.Slf4j;
@@ -12,6 +13,7 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import java.math.BigDecimal;
 import java.util.*;
@@ -29,6 +31,7 @@ public class CheckoutPreviewService {
     private final String restaurantServiceUrl;
     private final String internalSecret;
     private final OrderRestaurantCircuitBreaker restaurantCircuitBreaker;
+    private final VoucherCheckoutCapability voucherCheckoutCapability;
     @Autowired(required = false)
     private CheckoutReservationClient reservationClient;
     @Value("${app.order.voucher-checkout-enabled:false}") private boolean voucherCheckoutEnabled;
@@ -38,12 +41,24 @@ public class CheckoutPreviewService {
                                   ShippingFeeCalculationService shippingFeeService,
                                   @Value("${restaurant.service.url}") String restaurantServiceUrl,
                                   @Value("${app.internal.secret:}") String internalSecret,
-                                  OrderRestaurantCircuitBreaker restaurantCircuitBreaker) {
+                                  OrderRestaurantCircuitBreaker restaurantCircuitBreaker,
+                                  VoucherCheckoutCapability voucherCheckoutCapability) {
         this.webClient = webClient;
         this.shippingFeeService = shippingFeeService;
         this.restaurantServiceUrl = restaurantServiceUrl;
         this.internalSecret = internalSecret;
         this.restaurantCircuitBreaker = restaurantCircuitBreaker;
+        this.voucherCheckoutCapability = voucherCheckoutCapability;
+    }
+
+    /** Source-compatible constructor for focused legacy tests/callers. */
+    public CheckoutPreviewService(WebClient webClient,
+                                  ShippingFeeCalculationService shippingFeeService,
+                                  String restaurantServiceUrl,
+                                  String internalSecret,
+                                  OrderRestaurantCircuitBreaker restaurantCircuitBreaker) {
+        this(webClient, shippingFeeService, restaurantServiceUrl, internalSecret,
+                restaurantCircuitBreaker, new VoucherCheckoutCapability(false, ""));
     }
 
     /**
@@ -56,26 +71,44 @@ public class CheckoutPreviewService {
      */
     @SuppressWarnings("unchecked")
     public CheckoutPreviewResponse calculatePreview(CheckoutPreviewRequest request, Long principalId, Long userId) {
+        if (request == null) {
+            throw new ValidationException("Dữ liệu checkout không được để trống");
+        }
+        if (request.getItems() == null || request.getItems().isEmpty()) {
+            throw new ValidationException("Checkout phải có ít nhất một sản phẩm");
+        }
+        if (request.getItems().size() > 50) {
+            throw new ValidationException("Checkout không được vượt quá 50 sản phẩm");
+        }
+        validateDuplicateItems(request);
         log.info("📋 Calculating checkout preview for user={}, restaurant={}", userId, request.getRestaurantId());
 
-        // COD MVP does not expose discount calculation or voucher reservation.
-        // Reject the capability at the boundary instead of silently returning a
-        // preview whose coupon is echoed back with a zero discount.
+        // Coupon codes are collected through Promotion first; the checkout
+        // quote only accepts stable wallet IDs and never trusts a client code.
         if (request.getCouponCode() != null && !request.getCouponCode().isBlank()) {
-            throw new ValidationException(
-                    "Voucher checkout chưa được mở trong MVP cho tới khi có discount và compensation proof");
+            throw new ValidationException("Hãy lưu mã voucher vào ví trước khi báo giá checkout");
         }
         boolean hasFlashSale = request.getItems().stream().anyMatch(item -> item.getFlashSaleItemId() != null);
-        if (request.getVoucherId() != null && !voucherCheckoutEnabled)
+        List<Long> selectedVoucherIds = selectedVoucherIds(request);
+        if (request.getSelectionMode() != null && !request.getSelectionMode().isBlank()
+                && !"AUTO".equalsIgnoreCase(request.getSelectionMode())
+                && !"MANUAL".equalsIgnoreCase(request.getSelectionMode())) {
+            throw new ValidationException("Selection mode chỉ hỗ trợ AUTO hoặc MANUAL");
+        }
+        boolean hasVoucherSelection = !selectedVoucherIds.isEmpty()
+                || request.getSelectionMode() != null || request.getVoucherId() != null;
+        boolean stackedSelection = (request.getSelectionMode() != null && !request.getSelectionMode().isBlank())
+                || request.getSelectedVoucherIds() != null;
+        if (hasVoucherSelection && stackedSelection && !voucherCheckoutCapability.isEnabled(principalId))
+            throw new ValidationException("Voucher stacking checkout is not enabled for this account");
+        if (hasVoucherSelection && !stackedSelection && !voucherCheckoutEnabled)
             throw new ValidationException("Voucher checkout is disabled");
         if (hasFlashSale && !flashSaleCheckoutEnabled)
             throw new ValidationException("Flash-sale checkout is disabled");
-        if (request.getVoucherId() != null && hasFlashSale)
+        if (hasVoucherSelection && hasFlashSale)
             throw new ValidationException("Voucher và Flash Sale không được áp dụng cùng một đơn");
-        if ((request.getVoucherId() != null || hasFlashSale) && reservationClient == null)
+        if ((hasVoucherSelection || hasFlashSale) && reservationClient == null)
             throw new ValidationException("Checkout reservation capability is unavailable");
-
-        validateDuplicateItems(request);
 
         // 1. Lấy canonical restaurant + menu item facts qua cùng internal
         // validation contract với create-order. Preview không được gọi public
@@ -159,14 +192,30 @@ public class CheckoutPreviewService {
                 request.getDeliveryLat(), request.getDeliveryLng(),
                 subtotal);
 
-        // 5. Discount remains zero because coupon input was rejected at the boundary.
-        BigDecimal discountAmount = request.getVoucherId() == null ? BigDecimal.ZERO
-                : quoteVoucher(userId, principalId, request.getVoucherId(), request.getRestaurantId(),
-                        subtotal, shippingFee).discountAmount();
+        CheckoutReservationClient.PromotionQuote promotionQuote = null;
+        BigDecimal discountAmount = BigDecimal.ZERO;
+        if (request.getVoucherId() != null && request.getSelectedVoucherIds() == null
+                && request.getSelectionMode() == null) {
+            // Legacy single-voucher quote remains available while old clients
+            // drain; it is never mixed with the stacked contract.
+            discountAmount = quoteVoucher(userId, principalId, request.getVoucherId(), request.getRestaurantId(),
+                    subtotal, shippingFee).discountAmount();
+        } else if (hasVoucherSelection) {
+            promotionQuote = reservationClient.quoteVouchers(userId, principalId, request.getRestaurantId(),
+                    subtotal, shippingFee, selectedVoucherIds, request.getSelectionMode());
+            discountAmount = promotionQuote.totalDiscount();
+        }
         if (discountAmount.signum() < 0 || discountAmount.compareTo(subtotal.add(shippingFee)) > 0)
             throw new ValidationException("Voucher quote returned an invalid discount");
 
-        BigDecimal totalPrice = subtotal.add(shippingFee).subtract(discountAmount);
+        BigDecimal itemDiscount = promotionQuote == null ? discountAmount : promotionQuote.itemDiscount();
+        BigDecimal shippingDiscount = promotionQuote == null ? BigDecimal.ZERO : promotionQuote.shippingDiscount();
+        BigDecimal customerShippingFee = promotionQuote == null
+                ? shippingFee : promotionQuote.customerShippingFee();
+        BigDecimal grossShippingFee = shippingFee;
+        BigDecimal platformSubsidy = promotionQuote == null ? BigDecimal.ZERO : promotionQuote.platformSubsidy();
+        BigDecimal shopDiscount = promotionQuote == null ? itemDiscount : promotionQuote.shopDiscount();
+        BigDecimal totalPrice = subtotal.subtract(itemDiscount).add(customerShippingFee);
 
         log.info("✅ Checkout preview: subtotal={}, shipping={}, discount={}, total={}, items={}, unavailable={}",
                 subtotal, shippingFee, discountAmount, totalPrice, previewItems.size(), unavailableIds.size());
@@ -179,9 +228,18 @@ public class CheckoutPreviewService {
                 .shippingFee(shippingFee)
                 .discountAmount(discountAmount)
                 .totalPrice(totalPrice)
+                .itemDiscount(itemDiscount)
+                .shippingDiscount(shippingDiscount)
+                .customerShippingFee(customerShippingFee)
+                .grossShippingFee(grossShippingFee)
+                .platformSubsidy(platformSubsidy)
+                .shopDiscount(shopDiscount)
                 .couponCode(request.getCouponCode())
                 .couponMessage(null)
                 .voucherId(request.getVoucherId())
+                .selectedVoucherIds(promotionQuote == null ? selectedVoucherIds : promotionQuote.selectedVoucherIds())
+                .selectionMode(request.getSelectionMode())
+                .appliedVouchers(toAppliedVouchers(promotionQuote))
                 .priceChanges(priceChanges)
                 .unavailableItemIds(unavailableIds)
                 .build();
@@ -206,12 +264,46 @@ public class CheckoutPreviewService {
         return reservationClient.quoteVoucher(userId, principalId, voucherId, restaurantId, subtotal, shippingFee);
     }
 
+    private List<Long> selectedVoucherIds(CheckoutPreviewRequest request) {
+        List<Long> ids = request.getSelectedVoucherIds() == null
+                ? new ArrayList<>() : new ArrayList<>(request.getSelectedVoucherIds());
+        if (request.getVoucherId() != null && ids.isEmpty()) ids.add(request.getVoucherId());
+        if (ids.size() > 3 || ids.stream().anyMatch(id -> id == null || id <= 0)
+                || ids.stream().distinct().count() != ids.size()) {
+            throw new ValidationException("Tối đa 3 voucher khác nhau, mỗi lớp một voucher");
+        }
+        return ids;
+    }
+
+    private List<CheckoutPreviewResponse.AppliedVoucherInfo> toAppliedVouchers(
+            CheckoutReservationClient.PromotionQuote quote) {
+        if (quote == null || quote.breakdownJson() == null) return List.of();
+        return quote.breakdown().stream().map(line -> CheckoutPreviewResponse.AppliedVoucherInfo.builder()
+                .voucherId(asLong(line.get("voucherId")))
+                .code(line.get("voucherCode") == null ? text(line.get("code")) : text(line.get("voucherCode")))
+                .layer(text(line.get("layer")))
+                .fundingSource(text(line.get("fundingSource")))
+                .discountBase(asDecimal(line.get("discountBase")))
+                .discountAmount(asDecimal(line.get("discountAmount")))
+                .build()).toList();
+    }
+
+    private String text(Object value) { return value == null ? null : value.toString(); }
+    private Long asLong(Object value) {
+        if (value instanceof Number number) return number.longValue();
+        return value == null ? null : Long.valueOf(value.toString());
+    }
+    private BigDecimal asDecimal(Object value) {
+        return value instanceof BigDecimal decimal ? decimal : value == null ? null : new BigDecimal(value.toString());
+    }
+
     // ────────────────── Private helpers ──────────────────
 
     @SuppressWarnings("unchecked")
     private Map<String, Object> fetchValidatedCheckoutFacts(CheckoutPreviewRequest request) {
         if (internalSecret == null || internalSecret.isBlank()) {
-            throw new ValidationException("Order/restaurant internal credential chưa được cấu hình");
+            throw new OrderDependencyUnavailableException("restaurant-service",
+                    "Order/restaurant internal credential chưa được cấu hình", null, 30);
         }
 
         try {
@@ -234,11 +326,21 @@ public class CheckoutPreviewService {
                     .block());
 
             if (response == null) {
-                throw new ValidationException("Không thể xác thực checkout với restaurant service");
+                throw new OrderDependencyUnavailableException("restaurant-service",
+                        "Restaurant service trả về response rỗng");
             }
-            Map<String, Object> data = requireMap(response.get("data"),
+            Object rawData = response.get("data");
+            if (!(rawData instanceof Map<?, ?>)) {
+                throw new OrderDependencyUnavailableException("restaurant-service",
+                        "Restaurant service trả response không đúng contract");
+            }
+            Map<String, Object> data = requireMap(rawData,
                     "Response từ restaurant service không hợp lệ");
             Integer status = getIntegerValue(response.get("status"));
+            if (status == null) {
+                throw new OrderDependencyUnavailableException("restaurant-service",
+                        "Restaurant service trả status không hợp lệ");
+            }
             if (status == null || status != 1) {
                 throw new ValidationException("Dữ liệu checkout không hợp lệ: "
                         + validationMessage(data));
@@ -249,9 +351,17 @@ public class CheckoutPreviewService {
             if (e instanceof ValidationException validationException) {
                 throw validationException;
             }
+            if (e instanceof OrderDependencyUnavailableException dependencyUnavailable) {
+                throw dependencyUnavailable;
+            }
+            if (e instanceof WebClientResponseException responseException
+                    && responseException.getStatusCode().is4xxClientError()) {
+                throw new ValidationException("Không thể xác thực thông tin restaurant/menu items");
+            }
             log.error("❌ Failed to validate checkout for restaurant {}: {}",
                     request.getRestaurantId(), e.getMessage());
-            throw new ValidationException("Không thể xác thực thông tin restaurant/menu items");
+            throw new OrderDependencyUnavailableException("restaurant-service",
+                    "Restaurant service tạm thời không khả dụng", e);
         }
     }
 
@@ -287,6 +397,13 @@ public class CheckoutPreviewService {
         Set<Long> menuItemIds = new HashSet<>();
         Set<Long> flashSaleItemIds = new HashSet<>();
         for (CheckoutPreviewRequest.PreviewItem item : request.getItems()) {
+            if (item == null || item.getMenuItemId() == null) {
+                throw new ValidationException("Checkout chứa sản phẩm không hợp lệ");
+            }
+            if (item.getQuantity() == null || item.getQuantity() < 1 || item.getQuantity() > 99
+                    || (item.getFlashSaleItemId() != null && item.getFlashSaleItemId() <= 0)) {
+                throw new ValidationException("Checkout chứa số lượng hoặc flash-sale item không hợp lệ");
+            }
             if (!menuItemIds.add(item.getMenuItemId())) {
                 throw new ValidationException("Menu Item ID bị trùng trong checkout preview");
             }

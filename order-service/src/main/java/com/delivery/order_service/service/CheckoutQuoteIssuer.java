@@ -4,10 +4,12 @@ import com.delivery.order_service.dto.request.CheckoutPreviewRequest;
 import com.delivery.order_service.dto.response.CheckoutPreviewResponse;
 import com.delivery.order_service.entity.CheckoutQuote;
 import com.delivery.order_service.repository.CheckoutQuoteRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -22,6 +24,8 @@ public class CheckoutQuoteIssuer {
     private final CheckoutQuoteRepository repository;
     private final Clock clock;
     private final Duration ttl;
+    @Autowired(required = false)
+    private TransactionTemplate transactionTemplate;
 
     public CheckoutQuoteIssuer(CheckoutPreviewService previewService,
                                CheckoutFingerprintService fingerprints,
@@ -35,7 +39,11 @@ public class CheckoutQuoteIssuer {
         this.ttl = ttl;
     }
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    /**
+     * Keep the remote preview outside the quote persistence transaction. A
+     * failed/slow restaurant dependency must not pin a quote DB connection;
+     * {@link #persist} performs the short local write afterwards.
+     */
     public CheckoutPreviewResponse issue(CheckoutPreviewRequest request, Long principalId, Long userId) {
         CheckoutPreviewResponse response = previewService.calculatePreview(request, principalId, userId);
         return persist(request, response, principalId);
@@ -44,6 +52,20 @@ public class CheckoutQuoteIssuer {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public CheckoutPreviewResponse persist(CheckoutPreviewRequest request, CheckoutPreviewResponse response,
                                            Long principalId) {
+        if (transactionTemplate == null) {
+            return persistLocal(request, response, principalId);
+        }
+        CheckoutPreviewResponse persisted = transactionTemplate.execute(status ->
+                persistLocal(request, response, principalId));
+        if (persisted == null) {
+            throw new IllegalStateException("Quote persistence transaction returned no response");
+        }
+        return persisted;
+    }
+
+    private CheckoutPreviewResponse persistLocal(CheckoutPreviewRequest request,
+                                                  CheckoutPreviewResponse response,
+                                                  Long principalId) {
         Instant now = clock.instant();
         UUID quoteId = UUID.randomUUID();
         Instant expiresAt = now.plus(ttl);

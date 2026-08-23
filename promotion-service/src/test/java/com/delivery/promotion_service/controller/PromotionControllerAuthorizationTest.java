@@ -81,6 +81,19 @@ class PromotionControllerAuthorizationTest {
     }
 
     @Test
+    void capabilityIsEnabledOnlyForConfiguredStablePrincipal() {
+        ReflectionTestUtils.setField(controller, "stackingEnabled", true);
+        ReflectionTestUtils.setField(controller, "checkoutEnabled", true);
+        ReflectionTestUtils.setField(controller, "stackingCanaryPrincipals", "42,99");
+        AuthenticatedActor canary = new AuthenticatedActor(42L, "user@example.com", Set.of("USER"));
+        AuthenticatedActor control = new AuthenticatedActor(7L, "control@example.com", Set.of("USER"));
+
+        assertEquals(true, controller.capability(canary).getBody().getData().enabled());
+        assertEquals(false, controller.capability(control).getBody().getData().enabled());
+        assertEquals(3, controller.capability(canary).getBody().getData().maxVouchers());
+    }
+
+    @Test
     void adminSurfacesUseCanonicalSuccessEnvelope() {
         AuthenticatedActor adminActor = new AuthenticatedActor(7L, "admin@example.com", Set.of("ADMIN"));
         Voucher voucher = new Voucher();

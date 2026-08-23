@@ -15,6 +15,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 public class OrderCancelledEvent {
+    private Integer schemaVersion = 2;
     
     // Order basic info
     private Long orderId;
@@ -37,6 +38,7 @@ public class OrderCancelledEvent {
     private Long shipperId; // null if no shipper assigned
     private Boolean hasActiveDelivery;
     private UUID voucherReservationId;
+    private UUID promotionReservationId;
     private UUID flashSaleReservationId;
 
     // Immutable monetary snapshot used by settlement/refund consumers.
@@ -44,10 +46,17 @@ public class OrderCancelledEvent {
     private BigDecimal discountAmount;
     private BigDecimal shippingFee;
     private BigDecimal totalPrice;
+    private BigDecimal itemDiscount;
+    private BigDecimal shippingDiscount;
+    private BigDecimal customerShippingFee;
+    private BigDecimal grossShippingFee;
+    private BigDecimal platformSubsidy;
+    private BigDecimal shopDiscount;
     private String paymentMethod;
     
     // Items
     private java.util.List<java.util.Map<String, Object>> items;
+    private java.util.List<java.util.Map<String, Object>> appliedVouchers;
 
     // Timestamps
     private LocalDateTime createdAt;

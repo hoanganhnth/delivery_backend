@@ -125,11 +125,19 @@ public class OrderEventPublisher {
         cancelEvent.setShipperId(order.getShipperId());
         cancelEvent.setHasActiveDelivery(order.getShipperId() != null);
         cancelEvent.setVoucherReservationId(order.getVoucherReservationId());
+        cancelEvent.setPromotionReservationId(order.getPromotionReservationId());
         cancelEvent.setFlashSaleReservationId(order.getFlashSaleReservationId());
         cancelEvent.setSubtotalPrice(order.getSubtotalPrice());
         cancelEvent.setDiscountAmount(order.getDiscountAmount());
         cancelEvent.setShippingFee(order.getShippingFee());
         cancelEvent.setTotalPrice(order.getTotalPrice());
+        cancelEvent.setItemDiscount(order.getItemDiscount());
+        cancelEvent.setShippingDiscount(order.getShippingDiscount());
+        cancelEvent.setCustomerShippingFee(order.getCustomerShippingFee());
+        cancelEvent.setGrossShippingFee(order.getGrossShippingFee());
+        cancelEvent.setPlatformSubsidy(order.getPlatformSubsidy());
+        cancelEvent.setShopDiscount(order.getShopDiscount());
+        cancelEvent.setAppliedVouchers(parseBreakdown(order.getPromotionBreakdown()));
         cancelEvent.setPaymentMethod(order.getPaymentMethod());
         cancelEvent.setCreatedAt(order.getCreatedAt());
         cancelEvent.setUpdatedAt(order.getUpdatedAt());
@@ -191,8 +199,26 @@ public class OrderEventPublisher {
         event.setCreatorId(order.getCreatorId());
         event.setCreatorPrincipalId(order.getCreatorPrincipalId());
         event.setVoucherReservationId(order.getVoucherReservationId());
+        event.setPromotionReservationId(order.getPromotionReservationId());
         event.setFlashSaleReservationId(order.getFlashSaleReservationId());
+        event.setItemDiscount(order.getItemDiscount());
+        event.setShippingDiscount(order.getShippingDiscount());
+        event.setCustomerShippingFee(order.getCustomerShippingFee());
+        event.setGrossShippingFee(order.getGrossShippingFee());
+        event.setPlatformSubsidy(order.getPlatformSubsidy());
+        event.setShopDiscount(order.getShopDiscount());
+        event.setAppliedVouchers(parseBreakdown(order.getPromotionBreakdown()));
         
         return event;
+    }
+
+    private java.util.List<java.util.Map<String, Object>> parseBreakdown(String json) {
+        if (json == null || json.isBlank()) return java.util.List.of();
+        try {
+            return new com.fasterxml.jackson.databind.ObjectMapper().readValue(json,
+                    new com.fasterxml.jackson.core.type.TypeReference<java.util.List<java.util.Map<String, Object>>>() {});
+        } catch (Exception ignored) {
+            return java.util.List.of();
+        }
     }
 }

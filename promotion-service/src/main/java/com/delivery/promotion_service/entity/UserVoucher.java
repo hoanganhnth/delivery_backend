@@ -42,6 +42,17 @@ public class UserVoucher {
 
     private LocalDateTime usedAt;
 
+    @Column(name = "used_count", nullable = false)
+    @Builder.Default
+    private Integer usedCount = 0;
+
+    @Column(name = "reserved_count", nullable = false)
+    @Builder.Default
+    private Integer reservedCount = 0;
+
+    @Column(name = "collected_at")
+    private LocalDateTime collectedAt;
+
     @Column(updatable = false)
     private LocalDateTime createdAt;
 

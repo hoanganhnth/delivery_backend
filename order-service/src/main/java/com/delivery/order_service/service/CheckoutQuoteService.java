@@ -37,7 +37,11 @@ public class CheckoutQuoteService {
         return issuer.issue(request, principalId, userId);
     }
 
-    @Transactional(readOnly = true)
+    /**
+     * Validates a quote without holding an Order DB transaction across the
+     * remote restaurant/Promotion calls. The final {@link #consume} call is
+     * still the locking authority inside the create-order write transaction.
+     */
     public void validateAndReprice(CreateOrderRequest request, Long principalId, Long userId) {
         UUID quoteId = request.getQuoteId();
         if (quoteId == null) {
@@ -88,6 +92,11 @@ public class CheckoutQuoteService {
         if (request.getVoucherIds() != null && request.getVoucherIds().size() == 1) {
             preview.setVoucherId(request.getVoucherIds().get(0));
         }
+        if (request.getSelectionMode() != null
+                || request.getVoucherIds() == null || request.getVoucherIds().size() != 1) {
+            preview.setSelectedVoucherIds(request.getVoucherIds());
+        }
+        preview.setSelectionMode(request.getSelectionMode());
         preview.setItems((request.getItems() == null ? List.<CreateOrderRequest.OrderItemRequest>of() : request.getItems())
                 .stream().map(item -> {
                     CheckoutPreviewRequest.PreviewItem mapped = new CheckoutPreviewRequest.PreviewItem();

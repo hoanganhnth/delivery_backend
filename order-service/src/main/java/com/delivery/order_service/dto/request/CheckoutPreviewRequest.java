@@ -41,6 +41,13 @@ public class CheckoutPreviewRequest {
     @Positive
     private Long voucherId;
 
+    /** Up to one voucher from each stacking layer. */
+    @Size(max = 3)
+    private List<@Positive Long> selectedVoucherIds;
+
+    /** AUTO or MANUAL; kept as a string so Order remains decoupled from Promotion's DTO module. */
+    private String selectionMode;
+
     @NotEmpty
     @Size(max = 50)
     @Valid

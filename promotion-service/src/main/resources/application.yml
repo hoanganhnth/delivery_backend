@@ -1,11 +1,17 @@
 server:
   port: 8096
 
+restaurant:
+  service:
+    url: ${RESTAURANT_SERVICE_URL:http://restaurant-service:8082}
+
 app:
   internal:
     secret: ${internal-secret:${INTERNAL_SECRET:}}
   promotion:
     checkout-enabled: ${PROMOTION_CHECKOUT_ENABLED:false}
+    stacking-enabled: ${PROMOTION_STACKING_ENABLED:false}
+    stacking-canary-principals: ${PROMOTION_STACKING_CANARY_PRINCIPALS:}
     merchant-create-api-enabled: ${PROMOTION_MERCHANT_CREATE_API_ENABLED:false}
     reservation-expiry-scan-ms: ${PROMOTION_RESERVATION_EXPIRY_SCAN_MS:30000}
     outbox-relay-enabled: ${PROMOTION_OUTBOX_RELAY_ENABLED:false}

@@ -7,12 +7,16 @@ import com.delivery.order_service.entity.Order;
 import com.delivery.order_service.entity.OrderItem;
 import com.delivery.order_service.entity.OrderStatus;
 import org.springframework.stereotype.Component;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.ArrayList;
 import java.util.List;
 
 @Component
 public class OrderMapper {
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public Order createOrderRequestToOrder(CreateOrderRequest request) {
         if (request == null) {
@@ -49,6 +53,21 @@ public class OrderMapper {
         response.setDiscountAmount(order.getDiscountAmount());
         response.setShippingFee(order.getShippingFee());
         response.setTotalPrice(order.getTotalPrice());
+        response.setItemDiscount(order.getItemDiscount());
+        response.setShippingDiscount(order.getShippingDiscount());
+        response.setCustomerShippingFee(order.getCustomerShippingFee());
+        response.setGrossShippingFee(order.getGrossShippingFee());
+        response.setPlatformSubsidy(order.getPlatformSubsidy());
+        response.setShopDiscount(order.getShopDiscount());
+        response.setPromotionReservationId(order.getPromotionReservationId());
+        if (order.getPromotionBreakdown() != null && !order.getPromotionBreakdown().isBlank()) {
+            try {
+                response.setAppliedVouchers(objectMapper.readValue(order.getPromotionBreakdown(),
+                        new TypeReference<List<OrderResponse.PromotionBreakdown>>() {}));
+            } catch (Exception ignored) {
+                response.setAppliedVouchers(List.of());
+            }
+        }
         response.setStatus(order.getStatus() == null ? null : order.getStatus().name());
         response.setPaymentMethod(order.getPaymentMethod());
         response.setDeliveryAddress(order.getDeliveryAddress());

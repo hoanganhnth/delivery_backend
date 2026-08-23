@@ -28,6 +28,7 @@ public class CreateOrderRequest {
     private Double pickupLat;
     private Double pickupLng;
     private List<Long> voucherIds;
+    private String selectionMode;
     private List<OrderItemRequest> items;
 
     @Setter

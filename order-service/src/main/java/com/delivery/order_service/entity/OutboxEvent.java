@@ -32,7 +32,7 @@ import java.util.UUID;
 @NoArgsConstructor
 public class OutboxEvent {
 
-    public enum Status { PENDING, SENT, DEAD }
+    public enum Status { PENDING, IN_FLIGHT, SENT, DEAD }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -80,6 +80,13 @@ public class OutboxEvent {
 
     @Column(name = "sent_at")
     private LocalDateTime sentAt;
+
+    /** Stable owner fence for a short relay lease. */
+    @Column(name = "lease_token")
+    private UUID leaseToken;
+
+    @Column(name = "lease_until")
+    private LocalDateTime leaseUntil;
 
     @Column(name = "last_error", length = 2000)
     private String lastError;

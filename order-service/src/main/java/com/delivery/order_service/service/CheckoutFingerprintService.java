@@ -23,7 +23,11 @@ public class CheckoutFingerprintService {
         token(value, request.getRestaurantId());
         token(value, decimal(request.getDeliveryLat()));
         token(value, decimal(request.getDeliveryLng()));
-        token(value, request.getVoucherId());
+        List<Long> selected = request.getSelectedVoucherIds() == null
+                ? (request.getVoucherId() == null ? List.of() : List.of(request.getVoucherId()))
+                : request.getSelectedVoucherIds().stream().sorted().toList();
+        token(value, selected);
+        token(value, request.getSelectionMode());
         for (CheckoutPreviewRequest.PreviewItem item : sortedPreviewItems(request.getItems())) {
             token(value, item.getMenuItemId());
             token(value, item.getQuantity());
@@ -39,9 +43,8 @@ public class CheckoutFingerprintService {
         token(value, decimal(request.getDeliveryLng()));
         List<Long> vouchers = request.getVoucherIds() == null ? List.of()
                 : request.getVoucherIds().stream().sorted().toList();
-        // Current checkout allows at most one voucher; keep the preview and
-        // create representations byte-for-byte equivalent for that contract.
-        token(value, vouchers.size() == 1 ? vouchers.get(0) : null);
+        token(value, vouchers);
+        token(value, request.getSelectionMode());
         for (CreateOrderRequest.OrderItemRequest item : sortedOrderItems(request.getItems())) {
             token(value, item.getMenuItemId());
             token(value, item.getQuantity());
@@ -65,6 +68,27 @@ public class CheckoutFingerprintService {
         token(value, decimal(response.getShippingFee()));
         token(value, decimal(response.getDiscountAmount()));
         token(value, decimal(response.getTotalPrice()));
+        token(value, decimal(response.getItemDiscount()));
+        token(value, decimal(response.getShippingDiscount()));
+        token(value, decimal(response.getCustomerShippingFee()));
+        token(value, decimal(response.getGrossShippingFee()));
+        token(value, decimal(response.getPlatformSubsidy()));
+        token(value, decimal(response.getShopDiscount()));
+        token(value, response.getSelectedVoucherIds() == null ? List.of() : response.getSelectedVoucherIds().stream().sorted().toList());
+        token(value, response.getSelectionMode());
+        if (response.getAppliedVouchers() != null) {
+            response.getAppliedVouchers().stream()
+                    .sorted(Comparator.comparing(CheckoutPreviewResponse.AppliedVoucherInfo::getVoucherId,
+                            Comparator.nullsFirst(Comparator.naturalOrder())))
+                    .forEach(item -> {
+                        token(value, item.getVoucherId());
+                        token(value, item.getCode());
+                        token(value, item.getLayer());
+                        token(value, item.getFundingSource());
+                        token(value, decimal(item.getDiscountBase()));
+                        token(value, decimal(item.getDiscountAmount()));
+                    });
+        }
         return hash(value);
     }
 

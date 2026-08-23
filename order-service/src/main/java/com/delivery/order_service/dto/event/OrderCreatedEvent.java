@@ -15,6 +15,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 public class OrderCreatedEvent {
+    private Integer schemaVersion = 2;
     
     // Order basic info
     private Long orderId;
@@ -28,6 +29,12 @@ public class OrderCreatedEvent {
     private BigDecimal discountAmount;
     private BigDecimal shippingFee;
     private BigDecimal totalPrice;
+    private BigDecimal itemDiscount;
+    private BigDecimal shippingDiscount;
+    private BigDecimal customerShippingFee;
+    private BigDecimal grossShippingFee;
+    private BigDecimal platformSubsidy;
+    private BigDecimal shopDiscount;
     private String paymentMethod;
     
     // Delivery location info
@@ -54,7 +61,9 @@ public class OrderCreatedEvent {
     private Long creatorId;
     private Long creatorPrincipalId;
     private UUID voucherReservationId;
+    private UUID promotionReservationId;
     private UUID flashSaleReservationId;
+    private java.util.List<java.util.Map<String, Object>> appliedVouchers;
     
     // Event metadata
     private String eventType = "ORDER_CREATED";

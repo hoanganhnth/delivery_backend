@@ -3,13 +3,31 @@
 ## Preconditions
 
 1. Back up `order_db`, `promotion_db`, and `flashsale_db`.
-2. Apply and verify Order V8, Promotion V2/V3, and Flash-sale V2/V3 migrations.
+2. Apply and verify the current Order/Promotion/Flash-sale migrations,
+   including Order V16 and Promotion V7 stacking foundations.
 3. Run module tests, PostgreSQL concurrency tests, Gateway route/security tests,
    Compose config validation, Flutter OFF/ON tests, and Web verify.
 4. Confirm Gateway exposes Order preview/create, voucher wallet, and public flash
    catalog, while internal quote/reservation paths remain absent.
 5. Confirm dashboards/alerts exist for reservation age/state, outbox PENDING/DEAD,
    release failures, stock/counter mismatch, and settlement rejection.
+
+### Preflight không dùng Docker
+
+Khi chưa có local runtime hoặc muốn tránh khởi động Docker, có thể chuẩn bị
+release và kiểm tra manifest bằng các lệnh read-only/render-only sau:
+
+```bash
+mvn -pl api-gateway,promotion-service,order-service,delivery-service,settlement-service \
+  -am package -DskipTests
+node deploy/kubernetes/generate.mjs --check
+bash scripts/verify-kubernetes-manifests.sh
+kubectl kustomize deploy/kubernetes/overlays/staging-template >/tmp/delivery-staging.yaml
+```
+
+Kết quả phải xác nhận 20 workload private, không có `Ingress`, `LoadBalancer`,
+`NodePort` hoặc plaintext `Secret`, và bốn stacking controls vẫn
+fail-closed. Các lệnh trên không gọi `docker` và không `kubectl apply`.
 
 ## Enable order
 
@@ -21,9 +39,17 @@ Enable one environment/canary at a time:
 4. `FLASHSALE_OUTBOX_RELAY_ENABLED=true`
 5. `ORDER_VOUCHER_CHECKOUT_ENABLED=true`
 6. `ORDER_FLASHSALE_CHECKOUT_ENABLED=true`
-7. Build Flutter with `--dart-define=VOUCHER_CHECKOUT_ENABLED=true` and/or
-   `--dart-define=FLASHSALE_CHECKOUT_ENABLED=true` only after steps 1–6 are
-   healthy.
+7. For stacked voucher canary, also set
+   `ORDER_VOUCHER_STACKING_ENABLED=true`,
+   `PROMOTION_STACKING_ENABLED=true`, and the same comma-separated stable
+   principal IDs in `ORDER_VOUCHER_STACKING_CANARY_PRINCIPALS` and
+   `PROMOTION_STACKING_CANARY_PRINCIPALS`. The allowlist must never be empty.
+8. Build Flutter with `--dart-define=VOUCHER_STACKING_ENABLED=true` for the
+   same canary only after the capability endpoint returns enabled; legacy
+   single voucher still uses `--dart-define=VOUCHER_CHECKOUT_ENABLED=true`.
+   Flash Sale continues to use
+   `--dart-define=FLASHSALE_CHECKOUT_ENABLED=true` and must not be enabled in
+   the same checkout scenario.
 
 `FLASHSALE_MERCHANT_REGISTRATION_ENABLED` is a separate ownership rollout and
 must stay false unless its Gateway route and merchant UI are explicitly shipped.

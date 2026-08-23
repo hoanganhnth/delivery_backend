@@ -59,6 +59,7 @@ public class PromotionOrderReservationEventProcessor {
         String sourceTopic = canonicalSourceTopic(receivedTopic);
         String action = actionFor(sourceTopic);
         UUID reservationId = optionalUuid(event, "voucherReservationId");
+        UUID promotionReservationId = optionalUuid(event, "promotionReservationId");
         String fingerprint = fingerprint(payload);
 
         if (insertIfAbsent(eventId, sourceTopic, action, orderId, reservationId, fingerprint) == 0) {
@@ -69,14 +70,34 @@ public class PromotionOrderReservationEventProcessor {
             return;
         }
 
-        if (reservationId == null) {
+        if (reservationId == null && promotionReservationId == null) {
             return;
         }
         if (COMMIT.equals(action)) {
-            promotionService.commitReservation(reservationId, orderId);
+            if (promotionReservationId != null) {
+                promotionService.commitPromotionReservation(promotionReservationId, orderId);
+            } else {
+                promotionService.commitReservation(reservationId, orderId);
+            }
         } else {
-            promotionService.releaseReservation(reservationId, orderId);
+            // A committed promotion can only be compensated before the
+            // delivery reaches PICKED_UP. After pickup the financial snapshot
+            // is retained for manual reconciliation; no quota is restored.
+            if (isAfterPickup(event)) {
+                return;
+            }
+            if (promotionReservationId != null) {
+                promotionService.releasePromotionReservation(promotionReservationId, orderId);
+            } else {
+                promotionService.releaseReservation(reservationId, orderId);
+            }
         }
+    }
+
+    private boolean isAfterPickup(JsonNode event) {
+        String previous = event.path("previousStatus").asText("").toUpperCase(java.util.Locale.ROOT);
+        return "PICKED_UP".equals(previous) || "DELIVERING".equals(previous)
+                || "DELIVERED".equals(previous) || "COMPLETED".equals(previous);
     }
 
     private int insertIfAbsent(UUID eventId, String sourceTopic, String action, long orderId,

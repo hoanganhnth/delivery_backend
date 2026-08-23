@@ -16,14 +16,15 @@ Gateway routes `POST /api/promotions/collect/{code}` and
 
 ## Authority and price contract
 
-- Voucher campaigns are created by `ADMIN`; checkout rejects legacy
-  `MERCHANT` ownership.
+- Platform vouchers/freeship are created by `ADMIN`; shop vouchers are created
+  by `SHOP_OWNER` and require `ADMIN` approval. Legacy `MERCHANT` ownership is
+  not checkout-eligible.
 - Scope is exactly `ALL` or `SHOP`. A `SHOP` voucher carries a positive
   canonical restaurant ID. Legacy `CATEGORY` scope is not checkout-eligible.
-- One order may select at most one voucher, and voucher does not stack with a
-  flash-sale line.
-- Clients send only `voucherId`. Promotion computes the discount from canonical
-  voucher rules and Order snapshots subtotal, shipping, discount, and total.
+- One order may select at most one voucher per layer (`SHOP_DISCOUNT`,
+  `PLATFORM_DISCOUNT`, `FREESHIP`), and voucher does not stack with a
+  flash-sale line. Clients send `AUTO` or wallet IDs; Promotion computes the
+  combination and Order snapshots subtotal, shipping, discount, and total.
 
 ## Durable lifecycle
 

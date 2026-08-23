@@ -30,6 +30,9 @@ public class CartContextRequest {
     private BigDecimal shippingFee;
     @Positive
     private Long selectedVoucherId;
+    /** New stacking contract; selectedVoucherId remains for legacy callers. */
+    private List<@Positive Long> selectedVoucherIds;
+    private VoucherSelectionMode selectionMode;
     // Assuming a simplified cart representation
     // private List<CartItem> items; 
 }

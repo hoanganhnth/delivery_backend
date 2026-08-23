@@ -2,19 +2,23 @@ package com.delivery.order_service.service;
 
 import com.delivery.order_service.dto.internal.ValidatedOrderData;
 import com.delivery.order_service.dto.request.CreateOrderRequest;
+import com.delivery.order_service.exception.OrderDependencyUnavailableException;
 import com.delivery.order_service.exception.ValidationException;
 import com.delivery.order_service.config.OrderRestaurantCircuitBreaker;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.TimeoutException;
 
 /**
  * ✅ Service validation cho Order theo Backend Instructions
@@ -28,6 +32,7 @@ public class OrderValidationService {
     private final String restaurantServiceUrl;
     private final String internalSecret;
     private final OrderRestaurantCircuitBreaker restaurantCircuitBreaker;
+    private final VoucherCheckoutCapability voucherCheckoutCapability;
     @Value("${app.order.voucher-checkout-enabled:false}")
     private boolean voucherCheckoutEnabled;
     @Value("${app.order.flashsale-checkout-enabled:false}")
@@ -37,11 +42,21 @@ public class OrderValidationService {
             WebClient webClient,
             @Value("${restaurant.service.url}") String restaurantServiceUrl,
             @Value("${app.internal.secret:}") String internalSecret,
-            OrderRestaurantCircuitBreaker restaurantCircuitBreaker) {
+            OrderRestaurantCircuitBreaker restaurantCircuitBreaker,
+            VoucherCheckoutCapability voucherCheckoutCapability) {
         this.webClient = webClient;
         this.restaurantServiceUrl = restaurantServiceUrl;
         this.internalSecret = internalSecret;
         this.restaurantCircuitBreaker = restaurantCircuitBreaker;
+        this.voucherCheckoutCapability = voucherCheckoutCapability;
+    }
+
+    /** Source-compatible constructor for focused legacy tests/callers. */
+    public OrderValidationService(WebClient webClient, String restaurantServiceUrl,
+                                  String internalSecret,
+                                  OrderRestaurantCircuitBreaker restaurantCircuitBreaker) {
+        this(webClient, restaurantServiceUrl, internalSecret, restaurantCircuitBreaker,
+                new VoucherCheckoutCapability(false, ""));
     }
 
     /**
@@ -51,13 +66,21 @@ public class OrderValidationService {
      * pickupLat/Lng.
      */
     public ValidatedOrderData validateCreateOrderRequest(CreateOrderRequest request, Long userId) {
+        return validateCreateOrderRequest(request, userId, userId);
+    }
+
+    public ValidatedOrderData validateCreateOrderRequest(CreateOrderRequest request, Long principalId, Long userId) {
         List<String> errors = new ArrayList<>();
+
+        if (request == null) {
+            throw new ValidationException("Dữ liệu đơn hàng không được để trống");
+        }
 
         // 1. Validate basic required fields (chỉ những gì client phải gửi)
         validateRequiredFields(request, errors);
 
         // 2. Validate business logic
-        validateBusinessRules(request, errors);
+        validateBusinessRules(request, principalId, errors);
 
         // 3. Validate coordinates (delivery coords mà client cung cấp)
         validateDeliveryCoordinates(request, errors);
@@ -137,11 +160,25 @@ public class OrderValidationService {
     /**
      * Validate business rules
      */
-    private void validateBusinessRules(CreateOrderRequest request, List<String> errors) {
+    private void validateBusinessRules(CreateOrderRequest request, Long principalId, List<String> errors) {
         int voucherCount = request.getVoucherIds() == null ? 0 : request.getVoucherIds().size();
-        if (voucherCount > 1) {
-            errors.add("Mỗi đơn chỉ được dùng một voucher");
-        } else if (voucherCount == 1 && !voucherCheckoutEnabled) {
+        if (request.getVoucherIds() != null && (request.getVoucherIds().stream()
+                .anyMatch(id -> id == null || id <= 0)
+                || request.getVoucherIds().stream().distinct().count() != voucherCount)) {
+            errors.add("Voucher ID phải là số dương và không được trùng");
+        }
+        if (request.getSelectionMode() != null && !request.getSelectionMode().isBlank()
+                && !"AUTO".equalsIgnoreCase(request.getSelectionMode())
+                && !"MANUAL".equalsIgnoreCase(request.getSelectionMode())) {
+            errors.add("Selection mode chỉ hỗ trợ AUTO hoặc MANUAL");
+        }
+        boolean stackedSelection = (request.getSelectionMode() != null && !request.getSelectionMode().isBlank())
+                || voucherCount > 1;
+        if (voucherCount > 3) {
+            errors.add("Mỗi đơn chỉ được dùng tối đa ba voucher");
+        } else if (stackedSelection && !voucherCheckoutCapability.isEnabled(principalId)) {
+            errors.add("Voucher stacking checkout chưa được mở cho tài khoản này");
+        } else if (voucherCount == 1 && !stackedSelection && !voucherCheckoutEnabled) {
             errors.add("Voucher checkout chưa được mở trong MVP cho tới khi có discount và compensation proof");
         }
 
@@ -160,6 +197,10 @@ public class OrderValidationService {
         Set<Long> menuItemIds = new HashSet<>();
         for (int i = 0; i < request.getItems().size(); i++) {
             CreateOrderRequest.OrderItemRequest item = request.getItems().get(i);
+            if (item == null) {
+                errors.add("Sản phẩm " + (i + 1) + ": dữ liệu sản phẩm không hợp lệ");
+                continue;
+            }
             validateOrderItem(item, i + 1, errors);
             if (item.getMenuItemId() != null && !menuItemIds.add(item.getMenuItemId())) {
                 errors.add("Sản phẩm " + (i + 1) + ": Menu Item ID bị trùng");
@@ -170,8 +211,9 @@ public class OrderValidationService {
             }
         }
 
-        boolean hasFlashSale = request.getItems().stream().anyMatch(item -> item.getFlashSaleItemId() != null);
-        if (voucherCount == 1 && hasFlashSale) {
+        boolean hasFlashSale = request.getItems().stream().filter(Objects::nonNull)
+                .anyMatch(item -> item.getFlashSaleItemId() != null);
+        if (voucherCount > 0 && hasFlashSale) {
             errors.add("Voucher và Flash Sale không được áp dụng cùng một đơn");
         }
 
@@ -276,8 +318,8 @@ public class OrderValidationService {
             String url = restaurantServiceUrl + "/api/restaurants/validate/order";
 
             if (internalSecret == null || internalSecret.isBlank()) {
-                errors.add("Order/restaurant internal credential chưa được cấu hình");
-                return null;
+                throw new OrderDependencyUnavailableException("restaurant-service",
+                        "Order/restaurant internal credential chưa được cấu hình", null, 30);
             }
 
             Map<String, Object> responseBody = restaurantCircuitBreaker.execute(() -> webClient
@@ -292,18 +334,23 @@ public class OrderValidationService {
                     .block());
 
             if (responseBody == null) {
-                errors.add("Không thể xác thực đơn hàng với restaurant service");
-                return null;
+                throw new OrderDependencyUnavailableException("restaurant-service",
+                        "Restaurant service trả về response rỗng");
             }
 
-            Integer status = (Integer) responseBody.get("status");
+            Integer status = integerValue(responseBody.get("status"));
             Map<String, Object> data = (Map<String, Object>) responseBody.get("data");
 
             log.info("🔍 Order validation for restaurant {}: status={}", request.getRestaurantId(), status);
 
+            if (status == null) {
+                throw new OrderDependencyUnavailableException("restaurant-service",
+                        "Restaurant service trả status không hợp lệ");
+            }
+
             if (data == null) {
-                errors.add("Response từ restaurant service không hợp lệ");
-                return null;
+                throw new OrderDependencyUnavailableException("restaurant-service",
+                        "Restaurant service trả response không đúng contract");
             }
 
             // Lấy canonical restaurant data từ server
@@ -332,9 +379,48 @@ public class OrderValidationService {
 
             return validatedData;
 
+        } catch (OrderDependencyUnavailableException e) {
+            throw e;
+        } catch (WebClientResponseException e) {
+            if (e.getStatusCode().is4xxClientError()) {
+                errors.add("Restaurant/menu item validation thất bại");
+                return null;
+            }
+            throw new OrderDependencyUnavailableException("restaurant-service",
+                    "Restaurant service tạm thời không khả dụng", e);
         } catch (Exception e) {
             log.error("💥 Error validating order with restaurant service: {}", e.getMessage());
+            if (hasRemoteFailureCause(e)) {
+                throw new OrderDependencyUnavailableException("restaurant-service",
+                        "Restaurant service tạm thời không khả dụng", e);
+            }
+            // A malformed but successfully returned business payload remains a
+            // validation failure, preserving the fail-closed catalog contract.
             errors.add("Không thể xác thực thông tin restaurant/menu items");
+            return null;
+        }
+    }
+
+    private boolean hasRemoteFailureCause(Throwable failure) {
+        Throwable current = failure;
+        while (current != null) {
+            if (current instanceof TimeoutException
+                    || current instanceof java.net.ConnectException
+                    || current instanceof java.net.SocketTimeoutException
+                    || current instanceof org.springframework.web.reactive.function.client.WebClientRequestException) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
+    }
+
+    private Integer integerValue(Object value) {
+        if (value instanceof Number number) return number.intValue();
+        if (value == null) return null;
+        try {
+            return Integer.valueOf(value.toString());
+        } catch (NumberFormatException ignored) {
             return null;
         }
     }
