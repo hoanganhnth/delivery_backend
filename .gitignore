@@ -24,6 +24,7 @@ Thumbs.db
 .env
 .env.local
 .secrets/
+.sandbox/
 .jwks-rollout-state
 # JWT keys — KHÔNG commit (sinh bằng scripts/gen-keys.sh)
 *.pem

@@ -34,6 +34,8 @@ ROLE_SHIPPER="SHIPPER"
 # Toạ độ mẫu (TP.HCM) — nhà hàng và shipper gần nhau để match tìm thấy.
 REST_LAT="10.7769"; REST_LNG="106.7009"
 SHIPPER_LAT="10.7780"; SHIPPER_LNG="106.7020"
+CUSTOMER_LAT="10.7740"; CUSTOMER_LNG="106.7040"
+MENU_PRICE="45000"
 
 command -v jq >/dev/null || { echo "❌ Cần cài jq"; exit 1; }
 command -v docker >/dev/null || { echo "❌ Cần Docker để seed ledger ký quỹ local"; exit 1; }
@@ -176,7 +178,7 @@ echo "✅ Nhà hàng id=$REST_ID"
 
 MENU_ID="$(curl --fail-with-body --silent --show-error -X POST "$BASE/api/menu-items" \
   -H "Authorization: Bearer $OWNER_TOKEN" -H 'Content-Type: application/json' \
-  -d "{\"name\":\"Cơm gà\",\"description\":\"Món seed\",\"price\":45000,\"restaurantId\":$REST_ID}" \
+  -d "{\"name\":\"Cơm gà\",\"description\":\"Món seed\",\"price\":$MENU_PRICE,\"restaurantId\":$REST_ID}" \
   | jq -r '.id // .data.id // empty')"
 [[ "$MENU_ID" =~ ^[0-9]+$ ]] || { echo "❌ Không tạo được menu item canonical"; exit 1; }
 echo "✅ Menu item id=$MENU_ID"
@@ -235,10 +237,21 @@ if [[ -n "$SEED_OUTPUT_FILE" ]]; then
     --argjson restaurantId "$REST_ID" \
     --argjson menuItemId "$MENU_ID" \
     --argjson shipperUserId "$SHIPPER_USER_ID" \
+    --argjson restaurantLat "$REST_LAT" \
+    --argjson restaurantLng "$REST_LNG" \
+    --argjson shipperLat "$SHIPPER_LAT" \
+    --argjson shipperLng "$SHIPPER_LNG" \
+    --argjson customerLat "$CUSTOMER_LAT" \
+    --argjson customerLng "$CUSTOMER_LNG" \
+    --argjson menuPrice "$MENU_PRICE" \
     '{runId: $runId, customerToken: $customerToken, outsiderToken: $outsiderToken,
       ownerToken: $ownerToken,
       shipperToken: $shipperToken, restaurantId: $restaurantId,
-      menuItemId: $menuItemId, shipperUserId: $shipperUserId}' \
+      menuItemId: $menuItemId, shipperUserId: $shipperUserId,
+      restaurantLat: $restaurantLat, restaurantLng: $restaurantLng,
+      shipperLat: $shipperLat, shipperLng: $shipperLng,
+      customerLat: $customerLat, customerLng: $customerLng,
+      menuPrice: $menuPrice}' \
     > "$SEED_OUTPUT_FILE"
 fi
 

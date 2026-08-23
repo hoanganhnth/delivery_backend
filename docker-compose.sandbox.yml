@@ -1,0 +1,141 @@
+# Production-like local sandbox overlay.
+#
+# This file is intentionally never included by the canonical Compose project.
+# It removes fixed identities/ports, keeps every public binding on loopback,
+# and turns on the matching/batch path for synthetic fixtures only. Use it
+# together with docker-compose.isolated-e2e.yml and docker-compose.simulator.yml
+# through scripts/sandbox-up.sh.
+services:
+  tracing-collector:
+    ports: !reset []
+
+  postgres:
+    container_name: !reset null
+    ports: !reset []
+
+  redis:
+    container_name: !reset null
+    ports: !reset []
+
+  kafka:
+    container_name: !reset null
+    ports: !reset []
+
+  elasticsearch:
+    container_name: !reset null
+    ports: !reset []
+
+  api-gateway:
+    container_name: !reset null
+    # Docker chooses a free host port; the launcher resolves it and writes it
+    # to the run-scoped state file. Do not expose the Gateway on 0.0.0.0.
+    ports: !override
+      - "127.0.0.1::8079"
+
+  auth-service:
+    container_name: !reset null
+
+  user-service:
+    container_name: !reset null
+
+  restaurant-service:
+    container_name: !reset null
+
+  order-service:
+    container_name: !reset null
+
+  delivery-service:
+    container_name: !reset null
+    environment:
+      # Batch support is enabled in the sandbox, but can be disabled for a
+      # legacy single-offer comparison with SANDBOX_BATCH_ENABLED=false.
+      DELIVERY_BATCH_ENABLED: "${SANDBOX_BATCH_ENABLED:-true}"
+
+  search-service:
+    container_name: !reset null
+
+  shipper-service:
+    container_name: !reset null
+
+  settlement-service:
+    container_name: !reset null
+
+  notification-service:
+    container_name: !reset null
+
+  match-service:
+    container_name: !reset null
+    environment:
+      MATCHING_H3_ENABLED: "${SANDBOX_H3_ENABLED:-true}"
+      MATCHING_BATCH_ENABLED: "${SANDBOX_BATCH_ENABLED:-true}"
+      MATCHING_BATCH_SCHEDULER_ENABLED: "${SANDBOX_BATCH_SCHEDULER_ENABLED:-true}"
+      MATCHING_BATCH_CANARY_PERCENT: "${SANDBOX_BATCH_CANARY_PERCENT:-100}"
+      MATCHING_BATCH_CLIENT_CAPABILITY_REQUIRED: "${SANDBOX_BATCH_CLIENT_CAPABILITY_REQUIRED:-true}"
+
+  tracking-service:
+    container_name: !reset null
+
+  routing-service:
+    container_name: !reset null
+
+  saga-orchestrator-service:
+    container_name: !reset null
+    environment:
+      # The simulator/shipper contract supports the additive batch offer API.
+      MATCHING_BATCH_CLIENT_CAPABILITY_ENABLED: "${SANDBOX_BATCH_CLIENT_CAPABILITY_ENABLED:-true}"
+
+  livestream-service:
+    container_name: !reset null
+
+  promotion-service:
+    container_name: !reset null
+
+  analytics-service:
+    container_name: !reset null
+
+  flashsale-service:
+    container_name: !reset null
+
+  prometheus:
+    container_name: !reset null
+    ports: !override
+      - "127.0.0.1::9090"
+
+  grafana:
+    container_name: !reset null
+    ports: !override
+      - "127.0.0.1::3000"
+
+  simulator-service:
+    container_name: !reset null
+    ports: !override
+      - "127.0.0.1::8100"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -T 3 -O /dev/null http://localhost:9100/actuator/health/readiness"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    environment:
+      SIMULATOR_ENABLED: "true"
+      SIMULATOR_API_TOKEN: "${SANDBOX_SIMULATOR_API_TOKEN:?SANDBOX_SIMULATOR_API_TOKEN must be set}"
+      SIMULATOR_GATEWAY_BASE_URL: "http://api-gateway:8079"
+      SIMULATOR_ALLOWED_GATEWAY_HOSTS: "api-gateway"
+      SIMULATOR_ALLOW_NON_LOCAL_TARGETS: "false"
+      SIMULATOR_ALLOWED_ORIGINS: "http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173,http://localhost:5174,http://127.0.0.1:5174"
+      SIMULATOR_KAFKA_OBSERVER_ENABLED: "true"
+      SIMULATOR_KAFKA_OBSERVER_GROUP_ID: "${SANDBOX_SIMULATOR_GROUP_ID:-sandbox-simulator-observer}"
+      SIMULATOR_RUN_TIMEOUT_SECONDS: "${SANDBOX_RUN_TIMEOUT_SECONDS:-300}"
+      SIMULATOR_HUMAN_ORDER_TIMEOUT_SECONDS: "${SANDBOX_HUMAN_ORDER_TIMEOUT_SECONDS:-180}"
+      SIMULATOR_MAX_CONCURRENT_RUNS: "${SANDBOX_MAX_CONCURRENT_RUNS:-4}"
+      MANAGEMENT_SERVER_PORT: "9100"
+
+networks:
+  delivery-network:
+    name: "${SANDBOX_NETWORK_NAME:?SANDBOX_NETWORK_NAME must be set}"
+
+volumes:
+  postgres_data:
+    name: "${POSTGRES_VOLUME_NAME:?POSTGRES_VOLUME_NAME must be set}"
+  kafka_data:
+    name: "${KAFKA_VOLUME_NAME:?KAFKA_VOLUME_NAME must be set}"

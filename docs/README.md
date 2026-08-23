@@ -46,6 +46,7 @@ Tài liệu đặc tả các luồng nghiệp vụ phức tạp, có sự giao t
 - [Kubernetes deployment foundation](../deploy/kubernetes/README.md)
 - [Local Compose Search recovery](runbooks/local-runtime-search-recovery.md)
 - [Local Prometheus/Grafana runtime verification](runbooks/local-observability-runtime.md)
+- [Production-like synthetic sandbox](runbooks/production-like-sandbox.md)
 - [JWKS Compose rollout runner](runbooks/rollout-and-rollback.md#jwks-migration-on-localstaging-compose)
 - [JWKS legacy Compose bootstrap](../scripts/bootstrap-jwks-legacy-compose.sh)
 - [Refund and cancellation compensation](runbooks/refund-workflow.md)
