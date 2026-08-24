@@ -56,6 +56,18 @@ public interface DispatchPoolItemRepository extends JpaRepository<DispatchPoolIt
             @Param("now") LocalDateTime now,
             Pageable pageable);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select item
+            from DispatchPoolItem item
+            where item.state = com.delivery.match_service.entity.DispatchPoolItem$State.WAITING
+              and item.matchingDeadlineAt <= :now
+            order by item.matchingDeadlineAt asc, item.updatedAt asc, item.poolItemId asc
+            """)
+    List<DispatchPoolItem> findExpiredWaitingForUpdate(
+            @Param("now") LocalDateTime now,
+            Pageable pageable);
+
     @Query("""
             select distinct coalesce(item.pickupH3Cell, 'LEGACY')
             from DispatchPoolItem item

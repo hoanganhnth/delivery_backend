@@ -3,7 +3,7 @@ server:
 
 restaurant:
   service:
-    url: ${RESTAURANT_SERVICE_URL:http://restaurant-service:8082}
+    url: ${RESTAURANT_SERVICE_URL:http://restaurant-service:8083}
 
 app:
   internal:

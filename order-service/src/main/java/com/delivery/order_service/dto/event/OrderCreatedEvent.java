@@ -63,6 +63,9 @@ public class OrderCreatedEvent {
     private UUID voucherReservationId;
     private UUID promotionReservationId;
     private UUID flashSaleReservationId;
+    private UUID inventoryReservationId;
+    /** Immutable line snapshot from Order.order_items for downstream projections. */
+    private java.util.List<java.util.Map<String, Object>> items;
     private java.util.List<java.util.Map<String, Object>> appliedVouchers;
     
     // Event metadata

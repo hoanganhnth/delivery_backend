@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
@@ -41,6 +42,39 @@ class CheckoutPreviewMvpPolicyTest {
         request.setCouponCode("WELCOME");
 
         assertThrows(ValidationException.class, () -> service.calculatePreview(request, 21L));
+        verifyNoInteractions(webClient, shippingFeeService);
+    }
+
+    @Test
+    void oneSelectedVoucherRequiresAnExplicitStackingMode() {
+        WebClient webClient = mock(WebClient.class);
+        ShippingFeeCalculationService shippingFeeService = mock(ShippingFeeCalculationService.class);
+        CheckoutPreviewService service = new CheckoutPreviewService(
+                webClient, shippingFeeService, "http://restaurant-service:8083",
+                "test-secret", circuitBreaker());
+        CheckoutPreviewRequest request = validRequest();
+        request.setSelectedVoucherIds(List.of(55L));
+
+        assertThatThrownBy(() -> service.calculatePreview(request, 21L))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("selectionMode");
+        verifyNoInteractions(webClient, shippingFeeService);
+    }
+
+    @Test
+    void manualModeRequiresAtLeastOneSelectedVoucher() {
+        WebClient webClient = mock(WebClient.class);
+        ShippingFeeCalculationService shippingFeeService = mock(ShippingFeeCalculationService.class);
+        CheckoutPreviewService service = new CheckoutPreviewService(
+                webClient, shippingFeeService, "http://restaurant-service:8083",
+                "test-secret", circuitBreaker());
+        CheckoutPreviewRequest request = validRequest();
+        request.setSelectedVoucherIds(List.of());
+        request.setSelectionMode("MANUAL");
+
+        assertThatThrownBy(() -> service.calculatePreview(request, 21L))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("requires selected voucher IDs");
         verifyNoInteractions(webClient, shippingFeeService);
     }
 
@@ -116,6 +150,75 @@ class CheckoutPreviewMvpPolicyTest {
         assertThat(preview.getVoucherId()).isEqualTo(55L);
         assertThat(preview.getDiscountAmount()).isEqualByComparingTo("20000");
         assertThat(preview.getTotalPrice()).isEqualByComparingTo("95000");
+    }
+
+    @Test
+    void legacyFreeshipQuoteKeepsCanonicalFundingAndShippingAttribution() {
+        ShippingFeeCalculationService shippingFeeService = mock(ShippingFeeCalculationService.class);
+        when(shippingFeeService.calculateShippingFee(
+                10.76, 106.66, 10.78, 106.68, new BigDecimal("100000")))
+                .thenReturn(new BigDecimal("15000"));
+        CheckoutReservationClient reservationClient = mock(CheckoutReservationClient.class);
+        var line = java.util.Map.<String, Object>of(
+                "voucherId", 55L, "code", "FREE15", "layer", "FREESHIP",
+                "fundingSource", "PLATFORM", "discountBase", new BigDecimal("15000"),
+                "discountAmount", new BigDecimal("15000"));
+        when(reservationClient.quoteVoucher(21L, 55L, 7L,
+                new BigDecimal("100000"), new BigDecimal("15000")))
+                .thenReturn(new CheckoutReservationClient.VoucherQuote(
+                        new BigDecimal("15000"), BigDecimal.ZERO, new BigDecimal("15000"),
+                        BigDecimal.ZERO, new BigDecimal("15000"), new BigDecimal("15000"),
+                        BigDecimal.ZERO, "[]", List.of(line)));
+        CheckoutPreviewService service = serviceWithCanonicalMenu(shippingFeeService);
+        ReflectionTestUtils.setField(service, "voucherCheckoutEnabled", true);
+        ReflectionTestUtils.setField(service, "reservationClient", reservationClient);
+        CheckoutPreviewRequest request = validRequest();
+        request.setVoucherId(55L);
+
+        var preview = service.calculatePreview(request, 21L);
+
+        assertThat(preview.getItemDiscount()).isEqualByComparingTo("0");
+        assertThat(preview.getShippingDiscount()).isEqualByComparingTo("15000");
+        assertThat(preview.getCustomerShippingFee()).isEqualByComparingTo("0");
+        assertThat(preview.getPlatformSubsidy()).isEqualByComparingTo("15000");
+        assertThat(preview.getShopDiscount()).isEqualByComparingTo("0");
+        assertThat(preview.getTotalPrice()).isEqualByComparingTo("100000");
+        assertThat(preview.getAppliedVouchers()).singleElement()
+                .satisfies(applied -> assertThat(applied.getLayer()).isEqualTo("FREESHIP"));
+    }
+
+    @Test
+    void stackedQuoteCannotLeaveAZeroPayableFoodAmount() {
+        ShippingFeeCalculationService shippingFeeService = mock(ShippingFeeCalculationService.class);
+        when(shippingFeeService.calculateShippingFee(
+                10.76, 106.66, 10.78, 106.68, new BigDecimal("100000")))
+                .thenReturn(new BigDecimal("15000"));
+        CheckoutReservationClient reservationClient = mock(CheckoutReservationClient.class);
+        when(reservationClient.quoteVouchers(21L, 21L, 7L,
+                new BigDecimal("100000"), new BigDecimal("15000"), List.of(55L), "MANUAL"))
+                .thenReturn(new CheckoutReservationClient.PromotionQuote(
+                        null, new BigDecimal("100000"), BigDecimal.ZERO, new BigDecimal("100000"),
+                        new BigDecimal("15000"), List.of(55L), "[]", List.of(),
+                        new BigDecimal("100000"), BigDecimal.ZERO));
+        CheckoutPreviewService service = new CheckoutPreviewService(
+                internalValidationWebClient("""
+                        {"status":1,"data":{
+                          "restaurantInfo":{"restaurantName":"Quán A","restaurantAddress":"123 Đường A",
+                            "restaurantPhone":"0900000000","latitude":10.76,"longitude":106.66,"creatorId":11,
+                            "isAvailable":true},
+                          "itemValidations":[{"menuItemId":5,"menuItemName":"Cơm","actualPrice":50000,
+                            "isAvailable":true,"hasEnoughStock":true}]}}
+                        """),
+                shippingFeeService, "http://restaurant-service:8083", "test-secret", circuitBreaker(),
+                new VoucherCheckoutCapability(true, "21"));
+        ReflectionTestUtils.setField(service, "reservationClient", reservationClient);
+        CheckoutPreviewRequest request = validRequest();
+        request.setSelectedVoucherIds(List.of(55L));
+        request.setSelectionMode("MANUAL");
+
+        assertThatThrownBy(() -> service.calculatePreview(request, 21L, 21L))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("số tiền món dương");
     }
 
     @Test
@@ -200,6 +303,72 @@ class CheckoutPreviewMvpPolicyTest {
         assertThatThrownBy(() -> service.calculatePreview(validRequest(), 21L))
                 .isInstanceOf(ValidationException.class)
                 .hasMessageContaining("Món ăn Cơm không khả dụng");
+        verifyNoInteractions(shippingFeeService);
+    }
+
+    @Test
+    void enabledEtaWindowUsesDrivingContractAndPrepEstimate() {
+        ShippingFeeCalculationService shippingFeeService = mock(ShippingFeeCalculationService.class);
+        when(shippingFeeService.calculateShippingFee(
+                10.76, 106.66, 10.78, 106.68, new BigDecimal("100000")))
+                .thenReturn(new BigDecimal("15000"));
+        AtomicInteger calls = new AtomicInteger();
+        WebClient webClient = WebClient.builder().exchangeFunction(request -> {
+            assertThat(request.headers().getFirst("Internal-Token")).isEqualTo("test-secret");
+            if (calls.getAndIncrement() == 0) {
+                assertThat(request.method()).isEqualTo(HttpMethod.POST);
+                assertThat(request.url().toString()).endsWith("/api/restaurants/validate/order");
+                return Mono.just(ClientResponse.create(HttpStatus.OK)
+                        .header("Content-Type", "application/json")
+                        .body("""
+                                {"status":1,"data":{"restaurantInfo":{
+                                  "restaurantName":"Quán A","latitude":10.76,"longitude":106.66,
+                                  "isAvailable":true,"serviceabilityEnabled":true,"serviceable":true,
+                                  "serviceabilityZoneId":9,"serviceabilityZoneRevision":2,
+                                  "defaultPrepTimeMinutes":15},
+                                  "itemValidations":[{"menuItemId":5,"menuItemName":"Cơm",
+                                  "actualPrice":50000,"isAvailable":true,"hasEnoughStock":true}]}}
+                                """)
+                        .build());
+            }
+            assertThat(request.url().toString()).endsWith("/internal/routing/v1/eta-window");
+            return Mono.just(ClientResponse.create(HttpStatus.OK)
+                    .header("Content-Type", "application/json")
+                    .body("{\"minMinutes\":27,\"maxMinutes\":37,\"source\":\"MAPBOX_DIRECTIONS\"}")
+                    .build());
+        }).build();
+        CheckoutPreviewService service = new CheckoutPreviewService(
+                webClient, shippingFeeService, "http://restaurant-service:8083",
+                "test-secret", circuitBreaker());
+        ReflectionTestUtils.setField(service, "etaWindowEnabled", true);
+        ReflectionTestUtils.setField(service, "routingServiceUrl", "http://routing-service:8094");
+
+        var preview = service.calculatePreview(validRequest(), 21L);
+
+        assertThat(preview.getEtaMinMinutes()).isEqualTo(27);
+        assertThat(preview.getEtaMaxMinutes()).isEqualTo(37);
+        assertThat(preview.getEtaSource()).isEqualTo("MAPBOX_DIRECTIONS");
+        assertThat(preview.getServiceabilityZoneId()).isNull();
+    }
+
+    @Test
+    void enabledServiceabilityRejectsOutsideZoneBeforeShippingCalculation() {
+        ShippingFeeCalculationService shippingFeeService = mock(ShippingFeeCalculationService.class);
+        CheckoutPreviewService service = new CheckoutPreviewService(
+                internalValidationWebClient("""
+                        {"status":1,"data":{"restaurantInfo":{
+                          "restaurantName":"Quán A","latitude":10.76,"longitude":106.66,
+                          "isAvailable":true,"serviceabilityEnabled":true,"serviceable":false,
+                          "serviceabilityReason":"OUTSIDE_ACTIVE_ZONES"},
+                          "itemValidations":[{"menuItemId":5,"menuItemName":"Cơm","actualPrice":50000,
+                          "isAvailable":true,"hasEnoughStock":true}]}}
+                        """),
+                shippingFeeService, "http://restaurant-service:8083", "test-secret", circuitBreaker());
+        ReflectionTestUtils.setField(service, "serviceabilityEnforcementEnabled", true);
+
+        assertThatThrownBy(() -> service.calculatePreview(validRequest(), 21L))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("ngoài vùng phục vụ");
         verifyNoInteractions(shippingFeeService);
     }
 

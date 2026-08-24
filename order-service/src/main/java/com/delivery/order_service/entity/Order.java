@@ -54,6 +54,10 @@ public class Order {
     @Column(name = "promotion_reservation_id", unique = true)
     private UUID promotionReservationId;
 
+    /** Restaurant-owned menu inventory hold/commit identity. */
+    @Column(name = "inventory_reservation_id", unique = true)
+    private UUID inventoryReservationId;
+
     @Column(name = "item_discount", precision = 12, scale = 2)
     private BigDecimal itemDiscount;
 

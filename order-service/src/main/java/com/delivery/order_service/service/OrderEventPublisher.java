@@ -127,6 +127,7 @@ public class OrderEventPublisher {
         cancelEvent.setVoucherReservationId(order.getVoucherReservationId());
         cancelEvent.setPromotionReservationId(order.getPromotionReservationId());
         cancelEvent.setFlashSaleReservationId(order.getFlashSaleReservationId());
+        cancelEvent.setInventoryReservationId(order.getInventoryReservationId());
         cancelEvent.setSubtotalPrice(order.getSubtotalPrice());
         cancelEvent.setDiscountAmount(order.getDiscountAmount());
         cancelEvent.setShippingFee(order.getShippingFee());
@@ -137,21 +138,12 @@ public class OrderEventPublisher {
         cancelEvent.setGrossShippingFee(order.getGrossShippingFee());
         cancelEvent.setPlatformSubsidy(order.getPlatformSubsidy());
         cancelEvent.setShopDiscount(order.getShopDiscount());
+        cancelEvent.setItems(snapshotItems(order));
         cancelEvent.setAppliedVouchers(parseBreakdown(order.getPromotionBreakdown()));
         cancelEvent.setPaymentMethod(order.getPaymentMethod());
         cancelEvent.setCreatedAt(order.getCreatedAt());
         cancelEvent.setUpdatedAt(order.getUpdatedAt());
 
-        if (order.getItems() != null) {
-            java.util.List<java.util.Map<String, Object>> items = order.getItems().stream().map(item -> {
-                java.util.Map<String, Object> map = new java.util.HashMap<>();
-                map.put("flashSaleItemId", item.getFlashSaleItemId());
-                map.put("quantity", item.getQuantity());
-                return map;
-            }).toList();
-            cancelEvent.setItems(items);
-        }
-        
         return cancelEvent;
     }
     
@@ -201,6 +193,8 @@ public class OrderEventPublisher {
         event.setVoucherReservationId(order.getVoucherReservationId());
         event.setPromotionReservationId(order.getPromotionReservationId());
         event.setFlashSaleReservationId(order.getFlashSaleReservationId());
+        event.setInventoryReservationId(order.getInventoryReservationId());
+        event.setItems(snapshotItems(order));
         event.setItemDiscount(order.getItemDiscount());
         event.setShippingDiscount(order.getShippingDiscount());
         event.setCustomerShippingFee(order.getCustomerShippingFee());
@@ -210,6 +204,26 @@ public class OrderEventPublisher {
         event.setAppliedVouchers(parseBreakdown(order.getPromotionBreakdown()));
         
         return event;
+    }
+
+    /**
+     * Copy the persisted order-item snapshot into an additive event field.
+     * Downstream analytics must never re-read mutable restaurant/menu prices.
+     */
+    private java.util.List<java.util.Map<String, Object>> snapshotItems(Order order) {
+        if (order.getItems() == null) return java.util.List.of();
+        return order.getItems().stream().map(item -> {
+            java.util.Map<String, Object> map = new java.util.LinkedHashMap<>();
+            map.put("orderItemId", item.getId());
+            map.put("menuItemId", item.getMenuItemId());
+            map.put("menuItemName", item.getMenuItemName());
+            map.put("quantity", item.getQuantity());
+            map.put("unitPrice", item.getPrice());
+            map.put("lineTotal", item.getPrice() == null || item.getQuantity() == null
+                    ? null : item.getPrice().multiply(java.math.BigDecimal.valueOf(item.getQuantity())));
+            map.put("flashSaleItemId", item.getFlashSaleItemId());
+            return map;
+        }).toList();
     }
 
     private java.util.List<java.util.Map<String, Object>> parseBreakdown(String json) {

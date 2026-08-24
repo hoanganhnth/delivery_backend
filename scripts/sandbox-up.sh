@@ -34,6 +34,29 @@ case "$SANDBOX_SKIP_BUILD" in
   *) echo "SANDBOX_SKIP_BUILD must be true or false" >&2; exit 2 ;;
 esac
 
+SANDBOX_RETAIN_ON_FAILURE="${SANDBOX_RETAIN_ON_FAILURE:-false}"
+case "$SANDBOX_RETAIN_ON_FAILURE" in
+  true|false) ;;
+  *) echo "SANDBOX_RETAIN_ON_FAILURE must be true or false" >&2; exit 2 ;;
+esac
+
+SANDBOX_SKIP_IMAGE_BUILD="${SANDBOX_SKIP_IMAGE_BUILD:-false}"
+case "$SANDBOX_SKIP_IMAGE_BUILD" in
+  true|false) ;;
+  *) echo "SANDBOX_SKIP_IMAGE_BUILD must be true or false" >&2; exit 2 ;;
+esac
+
+SANDBOX_INCLUDE_SIMULATOR="${SANDBOX_INCLUDE_SIMULATOR:-true}"
+SANDBOX_SKIP_SCENARIOS="${SANDBOX_SKIP_SCENARIOS:-false}"
+SANDBOX_SKIP_SHIPPER="${SANDBOX_SKIP_SHIPPER:-false}"
+for flag_name in SANDBOX_INCLUDE_SIMULATOR SANDBOX_SKIP_SCENARIOS SANDBOX_SKIP_SHIPPER; do
+  flag_value="${!flag_name}"
+  [[ "$flag_value" == "true" || "$flag_value" == "false" ]] || {
+    echo "$flag_name must be true or false, got $flag_value" >&2
+    exit 2
+  }
+done
+
 if ! docker info >/dev/null 2>&1; then
   echo "Docker daemon is unavailable; sandbox was not started." >&2
   exit 1
@@ -51,6 +74,7 @@ readonly POSTGRES_VOLUME="${SANDBOX_POSTGRES_VOLUME_NAME:-${PROJECT_NAME}_postgr
 readonly KAFKA_VOLUME="${SANDBOX_KAFKA_VOLUME_NAME:-${PROJECT_NAME}_kafka_data}"
 readonly STATE_DIR="${SANDBOX_STATE_DIR:-$BACKEND_DIR/.sandbox/$RUN_ID}"
 readonly STATE_FILE="$STATE_DIR/state.env"
+readonly RUNTIME_LOG="$STATE_DIR/runtime-startup.log"
 readonly SECRETS_DIR="$STATE_DIR/secrets"
 readonly SEED_FILE="$STATE_DIR/seed.json"
 readonly HAPPY_SCENARIO="$STATE_DIR/scenario-happy.json"
@@ -92,6 +116,12 @@ readonly -a COMPOSE_FILES=(
   -f docker-compose.sandbox.yml
 )
 readonly COMPOSE_FILE_VALUE="docker-compose.yml:docker-compose.secrets.yml:docker-compose.isolated-e2e.yml:docker-compose.simulator.yml:docker-compose.sandbox.yml"
+readonly -a SANDBOX_BUILD_SERVICES=(
+  config-server discovery-server auth-service user-service api-gateway
+  restaurant-service order-service delivery-service search-service shipper-service
+  settlement-service notification-service match-service tracking-service routing-service
+  saga-orchestrator-service simulator-service
+)
 
 mkdir -p "$SECRETS_DIR"
 chmod 700 "$STATE_DIR" "$SECRETS_DIR"
@@ -126,6 +156,7 @@ export SANDBOX_BATCH_CLIENT_CAPABILITY_ENABLED="${SANDBOX_BATCH_CLIENT_CAPABILIT
 export SANDBOX_H3_ENABLED="${SANDBOX_H3_ENABLED:-true}"
 export SANDBOX_BATCH_CLIENT_CAPABILITY_REQUIRED="${SANDBOX_BATCH_CLIENT_CAPABILITY_REQUIRED:-true}"
 export SANDBOX_BATCH_CANARY_PERCENT="${SANDBOX_BATCH_CANARY_PERCENT:-100}"
+export SANDBOX_FINDING_SHIPPER_TIMEOUT_MINUTES="${SANDBOX_FINDING_SHIPPER_TIMEOUT_MINUTES:-1}"
 export MATCHING_INITIAL_MAX_RETRY_ATTEMPTS="${SANDBOX_MATCHING_MAX_RETRY_ATTEMPTS:-3}"
 export MATCHING_INITIAL_DELAY_SECONDS="${SANDBOX_MATCHING_INITIAL_DELAY_SECONDS:-1}"
 export MATCHING_INITIAL_MAX_DELAY_SECONDS="${SANDBOX_MATCHING_INITIAL_MAX_DELAY_SECONDS:-3}"
@@ -163,6 +194,10 @@ SANDBOX_BATCH_ENABLED=$SANDBOX_BATCH_ENABLED
 SANDBOX_BATCH_SCHEDULER_ENABLED=$SANDBOX_BATCH_SCHEDULER_ENABLED
 SANDBOX_BATCH_CLIENT_CAPABILITY_ENABLED=$SANDBOX_BATCH_CLIENT_CAPABILITY_ENABLED
 SANDBOX_H3_ENABLED=$SANDBOX_H3_ENABLED
+SANDBOX_FINDING_SHIPPER_TIMEOUT_MINUTES=$SANDBOX_FINDING_SHIPPER_TIMEOUT_MINUTES
+SANDBOX_INCLUDE_SIMULATOR=$SANDBOX_INCLUDE_SIMULATOR
+SANDBOX_SKIP_SCENARIOS=$SANDBOX_SKIP_SCENARIOS
+SANDBOX_SKIP_SHIPPER=$SANDBOX_SKIP_SHIPPER
 MATCHING_INITIAL_MAX_RETRY_ATTEMPTS=$MATCHING_INITIAL_MAX_RETRY_ATTEMPTS
 MATCHING_INITIAL_DELAY_SECONDS=$MATCHING_INITIAL_DELAY_SECONDS
 MATCHING_INITIAL_MAX_DELAY_SECONDS=$MATCHING_INITIAL_MAX_DELAY_SECONDS
@@ -179,10 +214,20 @@ cleanup_on_error() {
   local exit_code=$?
   trap - EXIT INT TERM
   if [[ "$started" == "true" && "$exit_code" -ne 0 ]]; then
-    echo "Sandbox startup failed; capturing disposable state before cleanup..." >&2
+    echo "Sandbox startup failed; capturing disposable state..." >&2
     compose ps -a >&2 || true
     compose logs --no-color --tail=120 simulator-service match-service delivery-service saga-orchestrator-service >&2 || true
-    compose down -v --remove-orphans >/dev/null 2>&1 || true
+    {
+      echo "=== disposable compose state ==="
+      compose ps -a
+      echo "=== kafka and saga logs ==="
+      compose logs --no-color --tail=160 kafka saga-orchestrator-service
+    } >> "$RUNTIME_LOG" 2>&1 || true
+    if [[ "$SANDBOX_RETAIN_ON_FAILURE" == "true" ]]; then
+      echo "Sandbox containers retained for diagnosis; run scripts/sandbox-down.sh when finished." >&2
+    else
+      compose down -v --remove-orphans >/dev/null 2>&1 || true
+    fi
     echo "Partial sandbox state retained for diagnosis: $STATE_DIR" >&2
   fi
   exit "$exit_code"
@@ -203,49 +248,99 @@ else
   echo "SANDBOX_SKIP_BUILD=true — using existing verified Compose artifacts."
 fi
 
+if [[ "$SANDBOX_SKIP_IMAGE_BUILD" == "true" ]]; then
+  echo "SANDBOX_SKIP_IMAGE_BUILD=true — checking prebuilt project images."
+  for service in "${SANDBOX_BUILD_SERVICES[@]}"; do
+    if [[ "$SANDBOX_INCLUDE_SIMULATOR" != "true" && "$service" == "simulator-service" ]]; then
+      continue
+    fi
+    image="${PROJECT_NAME}-${service}"
+    docker image inspect "$image" >/dev/null 2>&1 || {
+      echo "Missing prebuilt sandbox image $image; unset SANDBOX_SKIP_IMAGE_BUILD." >&2
+      exit 2
+    }
+  done
+else
+  echo "Building sandbox images sequentially before starting runtime services..."
+  for service in "${SANDBOX_BUILD_SERVICES[@]}"; do
+    if [[ "$SANDBOX_INCLUDE_SIMULATOR" != "true" && "$service" == "simulator-service" ]]; then
+      continue
+    fi
+    compose build --quiet "$service"
+  done
+fi
+
 echo "Starting isolated runtime (Gateway -> services -> Kafka/Saga -> Match -> Delivery -> Tracking)..."
-runtime_rebuild_images=true
-if [[ "$SANDBOX_SKIP_BUILD" == "true" ]]; then runtime_rebuild_images=false; fi
 RUNTIME_ISOLATED=true \
-RUNTIME_REBUILD_IMAGES="$runtime_rebuild_images" \
+RUNTIME_REBUILD_IMAGES=false \
 RUNTIME_EXTRA_COMPOSE_FILES="docker-compose.simulator.yml:docker-compose.sandbox.yml" \
-RUNTIME_INCLUDE_SIMULATOR=true \
-STARTUP_TIMEOUT_SECONDS="${SANDBOX_STARTUP_TIMEOUT_SECONDS:-900}" \
+RUNTIME_INCLUDE_SIMULATOR="$SANDBOX_INCLUDE_SIMULATOR" \
+RUNTIME_INFRA_SERVICES="${RUNTIME_INFRA_SERVICES:-postgres redis kafka elasticsearch}" \
+RUNTIME_APP_SERVICES="${RUNTIME_APP_SERVICES:-}" \
+RUNTIME_INCLUDE_OBSERVABILITY="${RUNTIME_INCLUDE_OBSERVABILITY:-true}" \
+RUNTIME_RESOURCE_START_MODE=sequential \
+STARTUP_TIMEOUT_SECONDS="${SANDBOX_STARTUP_TIMEOUT_SECONDS:-1500}" \
 EUREKA_REGISTRATION_TIMEOUT_SECONDS="${SANDBOX_EUREKA_TIMEOUT_SECONDS:-180}" \
-  bash scripts/verify-runtime-startup.sh
+  bash scripts/verify-runtime-startup.sh 2>&1 | tee "$RUNTIME_LOG"
 
 gateway_mapping="$(compose port api-gateway 8079 | head -n 1)"
 gateway_port="${gateway_mapping##*:}"
-simulator_mapping="$(compose port simulator-service 8100 | head -n 1)"
+simulator_mapping=""
+if [[ "$SANDBOX_INCLUDE_SIMULATOR" == "true" ]]; then
+  simulator_mapping="$(compose port simulator-service 8100 | head -n 1)"
+fi
 simulator_port="${simulator_mapping##*:}"
-prometheus_mapping="$(compose port prometheus 9090 | head -n 1)"
+prometheus_mapping=""
+if [[ "${RUNTIME_INCLUDE_OBSERVABILITY:-true}" == "true" ]]; then
+  prometheus_mapping="$(compose port prometheus 9090 | head -n 1)"
+fi
 prometheus_port="${prometheus_mapping##*:}"
-grafana_mapping="$(compose port grafana 3000 | head -n 1)"
+grafana_mapping=""
+if [[ "${RUNTIME_INCLUDE_OBSERVABILITY:-true}" == "true" ]]; then
+  grafana_mapping="$(compose port grafana 3000 | head -n 1)"
+fi
 grafana_port="${grafana_mapping##*:}"
 [[ "$gateway_port" =~ ^[0-9]+$ ]] || { echo "Cannot resolve Gateway port: $gateway_mapping" >&2; exit 1; }
-[[ "$simulator_port" =~ ^[0-9]+$ ]] || { echo "Cannot resolve simulator port: $simulator_mapping" >&2; exit 1; }
-[[ "$prometheus_port" =~ ^[0-9]+$ ]] || { echo "Cannot resolve Prometheus port: $prometheus_mapping" >&2; exit 1; }
-[[ "$grafana_port" =~ ^[0-9]+$ ]] || { echo "Cannot resolve Grafana port: $grafana_mapping" >&2; exit 1; }
+if [[ "$SANDBOX_INCLUDE_SIMULATOR" == "true" ]]; then
+  [[ "$simulator_port" =~ ^[0-9]+$ ]] || { echo "Cannot resolve simulator port: $simulator_mapping" >&2; exit 1; }
+fi
+if [[ "${RUNTIME_INCLUDE_OBSERVABILITY:-true}" == "true" ]]; then
+  [[ "$prometheus_port" =~ ^[0-9]+$ ]] || { echo "Cannot resolve Prometheus port: $prometheus_mapping" >&2; exit 1; }
+  [[ "$grafana_port" =~ ^[0-9]+$ ]] || { echo "Cannot resolve Grafana port: $grafana_mapping" >&2; exit 1; }
+fi
 readonly GATEWAY_BASE_URL="http://127.0.0.1:$gateway_port"
-readonly SIMULATOR_BASE_URL="http://127.0.0.1:$simulator_port"
-readonly PROMETHEUS_BASE_URL="http://127.0.0.1:$prometheus_port"
-readonly GRAFANA_BASE_URL="http://127.0.0.1:$grafana_port"
+SIMULATOR_BASE_URL=""
+if [[ "$SANDBOX_INCLUDE_SIMULATOR" == "true" ]]; then
+  SIMULATOR_BASE_URL="http://127.0.0.1:$simulator_port"
+fi
+readonly SIMULATOR_BASE_URL
+PROMETHEUS_BASE_URL=""
+GRAFANA_BASE_URL=""
+if [[ "${RUNTIME_INCLUDE_OBSERVABILITY:-true}" == "true" ]]; then
+  PROMETHEUS_BASE_URL="http://127.0.0.1:$prometheus_port"
+  GRAFANA_BASE_URL="http://127.0.0.1:$grafana_port"
+fi
+readonly PROMETHEUS_BASE_URL GRAFANA_BASE_URL
 
-echo "Seeding synthetic customer, restaurant, menu and shipper through Gateway..."
+echo "Seeding synthetic customer, restaurant, menu$([[ "$SANDBOX_SKIP_SHIPPER" == "true" ]] || printf ', and shipper') through Gateway..."
 COMPOSE_FILE="$COMPOSE_FILE_VALUE" \
 COMPOSE_PROJECT_NAME="$PROJECT_NAME" \
 POSTGRES_VOLUME_NAME="$POSTGRES_VOLUME" \
 KAFKA_VOLUME_NAME="$KAFKA_VOLUME" \
 SEED_LOCAL_FIXTURE_EMAIL_VERIFIED=true \
+SEED_SKIP_SHIPPER="$SANDBOX_SKIP_SHIPPER" \
 SEED_OUTPUT_FILE="$SEED_FILE" \
-RUN_ID="$RUN_ID" \
 BASE="$GATEWAY_BASE_URL" \
   bash scripts/seed.sh
 
-bash scripts/sandbox-make-scenario.sh "$SEED_FILE" "$HAPPY_SCENARIO" happy
-bash scripts/sandbox-make-scenario.sh "$SEED_FILE" "$REJECT_SCENARIO" restaurant-reject
-bash scripts/sandbox-make-scenario.sh "$SEED_FILE" "$NO_SHIPPER_SCENARIO" no-shipper
-bash scripts/sandbox-make-scenario.sh "$SEED_FILE" "$HUMAN_SCENARIO" human-order
+if [[ "$SANDBOX_SKIP_SCENARIOS" == "true" ]]; then
+  echo "SANDBOX_SKIP_SCENARIOS=true — skipping simulator scenario fixtures."
+else
+  bash scripts/sandbox-make-scenario.sh "$SEED_FILE" "$HAPPY_SCENARIO" happy
+  bash scripts/sandbox-make-scenario.sh "$SEED_FILE" "$REJECT_SCENARIO" restaurant-reject
+  bash scripts/sandbox-make-scenario.sh "$SEED_FILE" "$NO_SHIPPER_SCENARIO" no-shipper
+  bash scripts/sandbox-make-scenario.sh "$SEED_FILE" "$HUMAN_SCENARIO" human-order
+fi
 
 # Complete the state file only after the Gateway and simulator ports have been
 # resolved. The token remains on disk with mode 0600 and is never printed.
@@ -256,7 +351,10 @@ sed -i.bak \
   -e "s#^SANDBOX_GRAFANA_BASE_URL=.*#SANDBOX_GRAFANA_BASE_URL=$GRAFANA_BASE_URL#" \
   "$STATE_FILE"
 rm -f "$STATE_FILE.bak"
-chmod 600 "$STATE_FILE" "$SEED_FILE" "$HAPPY_SCENARIO" "$REJECT_SCENARIO" "$NO_SHIPPER_SCENARIO" "$HUMAN_SCENARIO"
+chmod 600 "$STATE_FILE" "$SEED_FILE"
+if [[ "$SANDBOX_SKIP_SCENARIOS" != "true" ]]; then
+  chmod 600 "$HAPPY_SCENARIO" "$REJECT_SCENARIO" "$NO_SHIPPER_SCENARIO" "$HUMAN_SCENARIO"
+fi
 
 started=false
 trap - EXIT INT TERM
@@ -266,7 +364,7 @@ cat <<EOF
 Sandbox is ready (synthetic data only).
   project:   $PROJECT_NAME
   Gateway:   $GATEWAY_BASE_URL
-  Simulator: $SIMULATOR_BASE_URL
+  Simulator: ${SIMULATOR_BASE_URL:-disabled}
   Prometheus: $PROMETHEUS_BASE_URL
   Grafana:   $GRAFANA_BASE_URL (admin password is in run state only)
   state:     $STATE_DIR

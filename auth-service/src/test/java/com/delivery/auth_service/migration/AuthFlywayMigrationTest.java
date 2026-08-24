@@ -27,6 +27,8 @@ class AuthFlywayMigrationTest {
             insertSession(statement, accountId, "refresh-1");
             assertThatThrownBy(() -> insertAccount(statement, "user@example.com"))
                     .isInstanceOf(Exception.class).hasMessageContaining("Unique");
+            assertThatThrownBy(() -> insertAccount(statement, " USER@EXAMPLE.COM "))
+                    .isInstanceOf(Exception.class).hasMessageContaining("Unique");
             assertThatThrownBy(() -> insertSession(statement, accountId, "refresh-1"))
                     .isInstanceOf(Exception.class).hasMessageContaining("Unique");
             assertThat(indexExists(connection, "auth_session", "idx_auth_session_account_active_expiry")).isTrue();
@@ -50,6 +52,7 @@ class AuthFlywayMigrationTest {
             assertThat(columnExists(connection, "auth_account", "user_status_sync_last_error")).isTrue();
             assertThat(columnExists(connection, "auth_account", "user_status_sync_updated_at")).isTrue();
             assertThat(indexExists(connection, "auth_account", "idx_auth_account_user_status_sync_pending")).isTrue();
+            assertThat(indexExists(connection, "auth_account", "uk_auth_account_email_canonical")).isTrue();
         }
     }
 
@@ -120,6 +123,21 @@ class AuthFlywayMigrationTest {
     }
 
     @Test
+    void caseOrWhitespaceOnlyLegacyEmailCollisionStopsCanonicalization() throws Exception {
+        String url = databaseUrl("canonical_email_collision");
+        createLegacySchema(url, false);
+        try (Connection connection = DriverManager.getConnection(url, "sa", "");
+             Statement statement = connection.createStatement()) {
+            insertAccount(statement, "User@example.com");
+            insertAccount(statement, " user@example.com ");
+        }
+
+        assertThatThrownBy(() -> migrate(url))
+                .isInstanceOf(FlywayException.class).rootCause()
+                .hasMessageContaining("case/whitespace-insensitive collision");
+    }
+
+    @Test
     void missingCoreColumnStopsMigration() throws Exception {
         String url = databaseUrl("missing_core");
         createLegacySchema(url, true);
@@ -171,10 +189,18 @@ class AuthFlywayMigrationTest {
     }
 
     private long insertAccount(Statement statement, String email) throws Exception {
+        boolean hasLifecycleStatus = columnExists(
+                statement.getConnection(), "auth_account", "lifecycle_status");
         statement.executeUpdate("""
-                INSERT INTO auth_account (email, password_hash, role, is_active, created_at, updated_at)
-                VALUES ('%s', 'hash', 'USER', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                """.formatted(email), Statement.RETURN_GENERATED_KEYS);
+                INSERT INTO auth_account (
+                    email, password_hash, role, is_active, created_at, updated_at%s
+                ) VALUES (
+                    '%s', 'hash', 'USER', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP%s
+                )
+                """.formatted(
+                hasLifecycleStatus ? ", lifecycle_status" : "",
+                email,
+                hasLifecycleStatus ? ", 'PENDING_PROFILE'" : ""), Statement.RETURN_GENERATED_KEYS);
         try (ResultSet keys = statement.getGeneratedKeys()) {
             assertThat(keys.next()).isTrue();
             return keys.getLong(1);

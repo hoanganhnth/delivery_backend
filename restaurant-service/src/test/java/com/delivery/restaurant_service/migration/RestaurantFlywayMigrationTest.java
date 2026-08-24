@@ -28,6 +28,10 @@ class RestaurantFlywayMigrationTest {
             insertRating(statement, restaurantId, 100);
             assertThat(count(statement, "SELECT count(*) FROM menu_item")).isEqualTo(1);
             assertThat(count(statement, "SELECT count(*) FROM restaurant_ratings")).isEqualTo(1);
+            assertThat(tableExists(connection, "menu_item_inventory")).isTrue();
+            assertThat(tableExists(connection, "menu_item_inventory_reservations")).isTrue();
+            assertThat(tableExists(connection, "menu_item_inventory_reservation_lines")).isTrue();
+            assertThat(tableExists(connection, "menu_item_inventory_order_receipts")).isTrue();
             assertThat(indexExists(connection, "idx_restaurant_creator")).isTrue();
             assertThat(indexExists(connection, "idx_menu_restaurant_status")).isTrue();
             assertThat(indexExists(connection, "idx_restaurant_ratings_restaurant_status")).isTrue();
@@ -178,6 +182,12 @@ class RestaurantFlywayMigrationTest {
             }
         }
         return false;
+    }
+
+    private boolean tableExists(Connection connection, String expectedName) throws Exception {
+        try (ResultSet tables = connection.getMetaData().getTables(null, null, expectedName, new String[]{"TABLE"})) {
+            return tables.next();
+        }
     }
 
     private long count(Statement statement, String sql) throws Exception {

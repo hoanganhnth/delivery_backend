@@ -36,4 +36,9 @@ public class DeliveryOfferResponse {
     private BigDecimal totalPrice;
     private String paymentMethod;
     private Long restaurantId;
+
+    /** Optional additive route metadata; absent for a single-order offer. */
+    private UUID batchId;
+    private Integer pickupSequence;
+    private Integer dropoffSequence;
 }

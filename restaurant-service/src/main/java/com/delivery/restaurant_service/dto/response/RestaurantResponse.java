@@ -20,6 +20,8 @@ public class RestaurantResponse {
     
     @JsonFormat(pattern = "HH:mm:ss")
     private LocalTime closingHour;
+
+    private Integer defaultPrepTimeMinutes;
     
     private boolean open;
     private String image;

@@ -10,6 +10,7 @@ import com.delivery.match_service.service.MatchCancellationService;
 import com.delivery.match_service.service.MatchCancellationProjectionRelay;
 import com.delivery.match_service.service.MatchCommandStore;
 import com.delivery.match_service.service.MatchService;
+import com.delivery.match_service.service.MatchingOutcomeEventIds;
 import com.delivery.match_service.service.SettlementEligibilityClient;
 import com.delivery.match_service.service.DispatchPoolService;
 import com.delivery.match_service.config.MatchingBatchProperties;
@@ -31,7 +32,6 @@ import reactor.util.retry.Retry;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.ArrayList;
 import java.util.EnumMap;
@@ -721,8 +721,7 @@ public class FindShipperEventListener {
         }
 
         private java.util.UUID outcomeEventId(String outcome, java.util.UUID commandEventId) {
-                String identity = "match:" + outcome + ":" + commandEventId;
-                return java.util.UUID.nameUUIDFromBytes(identity.getBytes(StandardCharsets.UTF_8));
+                return MatchingOutcomeEventIds.forCommandOutcome(outcome, commandEventId);
         }
 
         private Mono<List<NearbyShipperResponse>> selectEligibleShipper(

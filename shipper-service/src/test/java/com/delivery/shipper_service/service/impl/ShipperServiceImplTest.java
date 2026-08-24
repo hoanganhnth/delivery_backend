@@ -100,14 +100,15 @@ public class ShipperServiceImplTest {
     @Test
     void offlineStatusPublishesTrackingTombstoneBeforeSavingProfileProjection() {
         Shipper shipper = new Shipper();
-        shipper.setUserId(7L);
+        shipper.setId(7L);
+        shipper.setUserId(107L);
         ShipperResponse response = new ShipperResponse();
         response.setIsOnline(false);
-        when(shipperRepository.findByUserId(7L)).thenReturn(Optional.of(shipper));
+        when(shipperRepository.findByUserId(107L)).thenReturn(Optional.of(shipper));
         when(shipperRepository.save(shipper)).thenReturn(shipper);
         when(shipperMapper.toResponse(shipper)).thenReturn(response);
 
-        shipperService.updateOnlineStatusByUserId(7L, false);
+        shipperService.updateOnlineStatusByUserId(107L, false);
 
         var ordered = inOrder(trackingAvailabilityClient, shipperRepository);
         ordered.verify(trackingAvailabilityClient).markOffline(7L);
@@ -117,13 +118,14 @@ public class ShipperServiceImplTest {
     @Test
     void offlineStatusDoesNotSaveProfileWhenTrackingRejectsTombstone() {
         Shipper shipper = new Shipper();
-        shipper.setUserId(7L);
-        when(shipperRepository.findByUserId(7L)).thenReturn(Optional.of(shipper));
+        shipper.setId(7L);
+        shipper.setUserId(107L);
+        when(shipperRepository.findByUserId(107L)).thenReturn(Optional.of(shipper));
         org.mockito.Mockito.doThrow(new IllegalStateException("Tracking unavailable"))
                 .when(trackingAvailabilityClient).markOffline(7L);
 
         assertThrows(IllegalStateException.class,
-                () -> shipperService.updateOnlineStatusByUserId(7L, false));
+                () -> shipperService.updateOnlineStatusByUserId(107L, false));
 
         verify(shipperRepository, never()).save(any());
     }
@@ -131,14 +133,15 @@ public class ShipperServiceImplTest {
     @Test
     void onlineStatusOnlyUpdatesPublisherIntent() {
         Shipper shipper = new Shipper();
-        shipper.setUserId(7L);
+        shipper.setId(7L);
+        shipper.setUserId(107L);
         ShipperResponse response = new ShipperResponse();
         response.setIsOnline(true);
-        when(shipperRepository.findByUserId(7L)).thenReturn(Optional.of(shipper));
+        when(shipperRepository.findByUserId(107L)).thenReturn(Optional.of(shipper));
         when(shipperRepository.save(shipper)).thenReturn(shipper);
         when(shipperMapper.toResponse(shipper)).thenReturn(response);
 
-        shipperService.updateOnlineStatusByUserId(7L, true);
+        shipperService.updateOnlineStatusByUserId(107L, true);
 
         verifyNoInteractions(trackingAvailabilityClient);
         verify(shipperRepository).save(shipper);

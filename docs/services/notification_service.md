@@ -32,6 +32,24 @@ List được cap 100. Read/update/delete luôn scope theo actor được resour
 dựng từ JWT đã xác thực JWKS.
 Repeated mark-read trả state hiện tại và không đổi `readAt` lần nữa.
 
+## Notification preferences (capability tắt mặc định)
+
+`GET /api/notifications/preferences` và
+`PUT /api/notifications/preferences/marketing` là self-service routes qua
+Gateway. Ownership chỉ dùng `principalId` canonical từ JWT; không fallback sang
+`userId`/profile ID legacy.
+
+Chỉ `marketingNotificationsEnabled` là mutable. Không có cột, request hay
+endpoint transactional opt-out: thông báo giao dịch về lifecycle và an toàn
+luôn deliverable. Principal chưa có row được biểu diễn là `configured=false`,
+marketing opt-out và transactional enabled. Update dùng principal-scoped atomic
+upsert để giữ một row duy nhất qua replica.
+
+`NOTIFICATION_PREFERENCES_ENABLED=false` là mặc định. Khi tắt, cả hai route trả
+capability unavailable trước khi đọc hoặc ghi dữ liệu. Slice này chỉ persist và
+trả preference; chưa có marketing producer/dispatch enforcement hoặc client UX,
+nên không được xem là rollout gửi marketing.
+
 ## Offer cho shipper
 
 Push chỉ báo có offer và yêu cầu app fetch

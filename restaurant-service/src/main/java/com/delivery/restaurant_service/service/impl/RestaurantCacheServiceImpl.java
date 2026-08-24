@@ -309,6 +309,7 @@ public class RestaurantCacheServiceImpl implements RestaurantCacheService {
                 ? restaurant.getOpeningHour().toString() : null);
         data.put("closingHour", restaurant.getClosingHour() != null
                 ? restaurant.getClosingHour().toString() : null);
+        data.put("defaultPrepTimeMinutes", restaurant.getDefaultPrepTimeMinutes());
         data.put("createdAt", restaurant.getCreatedAt() != null
                 ? restaurant.getCreatedAt().toString() : null);
         data.put("updatedAt", restaurant.getUpdatedAt() != null

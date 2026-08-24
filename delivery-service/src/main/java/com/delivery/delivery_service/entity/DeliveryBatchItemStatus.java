@@ -6,6 +6,8 @@ public enum DeliveryBatchItemStatus {
     PICKED_UP,
     DELIVERING,
     DELIVERED,
+    RETURNING,
+    RETURNED,
     CANCELLED,
     RETIRED
 }

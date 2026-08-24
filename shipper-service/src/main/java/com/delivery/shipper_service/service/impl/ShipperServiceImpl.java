@@ -143,7 +143,10 @@ public class ShipperServiceImpl implements ShipperService {
         // consumes. Do this before updating our profile/read-model projection;
         // a failed remote command must not claim that the shipper is offline.
         if (!isOnline) {
-            trackingAvailabilityClient.markOffline(userId);
+            if (shipper.getId() == null || shipper.getId() <= 0) {
+                throw new IllegalStateException("Canonical shipper identity is missing");
+            }
+            trackingAvailabilityClient.markOffline(shipper.getId());
         }
         shipper.setIsOnline(isOnline);
         Shipper savedShipper = shipperRepository.save(shipper);

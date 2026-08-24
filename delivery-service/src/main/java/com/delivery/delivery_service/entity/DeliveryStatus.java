@@ -9,6 +9,12 @@ public enum DeliveryStatus {
     PICKED_UP("Đã lấy hàng"),
     DELIVERING("Đang giao hàng"),
     DELIVERED("Đã giao thành công"),
+    /**
+     * Post-pickup exception states are mutated only by DeliveryExceptionService
+     * and intentionally never published on the legacy status-updated topic.
+     */
+    RETURNING("Đang hoàn hàng về nhà hàng"),
+    RETURNED("Nhà hàng đã xác nhận nhận lại hàng"),
     CANCELLED("Đã hủy");
 
     private final String description;

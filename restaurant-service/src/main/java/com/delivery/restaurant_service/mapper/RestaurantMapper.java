@@ -20,6 +20,9 @@ public class RestaurantMapper {
         restaurant.setPhone(request.getPhone());
         restaurant.setOpeningHour(request.getOpeningHour());
         restaurant.setClosingHour(request.getClosingHour());
+        if (request.getDefaultPrepTimeMinutes() != null) {
+            restaurant.setDefaultPrepTimeMinutes(request.getDefaultPrepTimeMinutes());
+        }
         restaurant.setImage(request.getImage());
         restaurant.setAddressLat(request.getAddressLat());
         restaurant.setAddressLng(request.getAddressLng());
@@ -36,6 +39,9 @@ public class RestaurantMapper {
         if (request.getPhone() != null) restaurant.setPhone(request.getPhone());
         if (request.getOpeningHour() != null) restaurant.setOpeningHour(request.getOpeningHour());
         if (request.getClosingHour() != null) restaurant.setClosingHour(request.getClosingHour());
+        if (request.getDefaultPrepTimeMinutes() != null) {
+            restaurant.setDefaultPrepTimeMinutes(request.getDefaultPrepTimeMinutes());
+        }
         if (request.getImage() != null) restaurant.setImage(request.getImage());
         if (request.getAddressLat() != null) restaurant.setAddressLat(request.getAddressLat());
         if (request.getAddressLng() != null) restaurant.setAddressLng(request.getAddressLng());
@@ -52,6 +58,7 @@ public class RestaurantMapper {
         response.setPhone(restaurant.getPhone());
         response.setOpeningHour(restaurant.getOpeningHour());
         response.setClosingHour(restaurant.getClosingHour());
+        response.setDefaultPrepTimeMinutes(restaurant.getDefaultPrepTimeMinutes());
         response.setImage(restaurant.getImage());
         response.setDescription(restaurant.getDescription());
         response.setLatitude(restaurant.getAddressLat());

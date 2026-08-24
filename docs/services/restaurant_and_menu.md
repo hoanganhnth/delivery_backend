@@ -33,5 +33,23 @@ Khi Merchant hoặc Admin thực hiện thay đổi trên món ăn (Ví dụ: Đ
 
 ### 3.3. Tính toán khoảng cách (Geolocation)
 - Vị trí của nhà hàng (Lat/Lng) được lưu tĩnh trong DB. 
-- Khi App gọi API lấy danh sách "Nearby", App phải gửi kèm Tọa độ của User hiện tại.
-- Backend sử dụng hàm tính toán (VD: Haversine) hoặc query GIS (PostGIS) để trả về các nhà hàng trong bán kính 5km, đồng thời tính luôn thời gian giao hàng ước tính (ETA) dựa trên khoảng cách.
+- Catalog "Nearby" hiện vẫn là read-only client presentation; checkout không
+  được suy luận serviceability từ bán kính hoặc tọa độ client.
+- Backend giữ vùng phục vụ theo polygon GeoJSON do ADMIN/SHOP_OWNER quản lý;
+  điểm nằm trên biên được tính là hợp lệ và decision nội bộ fail-closed khi
+  geometry không hợp lệ. ETA customer là range do `routing-service` tính từ
+  driving duration + prep estimate, không phải khoảng cách thẳng do client tự
+  suy luận. Capability này mặc định tắt cho tới khi có provider/runtime proof.
+
+### 3.4. Inventory món ăn (default-off)
+
+`restaurant-service` là authority duy nhất của `menu_item_inventory` và
+`menu_item_inventory_reservations`. Owner/Admin cập nhật `on_hand_quantity` với
+`expectedRevision`; Order gọi boundary nội bộ để giữ, commit hoặc release một
+reservation UUID. Mỗi reservation có một order, khóa các dòng theo thứ tự
+`menuItemId`, giữ 15 phút và xử lý all-or-nothing. Thiếu ledger row, món không
+`AVAILABLE`, số lượng sai hoặc `on_hand - reserved` không đủ đều fail-closed;
+không có fallback unlimited stock/backorder. Hai flag
+`RESTAURANT_INVENTORY_ENABLED` và `ORDER_INVENTORY_RESERVATION_ENABLED` giữ
+`false` cho tới khi có PostgreSQL/Kafka concurrency, replay/DLT, expiry và UX
+runtime proof.

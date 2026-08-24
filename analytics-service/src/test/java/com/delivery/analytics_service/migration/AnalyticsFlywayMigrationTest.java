@@ -38,6 +38,23 @@ class AnalyticsFlywayMigrationTest {
             assertThat(indexExists(connection, "analytics_events", "idx_event_time")).isTrue();
             assertThat(indexExists(connection, "daily_order_stats", "idx_daily_order_date")).isTrue();
             assertThat(indexExists(connection, "daily_revenue_stats", "idx_daily_revenue_date")).isTrue();
+            assertThat(indexExists(connection, "daily_item_sales", "idx_daily_item_sales_date")).isTrue();
+            assertThat(indexExists(connection, "daily_item_sales", "idx_daily_item_sales_restaurant_date")).isTrue();
+            statement.executeUpdate("""
+                    INSERT INTO daily_item_sales
+                        (stat_date, restaurant_id, menu_item_id, menu_item_name,
+                         ordered_quantity, cancelled_quantity, ordered_revenue,
+                         cancelled_revenue, updated_at)
+                    VALUES ('2026-07-24', 7, 9, 'Bún bò', 1, 0, 35000, 0, CURRENT_TIMESTAMP)
+                    """);
+            assertThatThrownBy(() -> statement.executeUpdate("""
+                    INSERT INTO daily_item_sales
+                        (stat_date, restaurant_id, menu_item_id, menu_item_name,
+                         ordered_quantity, cancelled_quantity, ordered_revenue,
+                         cancelled_revenue, updated_at)
+                    VALUES ('2026-07-24', 7, 9, 'Bún bò', 1, 0, 35000, 0, CURRENT_TIMESTAMP)
+                    """))
+                    .isInstanceOf(Exception.class).hasMessageContaining("Unique");
         }
     }
 

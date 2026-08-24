@@ -9,6 +9,16 @@ services:
   tracing-collector:
     ports: !reset []
 
+  config-server:
+    container_name: !reset null
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xmx192m -Xms64m"
+
+  discovery-server:
+    container_name: !reset null
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xmx192m -Xms64m"
+
   postgres:
     container_name: !reset null
     ports: !reset []
@@ -20,13 +30,35 @@ services:
   kafka:
     container_name: !reset null
     ports: !reset []
+    environment:
+      # The sandbox starts the full production-shaped service graph inside the
+      # 8 GB Docker Desktop cap. Keep Kafka's heap below its canonical local
+      # value; production Compose remains unchanged.
+      # Kafka's log cleaner needs more than the compact app heap during broker
+      # bootstrap; keep the broker cgroup bounded while preserving that path.
+      KAFKA_HEAP_OPTS: "-Xms128m -Xmx384m"
 
   elasticsearch:
     container_name: !reset null
     ports: !reset []
+    # Synthetic sandbox data does not use ML. This keeps Elasticsearch below
+    # the Docker Desktop cgroup limit while preserving the canonical Compose
+    # heap and production-capacity contract.
+    environment:
+      ES_JAVA_OPTS: "-Xms96m -Xmx128m"
+      xpack.ml.enabled: "false"
+      xpack.monitoring.collection.enabled: "false"
+      xpack.watcher.enabled: "false"
+      ingest.geoip.downloader.enabled: "false"
+    deploy:
+      resources:
+        limits:
+          memory: 1536M
 
   api-gateway:
     container_name: !reset null
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xmx160m -Xms48m"
     # Docker chooses a free host port; the launcher resolves it and writes it
     # to the run-scoped state file. Do not expose the Gateway on 0.0.0.0.
     ports: !override
@@ -34,67 +66,111 @@ services:
 
   auth-service:
     container_name: !reset null
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xmx160m -Xms48m"
 
   user-service:
     container_name: !reset null
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xmx160m -Xms48m"
 
   restaurant-service:
     container_name: !reset null
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xmx160m -Xms48m"
+    deploy:
+      resources:
+        limits:
+          memory: 768M
 
   order-service:
     container_name: !reset null
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xmx160m -Xms48m"
 
   delivery-service:
     container_name: !reset null
     environment:
+      JAVA_TOOL_OPTIONS: "-Xmx160m -Xms48m"
       # Batch support is enabled in the sandbox, but can be disabled for a
       # legacy single-offer comparison with SANDBOX_BATCH_ENABLED=false.
       DELIVERY_BATCH_ENABLED: "${SANDBOX_BATCH_ENABLED:-true}"
 
   search-service:
     container_name: !reset null
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xmx160m -Xms48m"
 
   shipper-service:
     container_name: !reset null
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xmx160m -Xms48m"
 
   settlement-service:
     container_name: !reset null
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xmx160m -Xms48m"
 
   notification-service:
     container_name: !reset null
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xmx160m -Xms48m"
+    deploy:
+      resources:
+        limits:
+          memory: 768M
 
   match-service:
     container_name: !reset null
     environment:
+      JAVA_TOOL_OPTIONS: "-Xmx160m -Xms48m"
       MATCHING_H3_ENABLED: "${SANDBOX_H3_ENABLED:-true}"
       MATCHING_BATCH_ENABLED: "${SANDBOX_BATCH_ENABLED:-true}"
       MATCHING_BATCH_SCHEDULER_ENABLED: "${SANDBOX_BATCH_SCHEDULER_ENABLED:-true}"
       MATCHING_BATCH_CANARY_PERCENT: "${SANDBOX_BATCH_CANARY_PERCENT:-100}"
       MATCHING_BATCH_CLIENT_CAPABILITY_REQUIRED: "${SANDBOX_BATCH_CLIENT_CAPABILITY_REQUIRED:-true}"
+    deploy:
+      resources:
+        limits:
+          memory: 768M
 
   tracking-service:
     container_name: !reset null
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xmx160m -Xms48m"
 
   routing-service:
     container_name: !reset null
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xmx160m -Xms48m"
 
   saga-orchestrator-service:
     container_name: !reset null
     environment:
+      JAVA_TOOL_OPTIONS: "-Xmx160m -Xms48m"
+      SAGA_FINDING_SHIPPER_TIMEOUT_MINUTES: "${SANDBOX_FINDING_SHIPPER_TIMEOUT_MINUTES:-1}"
       # The simulator/shipper contract supports the additive batch offer API.
       MATCHING_BATCH_CLIENT_CAPABILITY_ENABLED: "${SANDBOX_BATCH_CLIENT_CAPABILITY_ENABLED:-true}"
 
   livestream-service:
     container_name: !reset null
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xmx160m -Xms48m"
 
   promotion-service:
     container_name: !reset null
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xmx160m -Xms48m"
 
   analytics-service:
     container_name: !reset null
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xmx160m -Xms48m"
 
   flashsale-service:
     container_name: !reset null
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xmx160m -Xms48m"
 
   prometheus:
     container_name: !reset null
@@ -117,6 +193,7 @@ services:
       retries: 12
       start_period: 30s
     environment:
+      JAVA_TOOL_OPTIONS: "-Xmx192m -Xms64m"
       SIMULATOR_ENABLED: "true"
       SIMULATOR_API_TOKEN: "${SANDBOX_SIMULATOR_API_TOKEN:?SANDBOX_SIMULATOR_API_TOKEN must be set}"
       SIMULATOR_GATEWAY_BASE_URL: "http://api-gateway:8079"

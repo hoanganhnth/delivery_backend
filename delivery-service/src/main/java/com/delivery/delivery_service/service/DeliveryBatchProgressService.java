@@ -53,10 +53,11 @@ public class DeliveryBatchProgressService {
 
         java.util.List<DeliveryBatchItem> items = itemRepository
                 .findByBatchIdOrderByPickupSequenceAsc(delivery.getBatchId());
-        boolean allDelivered = !items.isEmpty() && items.stream()
-                .allMatch(candidate -> candidate.getItemStatus() == DeliveryBatchItemStatus.DELIVERED);
-        boolean newlyCompleted = allDelivered && batch.getStatus() != DeliveryBatchStatus.COMPLETED;
-        if (allDelivered) {
+        boolean allTerminal = !items.isEmpty() && items.stream()
+                .allMatch(candidate -> candidate.getItemStatus() == DeliveryBatchItemStatus.DELIVERED
+                        || candidate.getItemStatus() == DeliveryBatchItemStatus.RETURNED);
+        boolean newlyCompleted = allTerminal && batch.getStatus() != DeliveryBatchStatus.COMPLETED;
+        if (allTerminal) {
             batch.setStatus(DeliveryBatchStatus.COMPLETED);
             batch.setCompletedAt(LocalDateTime.now());
         } else if (deliveryStatus == DeliveryStatus.DELIVERING
@@ -68,7 +69,41 @@ public class DeliveryBatchProgressService {
         batch.setUpdatedAt(LocalDateTime.now());
         batchRepository.save(batch);
         if (newlyCompleted) publishBatchCompleted(batch, items);
-        return allDelivered;
+        return allTerminal;
+    }
+
+    /** Keeps a batch route reserved while one post-pickup item is returning. */
+    @Transactional
+    public boolean applyExceptionReturn(Delivery delivery, boolean returned) {
+        if (delivery == null || delivery.getBatchId() == null || delivery.getId() == null) return true;
+        DeliveryBatch batch = batchRepository.findByIdForUpdate(delivery.getBatchId()).orElse(null);
+        if (batch == null || batch.getStatus() == DeliveryBatchStatus.RETIRED
+                || batch.getStatus() == DeliveryBatchStatus.CANCELLED) return true;
+        DeliveryBatchItem item = itemRepository.findByBatchIdAndDeliveryIdForUpdate(
+                delivery.getBatchId(), delivery.getId()).orElse(null);
+        if (item == null) return true;
+        item.setItemStatus(returned ? DeliveryBatchItemStatus.RETURNED : DeliveryBatchItemStatus.RETURNING);
+        item.setUpdatedAt(LocalDateTime.now());
+        itemRepository.save(item);
+
+        java.util.List<DeliveryBatchItem> items = itemRepository
+                .findByBatchIdOrderByPickupSequenceAsc(delivery.getBatchId());
+        boolean allTerminal = !items.isEmpty() && items.stream()
+                .allMatch(candidate -> candidate.getItemStatus() == DeliveryBatchItemStatus.DELIVERED
+                        || candidate.getItemStatus() == DeliveryBatchItemStatus.RETURNED);
+        boolean newlyCompleted = allTerminal && batch.getStatus() != DeliveryBatchStatus.COMPLETED;
+        if (allTerminal) {
+            batch.setStatus(DeliveryBatchStatus.COMPLETED);
+            batch.setCompletedAt(LocalDateTime.now());
+        } else if (!returned) {
+            // The batch aggregate stays active; its item projection carries the
+            // explicit RETURNING fact without introducing a legacy batch status.
+            batch.setStatus(DeliveryBatchStatus.DELIVERING);
+        }
+        batch.setUpdatedAt(LocalDateTime.now());
+        batchRepository.save(batch);
+        if (newlyCompleted) publishBatchCompleted(batch, items);
+        return allTerminal;
     }
 
     private void publishBatchCompleted(DeliveryBatch batch, java.util.List<DeliveryBatchItem> items) {
@@ -97,6 +132,8 @@ public class DeliveryBatchProgressService {
             case PICKED_UP -> DeliveryBatchItemStatus.PICKED_UP;
             case DELIVERING -> DeliveryBatchItemStatus.DELIVERING;
             case DELIVERED -> DeliveryBatchItemStatus.DELIVERED;
+            case RETURNING -> DeliveryBatchItemStatus.RETURNING;
+            case RETURNED -> DeliveryBatchItemStatus.RETURNED;
             case CANCELLED -> DeliveryBatchItemStatus.CANCELLED;
             default -> null;
         };

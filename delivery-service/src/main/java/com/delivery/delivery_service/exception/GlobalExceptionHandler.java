@@ -30,6 +30,12 @@ public class GlobalExceptionHandler {
                 .body(new BaseResponse<>(0, null, ex.getMessage()));
     }
 
+    @ExceptionHandler(ProofStorageUnavailableException.class)
+    public ResponseEntity<BaseResponse<Object>> handleProofStorageUnavailable(ProofStorageUnavailableException ex) {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(new BaseResponse<>(0, null, "Dịch vụ lưu bằng chứng giao hàng chưa sẵn sàng"));
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<BaseResponse<Object>> handleValidation(MethodArgumentNotValidException ex) {
         String message = ex.getBindingResult().getFieldErrors().stream()

@@ -1,6 +1,7 @@
 package com.delivery.settlement_service.service;
 
 import com.delivery.settlement_service.dto.event.OrderCancelledEvent;
+import com.delivery.settlement_service.dto.event.DeliveryExceptionReportedEvent;
 import com.delivery.settlement_service.dto.response.RefundCaseResponse;
 import com.delivery.settlement_service.dto.response.RefundCustomerCaseResponse;
 import com.delivery.settlement_service.entity.RefundCase;
@@ -146,6 +147,70 @@ public class RefundCaseService {
         return refundCase;
     }
 
+    /**
+     * A post-pickup exception is deliberately a human-review boundary. It
+     * creates no provider outbox work, regardless of payment method or the
+     * provider-processing feature flag.
+     */
+    @Transactional
+    public RefundCase processDeliveryException(DeliveryExceptionReportedEvent event) {
+        validateDeliveryException(event);
+        String fingerprint = fingerprint(event);
+        RefundTrigger trigger = RefundTrigger.DELIVERY_DISPUTE;
+        String idempotencyKey = event.getOrderId() + ":" + trigger.name() + ":ORDER_TOTAL";
+
+        RefundCase existing = findExistingDeliveryException(event, idempotencyKey);
+        if (existing != null) {
+            requireExactDeliveryExceptionReplay(existing, event, fingerprint, idempotencyKey);
+            return existing;
+        }
+
+        BigDecimal capturedAmount = ONLINE.equals(event.getPaymentMethod())
+                ? event.getTotalPrice() : BigDecimal.ZERO;
+        RefundCase refundCase = RefundCase.builder()
+                .refundId(UUID.randomUUID())
+                .eventId(event.getEventId())
+                .idempotencyKey(idempotencyKey)
+                .orderId(event.getOrderId())
+                .userId(event.getUserId())
+                .userPrincipalId(event.getUserPrincipalId())
+                .restaurantId(event.getRestaurantId())
+                // The existing refund schema names these columns after Order;
+                // for this dedicated trigger they preserve the immutable
+                // Delivery state snapshot that placed the case in review.
+                .previousOrderStatus(event.getPreviousDeliveryStatus())
+                .currentOrderStatus(event.getCurrentDeliveryStatus())
+                .paymentMethod(event.getPaymentMethod())
+                .trigger(trigger)
+                .component(RefundComponent.ORDER_TOTAL)
+                .status(RefundStatus.MANUAL_REVIEW)
+                .currency("VND")
+                .subtotalAmount(event.getSubtotalPrice())
+                .discountAmount(event.getDiscountAmount())
+                .shippingFee(event.getShippingFee())
+                .totalAmount(event.getTotalPrice())
+                .capturedAmount(capturedAmount)
+                .refundAmount(capturedAmount)
+                .actorSource("SHIPPER")
+                .actorId(event.getShipperId())
+                .reason(event.getReason())
+                .payloadFingerprint(fingerprint)
+                .attempts(0)
+                .build();
+
+        if (insertIfAbsent(refundCase) == 0) {
+            RefundCase concurrent = findExistingDeliveryException(event, idempotencyKey);
+            if (concurrent == null) {
+                throw new IllegalStateException("delivery exception refund conflict resolved without a committed case");
+            }
+            requireExactDeliveryExceptionReplay(concurrent, event, fingerprint, idempotencyKey);
+            return concurrent;
+        }
+        log.info("Manual-review refund case {} created from delivery exception {} for order {}",
+                refundCase.getRefundId(), event.getExceptionId(), event.getOrderId());
+        return refundCase;
+    }
+
     private RefundCase findExisting(OrderCancelledEvent event, RefundTrigger trigger, String idempotencyKey) {
         RefundCase byEvent = repository.findByEventId(event.getEventId()).orElse(null);
         if (byEvent != null) {
@@ -157,6 +222,15 @@ public class RefundCaseService {
         }
         return repository.findByOrderIdAndTriggerAndComponent(
                 event.getOrderId(), trigger, RefundComponent.ORDER_TOTAL).orElse(null);
+    }
+
+    private RefundCase findExistingDeliveryException(DeliveryExceptionReportedEvent event, String idempotencyKey) {
+        RefundCase byEvent = repository.findByEventId(event.getEventId()).orElse(null);
+        if (byEvent != null) return byEvent;
+        RefundCase byKey = repository.findByIdempotencyKey(idempotencyKey).orElse(null);
+        if (byKey != null) return byKey;
+        return repository.findByOrderIdAndTriggerAndComponent(
+                event.getOrderId(), RefundTrigger.DELIVERY_DISPUTE, RefundComponent.ORDER_TOTAL).orElse(null);
     }
 
     private int insertIfAbsent(RefundCase refundCase) {
@@ -381,6 +455,38 @@ public class RefundCaseService {
         }
     }
 
+    private void validateDeliveryException(DeliveryExceptionReportedEvent event) {
+        if (event == null || event.getEventId() == null || event.getExceptionId() == null
+                || event.getDeliveryId() == null || event.getDeliveryId() <= 0
+                || event.getOrderId() == null || event.getOrderId() <= 0
+                || event.getUserId() == null || event.getUserId() <= 0
+                || event.getRestaurantId() == null || event.getRestaurantId() <= 0
+                || event.getShipperId() == null || event.getShipperId() <= 0) {
+            throw new IllegalArgumentException("delivery exception refund identity is required");
+        }
+        if (!"DELIVERY_EXCEPTION_REPORTED".equals(event.getEventType())
+                || !"RETRY_AVAILABLE".equals(event.getExceptionStatus())) {
+            throw new IllegalArgumentException("delivery exception refund event type is invalid");
+        }
+        if (!isPostPickupDeliveryStatus(event.getPreviousDeliveryStatus())
+                || !Objects.equals(event.getPreviousDeliveryStatus(), event.getCurrentDeliveryStatus())
+                || event.getReason() == null || event.getReason().isBlank()) {
+            throw new IllegalArgumentException("delivery exception must preserve one post-pickup status and a reason");
+        }
+        if (!COD.equals(event.getPaymentMethod()) && !ONLINE.equals(event.getPaymentMethod())) {
+            throw new IllegalArgumentException("delivery exception payment method must be COD or ONLINE");
+        }
+        requireNonNegative(event.getSubtotalPrice(), "subtotalPrice");
+        requireNonNegative(event.getDiscountAmount(), "discountAmount");
+        requireNonNegative(event.getShippingFee(), "shippingFee");
+        requirePositive(event.getTotalPrice(), "totalPrice");
+        BigDecimal calculatedTotal = event.getSubtotalPrice().add(event.getShippingFee())
+                .subtract(event.getDiscountAmount());
+        if (calculatedTotal.compareTo(event.getTotalPrice()) != 0) {
+            throw new IllegalArgumentException("delivery exception monetary snapshot does not reconcile");
+        }
+    }
+
     private RefundTrigger resolveTrigger(OrderCancelledEvent event) {
         if (REFUND_ELIGIBLE.equals(event.getEventType())
                 || SHIPPER_NOT_FOUND.equals(event.getCancelReasonCode())) {
@@ -411,6 +517,19 @@ public class RefundCaseService {
         }
     }
 
+    private void requireExactDeliveryExceptionReplay(RefundCase existing,
+                                                     DeliveryExceptionReportedEvent event,
+                                                     String fingerprint,
+                                                     String idempotencyKey) {
+        if (!Objects.equals(existing.getIdempotencyKey(), idempotencyKey)
+                || !Objects.equals(existing.getOrderId(), event.getOrderId())
+                || !Objects.equals(existing.getEventId(), event.getEventId())
+                || existing.getTrigger() != RefundTrigger.DELIVERY_DISPUTE
+                || !Objects.equals(existing.getPayloadFingerprint(), fingerprint)) {
+            throw new IllegalArgumentException("delivery exception refund replay has a contradictory payload");
+        }
+    }
+
     private String fingerprint(OrderCancelledEvent event) {
         try {
             byte[] payload = objectMapper.writeValueAsBytes(event);
@@ -420,6 +539,21 @@ public class RefundCaseService {
         } catch (NoSuchAlgorithmException impossible) {
             throw new IllegalStateException("SHA-256 is unavailable", impossible);
         }
+    }
+
+    private String fingerprint(DeliveryExceptionReportedEvent event) {
+        try {
+            byte[] payload = objectMapper.writeValueAsBytes(event);
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(payload));
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException("delivery exception event cannot be serialized", e);
+        } catch (NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException("SHA-256 is unavailable", impossible);
+        }
+    }
+
+    private boolean isPostPickupDeliveryStatus(String status) {
+        return "PICKED_UP".equals(status) || "DELIVERING".equals(status);
     }
 
     private void requirePositive(BigDecimal value, String field) {

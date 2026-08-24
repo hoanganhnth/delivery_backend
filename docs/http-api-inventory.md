@@ -1,10 +1,10 @@
 # HTTP API Inventory
 
-Ngày cập nhật inventory: 2026-08-21
+Ngày cập nhật inventory: 2026-08-23
 
 Tài liệu này liệt kê toàn bộ method có mapping trong 18 service có controller.
 `saga-orchestrator-service` không có HTTP controller. Danh sách được sinh trực
- tiếp từ annotation Java và hiện có **199 method**.
+tiếp từ annotation Java và hiện có **220 method**.
 
 Contract backend MVP được freeze ngày 2026-07-26 sau clean Gate B8, API surface
 classification và full reactor 602 test. Các capability ghi hidden/disabled hoặc
@@ -73,6 +73,7 @@ sửa.
 | restaurant/menu writes and `my-*` | SHOP_OWNER owns restaurant/menu; ADMIN quản trị bằng entity route | web restaurant/admin | public-client+admin/keep | Gateway và service cùng yêu cầu `SHOP_OWNER` cho self list; mutation yêu cầu owner hoặc `ADMIN`; controller truyền trusted role xuống service, thiếu role fail-closed; DTO bounds trả 400 trước JPA |
 | restaurant creator lookup | SHOP_OWNER self | web owner | public-self/keep | arbitrary creatorId endpoints removed; `my-restaurants`/`my-menu-items` là self contract canonical và bắt `SHOP_OWNER` ở Gateway + controller |
 | restaurant atomic order validation | order-service credential | order checkout | internal/keep | chỉ còn `POST /api/restaurants/validate/order`; Gateway đã ẩn, restaurant fail-closed và order gửi cùng `INTERNAL_SECRET`; ba helper HTTP menu-item/total/hours không có consumer đã xóa, helper item validation giữ private |
+| restaurant menu inventory | SHOP_OWNER owns menu item; order-service uses internal credential | web restaurant/admin, order checkout | public-admin + internal/gated | Inventory ledger/reservation is additive and default-off. Missing inventory rows, unavailable menu items and insufficient `on_hand - reserved` capacity fail closed; reserve/commit/release is all-or-nothing with a 15-minute hold and replay-safe order-event receipt. PostgreSQL/Redis runtime race and provider/staging rollout remain OPEN |
 | restaurant confirm/reject | SHOP_OWNER owns restaurant and order belongs to it | web restaurant | public-client/keep | Gateway + controller bắt role/owner; producer lưu decision + SHA-256 `payload_fingerprint` cùng outbox trong một transaction, nên duplicate replay khác payload bị chặn ngay cả khi outbox đã prune; internal Order eligibility khóa row order trước pending check để serialize với cancel đang chạy; order consumer đối chiếu restaurantId/order và idempotent; web dùng canonical `/api/restaurants/orders/{orderId}/confirm|reject` thay vì generic Order status mutation |
 | restaurant ratings submit/read-own | USER owns delivered order / actor own | Flutter/web | public-client/keep | Gateway + controller bắt `USER`; internal order eligibility kiểm customer+restaurant+DELIVERED; DB unique `order_id` chống duplicate; service dùng `saveAndFlush` để convert duplicate sequential/concurrent thành HTTP 409 thay vì 500; PostgreSQL race proof còn OPEN |
 | restaurant rating moderation | ADMIN | web admin | public-admin/keep | Gateway và controller cùng bắt `ADMIN`; focused authorization test xanh |
@@ -86,12 +87,15 @@ sửa.
 | order dashboard controller | none after analytics migration | không có polyrepo consumer | dead/deleted | controller/service/DTO/query graph và feature flag đã xóa; Analytics giữ capability riêng nhưng tiếp tục hidden |
 | delivery legacy assign | none; Saga/Kafka is canonical | không có polyrepo consumer | dead/deleted | controller/DTO/service/repository branch và flag đã xóa; assignment chỉ qua one-offer accept |
 | delivery accept | currently offered SHIPPER; row lock/expiry; batch endpoint accepts all offered items atomically | shipper app | public-client/keep | legacy `/accept` remains unchanged; additive `/batch/accept` locks batch/items and commits all deliveries or rolls back; batch capability remains flag-gated; PostgreSQL concurrency rehearsal còn OPEN |
+| delivery batch snapshot recovery | authenticated SHIPPER owns batch | shipper app | public-client/gated | exact `GET /api/deliveries/batches/{batchId}` derives canonical shipper identity from JWT/projection, revalidates contiguous global stops and immutable route/COD metadata, and rejects stale/mismatched ownership; `DELIVERY_BATCH_ENABLED` remains false by default |
 | delivery current offer recovery | authenticated SHIPPER self | shipper app migrate trong client alignment phase | public-client/keep | exact `GET /api/deliveries/offers/current` derive shipper từ JWT, chỉ trả một offer chưa hết hạn và fail-closed nếu invariant one-offer bị vỡ; durable Notification inbox + FCM best-effort wake-up |
 | delivery shipper history/active | authenticated SHIPPER self hoặc ADMIN support | shipper app dùng history/restore; admin chưa có call-site | public-client/keep | Gateway tách khỏi current-offer; service bắt cả role và path identity, không cho USER/SHOP_OWNER đi qua chỉ vì numeric ID trùng |
 | delivery cancel-assignment | assigned SHIPPER, policy before pickup | shipper app cần dùng | public-client/keep | pessimistic order row lock serializes against pickup; reset assignment + AVAILABLE + shipper-rejected/rematch outboxes commit atomically; exact retry trước rematch trả state hiện tại và không phát event lần hai |
 | delivery detail/order lookup | order customer, restaurant owner, assigned shipper, ADMIN | Flutter/web/shipper | public-client/keep | Delivery lưu riêng customer ID và server-validated restaurant-owner ID từ `order.created`; USER/SHOP_OWNER/SHIPPER đều scoped theo participant, legacy row thiếu owner field fail-closed; PostgreSQL migration proof OPEN |
 | delivery tracking-access check | tracking-service credential | tracking raw WebSocket | internal/keep | shared secret, active delivery + assigned shipper + participant identity; không có Gateway route |
-| delivery status update | assigned SHIPPER self | shipper app | public-client/restrict | Gateway exact SHIPPER role + service owner; chỉ tuần tự PICKED_UP→DELIVERING→DELIVERED, same-state retry no-op; PostgreSQL concurrency rehearsal còn OPEN |
+| delivery proof of delivery | assigned SHIPPER writes; delivery participant/ADMIN reads | shipper app, customer/restaurant support | public-client/gated | signed private upload intent, confirm against provider metadata, and signed read access only; mandatory before `DELIVERED` when `DELIVERY_POD_ENABLED=true`; max 10 MB, 90-day retention, no permanent object URL; no adapter is configured and flag remains false |
+| delivery post-pickup exception/return | assigned SHIPPER reports/retries; owning SHOP_OWNER confirms return; participant/ADMIN reads | shipper app, restaurant support, Settlement review bridge | public-client/gated | one 15-minute retry; expiry moves `DELIVERING/PICKED_UP` delivery to `RETURNING`, owner confirms `RETURNED`; dedicated `delivery.exception.reported` stream avoids legacy Saga status vocabulary and only creates a Settlement `MANUAL_REVIEW` case when its consumer flag is explicitly enabled |
+| delivery status update | assigned SHIPPER self | shipper app | public-client/restrict | Gateway exact SHIPPER role + service owner; chỉ tuần tự PICKED_UP→DELIVERING→DELIVERED, same-state retry no-op; `DELIVERED` requires confirmed POD when `DELIVERY_POD_ENABLED=true`; PostgreSQL concurrency rehearsal còn OPEN |
 | delivery shipper lists | SHIPPER self hoặc ADMIN | shipper app/web | public-client/keep | ownership đã enforce; history/active compatibility lists cap repository query ở 100 |
 | delivery admin cancel-all | none | không có polyrepo consumer | dead/deleted | controller/service/repository query đã xóa vì có thể động tới pickup/delivering mà không có canonical per-delivery recovery/audit contract |
 | shipper profile/create/update/online | SHIPPER self | shipper app | create/profile/update/online public; delete dead/deleted | delete API đã xóa sau zero-call-site proof; trusted user identity dùng typed Long; generic profile update không còn nhận `isOnline`; `PATCH /online-status?isOnline=false` gọi internal Tracking tombstone trước khi lưu projection, còn `true` chỉ là publisher intent chờ heartbeat GPS |
@@ -107,6 +111,7 @@ sửa.
 | match nearby | Saga/match internal | Saga command listener | internal-event/keep | HTTP debug controller đã xóa; `saga.command.find-shipper` là ingress canonical |
 | notification FCM token register/remove | authenticated user owns token | Flutter/shipper | public-client/keep | Gateway chỉ route đúng hai POST register/unregister; Notification resource server derive JWT actor qua JWKS; Redis Lua reverse-owner ngăn một token thuộc nhiều account, Redis integration/race proof còn OPEN |
 | notification list/unread/read/delete | authenticated user owns notification | cả 3 client | public-client/keep | ownership scope tới repository; list/unread cap 100, unread-count vẫn exact DB count; delivery status inbox copy không synthesize `shipperName` khi event không sở hữu field này |
+| notification preferences | authenticated canonical principal chỉ sở hữu marketing preference của chính mình; transactional notification là invariant | chưa có client consumer khi capability còn tắt | public-client/gated | exact `GET /api/notifications/preferences` và `PUT /api/notifications/preferences/marketing` chỉ derive `principalId` từ JWT; không fallback sang profile/legacy user ID. Row vắng mặt nghĩa là marketing opt-out; request chỉ đổi `marketingNotificationsEnabled`, không có transactional opt-out. `NOTIFICATION_PREFERENCES_ENABLED=false` trả capability unavailable trước khi đọc/ghi; chưa có marketing producer/dispatch enforcement hoặc client UX để claim rollout |
 | notification send | service identity only | internal operator/service | internal/keep | không có Gateway route; shared secret + validated bounded command, unexpected error sanitized |
 | settlement own balances/transactions | SHOP_OWNER/SHIPPER owns entity | web/shipper | hidden/disabled pending ownership | arbitrary entityId endpoints không có Gateway route và self-service controllers mặc định không tạo bean (`SETTLEMENT_SELF_SERVICE_API_ENABLED=false`) |
 | settlement withdrawal | owner requests; ADMIN approves/rejects | web/shipper | hidden/disabled + public-admin | self request controller mặc định tắt; admin read xử lý record hiện hữu, concurrency proof còn thiếu |
@@ -162,6 +167,14 @@ sửa.
 | delivery-service | DeliveryController | POST | `/api/deliveries/cancel-assignment` | `cancelAssignedDelivery` |
 | delivery-service | DeliveryController | GET | `/api/deliveries/offers/current` | `getCurrentOffer` |
 | delivery-service | DeliveryController | GET | `/api/deliveries/offers/current-batch` | `getCurrentBatchOffer` |
+| delivery-service | DeliveryController | GET | `/api/deliveries/batches/{batchId}` | `getBatchSnapshot` |
+| delivery-service | DeliveryController | POST | `/api/deliveries/{deliveryId}/proofs/upload-intent` | `createProofUploadIntent` |
+| delivery-service | DeliveryController | POST | `/api/deliveries/{deliveryId}/proofs/{proofId}/confirm` | `confirmProofUpload` |
+| delivery-service | DeliveryController | GET | `/api/deliveries/{deliveryId}/proofs/{proofId}/access` | `createProofReadAccess` |
+| delivery-service | DeliveryController | POST | `/api/deliveries/{deliveryId}/exceptions/failed` | `reportDeliveryFailure` |
+| delivery-service | DeliveryController | POST | `/api/deliveries/{deliveryId}/exceptions/retry` | `useDeliveryRetry` |
+| delivery-service | DeliveryController | POST | `/api/deliveries/{deliveryId}/exceptions/return/confirm` | `confirmDeliveryReturn` |
+| delivery-service | DeliveryController | GET | `/api/deliveries/{deliveryId}/exception` | `getDeliveryException` |
 | delivery-service | DeliveryController | GET | `/api/deliveries/{id}` | `getDelivery` |
 | delivery-service | DeliveryController | PUT | `/api/deliveries/{id}/status` | `updateStatus` |
 | delivery-service | DeliveryController | GET | `/api/deliveries/shipper/{shipperId}` | `getDeliveriesByShipper` |
@@ -204,6 +217,8 @@ sửa.
 | notification-service | NotificationController | PUT | `/api/notifications/mark-all-read` | `markAllAsRead` |
 | notification-service | NotificationController | GET | `/api/notifications/{id}` | `getNotificationById` |
 | notification-service | NotificationController | DELETE | `/api/notifications/{id}` | `deleteNotification` |
+| notification-service | NotificationController | GET | `/api/notifications/preferences` | `getPreferences` |
+| notification-service | NotificationController | PUT | `/api/notifications/preferences/marketing` | `updateMarketingPreference` |
 | order-service | OrderController | POST | `/api/orders/checkout-preview` | `checkoutPreview` |
 | order-service | OrderController | POST | `/api/orders` | `createOrder` |
 | order-service | OrderController | GET | `/api/orders/{id}` | `getOrderById` |
@@ -244,8 +259,14 @@ sửa.
 | restaurant-service | MenuItemController | GET | `/api/menu-items/restaurant/{restaurantId}/available/page` | `getAvailablePage` |
 | restaurant-service | MenuItemController | GET | `/api/menu-items/my-menu-items` | `getMyMenuItems` |
 | restaurant-service | MenuItemController | GET | `/api/menu-items/my-menu-items/page` | `getMyMenuItemsPage` |
+| restaurant-service | MenuItemInventoryController | GET | `/api/menu-items/{menuItemId}/inventory` | `get` |
+| restaurant-service | MenuItemInventoryController | PUT | `/api/menu-items/{menuItemId}/inventory` | `update` |
 | restaurant-service | OrderValidationController | POST | `/api/restaurants/validate/order` | `validateOrder` |
 | restaurant-service | InternalRestaurantController | GET | `/api/restaurants/internal/{restaurantId}/owners/{ownerId}` | `isOwnedBy` |
+| restaurant-service | InternalInventoryController | POST | `/api/menu-items/internal/inventory/reservations` | `reserve` |
+| restaurant-service | InternalInventoryController | POST | `/api/menu-items/internal/inventory/reservations/{reservationId}/commit` | `commit` |
+| restaurant-service | InternalInventoryController | POST | `/api/menu-items/internal/inventory/reservations/{reservationId}/release` | `release` |
+| restaurant-service | InternalServiceabilityController | GET | `/api/restaurants/internal/{restaurantId}/serviceability` | `evaluate` |
 | restaurant-service | RestaurantController | POST | `/api/restaurants` | `create` |
 | restaurant-service | RestaurantController | PUT | `/api/restaurants/{id}` | `update` |
 | restaurant-service | RestaurantController | DELETE | `/api/restaurants/{id}` | `delete` |
@@ -254,6 +275,10 @@ sửa.
 | restaurant-service | RestaurantController | GET | `/api/restaurants/search` | `search` |
 | restaurant-service | RestaurantController | GET | `/api/restaurants/page` | `getPage` |
 | restaurant-service | RestaurantController | GET | `/api/restaurants/my-restaurants` | `getMyRestaurants` |
+| restaurant-service | RestaurantServiceabilityController | GET | `/api/restaurants/{restaurantId}/serviceability-zones` | `list` |
+| restaurant-service | RestaurantServiceabilityController | POST | `/api/restaurants/{restaurantId}/serviceability-zones` | `create` |
+| restaurant-service | RestaurantServiceabilityController | PUT | `/api/restaurants/{restaurantId}/serviceability-zones/{zoneId}` | `update` |
+| restaurant-service | RestaurantServiceabilityController | DELETE | `/api/restaurants/{restaurantId}/serviceability-zones/{zoneId}` | `delete` |
 | restaurant-service | RestaurantOrderController | POST | `/api/restaurants/orders/{orderId}/confirm` | `confirmOrder` |
 | restaurant-service | RestaurantOrderController | POST | `/api/restaurants/orders/{orderId}/reject` | `rejectOrder` |
 | restaurant-service | RestaurantRatingController | POST | `/api/restaurants/{restaurantId}/ratings` | `submitRating` |
@@ -317,6 +342,7 @@ sửa.
 | tracking-service | ShipperLocationController | POST | `/api/tracking/shipper-locations/offline` | `markOffline` |
 | routing-service | RoutingController | POST | `/internal/routing/v1/matrix` | `matrix` |
 | routing-service | RoutingController | POST | `/internal/routing/v1/route` | `route` |
+| routing-service | RoutingController | POST | `/internal/routing/v1/eta-window` | `etaWindow` |
 | tracking-service | InternalShipperAvailabilityController | POST | `/api/tracking/internal/shippers/{shipperId}/offline` | `markOffline` |
 | tracking-service | InternalLocationHistoryController | GET | `/internal/tracking/location-history/deliveries/{deliveryId}` | `byDelivery` |
 | user-service | UserAddressController | GET | `/api/addresses/users/{userId}/addresses` | `getUserAddresses` |

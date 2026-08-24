@@ -2,9 +2,9 @@ package com.delivery.restaurant_service.controller;
 
 import com.delivery.restaurant_service.repository.RestaurantRepository;
 import com.delivery.restaurant_service.payload.BaseResponse;
-import lombok.RequiredArgsConstructor;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -14,10 +14,10 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 @RestController
 @RequestMapping("/api/restaurants/internal")
-@RequiredArgsConstructor
 public class InternalRestaurantController {
 
     private final RestaurantRepository restaurantRepository;
@@ -28,6 +28,24 @@ public class InternalRestaurantController {
 
     @Value("${app.identity.principal-ownership.enforced:false}")
     private boolean principalOwnershipEnforced;
+
+    @Autowired
+    public InternalRestaurantController(RestaurantRepository restaurantRepository,
+                                        MeterRegistry meterRegistry) {
+        this.restaurantRepository = restaurantRepository;
+        this.meterRegistry = meterRegistry;
+    }
+
+    /** Compatibility constructor retained for focused legacy callers. */
+    public InternalRestaurantController(RestaurantRepository restaurantRepository) {
+        this(restaurantRepository, new SimpleMeterRegistry());
+    }
+
+    /** Legacy overload: absence of legacyOwnerId keeps the original lookup. */
+    public ResponseEntity<BaseResponse<Boolean>> isOwnedBy(
+            Long restaurantId, Long ownerId, String internalToken) {
+        return isOwnedBy(restaurantId, ownerId, null, internalToken);
+    }
 
     @GetMapping("/{restaurantId}/owners/{ownerId}")
     public ResponseEntity<BaseResponse<Boolean>> isOwnedBy(

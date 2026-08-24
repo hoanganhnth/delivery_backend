@@ -165,6 +165,9 @@ public class PromotionService {
         }
         Voucher voucher = voucherRepository.findByCode(normalizeCode(voucherCode))
                 .orElseThrow(() -> new IllegalArgumentException("Voucher not found"));
+        if (!isCheckoutWalletVoucher(voucher)) {
+            throw new IllegalArgumentException("Voucher is not checkout-eligible");
+        }
 
         LocalDateTime now = LocalDateTime.now();
         if (!isApproved(voucher) || !Boolean.TRUE.equals(voucher.getActive()) || voucher.getEndTime().isBefore(now)) {
@@ -211,6 +214,9 @@ public class PromotionService {
         }
         Voucher voucher = voucherRepository.findByCode(normalizeCode(voucherCode))
                 .orElseThrow(() -> new IllegalArgumentException("Voucher not found"));
+        if (!isCheckoutWalletVoucher(voucher)) {
+            throw new IllegalArgumentException("Voucher is not checkout-eligible");
+        }
         LocalDateTime now = LocalDateTime.now();
         if (!isApproved(voucher) || !Boolean.TRUE.equals(voucher.getActive()) || voucher.getEndTime().isBefore(now)) {
             throw new IllegalArgumentException("Voucher is expired or inactive");
@@ -329,6 +335,9 @@ public class PromotionService {
         for (Long voucherId : voucherIds) {
             UserVoucher wallet = walletVoucherForUpdate(
                     request.getUserPrincipalId(), request.getUserId(), voucherId);
+            if (wallet.getStatus() != UserVoucher.Status.SAVED) {
+                throw new PromotionConflictException("Voucher is already reserved or used");
+            }
             Voucher voucher = voucherRepository.findByIdForUpdate(voucherId)
                     .orElseThrow(() -> new IllegalArgumentException("Voucher not found: " + voucherId));
             ensureWalletCapacity(wallet, voucher);
@@ -400,23 +409,57 @@ public class PromotionService {
 
     @Transactional
     public PromotionReservationResponse commitPromotionReservation(UUID reservationId, Long orderId) {
+        return commitPromotionReservationInternal(reservationId, orderId, null, false);
+    }
+
+    /** Public HTTP rail supplies the stable principal; Kafka recovery uses the trusted two-argument path. */
+    @Transactional
+    public PromotionReservationResponse commitPromotionReservation(UUID reservationId, Long orderId,
+                                                                    Long userPrincipalId) {
+        return commitPromotionReservationInternal(reservationId, orderId, userPrincipalId, true);
+    }
+
+    private PromotionReservationResponse commitPromotionReservationInternal(UUID reservationId, Long orderId,
+                                                                              Long userPrincipalId,
+                                                                              boolean enforcePrincipal) {
         requireBulkRepositories();
         PromotionReservation reservation = lockedBulkReservation(reservationId, orderId);
+        if (enforcePrincipal) requireBulkReservationPrincipal(reservation, userPrincipalId);
         List<PromotionReservationLine> lines = promotionReservationLineRepository
                 .findByReservationIdForUpdateOrderByVoucherIdAsc(reservationId);
         if (reservation.getState() == PromotionReservation.State.RESERVED
                 && !LocalDateTime.now().isBefore(reservation.getExpiresAt())) {
-            transitionBulkReservation(reservation, lines, PromotionReservation.State.EXPIRED);
+            // Expiry is owned by the scheduled recovery job. A late order.created
+            // must never look successful: otherwise Order keeps the discount while
+            // the expiry path has already returned the quota to the wallet.
+            throw new PromotionConflictException("Promotion reservation expired before commit");
         } else if (reservation.getState() == PromotionReservation.State.RESERVED) {
             transitionBulkReservation(reservation, lines, PromotionReservation.State.COMMITTED);
+        } else if (reservation.getState() != PromotionReservation.State.COMMITTED) {
+            throw new PromotionConflictException(
+                    "Promotion reservation cannot be committed from state " + reservation.getState());
         }
         return PromotionReservationResponse.from(reservation, lines);
     }
 
     @Transactional
     public PromotionReservationResponse releasePromotionReservation(UUID reservationId, Long orderId) {
+        return releasePromotionReservationInternal(reservationId, orderId, null, false);
+    }
+
+    /** Public HTTP rail supplies the stable principal; Kafka recovery uses the trusted two-argument path. */
+    @Transactional
+    public PromotionReservationResponse releasePromotionReservation(UUID reservationId, Long orderId,
+                                                                      Long userPrincipalId) {
+        return releasePromotionReservationInternal(reservationId, orderId, userPrincipalId, true);
+    }
+
+    private PromotionReservationResponse releasePromotionReservationInternal(UUID reservationId, Long orderId,
+                                                                               Long userPrincipalId,
+                                                                               boolean enforcePrincipal) {
         requireBulkRepositories();
         PromotionReservation reservation = lockedBulkReservation(reservationId, orderId);
+        if (enforcePrincipal) requireBulkReservationPrincipal(reservation, userPrincipalId);
         List<PromotionReservationLine> lines = promotionReservationLineRepository
                 .findByReservationIdForUpdateOrderByVoucherIdAsc(reservationId);
         if (reservation.getState() == PromotionReservation.State.RESERVED
@@ -424,6 +467,14 @@ public class PromotionService {
             transitionBulkReservation(reservation, lines, PromotionReservation.State.RELEASED);
         }
         return PromotionReservationResponse.from(reservation, lines);
+    }
+
+    private void requireBulkReservationPrincipal(PromotionReservation reservation, Long userPrincipalId) {
+        validatePositiveId(userPrincipalId, "userPrincipalId");
+        if (reservation.getUserPrincipalId() == null
+                || !reservation.getUserPrincipalId().equals(userPrincipalId)) {
+            throw new PromotionConflictException("Promotion reservation is owned by another principal");
+        }
     }
 
     @Transactional
@@ -559,11 +610,12 @@ public class PromotionService {
     }
 
     private String checkVoucherAvailability(Voucher voucher, CartContextRequest request) {
+        if (!isCheckoutWalletVoucher(voucher)) return "Voucher is not checkout-eligible";
         if (!isApproved(voucher)) return "Voucher is not approved";
         if (!Boolean.TRUE.equals(voucher.getActive())) return "Voucher is inactive";
         LocalDateTime now = LocalDateTime.now();
         if (voucher.getStartTime() != null && now.isBefore(voucher.getStartTime())) return "Voucher is not active yet";
-        if (voucher.getEndTime() != null && voucher.getEndTime().isBefore(now)) return "Voucher expired";
+        if (voucher.getEndTime() == null || !now.isBefore(voucher.getEndTime())) return "Voucher expired";
         if (voucher.getUsedQuantity() >= voucher.getTotalQuantity()) return "Out of stock";
         BigDecimal minOrderValue = voucher.getMinOrderValue() == null ? BigDecimal.ZERO : voucher.getMinOrderValue();
         if (request.getSubTotal().compareTo(minOrderValue) < 0) {
@@ -572,6 +624,20 @@ public class PromotionService {
         if (voucher.getScopeType() == Voucher.ScopeType.SHOP
                 && (voucher.getScopeRefId() == null || !voucher.getScopeRefId().equals(request.getShopId()))) {
             return "Not applicable for this shop";
+        }
+        if (voucher.getScopeType() == Voucher.ScopeType.CATEGORY) {
+            return "Legacy CATEGORY voucher is not checkout-eligible";
+        }
+        try {
+            VoucherLayer layer = VoucherLayerResolver.resolve(voucher);
+            if (layer == VoucherLayer.FREESHIP && voucher.getRewardType() != Voucher.RewardType.FREESHIP) {
+                return "Freeship layer requires a freeship reward";
+            }
+            if (layer != VoucherLayer.FREESHIP && voucher.getRewardType() == Voucher.RewardType.FREESHIP) {
+                return "Freeship reward cannot be used as an item discount";
+            }
+        } catch (IllegalArgumentException invalidLayer) {
+            return invalidLayer.getMessage() == null ? "Voucher layer is invalid" : invalidLayer.getMessage();
         }
         return null; // Available
     }
@@ -582,12 +648,12 @@ public class PromotionService {
         Optional<VoucherReservation> sameId = voucherReservationRepository.findById(request.getReservationId());
         if (sameId.isPresent()) {
             requireSameReservation(sameId.get(), request);
-            return VoucherReservationResponse.from(sameId.get());
+            return legacyReservationResponse(sameId.get());
         }
         Optional<VoucherReservation> sameOrder = voucherReservationRepository.findByOrderId(request.getOrderId());
         if (sameOrder.isPresent()) {
             requireSameReservation(sameOrder.get(), request);
-            return VoucherReservationResponse.from(sameOrder.get());
+            return legacyReservationResponse(sameOrder.get());
         }
 
         UserVoucher userVoucher = walletVoucherForUpdate(
@@ -636,7 +702,7 @@ public class PromotionService {
             throw new PromotionConflictException("Conflicting voucher reservation", ex);
         }
         outboxService.enqueue(reservation);
-        return VoucherReservationResponse.from(reservation);
+        return legacyReservationResponse(reservation, voucher);
     }
 
     @Transactional
@@ -644,7 +710,9 @@ public class PromotionService {
         VoucherReservation reservation = lockedReservation(reservationId, orderId);
         if (reservation.getState() == VoucherReservation.State.RESERVED
                 && !LocalDateTime.now().isBefore(reservation.getExpiresAt())) {
-            expireReservation(reservation);
+            // Do not silently ACK a late order.created event. The expiry job is
+            // the only owner of RESERVED -> EXPIRED capacity restoration.
+            throw new PromotionConflictException("Voucher reservation expired before commit");
         } else if (reservation.getState() == VoucherReservation.State.RESERVED) {
             UserVoucher userVoucher = walletVoucherForUpdate(reservation.getUserPrincipalId(), reservation.getUserId(),
                     reservation.getVoucherId());
@@ -652,8 +720,11 @@ public class PromotionService {
             userVoucher.setUsedAt(LocalDateTime.now());
             reservation.setState(VoucherReservation.State.COMMITTED);
             outboxService.enqueue(reservation);
+        } else if (reservation.getState() != VoucherReservation.State.COMMITTED) {
+            throw new PromotionConflictException(
+                    "Voucher reservation cannot be committed from state " + reservation.getState());
         }
-        return VoucherReservationResponse.from(reservation);
+        return legacyReservationResponse(reservation);
     }
 
     @Transactional
@@ -663,7 +734,16 @@ public class PromotionService {
                 || reservation.getState() == VoucherReservation.State.COMMITTED) {
             releaseCapacity(reservation, VoucherReservation.State.RELEASED);
         }
-        return VoucherReservationResponse.from(reservation);
+        return legacyReservationResponse(reservation);
+    }
+
+    private VoucherReservationResponse legacyReservationResponse(VoucherReservation reservation) {
+        Voucher voucher = voucherRepository.findById(reservation.getVoucherId()).orElse(null);
+        return legacyReservationResponse(reservation, voucher);
+    }
+
+    private VoucherReservationResponse legacyReservationResponse(VoucherReservation reservation, Voucher voucher) {
+        return VoucherReservationResponse.from(reservation, voucher);
     }
 
     @Transactional
@@ -747,7 +827,9 @@ public class PromotionService {
         List<Long> voucherIds = userVouchers.stream()
                 .map(UserVoucher::getVoucherId)
                 .collect(Collectors.toList());
-        return voucherRepository.findAllById(voucherIds);
+        return voucherRepository.findAllById(voucherIds).stream()
+                .filter(this::isCheckoutWalletVoucher)
+                .toList();
     }
 
     /** Legacy compatibility rail for callers compiled before the principal claim. */
@@ -757,7 +839,9 @@ public class PromotionService {
         List<UserVoucher> userVouchers = userVoucherRepository.findByUserIdAndStatus(
                 userId, UserVoucher.Status.SAVED, PageRequest.of(0, COMPATIBILITY_LIST_LIMIT));
         return voucherRepository.findAllById(userVouchers.stream()
-                .map(UserVoucher::getVoucherId).collect(Collectors.toList()));
+                        .map(UserVoucher::getVoucherId).collect(Collectors.toList())).stream()
+                .filter(this::isCheckoutWalletVoucher)
+                .toList();
     }
 
     @Transactional(readOnly = true)
@@ -869,6 +953,10 @@ public class PromotionService {
         if (request.getDiscountValue() == null || request.getDiscountValue().compareTo(BigDecimal.ZERO) < 0) {
             throw new IllegalArgumentException("Voucher discountValue must be non-negative");
         }
+        if (request.getMaxDiscountValue() != null
+                && request.getMaxDiscountValue().compareTo(BigDecimal.ZERO) < 0) {
+            throw new IllegalArgumentException("Voucher maxDiscountValue must be non-negative");
+        }
         if (request.getTotalQuantity() == null || request.getTotalQuantity() < 1) {
             throw new IllegalArgumentException("Voucher totalQuantity must be positive");
         }
@@ -914,6 +1002,31 @@ public class PromotionService {
         } else if (request.getRewardType() == Voucher.RewardType.FREESHIP
                 && request.getScopeType() != Voucher.ScopeType.ALL) {
             throw new IllegalArgumentException("Freeship voucher must be platform-wide");
+        }
+
+        if (request.getLayerCode() != null && !request.getLayerCode().isBlank()) {
+            VoucherLayer requestedLayer;
+            try {
+                requestedLayer = VoucherLayer.valueOf(request.getLayerCode().trim().toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException invalidLayer) {
+                throw new IllegalArgumentException("Voucher layer is invalid", invalidLayer);
+            }
+            if (request.getRewardType() == Voucher.RewardType.FREESHIP
+                    && requestedLayer != VoucherLayer.FREESHIP) {
+                throw new IllegalArgumentException("Freeship reward requires the FREESHIP layer");
+            }
+            if (request.getRewardType() != Voucher.RewardType.FREESHIP
+                    && requestedLayer == VoucherLayer.FREESHIP) {
+                throw new IllegalArgumentException("FREESHIP layer requires a freeship reward");
+            }
+            if (request.getCreatorType() == Voucher.CreatorType.SHOP
+                    && requestedLayer != VoucherLayer.SHOP_DISCOUNT) {
+                throw new IllegalArgumentException("Shop voucher requires the SHOP_DISCOUNT layer");
+            }
+            if (request.getCreatorType() == Voucher.CreatorType.PLATFORM
+                    && requestedLayer == VoucherLayer.SHOP_DISCOUNT) {
+                throw new IllegalArgumentException("Platform voucher cannot use the SHOP_DISCOUNT layer");
+            }
         }
     }
 
@@ -1006,6 +1119,39 @@ public class PromotionService {
     private boolean isApproved(Voucher voucher) {
         return voucher != null && (voucher.getApprovalStatus() == null
                 || "APPROVED".equalsIgnoreCase(voucher.getApprovalStatus()));
+    }
+
+    private boolean isCheckoutWalletVoucher(Voucher voucher) {
+        if (voucher == null || (voucher.getCreatorType() != Voucher.CreatorType.PLATFORM
+                && voucher.getCreatorType() != Voucher.CreatorType.SHOP)) return false;
+        if (voucher.getScopeType() != Voucher.ScopeType.ALL
+                && voucher.getScopeType() != Voucher.ScopeType.SHOP) return false;
+        if ((voucher.getScopeType() == Voucher.ScopeType.ALL && voucher.getScopeRefId() != null)
+                || (voucher.getScopeType() == Voucher.ScopeType.SHOP && voucher.getScopeRefId() == null)) return false;
+        // A wallet voucher must have a finite validity window. Besides being
+        // ineligible for checkout, this guards the collect rail from calling
+        // isBefore on a malformed legacy row with a null end time.
+        if (voucher.getEndTime() == null) return false;
+        if (voucher.getDiscountValue() == null || voucher.getDiscountValue().signum() < 0) return false;
+        if (voucher.getMinOrderValue() != null && voucher.getMinOrderValue().signum() < 0) return false;
+        if (voucher.getMaxDiscountValue() != null && voucher.getMaxDiscountValue().signum() < 0) return false;
+        if (voucher.getTotalQuantity() == null || voucher.getTotalQuantity() < 1
+                || voucher.getUsedQuantity() == null || voucher.getUsedQuantity() < 0) return false;
+        try {
+            VoucherLayer layer = VoucherLayerResolver.resolve(voucher);
+            if (voucher.getCreatorType() == Voucher.CreatorType.SHOP
+                    && (layer != VoucherLayer.SHOP_DISCOUNT
+                    || voucher.getScopeType() != Voucher.ScopeType.SHOP)) return false;
+            if (voucher.getCreatorType() == Voucher.CreatorType.PLATFORM
+                    && layer == VoucherLayer.SHOP_DISCOUNT) return false;
+            if (layer == VoucherLayer.FREESHIP) {
+                return voucher.getRewardType() == Voucher.RewardType.FREESHIP
+                        && voucher.getScopeType() == Voucher.ScopeType.ALL;
+            }
+            return voucher.getRewardType() != Voucher.RewardType.FREESHIP;
+        } catch (IllegalArgumentException invalidLayer) {
+            return false;
+        }
     }
 
     private String normalizeCode(String code) {

@@ -1,13 +1,15 @@
 package com.delivery.analytics_service.service;
 
 import com.delivery.analytics_service.entity.AnalyticsEvent;
+import com.delivery.analytics_service.entity.DailyItemSales;
 import com.delivery.analytics_service.entity.DailyOrderStats;
 import com.delivery.analytics_service.entity.DailyRevenueStats;
 import com.delivery.analytics_service.repository.AnalyticsEventRepository;
+import com.delivery.analytics_service.repository.DailyItemSalesRepository;
 import com.delivery.analytics_service.repository.DailyOrderStatsRepository;
 import com.delivery.analytics_service.repository.DailyRevenueStatsRepository;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.beans.factory.annotation.Value;
@@ -33,7 +35,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * 3. Scheduled Job chạy hàng đêm sẽ re-compute từ raw events để đảm bảo accuracy
  */
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class EventProcessingService {
 
@@ -42,6 +43,26 @@ public class EventProcessingService {
     private final AnalyticsEventRepository eventRepo;
     private final DailyOrderStatsRepository orderStatsRepo;
     private final DailyRevenueStatsRepository revenueStatsRepo;
+    /** Null only in legacy focused fixtures; Spring production wiring is explicit. */
+    private final DailyItemSalesRepository itemSalesRepo;
+
+    @Autowired
+    public EventProcessingService(AnalyticsEventRepository eventRepo,
+                                  DailyOrderStatsRepository orderStatsRepo,
+                                  DailyRevenueStatsRepository revenueStatsRepo,
+                                  DailyItemSalesRepository itemSalesRepo) {
+        this.eventRepo = eventRepo;
+        this.orderStatsRepo = orderStatsRepo;
+        this.revenueStatsRepo = revenueStatsRepo;
+        this.itemSalesRepo = itemSalesRepo;
+    }
+
+    /** Compatibility constructor for pre-item-projection unit fixtures. */
+    public EventProcessingService(AnalyticsEventRepository eventRepo,
+                                  DailyOrderStatsRepository orderStatsRepo,
+                                  DailyRevenueStatsRepository revenueStatsRepo) {
+        this(eventRepo, orderStatsRepo, revenueStatsRepo, null);
+    }
 
     @Value("${spring.datasource.url:}")
     private String dataSourceUrl;
@@ -61,10 +82,12 @@ public class EventProcessingService {
             return;
         }
         LocalDate today = LocalDate.now();
+        LocalDate eventDate = eventDate(rawPayload, today);
 
         if (isPostgres()) {
             orderStatsRepo.incrementCreatedPostgres(today, null);
             if (restaurantId != null) orderStatsRepo.incrementCreatedPostgres(today, restaurantId);
+            applyItemSnapshot(eventDate, restaurantId, rawPayload, false);
             return;
         }
 
@@ -81,6 +104,8 @@ public class EventProcessingService {
             restaurantStats.setPendingOrders(restaurantStats.getPendingOrders() + 1);
             orderStatsRepo.save(restaurantStats);
         }
+
+        applyItemSnapshot(eventDate, restaurantId, rawPayload, false);
 
         log.info("📊 Processed ORDER_CREATED: orderId={}, restaurantId={}", orderId, restaurantId);
     }
@@ -144,9 +169,11 @@ public class EventProcessingService {
             return;
         }
         LocalDate today = LocalDate.now();
+        LocalDate eventDate = eventDate(rawPayload, today);
         if (isPostgres()) {
             orderStatsRepo.incrementCancelledPostgres(today, null);
             if (restaurantId != null) orderStatsRepo.incrementCancelledPostgres(today, restaurantId);
+            applyItemSnapshot(eventDate, restaurantId, rawPayload, true);
             return;
         }
 
@@ -167,6 +194,8 @@ public class EventProcessingService {
             }
             orderStatsRepo.save(rStats);
         }
+
+        applyItemSnapshot(eventDate, restaurantId, rawPayload, true);
 
         log.info("📊 Processed ORDER_CANCELLED: orderId={}", orderId);
     }
@@ -225,6 +254,114 @@ public class EventProcessingService {
     }
 
     // ==================== HELPERS ====================
+
+    /**
+     * Apply the additive item snapshot after the whole-event receipt has been
+     * claimed. A duplicate Kafka event therefore cannot increment an item row
+     * twice, while a malformed line rolls back the enclosing transaction.
+     */
+    private void applyItemSnapshot(LocalDate statDate, Long restaurantId, String rawPayload,
+                                   boolean cancelled) {
+        if (itemSalesRepo == null || restaurantId == null) return;
+        JsonNode root = readJson(rawPayload);
+        JsonNode items = root.get("items");
+        if (items == null || items.isNull()) return;
+        if (!items.isArray()) throw new IllegalArgumentException("analytics items must be an array");
+        if (items.size() > 100) throw new IllegalArgumentException("analytics item snapshot exceeds 100 lines");
+
+        for (JsonNode line : items) {
+            long menuItemId = requiredPositiveLong(line, "menuItemId");
+            long quantity = requiredPositiveLong(line, "quantity");
+            BigDecimal unitPrice = requiredPositiveAmount(line, "unitPrice", "price");
+            BigDecimal lineTotal = optionalAmount(line, "lineTotal");
+            BigDecimal expectedLineTotal = unitPrice.multiply(BigDecimal.valueOf(quantity));
+            if (lineTotal == null) lineTotal = expectedLineTotal;
+            if (lineTotal.compareTo(expectedLineTotal) != 0) {
+                throw new IllegalArgumentException("analytics item line total does not reconcile");
+            }
+            String parsedMenuItemName = line.path("menuItemName").asText("UNKNOWN").trim();
+            final String menuItemName = parsedMenuItemName.isBlank() ? "UNKNOWN" : parsedMenuItemName;
+            long orderedQuantity = cancelled ? 0 : quantity;
+            long cancelledQuantity = cancelled ? quantity : 0;
+            BigDecimal orderedRevenue = cancelled ? BigDecimal.ZERO : lineTotal;
+            BigDecimal cancelledRevenue = cancelled ? lineTotal : BigDecimal.ZERO;
+
+            if (isPostgres()) {
+                itemSalesRepo.incrementPostgres(statDate, restaurantId, menuItemId, menuItemName,
+                        orderedQuantity, cancelledQuantity, orderedRevenue, cancelledRevenue,
+                        LocalDateTime.now());
+            } else {
+                DailyItemSales aggregate = itemSalesRepo
+                        .findByStatDateAndRestaurantIdAndMenuItemId(statDate, restaurantId, menuItemId)
+                        .orElseGet(() -> DailyItemSales.builder()
+                                .statDate(statDate).restaurantId(restaurantId).menuItemId(menuItemId)
+                                .menuItemName(menuItemName).orderedQuantity(0).cancelledQuantity(0)
+                                .orderedRevenue(BigDecimal.ZERO).cancelledRevenue(BigDecimal.ZERO)
+                                .updatedAt(LocalDateTime.now()).build());
+                aggregate.setMenuItemName(menuItemName);
+                aggregate.setOrderedQuantity(aggregate.getOrderedQuantity() + orderedQuantity);
+                aggregate.setCancelledQuantity(aggregate.getCancelledQuantity() + cancelledQuantity);
+                aggregate.setOrderedRevenue(aggregate.getOrderedRevenue().add(orderedRevenue));
+                aggregate.setCancelledRevenue(aggregate.getCancelledRevenue().add(cancelledRevenue));
+                aggregate.setUpdatedAt(LocalDateTime.now());
+                itemSalesRepo.save(aggregate);
+            }
+        }
+    }
+
+    private JsonNode readJson(String rawPayload) {
+        try {
+            return OBJECT_MAPPER.readTree(rawPayload);
+        } catch (Exception invalid) {
+            throw new IllegalArgumentException("analytics raw payload is not valid JSON", invalid);
+        }
+    }
+
+    private long requiredPositiveLong(JsonNode node, String field) {
+        JsonNode value = node == null ? null : node.get(field);
+        if (value == null || !value.canConvertToLong() || value.asLong() <= 0) {
+            throw new IllegalArgumentException("analytics item " + field + " must be positive");
+        }
+        return value.asLong();
+    }
+
+    private BigDecimal requiredPositiveAmount(JsonNode node, String... fields) {
+        for (String field : fields) {
+            BigDecimal value = optionalAmount(node, field);
+            if (value != null) {
+                if (value.signum() <= 0 || value.scale() > 2) {
+                    throw new IllegalArgumentException("analytics item price is invalid");
+                }
+                return value.setScale(2, RoundingMode.UNNECESSARY);
+            }
+        }
+        throw new IllegalArgumentException("analytics item price is required");
+    }
+
+    private BigDecimal optionalAmount(JsonNode node, String field) {
+        JsonNode value = node == null ? null : node.get(field);
+        if (value == null || value.isNull() || value.asText().isBlank()) return null;
+        try {
+            return new BigDecimal(value.asText());
+        } catch (NumberFormatException invalid) {
+            throw new IllegalArgumentException("analytics item " + field + " is not numeric", invalid);
+        }
+    }
+
+    private LocalDate eventDate(String rawPayload, LocalDate fallback) {
+        JsonNode root = readJson(rawPayload);
+        for (String field : new String[]{"occurredAt", "eventTimestamp", "createdAt"}) {
+            JsonNode value = root.get(field);
+            if (value != null && !value.isNull() && !value.asText().isBlank()) {
+                try {
+                    return LocalDateTime.parse(value.asText()).toLocalDate();
+                } catch (RuntimeException invalid) {
+                    throw new IllegalArgumentException("analytics event timestamp is invalid", invalid);
+                }
+            }
+        }
+        return fallback;
+    }
 
     private boolean claimEvent(String key, String type, Long orderId, Long userId,
                                Long restaurantId, String restaurantName, BigDecimal amount,

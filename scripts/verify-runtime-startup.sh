@@ -5,6 +5,7 @@ readonly STARTUP_TIMEOUT_SECONDS="${STARTUP_TIMEOUT_SECONDS:-420}"
 readonly POLL_SECONDS=5
 readonly EUREKA_REGISTRATION_TIMEOUT_SECONDS="${EUREKA_REGISTRATION_TIMEOUT_SECONDS:-120}"
 readonly RUNTIME_ISOLATED="${RUNTIME_ISOLATED:-false}"
+readonly RUNTIME_RESOURCE_START_MODE="${RUNTIME_RESOURCE_START_MODE:-parallel}"
 readonly RUNTIME_REBUILD_IMAGES="${RUNTIME_REBUILD_IMAGES:-false}"
 readonly RUNTIME_EXTRA_COMPOSE_FILES="${RUNTIME_EXTRA_COMPOSE_FILES:-}"
 readonly RUNTIME_INCLUDE_SIMULATOR="${RUNTIME_INCLUDE_SIMULATOR:-false}"
@@ -81,8 +82,8 @@ compose_up() {
   fi
 }
 
-readonly INFRA_SERVICES=(postgres redis kafka elasticsearch)
-readonly OBSERVABILITY_SERVICES=(prometheus grafana)
+readonly ALL_INFRA_SERVICES=(postgres redis kafka elasticsearch)
+readonly ALL_OBSERVABILITY_SERVICES=(prometheus grafana)
 readonly CONTROL_PLANE_SERVICES=(config-server discovery-server)
 readonly CORE_APP_SERVICES=(
   api-gateway
@@ -106,9 +107,55 @@ readonly OPTIONAL_CAPABILITY_SERVICES=(
   analytics-service
   flashsale-service
 )
+readonly ALL_APP_SERVICES=("${CORE_APP_SERVICES[@]}" "${OPTIONAL_CAPABILITY_SERVICES[@]}")
 readonly INCLUDE_DISABLED_CAPABILITIES="${RUNTIME_INCLUDE_DISABLED_CAPABILITIES:-false}"
+readonly INCLUDE_OBSERVABILITY="${RUNTIME_INCLUDE_OBSERVABILITY:-true}"
 
-APP_SERVICES=("${CORE_APP_SERVICES[@]}")
+read -r -a INFRA_SERVICES <<< "${RUNTIME_INFRA_SERVICES:-${ALL_INFRA_SERVICES[*]}}"
+read -r -a OBSERVABILITY_SERVICES <<< "${RUNTIME_OBSERVABILITY_SERVICES:-${ALL_OBSERVABILITY_SERVICES[*]}}"
+
+contains_service() {
+  local wanted="$1"
+  shift
+  local service
+  for service in "$@"; do
+    [[ "$service" == "$wanted" ]] && return 0
+  done
+  return 1
+}
+
+for service in "${INFRA_SERVICES[@]}"; do
+  contains_service "$service" "${ALL_INFRA_SERVICES[@]}" || {
+    printf 'Unsupported RUNTIME_INFRA_SERVICES entry: %s\n' "$service" >&2
+    exit 1
+  }
+done
+for service in "${OBSERVABILITY_SERVICES[@]}"; do
+  contains_service "$service" "${ALL_OBSERVABILITY_SERVICES[@]}" || {
+    printf 'Unsupported RUNTIME_OBSERVABILITY_SERVICES entry: %s\n' "$service" >&2
+    exit 1
+  }
+done
+case "$INCLUDE_OBSERVABILITY" in
+  true|false) ;;
+  *)
+    printf 'RUNTIME_INCLUDE_OBSERVABILITY must be true or false, got %s\n' \
+      "$INCLUDE_OBSERVABILITY" >&2
+    exit 1
+    ;;
+esac
+
+if [[ -n "${RUNTIME_APP_SERVICES:-}" ]]; then
+  read -r -a APP_SERVICES <<< "$RUNTIME_APP_SERVICES"
+else
+  APP_SERVICES=("${CORE_APP_SERVICES[@]}")
+fi
+for service in "${APP_SERVICES[@]}"; do
+  contains_service "$service" "${ALL_APP_SERVICES[@]}" || {
+    printf 'Unsupported RUNTIME_APP_SERVICES entry: %s\n' "$service" >&2
+    exit 1
+  }
+done
 case "$INCLUDE_DISABLED_CAPABILITIES" in
   true)
     APP_SERVICES+=("${OPTIONAL_CAPABILITY_SERVICES[@]}")
@@ -129,6 +176,16 @@ for service in "${APP_SERVICES[@]}"; do
     RESOURCE_APP_SERVICES+=("$service")
   fi
 done
+
+case "$RUNTIME_RESOURCE_START_MODE" in
+  parallel|sequential)
+    ;;
+  *)
+    printf 'RUNTIME_RESOURCE_START_MODE must be parallel or sequential, got %s\n' \
+      "$RUNTIME_RESOURCE_START_MODE" >&2
+    exit 1
+    ;;
+esac
 
 command -v docker >/dev/null
 command -v curl >/dev/null
@@ -349,10 +406,14 @@ for service in "${INFRA_SERVICES[@]}"; do
 done
 
 echo "Starting monitoring dependencies."
-compose_up "${OBSERVABILITY_SERVICES[@]}"
-for service in "${OBSERVABILITY_SERVICES[@]}"; do
-  wait_for_infra "$service"
-done
+if [[ "$INCLUDE_OBSERVABILITY" == "true" ]]; then
+  compose_up "${OBSERVABILITY_SERVICES[@]}"
+  for service in "${OBSERVABILITY_SERVICES[@]}"; do
+    wait_for_infra "$service"
+  done
+else
+  echo "RUNTIME_INCLUDE_OBSERVABILITY=false — skipping Prometheus/Grafana."
+fi
 
 echo "Starting Auth before JWKS resource services."
 # Control plane and the data plane have already passed their explicit health
@@ -362,9 +423,14 @@ compose_up --no-deps auth-service
 wait_for_app auth-service
 ensure_eureka_registration auth-service
 
-echo "Starting ${#RESOURCE_APP_SERVICES[@]} resource services."
-compose_up --no-deps "${RESOURCE_APP_SERVICES[@]}"
+echo "Starting ${#RESOURCE_APP_SERVICES[@]} resource services ($RUNTIME_RESOURCE_START_MODE)."
+if [[ "$RUNTIME_RESOURCE_START_MODE" == "parallel" ]]; then
+  compose_up --no-deps "${RESOURCE_APP_SERVICES[@]}"
+fi
 for service in "${RESOURCE_APP_SERVICES[@]}"; do
+  if [[ "$RUNTIME_RESOURCE_START_MODE" == "sequential" ]]; then
+    compose_up --no-deps "$service"
+  fi
   wait_for_app "$service"
   ensure_eureka_registration "$service"
 done
@@ -375,7 +441,9 @@ wait_for_app api-gateway
 ensure_eureka_registration api-gateway
 
 wait_for_gateway_http "/api/restaurants"
-wait_for_gateway_http "/api/search/restaurants?q=pho&page=0&size=1"
+if contains_service search-service "${APP_SERVICES[@]}"; then
+  wait_for_gateway_http "/api/search/restaurants?q=pho&page=0&size=1"
+fi
 
 if [[ "$RUNTIME_INCLUDE_SIMULATOR" == "true" ]]; then
   echo "Starting dev/test-only simulator after Gateway public smoke."
@@ -388,4 +456,4 @@ if [[ "$RUNTIME_ISOLATED" == "true" ]]; then
   runtime_scope="isolated project/volumes"
 fi
 printf '%s\n' \
-  "Runtime startup proof passed: ${runtime_scope}, infrastructure/observability healthy, ${#APP_SERVICES[@]} application services started$([[ "$RUNTIME_INCLUDE_SIMULATOR" == "true" ]] && printf ', simulator ready' || true), Gateway public reads responded."
+  "Runtime startup proof passed: ${runtime_scope}, infrastructure healthy, ${#APP_SERVICES[@]} application services started$([[ "$INCLUDE_OBSERVABILITY" == "true" ]] && printf ', observability healthy' || true)$([[ "$RUNTIME_INCLUDE_SIMULATOR" == "true" ]] && printf ', simulator ready' || true), Gateway public reads responded."

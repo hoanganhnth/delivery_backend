@@ -28,6 +28,7 @@ public class MatchingBatchProperties {
     private int bundleSeedOrdersPerShipper = 12;
     private int maxWaves = 3;
     private int waveTimeoutSeconds = 20;
+    private int expiryBatchSize = 100;
     private int canaryPercent;
     private boolean clientCapabilityRequired = true;
 }

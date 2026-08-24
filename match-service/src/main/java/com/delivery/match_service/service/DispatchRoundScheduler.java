@@ -23,6 +23,7 @@ public class DispatchRoundScheduler {
     private final com.delivery.match_service.repository.DispatchPoolItemRepository poolRepository;
     private final DispatchRoundService roundService;
     private final DispatchRoundExecutionService executionService;
+    private final DispatchPoolExpiryService expiryService;
     private final Clock clock = Clock.systemDefaultZone();
 
     @Scheduled(fixedDelayString = "${matching.batch.scheduler-delay-ms:1000}")
@@ -31,6 +32,9 @@ public class DispatchRoundScheduler {
             return;
         }
 
+        // Ready queries deliberately skip rows past the absolute cutoff. Sweep
+        // them first so the batch path cannot strand an order in FINDING_SHIPPER.
+        expiryService.expireDueItems();
         executionService.executeDueRounds();
         LocalDateTime now = LocalDateTime.now(clock);
         poolRepository.findReadyZones(now, PageRequest.of(0, 100))

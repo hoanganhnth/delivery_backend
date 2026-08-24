@@ -17,7 +17,7 @@ public class RestaurantOwnershipClient {
     private final String internalSecret;
 
     public RestaurantOwnershipClient(
-            @Value("${restaurant.service.url:http://restaurant-service:8082}") String restaurantUrl,
+            @Value("${restaurant.service.url:http://restaurant-service:8083}") String restaurantUrl,
             @Value("${app.internal.secret:}") String internalSecret) {
         this.client = RestClient.builder().baseUrl(restaurantUrl).build();
         this.internalSecret = internalSecret;

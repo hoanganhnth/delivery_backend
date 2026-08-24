@@ -1,6 +1,7 @@
 package com.delivery.settlement_service.service;
 
 import com.delivery.settlement_service.dto.event.OrderCancelledEvent;
+import com.delivery.settlement_service.dto.event.DeliveryExceptionReportedEvent;
 import com.delivery.settlement_service.dto.response.RefundCaseResponse;
 import com.delivery.settlement_service.dto.response.RefundCustomerCaseResponse;
 import com.delivery.settlement_service.entity.RefundCase;
@@ -121,6 +122,35 @@ class RefundCaseServiceTest {
         assertThat(result.getStatus()).isEqualTo(RefundCase.RefundStatus.MANUAL_REVIEW);
         assertThat(result.getCapturedAmount()).isEqualByComparingTo("0");
         assertThat(result.getRefundAmount()).isEqualByComparingTo("0");
+    }
+
+    @Test
+    void postPickupDeliveryExceptionAlwaysCreatesManualReviewWithoutProviderOutbox() {
+        DeliveryExceptionReportedEvent event = deliveryExceptionEvent();
+
+        RefundCase result = service.processDeliveryException(event);
+
+        assertThat(result.getTrigger()).isEqualTo(RefundCase.RefundTrigger.DELIVERY_DISPUTE);
+        assertThat(result.getStatus()).isEqualTo(RefundCase.RefundStatus.MANUAL_REVIEW);
+        assertThat(result.getRefundAmount()).isEqualByComparingTo("0");
+        assertThat(result.getCapturedAmount()).isEqualByComparingTo("0");
+        verify(outboxService, never()).enqueue(any());
+    }
+
+    @Test
+    void deliveryExceptionReplayIsIdempotentAndContradictoryPayloadFailsClosed() {
+        DeliveryExceptionReportedEvent event = deliveryExceptionEvent();
+        RefundCase existing = service.processDeliveryException(event);
+        when(repository.findByEventId(event.getEventId())).thenReturn(Optional.of(existing));
+
+        assertThat(service.processDeliveryException(event)).isSameAs(existing);
+
+        DeliveryExceptionReportedEvent conflicting = deliveryExceptionEvent();
+        conflicting.setEventId(event.getEventId());
+        conflicting.setReason("different");
+        assertThatThrownBy(() -> service.processDeliveryException(conflicting))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("contradictory");
     }
 
     @Test
@@ -302,6 +332,29 @@ class RefundCaseServiceTest {
                 .attempts(0)
                 .createdAt(LocalDateTime.of(2026, 8, 2, 10, 0))
                 .updatedAt(LocalDateTime.of(2026, 8, 2, 10, 0))
+                .build();
+    }
+
+    private DeliveryExceptionReportedEvent deliveryExceptionEvent() {
+        return DeliveryExceptionReportedEvent.builder()
+                .eventId(UUID.randomUUID())
+                .eventType("DELIVERY_EXCEPTION_REPORTED")
+                .occurredAt(LocalDateTime.of(2026, 8, 23, 10, 0))
+                .exceptionId(UUID.randomUUID())
+                .deliveryId(202L)
+                .orderId(101L)
+                .userId(7L)
+                .restaurantId(11L)
+                .shipperId(19L)
+                .previousDeliveryStatus("DELIVERING")
+                .currentDeliveryStatus("DELIVERING")
+                .exceptionStatus("RETRY_AVAILABLE")
+                .reason("Customer unavailable")
+                .paymentMethod("COD")
+                .subtotalPrice(new BigDecimal("100000"))
+                .discountAmount(BigDecimal.ZERO)
+                .shippingFee(new BigDecimal("20000"))
+                .totalPrice(new BigDecimal("120000"))
                 .build();
     }
 }

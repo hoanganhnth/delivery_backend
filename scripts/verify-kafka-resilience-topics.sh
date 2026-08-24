@@ -37,6 +37,7 @@ readonly SOURCE_TOPICS=(
   delivery.offer-persisted
   delivery.offer-retired
   delivery.completed
+  delivery.exception.reported
   saga.command.update-order-status
   saga.command.create-delivery
   saga.command.cancel-delivery
@@ -118,6 +119,11 @@ readonly FLASHSALE_RETRY_SOURCES=(
   order.cancelled
   order.refund-eligible
 )
+readonly INVENTORY_RETRY_SOURCES=(
+  order.created
+  order.cancelled
+  order.refund-eligible
+)
 
 readonly TRACKING_RETRY_SOURCES=(
   shipper.location-updated
@@ -157,6 +163,7 @@ readonly DLT_ONLY_SOURCES=(
   saga.command.stop-matching
   shipper.location-updated
   shipper.status-change
+  delivery.exception.reported
   delivery.batch.accepted
   delivery.batch.released
   delivery.batch.completed
@@ -330,6 +337,14 @@ for source in "${FLASHSALE_RETRY_SOURCES[@]}"; do
   done
   assert_topic "${source}.flashsale.DLT"
 done
+if [[ "${VERIFY_INVENTORY_RETRY_TOPICS:-false}" == "true" ]]; then
+  for source in "${INVENTORY_RETRY_SOURCES[@]}"; do
+    for delay in 1000 2000 4000; do
+      assert_topic "${source}-retry-inventory-${delay}"
+    done
+    assert_topic "${source}.inventory.DLT"
+  done
+fi
 for source in "${TRACKING_RETRY_SOURCES[@]}"; do
   for delay in 1000 2000 4000; do
     assert_topic "${source}-retry-tracking-${delay}"

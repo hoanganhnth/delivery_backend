@@ -5,9 +5,13 @@ import com.delivery.restaurant_service.dto.response.OrderValidationResultRespons
 import com.delivery.restaurant_service.entity.MenuItem;
 import com.delivery.restaurant_service.service.OrderCacheValidationService;
 import com.delivery.restaurant_service.service.RestaurantCacheService;
-import lombok.RequiredArgsConstructor;
+import com.delivery.restaurant_service.service.RestaurantServiceabilityService;
+import com.delivery.restaurant_service.service.ServiceabilityDecision;
+import com.delivery.restaurant_service.service.MenuItemInventoryReservationService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.ObjectProvider;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -19,11 +23,32 @@ import java.util.Map;
  * Sử dụng RestaurantCacheService để lấy data từ Redis
  */
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class OrderCacheValidationServiceImpl implements OrderCacheValidationService {
-    
+
     private final RestaurantCacheService restaurantCacheService;
+    private final RestaurantServiceabilityService serviceabilityService;
+    private final ObjectProvider<MenuItemInventoryReservationService> inventoryServiceProvider;
+
+    @Autowired
+    public OrderCacheValidationServiceImpl(RestaurantCacheService restaurantCacheService,
+                                           RestaurantServiceabilityService serviceabilityService,
+                                           ObjectProvider<MenuItemInventoryReservationService> inventoryServiceProvider) {
+        this.restaurantCacheService = restaurantCacheService;
+        this.serviceabilityService = serviceabilityService;
+        this.inventoryServiceProvider = inventoryServiceProvider;
+    }
+
+    /** Compatibility constructor retained for focused serviceability callers. */
+    public OrderCacheValidationServiceImpl(RestaurantCacheService restaurantCacheService,
+                                           RestaurantServiceabilityService serviceabilityService) {
+        this(restaurantCacheService, serviceabilityService, null);
+    }
+
+    /** Compatibility constructor for cache-only unit tests and old callers. */
+    public OrderCacheValidationServiceImpl(RestaurantCacheService restaurantCacheService) {
+        this(restaurantCacheService, null, null);
+    }
     
     @Override
     public OrderValidationResultResponse validateOrderFromOrderService(OrderValidationRequest request) {
@@ -35,6 +60,26 @@ public class OrderCacheValidationServiceImpl implements OrderCacheValidationServ
         // 1. Validate restaurant info
         OrderValidationResultResponse.RestaurantInfo restaurantInfo = 
                 validateRestaurantInfo(request.getRestaurantId(), errors);
+
+        ServiceabilityDecision serviceability = serviceabilityService == null
+                ? ServiceabilityDecision.disabled()
+                : serviceabilityService.evaluate(request.getRestaurantId(),
+                        request.getDeliveryLat(), request.getDeliveryLng());
+        if (restaurantInfo != null) {
+            restaurantInfo.setServiceabilityEnabled(serviceability.enabled());
+            restaurantInfo.setServiceable(serviceability.enabled() ? serviceability.serviceable() : null);
+            restaurantInfo.setServiceabilityZoneId(serviceability.zoneId());
+            restaurantInfo.setServiceabilityZoneRevision(serviceability.zoneRevision());
+            restaurantInfo.setServiceabilityReason(serviceability.reason());
+        }
+        if (serviceability.enabled() && !serviceability.serviceable()) {
+            errors.add(OrderValidationResultResponse.ValidationError.builder()
+                    .field("deliveryCoordinate")
+                    .errorCode(serviceability.reason())
+                    .message("Địa chỉ giao hàng nằm ngoài vùng phục vụ")
+                    .invalidValue(request.getDeliveryLat() + "," + request.getDeliveryLng())
+                    .build());
+        }
         
         // 2. Validate từng món và tính tổng tiền
         Double calculatedTotal = 0.0;
@@ -73,7 +118,8 @@ public class OrderCacheValidationServiceImpl implements OrderCacheValidationServ
             }
         }
         
-        boolean isValid = errors.isEmpty() && restaurantInfo != null && restaurantInfo.getIsAvailable();
+        boolean isValid = errors.isEmpty() && restaurantInfo != null && restaurantInfo.getIsAvailable()
+                && (!serviceability.enabled() || serviceability.serviceable());
         String message = isValid ? "Order validation successful" : "Order validation failed";
         
         return OrderValidationResultResponse.builder()
@@ -152,26 +198,32 @@ public class OrderCacheValidationServiceImpl implements OrderCacheValidationServ
                              && hasCanonicalPrice
                              && restaurantCacheService.isRestaurantAvailable(restaurantId);
         
-        // Kiểm tra stock với null-safe operation - Note: current cache structure doesn't include stock
-        // but we keep this for future compatibility
+        // When inventory is off, preserve the old catalog-only compatibility
+        // behavior. When it is enabled, Restaurant's durable inventory ledger
+        // is the authority; a missing row fails closed instead of assuming
+        // unlimited stock from the cache.
         Integer availableStock = null;
         boolean hasEnoughStock = true;
-        
-        Object stockObj = menuItemData.get("stock");
-        if (stockObj != null) {
-            try {
-                availableStock = Integer.valueOf(stockObj.toString());
-                hasEnoughStock = availableStock >= item.getQuantity();
-            } catch (NumberFormatException e) {
-                log.warn("⚠️ Invalid stock format for menu item {}: {}", item.getMenuItemId(), stockObj);
-                availableStock = 0;
-                hasEnoughStock = false;
-            }
+        MenuItemInventoryReservationService inventoryService = inventoryServiceProvider == null
+                ? null : inventoryServiceProvider.getIfAvailable();
+        if (inventoryService != null) {
+            var availability = inventoryService.availability(restaurantId, item.getMenuItemId(), item.getQuantity());
+            availableStock = availability.availableQuantity();
+            hasEnoughStock = availability.hasEnoughStock();
         } else {
-            // Không có thông tin stock trong cache hiện tại, assume có đủ hàng
-            log.debug("📝 No stock information in cache for menu item {}, assuming sufficient stock", item.getMenuItemId());
-            availableStock = null; // Unknown stock
-            hasEnoughStock = true; // Assume available if no stock tracking
+            Object stockObj = menuItemData.get("stock");
+            if (stockObj != null) {
+                try {
+                    availableStock = Integer.valueOf(stockObj.toString());
+                    hasEnoughStock = availableStock >= item.getQuantity();
+                } catch (NumberFormatException e) {
+                    log.warn("⚠️ Invalid stock format for menu item {}: {}", item.getMenuItemId(), stockObj);
+                    availableStock = 0;
+                    hasEnoughStock = false;
+                }
+            } else {
+                log.debug("📝 Inventory capability is disabled for menu item {}", item.getMenuItemId());
+            }
         }
         
         return OrderValidationResultResponse.ItemValidationInfo.builder()
@@ -261,6 +313,15 @@ public class OrderCacheValidationServiceImpl implements OrderCacheValidationServ
             catch (NumberFormatException e) { log.warn("⚠️ Invalid longitude for restaurant {}", restaurantId); }
         }
 
+        Integer defaultPrepTimeMinutes = null;
+        if (restaurant.get("defaultPrepTimeMinutes") != null) {
+            try {
+                defaultPrepTimeMinutes = Integer.valueOf(restaurant.get("defaultPrepTimeMinutes").toString());
+            } catch (NumberFormatException e) {
+                log.warn("⚠️ Invalid default prep time for restaurant {}", restaurantId);
+            }
+        }
+
         String operatingHours = null;
         if (restaurant.get("openingHour") != null && restaurant.get("closingHour") != null) {
             operatingHours = restaurant.get("openingHour") + " - " + restaurant.get("closingHour");
@@ -273,6 +334,7 @@ public class OrderCacheValidationServiceImpl implements OrderCacheValidationServ
                 .restaurantPhone(restaurantPhone)
                 .latitude(latitude)
                 .longitude(longitude)
+                .defaultPrepTimeMinutes(defaultPrepTimeMinutes)
                 .creatorId(creatorId)
                 .ownerPrincipalId(ownerPrincipalId)
                 .isAvailable(isAvailable && hasCanonicalName)

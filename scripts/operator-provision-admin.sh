@@ -36,8 +36,11 @@ if ! docker info >/dev/null 2>&1; then
   exit 1
 fi
 
+# Respect a caller-provided, run-scoped Compose file/project. This is required
+# by disposable sandbox verification; falling back to the historical local
+# files keeps direct operator use unchanged.
 COMPOSE_COMMAND=(docker compose)
-if [[ -f docker-compose.secrets.yml ]]; then
+if [[ -z "${COMPOSE_FILE:-}" && -f docker-compose.secrets.yml ]]; then
   COMPOSE_COMMAND=(docker compose -f docker-compose.yml -f docker-compose.secrets.yml)
 fi
 

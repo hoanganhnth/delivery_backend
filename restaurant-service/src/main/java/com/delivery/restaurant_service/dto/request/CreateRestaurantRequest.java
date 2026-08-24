@@ -10,6 +10,8 @@ import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Max;
 
 @Getter
 @Setter
@@ -23,6 +25,9 @@ public class CreateRestaurantRequest {
     private String phone;
     private LocalTime openingHour;
     private LocalTime closingHour;
+    @Min(1)
+    @Max(240)
+    private Integer defaultPrepTimeMinutes = 30;
     private String image;
     @NotNull
     @DecimalMin("8.0")

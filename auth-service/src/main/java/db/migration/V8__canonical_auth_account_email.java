@@ -33,6 +33,18 @@ public class V8__canonical_auth_account_email extends BaseJavaMigration {
                             + "Remediate the duplicate identities before retrying migration.");
         }
         try (Statement statement = connection.createStatement()) {
+            if (!isPostgreSql(connection)) {
+                // H2 is the schema-validation/test equivalent. It has no pg_index
+                // catalog or expression indexes, and does not support PostgreSQL's
+                // CONCURRENTLY syntax. A generated canonical column preserves the
+                // same lower+trim uniqueness invariant for H2-only proof.
+                statement.execute("ALTER TABLE auth_account ADD COLUMN canonical_email "
+                        + "VARCHAR(255) GENERATED ALWAYS AS (lower(trim(email)))");
+                statement.execute("CREATE UNIQUE INDEX " + INDEX
+                        + " ON auth_account (canonical_email)");
+                return;
+            }
+
             // A cancelled concurrent build leaves an invalid catalog index.
             // IF NOT EXISTS would otherwise skip it forever on the next
             // operator retry, so remove only that known invalid artifact.
@@ -42,6 +54,10 @@ public class V8__canonical_auth_account_email extends BaseJavaMigration {
             statement.execute("CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS " + INDEX + " "
                     + "ON auth_account (lower(btrim(email)))");
         }
+    }
+
+    private static boolean isPostgreSql(Connection connection) throws Exception {
+        return "PostgreSQL".equalsIgnoreCase(connection.getMetaData().getDatabaseProductName());
     }
 
     private static long caseInsensitiveCollisions(Connection connection) throws Exception {

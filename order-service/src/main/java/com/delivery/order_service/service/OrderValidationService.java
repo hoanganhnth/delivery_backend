@@ -6,6 +6,7 @@ import com.delivery.order_service.exception.OrderDependencyUnavailableException;
 import com.delivery.order_service.exception.ValidationException;
 import com.delivery.order_service.config.OrderRestaurantCircuitBreaker;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -38,6 +39,7 @@ public class OrderValidationService {
     @Value("${app.order.flashsale-checkout-enabled:false}")
     private boolean flashSaleCheckoutEnabled;
 
+    @Autowired
     public OrderValidationService(
             WebClient webClient,
             @Value("${restaurant.service.url}") String restaurantServiceUrl,

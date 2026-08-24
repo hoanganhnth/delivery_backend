@@ -21,6 +21,8 @@ public class KafkaTopicConstants {
     public static final String BATCH_ACCEPTED_TOPIC = "delivery.batch.accepted";
     public static final String BATCH_RELEASED_TOPIC = "delivery.batch.released";
     public static final String BATCH_COMPLETED_TOPIC = "delivery.batch.completed";
+    /** Dedicated post-pickup exception contract; never reuse status-updated. */
+    public static final String DELIVERY_EXCEPTION_REPORTED_TOPIC = "delivery.exception.reported";
     
     private KafkaTopicConstants() {
         // Utility class

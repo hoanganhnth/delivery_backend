@@ -54,9 +54,12 @@ public class DeliveryServiceImpl implements DeliveryService {
     private final com.delivery.delivery_service.service.OutboxService outboxService;
     private final ShipperIdentityProjectionRepository shipperIdentities;
     private final boolean shipperIdentityProjectionEnforced;
+    private final com.delivery.delivery_service.service.ShipperIdentityResolver shipperIdentityResolver;
     private final DeliveryOfferSessionTombstoneRepository offerSessionTombstones;
     private final com.delivery.delivery_service.service.DeliveryBatchProgressService batchProgressService;
     private final com.delivery.delivery_service.service.DeliveryBatchLifecycleService batchLifecycleService;
+    private final com.delivery.delivery_service.service.DeliveryProofGate deliveryProofGate;
+    private final com.delivery.delivery_service.service.DeliveryExceptionService deliveryExceptionService;
 
     /** Compatibility constructor for direct fixtures; Spring uses the full production constructor below. */
     public DeliveryServiceImpl(DeliveryRepository deliveryRepository,
@@ -65,7 +68,18 @@ public class DeliveryServiceImpl implements DeliveryService {
             com.delivery.delivery_service.service.OutboxService outboxService,
             BusinessMetrics businessMetrics) {
         this(deliveryRepository, deliveryMapper, deliveryEventPublisher, outboxService, businessMetrics,
-                null, false, null, null, null);
+                null, false, null, null, null, null, null);
+    }
+
+    /** Test seam for the terminal handoff policy without full Spring wiring. */
+    public DeliveryServiceImpl(DeliveryRepository deliveryRepository,
+            DeliveryMapper deliveryMapper,
+            DeliveryEventPublisher deliveryEventPublisher,
+            com.delivery.delivery_service.service.OutboxService outboxService,
+            BusinessMetrics businessMetrics,
+            com.delivery.delivery_service.service.DeliveryProofGate deliveryProofGate) {
+        this(deliveryRepository, deliveryMapper, deliveryEventPublisher, outboxService, businessMetrics,
+                null, false, null, null, null, deliveryProofGate, null);
     }
 
     @Autowired
@@ -78,7 +92,9 @@ public class DeliveryServiceImpl implements DeliveryService {
             @Value("${app.shipper.identity-projection.enforced:false}") boolean shipperIdentityProjectionEnforced,
             DeliveryOfferSessionTombstoneRepository offerSessionTombstones,
             com.delivery.delivery_service.service.DeliveryBatchProgressService batchProgressService,
-            com.delivery.delivery_service.service.DeliveryBatchLifecycleService batchLifecycleService) {
+            com.delivery.delivery_service.service.DeliveryBatchLifecycleService batchLifecycleService,
+            com.delivery.delivery_service.service.DeliveryProofGate deliveryProofGate,
+            com.delivery.delivery_service.service.DeliveryExceptionService deliveryExceptionService) {
         this.deliveryRepository = deliveryRepository;
         this.deliveryMapper = deliveryMapper;
         this.deliveryEventPublisher = deliveryEventPublisher;
@@ -86,9 +102,13 @@ public class DeliveryServiceImpl implements DeliveryService {
         this.businessMetrics = businessMetrics;
         this.shipperIdentities = shipperIdentities;
         this.shipperIdentityProjectionEnforced = shipperIdentityProjectionEnforced;
+        this.shipperIdentityResolver = com.delivery.delivery_service.service.ShipperIdentityResolver.compatibility(
+                shipperIdentities, businessMetrics, shipperIdentityProjectionEnforced);
         this.offerSessionTombstones = offerSessionTombstones;
         this.batchProgressService = batchProgressService;
         this.batchLifecycleService = batchLifecycleService;
+        this.deliveryProofGate = deliveryProofGate;
+        this.deliveryExceptionService = deliveryExceptionService;
     }
 
     @Override
@@ -217,8 +237,10 @@ public class DeliveryServiceImpl implements DeliveryService {
                 && Objects.equals(existing.getDeliveryLng(), event.getDeliveryLng())
                 && sameAmount(existing.getShippingFee(), event.getShippingFee())
                 && sameAmount(existing.getTotalPrice(), event.getTotalPrice())
-                && sameAmount(existing.getGrossShippingFee(), event.getGrossShippingFee() == null
-                        ? event.getShippingFee() : event.getGrossShippingFee())
+                && sameAmount(existing.getGrossShippingFee() == null
+                                ? existing.getShippingFee() : existing.getGrossShippingFee(),
+                        event.getGrossShippingFee() == null
+                                ? event.getShippingFee() : event.getGrossShippingFee())
                 && Objects.equals(existing.getPromotionReservationId(), event.getPromotionReservationId())
                 && Objects.equals(existing.getPaymentMethod(), event.getPaymentMethod());
         if (!matches) {
@@ -720,6 +742,9 @@ public class DeliveryServiceImpl implements DeliveryService {
         }
 
         requireNextShipperStatus(delivery.getStatus(), status);
+        if (status == DeliveryStatus.DELIVERED && deliveryProofGate != null) {
+            deliveryProofGate.assertTerminalHandoffAllowed(delivery.getId());
+        }
 
         // Lưu old status để publish event
         String oldStatus = delivery.getStatus().name();
@@ -727,6 +752,9 @@ public class DeliveryServiceImpl implements DeliveryService {
         applyShipperStatusTransition(delivery, status);
 
         Delivery updatedDelivery = deliveryRepository.save(delivery);
+        if (status == DeliveryStatus.DELIVERED && deliveryExceptionService != null) {
+            deliveryExceptionService.markResolvedAfterSuccessfulDelivery(updatedDelivery);
+        }
         boolean batchCompleted = batchProgressService == null
                 || batchProgressService.apply(updatedDelivery, status);
         if (status == DeliveryStatus.DELIVERED && updatedDelivery.getShipperId() != null && batchCompleted) {
@@ -853,26 +881,7 @@ public class DeliveryServiceImpl implements DeliveryService {
     }
 
     private Long resolveShipperId(Long principalId, Long legacyUserId, String role) {
-        if (!RoleConstants.SHIPPER.equals(role)) {
-            throw new AccessDeniedException("Chỉ shipper mới có thể thực hiện thao tác này");
-        }
-        if (!positive(principalId) || !positive(legacyUserId)) {
-            throw new AccessDeniedException("Missing authenticated shipper identity");
-        }
-        // Migration compatibility before the projection enforcement wave. It is
-        // intentionally controlled by one explicit flag, never inferred from a
-        // transient Kafka lag or an empty table.
-        if (!shipperIdentityProjectionEnforced) {
-            businessMetrics.identityLegacyFallback("shipper_mapping_pre_enforcement");
-            return legacyUserId;
-        }
-        if (shipperIdentities == null) {
-            throw new AccessDeniedException("Shipper identity projection is not configured");
-        }
-        return shipperIdentities.findById(principalId)
-                .filter(mapping -> legacyUserId.equals(mapping.getLegacyUserId()))
-                .map(mapping -> mapping.getShipperId())
-                .orElseThrow(() -> new AccessDeniedException("Shipper identity projection is not ready"));
+        return shipperIdentityResolver.resolveShipperId(principalId, legacyUserId, role);
     }
 
     private void validateViewPermission(Delivery delivery, Long principalId, Long legacyUserId, String role) {

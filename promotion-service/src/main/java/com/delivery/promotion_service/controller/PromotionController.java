@@ -190,7 +190,11 @@ public class PromotionController {
     public ResponseEntity<BaseResponse<CalculateResponse>> calculate(
             @RequestBody CartContextRequest request,
             @RequestHeader(value = "Internal-Token", required = false) String internalToken) {
-        requireInternalCheckout(internalToken);
+        if (request != null && isStackingRequest(request)) {
+            requireInternalStackingCheckout(internalToken, request.getUserPrincipalId());
+        } else {
+            requireInternalCheckout(internalToken);
+        }
         if (request == null || !validator.validate(request).isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid voucher quote request");
         }
@@ -221,7 +225,7 @@ public class PromotionController {
     public ResponseEntity<BaseResponse<PromotionReservationResponse>> reserveBulk(
             @RequestBody @Valid BulkReserveRequest request,
             @RequestHeader(value = "Internal-Token", required = false) String internalToken) {
-        requireInternalCheckout(internalToken);
+        requireInternalStackingCheckout(internalToken, request == null ? null : request.getUserPrincipalId());
         return ResponseEntity.ok(new BaseResponse<>(1, promotionService.reserveVouchers(request)));
     }
 
@@ -249,20 +253,26 @@ public class PromotionController {
     public ResponseEntity<BaseResponse<PromotionReservationResponse>> commitBulk(
             @PathVariable UUID reservationId,
             @RequestParam Long orderId,
+            @RequestParam Long userPrincipalId,
             @RequestHeader(value = "Internal-Token", required = false) String internalToken) {
-        requireInternalCheckout(internalToken);
+        requireInternalStackingCheckout(internalToken, userPrincipalId);
         return ResponseEntity.ok(new BaseResponse<>(1,
-                promotionService.commitPromotionReservation(reservationId, orderId)));
+                promotionService.commitPromotionReservation(reservationId, orderId, userPrincipalId)));
     }
 
     @PostMapping("/internal/promotion-reservations/{reservationId}/release")
     public ResponseEntity<BaseResponse<PromotionReservationResponse>> releaseBulk(
             @PathVariable UUID reservationId,
             @RequestParam Long orderId,
+            @RequestParam Long userPrincipalId,
             @RequestHeader(value = "Internal-Token", required = false) String internalToken) {
-        requireInternalCheckout(internalToken);
+        requireInternalStackingCheckout(internalToken, userPrincipalId);
         return ResponseEntity.ok(new BaseResponse<>(1,
-                promotionService.releasePromotionReservation(reservationId, orderId)));
+                promotionService.releasePromotionReservation(reservationId, orderId, userPrincipalId)));
+    }
+
+    private boolean isStackingRequest(CartContextRequest request) {
+        return request.getSelectionMode() != null || request.getSelectedVoucherIds() != null;
     }
 
     private void requireInternalCheckout(String internalToken) {
@@ -273,6 +283,19 @@ public class PromotionController {
         if (!checkoutEnabled) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
                     "Voucher checkout is disabled until reservation recovery is proven");
+        }
+    }
+
+    private void requireInternalStackingCheckout(String internalToken, Long principalId) {
+        requireInternalCheckout(internalToken);
+        if (!stackingEnabled) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "Voucher stacking is disabled until the canary is enabled");
+        }
+        if (principalId == null || principalId <= 0
+                || !parsePrincipalAllowlist(stackingCanaryPrincipals).contains(principalId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "Stable principal is not enabled for voucher stacking");
         }
     }
 

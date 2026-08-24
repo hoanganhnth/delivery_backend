@@ -27,7 +27,10 @@ class CheckoutReservationClientContractTest {
             assertThat(request.headers().getFirst("Internal-Token")).isEqualTo("test-secret");
             return json("""
                     {"status":1,"data":{"reservationId":"%s","orderId":41,
-                    "state":"RESERVED","discountAmount":10000}}
+                    "voucherId":11,"state":"RESERVED","discountAmount":10000,
+                    "itemDiscount":0,"shippingDiscount":10000,"customerShippingFee":5000,
+                    "grossShippingFee":15000,"platformSubsidy":10000,"shopDiscount":0,
+                    "layer":"FREESHIP","fundingSource":"PLATFORM","discountBase":15000}}
                     """.formatted(reservationId));
         }).build();
 
@@ -37,6 +40,50 @@ class CheckoutReservationClientContractTest {
                 new BigDecimal("45000"), new BigDecimal("15000"));
 
         assertThat(quote.discountAmount()).isEqualByComparingTo("10000");
+        assertThat(quote.itemDiscount()).isEqualByComparingTo("0");
+        assertThat(quote.shippingDiscount()).isEqualByComparingTo("10000");
+        assertThat(quote.customerShippingFee()).isEqualByComparingTo("5000");
+        assertThat(quote.platformSubsidy()).isEqualByComparingTo("10000");
+        assertThat(quote.breakdown()).singleElement()
+                .satisfies(line -> assertThat(line.get("layer")).isEqualTo("FREESHIP"));
+    }
+
+    @Test
+    void stackedReleaseCarriesTheStablePrincipalOwnershipProof() {
+        UUID reservationId = UUID.randomUUID();
+        WebClient webClient = WebClient.builder().exchangeFunction(request -> {
+            assertThat(request.url().toString()).isEqualTo(
+                    "http://promotion-service:8096/api/promotions/internal/promotion-reservations/"
+                            + reservationId + "/release?orderId=41&userPrincipalId=31");
+            assertThat(request.headers().getFirst("Internal-Token")).isEqualTo("test-secret");
+            return json("{\"status\":1,\"data\":{}}");
+        }).build();
+
+        client(webClient).releaseVouchers(reservationId, 41L, 31L);
+    }
+
+    @Test
+    void stackingQuoteNormalizesCalculateAttributionKeysForOrderPreview() {
+        WebClient webClient = WebClient.builder().exchangeFunction(request -> {
+            assertThat(request.url().toString()).isEqualTo(
+                    "http://promotion-service:8096/api/promotions/internal/calculate");
+            return json("""
+                    {"status":1,"data":{"selectedVoucherIds":[11],
+                    "itemDiscount":10000,"shippingDiscount":0,"totalDiscount":10000,
+                    "customerShippingFee":15000,
+                    "appliedVouchers":[{"id":11,"code":"SAVE10","layer":"PLATFORM_DISCOUNT",
+                    "fundingSource":"PLATFORM","discountBase":100000,"discountAmount":10000}]}}
+                    """);
+        }).build();
+
+        CheckoutReservationClient.PromotionQuote quote = client(webClient).quoteVouchers(
+                21L, 31L, 7L, new BigDecimal("100000"), new BigDecimal("15000"),
+                List.of(11L), "MANUAL");
+
+        assertThat(quote.breakdown()).singleElement().satisfies(line -> {
+            assertThat(line.get("voucherId")).isEqualTo(11);
+            assertThat(line.get("voucherCode")).isEqualTo("SAVE10");
+        });
     }
 
     @Test

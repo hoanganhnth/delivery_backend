@@ -22,6 +22,7 @@ import com.delivery.delivery_service.repository.DeliveryRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -39,19 +40,42 @@ public class DeliveryBatchAcceptanceService {
     private final DeliveryMapper deliveryMapper;
     private final DeliveryEventPublisher eventPublisher;
     private final OutboxService outboxService;
+    private final ShipperIdentityResolver shipperIdentityResolver;
 
+    /** Compatibility constructor for direct unit fixtures. */
     public DeliveryBatchAcceptanceService(DeliveryBatchRepository batchRepository,
                                           DeliveryBatchItemRepository itemRepository,
                                           DeliveryRepository deliveryRepository,
                                           DeliveryMapper deliveryMapper,
                                           DeliveryEventPublisher eventPublisher,
                                           OutboxService outboxService) {
+        this(batchRepository, itemRepository, deliveryRepository, deliveryMapper, eventPublisher, outboxService, null);
+    }
+
+    @Autowired
+    public DeliveryBatchAcceptanceService(DeliveryBatchRepository batchRepository,
+                                          DeliveryBatchItemRepository itemRepository,
+                                          DeliveryRepository deliveryRepository,
+                                          DeliveryMapper deliveryMapper,
+                                          DeliveryEventPublisher eventPublisher,
+                                          OutboxService outboxService,
+                                          ShipperIdentityResolver shipperIdentityResolver) {
         this.batchRepository = batchRepository;
         this.itemRepository = itemRepository;
         this.deliveryRepository = deliveryRepository;
         this.deliveryMapper = deliveryMapper;
         this.eventPublisher = eventPublisher;
         this.outboxService = outboxService;
+        this.shipperIdentityResolver = shipperIdentityResolver;
+    }
+
+    /** Resolves the actor before entering the canonical batch acceptance path. */
+    @Transactional
+    public DeliveryResponse accept(AcceptBatchRequest request, Long principalId, Long legacyUserId, String role) {
+        if (shipperIdentityResolver == null) {
+            throw new AccessDeniedException("Shipper identity resolver is unavailable");
+        }
+        return accept(request, shipperIdentityResolver.resolveShipperId(principalId, legacyUserId, role), role);
     }
 
     @Transactional
@@ -73,9 +97,12 @@ public class DeliveryBatchAcceptanceService {
             throw new InvalidStatusException("Batch offer đã hết hạn hoặc không còn hợp lệ");
         }
         List<DeliveryBatchItem> items = itemRepository.findByBatchIdOrderByPickupSequenceAsc(request.getBatchId());
-        if (items.isEmpty() || items.size() > 3) throw new InvalidStatusException("Batch không có item hợp lệ");
+        DeliveryBatchRouteValidator.validatePersisted(items);
         List<Delivery> deliveries = items.stream().map(item -> deliveryRepository.findByIdForUpdate(item.getDeliveryId())
                 .orElseThrow(() -> new InvalidStatusException("Batch delivery không tồn tại"))).toList();
+        if (deliveries.stream().map(Delivery::getOrderId).distinct().count() != deliveries.size()) {
+            throw new InvalidStatusException("Batch không được chứa duplicate order");
+        }
         for (Delivery delivery : deliveries) {
             if (!DeliveryStatus.WAIT_SHIPPER_CONFIRM.equals(delivery.getStatus())
                     || !shipperId.equals(delivery.getOfferedShipperId())) {
@@ -124,15 +151,33 @@ public class DeliveryBatchAcceptanceService {
                 org.springframework.data.domain.PageRequest.of(0, 1)).stream().findFirst().orElse(null);
         if (batch == null) return null;
         List<DeliveryOfferResponse> offers = itemRepository.findByBatchIdOrderByPickupSequenceAsc(batch.getBatchId()).stream()
-                .map(item -> deliveryRepository.findById(item.getDeliveryId()).orElse(null))
+                .map(item -> {
+                    Delivery delivery = deliveryRepository.findById(item.getDeliveryId()).orElse(null);
+                    if (delivery == null) return null;
+                    DeliveryOfferResponse offer = deliveryMapper.deliveryToOfferResponse(delivery);
+                    offer.setBatchId(batch.getBatchId());
+                    offer.setPickupSequence(item.getPickupSequence());
+                    offer.setDropoffSequence(item.getDropoffSequence());
+                    return offer;
+                })
                 .filter(java.util.Objects::nonNull)
-                .map(deliveryMapper::deliveryToOfferResponse)
                 .toList();
         DeliveryBatchOfferResponse response = new DeliveryBatchOfferResponse();
         response.setBatchId(batch.getBatchId());
+        response.setStatus(batch.getStatus());
+        response.setRouteVersion(batch.getRouteVersion());
         response.setExpiresAt(batch.getOfferExpiresAt());
+        response.setTotalCodAmount(batch.getTotalCodAmount());
         response.setOffers(offers);
         return response;
+    }
+
+    @Transactional(readOnly = true)
+    public DeliveryBatchOfferResponse currentOffer(Long principalId, Long legacyUserId, String role) {
+        if (shipperIdentityResolver == null) {
+            throw new AccessDeniedException("Shipper identity resolver is unavailable");
+        }
+        return currentOffer(shipperIdentityResolver.resolveShipperId(principalId, legacyUserId, role), role);
     }
 
     private void publishHoldTransition(DeliveryBatch batch, String target, String topic) {

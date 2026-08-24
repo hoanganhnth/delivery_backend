@@ -1,6 +1,11 @@
 package com.delivery.promotion_service.service;
 
+import com.delivery.promotion_service.dto.PromotionReservationResponse;
+import com.delivery.promotion_service.dto.VoucherReservationResponse;
+import com.delivery.promotion_service.entity.PromotionReservation;
 import com.delivery.promotion_service.entity.PromotionOrderReservationReceipt;
+import com.delivery.promotion_service.entity.VoucherReservation;
+import com.delivery.promotion_service.exception.PromotionConflictException;
 import com.delivery.promotion_service.repository.PromotionOrderReservationReceiptRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -75,9 +80,18 @@ public class PromotionOrderReservationEventProcessor {
         }
         if (COMMIT.equals(action)) {
             if (promotionReservationId != null) {
-                promotionService.commitPromotionReservation(promotionReservationId, orderId);
+                PromotionReservationResponse response =
+                        promotionService.commitPromotionReservation(promotionReservationId, orderId);
+                if (response == null || response.state() != PromotionReservation.State.COMMITTED) {
+                    throw new PromotionConflictException(
+                            "Promotion reservation did not reach COMMITTED state");
+                }
             } else {
-                promotionService.commitReservation(reservationId, orderId);
+                VoucherReservationResponse response = promotionService.commitReservation(reservationId, orderId);
+                if (response == null || response.getState() != VoucherReservation.State.COMMITTED) {
+                    throw new PromotionConflictException(
+                            "Voucher reservation did not reach COMMITTED state");
+                }
             }
         } else {
             // A committed promotion can only be compensated before the

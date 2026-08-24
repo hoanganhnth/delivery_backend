@@ -60,6 +60,12 @@ public class OrderServiceImpl implements OrderService {
     private final OrderCreateAdmission createAdmission;
 
     @Autowired(required = false)
+    private com.delivery.order_service.service.InventoryReservationClient inventoryReservationClient;
+
+    @Value("${app.order.inventory-reservation-enabled:false}")
+    private boolean inventoryReservationEnabled;
+
+    @Autowired(required = false)
     private CheckoutQuoteService checkoutQuoteService;
 
     @Autowired(required = false)
@@ -266,7 +272,15 @@ public class OrderServiceImpl implements OrderService {
         UUID voucherReservationId = null;
         UUID promotionReservationId = null;
         UUID flashReservationId = null;
+        UUID inventoryReservationId = null;
         try {
+            if (inventoryReservationEnabled) {
+                inventoryReservationId = UUID.randomUUID();
+                reserveInventory(inventoryReservationId, savedOrder.getId(), userId, principalId,
+                        request.getRestaurantId(), request.getItems());
+                savedOrder.setInventoryReservationId(inventoryReservationId);
+            }
+
             boolean hasFlash = request.getItems().stream().anyMatch(item -> item.getFlashSaleItemId() != null);
             CheckoutReservationClient.FlashQuote flashQuote = null;
             if (hasFlash) {
@@ -295,6 +309,7 @@ public class OrderServiceImpl implements OrderService {
                     request.getDeliveryLng(), subtotal);
             BigDecimal discount = BigDecimal.ZERO;
             CheckoutReservationClient.PromotionQuote promotionQuote = null;
+            CheckoutReservationClient.VoucherQuote legacyQuote = null;
             List<Long> selectedVoucherIds = normalizedVoucherIds(request);
             if ("AUTO".equalsIgnoreCase(request.getSelectionMode()) && selectedVoucherIds.isEmpty()) {
                 CheckoutReservationClient.PromotionQuote autoQuote = reservationClient.quoteVouchers(
@@ -323,13 +338,19 @@ public class OrderServiceImpl implements OrderService {
                 // Legacy single-voucher clients keep their old reservation rail
                 // until they send selectionMode/selectedVoucherIds explicitly.
                 voucherReservationId = UUID.randomUUID();
-                discount = reserveVoucher(voucherReservationId, savedOrder.getId(), userId, principalId,
-                        selectedVoucherIds.get(0), request.getRestaurantId(), subtotal, shippingFee)
-                        .discountAmount();
+                legacyQuote = reserveVoucher(voucherReservationId, savedOrder.getId(), userId, principalId,
+                        selectedVoucherIds.get(0), request.getRestaurantId(), subtotal, shippingFee);
+                discount = legacyQuote.discountAmount();
                 savedOrder.setVoucherReservationId(voucherReservationId);
-                savedOrder.setItemDiscount(discount);
-                savedOrder.setCustomerShippingFee(shippingFee);
+                savedOrder.setItemDiscount(legacyQuote.itemDiscount());
+                savedOrder.setShippingDiscount(legacyQuote.shippingDiscount());
+                savedOrder.setCustomerShippingFee(legacyQuote.customerShippingFee() == null
+                        ? shippingFee.subtract(legacyQuote.shippingDiscount()).max(BigDecimal.ZERO)
+                        : legacyQuote.customerShippingFee());
                 savedOrder.setGrossShippingFee(shippingFee);
+                savedOrder.setPlatformSubsidy(legacyQuote.platformSubsidy());
+                savedOrder.setShopDiscount(legacyQuote.shopDiscount());
+                savedOrder.setPromotionBreakdown(legacyQuote.breakdownJson());
             }
             if (discount.signum() < 0 || discount.compareTo(subtotal.add(shippingFee)) > 0)
                 throw new IllegalStateException("Reservation service returned an invalid discount");
@@ -337,14 +358,20 @@ public class OrderServiceImpl implements OrderService {
             savedOrder.setSubtotalPrice(subtotal);
             savedOrder.setShippingFee(shippingFee);
             savedOrder.setDiscountAmount(discount);
-            if (promotionQuote == null) {
-                savedOrder.setItemDiscount(savedOrder.getItemDiscount() == null
-                        ? discount : savedOrder.getItemDiscount());
-                savedOrder.setCustomerShippingFee(savedOrder.getCustomerShippingFee() == null
-                        ? shippingFee : savedOrder.getCustomerShippingFee());
+            if (promotionQuote == null && legacyQuote == null) {
+                // No voucher: customer pays the canonical gross shipping fee.
+                savedOrder.setItemDiscount(BigDecimal.ZERO);
+                savedOrder.setShippingDiscount(BigDecimal.ZERO);
+                savedOrder.setCustomerShippingFee(shippingFee);
+                savedOrder.setGrossShippingFee(shippingFee);
+                savedOrder.setPlatformSubsidy(BigDecimal.ZERO);
+                savedOrder.setShopDiscount(BigDecimal.ZERO);
             }
             savedOrder.setTotalPrice(subtotal.subtract(savedOrder.getItemDiscount()).add(
                     savedOrder.getCustomerShippingFee()));
+            if (savedOrder.getTotalPrice().compareTo(shippingFee) <= 0) {
+                throw new IllegalStateException("Voucher must leave a positive payable food amount");
+            }
 
             List<OrderItem> orderItems = request.getItems().stream().map(itemRequest -> {
                 ValidatedOrderData.ValidatedItemData canonical = requireCanonicalItem(canonicalItems,
@@ -359,6 +386,9 @@ public class OrderServiceImpl implements OrderService {
             orderItemRepository.saveAll(orderItems);
             savedOrder.setItems(orderItems);
             orderRepository.save(savedOrder);
+            if (inventoryReservationId != null) {
+                commitInventory(inventoryReservationId, savedOrder.getId());
+            }
             if (request.getQuoteId() != null) {
                 checkoutQuoteService.consume(request.getQuoteId(), principalId, savedOrder.getId());
             }
@@ -372,7 +402,7 @@ public class OrderServiceImpl implements OrderService {
             return orderMapper.orderToOrderResponse(savedOrder);
         } catch (RuntimeException failure) {
             compensateReservation(voucherReservationId, promotionReservationId, flashReservationId,
-                    savedOrder.getId(), failure);
+                    inventoryReservationId, savedOrder.getId(), principalId, failure);
             throw failure;
         }
     }
@@ -404,14 +434,35 @@ public class OrderServiceImpl implements OrderService {
         return response;
     }
 
-    private void compensateReservation(UUID voucherId, UUID promotionId, UUID flashId, Long orderId,
-                                       RuntimeException failure) {
+    private void compensateReservation(UUID voucherId, UUID promotionId, UUID flashId,
+                                       UUID inventoryId, Long orderId,
+                                       Long userPrincipalId, RuntimeException failure) {
         if (voucherId != null) try { reservationClient.releaseVoucher(voucherId, orderId); }
         catch (RuntimeException releaseFailure) { failure.addSuppressed(releaseFailure); }
-        if (promotionId != null) try { reservationClient.releaseVouchers(promotionId, orderId); }
+        if (promotionId != null) try { reservationClient.releaseVouchers(promotionId, orderId, userPrincipalId); }
         catch (RuntimeException releaseFailure) { failure.addSuppressed(releaseFailure); }
         if (flashId != null) try { reservationClient.releaseFlash(flashId, orderId); }
         catch (RuntimeException releaseFailure) { failure.addSuppressed(releaseFailure); }
+        if (inventoryId != null) try {
+            requireInventoryClient().release(inventoryId, orderId);
+        } catch (RuntimeException releaseFailure) { failure.addSuppressed(releaseFailure); }
+    }
+
+    private void reserveInventory(UUID reservationId, Long orderId, Long userId, Long principalId,
+                                  Long restaurantId, List<CreateOrderRequest.OrderItemRequest> items) {
+        requireInventoryClient().reserve(reservationId, orderId, userId, principalId, restaurantId, items);
+    }
+
+    private void commitInventory(UUID reservationId, Long orderId) {
+        requireInventoryClient().commit(reservationId, orderId);
+    }
+
+    private com.delivery.order_service.service.InventoryReservationClient requireInventoryClient() {
+        if (inventoryReservationClient == null) {
+            throw new com.delivery.order_service.exception.OrderDependencyUnavailableException(
+                    "restaurant-service", "Inventory reservation client is unavailable", null, 30);
+        }
+        return inventoryReservationClient;
     }
 
     private void releaseIdempotencyLease(OrderCreateIdempotencyReceipt receipt, UUID processingToken,

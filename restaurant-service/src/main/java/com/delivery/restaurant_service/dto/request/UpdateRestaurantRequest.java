@@ -5,6 +5,8 @@ import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Max;
 
 public class UpdateRestaurantRequest {
     @Size(max = 255)
@@ -16,6 +18,9 @@ public class UpdateRestaurantRequest {
     private String phone;
     private LocalTime openingHour;
     private LocalTime closingHour;
+    @Min(1)
+    @Max(240)
+    private Integer defaultPrepTimeMinutes;
     @Size(max = 4000)
     private String description;
     @DecimalMin("8.0")
@@ -98,5 +103,13 @@ public class UpdateRestaurantRequest {
 
     public void setClosingHour(LocalTime closingHour) {
         this.closingHour = closingHour;
+    }
+
+    public Integer getDefaultPrepTimeMinutes() {
+        return defaultPrepTimeMinutes;
+    }
+
+    public void setDefaultPrepTimeMinutes(Integer defaultPrepTimeMinutes) {
+        this.defaultPrepTimeMinutes = defaultPrepTimeMinutes;
     }
 }

@@ -47,9 +47,15 @@ public class OrderValidationResultResponse {
         private String restaurantPhone;
         private Double latitude;
         private Double longitude;
+        private Integer defaultPrepTimeMinutes;
         private Boolean isAvailable;
         private Boolean isOpen;
         private String operatingHours;
+        private Boolean serviceabilityEnabled;
+        private Boolean serviceable;
+        private Long serviceabilityZoneId;
+        private Long serviceabilityZoneRevision;
+        private String serviceabilityReason;
     }
     
     @Getter

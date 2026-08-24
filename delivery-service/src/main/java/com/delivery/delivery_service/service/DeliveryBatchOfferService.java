@@ -20,10 +20,8 @@ import org.springframework.beans.factory.annotation.Value;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDateTime;
-import java.util.HashSet;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
 
 /** Durable, all-or-nothing persistence boundary for a proposed shipper batch. */
@@ -62,27 +60,12 @@ public class DeliveryBatchOfferService {
                 || event.getAvailableShippers().get(0).getShipperId() == null) {
             throw new InvalidStatusException("Invalid batch shipper offer event");
         }
-        Set<Long> uniqueDeliveries = new HashSet<>();
-        Set<Integer> pickupSequences = new HashSet<>();
-        Set<Integer> dropoffSequences = new HashSet<>();
         for (ShipperFoundEvent.BatchItem item : event.getBatchItems()) {
-            if (item == null || item.getDeliveryId() == null || item.getOrderId() == null
-                    || item.getMatchingSessionId() == null
-                    || item.getPickupSequence() == null || item.getPickupSequence() < 0
-                    || item.getDropoffSequence() == null || item.getDropoffSequence() < 0
-                    || item.getPickupSequence() > item.getDropoffSequence()
-                    || !uniqueDeliveries.add(item.getDeliveryId())
-                    || !pickupSequences.add(item.getPickupSequence())
-                    || !dropoffSequences.add(item.getDropoffSequence())) {
+            if (item == null || item.getMatchingSessionId() == null) {
                 throw new InvalidStatusException("Batch delivery IDs must be unique and complete");
             }
         }
-        if (pickupSequences.size() != event.getBatchItems().size()
-                || dropoffSequences.size() != event.getBatchItems().size()
-                || pickupSequences.stream().anyMatch(sequence -> sequence >= event.getBatchItems().size())
-                || dropoffSequences.stream().anyMatch(sequence -> sequence >= event.getBatchItems().size())) {
-            throw new InvalidStatusException("Batch route sequences must be contiguous and bounded");
-        }
+        DeliveryBatchRouteValidator.validate(event.getBatchItems());
         List<ShipperFoundEvent.BatchItem> orderedItems = event.getBatchItems().stream()
                 .sorted(Comparator.comparing(ShipperFoundEvent.BatchItem::getPickupSequence)
                         .thenComparing(ShipperFoundEvent.BatchItem::getDropoffSequence))

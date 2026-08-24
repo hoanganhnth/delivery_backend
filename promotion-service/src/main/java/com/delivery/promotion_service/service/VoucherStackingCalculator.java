@@ -60,7 +60,14 @@ public final class VoucherStackingCalculator {
                 unavailable.add(new UnavailableVoucher(voucher.getId(), voucher.getCode(), reason));
                 continue;
             }
-            VoucherLayer layer = VoucherLayerResolver.resolve(voucher);
+            VoucherLayer layer;
+            try {
+                layer = VoucherLayerResolver.resolve(voucher);
+            } catch (IllegalArgumentException invalidLayer) {
+                unavailable.add(new UnavailableVoucher(voucher.getId(), voucher.getCode(),
+                        invalidLayer.getMessage() == null ? "Voucher layer is invalid" : invalidLayer.getMessage()));
+                continue;
+            }
             eligible.get(layer).add(new Candidate(voucher, layer));
         }
 
@@ -81,6 +88,10 @@ public final class VoucherStackingCalculator {
             best = autoSelection(eligible, subtotal, grossShippingFee);
         }
 
+        if (!isPayable(best, grossShippingFee)) {
+            throw new IllegalArgumentException(
+                    "Voucher combination leaves no positive payable food amount");
+        }
         return toCalculation(best, unavailable);
     }
 
@@ -126,6 +137,7 @@ public final class VoucherStackingCalculator {
             for (Candidate platform : platforms) {
                 for (Candidate freeship : freeships) {
                     ScoredSelection candidate = score(shop, platform, freeship, subtotal, grossShippingFee);
+                    if (!isPayable(candidate, grossShippingFee)) continue;
                     if (best == null || compare(candidate, best) > 0) best = candidate;
                 }
             }
@@ -168,7 +180,7 @@ public final class VoucherStackingCalculator {
         if (amount != 0) return amount;
         int expiry = expiryKey(left).compareTo(expiryKey(right));
         if (expiry != 0) return -expiry;
-        return idKey(left).compareTo(idKey(right)) * -1;
+        return compareIds(left, right);
     }
 
     private String expiryKey(ScoredSelection selection) {
@@ -182,13 +194,26 @@ public final class VoucherStackingCalculator {
                 .orElse("9999-12-31T23:59:59");
     }
 
-    private String idKey(ScoredSelection selection) {
-        return java.util.stream.Stream.of(selection.shop(), selection.platform(), selection.freeship())
-                .map(candidate -> candidate == null || candidate.voucher().getId() == null
-                        ? Long.MAX_VALUE : candidate.voucher().getId())
-                .map(String::valueOf)
-                .reduce((a, b) -> a + ":" + b)
-                .orElse(String.valueOf(Long.MAX_VALUE));
+    private int compareIds(ScoredSelection left, ScoredSelection right) {
+        List<Candidate> leftCandidates = java.util.Arrays.asList(left.shop(), left.platform(), left.freeship());
+        List<Candidate> rightCandidates = java.util.Arrays.asList(right.shop(), right.platform(), right.freeship());
+        for (int index = 0; index < leftCandidates.size(); index++) {
+            long leftId = idOrMax(leftCandidates.get(index));
+            long rightId = idOrMax(rightCandidates.get(index));
+            // Lower stable ID wins the tie, so invert the numeric comparison.
+            int comparison = Long.compare(rightId, leftId);
+            if (comparison != 0) return comparison;
+        }
+        return 0;
+    }
+
+    private long idOrMax(Candidate candidate) {
+        return candidate == null || candidate.voucher().getId() == null
+                ? Long.MAX_VALUE : candidate.voucher().getId();
+    }
+
+    private boolean isPayable(ScoredSelection selection, BigDecimal grossShippingFee) {
+        return selection != null && selection.totalAmount().compareTo(grossShippingFee) > 0;
     }
 
     private Calculation toCalculation(ScoredSelection selection, List<UnavailableVoucher> unavailable) {
@@ -208,27 +233,54 @@ public final class VoucherStackingCalculator {
         if (candidate == null) return;
         applied.add(new AppliedVoucher(candidate.voucher().getId(), candidate.voucher().getCode(), layer,
                 amount, base == null ? ZERO : base.setScale(2, RoundingMode.HALF_UP),
-                candidate.voucher().getFundingSource() == null
-                        ? (layer == VoucherLayer.SHOP_DISCOUNT ? "SHOP" : "PLATFORM")
-                        : candidate.voucher().getFundingSource()));
+                layer == VoucherLayer.SHOP_DISCOUNT ? "SHOP" : "PLATFORM"));
     }
 
     private String availabilityReason(Voucher voucher, Long restaurantId, BigDecimal subtotal, LocalDateTime now) {
         if (voucher.getCreatorType() == null) return "Voucher ownership is invalid";
         if (voucher.getRewardType() == null) return "Voucher reward type is invalid";
         if (voucher.getScopeType() == null) return "Voucher scope is invalid";
+        if ((voucher.getScopeType() == Voucher.ScopeType.ALL && voucher.getScopeRefId() != null)
+                || (voucher.getScopeType() == Voucher.ScopeType.SHOP && voucher.getScopeRefId() == null)) {
+            return "Voucher scope identity is invalid";
+        }
         if (!Boolean.TRUE.equals(voucher.getActive())) return "Voucher is inactive";
         if (voucher.getApprovalStatus() != null
                 && !"APPROVED".equalsIgnoreCase(voucher.getApprovalStatus())) return "Voucher is not approved";
         if (voucher.getStartTime() != null && now.isBefore(voucher.getStartTime())) return "Voucher is not active yet";
-        if (voucher.getEndTime() != null && !now.isBefore(voucher.getEndTime())) return "Voucher expired";
-        if (voucher.getTotalQuantity() != null && voucher.getUsedQuantity() != null
-                && voucher.getUsedQuantity() >= voucher.getTotalQuantity()) return "Out of stock";
+        if (voucher.getEndTime() == null) return "Voucher expiration is invalid";
+        if (!now.isBefore(voucher.getEndTime())) return "Voucher expired";
+        if (voucher.getTotalQuantity() == null || voucher.getTotalQuantity() < 1
+                || voucher.getUsedQuantity() == null || voucher.getUsedQuantity() < 0) {
+            return "Voucher capacity is invalid";
+        }
+        if (voucher.getUsedQuantity() >= voucher.getTotalQuantity()) return "Out of stock";
         BigDecimal minimum = voucher.getMinOrderValue() == null ? ZERO : voucher.getMinOrderValue();
         if (subtotal.compareTo(minimum) < 0) return "Need " + minimum.subtract(subtotal) + " more to use";
-        VoucherLayer layer = VoucherLayerResolver.resolve(voucher);
-        if (layer == VoucherLayer.SHOP_DISCOUNT
-                && (voucher.getScopeType() != Voucher.ScopeType.SHOP
+        VoucherLayer layer;
+        try {
+            layer = VoucherLayerResolver.resolve(voucher);
+        } catch (IllegalArgumentException invalidLayer) {
+            return invalidLayer.getMessage() == null ? "Voucher layer is invalid" : invalidLayer.getMessage();
+        }
+        if (voucher.getScopeType() == Voucher.ScopeType.CATEGORY) {
+            return "Legacy CATEGORY voucher is not checkout-eligible";
+        }
+        if (voucher.getCreatorType() != Voucher.CreatorType.PLATFORM
+                && voucher.getCreatorType() != Voucher.CreatorType.SHOP) {
+            return "Voucher ownership is not checkout-eligible";
+        }
+        if (voucher.getCreatorType() == Voucher.CreatorType.SHOP
+                && (layer != VoucherLayer.SHOP_DISCOUNT
+                || voucher.getScopeType() != Voucher.ScopeType.SHOP)) {
+            return "Shop voucher must use the SHOP_DISCOUNT layer and SHOP scope";
+        }
+        if (voucher.getCreatorType() == Voucher.CreatorType.PLATFORM
+                && layer == VoucherLayer.SHOP_DISCOUNT) {
+            return "Platform voucher cannot use the SHOP_DISCOUNT layer";
+        }
+        if (voucher.getScopeType() == Voucher.ScopeType.SHOP
+                && (voucher.getScopeRefId() == null
                 || !restaurantId.equals(voucher.getScopeRefId()))) return "Not applicable for this shop";
         if (layer == VoucherLayer.FREESHIP && voucher.getScopeType() != Voucher.ScopeType.ALL) {
             return "Freeship voucher must be platform-wide";
@@ -241,6 +293,12 @@ public final class VoucherStackingCalculator {
         }
         if (voucher.getDiscountValue() == null || voucher.getDiscountValue().signum() < 0) {
             return "Voucher discount is invalid";
+        }
+        if (voucher.getMinOrderValue() != null && voucher.getMinOrderValue().signum() < 0) {
+            return "Voucher minimum order is invalid";
+        }
+        if (voucher.getMaxDiscountValue() != null && voucher.getMaxDiscountValue().signum() < 0) {
+            return "Voucher max discount is invalid";
         }
         return null;
     }

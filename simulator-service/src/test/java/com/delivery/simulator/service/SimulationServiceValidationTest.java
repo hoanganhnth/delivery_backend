@@ -105,6 +105,38 @@ class SimulationServiceValidationTest {
         assertThat(objectMapper.valueToTree(assertions).toString()).contains("assertion-1");
     }
 
+    @Test
+    void deliveredOrderWaitsForDeliveryProjectionToConverge() {
+        assertThat(SimulationService.isTerminalProjectionConverged("DELIVERED", "PICKED_UP"))
+                .isFalse();
+        assertThat(SimulationService.isTerminalProjectionConverged("DELIVERED", "DELIVERED"))
+                .isTrue();
+    }
+
+    @Test
+    void terminalDeliveryAloneDoesNotMakeScenarioConverged() {
+        assertThat(SimulationService.isTerminalProjectionConverged("PICKED_UP", "DELIVERED"))
+                .isFalse();
+    }
+
+    @Test
+    void cancellationCanFinishWithoutASeparateDeliveryProjection() {
+        assertThat(SimulationService.isTerminalProjectionConverged("CANCELLED", "NONE"))
+                .isTrue();
+        assertThat(SimulationService.isTerminalProjectionConverged("SHIPPER_NOT_FOUND", "NONE"))
+                .isTrue();
+    }
+
+    @Test
+    void treatsGatewayRateLimitAsTransientPollBackpressureOnly() {
+        assertThat(SimulationService.isTransientRateLimit(
+                new GatewayClient.GatewayException(429, "GET /api/deliveries/offers/current-batch",
+                        "rate limited"))).isTrue();
+        assertThat(SimulationService.isTransientRateLimit(
+                new GatewayClient.GatewayException(401, "GET /api/deliveries/offers/current-batch",
+                        "unauthorized"))).isFalse();
+    }
+
     private SimulatorProperties enabledProperties() {
         SimulatorProperties value = new SimulatorProperties();
         value.setEnabled(true);

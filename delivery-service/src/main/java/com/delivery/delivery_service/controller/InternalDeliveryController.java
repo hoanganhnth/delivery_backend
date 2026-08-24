@@ -23,7 +23,8 @@ public class InternalDeliveryController {
     private static final Set<DeliveryStatus> TRACKABLE_STATUSES = Set.of(
             DeliveryStatus.ASSIGNED,
             DeliveryStatus.PICKED_UP,
-            DeliveryStatus.DELIVERING);
+            DeliveryStatus.DELIVERING,
+            DeliveryStatus.RETURNING);
 
     private final DeliveryRepository deliveryRepository;
     private final String internalSecret;

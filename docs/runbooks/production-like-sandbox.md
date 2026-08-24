@@ -18,6 +18,18 @@ Scenario Lab / delivery_app
 Sandbox không phải staging và không được dùng credential, database, Kafka
 cluster hoặc địa chỉ khách thật.
 
+Để sandbox tổng hợp chạy ổn định trong giới hạn Docker Desktop, overlay chỉ cho
+Sandbox hạ JVM của API/resource service xuống `Xms=48 MiB`/`Xmx=160 MiB`, còn
+control plane giữ `Xms=64 MiB`/`Xmx=192 MiB`.
+Kafka giữ heap tối đa 384 MiB để log cleaner khởi động được, còn Elasticsearch
+xuống heap tối đa 128 MiB; đồng thời tắt ML/monitoring/
+watcher/GeoIP downloader không dùng trong lab. Elasticsearch có cgroup 1.5 GiB
+và Match/Restaurant/Notification 768 MiB để tránh native-memory startup spikes.
+Image được build tuần tự trước khi khởi động process, và resource service cũng
+khởi động tuần tự để tránh đỉnh bộ nhớ lúc cold start. Compose canonical vẫn giữ
+sizing và cách khởi động mặc định; đây không phải thay đổi capacity hay topology
+cho staging/production.
+
 ## Khởi động nhanh
 
 Từ `backend_delivery/`:
@@ -42,7 +54,8 @@ Prometheus và Grafana cũng được bind loopback bằng port động để qu
 metrics/traces mà không mở ra mạng LAN. Port thật được ghi trong state file và
 in ra sau khi startup thành công.
 
-Nếu chỉ muốn dùng JAR/image đã có:
+Nếu chỉ muốn dùng JAR đã package sẵn (image của sandbox vẫn được materialize
+tuần tự trước khi runtime khởi động):
 
 ```bash
 SANDBOX_SKIP_BUILD=true bash scripts/sandbox-up.sh
@@ -138,7 +151,9 @@ Các script đều từ chối project `backend_delivery`, volume không có pre
 | `SANDBOX_H3_ENABLED` | `true` | lưu/tra cứu vùng H3 |
 | `SANDBOX_RUN_SCENARIO` | `false` | tự chạy scenario happy sau seed |
 | `SANDBOX_RUN_ID` | timestamp + pid | đặt tên run để dễ truy vết |
-| `SANDBOX_STARTUP_TIMEOUT_SECONDS` | `900` | ngân sách cold start Docker |
+| `SANDBOX_STARTUP_TIMEOUT_SECONDS` | `1500` | ngân sách cold start tuần tự của Docker sandbox |
+| `SANDBOX_SKIP_IMAGE_BUILD` | `false` | dùng image đã build đúng project/run; thiếu image sẽ fail closed |
+| `SANDBOX_RETAIN_ON_FAILURE` | `false` | giữ container/volume sandbox để chẩn đoán, phải dọn bằng `sandbox-down.sh` |
 | `SANDBOX_MATCHING_MAX_RETRY_ATTEMPTS` | `3` | retry Saga ngắn cho scenario lab |
 
 So sánh legacy single-offer:

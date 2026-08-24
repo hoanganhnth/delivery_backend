@@ -3,12 +3,14 @@ package com.delivery.order_service.service;
 import com.delivery.order_service.dto.event.OrderCancelledEvent;
 import com.delivery.order_service.dto.event.OrderCreatedEvent;
 import com.delivery.order_service.entity.Order;
+import com.delivery.order_service.entity.OrderItem;
 import com.delivery.order_service.entity.OrderStatus;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
+import java.math.BigDecimal;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -45,6 +47,14 @@ class OrderEventPublisherTopicConfigurationTest {
         ReflectionTestUtils.setField(publisher, "orderCancelledTopic", "order.cancelled");
         ReflectionTestUtils.setField(publisher, "refundEligibilityTopic", "order.refund-eligible");
         Order order = order();
+        OrderItem item = new OrderItem();
+        item.setId(970010L);
+        item.setMenuItemId(97001L);
+        item.setMenuItemName("Bún bò");
+        item.setQuantity(2);
+        item.setPrice(new BigDecimal("35000"));
+        item.setOrder(order);
+        order.setItems(java.util.List.of(item));
         UUID voucherId = UUID.randomUUID();
         UUID flashId = UUID.randomUUID();
         order.setVoucherReservationId(voucherId);
@@ -62,6 +72,13 @@ class OrderEventPublisherTopicConfigurationTest {
         assertThat(payload.getAllValues().get(0)).isInstanceOfSatisfying(OrderCreatedEvent.class, event -> {
             assertThat(event.getVoucherReservationId()).isEqualTo(voucherId);
             assertThat(event.getFlashSaleReservationId()).isNull();
+            assertThat(event.getItems()).singleElement().satisfies(line -> {
+                assertThat(line.get("orderItemId")).isEqualTo(970010L);
+                assertThat(line.get("menuItemId")).isEqualTo(97001L);
+                assertThat(line.get("quantity")).isEqualTo(2);
+                assertThat((BigDecimal) line.get("unitPrice")).isEqualByComparingTo("35000");
+                assertThat((BigDecimal) line.get("lineTotal")).isEqualByComparingTo("70000");
+            });
         });
         assertThat(payload.getAllValues().get(1)).isInstanceOfSatisfying(OrderCancelledEvent.class, event -> {
             assertThat(event.getVoucherReservationId()).isNull();
@@ -71,6 +88,7 @@ class OrderEventPublisherTopicConfigurationTest {
             assertThat(event.getShippingFee()).isEqualByComparingTo("25000");
             assertThat(event.getTotalPrice()).isEqualByComparingTo("120000");
             assertThat(event.getPaymentMethod()).isEqualTo("COD");
+            assertThat(event.getItems()).hasSize(1);
         });
     }
 

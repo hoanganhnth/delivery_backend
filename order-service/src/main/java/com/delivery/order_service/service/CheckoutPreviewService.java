@@ -36,7 +36,11 @@ public class CheckoutPreviewService {
     private CheckoutReservationClient reservationClient;
     @Value("${app.order.voucher-checkout-enabled:false}") private boolean voucherCheckoutEnabled;
     @Value("${app.order.flashsale-checkout-enabled:false}") private boolean flashSaleCheckoutEnabled;
+    @Value("${app.order.serviceability-enforcement-enabled:false}") private boolean serviceabilityEnforcementEnabled;
+    @Value("${app.order.eta-window-enabled:false}") private boolean etaWindowEnabled;
+    @Value("${routing.service.url:http://routing-service}") private String routingServiceUrl;
 
+    @Autowired
     public CheckoutPreviewService(WebClient webClient,
                                   ShippingFeeCalculationService shippingFeeService,
                                   @Value("${restaurant.service.url}") String restaurantServiceUrl,
@@ -90,15 +94,27 @@ public class CheckoutPreviewService {
         }
         boolean hasFlashSale = request.getItems().stream().anyMatch(item -> item.getFlashSaleItemId() != null);
         List<Long> selectedVoucherIds = selectedVoucherIds(request);
+        if (request.getVoucherId() != null && request.getSelectedVoucherIds() != null) {
+            throw new ValidationException("Không được gửi đồng thời voucherId và selectedVoucherIds");
+        }
         if (request.getSelectionMode() != null && !request.getSelectionMode().isBlank()
                 && !"AUTO".equalsIgnoreCase(request.getSelectionMode())
                 && !"MANUAL".equalsIgnoreCase(request.getSelectionMode())) {
             throw new ValidationException("Selection mode chỉ hỗ trợ AUTO hoặc MANUAL");
         }
+        if (request.getSelectedVoucherIds() != null
+                && request.getSelectedVoucherIds().size() == 1
+                && (request.getSelectionMode() == null || request.getSelectionMode().isBlank())) {
+            throw new ValidationException(
+                    "Một voucher trong selectedVoucherIds phải đi kèm selectionMode rõ ràng");
+        }
+        if ("MANUAL".equalsIgnoreCase(request.getSelectionMode()) && selectedVoucherIds.isEmpty()) {
+            throw new ValidationException("Manual voucher mode requires selected voucher IDs");
+        }
         boolean hasVoucherSelection = !selectedVoucherIds.isEmpty()
                 || request.getSelectionMode() != null || request.getVoucherId() != null;
         boolean stackedSelection = (request.getSelectionMode() != null && !request.getSelectionMode().isBlank())
-                || request.getSelectedVoucherIds() != null;
+                || (request.getSelectedVoucherIds() != null && !request.getSelectedVoucherIds().isEmpty());
         if (hasVoucherSelection && stackedSelection && !voucherCheckoutCapability.isEnabled(principalId))
             throw new ValidationException("Voucher stacking checkout is not enabled for this account");
         if (hasVoucherSelection && !stackedSelection && !voucherCheckoutEnabled)
@@ -131,6 +147,20 @@ public class CheckoutPreviewService {
                 102.0,
                 110.0,
                 "Restaurant service thiếu tọa độ pickup longitude canonical");
+
+        if (serviceabilityEnforcementEnabled) {
+            Boolean serviceabilityEnabled = getBooleanValue(restaurantInfo.get("serviceabilityEnabled"));
+            Boolean serviceable = getBooleanValue(restaurantInfo.get("serviceable"));
+            if (!Boolean.TRUE.equals(serviceabilityEnabled) || !Boolean.TRUE.equals(serviceable)) {
+                throw new ValidationException("Địa chỉ giao hàng hiện nằm ngoài vùng phục vụ");
+            }
+        }
+
+        Integer prepMinutes = getIntegerValue(restaurantInfo.get("defaultPrepTimeMinutes"));
+        if (prepMinutes == null) prepMinutes = 30;
+        if (etaWindowEnabled && (prepMinutes < 1 || prepMinutes > 240)) {
+            throw new ValidationException("Restaurant service thiếu prep time canonical");
+        }
 
         Map<Long, ValidatedPreviewItem> menuItemMap = parseValidatedItems(validationData);
         CheckoutReservationClient.FlashQuote flashQuote = hasFlashSale
@@ -192,14 +222,20 @@ public class CheckoutPreviewService {
                 request.getDeliveryLat(), request.getDeliveryLng(),
                 subtotal);
 
+        EtaWindow etaWindow = etaWindowEnabled
+                ? fetchEtaWindow(pickupLat, pickupLng, request.getDeliveryLat(), request.getDeliveryLng(), prepMinutes)
+                : null;
+
         CheckoutReservationClient.PromotionQuote promotionQuote = null;
+        CheckoutReservationClient.VoucherQuote legacyQuote = null;
         BigDecimal discountAmount = BigDecimal.ZERO;
         if (request.getVoucherId() != null && request.getSelectedVoucherIds() == null
                 && request.getSelectionMode() == null) {
             // Legacy single-voucher quote remains available while old clients
             // drain; it is never mixed with the stacked contract.
-            discountAmount = quoteVoucher(userId, principalId, request.getVoucherId(), request.getRestaurantId(),
-                    subtotal, shippingFee).discountAmount();
+            legacyQuote = quoteVoucher(userId, principalId, request.getVoucherId(), request.getRestaurantId(),
+                    subtotal, shippingFee);
+            discountAmount = legacyQuote.discountAmount();
         } else if (hasVoucherSelection) {
             promotionQuote = reservationClient.quoteVouchers(userId, principalId, request.getRestaurantId(),
                     subtotal, shippingFee, selectedVoucherIds, request.getSelectionMode());
@@ -208,14 +244,23 @@ public class CheckoutPreviewService {
         if (discountAmount.signum() < 0 || discountAmount.compareTo(subtotal.add(shippingFee)) > 0)
             throw new ValidationException("Voucher quote returned an invalid discount");
 
-        BigDecimal itemDiscount = promotionQuote == null ? discountAmount : promotionQuote.itemDiscount();
-        BigDecimal shippingDiscount = promotionQuote == null ? BigDecimal.ZERO : promotionQuote.shippingDiscount();
-        BigDecimal customerShippingFee = promotionQuote == null
-                ? shippingFee : promotionQuote.customerShippingFee();
+        BigDecimal itemDiscount = promotionQuote != null ? promotionQuote.itemDiscount()
+                : legacyQuote != null ? legacyQuote.itemDiscount() : discountAmount;
+        BigDecimal shippingDiscount = promotionQuote != null ? promotionQuote.shippingDiscount()
+                : legacyQuote != null ? legacyQuote.shippingDiscount() : BigDecimal.ZERO;
+        BigDecimal customerShippingFee = promotionQuote != null
+                ? promotionQuote.customerShippingFee()
+                : legacyQuote != null && legacyQuote.customerShippingFee() != null
+                ? legacyQuote.customerShippingFee() : shippingFee.subtract(shippingDiscount).max(BigDecimal.ZERO);
         BigDecimal grossShippingFee = shippingFee;
-        BigDecimal platformSubsidy = promotionQuote == null ? BigDecimal.ZERO : promotionQuote.platformSubsidy();
-        BigDecimal shopDiscount = promotionQuote == null ? itemDiscount : promotionQuote.shopDiscount();
+        BigDecimal platformSubsidy = promotionQuote != null ? promotionQuote.platformSubsidy()
+                : legacyQuote != null ? legacyQuote.platformSubsidy() : BigDecimal.ZERO;
+        BigDecimal shopDiscount = promotionQuote != null ? promotionQuote.shopDiscount()
+                : legacyQuote != null ? legacyQuote.shopDiscount() : BigDecimal.ZERO;
         BigDecimal totalPrice = subtotal.subtract(itemDiscount).add(customerShippingFee);
+        if (totalPrice.compareTo(grossShippingFee) <= 0) {
+            throw new ValidationException("Voucher phải để lại số tiền món dương cho đơn hàng");
+        }
 
         log.info("✅ Checkout preview: subtotal={}, shipping={}, discount={}, total={}, items={}, unavailable={}",
                 subtotal, shippingFee, discountAmount, totalPrice, previewItems.size(), unavailableIds.size());
@@ -223,6 +268,13 @@ public class CheckoutPreviewService {
         return CheckoutPreviewResponse.builder()
                 .restaurantId(request.getRestaurantId())
                 .restaurantName(restaurantName)
+                .etaMinMinutes(etaWindow == null ? null : etaWindow.minMinutes())
+                .etaMaxMinutes(etaWindow == null ? null : etaWindow.maxMinutes())
+                .etaSource(etaWindow == null ? null : etaWindow.source())
+                .serviceabilityZoneId(serviceabilityEnforcementEnabled
+                        ? asLong(restaurantInfo.get("serviceabilityZoneId")) : null)
+                .serviceabilityZoneRevision(serviceabilityEnforcementEnabled
+                        ? asLong(restaurantInfo.get("serviceabilityZoneRevision")) : null)
                 .items(previewItems)
                 .subtotal(subtotal)
                 .shippingFee(shippingFee)
@@ -239,7 +291,9 @@ public class CheckoutPreviewService {
                 .voucherId(request.getVoucherId())
                 .selectedVoucherIds(promotionQuote == null ? selectedVoucherIds : promotionQuote.selectedVoucherIds())
                 .selectionMode(request.getSelectionMode())
-                .appliedVouchers(toAppliedVouchers(promotionQuote))
+                .appliedVouchers(promotionQuote != null
+                        ? toAppliedVouchers(promotionQuote)
+                        : toAppliedVouchers(legacyQuote))
                 .priceChanges(priceChanges)
                 .unavailableItemIds(unavailableIds)
                 .build();
@@ -264,6 +318,41 @@ public class CheckoutPreviewService {
         return reservationClient.quoteVoucher(userId, principalId, voucherId, restaurantId, subtotal, shippingFee);
     }
 
+    @SuppressWarnings("unchecked")
+    private EtaWindow fetchEtaWindow(double pickupLat, double pickupLng,
+                                     double deliveryLat, double deliveryLng,
+                                     int prepMinutes) {
+        if (internalSecret == null || internalSecret.isBlank()) {
+            throw new OrderDependencyUnavailableException("routing-service",
+                    "Order/routing internal credential chưa được cấu hình", null, 30);
+        }
+        try {
+            Map<String, Object> response = webClient.post()
+                    .uri(routingServiceUrl + "/internal/routing/v1/eta-window")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .header("Internal-Token", internalSecret)
+                    .bodyValue(Map.of(
+                            "origin", Map.of("lat", pickupLat, "lng", pickupLng),
+                            "destination", Map.of("lat", deliveryLat, "lng", deliveryLng),
+                            "prepMinutes", prepMinutes))
+                    .retrieve()
+                    .bodyToMono(Map.class)
+                    .block();
+            if (response == null) throw new IllegalStateException("empty ETA response");
+            Integer min = getIntegerValue(response.get("minMinutes"));
+            Integer max = getIntegerValue(response.get("maxMinutes"));
+            String source = getStringValue(response.get("source"));
+            if (min == null || max == null || min < 1 || max < min || source == null || source.isBlank()) {
+                throw new IllegalStateException("invalid ETA response");
+            }
+            return new EtaWindow(min, max, source);
+        } catch (Exception failure) {
+            if (failure instanceof OrderDependencyUnavailableException dependency) throw dependency;
+            throw new OrderDependencyUnavailableException("routing-service",
+                    "Routing service tạm thời không khả dụng", failure, 30);
+        }
+    }
+
     private List<Long> selectedVoucherIds(CheckoutPreviewRequest request) {
         List<Long> ids = request.getSelectedVoucherIds() == null
                 ? new ArrayList<>() : new ArrayList<>(request.getSelectedVoucherIds());
@@ -278,6 +367,19 @@ public class CheckoutPreviewService {
     private List<CheckoutPreviewResponse.AppliedVoucherInfo> toAppliedVouchers(
             CheckoutReservationClient.PromotionQuote quote) {
         if (quote == null || quote.breakdownJson() == null) return List.of();
+        return quote.breakdown().stream().map(line -> CheckoutPreviewResponse.AppliedVoucherInfo.builder()
+                .voucherId(asLong(line.get("voucherId")))
+                .code(line.get("voucherCode") == null ? text(line.get("code")) : text(line.get("voucherCode")))
+                .layer(text(line.get("layer")))
+                .fundingSource(text(line.get("fundingSource")))
+                .discountBase(asDecimal(line.get("discountBase")))
+                .discountAmount(asDecimal(line.get("discountAmount")))
+                .build()).toList();
+    }
+
+    private List<CheckoutPreviewResponse.AppliedVoucherInfo> toAppliedVouchers(
+            CheckoutReservationClient.VoucherQuote quote) {
+        if (quote == null || quote.breakdown() == null) return List.of();
         return quote.breakdown().stream().map(line -> CheckoutPreviewResponse.AppliedVoucherInfo.builder()
                 .voucherId(asLong(line.get("voucherId")))
                 .code(line.get("voucherCode") == null ? text(line.get("code")) : text(line.get("voucherCode")))
@@ -309,6 +411,8 @@ public class CheckoutPreviewService {
         try {
             Map<String, Object> orderValidationRequest = Map.of(
                     "restaurantId", request.getRestaurantId(),
+                    "deliveryLat", request.getDeliveryLat(),
+                    "deliveryLng", request.getDeliveryLng(),
                     "items", request.getItems().stream()
                             .map(item -> Map.of(
                                     "menuItemId", item.getMenuItemId(),
@@ -481,6 +585,9 @@ public class CheckoutPreviewService {
         if (val == null) return null;
         try { return new BigDecimal(val.toString()); }
         catch (NumberFormatException e) { return null; }
+    }
+
+    private record EtaWindow(int minMinutes, int maxMinutes, String source) {
     }
 
     private Boolean getBooleanValue(Object val) {

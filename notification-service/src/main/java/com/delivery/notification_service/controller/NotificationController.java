@@ -2,10 +2,13 @@ package com.delivery.notification_service.controller;
 
 import com.delivery.notification_service.common.constants.ApiPathConstants;
 import com.delivery.notification_service.dto.request.SendNotificationRequest;
+import com.delivery.notification_service.dto.request.UpdateMarketingNotificationPreferenceRequest;
+import com.delivery.notification_service.dto.response.NotificationPreferenceResponse;
 import com.delivery.notification_service.dto.response.NotificationResponse;
 import com.delivery.notification_service.exception.NotificationAccessDeniedException;
 import com.delivery.notification_service.payload.BaseResponse;
 import com.delivery.notification_service.service.NotificationService;
+import com.delivery.notification_service.service.NotificationPreferenceService;
 import com.delivery.auth.resourceserver.security.AuthenticatedActor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -23,12 +26,24 @@ import java.util.List;
 public class NotificationController {
 
     private final NotificationService notificationService;
+    private final NotificationPreferenceService notificationPreferenceService;
     private final String internalSecret;
+    private final boolean preferencesEnabled;
 
+    @org.springframework.beans.factory.annotation.Autowired
     public NotificationController(NotificationService notificationService,
-                                  @Value("${app.internal.secret:}") String internalSecret) {
+                                  @Value("${app.internal.secret:}") String internalSecret,
+                                  NotificationPreferenceService notificationPreferenceService,
+                                  @Value("${app.notification.preferences-enabled:false}") boolean preferencesEnabled) {
         this.notificationService = notificationService;
         this.internalSecret = internalSecret;
+        this.notificationPreferenceService = notificationPreferenceService;
+        this.preferencesEnabled = preferencesEnabled;
+    }
+
+    /** Compatibility seam for existing focused controller fixtures. */
+    public NotificationController(NotificationService notificationService, String internalSecret) {
+        this(notificationService, internalSecret, null, true);
     }
 
     @PostMapping(ApiPathConstants.SEND_NOTIFICATION)
@@ -112,6 +127,37 @@ public class NotificationController {
         requireActor(actor);
         notificationService.deleteNotification(id, actor.getPrincipalId(), actor.getLegacyUserId());
         return ResponseEntity.ok(new BaseResponse<>(1, null, "Xóa thông báo thành công"));
+    }
+
+    @GetMapping(ApiPathConstants.PREFERENCES)
+    public ResponseEntity<BaseResponse<NotificationPreferenceResponse>> getPreferences(
+            @AuthenticationPrincipal AuthenticatedActor actor) {
+        requireActor(actor);
+        if (!preferencesAvailable()) return preferenceCapabilityUnavailable();
+        return ResponseEntity.ok(new BaseResponse<>(1,
+                notificationPreferenceService.getPreferences(actor.getPrincipalId()),
+                "Lấy cài đặt thông báo thành công"));
+    }
+
+    @PutMapping(ApiPathConstants.MARKETING_PREFERENCE)
+    public ResponseEntity<BaseResponse<NotificationPreferenceResponse>> updateMarketingPreference(
+            @Valid @RequestBody UpdateMarketingNotificationPreferenceRequest request,
+            @AuthenticationPrincipal AuthenticatedActor actor) {
+        requireActor(actor);
+        if (!preferencesAvailable()) return preferenceCapabilityUnavailable();
+        return ResponseEntity.ok(new BaseResponse<>(1,
+                notificationPreferenceService.updateMarketingNotifications(
+                        actor.getPrincipalId(), request.getMarketingNotificationsEnabled()),
+                "Cập nhật cài đặt marketing thành công"));
+    }
+
+    private boolean preferencesAvailable() {
+        return preferencesEnabled && notificationPreferenceService != null;
+    }
+
+    private ResponseEntity<BaseResponse<NotificationPreferenceResponse>> preferenceCapabilityUnavailable() {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(new BaseResponse<>(0, null, "Notification preferences capability is disabled"));
     }
 
     private void requireActor(AuthenticatedActor actor) {

@@ -15,6 +15,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -41,6 +42,7 @@ class OrderServiceCanonicalPricingTest {
     @Mock ShippingFeeCalculationService shippingFeeCalculationService;
     @Mock com.delivery.order_service.metrics.BusinessMetrics businessMetrics;
     @Mock CheckoutReservationClient reservationClient;
+    @Mock InventoryReservationClient inventoryReservationClient;
 
     @Test
     void shipperNotFoundKeepsTerminalStatusAndPublishesRefundEligibilitySnapshot() {
@@ -148,7 +150,7 @@ class OrderServiceCanonicalPricingTest {
                 11L, 12L, "Quán", "Địa chỉ", "0900000000", 10.75, 106.66,
                 List.of(new ValidatedOrderData.ValidatedItemData(
                         9L, "Cơm canonical", new BigDecimal("50000"))));
-        when(orderValidationService.validateCreateOrderRequest(request, 21L)).thenReturn(validated);
+        when(orderValidationService.validateCreateOrderRequest(request, 21L, 21L)).thenReturn(validated);
 
         Order order = new Order();
         order.setId(101L);
@@ -183,14 +185,20 @@ class OrderServiceCanonicalPricingTest {
         CreateOrderRequest request = baseRequest();
         request.setVoucherIds(List.of(55L));
         ValidatedOrderData validated = validatedItem(new BigDecimal("100000"));
-        when(orderValidationService.validateCreateOrderRequest(request, 21L)).thenReturn(validated);
+        when(orderValidationService.validateCreateOrderRequest(request, 21L, 21L)).thenReturn(validated);
         Order order = persistedMappedOrder(request);
         when(shippingFeeCalculationService.calculateShippingFee(
                 10.75, 106.66, 10.8, 106.7, new BigDecimal("100000")))
                 .thenReturn(new BigDecimal("15000"));
         when(reservationClient.reserveVoucher(any(UUID.class), eq(101L), eq(21L), eq(55L), eq(7L),
                 eq(new BigDecimal("100000")), eq(new BigDecimal("15000"))))
-                .thenReturn(new CheckoutReservationClient.VoucherQuote(new BigDecimal("20000")));
+                .thenReturn(new CheckoutReservationClient.VoucherQuote(
+                        new BigDecimal("20000"), new BigDecimal("20000"), BigDecimal.ZERO,
+                        new BigDecimal("15000"), new BigDecimal("15000"), new BigDecimal("20000"),
+                        BigDecimal.ZERO,
+                        "[{\"voucherId\":55,\"layer\":\"PLATFORM_DISCOUNT\",\"fundingSource\":\"PLATFORM\",\"discountAmount\":20000}]",
+                        List.of(Map.of("voucherId", 55L, "layer", "PLATFORM_DISCOUNT",
+                                "fundingSource", "PLATFORM", "discountAmount", new BigDecimal("20000")))));
         when(orderMapper.orderItemRequestToOrderItem(request.getItems().get(0))).thenReturn(new OrderItem());
         when(orderMapper.orderToOrderResponse(order)).thenReturn(new OrderResponse());
 
@@ -201,7 +209,40 @@ class OrderServiceCanonicalPricingTest {
         org.assertj.core.api.Assertions.assertThat(order.getDiscountAmount()).isEqualByComparingTo("20000");
         org.assertj.core.api.Assertions.assertThat(order.getShippingFee()).isEqualByComparingTo("15000");
         org.assertj.core.api.Assertions.assertThat(order.getTotalPrice()).isEqualByComparingTo("95000");
+        org.assertj.core.api.Assertions.assertThat(order.getPlatformSubsidy()).isEqualByComparingTo("20000");
+        org.assertj.core.api.Assertions.assertThat(order.getShopDiscount()).isEqualByComparingTo("0");
+        org.assertj.core.api.Assertions.assertThat(order.getShippingDiscount()).isEqualByComparingTo("0");
+        org.assertj.core.api.Assertions.assertThat(order.getPromotionBreakdown()).contains("PLATFORM_DISCOUNT");
         verify(orderEventPublisher).publishOrderCreatedEvent(order);
+    }
+
+    @Test
+    void legacyFreeshipReservationReducesCustomerShippingWithoutReducingFood() {
+        CreateOrderRequest request = baseRequest();
+        request.setVoucherIds(List.of(55L));
+        when(orderValidationService.validateCreateOrderRequest(request, 21L, 21L))
+                .thenReturn(validatedItem(new BigDecimal("100000")));
+        Order order = persistedMappedOrder(request);
+        when(shippingFeeCalculationService.calculateShippingFee(
+                10.75, 106.66, 10.8, 106.7, new BigDecimal("100000")))
+                .thenReturn(new BigDecimal("15000"));
+        when(reservationClient.reserveVoucher(any(UUID.class), eq(101L), eq(21L), eq(55L), eq(7L),
+                eq(new BigDecimal("100000")), eq(new BigDecimal("15000"))))
+                .thenReturn(new CheckoutReservationClient.VoucherQuote(
+                        new BigDecimal("15000"), BigDecimal.ZERO, new BigDecimal("15000"),
+                        BigDecimal.ZERO, new BigDecimal("15000"), new BigDecimal("15000"),
+                        BigDecimal.ZERO, "[{\"layer\":\"FREESHIP\"}]", List.of()));
+        when(orderMapper.orderItemRequestToOrderItem(request.getItems().get(0))).thenReturn(new OrderItem());
+        when(orderMapper.orderToOrderResponse(order)).thenReturn(new OrderResponse());
+
+        service().createOrder(request, 21L, "USER");
+
+        org.assertj.core.api.Assertions.assertThat(order.getItemDiscount()).isEqualByComparingTo("0");
+        org.assertj.core.api.Assertions.assertThat(order.getShippingDiscount()).isEqualByComparingTo("15000");
+        org.assertj.core.api.Assertions.assertThat(order.getCustomerShippingFee()).isEqualByComparingTo("0");
+        org.assertj.core.api.Assertions.assertThat(order.getGrossShippingFee()).isEqualByComparingTo("15000");
+        org.assertj.core.api.Assertions.assertThat(order.getPlatformSubsidy()).isEqualByComparingTo("15000");
+        org.assertj.core.api.Assertions.assertThat(order.getTotalPrice()).isEqualByComparingTo("100000");
     }
 
     @Test
@@ -209,7 +250,7 @@ class OrderServiceCanonicalPricingTest {
         CreateOrderRequest request = baseRequest();
         request.getItems().get(0).setFlashSaleItemId(88L);
         ValidatedOrderData validated = validatedItem(new BigDecimal("100000"));
-        when(orderValidationService.validateCreateOrderRequest(request, 21L)).thenReturn(validated);
+        when(orderValidationService.validateCreateOrderRequest(request, 21L, 21L)).thenReturn(validated);
         Order order = persistedMappedOrder(request);
         when(reservationClient.reserveFlash(any(UUID.class), eq(101L), eq(21L), eq(7L), eq(request.getItems())))
                 .thenReturn(new CheckoutReservationClient.FlashQuote(Map.of(88L,
@@ -230,10 +271,42 @@ class OrderServiceCanonicalPricingTest {
     }
 
     @Test
+    void enabledInventoryReservationIsCommittedAndSnapshottedWithTheOrder() {
+        CreateOrderRequest request = baseRequest();
+        when(orderValidationService.validateCreateOrderRequest(request, 21L, 21L))
+                .thenReturn(validatedItem(new BigDecimal("100000")));
+        Order order = persistedMappedOrder(request);
+        when(shippingFeeCalculationService.calculateShippingFee(
+                10.75, 106.66, 10.8, 106.7, new BigDecimal("100000")))
+                .thenReturn(new BigDecimal("15000"));
+        when(inventoryReservationClient.reserve(any(UUID.class), eq(101L), eq(21L), eq(21L),
+                eq(7L), eq(request.getItems())))
+                .thenAnswer(invocation -> new InventoryReservationClient.InventoryReservation(
+                        invocation.getArgument(0), 101L, "RESERVED"));
+        when(inventoryReservationClient.commit(any(UUID.class), eq(101L)))
+                .thenAnswer(invocation -> new InventoryReservationClient.InventoryReservation(
+                        invocation.getArgument(0), 101L, "COMMITTED"));
+        when(orderMapper.orderItemRequestToOrderItem(request.getItems().get(0))).thenReturn(new OrderItem());
+        when(orderMapper.orderToOrderResponse(order)).thenReturn(new OrderResponse());
+
+        OrderServiceImpl service = service();
+        ReflectionTestUtils.setField(service, "inventoryReservationEnabled", true);
+        ReflectionTestUtils.setField(service, "inventoryReservationClient", inventoryReservationClient);
+
+        service.createOrder(request, 21L, "USER");
+
+        org.assertj.core.api.Assertions.assertThat(order.getInventoryReservationId()).isNotNull();
+        verify(inventoryReservationClient).reserve(eq(order.getInventoryReservationId()), eq(101L),
+                eq(21L), eq(21L), eq(7L), eq(request.getItems()));
+        verify(inventoryReservationClient).commit(order.getInventoryReservationId(), 101L);
+        verify(orderEventPublisher).publishOrderCreatedEvent(order);
+    }
+
+    @Test
     void laterOutboxFailureReleasesSuccessfulVoucherReservation() {
         CreateOrderRequest request = baseRequest();
         request.setVoucherIds(List.of(55L));
-        when(orderValidationService.validateCreateOrderRequest(request, 21L))
+        when(orderValidationService.validateCreateOrderRequest(request, 21L, 21L))
                 .thenReturn(validatedItem(new BigDecimal("100000")));
         Order order = persistedMappedOrder(request);
         when(shippingFeeCalculationService.calculateShippingFee(
@@ -257,7 +330,7 @@ class OrderServiceCanonicalPricingTest {
     void ambiguousVoucherReserveTimeoutAttemptsReleaseWithTheSameStableIdentity() {
         CreateOrderRequest request = baseRequest();
         request.setVoucherIds(List.of(55L));
-        when(orderValidationService.validateCreateOrderRequest(request, 21L))
+        when(orderValidationService.validateCreateOrderRequest(request, 21L, 21L))
                 .thenReturn(validatedItem(new BigDecimal("100000")));
         Order order = new Order();
         order.setId(101L); order.setRestaurantId(7L);

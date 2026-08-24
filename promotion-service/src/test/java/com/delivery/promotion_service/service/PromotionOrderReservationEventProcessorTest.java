@@ -1,6 +1,11 @@
 package com.delivery.promotion_service.service;
 
+import com.delivery.promotion_service.dto.PromotionReservationResponse;
+import com.delivery.promotion_service.dto.VoucherReservationResponse;
+import com.delivery.promotion_service.entity.PromotionReservation;
 import com.delivery.promotion_service.entity.PromotionOrderReservationReceipt;
+import com.delivery.promotion_service.entity.VoucherReservation;
+import com.delivery.promotion_service.exception.PromotionConflictException;
 import com.delivery.promotion_service.repository.PromotionOrderReservationReceiptRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -31,6 +36,8 @@ class PromotionOrderReservationEventProcessorTest {
         String payload = payload(eventId, 91L, reservationId);
         when(receipts.insertIfAbsentPostgres(eq(eventId), eq("order.created"), eq("COMMIT"), eq(91L),
                 eq(reservationId), anyString())).thenReturn(1);
+        when(promotionService.commitReservation(reservationId, 91L)).thenReturn(
+                VoucherReservationResponse.builder().state(VoucherReservation.State.COMMITTED).build());
 
         processor.process(payload, "order.created");
 
@@ -40,6 +47,37 @@ class PromotionOrderReservationEventProcessorTest {
         verify(receipts).insertIfAbsentPostgres(eq(eventId), eq("order.created"), eq("COMMIT"), eq(91L),
                 eq(reservationId), fingerprint.capture());
         org.assertj.core.api.Assertions.assertThat(fingerprint.getValue()).hasSize(64);
+    }
+
+    @Test
+    void createdEventFailsWhenLegacyCommitDoesNotReachCommittedState() {
+        UUID eventId = UUID.randomUUID();
+        UUID reservationId = UUID.randomUUID();
+        String payload = payload(eventId, 91L, reservationId);
+        when(receipts.insertIfAbsentPostgres(eq(eventId), eq("order.created"), eq("COMMIT"), eq(91L),
+                eq(reservationId), anyString())).thenReturn(1);
+        when(promotionService.commitReservation(reservationId, 91L)).thenReturn(
+                VoucherReservationResponse.builder().state(VoucherReservation.State.EXPIRED).build());
+
+        assertThrows(PromotionConflictException.class, () -> processor.process(payload, "order.created"));
+
+        verify(promotionService).commitReservation(reservationId, 91L);
+    }
+
+    @Test
+    void createdEventRequiresCommittedStateForStackingReservation() throws Exception {
+        UUID eventId = UUID.randomUUID();
+        UUID promotionReservationId = UUID.randomUUID();
+        String payload = promotionPayload(eventId, 91L, promotionReservationId);
+        when(receipts.insertIfAbsentPostgres(eq(eventId), eq("order.created"), eq("COMMIT"), eq(91L),
+                isNull(), anyString())).thenReturn(1);
+        when(promotionService.commitPromotionReservation(promotionReservationId, 91L)).thenReturn(
+                PromotionReservationResponse.builder().state(PromotionReservation.State.COMMITTED).build());
+
+        processor.process(payload, "order.created");
+
+        verify(promotionService).commitPromotionReservation(promotionReservationId, 91L);
+        verify(promotionService, never()).commitReservation(any(), any());
     }
 
     @Test
@@ -99,5 +137,10 @@ class PromotionOrderReservationEventProcessorTest {
     private String payload(UUID eventId, long orderId, UUID reservationId) {
         return "{\"eventId\":\"" + eventId + "\",\"orderId\":" + orderId
                 + ",\"voucherReservationId\":\"" + reservationId + "\"}";
+    }
+
+    private String promotionPayload(UUID eventId, long orderId, UUID reservationId) {
+        return "{\"eventId\":\"" + eventId + "\",\"orderId\":" + orderId
+                + ",\"promotionReservationId\":\"" + reservationId + "\"}";
     }
 }

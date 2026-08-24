@@ -13,6 +13,8 @@ public class ApiPathConstants {
     public static final String USER_NOTIFICATIONS = "/user/{userId}";
     public static final String MARK_AS_READ = "/{id}/read";
     public static final String MARK_ALL_AS_READ = "/mark-all-read";
+    public static final String PREFERENCES = "/preferences";
+    public static final String MARKETING_PREFERENCE = "/preferences/marketing";
     
     private ApiPathConstants() {
         // Utility class

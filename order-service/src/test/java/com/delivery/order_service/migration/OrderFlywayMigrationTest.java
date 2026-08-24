@@ -30,6 +30,17 @@ class OrderFlywayMigrationTest {
             assertThat(indexExists(connection, "idx_orders_restaurant_creator_created")).isTrue();
             assertThat(indexExists(connection, "idx_orders_created_id")).isTrue();
             assertThat(indexExists(connection, "idx_order_items_order_id")).isTrue();
+            assertThat(indexExists(connection, "uk_orders_inventory_reservation")).isTrue();
+
+            long anotherOrderId = insertOrder(statement, 11);
+            UUID reservationId = UUID.randomUUID();
+            statement.executeUpdate("UPDATE orders SET inventory_reservation_id = '" + reservationId
+                    + "' WHERE id = " + orderId);
+            assertThatThrownBy(() -> statement.executeUpdate(
+                    "UPDATE orders SET inventory_reservation_id = '" + reservationId
+                            + "' WHERE id = " + anotherOrderId))
+                    .isInstanceOf(Exception.class)
+                    .hasMessageContaining("Unique");
         }
     }
 

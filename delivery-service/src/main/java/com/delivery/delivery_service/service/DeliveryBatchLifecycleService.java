@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -34,17 +35,38 @@ public class DeliveryBatchLifecycleService {
     private final DeliveryRepository deliveryRepository;
     private final OutboxService outboxService;
     private final DeliveryEventPublisher eventPublisher;
+    private final ShipperIdentityResolver shipperIdentityResolver;
 
+    /** Compatibility constructor for direct unit fixtures. */
     public DeliveryBatchLifecycleService(DeliveryBatchRepository batchRepository,
                                          DeliveryBatchItemRepository itemRepository,
                                          DeliveryRepository deliveryRepository,
                                          OutboxService outboxService,
                                          DeliveryEventPublisher eventPublisher) {
+        this(batchRepository, itemRepository, deliveryRepository, outboxService, eventPublisher, null);
+    }
+
+    @Autowired
+    public DeliveryBatchLifecycleService(DeliveryBatchRepository batchRepository,
+                                         DeliveryBatchItemRepository itemRepository,
+                                         DeliveryRepository deliveryRepository,
+                                         OutboxService outboxService,
+                                         DeliveryEventPublisher eventPublisher,
+                                         ShipperIdentityResolver shipperIdentityResolver) {
         this.batchRepository = batchRepository;
         this.itemRepository = itemRepository;
         this.deliveryRepository = deliveryRepository;
         this.outboxService = outboxService;
         this.eventPublisher = eventPublisher;
+        this.shipperIdentityResolver = shipperIdentityResolver;
+    }
+
+    @Transactional
+    public void reject(UUID batchId, Long principalId, Long legacyUserId, String role, String reason) {
+        if (shipperIdentityResolver == null) {
+            throw new com.delivery.delivery_service.exception.AccessDeniedException("Shipper identity resolver is unavailable");
+        }
+        reject(batchId, shipperIdentityResolver.resolveShipperId(principalId, legacyUserId, role), role, reason);
     }
 
     @Scheduled(fixedDelayString = "${delivery.batch.expiry-scan-ms:1000}")

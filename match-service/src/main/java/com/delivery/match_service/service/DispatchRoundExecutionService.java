@@ -277,11 +277,16 @@ public class DispatchRoundExecutionService {
                     Comparator.nullsLast(Long::compareTo))).toList();
         }
         final List<DispatchPoolItem> orderedItems = orderedItemsCandidate;
-        event.setBatchItems(java.util.stream.IntStream.range(0, orderedItems.size())
+        int itemCount = orderedItems.size();
+        // The route contract uses global stop positions. Keep pickups in the
+        // first contiguous half and the matching drop-offs in the second half;
+        // this guarantees pickupSequence < dropoffSequence for every item and
+        // gives Delivery a deterministic 0..(2*n-1) snapshot.
+        event.setBatchItems(java.util.stream.IntStream.range(0, itemCount)
                 .mapToObj(index -> {
                     DispatchPoolItem item = orderedItems.get(index);
                     return new ShipperFoundEvent.BatchItem(item.getDeliveryId(), item.getOrderId(),
-                            index, index, item.getTotalPrice(), item.getMatchingSessionId());
+                            index, itemCount + index, item.getTotalPrice(), item.getMatchingSessionId());
                 }).toList());
         return event;
         }).toList();

@@ -42,6 +42,10 @@ public class Restaurant {
     @Column(name = "closing_hour")
     private LocalTime closingHour;
 
+    /** Restaurant-owned prep estimate used only by the gated public ETA quote. */
+    @Column(name = "default_prep_time_minutes", nullable = false)
+    private Integer defaultPrepTimeMinutes = 30;
+
     @Column(name = "image", columnDefinition = "TEXT")
     private String image;
 
@@ -159,6 +163,14 @@ public class Restaurant {
 
     public void setClosingHour(LocalTime closingHour) {
         this.closingHour = closingHour;
+    }
+
+    public Integer getDefaultPrepTimeMinutes() {
+        return defaultPrepTimeMinutes;
+    }
+
+    public void setDefaultPrepTimeMinutes(Integer defaultPrepTimeMinutes) {
+        this.defaultPrepTimeMinutes = defaultPrepTimeMinutes;
     }
 
     public String getImage() {

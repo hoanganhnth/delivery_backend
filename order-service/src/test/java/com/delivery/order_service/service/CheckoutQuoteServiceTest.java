@@ -29,6 +29,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import org.mockito.ArgumentCaptor;
 
 @ExtendWith(MockitoExtension.class)
 class CheckoutQuoteServiceTest {
@@ -122,6 +123,29 @@ class CheckoutQuoteServiceTest {
 
         assertThat(quote.getConsumedOrderId()).isEqualTo(9001L);
         verify(repository).findByIdForUpdate(quoteId);
+    }
+
+    @Test
+    void oneVoucherWithoutModeIsRepricedThroughTheSameLegacyRail() {
+        CreateOrderRequest request = createRequest();
+        request.setVoucherIds(List.of(55L));
+        CheckoutPreviewRequest quotedRequest = previewRequest();
+        quotedRequest.setVoucherId(55L);
+        CheckoutPreviewResponse preview = preview("95000");
+        preview.setVoucherId(55L);
+        preview.setSelectedVoucherIds(List.of(55L));
+        CheckoutQuote quote = quote(request.getQuoteId(), quotedRequest, preview, NOW.plusSeconds(300));
+        when(repository.findById(request.getQuoteId())).thenReturn(Optional.of(quote));
+        when(previewService.calculatePreview(any(CheckoutPreviewRequest.class), eq(PRINCIPAL_ID), eq(LEGACY_USER_ID)))
+                .thenReturn(preview);
+
+        service.validateAndReprice(request, PRINCIPAL_ID, LEGACY_USER_ID);
+
+        ArgumentCaptor<CheckoutPreviewRequest> repriced = ArgumentCaptor.forClass(CheckoutPreviewRequest.class);
+        verify(previewService).calculatePreview(repriced.capture(), eq(PRINCIPAL_ID), eq(LEGACY_USER_ID));
+        assertThat(repriced.getValue().getVoucherId()).isEqualTo(55L);
+        assertThat(repriced.getValue().getSelectedVoucherIds()).isNull();
+        assertThat(repriced.getValue().getSelectionMode()).isNull();
     }
 
     private CheckoutQuote quote(UUID quoteId, CheckoutPreviewRequest request,

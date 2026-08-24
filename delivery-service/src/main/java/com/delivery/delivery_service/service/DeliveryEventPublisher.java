@@ -5,6 +5,7 @@ import com.delivery.delivery_service.dto.event.ShipperAcceptedEvent;
 import com.delivery.delivery_service.dto.event.DeliveryCompletedEvent;
 import com.delivery.delivery_service.dto.event.OfferPersistedEvent;
 import com.delivery.delivery_service.dto.event.OfferRetiredEvent;
+import com.delivery.delivery_service.dto.event.DeliveryExceptionReportedEvent;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -39,6 +40,8 @@ public class DeliveryEventPublisher {
     private String offerPersistedTopic = KafkaTopicConstants.OFFER_PERSISTED_TOPIC;
     @Value("${app.kafka.topics.offer-retired:delivery.offer-retired}")
     private String offerRetiredTopic = KafkaTopicConstants.OFFER_RETIRED_TOPIC;
+    @Value("${app.kafka.topics.delivery-exception-reported:delivery.exception.reported}")
+    private String deliveryExceptionReportedTopic = KafkaTopicConstants.DELIVERY_EXCEPTION_REPORTED_TOPIC;
 
     public DeliveryEventPublisher(OutboxService outboxService) {
         this.outboxService = outboxService;
@@ -145,6 +148,30 @@ public class DeliveryEventPublisher {
         UUID eventId = derivedEventId("delivery.offer-retired", event.getSourceCommandEventId());
         outboxService.saveEvent(eventId, "DELIVERY", event.getDeliveryId().toString(), "OFFER_RETIRED",
                 offerRetiredTopic, event.getOrderId().toString(), event);
+    }
+
+    /**
+     * Emits the post-pickup exception through a dedicated topic. Existing Saga
+     * consumers retain their strict legacy status vocabulary on status-updated.
+     */
+    public void publishDeliveryExceptionReported(DeliveryExceptionReportedEvent event) {
+        publishDeliveryExceptionEvent(event);
+    }
+
+    public void publishDeliveryExceptionUpdated(DeliveryExceptionReportedEvent event) {
+        publishDeliveryExceptionEvent(event);
+    }
+
+    private void publishDeliveryExceptionEvent(DeliveryExceptionReportedEvent event) {
+        if (event == null || event.getEventId() == null || event.getExceptionId() == null
+                || event.getDeliveryId() == null || event.getOrderId() == null) {
+            throw new IllegalArgumentException("delivery exception event identity is required");
+        }
+        String eventType = event.getEventType() == null || event.getEventType().isBlank()
+                ? "DELIVERY_EXCEPTION_REPORTED" : event.getEventType();
+        outboxService.saveEvent(event.getEventId(), "DELIVERY_EXCEPTION", event.getExceptionId().toString(),
+                eventType, deliveryExceptionReportedTopic,
+                event.getOrderId().toString(), event);
     }
 
     private UUID derivedEventId(String type, UUID sourceCommandEventId) {

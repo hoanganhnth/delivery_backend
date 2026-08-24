@@ -40,6 +40,7 @@ public class OrderCancelledEvent {
     private UUID voucherReservationId;
     private UUID promotionReservationId;
     private UUID flashSaleReservationId;
+    private UUID inventoryReservationId;
 
     // Immutable monetary snapshot used by settlement/refund consumers.
     private BigDecimal subtotalPrice;

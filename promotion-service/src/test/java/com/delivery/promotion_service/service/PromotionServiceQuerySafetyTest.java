@@ -70,6 +70,9 @@ class PromotionServiceQuerySafetyTest {
         Voucher voucher = Voucher.builder()
                 .id(11L)
                 .creatorType(Voucher.CreatorType.PLATFORM)
+                .rewardType(Voucher.RewardType.FIXED)
+                .discountValue(BigDecimal.ONE)
+                .layerCode(VoucherLayer.PLATFORM_DISCOUNT.name())
                 .active(true)
                 .endTime(LocalDateTime.now().plusDays(1))
                 .totalQuantity(10)
@@ -115,11 +118,36 @@ class PromotionServiceQuerySafetyTest {
     }
 
     @Test
+    void collectRejectsVoucherWithoutEndTimeAsMalformed() {
+        PromotionService service = new PromotionService(
+                voucherRepository, userVoucherRepository, voucherGroupRepository, voucherReservationRepository, outboxService);
+        Voucher voucher = Voucher.builder()
+                .id(11L).active(true)
+                .creatorType(Voucher.CreatorType.PLATFORM)
+                .rewardType(Voucher.RewardType.FIXED)
+                .discountValue(BigDecimal.ONE)
+                .scopeType(Voucher.ScopeType.ALL)
+                .layerCode(VoucherLayer.PLATFORM_DISCOUNT.name())
+                .usedQuantity(0).totalQuantity(10)
+                .build();
+        when(voucherRepository.findByCode("NOEND")).thenReturn(java.util.Optional.of(voucher));
+
+        assertThrows(IllegalArgumentException.class, () -> service.collectVoucher(7L, "NOEND"));
+
+        verifyNoInteractions(userVoucherRepository);
+    }
+
+    @Test
     void concurrentCollectUniqueViolationBecomesConflict() {
         PromotionService service = new PromotionService(
                 voucherRepository, userVoucherRepository, voucherGroupRepository, voucherReservationRepository, outboxService);
         Voucher voucher = Voucher.builder()
                 .id(11L).active(true)
+                .creatorType(Voucher.CreatorType.PLATFORM)
+                .rewardType(Voucher.RewardType.FIXED)
+                .discountValue(BigDecimal.ONE)
+                .scopeType(Voucher.ScopeType.ALL)
+                .layerCode(VoucherLayer.PLATFORM_DISCOUNT.name())
                 .startTime(LocalDateTime.now().minusHours(1))
                 .endTime(LocalDateTime.now().plusDays(1))
                 .usedQuantity(0).totalQuantity(10)
@@ -195,6 +223,22 @@ class PromotionServiceQuerySafetyTest {
         Voucher created = service.createVoucher(request);
         org.assertj.core.api.Assertions.assertThat(created.getScopeType()).isEqualTo(Voucher.ScopeType.SHOP);
         org.assertj.core.api.Assertions.assertThat(created.getScopeRefId()).isEqualTo(9L);
+    }
+
+    @Test
+    void voucherCreationRejectsInvalidLayerAndNegativeCapBeforePersistence() {
+        PromotionService service = new PromotionService(
+                voucherRepository, userVoucherRepository, voucherGroupRepository,
+                voucherReservationRepository, outboxService);
+        CreateVoucherRequest request = validPlatformVoucherRequest();
+        request.setLayerCode("PLATFROM_DISCOUNT");
+
+        assertThrows(IllegalArgumentException.class, () -> service.createVoucher(request));
+
+        request.setLayerCode(null);
+        request.setMaxDiscountValue(new BigDecimal("-1"));
+        assertThrows(IllegalArgumentException.class, () -> service.createVoucher(request));
+        verifyNoInteractions(voucherRepository);
     }
 
     private CreateVoucherRequest validPlatformVoucherRequest() {

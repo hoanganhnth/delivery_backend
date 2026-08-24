@@ -35,7 +35,7 @@ public interface DeliveryRepository extends JpaRepository<Delivery, Long> {
     /**
      * Lấy delivery đang active của shipper
      */
-    @Query("SELECT d FROM Delivery d WHERE d.shipperId = :shipperId AND d.status IN (com.delivery.delivery_service.entity.DeliveryStatus.ASSIGNED, com.delivery.delivery_service.entity.DeliveryStatus.PICKED_UP, com.delivery.delivery_service.entity.DeliveryStatus.DELIVERING) ORDER BY d.createdAt DESC")
+    @Query("SELECT d FROM Delivery d WHERE d.shipperId = :shipperId AND d.status IN (com.delivery.delivery_service.entity.DeliveryStatus.ASSIGNED, com.delivery.delivery_service.entity.DeliveryStatus.PICKED_UP, com.delivery.delivery_service.entity.DeliveryStatus.DELIVERING, com.delivery.delivery_service.entity.DeliveryStatus.RETURNING) ORDER BY d.createdAt DESC")
     List<Delivery> findActiveDeliveriesByShipper(@Param("shipperId") Long shipperId, Pageable pageable);
 
     @Query("SELECT d FROM Delivery d WHERE d.offeredShipperId = :shipperId "

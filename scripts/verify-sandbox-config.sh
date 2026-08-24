@@ -62,6 +62,27 @@ printf '%s' "$config" | jq -e \
        | contains("http://localhost:5173"))
   and ($root.services["simulator-service"].healthcheck.test[1]
        == "wget -q -T 3 -O /dev/null http://localhost:9100/actuator/health/readiness")
+  and ($root.services.kafka.environment.KAFKA_HEAP_OPTS == "-Xms128m -Xmx384m")
+  and ($root.services.elasticsearch.environment.ES_JAVA_OPTS == "-Xms96m -Xmx128m")
+  and ($root.services.elasticsearch.environment["xpack.ml.enabled"] == "false")
+  and ($root.services.elasticsearch.environment["xpack.monitoring.collection.enabled"] == "false")
+  and ($root.services.elasticsearch.environment["xpack.watcher.enabled"] == "false")
+  and ($root.services.elasticsearch.environment["ingest.geoip.downloader.enabled"] == "false")
+  and ($root.services.elasticsearch.deploy.resources.limits.memory == "1610612736")
+  and ($root.services["restaurant-service"].deploy.resources.limits.memory == "805306368")
+  and ($root.services["notification-service"].deploy.resources.limits.memory == "805306368")
+  and ($root.services["match-service"].deploy.resources.limits.memory == "805306368")
+  and ([
+    "api-gateway", "auth-service", "user-service", "restaurant-service",
+    "order-service", "delivery-service", "search-service", "shipper-service",
+    "settlement-service", "notification-service", "match-service", "tracking-service",
+    "saga-orchestrator-service"
+  ] | all(. as $service |
+      $root.services[$service].environment.JAVA_TOOL_OPTIONS == "-Xmx160m -Xms48m"))
+  and ($root.services["config-server"].environment.JAVA_TOOL_OPTIONS == "-Xmx192m -Xms64m")
+  and ($root.services["discovery-server"].environment.JAVA_TOOL_OPTIONS == "-Xmx192m -Xms64m")
+  and ($root.services["routing-service"].environment.JAVA_TOOL_OPTIONS == "-Xmx160m -Xms48m")
+  and ($root.services["simulator-service"].environment.JAVA_TOOL_OPTIONS == "-Xmx192m -Xms64m")
   and ($root.services["match-service"].environment.MATCHING_H3_ENABLED == $expectedH3)
   and ($root.services["match-service"].environment.MATCHING_BATCH_ENABLED == $expectedBatch)
   and ($root.services["match-service"].environment.MATCHING_BATCH_SCHEDULER_ENABLED == $expectedScheduler)
@@ -90,4 +111,4 @@ printf '%s' "$config" | jq -e \
   exit 1
 }
 
-echo "Sandbox Compose contract passed: isolated names, loopback dynamic ports, mock-only simulator and H3/batch flags verified."
+echo "Sandbox Compose contract passed: isolated names, low-memory JVM/Kafka/Elasticsearch, loopback dynamic ports, mock-only simulator and H3/batch flags verified."

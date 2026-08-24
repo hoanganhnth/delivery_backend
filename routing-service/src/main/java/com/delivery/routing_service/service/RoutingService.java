@@ -1,6 +1,8 @@
 package com.delivery.routing_service.service;
 
 import com.delivery.routing_service.api.Coordinate;
+import com.delivery.routing_service.api.EtaWindowRequest;
+import com.delivery.routing_service.api.EtaWindowResponse;
 import com.delivery.routing_service.api.MatrixRequest;
 import com.delivery.routing_service.api.MatrixResponse;
 import com.delivery.routing_service.api.RouteRequest;
@@ -108,6 +110,23 @@ public class RoutingService {
         } catch (RuntimeException failure) {
             return fallbackRoute(request);
         }
+    }
+
+    /**
+     * ETA authority: driving duration plus restaurant preparation, with the
+     * pre-approved ten-minute uncertainty allowance represented as a range.
+     */
+    public EtaWindowResponse etaWindow(EtaWindowRequest request) {
+        if (request == null || request.origin() == null || request.destination() == null
+                || request.prepMinutes() == null || request.prepMinutes() < 1
+                || request.prepMinutes() > 240) {
+            throw new IllegalArgumentException("ETA requires coordinates and prepMinutes between 1 and 240");
+        }
+        RouteResponse route = route(new RouteRequest(
+                "driving", request.origin(), request.destination(), null, false));
+        int drivingMinutes = (int) Math.max(1, Math.ceil(route.durationSeconds() / 60d));
+        int minimum = Math.addExact(drivingMinutes, request.prepMinutes());
+        return new EtaWindowResponse(minimum, Math.addExact(minimum, 10), route.source());
     }
 
     private MatrixResponse parseMatrix(MatrixRequest request, JsonNode body) {

@@ -2,6 +2,7 @@ package com.delivery.promotion_service.controller;
 
 import com.delivery.auth.resourceserver.security.AuthenticatedActor;
 import com.delivery.promotion_service.dto.CartContextRequest;
+import com.delivery.promotion_service.dto.BulkReserveRequest;
 import com.delivery.promotion_service.dto.CreateVoucherRequest;
 import com.delivery.promotion_service.dto.ReserveRequest;
 import com.delivery.promotion_service.service.PromotionService;
@@ -177,5 +178,28 @@ class PromotionControllerAuthorizationTest {
 
         assertEquals(999L, request.getUserId());
         verify(promotionService).calculate(request);
+    }
+
+    @Test
+    void bulkReservationRequiresStackingFlagAndCanaryPrincipal() {
+        ReflectionTestUtils.setField(controller, "checkoutEnabled", true);
+        BulkReserveRequest request = BulkReserveRequest.builder()
+                .reservationId(UUID.randomUUID()).orderId(91L).userId(7L).userPrincipalId(42L)
+                .restaurantId(3L).subtotal(java.math.BigDecimal.TEN)
+                .grossShippingFee(java.math.BigDecimal.ONE).voucherIds(List.of(11L)).build();
+
+        ResponseStatusException disabled = assertThrows(ResponseStatusException.class,
+                () -> controller.reserveBulk(request, "test-secret"));
+        assertEquals(org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE, disabled.getStatusCode());
+
+        ReflectionTestUtils.setField(controller, "stackingEnabled", true);
+        ReflectionTestUtils.setField(controller, "stackingCanaryPrincipals", "42");
+        assertEquals(1, controller.reserveBulk(request, "test-secret").getBody().getStatus());
+        verify(promotionService).reserveVouchers(request);
+
+        request.setUserPrincipalId(99L);
+        ResponseStatusException forbidden = assertThrows(ResponseStatusException.class,
+                () -> controller.reserveBulk(request, "test-secret"));
+        assertEquals(org.springframework.http.HttpStatus.FORBIDDEN, forbidden.getStatusCode());
     }
 }

@@ -25,6 +25,13 @@ public class CheckoutPreviewResponse {
     private Long restaurantId;
     private String restaurantName;
 
+    /** Additive public ETA metadata; omitted while the capability is disabled. */
+    private Integer etaMinMinutes;
+    private Integer etaMaxMinutes;
+    private String etaSource;
+    private Long serviceabilityZoneId;
+    private Long serviceabilityZoneRevision;
+
     private List<PreviewItemDetail> items;
 
     private BigDecimal subtotal;        // Tổng tiền hàng (server tính)

@@ -29,6 +29,18 @@ class NotificationFlywayMigrationTest {
                     .hasMessageContaining("Unique");
             assertThat(indexExists(connection, "idx_notifications_user_created")).isTrue();
             assertThat(indexExists(connection, "idx_notifications_user_read_created")).isTrue();
+            assertThat(columnExists(connection, "notification_preferences", "principal_id")).isTrue();
+            assertThat(columnExists(connection, "notification_preferences", "marketing_notifications_enabled")).isTrue();
+            statement.executeUpdate("INSERT INTO notification_preferences (principal_id, updated_at) "
+                    + "VALUES (71, CURRENT_TIMESTAMP)");
+            try (ResultSet result = statement.executeQuery("SELECT marketing_notifications_enabled "
+                    + "FROM notification_preferences WHERE principal_id = 71")) {
+                result.next();
+                assertThat(result.getBoolean(1)).isFalse();
+            }
+            assertThatThrownBy(() -> statement.executeUpdate(
+                    "INSERT INTO notification_preferences (principal_id, updated_at) VALUES (71, CURRENT_TIMESTAMP)"))
+                    .isInstanceOf(Exception.class).hasMessageContaining("Unique");
         }
     }
 
@@ -153,8 +165,12 @@ class NotificationFlywayMigrationTest {
     }
 
     private boolean columnExists(Connection connection, String expectedName) throws Exception {
+        return columnExists(connection, "notifications", expectedName);
+    }
+
+    private boolean columnExists(Connection connection, String table, String expectedName) throws Exception {
         try (ResultSet columns = connection.getMetaData()
-                .getColumns(null, null, "notifications", "%")) {
+                .getColumns(null, null, table, "%")) {
             while (columns.next()) {
                 if (expectedName.equalsIgnoreCase(columns.getString("COLUMN_NAME"))) {
                     return true;

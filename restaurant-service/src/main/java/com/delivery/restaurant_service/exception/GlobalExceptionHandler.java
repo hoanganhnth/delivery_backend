@@ -49,6 +49,13 @@ public class GlobalExceptionHandler {
                 .body(new BaseResponse<>(0, null, ex.getMessage()));
     }
 
+    @ExceptionHandler(ServiceabilityZoneConflictException.class)
+    public ResponseEntity<BaseResponse<Object>> handleServiceabilityConflict(
+            ServiceabilityZoneConflictException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new BaseResponse<>(0, null, ex.getMessage()));
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<BaseResponse<Object>> handleIllegalArgument(IllegalArgumentException ex) {
         return ResponseEntity.badRequest()

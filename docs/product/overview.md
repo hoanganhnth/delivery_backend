@@ -13,7 +13,7 @@ sau khi giao xong.
 | api-gateway | 8079 | Cửa vào duy nhất: route, rate limit theo IP và strip legacy identity headers; không verify JWT |
 | auth-service | 8081 | Đăng ký/đăng nhập, issuer JWT RS256 + JWKS, refresh, multi-device session, block |
 | user-service | 8082 | Hồ sơ user, địa chỉ, block/unblock có audit |
-| restaurant-service | 8083 | CRUD nhà hàng + menu, validate order, cache Redis |
+| restaurant-service | 8083 | CRUD nhà hàng + menu, validate order, cache Redis, polygon/serviceability và menu inventory (đều gated) |
 | order-service | 8084 | Vòng đời đơn, tính phí ship (Haversine), listener event |
 | delivery-service | 8085 | Trạng thái giao (9 state), offer/assignment và transactional outbox; legacy STOMP hidden |
 | search-service | 8088 | Elasticsearch projection từ `entity-sync`; shipper search ẩn |

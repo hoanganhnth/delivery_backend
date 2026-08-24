@@ -92,8 +92,10 @@ class GatewayRouteSecurityTest {
 
         assertThat(matches(routes, HttpMethod.POST, "/api/notifications/send")).isFalse();
         assertThat(matches(routes, HttpMethod.GET, "/api/notifications/unread")).isTrue();
+        assertThat(matches(routes, HttpMethod.GET, "/api/notifications/preferences")).isTrue();
         assertThat(matches(routes, HttpMethod.GET, "/api/notifications/42")).isTrue();
         assertThat(matches(routes, HttpMethod.PUT, "/api/notifications/42/read")).isTrue();
+        assertThat(matches(routes, HttpMethod.PUT, "/api/notifications/preferences/marketing")).isTrue();
         assertThat(matches(routes, HttpMethod.DELETE, "/api/notifications/42")).isTrue();
         assertThat(matches(routes, HttpMethod.POST, "/api/firebase/register-token")).isTrue();
         assertThat(matches(routes, HttpMethod.GET, "/api/notifications/future-endpoint")).isFalse();
@@ -184,6 +186,21 @@ class GatewayRouteSecurityTest {
         assertThat(matches(routes, HttpMethod.GET, "/api/menu-items/creator/42")).isFalse();
         assertThat(routes.get("restaurant-admin-ratings-read").getFilters()).isEmpty();
         assertThat(routes.get("restaurant-admin-ratings-update").getFilters()).isEmpty();
+        assertThat(routes.get("restaurant-serviceability-zones").getFilters()).isEmpty();
+        assertThat(matches(routes, HttpMethod.GET,
+                "/api/restaurants/42/serviceability-zones")).isTrue();
+        assertThat(matches(routes, HttpMethod.POST,
+                "/api/restaurants/42/serviceability-zones")).isTrue();
+        assertThat(matches(routes, HttpMethod.PUT,
+                "/api/restaurants/42/serviceability-zones/9")).isTrue();
+        assertThat(matches(routes, HttpMethod.DELETE,
+                "/api/restaurants/42/serviceability-zones/9")).isTrue();
+        assertThat(matches(routes, HttpMethod.PATCH,
+                "/api/restaurants/42/serviceability-zones/9")).isFalse();
+        assertThat(routes.get("restaurant-menu-inventory").getFilters()).isEmpty();
+        assertThat(matches(routes, HttpMethod.GET, "/api/menu-items/42/inventory")).isTrue();
+        assertThat(matches(routes, HttpMethod.PUT, "/api/menu-items/42/inventory")).isTrue();
+        assertThat(matches(routes, HttpMethod.POST, "/api/menu-items/internal/inventory/reservations")).isFalse();
         assertThat(routes.get("restaurant-order-actions").getFilters()).isEmpty();
         assertThat(routes.get("restaurant-owner-self").getFilters()).isEmpty();
         assertThat(routes.get("restaurant-customer-ratings-self").getFilters()).isEmpty();
@@ -241,6 +258,10 @@ class GatewayRouteSecurityTest {
         assertThat(matches(routes, HttpMethod.GET, "/api/promotions/admin")).isTrue();
         assertThat(matches(routes, HttpMethod.DELETE, "/api/promotions/42")).isTrue();
         assertThat(matches(routes, HttpMethod.GET, "/api/promotions/42")).isFalse();
+        assertThat(matches(routes, HttpMethod.GET, "/api/promotions/admin/pending-shop")).isTrue();
+        assertThat(matches(routes, HttpMethod.POST, "/api/promotions/admin/pending-shop")).isFalse();
+        assertThat(matches(routes, HttpMethod.POST, "/api/promotions/admin/42/approve")).isTrue();
+        assertThat(matches(routes, HttpMethod.GET, "/api/promotions/admin/42/approve")).isFalse();
     }
 
     @Test
@@ -259,6 +280,34 @@ class GatewayRouteSecurityTest {
         assertThat(routes.get("delivery-service-current-offer").getFilters()).isEmpty();
         assertThat(matches(routes, HttpMethod.GET, "/api/deliveries/offers/current-batch")).isTrue();
         assertThat(routes.get("delivery-service-current-batch-offer").getFilters()).isEmpty();
+        assertThat(matches(routes, HttpMethod.GET,
+                "/api/deliveries/batches/00000000-0000-0000-0000-000000000001")).isTrue();
+        assertThat(routes.get("delivery-service-batch-snapshot").getFilters()).isEmpty();
+        assertThat(routes.get("delivery-service-pod-actions").getFilters()).isEmpty();
+        assertThat(routes.get("delivery-service-pod-read").getFilters()).isEmpty();
+        assertThat(routes.get("delivery-service-exception-actions").getFilters()).isEmpty();
+        assertThat(routes.get("delivery-service-exception-read").getFilters()).isEmpty();
+        assertThat(matches(routes, HttpMethod.POST,
+                "/api/deliveries/42/proofs/upload-intent")).isTrue();
+        assertThat(matches(routes, HttpMethod.GET,
+                "/api/deliveries/42/proofs/upload-intent")).isFalse();
+        assertThat(matches(routes, HttpMethod.POST,
+                "/api/deliveries/42/proofs/00000000-0000-0000-0000-000000000001/confirm")).isTrue();
+        assertThat(matches(routes, HttpMethod.GET,
+                "/api/deliveries/42/proofs/00000000-0000-0000-0000-000000000001/access")).isTrue();
+        assertThat(matches(routes, HttpMethod.POST,
+                "/api/deliveries/42/proofs/00000000-0000-0000-0000-000000000001/access")).isFalse();
+        assertThat(matches(routes, HttpMethod.POST,
+                "/api/deliveries/42/exceptions/failed")).isTrue();
+        assertThat(matches(routes, HttpMethod.POST,
+                "/api/deliveries/42/exceptions/retry")).isTrue();
+        assertThat(matches(routes, HttpMethod.POST,
+                "/api/deliveries/42/exceptions/return/confirm")).isTrue();
+        assertThat(matches(routes, HttpMethod.GET,
+                "/api/deliveries/42/exceptions/failed")).isFalse();
+        assertThat(matches(routes, HttpMethod.GET, "/api/deliveries/42/exception")).isTrue();
+        assertThat(matches(routes, HttpMethod.POST, "/api/deliveries/42/exception")).isFalse();
+        assertThat(matches(routes, HttpMethod.GET, "/api/deliveries/42/proofs/future-endpoint")).isFalse();
         assertThat(routes.get("delivery-service-current-offer").getPredicate().toString())
                 .contains("/api/deliveries/offers/current")
                 .doesNotContain("/shipper/{shipperId");

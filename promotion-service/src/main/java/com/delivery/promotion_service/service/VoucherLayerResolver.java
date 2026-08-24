@@ -15,6 +15,9 @@ public final class VoucherLayerResolver {
         if (voucher == null || voucher.getRewardType() == null) {
             throw new IllegalArgumentException("Voucher reward type is required");
         }
+        if (voucher.getCreatorType() == Voucher.CreatorType.MERCHANT) {
+            throw new IllegalArgumentException("Legacy MERCHANT voucher is not checkout-eligible");
+        }
         if (voucher.getLayerCode() != null && !voucher.getLayerCode().isBlank()) {
             try {
                 return VoucherLayer.valueOf(voucher.getLayerCode().trim().toUpperCase());
@@ -25,8 +28,7 @@ public final class VoucherLayerResolver {
         if (voucher.getRewardType() == Voucher.RewardType.FREESHIP) {
             return VoucherLayer.FREESHIP;
         }
-        if (voucher.getCreatorType() == Voucher.CreatorType.MERCHANT
-                || voucher.getCreatorType() == Voucher.CreatorType.SHOP) {
+        if (voucher.getCreatorType() == Voucher.CreatorType.SHOP) {
             return VoucherLayer.SHOP_DISCOUNT;
         }
         return VoucherLayer.PLATFORM_DISCOUNT;

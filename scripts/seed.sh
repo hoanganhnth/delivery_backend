@@ -19,6 +19,7 @@ RUN_ID="${RUN_ID:-$(date +%s)}"
 RUN_SUFFIX="${RUN_ID: -8}"
 SEED_OUTPUT_FILE="${SEED_OUTPUT_FILE:-}"
 SEED_SKIP_OFFLINE_PREVIOUS_SHIPPERS="${SEED_SKIP_OFFLINE_PREVIOUS_SHIPPERS:-false}"
+SEED_SKIP_SHIPPER="${SEED_SKIP_SHIPPER:-false}"
 # Runtime rehearsals may use an isolated local database fixture without an
 # SMTP inbox. Production/default seeding never bypasses email verification.
 SEED_LOCAL_FIXTURE_EMAIL_VERIFIED="${SEED_LOCAL_FIXTURE_EMAIL_VERIFIED:-false}"
@@ -40,6 +41,10 @@ MENU_PRICE="45000"
 command -v jq >/dev/null || { echo "❌ Cần cài jq"; exit 1; }
 command -v docker >/dev/null || { echo "❌ Cần Docker để seed ledger ký quỹ local"; exit 1; }
 command -v grep >/dev/null || { echo "❌ Cần grep để xác nhận fixture local"; exit 1; }
+[[ "$SEED_SKIP_SHIPPER" == "true" || "$SEED_SKIP_SHIPPER" == "false" ]] || {
+  echo "SEED_SKIP_SHIPPER must be true or false" >&2
+  exit 2
+}
 
 # A retained-volume rehearsal may need to log in several older fixture shippers
 # before the new one. Respect Gateway 429 Retry-After instead of weakening the
@@ -184,6 +189,11 @@ MENU_ID="$(curl --fail-with-body --silent --show-error -X POST "$BASE/api/menu-i
 echo "✅ Menu item id=$MENU_ID"
 
 # --- 3. Shipper: hồ sơ + online + vị trí ---
+SHIPPER_TOKEN=""
+SHIPPER_USER_ID=""
+if [[ "$SEED_SKIP_SHIPPER" == "true" ]]; then
+  echo "SEED_SKIP_SHIPPER=true — bỏ qua shipper, ký quỹ và vị trí Redis GEO."
+else
 if [[ "$SEED_SKIP_OFFLINE_PREVIOUS_SHIPPERS" != "true" ]]; then
   offline_previous_seed_shippers
 fi
@@ -225,6 +235,7 @@ curl --fail-with-body --silent --show-error -X POST "$BASE/api/tracking/shipper-
   -H "Authorization: Bearer $SHIPPER_TOKEN" -H 'Content-Type: application/json' \
   -d "{\"latitude\":$SHIPPER_LAT,\"longitude\":$SHIPPER_LNG,\"isOnline\":true}" >/dev/null
 echo "✅ Vị trí shipper đã cập nhật ($SHIPPER_LAT,$SHIPPER_LNG)"
+fi
 
 if [[ -n "$SEED_OUTPUT_FILE" ]]; then
   umask 077
@@ -236,7 +247,7 @@ if [[ -n "$SEED_OUTPUT_FILE" ]]; then
     --arg shipperToken "$SHIPPER_TOKEN" \
     --argjson restaurantId "$REST_ID" \
     --argjson menuItemId "$MENU_ID" \
-    --argjson shipperUserId "$SHIPPER_USER_ID" \
+    --argjson shipperUserId "${SHIPPER_USER_ID:-null}" \
     --argjson restaurantLat "$REST_LAT" \
     --argjson restaurantLng "$REST_LNG" \
     --argjson shipperLat "$SHIPPER_LAT" \

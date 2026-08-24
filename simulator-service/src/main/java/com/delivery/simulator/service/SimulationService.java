@@ -181,7 +181,7 @@ public class SimulationService {
             // pre-trigger snapshot (for example, auto-confirming an order the
             // customer or restaurant has just terminated).
             pollState(state, customerToken);
-            if (isTerminalOrder(state.getOrderStatus())) {
+            if (isTerminalProjectionConverged(state.getOrderStatus(), state.getDeliveryStatus())) {
                 finishAssertions(state);
                 return;
             }
@@ -355,8 +355,23 @@ public class SimulationService {
             // cannot be completed by a stale local snapshot.
             pollState(state, customerToken);
 
-            if (isTerminalOrder(state.getOrderStatus()) || isTerminalDelivery(state.getDeliveryStatus())) {
-                return;
+            if (isTerminalOrder(state.getOrderStatus())) {
+                if (isTerminalProjectionConverged(state.getOrderStatus(), state.getDeliveryStatus())) {
+                    return;
+                }
+                // Delivery completion is published through Kafka and the
+                // Order projection may become terminal a poll or two after
+                // Delivery. Do not finish (or send another shipper action)
+                // from a stale cross-service snapshot.
+                sleepControlled(state, properties.getPollIntervalMillis());
+                continue;
+            }
+            if (isTerminalDelivery(state.getDeliveryStatus())) {
+                // A terminal Delivery projection alone is not enough: the
+                // scenario assertion is based on the durable Order state.
+                // Keep polling until Saga has forwarded the terminal command.
+                sleepControlled(state, properties.getPollIntervalMillis());
+                continue;
             }
 
             if ("WAIT_SHIPPER_CONFIRM".equals(state.getDeliveryStatus())
@@ -391,14 +406,26 @@ public class SimulationService {
             // accept/hold path as a multi-order bundle. Older/single-offer
             // stacks return null or 404, in which case the legacy endpoint is
             // used below.
-            if (inspectBatchOffer(state, shipper, id, token)) {
-                continue;
+            try {
+                if (inspectBatchOffer(state, shipper, id, token)) {
+                    continue;
+                }
+            } catch (GatewayClient.GatewayException exception) {
+                if (isTransientRateLimit(exception)) {
+                    // All synthetic actors share the simulator's Gateway peer
+                    // IP. A fixed-window 429 is transport backpressure, not a
+                    // business no-offer result; keep the last state and retry
+                    // on the next runner tick.
+                    continue;
+                }
+                throw exception;
             }
             JsonNode response;
             try {
                 response = data(gateway.get("/api/deliveries/offers/current", token, state.getCorrelationId()));
             } catch (GatewayClient.GatewayException exception) {
-                if (exception.getStatus() == 404 || exception.getStatus() == 204) continue;
+                if (exception.getStatus() == 404 || exception.getStatus() == 204
+                        || isTransientRateLimit(exception)) continue;
                 throw exception;
             }
             if (response == null || response.isNull() || !response.isObject()
@@ -613,7 +640,14 @@ public class SimulationService {
 
     private void pollState(SimulationRunState state, String customerToken) {
         if (state.getOrderId() == null) return;
-        JsonNode order = data(gateway.get("/api/orders/" + state.getOrderId(), customerToken, state.getCorrelationId()));
+        JsonNode order;
+        try {
+            order = data(gateway.get("/api/orders/" + state.getOrderId(), customerToken,
+                    state.getCorrelationId()));
+        } catch (GatewayClient.GatewayException exception) {
+            if (isTransientRateLimit(exception)) return;
+            throw exception;
+        }
         state.setOrderStatus(text(order, "status", state.getOrderStatus()));
         try {
             JsonNode delivery = data(gateway.get("/api/deliveries/order/" + state.getOrderId(), customerToken, state.getCorrelationId()));
@@ -628,8 +662,12 @@ public class SimulationService {
                 if (!assigned.isBlank() && !"null".equals(assigned)) state.setAssignedShipperId(assigned);
             }
         } catch (GatewayClient.GatewayException exception) {
-            if (exception.getStatus() != 404) throw exception;
+            if (exception.getStatus() != 404 && !isTransientRateLimit(exception)) throw exception;
         }
+    }
+
+    static boolean isTransientRateLimit(GatewayClient.GatewayException exception) {
+        return exception != null && exception.getStatus() == 429;
     }
 
     private void fireTriggers(SimulationRunState state, String stage,
@@ -911,7 +949,20 @@ public class SimulationService {
         return state.getOrderStatus();
     }
 
+    static boolean isTerminalProjectionConverged(String orderStatus, String deliveryStatus) {
+        if (!isTerminalOrderStatus(orderStatus)) return false;
+        // Non-delivery terminal states (cancellation/no-shipper) are owned by
+        // Order and may legitimately have no Delivery projection yet. A
+        // successful delivery is different: require both projections so the
+        // runner cannot report success while Order still says PICKED_UP.
+        return !"DELIVERED".equals(orderStatus) || "DELIVERED".equals(deliveryStatus);
+    }
+
     private boolean isTerminalOrder(String status) {
+        return isTerminalOrderStatus(status);
+    }
+
+    private static boolean isTerminalOrderStatus(String status) {
         return "DELIVERED".equals(status) || "CANCELLED".equals(status) || "SHIPPER_NOT_FOUND".equals(status);
     }
 

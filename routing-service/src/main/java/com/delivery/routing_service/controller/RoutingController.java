@@ -4,6 +4,8 @@ import com.delivery.routing_service.api.MatrixRequest;
 import com.delivery.routing_service.api.MatrixResponse;
 import com.delivery.routing_service.api.RouteRequest;
 import com.delivery.routing_service.api.RouteResponse;
+import com.delivery.routing_service.api.EtaWindowRequest;
+import com.delivery.routing_service.api.EtaWindowResponse;
 import com.delivery.routing_service.config.RoutingProperties;
 import com.delivery.routing_service.service.RoutingService;
 import lombok.RequiredArgsConstructor;
@@ -37,6 +39,14 @@ public class RoutingController {
             @RequestBody RouteRequest request) {
         if (!authorized(token)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         return ResponseEntity.ok(routingService.route(request));
+    }
+
+    @PostMapping("/eta-window")
+    public ResponseEntity<EtaWindowResponse> etaWindow(
+            @RequestHeader(value = "Internal-Token", required = false) String token,
+            @RequestBody EtaWindowRequest request) {
+        if (!authorized(token)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        return ResponseEntity.ok(routingService.etaWindow(request));
     }
 
     private boolean authorized(String token) {

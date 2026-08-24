@@ -96,6 +96,8 @@ public class DeliveryMapper {
         response.setTotalPrice(delivery.getTotalPrice());
         response.setPaymentMethod(delivery.getPaymentMethod());
         response.setRestaurantId(delivery.getRestaurantId());
+        response.setBatchId(delivery.getBatchId());
+        response.setPickupSequence(delivery.getBatchSequence());
         return response;
     }
 

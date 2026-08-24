@@ -85,7 +85,8 @@ printf '%s' "$rendered_config" | jq -e \
     and ([
       "auth-service", "user-service", "restaurant-service", "order-service",
       "delivery-service", "settlement-service", "notification-service",
-      "match-service", "tracking-service", "promotion-service", "flashsale-service"
+      "match-service", "tracking-service", "routing-service", "promotion-service",
+      "flashsale-service"
     ] | all(. as $service |
       ($root.services[$service].environment | has("INTERNAL_SECRET") | not)
       and ($root.services[$service].secrets | map(.source) | index("internal-secret") != null)))
@@ -128,8 +129,10 @@ printf '%s' "$rendered_config" | jq -e \
       | has("DELIVERY_WEBSOCKET_ENABLED") | not)
     and .services["settlement-service"].environment.PAYMENT_PROCESSING_ENABLED == "false"
     and .services["settlement-service"].environment.FAKE_PAYMENT_PROVIDER_ENABLED == "false"
+    and .services["settlement-service"].environment.PAYOUT_PROCESSING_ENABLED == "false"
     and .services["settlement-service"].environment.SETTLEMENT_SELF_SERVICE_API_ENABLED == "false"
     and .services["settlement-service"].environment.SETTLEMENT_ADMIN_MUTATION_API_ENABLED == "false"
+    and .services["notification-service"].environment.NOTIFICATION_PREFERENCES_ENABLED == "false"
     and .services["shipper-service"].environment.SHIPPER_LEGACY_RATING_WRITE_API_ENABLED == "false"
     and .services["shipper-service"].environment.SHIPPER_LEGACY_DELETE_API_ENABLED == "false"
     and (.services["search-service"].environment | has("SPRING_DATA_REDIS_HOST") | not)

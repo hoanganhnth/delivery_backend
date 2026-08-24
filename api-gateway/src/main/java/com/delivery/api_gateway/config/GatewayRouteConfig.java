@@ -142,6 +142,11 @@ public class GatewayRouteConfig {
                                 // Public catalog is read-only. Internal validation, creator lookup,
                                 // cache/location utilities and admin mutations are deliberately not
                                 // covered by these routes.
+                                .route("restaurant-serviceability-zones", r -> r.path(
+                                                "/api/restaurants/{restaurantId:[0-9]+}/serviceability-zones",
+                                                "/api/restaurants/{restaurantId:[0-9]+}/serviceability-zones/{zoneId:[0-9]+}")
+                                                .and().method(HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT, HttpMethod.DELETE)
+                                                .uri(restaurantServiceUri))
                                 .route("restaurant-catalog-public", r -> r.path(
                                                 "/api/restaurants",
                                                 "/api/restaurants/page",
@@ -201,6 +206,10 @@ public class GatewayRouteConfig {
                                 .route("restaurant-menu-update-delete", r -> r.path("/api/menu-items/{id:[0-9]+}")
                                                 .and().method(HttpMethod.PUT, HttpMethod.DELETE)
                                                 .uri(restaurantServiceUri))
+                                .route("restaurant-menu-inventory", r -> r.path(
+                                                "/api/menu-items/{menuItemId:[0-9]+}/inventory")
+                                                .and().method(HttpMethod.GET, HttpMethod.PUT)
+                                                .uri(restaurantServiceUri))
                                 // Admin endpoints must be authenticated before the broader orders route.
                                 // Enforce the edge role here; order-service must also keep a
                                 // defense-in-depth role check for direct network access.
@@ -245,6 +254,27 @@ public class GatewayRouteConfig {
                                 .route("delivery-service-status", r -> r.path("/api/deliveries/{id:[0-9]+}/status")
                                                 .and().method(HttpMethod.PUT)
                                                 .uri(deliveryServiceUri))
+                                // POD and post-pickup exception contracts remain
+                                // service-gated and enforce ownership at Delivery.
+                                .route("delivery-service-pod-actions", r -> r.path(
+                                                "/api/deliveries/{deliveryId:[0-9]+}/proofs/upload-intent",
+                                                "/api/deliveries/{deliveryId:[0-9]+}/proofs/{proofId:[0-9a-fA-F-]+}/confirm")
+                                                .and().method(HttpMethod.POST)
+                                                .uri(deliveryServiceUri))
+                                .route("delivery-service-pod-read", r -> r.path(
+                                                "/api/deliveries/{deliveryId:[0-9]+}/proofs/{proofId:[0-9a-fA-F-]+}/access")
+                                                .and().method(HttpMethod.GET)
+                                                .uri(deliveryServiceUri))
+                                .route("delivery-service-exception-actions", r -> r.path(
+                                                "/api/deliveries/{deliveryId:[0-9]+}/exceptions/failed",
+                                                "/api/deliveries/{deliveryId:[0-9]+}/exceptions/retry",
+                                                "/api/deliveries/{deliveryId:[0-9]+}/exceptions/return/confirm")
+                                                .and().method(HttpMethod.POST)
+                                                .uri(deliveryServiceUri))
+                                .route("delivery-service-exception-read", r -> r.path(
+                                                "/api/deliveries/{deliveryId:[0-9]+}/exception")
+                                                .and().method(HttpMethod.GET)
+                                                .uri(deliveryServiceUri))
                                 .route("delivery-service-read", r -> r.path(
                                                 "/api/deliveries/{id:[0-9]+}",
                                                 "/api/deliveries/order/{orderId:[0-9]+}")
@@ -256,6 +286,10 @@ public class GatewayRouteConfig {
                                                 .uri(deliveryServiceUri))
                                 .route("delivery-service-current-batch-offer", r -> r.path(
                                                 "/api/deliveries/offers/current-batch")
+                                                .and().method(HttpMethod.GET)
+                                                .uri(deliveryServiceUri))
+                                .route("delivery-service-batch-snapshot", r -> r.path(
+                                                "/api/deliveries/batches/{batchId}")
                                                 .and().method(HttpMethod.GET)
                                                 .uri(deliveryServiceUri))
                                 .route("delivery-service-shipper-read", r -> r.path(
@@ -291,12 +325,14 @@ public class GatewayRouteConfig {
                                                 "/api/notifications/user/{userId:[0-9]+}",
                                                 "/api/notifications/unread",
                                                 "/api/notifications/unread-count",
+                                                "/api/notifications/preferences",
                                                 "/api/notifications/{id:[0-9]+}")
                                                 .and().method(HttpMethod.GET)
                                                 .uri(notificationServiceUri))
                                 .route("notification-service-update", r -> r.path(
                                                 "/api/notifications/{id:[0-9]+}/read",
-                                                "/api/notifications/mark-all-read")
+                                                "/api/notifications/mark-all-read",
+                                                "/api/notifications/preferences/marketing")
                                                 .and().method(HttpMethod.PUT)
                                                 .uri(notificationServiceUri))
                                 .route("notification-service-delete", r -> r.path(
@@ -376,12 +412,16 @@ public class GatewayRouteConfig {
                                                 .path("/api/promotions/admin", "/api/promotions/admin/page")
                                                 .and().method(HttpMethod.GET)
                                                 .uri(promotionServiceUri))
-                                .route("promotion-service-admin-shop-review", r -> r
-                                                .path("/api/promotions/admin/pending-shop",
-                                                        "/api/promotions/admin/{id:[0-9]+}/approve",
+                                .route("promotion-service-admin-shop-review-read", r -> r
+                                                .path("/api/promotions/admin/pending-shop")
+                                                .and().method(HttpMethod.GET)
+                                                .uri(promotionServiceUri))
+                                .route("promotion-service-admin-shop-review-write", r -> r
+                                                .path("/api/promotions/admin/{id:[0-9]+}/approve",
                                                         "/api/promotions/admin/{id:[0-9]+}/reject",
                                                         "/api/promotions/admin/{id:[0-9]+}/pause",
                                                         "/api/promotions/admin/{id:[0-9]+}/resume")
+                                                .and().method(HttpMethod.POST)
                                                 .uri(promotionServiceUri))
                                 .route("promotion-service-admin-delete", r -> r
                                                 .path("/api/promotions/{id:[0-9]+}")

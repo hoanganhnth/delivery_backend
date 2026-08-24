@@ -54,7 +54,7 @@ public class CheckoutReservationClient {
             throw new ValidationException("Voucher không thể được giữ cho đơn hàng");
         }
         try {
-            return new VoucherQuote(decimal(data.get("discountAmount")));
+            return parseLegacyVoucherQuote(data, "discountAmount");
         } catch (RuntimeException malformed) {
             throw dependencyFailure("promotion-service", "Voucher reservation response is malformed", malformed);
         }
@@ -77,7 +77,7 @@ public class CheckoutReservationClient {
                 requestEnvelope(promotionUrl + "/api/promotions/internal/calculate", request),
                 "Voucher quote", "promotion-service");
         try {
-            return new VoucherQuote(decimal(data.get("totalDiscount")));
+            return parseLegacyVoucherQuote(data, "totalDiscount");
         } catch (RuntimeException malformed) {
             throw dependencyFailure("promotion-service", "Voucher quote response is malformed", malformed);
         }
@@ -138,14 +138,14 @@ public class CheckoutReservationClient {
                 : quote;
     }
 
-    public void commitVouchers(UUID reservationId, Long orderId) {
+    public void commitVouchers(UUID reservationId, Long orderId, Long userPrincipalId) {
         transition(promotionUrl + "/api/promotions/internal/promotion-reservations/"
-                + reservationId + "/commit?orderId=" + orderId);
+                + reservationId + "/commit?orderId=" + orderId + "&userPrincipalId=" + userPrincipalId);
     }
 
-    public void releaseVouchers(UUID reservationId, Long orderId) {
+    public void releaseVouchers(UUID reservationId, Long orderId, Long userPrincipalId) {
         transition(promotionUrl + "/api/promotions/internal/promotion-reservations/"
-                + reservationId + "/release?orderId=" + orderId);
+                + reservationId + "/release?orderId=" + orderId + "&userPrincipalId=" + userPrincipalId);
     }
 
     public FlashQuote quoteFlash(Long restaurantId, List<CreateOrderRequest.OrderItemRequest> requestItems) {
@@ -331,7 +331,21 @@ public class CheckoutReservationClient {
         return new OrderDependencyUnavailableException(dependency, message, cause);
     }
 
-    public record VoucherQuote(BigDecimal discountAmount) {}
+    public record VoucherQuote(BigDecimal discountAmount,
+                               BigDecimal itemDiscount,
+                               BigDecimal shippingDiscount,
+                               BigDecimal customerShippingFee,
+                               BigDecimal grossShippingFee,
+                               BigDecimal platformSubsidy,
+                               BigDecimal shopDiscount,
+                               String breakdownJson,
+                               List<Map<String, Object>> breakdown) {
+        /** Source-compatible fallback for focused legacy callers. */
+        public VoucherQuote(BigDecimal discountAmount) {
+            this(discountAmount, discountAmount, BigDecimal.ZERO, null, null,
+                    BigDecimal.ZERO, BigDecimal.ZERO, null, List.of());
+        }
+    }
     public record PromotionQuote(UUID reservationId, BigDecimal itemDiscount, BigDecimal shippingDiscount,
                                  BigDecimal totalDiscount, BigDecimal customerShippingFee,
                                  List<Long> selectedVoucherIds, String breakdownJson,
@@ -354,9 +368,7 @@ public class CheckoutReservationClient {
         List<Map<String, Object>> lines = new ArrayList<>();
         if (rawLines instanceof List<?> list) {
             for (Object raw : list) if (raw instanceof Map<?, ?> map) {
-                Map<String, Object> line = new LinkedHashMap<>();
-                map.forEach((key, value) -> line.put(String.valueOf(key), value));
-                lines.add(line);
+                lines.add(normalizeVoucherLine(map));
             }
         }
         String breakdown;
@@ -376,5 +388,97 @@ public class CheckoutReservationClient {
                 decimal(data.get("itemDiscount")), decimal(data.get("shippingDiscount")),
                 decimal(data.get("totalDiscount")), decimal(data.get("customerShippingFee")),
                 selected, breakdown, lines, platformSubsidy, shopDiscount);
+    }
+
+    private VoucherQuote parseLegacyVoucherQuote(Map<String, Object> data, String totalField) {
+        BigDecimal total = decimal(data.get(totalField));
+        BigDecimal itemDiscount = optionalDecimal(data.get("itemDiscount"));
+        BigDecimal shippingDiscount = optionalDecimal(data.get("shippingDiscount"));
+        if (itemDiscount == null && shippingDiscount == null) {
+            itemDiscount = total;
+            shippingDiscount = BigDecimal.ZERO;
+        } else {
+            itemDiscount = itemDiscount == null ? BigDecimal.ZERO : itemDiscount;
+            shippingDiscount = shippingDiscount == null ? BigDecimal.ZERO : shippingDiscount;
+        }
+        BigDecimal customerShipping = optionalDecimal(data.get("customerShippingFee"));
+        BigDecimal grossShipping = optionalDecimal(data.get("grossShippingFee"));
+        if (grossShipping == null && customerShipping != null) {
+            grossShipping = customerShipping.add(shippingDiscount);
+        }
+
+        List<Map<String, Object>> lines = parseAppliedLines(data);
+        if (lines.isEmpty()) {
+            Long voucherId = optionalLong(data.get("voucherId"));
+            Object rawSelected = data.get("selectedVoucherIds");
+            if (voucherId == null && rawSelected instanceof List<?> selected && !selected.isEmpty()) {
+                voucherId = optionalLong(selected.get(0));
+            }
+            if (voucherId != null) {
+                Map<String, Object> line = new LinkedHashMap<>();
+                line.put("voucherId", voucherId);
+                line.put("layer", text(data.get("layer")));
+                line.put("fundingSource", text(data.get("fundingSource")));
+                line.put("discountBase", optionalDecimal(data.get("discountBase")));
+                line.put("discountAmount", total);
+                lines = List.of(line);
+            }
+        }
+        String breakdown;
+        try {
+            breakdown = objectMapper.writeValueAsString(lines);
+        } catch (Exception malformed) {
+            throw new IllegalStateException("Voucher breakdown is not serializable", malformed);
+        }
+        BigDecimal platformSubsidy = optionalDecimal(data.get("platformSubsidy"));
+        BigDecimal shopDiscount = optionalDecimal(data.get("shopDiscount"));
+        if (platformSubsidy == null || shopDiscount == null) {
+            platformSubsidy = BigDecimal.ZERO;
+            shopDiscount = BigDecimal.ZERO;
+            for (Map<String, Object> line : lines) {
+                BigDecimal amount = optionalDecimal(line.get("discountAmount"));
+                if (amount == null) continue;
+                if ("SHOP".equalsIgnoreCase(text(line.get("fundingSource")))) {
+                    shopDiscount = shopDiscount.add(amount);
+                } else {
+                    platformSubsidy = platformSubsidy.add(amount);
+                }
+            }
+        }
+        return new VoucherQuote(total, itemDiscount, shippingDiscount, customerShipping, grossShipping,
+                platformSubsidy, shopDiscount, breakdown, lines);
+    }
+
+    private List<Map<String, Object>> parseAppliedLines(Map<String, Object> data) {
+        Object rawLines = data.containsKey("appliedVouchers") ? data.get("appliedVouchers") : data.get("lines");
+        List<Map<String, Object>> lines = new ArrayList<>();
+        if (rawLines instanceof List<?> list) {
+            for (Object raw : list) if (raw instanceof Map<?, ?> map) {
+                lines.add(normalizeVoucherLine(map));
+            }
+        }
+        return lines;
+    }
+
+    /** Promotion calculate uses id/code; reservation lines use voucherId/voucherCode. */
+    private Map<String, Object> normalizeVoucherLine(Map<?, ?> raw) {
+        Map<String, Object> line = new LinkedHashMap<>();
+        raw.forEach((key, value) -> line.put(String.valueOf(key), value));
+        if (!line.containsKey("voucherId") && line.containsKey("id")) {
+            line.put("voucherId", line.get("id"));
+        }
+        if (!line.containsKey("voucherCode") && line.containsKey("code")) {
+            line.put("voucherCode", line.get("code"));
+        }
+        return line;
+    }
+
+    private BigDecimal optionalDecimal(Object value) {
+        return value == null ? null : decimal(value);
+    }
+
+    private Long optionalLong(Object value) {
+        if (value == null) return null;
+        return value instanceof Number number ? number.longValue() : Long.valueOf(value.toString());
     }
 }
