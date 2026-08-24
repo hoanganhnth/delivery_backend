@@ -1,0 +1,3222 @@
+{
+  "format": 1,
+  "purpose": "Deterministic reference snapshot for the Delivery reconstruction documentation.",
+  "sourceCount": 535,
+  "generatedFiles": [
+    "README.md",
+    "MANIFEST.json",
+    "workspace/backend_delivery/docs/platform/system/reference/README.md"
+  ],
+  "sources": [
+    {
+      "source": "AGENTS.md",
+      "target": "workspace/AGENTS.md",
+      "sha256": "f83447c88cbd370bf98d92f8c70e88be260763989d990fd6289b20dde537f51a",
+      "bytes": 2969
+    },
+    {
+      "source": "backend_delivery/.github/copilot-instructions.md",
+      "target": "workspace/backend_delivery/.github/copilot-instructions.md",
+      "sha256": "9f6c58073172a38f777739bf57e0ca173625f87e1f89134533909f706d9961d1",
+      "bytes": 19057
+    },
+    {
+      "source": "backend_delivery/.github/instructions/backend.instructions.md",
+      "target": "workspace/backend_delivery/.github/instructions/backend.instructions.md",
+      "sha256": "896ca261297f22ce9e3e500d31cc6ec27cb12afb974b007a914a21938f97c293",
+      "bytes": 15313
+    },
+    {
+      "source": "backend_delivery/.github/instructions/db.instructions.md",
+      "target": "workspace/backend_delivery/.github/instructions/db.instructions.md",
+      "sha256": "059643d4e65347192f00b6741b7380d60008e6effe0444f852fc0cfeb2379170",
+      "bytes": 6646
+    },
+    {
+      "source": "backend_delivery/.github/workflows/ci.yml",
+      "target": "workspace/backend_delivery/.github/workflows/ci.yml",
+      "sha256": "0776e4a6cd32b2c80972dcd6c217b87236cf288a9e412b7358bf210af3933821",
+      "bytes": 2262
+    },
+    {
+      "source": "backend_delivery/AGENTS.md",
+      "target": "workspace/backend_delivery/AGENTS.md",
+      "sha256": "22033983fb64a5875cc94218414de982684a48d156313a8dc8d0be28b5eb337a",
+      "bytes": 2573
+    },
+    {
+      "source": "backend_delivery/analytics-service/HELP.md",
+      "target": "workspace/backend_delivery/analytics-service/HELP.md",
+      "sha256": "d2ad0c6454d1cfefea58bc0a0424a3d37047c7395fa62dfe9811cb880d84a404",
+      "bytes": 828
+    },
+    {
+      "source": "backend_delivery/analytics-service/pom.xml",
+      "target": "workspace/backend_delivery/analytics-service/pom.xml",
+      "sha256": "c825792536822a03fa3091953ab60088fd9b0a39004c69366a3524da01d7bb6d",
+      "bytes": 3457
+    },
+    {
+      "source": "backend_delivery/analytics-service/src/main/resources/application.properties",
+      "target": "workspace/backend_delivery/analytics-service/src/main/resources/application.properties",
+      "sha256": "cfe5c44bc0fdf953fa8dc0d9a6686c70eec8d29711783539338968d7f5ef3078",
+      "bytes": 3007
+    },
+    {
+      "source": "backend_delivery/analytics-service/src/main/resources/db/migration/V2__analytics_event_payload_fingerprint.sql",
+      "target": "workspace/backend_delivery/analytics-service/src/main/resources/db/migration/V2__analytics_event_payload_fingerprint.sql",
+      "sha256": "047164e82b3467c6661e8de8a49e214f8e66bf4c579c2c4bd3b4a6b1d7ef83df",
+      "bytes": 91
+    },
+    {
+      "source": "backend_delivery/analytics-service/src/main/resources/db/migration/V3__daily_item_sales_projection.sql",
+      "target": "workspace/backend_delivery/analytics-service/src/main/resources/db/migration/V3__daily_item_sales_projection.sql",
+      "sha256": "e0c965774acb2d550c2544d34a027624415b1d7355b079dc4ae14f579f6129fd",
+      "bytes": 797
+    },
+    {
+      "source": "backend_delivery/API_DOCUMENTATION.md",
+      "target": "workspace/backend_delivery/API_DOCUMENTATION.md",
+      "sha256": "8956036c0673559bdb12a5c04ae51dce035854e3a5369c9c6bebcdc03cf15bc9",
+      "bytes": 9697
+    },
+    {
+      "source": "backend_delivery/api-gateway/pom.xml",
+      "target": "workspace/backend_delivery/api-gateway/pom.xml",
+      "sha256": "090de0ca3dea694a39b649138eb60ab36e06b16240ad9b7e72671dd66e9e40fa",
+      "bytes": 4256
+    },
+    {
+      "source": "backend_delivery/api-gateway/src/main/resources/application.properties",
+      "target": "workspace/backend_delivery/api-gateway/src/main/resources/application.properties",
+      "sha256": "9c333ed76d8b4240f8e2e58ad6177ce2cad70fbd66483121832a55c04870f41c",
+      "bytes": 4548
+    },
+    {
+      "source": "backend_delivery/auth-resource-server-starter/pom.xml",
+      "target": "workspace/backend_delivery/auth-resource-server-starter/pom.xml",
+      "sha256": "4f26448a2214e504c97190718cb533356a3eab5a7fa0bbe087e9c3a275dc71fe",
+      "bytes": 1660
+    },
+    {
+      "source": "backend_delivery/auth-service/pom.xml",
+      "target": "workspace/backend_delivery/auth-service/pom.xml",
+      "sha256": "e45886c956f03919f354ae7ceaba31211dafd116eb8fca9b9b674ef4d6a55e0f",
+      "bytes": 6226
+    },
+    {
+      "source": "backend_delivery/auth-service/src/main/resources/application.properties",
+      "target": "workspace/backend_delivery/auth-service/src/main/resources/application.properties",
+      "sha256": "b9d8c86b707c57b0c4b13fec33bba6e30679c60657230d009d61c8b06c2d1cb5",
+      "bytes": 8858
+    },
+    {
+      "source": "backend_delivery/BACKLOG_FIX.md",
+      "target": "workspace/backend_delivery/BACKLOG_FIX.md",
+      "sha256": "d795e5736b7844cee18923ceb0748cb6893b33329995d59b352395b1d63fbee0",
+      "bytes": 2800
+    },
+    {
+      "source": "backend_delivery/CLAUDE.md",
+      "target": "workspace/backend_delivery/CLAUDE.md",
+      "sha256": "15997b7f1a373177850a4440f5306c1d4765298c0e258b2773915e3ac4de4daf",
+      "bytes": 258
+    },
+    {
+      "source": "backend_delivery/config-server/pom.xml",
+      "target": "workspace/backend_delivery/config-server/pom.xml",
+      "sha256": "52597f9eeb0d4463e12b87fa9dbb324ad9f96025eddd642a65d8d9bfa480d572",
+      "bytes": 2179
+    },
+    {
+      "source": "backend_delivery/config-server/src/main/resources/application.yml",
+      "target": "workspace/backend_delivery/config-server/src/main/resources/application.yml",
+      "sha256": "389ceae5c7c179a5329156422c6b961822c9b4627d54d8de73e987e96b1150db",
+      "bytes": 687
+    },
+    {
+      "source": "backend_delivery/config-server/src/main/resources/config-repository/api-gateway.properties",
+      "target": "workspace/backend_delivery/config-server/src/main/resources/config-repository/api-gateway.properties",
+      "sha256": "bcbab1689cfc37096e74b7276d514bea8933e362cdc5559c73d06b0564797763",
+      "bytes": 798
+    },
+    {
+      "source": "backend_delivery/config-server/src/main/resources/config-repository/application.properties",
+      "target": "workspace/backend_delivery/config-server/src/main/resources/config-repository/application.properties",
+      "sha256": "29ce028372afd4e365d6ece86f7de3bc0335c509b52805fcc1557c380c8b7442",
+      "bytes": 196
+    },
+    {
+      "source": "backend_delivery/config-server/src/main/resources/config-repository/auth-service.properties",
+      "target": "workspace/backend_delivery/config-server/src/main/resources/config-repository/auth-service.properties",
+      "sha256": "d43fe9e0ef89363bb38861f1640ec63c9007996534608c7825e88aaff035f7a2",
+      "bytes": 42
+    },
+    {
+      "source": "backend_delivery/config-server/src/main/resources/config-repository/flashsale-service.properties",
+      "target": "workspace/backend_delivery/config-server/src/main/resources/config-repository/flashsale-service.properties",
+      "sha256": "e8515973b85135e6c97f462810ac108444258a4a7a1e42922c32a1d2045575a7",
+      "bytes": 172
+    },
+    {
+      "source": "backend_delivery/config-server/src/main/resources/config-repository/match-service.properties",
+      "target": "workspace/backend_delivery/config-server/src/main/resources/config-repository/match-service.properties",
+      "sha256": "c80e34a528db090987282d543d75b2c8c0ae6b48ee055ac78805867d2051a315",
+      "bytes": 49
+    },
+    {
+      "source": "backend_delivery/config-server/src/main/resources/config-repository/order-service.properties",
+      "target": "workspace/backend_delivery/config-server/src/main/resources/config-repository/order-service.properties",
+      "sha256": "518ddbcbd5c8b9cd4c10c118d355edb8de9cad52cf2b061cd93ec1ead6fdfacb",
+      "bytes": 49
+    },
+    {
+      "source": "backend_delivery/config-server/src/main/resources/config-repository/promotion-service.properties",
+      "target": "workspace/backend_delivery/config-server/src/main/resources/config-repository/promotion-service.properties",
+      "sha256": "bb6f2bed8741ee0ec86f7fa039346a6c5466802d4552055fc7bddbfc7475661c",
+      "bytes": 171
+    },
+    {
+      "source": "backend_delivery/config-server/src/main/resources/config-repository/restaurant-service.properties",
+      "target": "workspace/backend_delivery/config-server/src/main/resources/config-repository/restaurant-service.properties",
+      "sha256": "561039475c90cbd0e28e8b22ff2f19cb4dfe9549ca4fc3bb320347dc27f51ea9",
+      "bytes": 39
+    },
+    {
+      "source": "backend_delivery/config-server/src/main/resources/config-repository/shipper-service.properties",
+      "target": "workspace/backend_delivery/config-server/src/main/resources/config-repository/shipper-service.properties",
+      "sha256": "d5b46119541a1a6d3a8a1f833092129a52a76a2a479189274911d70a4d7fcf57",
+      "bytes": 210
+    },
+    {
+      "source": "backend_delivery/config-server/src/main/resources/config-repository/tracking-service.properties",
+      "target": "workspace/backend_delivery/config-server/src/main/resources/config-repository/tracking-service.properties",
+      "sha256": "7f0d3d986e581f3e086f10f5f9152e909f55f60ebd710825a395c5439c7d27e6",
+      "bytes": 45
+    },
+    {
+      "source": "backend_delivery/delivery-service/DELIVERY_ORDER_SYNC.md",
+      "target": "workspace/backend_delivery/delivery-service/DELIVERY_ORDER_SYNC.md",
+      "sha256": "c6d36a091838b69af59e0b67e6016e42d35561a2971f3f41290313eeb8739f5b",
+      "bytes": 6505
+    },
+    {
+      "source": "backend_delivery/delivery-service/DELIVERY_TIMEOUT_DESIGN.md",
+      "target": "workspace/backend_delivery/delivery-service/DELIVERY_TIMEOUT_DESIGN.md",
+      "sha256": "100e7af20aa50a92b14bc163c5d16061528ab8126bde796df69074292d3bdd65",
+      "bytes": 4038
+    },
+    {
+      "source": "backend_delivery/delivery-service/EVENT_VALIDATION.md",
+      "target": "workspace/backend_delivery/delivery-service/EVENT_VALIDATION.md",
+      "sha256": "9c2a871f778a775f3dbfc9a4e91d7fe4eab2e164d7a5a224f9340874d55976c4",
+      "bytes": 5880
+    },
+    {
+      "source": "backend_delivery/delivery-service/MATCH_SERVICE_INTEGRATION.md",
+      "target": "workspace/backend_delivery/delivery-service/MATCH_SERVICE_INTEGRATION.md",
+      "sha256": "1dfd9194c9284340c94a6aa04459aab752e07aa4e121552241ce4b411ac3c649",
+      "bytes": 4776
+    },
+    {
+      "source": "backend_delivery/delivery-service/pom.xml",
+      "target": "workspace/backend_delivery/delivery-service/pom.xml",
+      "sha256": "bf27356b6cf6c6acbd99896e9cab1aa75bf4ded343ddb77c262abeb2b61e1896",
+      "bytes": 4698
+    },
+    {
+      "source": "backend_delivery/delivery-service/README.md",
+      "target": "workspace/backend_delivery/delivery-service/README.md",
+      "sha256": "e96b06f4a068ec86575ed64e8c408a1e1518427181320c65d52de9c0284d6074",
+      "bytes": 3459
+    },
+    {
+      "source": "backend_delivery/delivery-service/SHIPPER_EARNINGS_ESTIMATE.md",
+      "target": "workspace/backend_delivery/delivery-service/SHIPPER_EARNINGS_ESTIMATE.md",
+      "sha256": "a80a7c27611fa2d739ab9115267872bbf27713de1c6dac925efb0c77086026d5",
+      "bytes": 11938
+    },
+    {
+      "source": "backend_delivery/delivery-service/src/main/resources/application.properties",
+      "target": "workspace/backend_delivery/delivery-service/src/main/resources/application.properties",
+      "sha256": "01872d05ddd2ac7d320ecf4ab9c1918277f0a05b6c18f7f9f11a9728eff49f8a",
+      "bytes": 7429
+    },
+    {
+      "source": "backend_delivery/delivery-service/src/main/resources/db/migration/V1__create_deliveries.sql",
+      "target": "workspace/backend_delivery/delivery-service/src/main/resources/db/migration/V1__create_deliveries.sql",
+      "sha256": "daea3703edcf6c9b2b4099e3ca0a45d75fc0d2d0e1909f3a1a8f6c3dcd88653b",
+      "bytes": 948
+    },
+    {
+      "source": "backend_delivery/delivery-service/src/main/resources/db/migration/V10__drop_legacy_status_constraint_and_add_query_indexes.sql",
+      "target": "workspace/backend_delivery/delivery-service/src/main/resources/db/migration/V10__drop_legacy_status_constraint_and_add_query_indexes.sql",
+      "sha256": "a306bd337c058476dea77758302126d86b29a3df23c17bdc50e04a1b281f8cbf",
+      "bytes": 523
+    },
+    {
+      "source": "backend_delivery/delivery-service/src/main/resources/db/migration/V12__add_delivery_outbox_traceparent.sql",
+      "target": "workspace/backend_delivery/delivery-service/src/main/resources/db/migration/V12__add_delivery_outbox_traceparent.sql",
+      "sha256": "3142f1032116c25ba9f640ac7fd16e905f26ca36fa12b78b40b0cdae830b8931",
+      "bytes": 76
+    },
+    {
+      "source": "backend_delivery/delivery-service/src/main/resources/db/migration/V13__align_pending_outbox_index.sql",
+      "target": "workspace/backend_delivery/delivery-service/src/main/resources/db/migration/V13__align_pending_outbox_index.sql",
+      "sha256": "065a54abde49e1c7c11efe01e1165b0b083be7a6f7e161f7a70a5f884c129784",
+      "bytes": 287
+    },
+    {
+      "source": "backend_delivery/delivery-service/src/main/resources/db/migration/V14__delivery_inbound_command_receipts.sql",
+      "target": "workspace/backend_delivery/delivery-service/src/main/resources/db/migration/V14__delivery_inbound_command_receipts.sql",
+      "sha256": "42ac7b9c51f4ac69e0bcaee73f1f52a4fc1fc854f910d477a064be7c682aa2f8",
+      "bytes": 362
+    },
+    {
+      "source": "backend_delivery/delivery-service/src/main/resources/db/migration/V15__delivery_principal_ownership.sql",
+      "target": "workspace/backend_delivery/delivery-service/src/main/resources/db/migration/V15__delivery_principal_ownership.sql",
+      "sha256": "f24ddf343cf21747bf0ef1b7192314c33ff6c47542641df265dbed7b9c865c61",
+      "bytes": 266
+    },
+    {
+      "source": "backend_delivery/delivery-service/src/main/resources/db/migration/V17__delivery_offer_session_fence.sql",
+      "target": "workspace/backend_delivery/delivery-service/src/main/resources/db/migration/V17__delivery_offer_session_fence.sql",
+      "sha256": "28fae53aefafea1748732863edd2718fd10b3187059ad61d216e7aaaca360832",
+      "bytes": 560
+    },
+    {
+      "source": "backend_delivery/delivery-service/src/main/resources/db/migration/V18__delivery_batch_foundation.sql",
+      "target": "workspace/backend_delivery/delivery-service/src/main/resources/db/migration/V18__delivery_batch_foundation.sql",
+      "sha256": "eac649b7d880336d961562017892c5fb88d67cbe14dd8d3eaac94ad8c9bce91c",
+      "bytes": 1670
+    },
+    {
+      "source": "backend_delivery/delivery-service/src/main/resources/db/migration/V19__delivery_batch_cod_hold_ids.sql",
+      "target": "workspace/backend_delivery/delivery-service/src/main/resources/db/migration/V19__delivery_batch_cod_hold_ids.sql",
+      "sha256": "3d57149c5f15ef72e29d9dc5f96356acb9e5bad504597403039b042e8e87184e",
+      "bytes": 82
+    },
+    {
+      "source": "backend_delivery/delivery-service/src/main/resources/db/migration/V20__delivery_batch_wave_number.sql",
+      "target": "workspace/backend_delivery/delivery-service/src/main/resources/db/migration/V20__delivery_batch_wave_number.sql",
+      "sha256": "46b21a0fddf87d5c72ecc3af596c9246f8f184ff194f340e423bf61b73eafa3f",
+      "bytes": 98
+    },
+    {
+      "source": "backend_delivery/delivery-service/src/main/resources/db/migration/V22__add_delivery_outbox_leases.sql",
+      "target": "workspace/backend_delivery/delivery-service/src/main/resources/db/migration/V22__add_delivery_outbox_leases.sql",
+      "sha256": "480f2d5940864c432a198b259a8b88c91e179a2b67c6756345f6c0310efc66c2",
+      "bytes": 600
+    },
+    {
+      "source": "backend_delivery/delivery-service/src/main/resources/db/migration/V23__delivery_promotion_snapshot.sql",
+      "target": "workspace/backend_delivery/delivery-service/src/main/resources/db/migration/V23__delivery_promotion_snapshot.sql",
+      "sha256": "bdefee50dcce0091cb7d035bd03dcb3b2641bb59f03c33e817c12a7ffa94e853",
+      "bytes": 1494
+    },
+    {
+      "source": "backend_delivery/delivery-service/src/main/resources/db/migration/V24__delivery_exception_and_proof_of_delivery.sql",
+      "target": "workspace/backend_delivery/delivery-service/src/main/resources/db/migration/V24__delivery_exception_and_proof_of_delivery.sql",
+      "sha256": "262a1d6a6aa632d69d962deca9c9cbedf313cbb4e77a8efd3ede1c00b177e2ff",
+      "bytes": 2935
+    },
+    {
+      "source": "backend_delivery/delivery-service/src/main/resources/db/migration/V3__add_shipping_fee_to_deliveries.sql",
+      "target": "workspace/backend_delivery/delivery-service/src/main/resources/db/migration/V3__add_shipping_fee_to_deliveries.sql",
+      "sha256": "c890e951452581ead9240306752c6a6baca8de01d4933398020a72c369001528",
+      "bytes": 628
+    },
+    {
+      "source": "backend_delivery/delivery-service/src/main/resources/db/migration/V4__add_shipper_offer_to_deliveries.sql",
+      "target": "workspace/backend_delivery/delivery-service/src/main/resources/db/migration/V4__add_shipper_offer_to_deliveries.sql",
+      "sha256": "451a83c4e2e46369d33c7f66dda2a273280dfae6a3aa36746f8f47c7dfaef182",
+      "bytes": 276
+    },
+    {
+      "source": "backend_delivery/delivery-service/src/main/resources/db/migration/V5__one_active_delivery_per_shipper.sql",
+      "target": "workspace/backend_delivery/delivery-service/src/main/resources/db/migration/V5__one_active_delivery_per_shipper.sql",
+      "sha256": "813b54211657f2af838b977ad67cb6ba4823d9400223d86c4718345736748c09",
+      "bytes": 573
+    },
+    {
+      "source": "backend_delivery/delivery-service/src/main/resources/db/migration/V6__create_delivery_outbox.sql",
+      "target": "workspace/backend_delivery/delivery-service/src/main/resources/db/migration/V6__create_delivery_outbox.sql",
+      "sha256": "c952b17992db8fb80f472eaf763d3223c99a7930b514026cd108ee8e2d2d9d67",
+      "bytes": 1772
+    },
+    {
+      "source": "backend_delivery/delivery-service/src/main/resources/db/migration/V7__add_restaurant_owner_to_deliveries.sql",
+      "target": "workspace/backend_delivery/delivery-service/src/main/resources/db/migration/V7__add_restaurant_owner_to_deliveries.sql",
+      "sha256": "15403c4e5b3a30a73e9e10c82b7118c9c93439445309375b5402f213bcbc3cf0",
+      "bytes": 198
+    },
+    {
+      "source": "backend_delivery/delivery-service/src/main/resources/db/migration/V8__add_delivery_create_event_identity.sql",
+      "target": "workspace/backend_delivery/delivery-service/src/main/resources/db/migration/V8__add_delivery_create_event_identity.sql",
+      "sha256": "f824c5a8ee85c4c820ce953154f534a9304a7422eb858f0e7bdf1cbb6e329990",
+      "bytes": 65
+    },
+    {
+      "source": "backend_delivery/delivery-service/src/main/resources/db/migration/V9__enforce_delivery_create_event_identity.sql",
+      "target": "workspace/backend_delivery/delivery-service/src/main/resources/db/migration/V9__enforce_delivery_create_event_identity.sql",
+      "sha256": "582d71b3280688e755c75000d502edff4bd5d8386531d7c7c91200b9a375097b",
+      "bytes": 371
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/control-plane-config.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/control-plane-config.yaml",
+      "sha256": "d26510db897f70acb3acc1ba69d9e80878b70dd7a17142810992746aa253ba15",
+      "bytes": 504
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/data-plane-config.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/data-plane-config.yaml",
+      "sha256": "1e2415ac2a4cbf843572bae02651b60316de31fbb91cdb6650d2a6cb2b0b8e78",
+      "bytes": 446
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/analytics-service.deployment.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/analytics-service.deployment.yaml",
+      "sha256": "a9e9e348b4ba1af3bdc7f585f4e15c4abac21e25acec9f5740879375acaa371f",
+      "bytes": 5804
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/analytics-service.service.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/analytics-service.service.yaml",
+      "sha256": "a128bccc4a6fac71a0f52e86f3d055bc56d97ab2c62158617c33fe5474409c7a",
+      "bytes": 772
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/analytics-service.serviceaccount.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/analytics-service.serviceaccount.yaml",
+      "sha256": "aedc6809cb64d5e0de11b6753229b2a7a4b6d453ab2c05148f8abcf0361c6f2b",
+      "bytes": 431
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/api-gateway.deployment.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/api-gateway.deployment.yaml",
+      "sha256": "3afcffc3f6d8199374fbe1af50469bcd6ebbb061afd5bb68d6fd1c80f534e88f",
+      "bytes": 4191
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/api-gateway.service.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/api-gateway.service.yaml",
+      "sha256": "667c9951d8e55c5e04b10fa4923ccde9c229713ece8fe4479f5dbdca0f7ad87c",
+      "bytes": 752
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/api-gateway.serviceaccount.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/api-gateway.serviceaccount.yaml",
+      "sha256": "945f3d45bb7f38c3313367bb6f442d4ddfde8ca9ff431847522e7b7add0130c7",
+      "bytes": 417
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/auth-service.deployment.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/auth-service.deployment.yaml",
+      "sha256": "360d12524f576f70596660f4a9d72add2ce2deecfbc3524c72c5e89aae0fb0bb",
+      "bytes": 9380
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/auth-service.service.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/auth-service.service.yaml",
+      "sha256": "6da1adc0b0d6e7f8425fc2a99a9d25a76d6b16594362c8e89d014bc213614440",
+      "bytes": 752
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/auth-service.serviceaccount.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/auth-service.serviceaccount.yaml",
+      "sha256": "ab36c57724e7b5103ab621ab60eee930476a300a4aa5f6f4987a4e1f335eee4a",
+      "bytes": 416
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/config-server.deployment.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/config-server.deployment.yaml",
+      "sha256": "e081c51acca6f006ac9eca075e53a4ef588e295e1e5a4dfc6c0839894678cdfd",
+      "bytes": 5957
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/config-server.service.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/config-server.service.yaml",
+      "sha256": "0762491386a88079e7534c6b7fadfa97d070b310b5d8188707eab6a9b17402d7",
+      "bytes": 760
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/config-server.serviceaccount.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/config-server.serviceaccount.yaml",
+      "sha256": "906c42ba0bc7b5233ec2508597f9c153f3b1149b023e32cbad8ed22912f378e1",
+      "bytes": 423
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/delivery-service.deployment.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/delivery-service.deployment.yaml",
+      "sha256": "eae7dc1f97eb0d524a25295ce5f2d5c0b865f755e07ba8dca9eb6e6ecc711d03",
+      "bytes": 6591
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/delivery-service.service.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/delivery-service.service.yaml",
+      "sha256": "931e3924acacb60367c33e944dba8c485687f6a568dff604f0cbf160ddd6d599",
+      "bytes": 769
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/delivery-service.serviceaccount.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/delivery-service.serviceaccount.yaml",
+      "sha256": "dc7258a8b5fa7731d65bd15f001aad925b6ad5bcb3669ec1fedceb6aafa4a862",
+      "bytes": 429
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/discovery-server.deployment.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/discovery-server.deployment.yaml",
+      "sha256": "6a3a287fdd8a43291eee5af80df808521b0515f533bf8ae5b0a46ddb096b23a2",
+      "bytes": 4059
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/discovery-server.service.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/discovery-server.service.yaml",
+      "sha256": "19593cea1bdc89e305b8f2d1325eabcbf9137f158df7ad920fdc9b550af3312f",
+      "bytes": 769
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/discovery-server.serviceaccount.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/discovery-server.serviceaccount.yaml",
+      "sha256": "b4b925950540214c845f658fe2c51dc852012e8545eb6f4ae5f71e0f6f27140d",
+      "bytes": 429
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/flashsale-service.deployment.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/flashsale-service.deployment.yaml",
+      "sha256": "0b959a1eb4e3292cfef696430726f693ee493ae73b10a312864c3c66f2b8a4f5",
+      "bytes": 6595
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/flashsale-service.service.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/flashsale-service.service.yaml",
+      "sha256": "1fbc73ed3679aab36e84e6d196cd856921fe10dca9606810d784e446afa8f7d7",
+      "bytes": 772
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/flashsale-service.serviceaccount.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/flashsale-service.serviceaccount.yaml",
+      "sha256": "c3d8b78dade2710b30c655e3818b7c2fb556730c01f300baf52e06d770e83810",
+      "bytes": 431
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/kustomization.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/kustomization.yaml",
+      "sha256": "00ca1dae0fc7a4228060c75a33df94ce0df46d20613333a9b40f1cd25244d63f",
+      "bytes": 2303
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/livestream-service.deployment.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/livestream-service.deployment.yaml",
+      "sha256": "8876f7c809955f86dbb8102433bb986b177e03bc5cba923d0dd578beeb415335",
+      "bytes": 5813
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/livestream-service.service.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/livestream-service.service.yaml",
+      "sha256": "555f98fdcae55c55841427ac28507cc3cd9a2a26f7ad24b3f2ed1cf186aceaed",
+      "bytes": 775
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/livestream-service.serviceaccount.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/livestream-service.serviceaccount.yaml",
+      "sha256": "c44795751469f93a10b7555f84545e543247fb8e314433848ee44113d892160b",
+      "bytes": 433
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/match-service.deployment.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/match-service.deployment.yaml",
+      "sha256": "aff5dcd59a56ff797c9ac8cce2cec021647ca2b61c681676cad810c8bb5931dc",
+      "bytes": 6236
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/match-service.service.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/match-service.service.yaml",
+      "sha256": "41309dc8f8f330c9998ee82ed870aa82090f9c6aa12d5c4161b9ae9280aa9dcd",
+      "bytes": 760
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/match-service.serviceaccount.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/match-service.serviceaccount.yaml",
+      "sha256": "009494932863d0ecc2fa67c41e72fa4af2a1b096b62e87ec3f483156ee92a478",
+      "bytes": 423
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/notification-service.deployment.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/notification-service.deployment.yaml",
+      "sha256": "0ed0dfe5ee3d141a6e95872cee963201f81d3f04230dbc0d951d12b96439eed4",
+      "bytes": 6636
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/notification-service.service.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/notification-service.service.yaml",
+      "sha256": "961823c0928c08df0de067ea2f3420aa66c856461d6634cdb5e3356da49e0e2e",
+      "bytes": 781
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/notification-service.serviceaccount.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/notification-service.serviceaccount.yaml",
+      "sha256": "d63060aa61bc6110a81ebd3c7d786910952e84c35c31d0ab104d41e072a86f11",
+      "bytes": 437
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/order-service.deployment.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/order-service.deployment.yaml",
+      "sha256": "2b88045978328c8380541103eee6022ac7d9932f55960bbb455b2086b6a3e3fc",
+      "bytes": 6551
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/order-service.service.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/order-service.service.yaml",
+      "sha256": "65c233f39885e80d74087f46cada442b873a92f728bcf0eb6a96e30576c9d8ad",
+      "bytes": 760
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/order-service.serviceaccount.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/order-service.serviceaccount.yaml",
+      "sha256": "e8cbd337abd9c2cb7cd07e5f463cfef5e095dc8c55d40e7bc5f6e7c794c0f993",
+      "bytes": 423
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/promotion-service.deployment.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/promotion-service.deployment.yaml",
+      "sha256": "779ef29b3836604643a86d257b79c07a8f9c517a5f63f51177cdeacdcc34902b",
+      "bytes": 6595
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/promotion-service.service.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/promotion-service.service.yaml",
+      "sha256": "7997e963614d309fe3744a51846a5eab3e8429214b9c188fb80c873df9faf48f",
+      "bytes": 772
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/promotion-service.serviceaccount.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/promotion-service.serviceaccount.yaml",
+      "sha256": "b05b0b516014c026621fa5e8febb56807fbadc6e3d52817850e9079909f7a1f8",
+      "bytes": 431
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/restaurant-service.deployment.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/restaurant-service.deployment.yaml",
+      "sha256": "0070bd5d11b426b707f43d6d3ac4ab7dd9e904441a924216e9348faa3581aeaf",
+      "bytes": 6606
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/restaurant-service.service.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/restaurant-service.service.yaml",
+      "sha256": "cd2a4c7e958a64e071d34e23655e2b311d4b19ba78d6f54321bcd24074f302ba",
+      "bytes": 775
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/restaurant-service.serviceaccount.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/restaurant-service.serviceaccount.yaml",
+      "sha256": "7c3477614049ce815031f6661d1552fc92cf862d75244f09413dbef3aeba23ed",
+      "bytes": 433
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/routing-service.deployment.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/routing-service.deployment.yaml",
+      "sha256": "2df409b6b4d34662b02316d5e25f7b3ba2bb125bc9e405414014453d768b1fff",
+      "bytes": 5026
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/routing-service.service.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/routing-service.service.yaml",
+      "sha256": "683ab8fa0fe5334103c425eeafdcade0c8668240532735c17286aca20308bf6b",
+      "bytes": 766
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/routing-service.serviceaccount.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/routing-service.serviceaccount.yaml",
+      "sha256": "e67cd0945460f4c071d33eb6682763a04fe1dd6f0378b8b387b7a6db527b836d",
+      "bytes": 427
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/saga-orchestrator-service.deployment.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/saga-orchestrator-service.deployment.yaml",
+      "sha256": "5056c5c780e956b2214a056eaad64fa069e2ee10f1a4339ce76fda0227c588cb",
+      "bytes": 5863
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/saga-orchestrator-service.service.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/saga-orchestrator-service.service.yaml",
+      "sha256": "516790e3b4aa93676791c4ec4caf5b6544560c9679267e4c4b972c999b2b4616",
+      "bytes": 796
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/saga-orchestrator-service.serviceaccount.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/saga-orchestrator-service.serviceaccount.yaml",
+      "sha256": "819ae8f4d7891470c7eb70f5c8689157e494e727209e6e352dd797a42b35e91d",
+      "bytes": 447
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/search-service.deployment.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/search-service.deployment.yaml",
+      "sha256": "02b3fa4912041098a82986c4ce57dd5d4b1058c814a7c70bd51812211ef429b4",
+      "bytes": 4216
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/search-service.service.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/search-service.service.yaml",
+      "sha256": "2493011a2e589c24e4ca0ae468832a4fbb740924f0243534e9186aa0c7b891e6",
+      "bytes": 763
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/search-service.serviceaccount.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/search-service.serviceaccount.yaml",
+      "sha256": "3939bab86bde5545b2495bd8055a9cabecac7856eec612adcb3d088c762e51ed",
+      "bytes": 425
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/settlement-service.deployment.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/settlement-service.deployment.yaml",
+      "sha256": "45df6e895756afb360159b6d8571f8a2aa71ed8d6ae399acdf404f615f73a234",
+      "bytes": 6606
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/settlement-service.service.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/settlement-service.service.yaml",
+      "sha256": "e32c1bf5ad021a8a6324c8fd93d0d416095be002d79aeb8b196501d3f073e56a",
+      "bytes": 775
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/settlement-service.serviceaccount.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/settlement-service.serviceaccount.yaml",
+      "sha256": "8e27005a826811da23aca4759e487e7badc1728f0ff2193c4c7449fa02c8f5e6",
+      "bytes": 433
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/shipper-service.deployment.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/shipper-service.deployment.yaml",
+      "sha256": "6ef2cfb7b155a7bc5514d09f2ddba12f866c5fd40b3eaaa17e436b498087793b",
+      "bytes": 6876
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/shipper-service.service.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/shipper-service.service.yaml",
+      "sha256": "51bf90c1949acebaff4503668c8e8e369a9fd6c647f56130c5711fb83560bcc8",
+      "bytes": 766
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/shipper-service.serviceaccount.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/shipper-service.serviceaccount.yaml",
+      "sha256": "4752ed314c0940053faa32d5e7e14b68a596164daab90aa02aa28ff3da324539",
+      "bytes": 427
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/tracking-service.deployment.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/tracking-service.deployment.yaml",
+      "sha256": "baeb368d74ffa69f755eaf4b2acaaddc97dfbe215687318cb61615db71ed5066",
+      "bytes": 6591
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/tracking-service.service.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/tracking-service.service.yaml",
+      "sha256": "3380f88310cd241265e4bdcbe06660353ed48ead646c6b2c66433ee77459fe5b",
+      "bytes": 769
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/tracking-service.serviceaccount.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/tracking-service.serviceaccount.yaml",
+      "sha256": "2e37bec87ca18c3a94f21fbd0ebf2475ba09fa52587e6eacf75d7370d99c2750",
+      "bytes": 429
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/user-service.deployment.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/user-service.deployment.yaml",
+      "sha256": "ee762a0efcbd5529aa4dea32bf2b7714138823f1451aad9a43c10e2ad8d4fc4b",
+      "bytes": 6835
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/user-service.service.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/user-service.service.yaml",
+      "sha256": "202f19c31006916703d080ce9a993377efe5c3dd09b6f02d6abc4d260c177fd3",
+      "bytes": 757
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/user-service.serviceaccount.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/user-service.serviceaccount.yaml",
+      "sha256": "7a5e27da48fe7b860849be5ad2d72e2c6b8120f05333a05b4f9445695613ddaf",
+      "bytes": 421
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/kustomization.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/kustomization.yaml",
+      "sha256": "0b2e16beaa6425b96130b6faf63bd5e83407bb6df705a00a7bef5e598f73b104",
+      "bytes": 190
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/runtime-config.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/runtime-config.yaml",
+      "sha256": "dddb4925f440c33a84c46cc3c4026deaf4e0f249a9de9fca311182052860f123",
+      "bytes": 4548
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/generate.mjs",
+      "target": "workspace/backend_delivery/deploy/kubernetes/generate.mjs",
+      "sha256": "78068116344bdf18aa06309b49a670edeff0334fd6c530280f64927439c05d62",
+      "bytes": 14524
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/overlays/production-template/kustomization.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/overlays/production-template/kustomization.yaml",
+      "sha256": "92154f3452fb968702dd03f25eee801de62e09ac6aef950e36deee2ce124801c",
+      "bytes": 346
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/overlays/staging-template/kustomization.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/overlays/staging-template/kustomization.yaml",
+      "sha256": "f2c9ac61ad5c14e3be0f64226740222cf71d15a4c4a60ea0d32283b201a45caf",
+      "bytes": 343
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/README.md",
+      "target": "workspace/backend_delivery/deploy/kubernetes/README.md",
+      "sha256": "33f06addd1f3487b39b6f439b90ec32b44407379c3b357e082927280253dbf56",
+      "bytes": 9452
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/templates/gateway-ingress.example.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/templates/gateway-ingress.example.yaml",
+      "sha256": "c8267ed59444d53504fd51ef534e74d2d8d7968427ce3fe68f4168d55f0841fa",
+      "bytes": 724
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/templates/network-policy.example.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/templates/network-policy.example.yaml",
+      "sha256": "ac1fbfbba6da287e6f7d98861c59c7efff7f2e6722e33aa64af5dcb69bcd6632",
+      "bytes": 587
+    },
+    {
+      "source": "backend_delivery/discovery-server/pom.xml",
+      "target": "workspace/backend_delivery/discovery-server/pom.xml",
+      "sha256": "1c8ca637c158884d1f57c6d67a69fac86bc6e6ff114768c672d4c011b8e0fdfd",
+      "bytes": 2198
+    },
+    {
+      "source": "backend_delivery/discovery-server/src/main/resources/application.yml",
+      "target": "workspace/backend_delivery/discovery-server/src/main/resources/application.yml",
+      "sha256": "de5d599a7e42ac4b8ee4486251688471febd47228c294ea2404c61122ebdfa4f",
+      "bytes": 525
+    },
+    {
+      "source": "backend_delivery/DOCKER_GUIDE.md",
+      "target": "workspace/backend_delivery/DOCKER_GUIDE.md",
+      "sha256": "d53d1923c3b10546aed2d96b7a0411ea3c2c8e326b26ad55c6fa04b84e95b857",
+      "bytes": 3325
+    },
+    {
+      "source": "backend_delivery/docker-compose.debug.yml",
+      "target": "workspace/backend_delivery/docker-compose.debug.yml",
+      "sha256": "34f4f8ee1dbfea1f0b14678204f251f35a8ffca224c6ee4087f3cb9d2c71d02f",
+      "bytes": 735
+    },
+    {
+      "source": "backend_delivery/docker-compose.isolated-e2e.yml",
+      "target": "workspace/backend_delivery/docker-compose.isolated-e2e.yml",
+      "sha256": "705f3beb0d2687c399d64a07b95fe982b9b95967530b34429090726e49b74b1d",
+      "bytes": 1730
+    },
+    {
+      "source": "backend_delivery/docker-compose.jwt-overlap.yml",
+      "target": "workspace/backend_delivery/docker-compose.jwt-overlap.yml",
+      "sha256": "dd58ae22c880cf9eaa6f85c9b489887e9945b789280cf95210532413918ded4a",
+      "bytes": 676
+    },
+    {
+      "source": "backend_delivery/docker-compose.sandbox.yml",
+      "target": "workspace/backend_delivery/docker-compose.sandbox.yml",
+      "sha256": "99e52a7ce02ed430ec5e1715eadce3c4c00c7a1cebe46492b43b8e3e1b544b88",
+      "bytes": 6867
+    },
+    {
+      "source": "backend_delivery/docker-compose.secrets.yml",
+      "target": "workspace/backend_delivery/docker-compose.secrets.yml",
+      "sha256": "416107545035a4029d20209d2020f60369ff20e764377c664dc60d80f8dfda08",
+      "bytes": 695
+    },
+    {
+      "source": "backend_delivery/docker-compose.simulator.yml",
+      "target": "workspace/backend_delivery/docker-compose.simulator.yml",
+      "sha256": "b65f58d51e80d298eedc75f2702f3e8616cadc461133a1d8ab83ce3305c3d19b",
+      "bytes": 1614
+    },
+    {
+      "source": "backend_delivery/docker-compose.static-routes.yml",
+      "target": "workspace/backend_delivery/docker-compose.static-routes.yml",
+      "sha256": "51061e515fd65197e4fbc286fb24e787bfae0b3e571af8a928e5e855a564a8db",
+      "bytes": 3071
+    },
+    {
+      "source": "backend_delivery/docker-compose.yml",
+      "target": "workspace/backend_delivery/docker-compose.yml",
+      "sha256": "70dff13ad1f7e2e28222b667668cd03bae23c0bd1a6838b6107b440316610e74",
+      "bytes": 29769
+    },
+    {
+      "source": "backend_delivery/Dockerfile",
+      "target": "workspace/backend_delivery/Dockerfile",
+      "sha256": "5fc4f8c89e95c8bed82cb289f11ca619b97e4caa983e3e24936b5a00c4ae8652",
+      "bytes": 2316
+    },
+    {
+      "source": "backend_delivery/docs/decisions/0001-jwks-resource-server-authentication.md",
+      "target": "workspace/backend_delivery/docs/decisions/0001-jwks-resource-server-authentication.md",
+      "sha256": "8ce69085f37c5523900636b675eec1c55dcf92d83970e4e9018d5eaee6c42acb",
+      "bytes": 2412
+    },
+    {
+      "source": "backend_delivery/docs/decisions/README.md",
+      "target": "workspace/backend_delivery/docs/decisions/README.md",
+      "sha256": "67989c7f4b7d57688a9452250369bdbc59854633a7d0aa00369eeaecdd130309",
+      "bytes": 3563
+    },
+    {
+      "source": "backend_delivery/docs/http-api-inventory.md",
+      "target": "workspace/backend_delivery/docs/http-api-inventory.md",
+      "sha256": "2ba1a1984d569abfa8cfca20368cee4a41142e92d2c0965c90e36afb7fd13b0d",
+      "bytes": 55926
+    },
+    {
+      "source": "backend_delivery/docs/operations/centralized-configuration.md",
+      "target": "workspace/backend_delivery/docs/operations/centralized-configuration.md",
+      "sha256": "1c8ba31220bf2170b2f69187b9f2efc238a6322329c5e3f92b9a4bdbe1a6c1d4",
+      "bytes": 2200
+    },
+    {
+      "source": "backend_delivery/docs/operations/health-readiness.md",
+      "target": "workspace/backend_delivery/docs/operations/health-readiness.md",
+      "sha256": "841c3f7dd9fcaff111734299da95d655a7e2bd70ae8714d1bf94129ab9d6a8d9",
+      "bytes": 1736
+    },
+    {
+      "source": "backend_delivery/docs/operations/hot-query-audit.md",
+      "target": "workspace/backend_delivery/docs/operations/hot-query-audit.md",
+      "sha256": "95d27695af3989140f24f637123c117e7b9615e748afd278c0dbc6c71f525f7c",
+      "bytes": 4874
+    },
+    {
+      "source": "backend_delivery/docs/operations/location-history.md",
+      "target": "workspace/backend_delivery/docs/operations/location-history.md",
+      "sha256": "ae5b963181d1fa3c7d8ef6c3bf6294458c1a772f53471a6bade877835d3a3972",
+      "bytes": 2739
+    },
+    {
+      "source": "backend_delivery/docs/operations/service-discovery.md",
+      "target": "workspace/backend_delivery/docs/operations/service-discovery.md",
+      "sha256": "469a7a3c5585469c736d28b09918c450af0671ba73e557162c05c7d1123c93f6",
+      "bytes": 3257
+    },
+    {
+      "source": "backend_delivery/docs/operations/websocket-scaling.md",
+      "target": "workspace/backend_delivery/docs/operations/websocket-scaling.md",
+      "sha256": "567ba676f93cc08436979750bcae41c91f8443dcacf8aa1387acf191f51724ca",
+      "bytes": 3062
+    },
+    {
+      "source": "backend_delivery/docs/plans/active/mvp-completion.md",
+      "target": "workspace/backend_delivery/docs/plans/active/mvp-completion.md",
+      "sha256": "c35674cc4350399e25028cbd7c08d84bde44532c26dce5e9e60755c8393e68b5",
+      "bytes": 3272
+    },
+    {
+      "source": "backend_delivery/docs/plans/active/README.md",
+      "target": "workspace/backend_delivery/docs/plans/active/README.md",
+      "sha256": "aec64998a72585b2a9c4c8909c7ed775c396c4c2e39c71b0ce4ee6e392784160",
+      "bytes": 232
+    },
+    {
+      "source": "backend_delivery/docs/plans/completed/api-boundary-remediation-2026-08-09.md",
+      "target": "workspace/backend_delivery/docs/plans/completed/api-boundary-remediation-2026-08-09.md",
+      "sha256": "fe65a06cb2af2e16ace863d7589e977363368035111251780f59d923e5021a58",
+      "bytes": 5341
+    },
+    {
+      "source": "backend_delivery/docs/plans/completed/phase-2-resilience.md",
+      "target": "workspace/backend_delivery/docs/plans/completed/phase-2-resilience.md",
+      "sha256": "beb42c6fdb7d2349038abd6f4705f9fdca37a1229cf65d629cf40ef27791809c",
+      "bytes": 14864
+    },
+    {
+      "source": "backend_delivery/docs/plans/completed/phase-4-data-scale.md",
+      "target": "workspace/backend_delivery/docs/plans/completed/phase-4-data-scale.md",
+      "sha256": "06f6c081c6ec123a2ec074f2efa9c9e6418ed1a2c9e73ed581a75bd2d7f3b572",
+      "bytes": 8192
+    },
+    {
+      "source": "backend_delivery/docs/plans/completed/README.md",
+      "target": "workspace/backend_delivery/docs/plans/completed/README.md",
+      "sha256": "126e6028f4aa66731d40cd6f5633cfe143cd431a295faea863d2fc66e7c969d2",
+      "bytes": 1581
+    },
+    {
+      "source": "backend_delivery/docs/plans/completed/task-18-password-reset-email-verification.md",
+      "target": "workspace/backend_delivery/docs/plans/completed/task-18-password-reset-email-verification.md",
+      "sha256": "0601612323866d13a570d12c21968e190b765f7980ae55cfcea0407ba5c2d886",
+      "bytes": 5855
+    },
+    {
+      "source": "backend_delivery/docs/plans/README.md",
+      "target": "workspace/backend_delivery/docs/plans/README.md",
+      "sha256": "a3fb178759616fb51c4293685ef3f5061a3cbb001756f454fbfd9171e5bc98fb",
+      "bytes": 1427
+    },
+    {
+      "source": "backend_delivery/docs/platform/ARCHITECTURE.md",
+      "target": "workspace/backend_delivery/docs/platform/ARCHITECTURE.md",
+      "sha256": "34ccd8bafd76bbc4290fbfcb58f5ee65f31a33c32f5b8187b6395b2a92b72ac4",
+      "bytes": 27738
+    },
+    {
+      "source": "backend_delivery/docs/platform/archive/README.md",
+      "target": "workspace/backend_delivery/docs/platform/archive/README.md",
+      "sha256": "63e303b7566542a825b4d3717f3a08f4d52820116ae9de95843bfc8856605d64",
+      "bytes": 533
+    },
+    {
+      "source": "backend_delivery/docs/platform/decisions/0001-backend-contract-conventions.md",
+      "target": "workspace/backend_delivery/docs/platform/decisions/0001-backend-contract-conventions.md",
+      "sha256": "eb5cf9758a4377fbce869d2ac69e0ff64a871b4dbf99b3b4ec8ff30ae833e0df",
+      "bytes": 6514
+    },
+    {
+      "source": "backend_delivery/docs/platform/decisions/0002-phase-3-runtime-topology.md",
+      "target": "workspace/backend_delivery/docs/platform/decisions/0002-phase-3-runtime-topology.md",
+      "sha256": "63eebaf7d0efda1d24e2b9444d59f2ed7cdf07ed77bc98b737c9e490a30c7352",
+      "bytes": 3858
+    },
+    {
+      "source": "backend_delivery/docs/platform/decisions/0003-voucher-flashsale-checkout-policy.md",
+      "target": "workspace/backend_delivery/docs/platform/decisions/0003-voucher-flashsale-checkout-policy.md",
+      "sha256": "51d1ac3a2565ee5dc98cb49f7ffd61b7b30d653ad7ca9c3faba6d4945cd7f8f7",
+      "bytes": 4251
+    },
+    {
+      "source": "backend_delivery/docs/platform/decisions/0004-shipper-feature-first-mvvm-architecture.md",
+      "target": "workspace/backend_delivery/docs/platform/decisions/0004-shipper-feature-first-mvvm-architecture.md",
+      "sha256": "bd6dcabb3472ccbee97b58a6be563f2063b99770fbe3ec78679667a5c4b711b3",
+      "bytes": 2846
+    },
+    {
+      "source": "backend_delivery/docs/platform/decisions/0004-voucher-stacking-shopee-policy.md",
+      "target": "workspace/backend_delivery/docs/platform/decisions/0004-voucher-stacking-shopee-policy.md",
+      "sha256": "45f4fa9ae1d13a9d33f4dccc3fc6d3cba0f7aed602c3b6c2df3e012ee0723df2",
+      "bytes": 1622
+    },
+    {
+      "source": "backend_delivery/docs/platform/decisions/0005-matching-algorithm-decision-trace.md",
+      "target": "workspace/backend_delivery/docs/platform/decisions/0005-matching-algorithm-decision-trace.md",
+      "sha256": "7758c8b3433b1e5d94b7f60cf17d5481c93ce1e4365e9b20516f9c249cb447df",
+      "bytes": 2196
+    },
+    {
+      "source": "backend_delivery/docs/platform/decisions/README.md",
+      "target": "workspace/backend_delivery/docs/platform/decisions/README.md",
+      "sha256": "4840b6fc5e77ad395ba0cf0dd8829100d1ea4f015a11ea26e59168809d844e7f",
+      "bytes": 4914
+    },
+    {
+      "source": "backend_delivery/docs/platform/decisions/system-handbook-public-surface.md",
+      "target": "workspace/backend_delivery/docs/platform/decisions/system-handbook-public-surface.md",
+      "sha256": "26c5ca8ff02140ea0796ef77e07cf0b19f813439d6b30b6be9dd7764e56c86e2",
+      "bytes": 1377
+    },
+    {
+      "source": "backend_delivery/docs/platform/FEATURE_STATUS.md",
+      "target": "workspace/backend_delivery/docs/platform/FEATURE_STATUS.md",
+      "sha256": "50447b0df646d969038e6d71cb4fd7e0e6d8fc36969c5910aff00e789b23d7c7",
+      "bytes": 14278
+    },
+    {
+      "source": "backend_delivery/docs/platform/learning/_TEMPLATE.md",
+      "target": "workspace/backend_delivery/docs/platform/learning/_TEMPLATE.md",
+      "sha256": "0548b9aacd614d45164e480f949598e02ed6e5f6e3449509ca696e0ad4074039",
+      "bytes": 891
+    },
+    {
+      "source": "backend_delivery/docs/platform/learning/001-wire-flashsale-into-compose.md",
+      "target": "workspace/backend_delivery/docs/platform/learning/001-wire-flashsale-into-compose.md",
+      "sha256": "bb2477d481b9f7bfc54c55cf0454f9da8f251ad265c95c9af1554a86586a551d",
+      "bytes": 4316
+    },
+    {
+      "source": "backend_delivery/docs/platform/learning/002-seed-script.md",
+      "target": "workspace/backend_delivery/docs/platform/learning/002-seed-script.md",
+      "sha256": "f1f3cd90de2b8d85b6fa8922122170552e698a1e94e2a1ac2cf0d6f943676681",
+      "bytes": 3796
+    },
+    {
+      "source": "backend_delivery/docs/platform/learning/003-shipper-cancel-after-accept.md",
+      "target": "workspace/backend_delivery/docs/platform/learning/003-shipper-cancel-after-accept.md",
+      "sha256": "205f98799df561cc347d3e42b11e982d4ace5a19b60888e327bdcdd922b3d5c0",
+      "bytes": 4134
+    },
+    {
+      "source": "backend_delivery/docs/platform/learning/004-shipper-pagination.md",
+      "target": "workspace/backend_delivery/docs/platform/learning/004-shipper-pagination.md",
+      "sha256": "aee4d6b65aa5c459bbba03dc8b36f2b31d78812ae94d5d695572a48739ec0afc",
+      "bytes": 2772
+    },
+    {
+      "source": "backend_delivery/docs/platform/learning/005-jwt-key-security.md",
+      "target": "workspace/backend_delivery/docs/platform/learning/005-jwt-key-security.md",
+      "sha256": "5e8ffacc478079a4116a2cc47d8a41fba8b8a6e1ef5f7876a2d9b65f5543e6d3",
+      "bytes": 4449
+    },
+    {
+      "source": "backend_delivery/docs/platform/learning/006-restaurant-confirm-reject-order.md",
+      "target": "workspace/backend_delivery/docs/platform/learning/006-restaurant-confirm-reject-order.md",
+      "sha256": "2ced1a12f7a7783c63a247dc8322a7d511523daa9edf28bb958bdb8898be2b16",
+      "bytes": 4546
+    },
+    {
+      "source": "backend_delivery/docs/platform/learning/007-user-authorization-idor.md",
+      "target": "workspace/backend_delivery/docs/platform/learning/007-user-authorization-idor.md",
+      "sha256": "491be3b92eb24404f440a72835e7cf686eda87267a73ea59d4400f8fbed3367a",
+      "bytes": 3534
+    },
+    {
+      "source": "backend_delivery/docs/platform/learning/008-reject-stops-delivery-via-saga.md",
+      "target": "workspace/backend_delivery/docs/platform/learning/008-reject-stops-delivery-via-saga.md",
+      "sha256": "6fae13b5b8cb0d33b9efab77a67e353cd9163de61e09afb93c79de23e5976427",
+      "bytes": 3205
+    },
+    {
+      "source": "backend_delivery/docs/platform/learning/009-gate-shipper-on-restaurant-confirm.md",
+      "target": "workspace/backend_delivery/docs/platform/learning/009-gate-shipper-on-restaurant-confirm.md",
+      "sha256": "b079132e4d56b267ce81b32d704e1dbf360d24acf137496834d2f3c083e9e461",
+      "bytes": 4073
+    },
+    {
+      "source": "backend_delivery/docs/platform/learning/010-confirm-timeout-and-compensation-bug.md",
+      "target": "workspace/backend_delivery/docs/platform/learning/010-confirm-timeout-and-compensation-bug.md",
+      "sha256": "9bc2e312604469697fa2d653dcdb5d4d437a34345dfb4a3177c3cc45d787b13e",
+      "bytes": 3531
+    },
+    {
+      "source": "backend_delivery/docs/platform/learning/011-shipper-fullname.md",
+      "target": "workspace/backend_delivery/docs/platform/learning/011-shipper-fullname.md",
+      "sha256": "c65b8b026d7bbe659f6aa3ab3a6a44527ef23b716723b95182564806d2ea07f7",
+      "bytes": 2973
+    },
+    {
+      "source": "backend_delivery/docs/platform/learning/012-livestream-view-count.md",
+      "target": "workspace/backend_delivery/docs/platform/learning/012-livestream-view-count.md",
+      "sha256": "bc9951a1b9c6772da23ef1e8a1d0f9d1c18b3f8a51e39800007a31f1d8ba0e49",
+      "bytes": 3276
+    },
+    {
+      "source": "backend_delivery/docs/platform/learning/013-e2e-test-async-flow.md",
+      "target": "workspace/backend_delivery/docs/platform/learning/013-e2e-test-async-flow.md",
+      "sha256": "8d3b8dc66fcd9009ed703b09b76ea10bd5a2d38a5093f382da1d062fc641918b",
+      "bytes": 3641
+    },
+    {
+      "source": "backend_delivery/docs/platform/learning/README.md",
+      "target": "workspace/backend_delivery/docs/platform/learning/README.md",
+      "sha256": "a01265a4a44e0320d9620c6c9ff4fb2b8b6fd3140f9bd925fd99a5c109aae8b3",
+      "bytes": 4000
+    },
+    {
+      "source": "backend_delivery/docs/platform/plans/active/admin-analytics-dashboard.md",
+      "target": "workspace/backend_delivery/docs/platform/plans/active/admin-analytics-dashboard.md",
+      "sha256": "8b6a80c0a9e1bd8acf78ca02f20bc4315c03c189beb85aca51d84113f8ca4303",
+      "bytes": 4793
+    },
+    {
+      "source": "backend_delivery/docs/platform/plans/active/customer-web-ordering.md",
+      "target": "workspace/backend_delivery/docs/platform/plans/active/customer-web-ordering.md",
+      "sha256": "862621bc8f5bb5f25e79a889e09ddebd6f0af58353c437121fa521af21e4b294",
+      "bytes": 4388
+    },
+    {
+      "source": "backend_delivery/docs/platform/plans/active/identity-principal-event-mtls-migration.md",
+      "target": "workspace/backend_delivery/docs/platform/plans/active/identity-principal-event-mtls-migration.md",
+      "sha256": "9b3a7c960b436a3b75b484b3609966c579154a62a60e5bf253214f1e5e7f5b49",
+      "bytes": 37635
+    },
+    {
+      "source": "backend_delivery/docs/platform/plans/active/model-delegation-next-work.md",
+      "target": "workspace/backend_delivery/docs/platform/plans/active/model-delegation-next-work.md",
+      "sha256": "a6cf0cc3fed2b7f0e7febc5cd56d6d5a647bc2ccbe040275df857c466c81aae8",
+      "bytes": 28107
+    },
+    {
+      "source": "backend_delivery/docs/platform/plans/active/order-resilience-hardening.md",
+      "target": "workspace/backend_delivery/docs/platform/plans/active/order-resilience-hardening.md",
+      "sha256": "e33698841cb7895253f879955863679da9cfc75514b37e7ab43c201b0b04306a",
+      "bytes": 5062
+    },
+    {
+      "source": "backend_delivery/docs/platform/plans/active/platform-gap-closure.md",
+      "target": "workspace/backend_delivery/docs/platform/plans/active/platform-gap-closure.md",
+      "sha256": "67c124b4fb86a3d48e9e2f6efcbbc2a2d7cf9f57074b4eec55db0fffafd6718d",
+      "bytes": 17342
+    },
+    {
+      "source": "backend_delivery/docs/platform/plans/active/priority-roadmap.md",
+      "target": "workspace/backend_delivery/docs/platform/plans/active/priority-roadmap.md",
+      "sha256": "8fa9936bff41dcbb22e625f37672237ff78d1476f07c405d6768da1a1e7344c5",
+      "bytes": 251818
+    },
+    {
+      "source": "backend_delivery/docs/platform/plans/active/production-like-sandbox.md",
+      "target": "workspace/backend_delivery/docs/platform/plans/active/production-like-sandbox.md",
+      "sha256": "1a3beb40798f3f64adbde03501b30d9b1d3eed4697a0c4ee20bf4a3d30c3d7e3",
+      "bytes": 6404
+    },
+    {
+      "source": "backend_delivery/docs/platform/plans/active/production-matching-v1.md",
+      "target": "workspace/backend_delivery/docs/platform/plans/active/production-matching-v1.md",
+      "sha256": "710acf0d08ba8dc27f11b01332d82f99bcf4464e0f946c3be378312c8da7d351",
+      "bytes": 10636
+    },
+    {
+      "source": "backend_delivery/docs/platform/plans/active/README.md",
+      "target": "workspace/backend_delivery/docs/platform/plans/active/README.md",
+      "sha256": "aec64998a72585b2a9c4c8909c7ed775c396c4c2e39c71b0ce4ee6e392784160",
+      "bytes": 232
+    },
+    {
+      "source": "backend_delivery/docs/platform/plans/active/refund-payment-decision-packet.md",
+      "target": "workspace/backend_delivery/docs/platform/plans/active/refund-payment-decision-packet.md",
+      "sha256": "1767d2e323735d9f8f0e7bfcfcb24c976c961e6ddff1abd9a36af9ffa099d471",
+      "bytes": 23080
+    },
+    {
+      "source": "backend_delivery/docs/platform/plans/active/saga-orchestrator-production-hardening.md",
+      "target": "workspace/backend_delivery/docs/platform/plans/active/saga-orchestrator-production-hardening.md",
+      "sha256": "8bbab523481686e1ea902a5ce036fe4db8c6056287f436df4368c10a96d2c163",
+      "bytes": 63878
+    },
+    {
+      "source": "backend_delivery/docs/platform/plans/active/scenario-lab-and-delivery-simulator.md",
+      "target": "workspace/backend_delivery/docs/platform/plans/active/scenario-lab-and-delivery-simulator.md",
+      "sha256": "800bdaf6ccb659f7ce25a987178d636fceeaf4939528222ee31fcc56c4b19186",
+      "bytes": 12016
+    },
+    {
+      "source": "backend_delivery/docs/platform/plans/active/system-reconstruction-and-production-foundation.md",
+      "target": "workspace/backend_delivery/docs/platform/plans/active/system-reconstruction-and-production-foundation.md",
+      "sha256": "05c423f0b44c46b4be404bb38fa448a2451c2a8c624e1e834b0a061ff043dd0b",
+      "bytes": 21275
+    },
+    {
+      "source": "backend_delivery/docs/platform/plans/active/task-4-correlation-id-structured-logging.md",
+      "target": "workspace/backend_delivery/docs/platform/plans/active/task-4-correlation-id-structured-logging.md",
+      "sha256": "dc321b57a3ba45251069cbdd25949208c394c97d8a2262470a473dc37d77c629",
+      "bytes": 3927
+    },
+    {
+      "source": "backend_delivery/docs/platform/plans/active/web-e2e-coverage.md",
+      "target": "workspace/backend_delivery/docs/platform/plans/active/web-e2e-coverage.md",
+      "sha256": "3a5b7fc0489ba0905ffdc1bd75b8e0c5da548801d3a81d96e767288aff361557",
+      "bytes": 18897
+    },
+    {
+      "source": "backend_delivery/docs/platform/plans/active/web-scale-hardening.md",
+      "target": "workspace/backend_delivery/docs/platform/plans/active/web-scale-hardening.md",
+      "sha256": "dc86276bfc33a147a6a56ec7f7ebca9e54c53924a164363b7fc5b7b7b5c2dfe0",
+      "bytes": 4499
+    },
+    {
+      "source": "backend_delivery/docs/platform/plans/completed/admin-order-access-and-reusable-shipper-locations.md",
+      "target": "workspace/backend_delivery/docs/platform/plans/completed/admin-order-access-and-reusable-shipper-locations.md",
+      "sha256": "a2e62ce6804d07a27474f4f4ef212842cf7c2f1442b28e8b28c57165329dd5dd",
+      "bytes": 1840
+    },
+    {
+      "source": "backend_delivery/docs/platform/plans/completed/auth-two-step-registration.md",
+      "target": "workspace/backend_delivery/docs/platform/plans/completed/auth-two-step-registration.md",
+      "sha256": "11401f2b71abe84b1e17be68b222b61285eb29352113abf5bc34cc28da6d01a4",
+      "bytes": 7723
+    },
+    {
+      "source": "backend_delivery/docs/platform/plans/completed/backend-actuator-health-readiness.md",
+      "target": "workspace/backend_delivery/docs/platform/plans/completed/backend-actuator-health-readiness.md",
+      "sha256": "645c32f9b2e2ef2d8475bacff8e72e085397d0004f9848c927b08f3522025337",
+      "bytes": 6063
+    },
+    {
+      "source": "backend_delivery/docs/platform/plans/completed/backend-refactor-and-client-verification.md",
+      "target": "workspace/backend_delivery/docs/platform/plans/completed/backend-refactor-and-client-verification.md",
+      "sha256": "dd4f43238b42e5748a22febd878a6f4db1000bff75f731968ae61542d07adb23",
+      "bytes": 30931
+    },
+    {
+      "source": "backend_delivery/docs/platform/plans/completed/client-debug-tools.md",
+      "target": "workspace/backend_delivery/docs/platform/plans/completed/client-debug-tools.md",
+      "sha256": "8e3ec8decb6498faa233837af77e0c096c78dd8269b393990b6fa72935ce8a79",
+      "bytes": 4684
+    },
+    {
+      "source": "backend_delivery/docs/platform/plans/completed/client-testability-refactor.md",
+      "target": "workspace/backend_delivery/docs/platform/plans/completed/client-testability-refactor.md",
+      "sha256": "b723f1281edb87ba9859e50e366cb884e1b5435d00505be66cc095d0dc11d625",
+      "bytes": 30927
+    },
+    {
+      "source": "backend_delivery/docs/platform/plans/completed/delivery-app-clean-mvvm-refactor.md",
+      "target": "workspace/backend_delivery/docs/platform/plans/completed/delivery-app-clean-mvvm-refactor.md",
+      "sha256": "cd514a2be1dfb1147f3cb98d82a83da3fcf9cd5290ce8c88d4213c4b99702d90",
+      "bytes": 11893
+    },
+    {
+      "source": "backend_delivery/docs/platform/plans/completed/distributed-order-tracing.md",
+      "target": "workspace/backend_delivery/docs/platform/plans/completed/distributed-order-tracing.md",
+      "sha256": "fb7cea02e4d766e3625974dee595a381c0167d5709eb553f652ea5d7141fc58a",
+      "bytes": 6233
+    },
+    {
+      "source": "backend_delivery/docs/platform/plans/completed/hanoi-public-catalog-collection.md",
+      "target": "workspace/backend_delivery/docs/platform/plans/completed/hanoi-public-catalog-collection.md",
+      "sha256": "905b457f0e329e39a3e34ba225990b9712866f0fd70f12c6fe730358e2bbf104",
+      "bytes": 5581
+    },
+    {
+      "source": "backend_delivery/docs/platform/plans/completed/json-data-fixture-workflow.md",
+      "target": "workspace/backend_delivery/docs/platform/plans/completed/json-data-fixture-workflow.md",
+      "sha256": "b8b3463b8a6a828a39354b5d582016e140568574a07f3204fb389c68594defbe",
+      "bytes": 2709
+    },
+    {
+      "source": "backend_delivery/docs/platform/plans/completed/jwks-auth-migration.md",
+      "target": "workspace/backend_delivery/docs/platform/plans/completed/jwks-auth-migration.md",
+      "sha256": "9c2c20b0c46cc0e9a33c11573a930d72a3060a690f8c5ba965b6f27d8ed1f1f2",
+      "bytes": 20269
+    },
+    {
+      "source": "backend_delivery/docs/platform/plans/completed/mvp-client-alignment.md",
+      "target": "workspace/backend_delivery/docs/platform/plans/completed/mvp-client-alignment.md",
+      "sha256": "1220feffcdac7d1bba2b851a8ab91002bd757f39d1054b9f74583e42e8251d80",
+      "bytes": 50099
+    },
+    {
+      "source": "backend_delivery/docs/platform/plans/completed/order-checkout-idempotency-quote.md",
+      "target": "workspace/backend_delivery/docs/platform/plans/completed/order-checkout-idempotency-quote.md",
+      "sha256": "3a5792b85c4f01732ad76a47ca54142eb7f67b40d416075df3ddae2890b315e9",
+      "bytes": 3079
+    },
+    {
+      "source": "backend_delivery/docs/platform/plans/completed/phase-3-operations-deployment.md",
+      "target": "workspace/backend_delivery/docs/platform/plans/completed/phase-3-operations-deployment.md",
+      "sha256": "4aca5072ee3c2a8daad52ac4cbefc54e6b9e1ceaa9ce79c2af468550a5216597",
+      "bytes": 7228
+    },
+    {
+      "source": "backend_delivery/docs/platform/plans/completed/production-metrics-prometheus.md",
+      "target": "workspace/backend_delivery/docs/platform/plans/completed/production-metrics-prometheus.md",
+      "sha256": "c6eea70999d46dbe459633005680cdc8c80e89594ad4e186dd80e431de089e2b",
+      "bytes": 4081
+    },
+    {
+      "source": "backend_delivery/docs/platform/plans/completed/production-readiness-remediation.md",
+      "target": "workspace/backend_delivery/docs/platform/plans/completed/production-readiness-remediation.md",
+      "sha256": "1558649e2190e4bf811d726bd7b57ff041e50437f317e8c8c14386e226c1fbe5",
+      "bytes": 7075
+    },
+    {
+      "source": "backend_delivery/docs/platform/plans/completed/README.md",
+      "target": "workspace/backend_delivery/docs/platform/plans/completed/README.md",
+      "sha256": "baf7f5e14f519b76ce22d0ca95adc980b3b2df12027f8913919c4f2431925d81",
+      "bytes": 2044
+    },
+    {
+      "source": "backend_delivery/docs/platform/plans/completed/realistic-mock-data-pack.md",
+      "target": "workspace/backend_delivery/docs/platform/plans/completed/realistic-mock-data-pack.md",
+      "sha256": "2db5ff825135fe346233e96cfac2e6e0754549fbb603d2eb9c155bbb39cf07d3",
+      "bytes": 4514
+    },
+    {
+      "source": "backend_delivery/docs/platform/plans/completed/shipper-app-feature-first-mvvm-refactor.md",
+      "target": "workspace/backend_delivery/docs/platform/plans/completed/shipper-app-feature-first-mvvm-refactor.md",
+      "sha256": "4728998290e4b286a735174435d6dd612b3e9bbd1ca4f4270888041d7eeeb1e5",
+      "bytes": 14303
+    },
+    {
+      "source": "backend_delivery/docs/platform/plans/completed/system-handbook-flow-explorer.md",
+      "target": "workspace/backend_delivery/docs/platform/plans/completed/system-handbook-flow-explorer.md",
+      "sha256": "410b84f45d8aec20699436852192d06154096953d40a8396fd0b04bb0d895e0b",
+      "bytes": 2738
+    },
+    {
+      "source": "backend_delivery/docs/platform/plans/completed/system-handbook-v1.md",
+      "target": "workspace/backend_delivery/docs/platform/plans/completed/system-handbook-v1.md",
+      "sha256": "43f78d0fba189762cf5b8f591fc191de5dbfd6591180fb03321e6601eaf4caab",
+      "bytes": 5714
+    },
+    {
+      "source": "backend_delivery/docs/platform/plans/completed/task-19-refresh-token-rotation.md",
+      "target": "workspace/backend_delivery/docs/platform/plans/completed/task-19-refresh-token-rotation.md",
+      "sha256": "497c61dbab79bd46b82ef589ba7c28f572979594bb55ad8ed4b3929c04fe52c7",
+      "bytes": 9359
+    },
+    {
+      "source": "backend_delivery/docs/platform/plans/completed/task-21-voucher-flashsale-checkout.md",
+      "target": "workspace/backend_delivery/docs/platform/plans/completed/task-21-voucher-flashsale-checkout.md",
+      "sha256": "3a4ea4a4b17f33272028f179044717f0a180940a0f3f313d4cf2f7852b735f76",
+      "bytes": 11148
+    },
+    {
+      "source": "backend_delivery/docs/platform/plans/completed/task-22-fcm-native-wakeup.md",
+      "target": "workspace/backend_delivery/docs/platform/plans/completed/task-22-fcm-native-wakeup.md",
+      "sha256": "dd05df52c98b9fce5d66f069bf01aaf53683f3c52c835351a8e9e1fd2ac29eee",
+      "bytes": 15824
+    },
+    {
+      "source": "backend_delivery/docs/platform/plans/completed/voucher-hardening-code-fixes.md",
+      "target": "workspace/backend_delivery/docs/platform/plans/completed/voucher-hardening-code-fixes.md",
+      "sha256": "78228a10ed6752daac35c9cdf7fbb74872e2c7b15f44397f74aeb30a9dc12e61",
+      "bytes": 3878
+    },
+    {
+      "source": "backend_delivery/docs/platform/plans/completed/voucher-shopee-stacking.md",
+      "target": "workspace/backend_delivery/docs/platform/plans/completed/voucher-shopee-stacking.md",
+      "sha256": "5d749505d871a7851839fdc4bb98411e76cd6c6be7214bc8698afcc6fedb7ea4",
+      "bytes": 9455
+    },
+    {
+      "source": "backend_delivery/docs/platform/plans/completed/web-mvp-stability.md",
+      "target": "workspace/backend_delivery/docs/platform/plans/completed/web-mvp-stability.md",
+      "sha256": "39f06971b4eeefcf47cfe1c26544bcc34cd5d3369c82454b336f38e63a43b96b",
+      "bytes": 2157
+    },
+    {
+      "source": "backend_delivery/docs/platform/plans/README.md",
+      "target": "workspace/backend_delivery/docs/platform/plans/README.md",
+      "sha256": "a5af4858b94dd9fe2e45958d4a12792466cd02bf285b466c0eda96961d60be96",
+      "bytes": 1860
+    },
+    {
+      "source": "backend_delivery/docs/platform/product/features/_TEMPLATE.md",
+      "target": "workspace/backend_delivery/docs/platform/product/features/_TEMPLATE.md",
+      "sha256": "8f75a7e3a07e1911319f7767f2d960bde3e0adca3974c2fe4563001908f9a6c2",
+      "bytes": 1759
+    },
+    {
+      "source": "backend_delivery/docs/platform/product/features/delivery-matching.md",
+      "target": "workspace/backend_delivery/docs/platform/product/features/delivery-matching.md",
+      "sha256": "84e1eda7ac4b7bcf36da30b0857be55535b41bf5a679e040a4c7fce1cf0ddcbf",
+      "bytes": 21376
+    },
+    {
+      "source": "backend_delivery/docs/platform/product/features/menu-inventory.md",
+      "target": "workspace/backend_delivery/docs/platform/product/features/menu-inventory.md",
+      "sha256": "55b050b65ae71ccce2898bf58af4a117506462709995dd5a4092cdc36cfe680f",
+      "bytes": 1690
+    },
+    {
+      "source": "backend_delivery/docs/platform/product/features/order-lifecycle.md",
+      "target": "workspace/backend_delivery/docs/platform/product/features/order-lifecycle.md",
+      "sha256": "068bba5d6a6150a8d673ea9b0f78109c51756f5aba0c402108edaccac62d92c5",
+      "bytes": 6103
+    },
+    {
+      "source": "backend_delivery/docs/platform/product/features/README.md",
+      "target": "workspace/backend_delivery/docs/platform/product/features/README.md",
+      "sha256": "d63b9a486ad4841e0291b2ee88d08c784bdc7f4fd081ad075791102810a449df",
+      "bytes": 2360
+    },
+    {
+      "source": "backend_delivery/docs/platform/product/features/serviceability-and-eta.md",
+      "target": "workspace/backend_delivery/docs/platform/product/features/serviceability-and-eta.md",
+      "sha256": "c76c0bac712376ce26247d0b6bce7b5e74a26ffbe9756ca27d8fd57d5cf41bee",
+      "bytes": 2853
+    },
+    {
+      "source": "backend_delivery/docs/platform/product/features/settlement.md",
+      "target": "workspace/backend_delivery/docs/platform/product/features/settlement.md",
+      "sha256": "67b235541fd58b2250f5261fc66b350afbd930be140dbd0d53be15af20d71d3b",
+      "bytes": 7590
+    },
+    {
+      "source": "backend_delivery/docs/platform/product/features/voucher-flashsale-checkout.md",
+      "target": "workspace/backend_delivery/docs/platform/product/features/voucher-flashsale-checkout.md",
+      "sha256": "7132fec3aba16eb39c193687d599a2eb6682594434d8c4a679c72664da3eee94",
+      "bytes": 1503
+    },
+    {
+      "source": "backend_delivery/docs/platform/product/overview.md",
+      "target": "workspace/backend_delivery/docs/platform/product/overview.md",
+      "sha256": "43b3876020f6d2765771200cf933610b1fe3356e7398f61f8b3aa4f347529d23",
+      "bytes": 6639
+    },
+    {
+      "source": "backend_delivery/docs/platform/product/README.md",
+      "target": "workspace/backend_delivery/docs/platform/product/README.md",
+      "sha256": "8d1834591efccd4267f475905d32d26d9ba3a6c9d78acf2805bf69af48cb6c01",
+      "bytes": 1237
+    },
+    {
+      "source": "backend_delivery/docs/platform/README.md",
+      "target": "workspace/backend_delivery/docs/platform/README.md",
+      "sha256": "f845a97a4a57d4804ec07d6dd462a0a4cf36f1b3e9d7c7b84bfc22c786e92a88",
+      "bytes": 3423
+    },
+    {
+      "source": "backend_delivery/docs/platform/system/api/generate-http-contract.mjs",
+      "target": "workspace/backend_delivery/docs/platform/system/api/generate-http-contract.mjs",
+      "sha256": "6931f612288c0e10e9c32b6426521c19b6b655e19cb1029f44dc3ab8384e50f8",
+      "bytes": 31215
+    },
+    {
+      "source": "backend_delivery/docs/platform/system/api/http-contract-catalog.md",
+      "target": "workspace/backend_delivery/docs/platform/system/api/http-contract-catalog.md",
+      "sha256": "8904351e27d78305c13f9b26bcdfa88f1bbc3af3b94974d4f06c93ddda0b7cd8",
+      "bytes": 395138
+    },
+    {
+      "source": "backend_delivery/docs/platform/system/api/http-contract.json",
+      "target": "workspace/backend_delivery/docs/platform/system/api/http-contract.json",
+      "sha256": "21db994d3cc3cf735453cc8c6cd97375e969beb4800702b9aa2897fb44a40a73",
+      "bytes": 703791
+    },
+    {
+      "source": "backend_delivery/docs/platform/system/api/README.md",
+      "target": "workspace/backend_delivery/docs/platform/system/api/README.md",
+      "sha256": "c9e56c3d5e3c10b3773eb61ab910f5cbf4f188e8a2e35a346bb1f1f57db68fea",
+      "bytes": 10070
+    },
+    {
+      "source": "backend_delivery/docs/platform/system/architecture.md",
+      "target": "workspace/backend_delivery/docs/platform/system/architecture.md",
+      "sha256": "8cdfa6cf8f1ba06d6a655a19c2d15f38d02c4e2b6e395c52b6dcefd1cd6ac029",
+      "bytes": 8531
+    },
+    {
+      "source": "backend_delivery/docs/platform/system/clients.md",
+      "target": "workspace/backend_delivery/docs/platform/system/clients.md",
+      "sha256": "9e942db2134fedde92cfb43d94c516efda79056f37110e4b0d779a112318d167",
+      "bytes": 6718
+    },
+    {
+      "source": "backend_delivery/docs/platform/system/diagram-standards.md",
+      "target": "workspace/backend_delivery/docs/platform/system/diagram-standards.md",
+      "sha256": "67245601c7c2d870e83a62d27fac82f14e1e74110e3c4810b845753d6d6c8f81",
+      "bytes": 7374
+    },
+    {
+      "source": "backend_delivery/docs/platform/system/events-and-data.md",
+      "target": "workspace/backend_delivery/docs/platform/system/events-and-data.md",
+      "sha256": "eea2784ea7266aae4eb9054c07ef021f9800497947e7fb155cf9bd4ef1d2eeea",
+      "bytes": 15219
+    },
+    {
+      "source": "backend_delivery/docs/platform/system/handbook-catalog.json",
+      "target": "workspace/backend_delivery/docs/platform/system/handbook-catalog.json",
+      "sha256": "55bbcfa91133bceecc1d226d099c02f42d1eea093f1163f8f112990e3b9e5248",
+      "bytes": 2916
+    },
+    {
+      "source": "backend_delivery/docs/platform/system/operations/deployment-foundation.md",
+      "target": "workspace/backend_delivery/docs/platform/system/operations/deployment-foundation.md",
+      "sha256": "606b3b21f6fbfebf67dc3e034f911ed7690d375b566b5c8de5172ab10230bec0",
+      "bytes": 9246
+    },
+    {
+      "source": "backend_delivery/docs/platform/system/operations/observability.md",
+      "target": "workspace/backend_delivery/docs/platform/system/operations/observability.md",
+      "sha256": "769fde972ce7f3b7a4e72c3385e121575cecd4307eca17d7073ebcb80af35a5e",
+      "bytes": 4258
+    },
+    {
+      "source": "backend_delivery/docs/platform/system/operations/production-platform-decision-packet.md",
+      "target": "workspace/backend_delivery/docs/platform/system/operations/production-platform-decision-packet.md",
+      "sha256": "fe49c7c1a3e4de9552a8638ffcdc7226346249750613003d3760d9c95754f5b9",
+      "bytes": 5411
+    },
+    {
+      "source": "backend_delivery/docs/platform/system/operations/README.md",
+      "target": "workspace/backend_delivery/docs/platform/system/operations/README.md",
+      "sha256": "6129e2899dcfc1ed1ef0fb10f53a9c056fb0b512f698a95de1ef4650cf93357e",
+      "bytes": 12979
+    },
+    {
+      "source": "backend_delivery/docs/platform/system/operations/release-and-recovery.md",
+      "target": "workspace/backend_delivery/docs/platform/system/operations/release-and-recovery.md",
+      "sha256": "86864374e807293bb196e766b33f7c15cb29fb103991d129f43aa53de379c5c1",
+      "bytes": 4828
+    },
+    {
+      "source": "backend_delivery/docs/platform/system/README.md",
+      "target": "workspace/backend_delivery/docs/platform/system/README.md",
+      "sha256": "2d4231c59ae5c52b436ab40ec07f98ec4cee5b42fe9e0123539dfc05abf0fb95",
+      "bytes": 11505
+    },
+    {
+      "source": "backend_delivery/docs/platform/system/rebuild/README.md",
+      "target": "workspace/backend_delivery/docs/platform/system/rebuild/README.md",
+      "sha256": "139616a6681f238901f6a42dc2afb2b4d27ddf21782c4219f8d5aa0c58d8e97f",
+      "bytes": 10407
+    },
+    {
+      "source": "backend_delivery/docs/platform/system/rebuild/source-map.md",
+      "target": "workspace/backend_delivery/docs/platform/system/rebuild/source-map.md",
+      "sha256": "7d69f109f7b21ea3bdb13f4776bc0a56653d017d37ec0838bed536bb2ee2fdde",
+      "bytes": 7188
+    },
+    {
+      "source": "backend_delivery/docs/platform/system/rebuild/sync-reference-bundle.mjs",
+      "target": "workspace/backend_delivery/docs/platform/system/rebuild/sync-reference-bundle.mjs",
+      "sha256": "a953861722e85d80e7a921e8c0a68d67dd83498edeb97690ac9c8024ae931e99",
+      "bytes": 9929
+    },
+    {
+      "source": "backend_delivery/docs/platform/system/reconciliation-matrix.md",
+      "target": "workspace/backend_delivery/docs/platform/system/reconciliation-matrix.md",
+      "sha256": "233ee26b3f9dea764a72d8b4767c915bfefb7128c10370c59891cbfdeb6d7494",
+      "bytes": 2993
+    },
+    {
+      "source": "backend_delivery/docs/platform/system/security.md",
+      "target": "workspace/backend_delivery/docs/platform/system/security.md",
+      "sha256": "91548766f79d5f895b888dca7a28fb945037c34cbef33393fdc291f55d22fffb",
+      "bytes": 7570
+    },
+    {
+      "source": "backend_delivery/docs/platform/system/service-catalog.md",
+      "target": "workspace/backend_delivery/docs/platform/system/service-catalog.md",
+      "sha256": "8c0c25383e45278ff6c0673bf405caab431ea93fca9f588dd69e0e69d80cba1b",
+      "bytes": 10432
+    },
+    {
+      "source": "backend_delivery/docs/platform/system/simulator/README.md",
+      "target": "workspace/backend_delivery/docs/platform/system/simulator/README.md",
+      "sha256": "59da3318c7d53d924c0766e30d4e44bd9851d855073c7de31e3baa18aee926ce",
+      "bytes": 10091
+    },
+    {
+      "source": "backend_delivery/docs/platform/system/technology-and-tooling.md",
+      "target": "workspace/backend_delivery/docs/platform/system/technology-and-tooling.md",
+      "sha256": "d17d109f84b8eb810dd9b93def7eaf5d5fe08a44265dcb2b56b1d319e5e93bfc",
+      "bytes": 10521
+    },
+    {
+      "source": "backend_delivery/docs/platform/system/verify-docs.mjs",
+      "target": "workspace/backend_delivery/docs/platform/system/verify-docs.mjs",
+      "sha256": "21a5d7c43fecd856ddae257ecc5ae3fdefe1da6f8bd630cdb842cb0eb40177f7",
+      "bytes": 7593
+    },
+    {
+      "source": "backend_delivery/docs/platform/system/workflows.md",
+      "target": "workspace/backend_delivery/docs/platform/system/workflows.md",
+      "sha256": "f466f4b84e0954a304c4b1413b3e59c28376ac140a2d407b48fee7825ff08f81",
+      "bytes": 9985
+    },
+    {
+      "source": "backend_delivery/docs/platform/templates/decision.md",
+      "target": "workspace/backend_delivery/docs/platform/templates/decision.md",
+      "sha256": "e92ba7a5b7bc10ce6c213af75a191619fc305c3945cdd55d4dc6bac72dcd42c1",
+      "bytes": 331
+    },
+    {
+      "source": "backend_delivery/docs/platform/templates/exec-plan.md",
+      "target": "workspace/backend_delivery/docs/platform/templates/exec-plan.md",
+      "sha256": "111c40ea8ab63a03561fdb54f235358546788b3a4e1bb26f220da8db50db92b9",
+      "bytes": 899
+    },
+    {
+      "source": "backend_delivery/docs/platform/TESTING_READINESS.md",
+      "target": "workspace/backend_delivery/docs/platform/TESTING_READINESS.md",
+      "sha256": "dd3a5b95cec31f216dcb7e8042174da96e09edf99815d1e649103923b6d5b7d9",
+      "bytes": 6029
+    },
+    {
+      "source": "backend_delivery/docs/platform/WORKFLOW.md",
+      "target": "workspace/backend_delivery/docs/platform/WORKFLOW.md",
+      "sha256": "08ccd7a062d38a566b6f24631a501ba848e64ac31c6fcdb3b03e1abe2de313e8",
+      "bytes": 5512
+    },
+    {
+      "source": "backend_delivery/docs/product/overview.md",
+      "target": "workspace/backend_delivery/docs/product/overview.md",
+      "sha256": "93135adb6bf5def4d06fb790aaae2897f475ab274cb42211277e386ce172593f",
+      "bytes": 5597
+    },
+    {
+      "source": "backend_delivery/docs/product/README.md",
+      "target": "workspace/backend_delivery/docs/product/README.md",
+      "sha256": "8d1834591efccd4267f475905d32d26d9ba3a6c9d78acf2805bf69af48cb6c01",
+      "bytes": 1237
+    },
+    {
+      "source": "backend_delivery/docs/README.md",
+      "target": "workspace/backend_delivery/docs/README.md",
+      "sha256": "9893f34b0402317624f143227e8852bb5b098f920c3c9353b4f964ca15fae699",
+      "bytes": 3328
+    },
+    {
+      "source": "backend_delivery/docs/runbook-local.md",
+      "target": "workspace/backend_delivery/docs/runbook-local.md",
+      "sha256": "9edd36fff4830784a8fc01141b23f23a54ae8e30ff16fa29bc67e63d08deed21",
+      "bytes": 8918
+    },
+    {
+      "source": "backend_delivery/docs/runbooks/account-recovery-email-verification.md",
+      "target": "workspace/backend_delivery/docs/runbooks/account-recovery-email-verification.md",
+      "sha256": "2742596767590da869f8d5dde899b5cb8256592b15bd7ddd223790f9f0f08a15",
+      "bytes": 5063
+    },
+    {
+      "source": "backend_delivery/docs/runbooks/data-backup-restore.md",
+      "target": "workspace/backend_delivery/docs/runbooks/data-backup-restore.md",
+      "sha256": "531e2e96fe14ea038f419835431a8e4c98855d939c16c8e22375589d17ce0899",
+      "bytes": 7110
+    },
+    {
+      "source": "backend_delivery/docs/runbooks/identity-principal-event-rollout.md",
+      "target": "workspace/backend_delivery/docs/runbooks/identity-principal-event-rollout.md",
+      "sha256": "49b9300f76d3762d85773167a01038b49617de84f21c90d5762f743cc34f3808",
+      "bytes": 25205
+    },
+    {
+      "source": "backend_delivery/docs/runbooks/local-observability-runtime.md",
+      "target": "workspace/backend_delivery/docs/runbooks/local-observability-runtime.md",
+      "sha256": "913a80cd1f5e2db5c457cd711cd792046049664ae4ee3fd2a838b289628c57de",
+      "bytes": 1566
+    },
+    {
+      "source": "backend_delivery/docs/runbooks/local-runtime-search-recovery.md",
+      "target": "workspace/backend_delivery/docs/runbooks/local-runtime-search-recovery.md",
+      "sha256": "4063768b8288190a1255c19723a39fbabab118f8adc5128e024ff38c819cdd59",
+      "bytes": 4869
+    },
+    {
+      "source": "backend_delivery/docs/runbooks/metrics-prometheus.md",
+      "target": "workspace/backend_delivery/docs/runbooks/metrics-prometheus.md",
+      "sha256": "7aa5304b62efdba85d6895ceb4c6cf77dc6fd8bacdd033b28adbcb52501c6ea0",
+      "bytes": 1906
+    },
+    {
+      "source": "backend_delivery/docs/runbooks/production-like-sandbox.md",
+      "target": "workspace/backend_delivery/docs/runbooks/production-like-sandbox.md",
+      "sha256": "ef7aa762506c1a8dc498a7fba623bcd96f2ec3ea972af3dc12ef021a7c2934fe",
+      "bytes": 7138
+    },
+    {
+      "source": "backend_delivery/docs/runbooks/refund-workflow.md",
+      "target": "workspace/backend_delivery/docs/runbooks/refund-workflow.md",
+      "sha256": "e0f0311304f9e1eeef65056543fd01506a99d828dc9a4f5bc9d29783b6ee169a",
+      "bytes": 4017
+    },
+    {
+      "source": "backend_delivery/docs/runbooks/resilience-operations.md",
+      "target": "workspace/backend_delivery/docs/runbooks/resilience-operations.md",
+      "sha256": "43725fa1d26e8cb66aa0bd76f73945c26a4604378bfdde3c4ffea1f7ce9ab42a",
+      "bytes": 17811
+    },
+    {
+      "source": "backend_delivery/docs/runbooks/rollout-and-rollback.md",
+      "target": "workspace/backend_delivery/docs/runbooks/rollout-and-rollback.md",
+      "sha256": "d04212b91e4d5334b3619cbd8d9f8e6160d5fc0a0c8f1112d196dec7f666ed2e",
+      "bytes": 5309
+    },
+    {
+      "source": "backend_delivery/docs/runbooks/secrets-management.md",
+      "target": "workspace/backend_delivery/docs/runbooks/secrets-management.md",
+      "sha256": "b5de04fc693a6fcc2573b461a98df725c96f2ef2fcfe130f858fd4577591dd0d",
+      "bytes": 3035
+    },
+    {
+      "source": "backend_delivery/docs/runbooks/voucher-flashsale-checkout.md",
+      "target": "workspace/backend_delivery/docs/runbooks/voucher-flashsale-checkout.md",
+      "sha256": "f83c16b57e1b16e60032839d16559ebbc64b88d6b3425702a91d4ee99b9a869b",
+      "bytes": 5160
+    },
+    {
+      "source": "backend_delivery/docs/services/analytics_dashboard.md",
+      "target": "workspace/backend_delivery/docs/services/analytics_dashboard.md",
+      "sha256": "0a35b0e1eeecc77c33b69a8651be300e82e1f2f06e1a06cc718d26d01b366ba9",
+      "bytes": 2940
+    },
+    {
+      "source": "backend_delivery/docs/services/auth_and_users.md",
+      "target": "workspace/backend_delivery/docs/services/auth_and_users.md",
+      "sha256": "689b409e853e7498614cc40bcc6abc35567c1abb5d8f76b876945a2d1cfbc8c9",
+      "bytes": 15474
+    },
+    {
+      "source": "backend_delivery/docs/services/livestream_management.md",
+      "target": "workspace/backend_delivery/docs/services/livestream_management.md",
+      "sha256": "3e504b72286f5e7baf22acb0cc624fc9d176cadde4d01a952e8a1b45df7624a6",
+      "bytes": 2083
+    },
+    {
+      "source": "backend_delivery/docs/services/notification_service.md",
+      "target": "workspace/backend_delivery/docs/services/notification_service.md",
+      "sha256": "53cff3486c8624682529e6e29ff621e1abf319a4397cf60dfd74c2545c537013",
+      "bytes": 3970
+    },
+    {
+      "source": "backend_delivery/docs/services/restaurant_and_menu.md",
+      "target": "workspace/backend_delivery/docs/services/restaurant_and_menu.md",
+      "sha256": "94d86e674281436716a99899a5a7eb24df109f152012a56f2deeb8144ec531d8",
+      "bytes": 3687
+    },
+    {
+      "source": "backend_delivery/docs/services/search_service.md",
+      "target": "workspace/backend_delivery/docs/services/search_service.md",
+      "sha256": "cd8dc1ba4a28d1fd8a01e968c331057980074c94e9cd36024e32e9583d28628c",
+      "bytes": 3258
+    },
+    {
+      "source": "backend_delivery/docs/services/tracking_service.md",
+      "target": "workspace/backend_delivery/docs/services/tracking_service.md",
+      "sha256": "228667c3de488eaa061e77ff866e4f07f47e7cd951596095b701a7d1e18e0e75",
+      "bytes": 4964
+    },
+    {
+      "source": "backend_delivery/docs/system-contract-inventory.md",
+      "target": "workspace/backend_delivery/docs/system-contract-inventory.md",
+      "sha256": "2e0ac07ac541710bd258ec497a1b52488582543303d7f28f0d9447b2d195148b",
+      "bytes": 142972
+    },
+    {
+      "source": "backend_delivery/docs/templates/decision.md",
+      "target": "workspace/backend_delivery/docs/templates/decision.md",
+      "sha256": "fd661b05219b5cc407d5980f517e9f9dc61f7c4a5e217c5b650c0b6a8b7d1370",
+      "bytes": 330
+    },
+    {
+      "source": "backend_delivery/docs/templates/exec-plan.md",
+      "target": "workspace/backend_delivery/docs/templates/exec-plan.md",
+      "sha256": "111c40ea8ab63a03561fdb54f235358546788b3a4e1bb26f220da8db50db92b9",
+      "bytes": 899
+    },
+    {
+      "source": "backend_delivery/docs/TODO_LIST.md",
+      "target": "workspace/backend_delivery/docs/TODO_LIST.md",
+      "sha256": "4dae03ccac1ab84836e817da016a1c2d4eed3db2d8f12c5a3a15839ea44c68e6",
+      "bytes": 4660
+    },
+    {
+      "source": "backend_delivery/docs/WORKFLOW.md",
+      "target": "workspace/backend_delivery/docs/WORKFLOW.md",
+      "sha256": "08ccd7a062d38a566b6f24631a501ba848e64ac31c6fcdb3b03e1abe2de313e8",
+      "bytes": 5512
+    },
+    {
+      "source": "backend_delivery/docs/workflows/delivery_matching_tracking.md",
+      "target": "workspace/backend_delivery/docs/workflows/delivery_matching_tracking.md",
+      "sha256": "4b9c0eabe05008f65d6c7b965170aa8efc66a9767fddd4f2d39cac3bce39a7fa",
+      "bytes": 3685
+    },
+    {
+      "source": "backend_delivery/docs/workflows/flash_sale_flow.md",
+      "target": "workspace/backend_delivery/docs/workflows/flash_sale_flow.md",
+      "sha256": "2fbd7dd4b85276eb9fedb06fccc2148da71b067eea580815b3f1451b13f60fd6",
+      "bytes": 4320
+    },
+    {
+      "source": "backend_delivery/docs/workflows/order_lifecycle_flow.md",
+      "target": "workspace/backend_delivery/docs/workflows/order_lifecycle_flow.md",
+      "sha256": "b25e37122aa61a49ec8608ff96028ac400a346b8c2dbc9c5e6ed15c7a88a9ba7",
+      "bytes": 6928
+    },
+    {
+      "source": "backend_delivery/docs/workflows/promotion_voucher_flow.md",
+      "target": "workspace/backend_delivery/docs/workflows/promotion_voucher_flow.md",
+      "sha256": "5d6576cd055a991cee3a1f8e4305b40a478b5dbde8cf2521c4f5ec77157a1093",
+      "bytes": 4402
+    },
+    {
+      "source": "backend_delivery/docs/workflows/settlement_finance_flow.md",
+      "target": "workspace/backend_delivery/docs/workflows/settlement_finance_flow.md",
+      "sha256": "59b651f2c2f544bf7e756451689c45fc535200aa3ec0ad2c190258f0fc0859df",
+      "bytes": 5235
+    },
+    {
+      "source": "backend_delivery/docs/workflows/technical_bottlenecks_and_solutions.md",
+      "target": "workspace/backend_delivery/docs/workflows/technical_bottlenecks_and_solutions.md",
+      "sha256": "1fe986ce5f51a0b120ee910d5418213407029efcb99e88b5aa250cba86b2e573",
+      "bytes": 5211
+    },
+    {
+      "source": "backend_delivery/flashsale-service/HELP.md",
+      "target": "workspace/backend_delivery/flashsale-service/HELP.md",
+      "sha256": "d2ad0c6454d1cfefea58bc0a0424a3d37047c7395fa62dfe9811cb880d84a404",
+      "bytes": 828
+    },
+    {
+      "source": "backend_delivery/flashsale-service/pom.xml",
+      "target": "workspace/backend_delivery/flashsale-service/pom.xml",
+      "sha256": "36d0efd939e745b60fc60751314fc424153b48aaa94b74002eb5d72ec61847e3",
+      "bytes": 4169
+    },
+    {
+      "source": "backend_delivery/flashsale-service/src/main/resources/application.properties",
+      "target": "workspace/backend_delivery/flashsale-service/src/main/resources/application.properties",
+      "sha256": "020507ec210b610039d1ec404099e0bfbebd9ce2370cb40bb7d90ccc4ea4120d",
+      "bytes": 3924
+    },
+    {
+      "source": "backend_delivery/flashsale-service/src/main/resources/db/migration/V2__flash_sale_reservations.sql",
+      "target": "workspace/backend_delivery/flashsale-service/src/main/resources/db/migration/V2__flash_sale_reservations.sql",
+      "sha256": "f27a8f2f3cc44b12dade8fdbe85b5f6a09ab714c00f9f32ad88eb7bde3ff35bd",
+      "bytes": 1415
+    },
+    {
+      "source": "backend_delivery/flashsale-service/src/main/resources/db/migration/V3__flash_sale_outbox.sql",
+      "target": "workspace/backend_delivery/flashsale-service/src/main/resources/db/migration/V3__flash_sale_outbox.sql",
+      "sha256": "67d90dbdc33dcab6f301ada5a0d49c174c0f59bee01f0240b7cfc5979a1d1206",
+      "bytes": 734
+    },
+    {
+      "source": "backend_delivery/flashsale-service/src/main/resources/db/migration/V4__flash_sale_order_reservation_receipts.sql",
+      "target": "workspace/backend_delivery/flashsale-service/src/main/resources/db/migration/V4__flash_sale_order_reservation_receipts.sql",
+      "sha256": "8695128250aea01feb50a449d1a536fc41eafd734540d2118c737737270c31c6",
+      "bytes": 536
+    },
+    {
+      "source": "backend_delivery/flashsale-service/src/main/resources/db/migration/V5__flash_sale_reservation_principal.sql",
+      "target": "workspace/backend_delivery/flashsale-service/src/main/resources/db/migration/V5__flash_sale_reservation_principal.sql",
+      "sha256": "c398c92691d11e9209e2a2bc943658399e01c76efdcd0438ff44e8185a338920",
+      "bytes": 204
+    },
+    {
+      "source": "backend_delivery/identity-contracts/pom.xml",
+      "target": "workspace/backend_delivery/identity-contracts/pom.xml",
+      "sha256": "bf69f82b13a67a7cdb7083f0569ee1b6669d7dee241f7d3f45e8e6301a41bbcb",
+      "bytes": 815
+    },
+    {
+      "source": "backend_delivery/kafka-operations-tool/pom.xml",
+      "target": "workspace/backend_delivery/kafka-operations-tool/pom.xml",
+      "sha256": "fb92591e6f237d36b2a25627cdf39d5f050d0d614e71d5ddfd9866f8d82a11c6",
+      "bytes": 2090
+    },
+    {
+      "source": "backend_delivery/livestream-service/HELP.md",
+      "target": "workspace/backend_delivery/livestream-service/HELP.md",
+      "sha256": "750c9da11c68e80edb071ed817d932edcd9987a88a81a0e841cf70b78e0ff029",
+      "bytes": 828
+    },
+    {
+      "source": "backend_delivery/livestream-service/pom.xml",
+      "target": "workspace/backend_delivery/livestream-service/pom.xml",
+      "sha256": "2793bd7aed5bad97769f39273fc3ad092b1ab8d270f4c33f1e9eb40f64f2307f",
+      "bytes": 4659
+    },
+    {
+      "source": "backend_delivery/livestream-service/src/main/resources/application.properties",
+      "target": "workspace/backend_delivery/livestream-service/src/main/resources/application.properties",
+      "sha256": "4196be6a2ed240b640286119e1f6eb9502ab952abfcccb8632b9af6d3b362f85",
+      "bytes": 2820
+    },
+    {
+      "source": "backend_delivery/match-service/CONTINUOUS_SHIPPER_SEARCH.md",
+      "target": "workspace/backend_delivery/match-service/CONTINUOUS_SHIPPER_SEARCH.md",
+      "sha256": "ab7176b3390fae3760a79ddd70c8d9af34dbd6e4787ce8ad5a95d240aba07f1e",
+      "bytes": 4975
+    },
+    {
+      "source": "backend_delivery/match-service/DELIVERY_INTEGRATION.md",
+      "target": "workspace/backend_delivery/match-service/DELIVERY_INTEGRATION.md",
+      "sha256": "329bf6ed637d4495a7f87314c72eb210f69719a50981e52d9421fd5db8058763",
+      "bytes": 4755
+    },
+    {
+      "source": "backend_delivery/match-service/pom.xml",
+      "target": "workspace/backend_delivery/match-service/pom.xml",
+      "sha256": "a7c850b168e4828476201a123e20c023384be3b54ecdb0389535ba30c823cc1f",
+      "bytes": 5525
+    },
+    {
+      "source": "backend_delivery/match-service/RETRY_LOGIC_FIX.md",
+      "target": "workspace/backend_delivery/match-service/RETRY_LOGIC_FIX.md",
+      "sha256": "81898379120b1921c26e41f42032f35fdb530b023bd3f260937eb60c4ed4f458",
+      "bytes": 4945
+    },
+    {
+      "source": "backend_delivery/match-service/src/main/resources/application.properties",
+      "target": "workspace/backend_delivery/match-service/src/main/resources/application.properties",
+      "sha256": "2d920ed6d7258c54844a48650ef0e1f84bfd5acaeedd72423c9a89559cc2394a",
+      "bytes": 7676
+    },
+    {
+      "source": "backend_delivery/match-service/src/main/resources/db/migration/V1__match_command_result_outbox.sql",
+      "target": "workspace/backend_delivery/match-service/src/main/resources/db/migration/V1__match_command_result_outbox.sql",
+      "sha256": "5679c337a046e5ecfbb2d29fe4e0d237c3be830d86969ce1303d2f1f58538027",
+      "bytes": 1824
+    },
+    {
+      "source": "backend_delivery/match-service/src/main/resources/db/migration/V2__match_generation_cancellation_fence.sql",
+      "target": "workspace/backend_delivery/match-service/src/main/resources/db/migration/V2__match_generation_cancellation_fence.sql",
+      "sha256": "825a2fb2452102b1465286eac59cf85cdee0e2ceaec60113d46cc9afe8be0617",
+      "bytes": 1232
+    },
+    {
+      "source": "backend_delivery/match-service/src/main/resources/db/migration/V3__match_cancellation_projection_relay.sql",
+      "target": "workspace/backend_delivery/match-service/src/main/resources/db/migration/V3__match_cancellation_projection_relay.sql",
+      "sha256": "673d93570e955ef43872f50185f2359565e2079859eeeb7d7e091666a4863b7a",
+      "bytes": 1080
+    },
+    {
+      "source": "backend_delivery/match-service/src/main/resources/db/migration/V4__dispatch_pool_and_round.sql",
+      "target": "workspace/backend_delivery/match-service/src/main/resources/db/migration/V4__dispatch_pool_and_round.sql",
+      "sha256": "3c4901d9162b1eda66c1f5718647906ca3c573adc623fa3e719520a7bc8a6014",
+      "bytes": 2457
+    },
+    {
+      "source": "backend_delivery/match-service/src/main/resources/db/migration/V5__dispatch_pool_wave_number.sql",
+      "target": "workspace/backend_delivery/match-service/src/main/resources/db/migration/V5__dispatch_pool_wave_number.sql",
+      "sha256": "918ad88fc1e6ad29beb153f902e46e5ed51cffe93acd527c1a16ca389e5968f0",
+      "bytes": 101
+    },
+    {
+      "source": "backend_delivery/match-service/src/main/resources/db/migration/V6__add_match_outbox_leases.sql",
+      "target": "workspace/backend_delivery/match-service/src/main/resources/db/migration/V6__add_match_outbox_leases.sql",
+      "sha256": "d359259390907f2320b59a33cc57ba4d91013e31aaf96cb9d6b9e81685747622",
+      "bytes": 550
+    },
+    {
+      "source": "backend_delivery/monitoring/grafana/dashboards/delivery-operations.json",
+      "target": "workspace/backend_delivery/monitoring/grafana/dashboards/delivery-operations.json",
+      "sha256": "f6169b961c5dfcd8b34614f31c74d2ebe390df6369fdc4dbeb2c4b4728371b3d",
+      "bytes": 2598
+    },
+    {
+      "source": "backend_delivery/monitoring/grafana/provisioning/dashboards/dashboards.yml",
+      "target": "workspace/backend_delivery/monitoring/grafana/provisioning/dashboards/dashboards.yml",
+      "sha256": "528dea5449e28cb17f8b72934a9e36953f84c279fab2119d99d1b0f35a043766",
+      "bytes": 155
+    },
+    {
+      "source": "backend_delivery/monitoring/grafana/provisioning/datasources/prometheus.yml",
+      "target": "workspace/backend_delivery/monitoring/grafana/provisioning/datasources/prometheus.yml",
+      "sha256": "f50c135b9d5102b3d286683340fc6a6a1bb8f6c5215ef3a6e541ac0f02848ecf",
+      "bytes": 139
+    },
+    {
+      "source": "backend_delivery/monitoring/prometheus/prometheus.yml",
+      "target": "workspace/backend_delivery/monitoring/prometheus/prometheus.yml",
+      "sha256": "e8cafaa9361962b927db69de7f72a58a5d42b308ed978221fee6fd890909e9dd",
+      "bytes": 668
+    },
+    {
+      "source": "backend_delivery/monitoring/prometheus/rules/resilience.yml",
+      "target": "workspace/backend_delivery/monitoring/prometheus/rules/resilience.yml",
+      "sha256": "b10c55aa51332ff480aa927b1ea9e3b960d1d0f7c92558b741ce5b288dffbc86",
+      "bytes": 550
+    },
+    {
+      "source": "backend_delivery/monitoring/prometheus/tests/resilience-rules.test.yml",
+      "target": "workspace/backend_delivery/monitoring/prometheus/tests/resilience-rules.test.yml",
+      "sha256": "1f2f06bdb18ba6832c1560c5804bc80ee832f0ef10e8d09ab450cc9378f21973",
+      "bytes": 1062
+    },
+    {
+      "source": "backend_delivery/notification-service/MATCH_SERVICE_TEST.md",
+      "target": "workspace/backend_delivery/notification-service/MATCH_SERVICE_TEST.md",
+      "sha256": "706f8b7c8c949f1ed43dec7aee7b63f8dcb25cf84c81544530e62538e01b743a",
+      "bytes": 1323
+    },
+    {
+      "source": "backend_delivery/notification-service/NOTIFICATION_SERVICE_README.md",
+      "target": "workspace/backend_delivery/notification-service/NOTIFICATION_SERVICE_README.md",
+      "sha256": "b87489ffcae00bf9e05646ab3ebb40d2ba31f8425767cf42bcdea6e10a90948c",
+      "bytes": 4150
+    },
+    {
+      "source": "backend_delivery/notification-service/pom.xml",
+      "target": "workspace/backend_delivery/notification-service/pom.xml",
+      "sha256": "7450bed6b10b528f7238a192413f222c9ec7f880c0dba99e79141ee715a973c6",
+      "bytes": 4793
+    },
+    {
+      "source": "backend_delivery/notification-service/QUICK_TEST.md",
+      "target": "workspace/backend_delivery/notification-service/QUICK_TEST.md",
+      "sha256": "536ead5ad92fab76cc6f4d6bf4f93154e20ae69a0abe2d63e2ead7930490cb4e",
+      "bytes": 1291
+    },
+    {
+      "source": "backend_delivery/notification-service/SETUP_TESTING_GUIDE.md",
+      "target": "workspace/backend_delivery/notification-service/SETUP_TESTING_GUIDE.md",
+      "sha256": "19e5ac8c7b0b404d152fc7fe86856d36a2894f6947f82160bfa3676d235dabd5",
+      "bytes": 2237
+    },
+    {
+      "source": "backend_delivery/notification-service/src/main/resources/application.properties",
+      "target": "workspace/backend_delivery/notification-service/src/main/resources/application.properties",
+      "sha256": "1e8c6337e7b4af53b8ae0ba6c25658c973d1b7e9b6e8265bf6d362820a9df8da",
+      "bytes": 4618
+    },
+    {
+      "source": "backend_delivery/notification-service/src/main/resources/db/migration/V3__notification_preferences.sql",
+      "target": "workspace/backend_delivery/notification-service/src/main/resources/db/migration/V3__notification_preferences.sql",
+      "sha256": "8b51eb8cf56281475c403edc211c75bd4179be0684e1557d141626b55ab90a09",
+      "bytes": 196
+    },
+    {
+      "source": "backend_delivery/observability-starter/pom.xml",
+      "target": "workspace/backend_delivery/observability-starter/pom.xml",
+      "sha256": "703cd9279a083dc761fe7312f4a599a5b84b9e93f03334f64e67e9eab047f5cc",
+      "bytes": 1707
+    },
+    {
+      "source": "backend_delivery/order-service/KAFKA_EVENT_SYSTEM.md",
+      "target": "workspace/backend_delivery/order-service/KAFKA_EVENT_SYSTEM.md",
+      "sha256": "5cf4958bcbd526d1021a0fd7633df095c7f2e7deeff3f1d0fdfcfd78c1073b74",
+      "bytes": 4017
+    },
+    {
+      "source": "backend_delivery/order-service/ORDER_VALIDATION.md",
+      "target": "workspace/backend_delivery/order-service/ORDER_VALIDATION.md",
+      "sha256": "70c6e2ead55e820bfaad0fb21c913d91366f444c5fe48ec4fdafda8621f5a993",
+      "bytes": 9024
+    },
+    {
+      "source": "backend_delivery/order-service/pom.xml",
+      "target": "workspace/backend_delivery/order-service/pom.xml",
+      "sha256": "49f8eb855b3e4fc5055bb543350e3790ff3685e3b050922f2fa64ab927f43f98",
+      "bytes": 4776
+    },
+    {
+      "source": "backend_delivery/order-service/SINGLE_LAYER_VALIDATION.md",
+      "target": "workspace/backend_delivery/order-service/SINGLE_LAYER_VALIDATION.md",
+      "sha256": "43747bbb4641e917fa03b00aec66bb5b797bfd18e85ebec4f6cfad9f0bf0cc89",
+      "bytes": 7832
+    },
+    {
+      "source": "backend_delivery/order-service/src/main/resources/application.properties",
+      "target": "workspace/backend_delivery/order-service/src/main/resources/application.properties",
+      "sha256": "2163bda061b7ec8b3066f2700df9bca3fd0288ca04ea7bf2d99e3696a4f74ccb",
+      "bytes": 7970
+    },
+    {
+      "source": "backend_delivery/order-service/src/main/resources/db/migration/V10__order_principal_ownership.sql",
+      "target": "workspace/backend_delivery/order-service/src/main/resources/db/migration/V10__order_principal_ownership.sql",
+      "sha256": "eaad217ee0ce894942c943ec79832e4708c2ae42e050366bbc87b8f84193b2ea",
+      "bytes": 546
+    },
+    {
+      "source": "backend_delivery/order-service/src/main/resources/db/migration/V11__order_saga_status_sequence.sql",
+      "target": "workspace/backend_delivery/order-service/src/main/resources/db/migration/V11__order_saga_status_sequence.sql",
+      "sha256": "e57740271d6ad83dd9fc12fa1068fb4605a26992c8a83d1c7c01ccb9262707a0",
+      "bytes": 101
+    },
+    {
+      "source": "backend_delivery/order-service/src/main/resources/db/migration/V13__create_checkout_quotes.sql",
+      "target": "workspace/backend_delivery/order-service/src/main/resources/db/migration/V13__create_checkout_quotes.sql",
+      "sha256": "c0785e894b82ed5024fbad0b364dd392b2f04d415dd4914fc4ac7226c15fa38d",
+      "bytes": 501
+    },
+    {
+      "source": "backend_delivery/order-service/src/main/resources/db/migration/V14__create_order_idempotency_receipts.sql",
+      "target": "workspace/backend_delivery/order-service/src/main/resources/db/migration/V14__create_order_idempotency_receipts.sql",
+      "sha256": "09b866c460da08dcd9b05387d8ae2d83006adc9301154e18a978783bbe867fca",
+      "bytes": 546
+    },
+    {
+      "source": "backend_delivery/order-service/src/main/resources/db/migration/V15__add_order_outbox_leases.sql",
+      "target": "workspace/backend_delivery/order-service/src/main/resources/db/migration/V15__add_order_outbox_leases.sql",
+      "sha256": "a775b8f3837b6a763e7748381929a7a6fe6ad8e33bd899c55f2014f966895631",
+      "bytes": 294
+    },
+    {
+      "source": "backend_delivery/order-service/src/main/resources/db/migration/V16__voucher_stacking_order_snapshot.sql",
+      "target": "workspace/backend_delivery/order-service/src/main/resources/db/migration/V16__voucher_stacking_order_snapshot.sql",
+      "sha256": "48e20c9bb8ada0ef9403b5740533ed68dd70b84ea0cbdd1c7f3075909d97ffc9",
+      "bytes": 1404
+    },
+    {
+      "source": "backend_delivery/order-service/src/main/resources/db/migration/V17__allow_order_outbox_in_flight.sql",
+      "target": "workspace/backend_delivery/order-service/src/main/resources/db/migration/V17__allow_order_outbox_in_flight.sql",
+      "sha256": "95cfdf7f6bd6d7134bf1b46d4553e52deca290609d23bcd27b021ead1e7d74db",
+      "bytes": 639
+    },
+    {
+      "source": "backend_delivery/order-service/src/main/resources/db/migration/V18__add_order_idempotency_leases.sql",
+      "target": "workspace/backend_delivery/order-service/src/main/resources/db/migration/V18__add_order_idempotency_leases.sql",
+      "sha256": "fd1382616ee924ce2d3e74b0fb081667239662ebeaec074e2f90b22daa6a32eb",
+      "bytes": 387
+    },
+    {
+      "source": "backend_delivery/order-service/src/main/resources/db/migration/V19__add_inventory_reservation_snapshot.sql",
+      "target": "workspace/backend_delivery/order-service/src/main/resources/db/migration/V19__add_inventory_reservation_snapshot.sql",
+      "sha256": "6a791cf5e7b1e5e532353eae27a64df46055bafa1dca3ca3901b616b8dcd30f6",
+      "bytes": 368
+    },
+    {
+      "source": "backend_delivery/order-service/src/main/resources/db/migration/V2__create_order_outbox.sql",
+      "target": "workspace/backend_delivery/order-service/src/main/resources/db/migration/V2__create_order_outbox.sql",
+      "sha256": "898ed1f7d8e9fab73d700dded7851d1fa758fe20984871d58265a7a871e28442",
+      "bytes": 853
+    },
+    {
+      "source": "backend_delivery/order-service/src/main/resources/db/migration/V3__create_restaurant_decision_receipts.sql",
+      "target": "workspace/backend_delivery/order-service/src/main/resources/db/migration/V3__create_restaurant_decision_receipts.sql",
+      "sha256": "defd2ae8f069c743ad53ef325b588bf8b022271faf07e7e98a017c20f8ae3595",
+      "bytes": 571
+    },
+    {
+      "source": "backend_delivery/order-service/src/main/resources/db/migration/V5__add_outbox_traceparent.sql",
+      "target": "workspace/backend_delivery/order-service/src/main/resources/db/migration/V5__add_outbox_traceparent.sql",
+      "sha256": "3142f1032116c25ba9f640ac7fd16e905f26ca36fa12b78b40b0cdae830b8931",
+      "bytes": 76
+    },
+    {
+      "source": "backend_delivery/order-service/src/main/resources/db/migration/V6__add_outbox_correlation_id.sql",
+      "target": "workspace/backend_delivery/order-service/src/main/resources/db/migration/V6__add_outbox_correlation_id.sql",
+      "sha256": "8e0cd47be59f82664e9854b442ed7a7aad9cd4a9a2a622a22e2e836971cd20b7",
+      "bytes": 79
+    },
+    {
+      "source": "backend_delivery/order-service/src/main/resources/db/migration/V7__hot_query_indexes.sql",
+      "target": "workspace/backend_delivery/order-service/src/main/resources/db/migration/V7__hot_query_indexes.sql",
+      "sha256": "8b0bd20dc5bd8144e696c6b77b5e96ef487f7dd2d788f302dd42fd7e9c8d9a3f",
+      "bytes": 560
+    },
+    {
+      "source": "backend_delivery/order-service/src/main/resources/db/migration/V8__add_checkout_reservations.sql",
+      "target": "workspace/backend_delivery/order-service/src/main/resources/db/migration/V8__add_checkout_reservations.sql",
+      "sha256": "2a348e113239899ec3721e88c2874a3796cdc32f99e1761392605e93a2ca1c5d",
+      "bytes": 316
+    },
+    {
+      "source": "backend_delivery/order-service/src/main/resources/db/migration/V9__create_saga_command_receipts.sql",
+      "target": "workspace/backend_delivery/order-service/src/main/resources/db/migration/V9__create_saga_command_receipts.sql",
+      "sha256": "8e836fb7f05018e45a8f26911c9bad1be9b84d0fe108b3a7126f322e6c68eb11",
+      "bytes": 359
+    },
+    {
+      "source": "backend_delivery/pom.xml",
+      "target": "workspace/backend_delivery/pom.xml",
+      "sha256": "817cb515ac58ebee4cce781704f24a8ff88b6abe085c11c01481236e3c757eb7",
+      "bytes": 2355
+    },
+    {
+      "source": "backend_delivery/promotion-service/HELP.md",
+      "target": "workspace/backend_delivery/promotion-service/HELP.md",
+      "sha256": "d2ad0c6454d1cfefea58bc0a0424a3d37047c7395fa62dfe9811cb880d84a404",
+      "bytes": 828
+    },
+    {
+      "source": "backend_delivery/promotion-service/pom.xml",
+      "target": "workspace/backend_delivery/promotion-service/pom.xml",
+      "sha256": "2d5c332065c5f3bee2c142c024edd8d81871e36491d03be98232c6a85a75b9ed",
+      "bytes": 3962
+    },
+    {
+      "source": "backend_delivery/promotion-service/src/main/resources/application.yml",
+      "target": "workspace/backend_delivery/promotion-service/src/main/resources/application.yml",
+      "sha256": "5dce787da05940857aad68de45d2aca747cfb07bb8e04c8f3facae1ba53d3249",
+      "bytes": 3700
+    },
+    {
+      "source": "backend_delivery/promotion-service/src/main/resources/db/migration/V2__voucher_reservations.sql",
+      "target": "workspace/backend_delivery/promotion-service/src/main/resources/db/migration/V2__voucher_reservations.sql",
+      "sha256": "1d69a8b4e17b0d58ef2edeb8fa4de3220981e944ff99324a8227b04037bc0d97",
+      "bytes": 1004
+    },
+    {
+      "source": "backend_delivery/promotion-service/src/main/resources/db/migration/V3__promotion_outbox.sql",
+      "target": "workspace/backend_delivery/promotion-service/src/main/resources/db/migration/V3__promotion_outbox.sql",
+      "sha256": "f292a5eb0da58ab330fc8341a479bdf0107c24344ae7372d0cd60bf5913cb4c3",
+      "bytes": 810
+    },
+    {
+      "source": "backend_delivery/promotion-service/src/main/resources/db/migration/V4__promotion_order_reservation_receipts.sql",
+      "target": "workspace/backend_delivery/promotion-service/src/main/resources/db/migration/V4__promotion_order_reservation_receipts.sql",
+      "sha256": "af1aacbc09ded343f8ed14e78f57dded5c078b24bab647b0530f8d63c22cddfa",
+      "bytes": 532
+    },
+    {
+      "source": "backend_delivery/promotion-service/src/main/resources/db/migration/V5__voucher_reservation_principal.sql",
+      "target": "workspace/backend_delivery/promotion-service/src/main/resources/db/migration/V5__voucher_reservation_principal.sql",
+      "sha256": "754d26778ca032bb27572ce097961de076d632b5fe70622cf85eb956881bc8cf",
+      "bytes": 200
+    },
+    {
+      "source": "backend_delivery/promotion-service/src/main/resources/db/migration/V6__user_voucher_principal_ownership.sql",
+      "target": "workspace/backend_delivery/promotion-service/src/main/resources/db/migration/V6__user_voucher_principal_ownership.sql",
+      "sha256": "e06e80814946fcb9c5369e3b751f0652f839c7fb6fc3b84ad513d7894b0fcfcb",
+      "bytes": 189
+    },
+    {
+      "source": "backend_delivery/promotion-service/src/main/resources/db/migration/V7__voucher_stacking_foundation.sql",
+      "target": "workspace/backend_delivery/promotion-service/src/main/resources/db/migration/V7__voucher_stacking_foundation.sql",
+      "sha256": "0e570cb0318234d1a83a4251c9584aee5111618c918281149820a4140c0a5d8e",
+      "bytes": 3571
+    },
+    {
+      "source": "backend_delivery/restaurant-service/pom.xml",
+      "target": "workspace/backend_delivery/restaurant-service/pom.xml",
+      "sha256": "d21a66d840ef7debdfe5ee1de1f7725c95a39421178e845655e58ba5b35f8fa8",
+      "bytes": 5697
+    },
+    {
+      "source": "backend_delivery/restaurant-service/src/main/resources/application.properties",
+      "target": "workspace/backend_delivery/restaurant-service/src/main/resources/application.properties",
+      "sha256": "83e859df6db1d99e4a686855a4129ba9bd79fe36e4e759ffbe56ce37df832061",
+      "bytes": 6103
+    },
+    {
+      "source": "backend_delivery/restaurant-service/src/main/resources/db/migration/V1__restaurant_decision_outbox.sql",
+      "target": "workspace/backend_delivery/restaurant-service/src/main/resources/db/migration/V1__restaurant_decision_outbox.sql",
+      "sha256": "bd3f83d042574a55c5247a0892ce8a7681962320cf20dc6f5e09bd1c71fd8231",
+      "bytes": 1216
+    },
+    {
+      "source": "backend_delivery/restaurant-service/src/main/resources/db/migration/V3__restaurant_decision_fingerprint.sql",
+      "target": "workspace/backend_delivery/restaurant-service/src/main/resources/db/migration/V3__restaurant_decision_fingerprint.sql",
+      "sha256": "64493855e3123512f3eccb2b1cbd5c614851444568b9a22b9b21e54fe981b9c7",
+      "bytes": 101
+    },
+    {
+      "source": "backend_delivery/restaurant-service/src/main/resources/db/migration/V4__add_restaurant_outbox_traceparent.sql",
+      "target": "workspace/backend_delivery/restaurant-service/src/main/resources/db/migration/V4__add_restaurant_outbox_traceparent.sql",
+      "sha256": "da73f423c465c5c53b10e441dda16aacf087732f48a8e10ebd6ef8ac049d23c5",
+      "bytes": 87
+    },
+    {
+      "source": "backend_delivery/restaurant-service/src/main/resources/db/migration/V5__restaurant_owner_principal.sql",
+      "target": "workspace/backend_delivery/restaurant-service/src/main/resources/db/migration/V5__restaurant_owner_principal.sql",
+      "sha256": "c252c0b20f427763f7c338262a429a6ba88c28908f23e5330d59e977c0fb96c4",
+      "bytes": 257
+    },
+    {
+      "source": "backend_delivery/restaurant-service/src/main/resources/db/migration/V6__add_restaurant_outbox_leases.sql",
+      "target": "workspace/backend_delivery/restaurant-service/src/main/resources/db/migration/V6__add_restaurant_outbox_leases.sql",
+      "sha256": "201967c26bee4ffffa1c6f458c09554a02d722f8a93a9f0695f101313c50fb3a",
+      "bytes": 577
+    },
+    {
+      "source": "backend_delivery/restaurant-service/src/main/resources/db/migration/V7__restaurant_eta_prep_time.sql",
+      "target": "workspace/backend_delivery/restaurant-service/src/main/resources/db/migration/V7__restaurant_eta_prep_time.sql",
+      "sha256": "74c717a086d28294329781a59cb9df9d4ccc8670679406d076df19c60fe79098",
+      "bytes": 408
+    },
+    {
+      "source": "backend_delivery/restaurant-service/src/main/resources/db/migration/V8__restaurant_serviceability_zones.sql",
+      "target": "workspace/backend_delivery/restaurant-service/src/main/resources/db/migration/V8__restaurant_serviceability_zones.sql",
+      "sha256": "1db5b62cca222b22dc816e759d00945c2a3b972b3377749863e0d1498f2b02fc",
+      "bytes": 846
+    },
+    {
+      "source": "backend_delivery/restaurant-service/src/main/resources/db/migration/V9__menu_item_inventory_reservations.sql",
+      "target": "workspace/backend_delivery/restaurant-service/src/main/resources/db/migration/V9__menu_item_inventory_reservations.sql",
+      "sha256": "8a02dfcfed9f872ad58c82f1ca2ba7d899c61e6c9ee19e1b345c216bebf8af87",
+      "bytes": 2775
+    },
+    {
+      "source": "backend_delivery/ROADMAP_MVP_TO_PRODUCTION.md",
+      "target": "workspace/backend_delivery/ROADMAP_MVP_TO_PRODUCTION.md",
+      "sha256": "70a2072346863e161b168e64e43008bc4f170f5ba415c5263b8180b643724846",
+      "bytes": 12231
+    },
+    {
+      "source": "backend_delivery/routing-service/pom.xml",
+      "target": "workspace/backend_delivery/routing-service/pom.xml",
+      "sha256": "16a97d3821467880e9891f25de8f1053cb4a23837c5658e9456f8bdfdd522900",
+      "bytes": 2845
+    },
+    {
+      "source": "backend_delivery/routing-service/src/main/resources/application.properties",
+      "target": "workspace/backend_delivery/routing-service/src/main/resources/application.properties",
+      "sha256": "6886199c159412036203bbc797a2f5a132102913754ffe67f34943c92e9c2cbb",
+      "bytes": 1917
+    },
+    {
+      "source": "backend_delivery/runtime-platform-starter/pom.xml",
+      "target": "workspace/backend_delivery/runtime-platform-starter/pom.xml",
+      "sha256": "156743cc07b6e4667a07d40b2b6d3645cffdc014ef5ad991dc845f2742a576c7",
+      "bytes": 2308
+    },
+    {
+      "source": "backend_delivery/saga-orchestrator-service/pom.xml",
+      "target": "workspace/backend_delivery/saga-orchestrator-service/pom.xml",
+      "sha256": "09deacff12a5985e329886597083cc18440bacf4fa7d4209cd59f07c7882a9ee",
+      "bytes": 4223
+    },
+    {
+      "source": "backend_delivery/saga-orchestrator-service/SAGA_DESIGN.md",
+      "target": "workspace/backend_delivery/saga-orchestrator-service/SAGA_DESIGN.md",
+      "sha256": "40c5e1ab1024d9cc23f3d657fd6dab6960742dcfafd3f544c128b489c2768b95",
+      "bytes": 4027
+    },
+    {
+      "source": "backend_delivery/saga-orchestrator-service/src/main/resources/application.properties",
+      "target": "workspace/backend_delivery/saga-orchestrator-service/src/main/resources/application.properties",
+      "sha256": "026a64135d510167564b764f1d7a59f51db2b897f772485f28ac9d40d6e4729a",
+      "bytes": 7265
+    },
+    {
+      "source": "backend_delivery/saga-orchestrator-service/src/main/resources/db/migration/V1__create_saga_outbox.sql",
+      "target": "workspace/backend_delivery/saga-orchestrator-service/src/main/resources/db/migration/V1__create_saga_outbox.sql",
+      "sha256": "14e9a4fe7b0e5ea64db81fe336eb380c16434db0ad7dc979bdb65d28d6ac543b",
+      "bytes": 891
+    },
+    {
+      "source": "backend_delivery/saga-orchestrator-service/src/main/resources/db/migration/V3__add_saga_outbox_traceparent.sql",
+      "target": "workspace/backend_delivery/saga-orchestrator-service/src/main/resources/db/migration/V3__add_saga_outbox_traceparent.sql",
+      "sha256": "44c056cd378ad6bd8d926dec71f081d1548aa76d5db6cae3e85ce99e509b8c1a",
+      "bytes": 81
+    },
+    {
+      "source": "backend_delivery/saga-orchestrator-service/src/main/resources/db/migration/V4__saga_inbound_receipts.sql",
+      "target": "workspace/backend_delivery/saga-orchestrator-service/src/main/resources/db/migration/V4__saga_inbound_receipts.sql",
+      "sha256": "831843748b177b8e5554801c7f1861c02e89ced1bca5c01c4402d63257e09439",
+      "bytes": 332
+    },
+    {
+      "source": "backend_delivery/saga-orchestrator-service/src/main/resources/db/migration/V5__saga_early_events.sql",
+      "target": "workspace/backend_delivery/saga-orchestrator-service/src/main/resources/db/migration/V5__saga_early_events.sql",
+      "sha256": "251928a26ade1d0e54357c2efbbaeb5f1e6595a0b13a93dbe24b9288f600a50e",
+      "bytes": 367
+    },
+    {
+      "source": "backend_delivery/saga-orchestrator-service/src/main/resources/db/migration/V6__saga_order_status_sequence.sql",
+      "target": "workspace/backend_delivery/saga-orchestrator-service/src/main/resources/db/migration/V6__saga_order_status_sequence.sql",
+      "sha256": "04e4c8e9a5e8997653b425777735adfde11705e81c631b55fda6911e54ba7365",
+      "bytes": 105
+    },
+    {
+      "source": "backend_delivery/saga-orchestrator-service/src/main/resources/db/migration/V7__add_saga_outbox_leases.sql",
+      "target": "workspace/backend_delivery/saga-orchestrator-service/src/main/resources/db/migration/V7__add_saga_outbox_leases.sql",
+      "sha256": "62506cc3961ee197d5fbd3136cb8fd6ae5e76300a06d5d23786a4626c3a8f9e4",
+      "bytes": 530
+    },
+    {
+      "source": "backend_delivery/scripts/backup-data-plane.sh",
+      "target": "workspace/backend_delivery/scripts/backup-data-plane.sh",
+      "sha256": "e5c565bb081a8a0fb999e04f7790d563d279c65215a183a5dcee7d081262d4c9",
+      "bytes": 5533
+    },
+    {
+      "source": "backend_delivery/scripts/bootstrap-jwks-legacy-compose.sh",
+      "target": "workspace/backend_delivery/scripts/bootstrap-jwks-legacy-compose.sh",
+      "sha256": "03783ea8ff620c0518b3c3d088c64787bfb3ec6309930847da78143f3fbb4aef",
+      "bytes": 5262
+    },
+    {
+      "source": "backend_delivery/scripts/cleanup-data-plane-backups.sh",
+      "target": "workspace/backend_delivery/scripts/cleanup-data-plane-backups.sh",
+      "sha256": "1eb72b96a56021aecff0ed1cf771d768994ab72be951d9848961977e27990b76",
+      "bytes": 975
+    },
+    {
+      "source": "backend_delivery/scripts/gen-keys.sh",
+      "target": "workspace/backend_delivery/scripts/gen-keys.sh",
+      "sha256": "390444659a65fe181836adf048f500d9be0f1b2468715b57002ee8a024a04c3f",
+      "bytes": 4232
+    },
+    {
+      "source": "backend_delivery/scripts/operator-provision-admin.sh",
+      "target": "workspace/backend_delivery/scripts/operator-provision-admin.sh",
+      "sha256": "ffc59e6a6f226f526e6e828ea0f428581f14c0921aea1265c1a188a8d8f0bfe4",
+      "bytes": 2282
+    },
+    {
+      "source": "backend_delivery/scripts/package-compose-services.sh",
+      "target": "workspace/backend_delivery/scripts/package-compose-services.sh",
+      "sha256": "13cd441e1de823b2a85e91db45a942830bef8ef3fd8ec51471d4769e19ce5913",
+      "bytes": 1516
+    },
+    {
+      "source": "backend_delivery/scripts/provision-kafka-resilience-topics.sh",
+      "target": "workspace/backend_delivery/scripts/provision-kafka-resilience-topics.sh",
+      "sha256": "c83cc46a3e782685267d2f18c4477674e9b7dfd8dd545d7a11c0cd7e34064a38",
+      "bytes": 18775
+    },
+    {
+      "source": "backend_delivery/scripts/recover-local-search.sh",
+      "target": "workspace/backend_delivery/scripts/recover-local-search.sh",
+      "sha256": "a5c6c5102d819c02d81f58c7eeb37a8a9e9527fd931fa17cd86eeccdec00ed24",
+      "bytes": 6054
+    },
+    {
+      "source": "backend_delivery/scripts/replay-kafka-dlt-record.sh",
+      "target": "workspace/backend_delivery/scripts/replay-kafka-dlt-record.sh",
+      "sha256": "84ce51e86b57dfb8a71519db432d70ee1d53be77725e1510b69fb3908bb11f0b",
+      "bytes": 732
+    },
+    {
+      "source": "backend_delivery/scripts/restore-data-plane-isolated.sh",
+      "target": "workspace/backend_delivery/scripts/restore-data-plane-isolated.sh",
+      "sha256": "f969431d7f53971ad2c1564f2ac88cd1951491092ef6efa5bfc7b65c3d921a2e",
+      "bytes": 2840
+    },
+    {
+      "source": "backend_delivery/scripts/rollout-identity-principal-kubernetes.sh",
+      "target": "workspace/backend_delivery/scripts/rollout-identity-principal-kubernetes.sh",
+      "sha256": "5ca3f677a2af3ec48e5da3e00cb992b2aafcfb6cc2e602cfdf73f70c9ea41738",
+      "bytes": 24368
+    },
+    {
+      "source": "backend_delivery/scripts/rollout-jwks-compose.sh",
+      "target": "workspace/backend_delivery/scripts/rollout-jwks-compose.sh",
+      "sha256": "b966bc3fb78a0cde36b477eba601d4524a086ff0c806b418d6dd2a7d527641b8",
+      "bytes": 14941
+    },
+    {
+      "source": "backend_delivery/scripts/rollout-kubernetes.sh",
+      "target": "workspace/backend_delivery/scripts/rollout-kubernetes.sh",
+      "sha256": "842263d1867fc46c35de19e9cf052adfecd7e27e859d99fe688d2790d71f276d",
+      "bytes": 4585
+    },
+    {
+      "source": "backend_delivery/scripts/sandbox-down.sh",
+      "target": "workspace/backend_delivery/scripts/sandbox-down.sh",
+      "sha256": "c85d17f10c014dcc6e4b79b7614b77eb361331802a68916cbdb24485bf718473",
+      "bytes": 3248
+    },
+    {
+      "source": "backend_delivery/scripts/sandbox-make-scenario.sh",
+      "target": "workspace/backend_delivery/scripts/sandbox-make-scenario.sh",
+      "sha256": "a2674c7822c74ff5b7431b6263e7e0719c9065d60d3c2a0f7f4ad0ab2c0597ba",
+      "bytes": 5006
+    },
+    {
+      "source": "backend_delivery/scripts/sandbox-run.sh",
+      "target": "workspace/backend_delivery/scripts/sandbox-run.sh",
+      "sha256": "18f43e2a06296fe324e62b28ab06d7d99f1f23b4926fe0ded97416b753b99abb",
+      "bytes": 3652
+    },
+    {
+      "source": "backend_delivery/scripts/sandbox-status.sh",
+      "target": "workspace/backend_delivery/scripts/sandbox-status.sh",
+      "sha256": "2c344bff78de338a7734442755eec0296e8eb7546548398971ac7aaff5dd0d4d",
+      "bytes": 2687
+    },
+    {
+      "source": "backend_delivery/scripts/sandbox-up.sh",
+      "target": "workspace/backend_delivery/scripts/sandbox-up.sh",
+      "sha256": "68c91607b8816994df1e1a8ccba2833e09d884a23a59ccbd9dcd03f5d21e9831",
+      "bytes": 16733
+    },
+    {
+      "source": "backend_delivery/scripts/scenario-lab-runner.sh",
+      "target": "workspace/backend_delivery/scripts/scenario-lab-runner.sh",
+      "sha256": "319062b8c97b3a82df1d2fcb805843c8b4c274539e32bfa45719e9629bdf48d5",
+      "bytes": 2366
+    },
+    {
+      "source": "backend_delivery/scripts/seed-realistic-catalog.sh",
+      "target": "workspace/backend_delivery/scripts/seed-realistic-catalog.sh",
+      "sha256": "e5e6058e20c01c6548f2fa27d6e2b6d1d1965b4cff11edc1393168c38376dd50",
+      "bytes": 8120
+    },
+    {
+      "source": "backend_delivery/scripts/seed.sh",
+      "target": "workspace/backend_delivery/scripts/seed.sh",
+      "sha256": "6931c8ad2f8978862828546c2c841ca7094807e33afaaedfbe289b3c13ae8148",
+      "bytes": 13537
+    },
+    {
+      "source": "backend_delivery/scripts/test-order-flow.sh",
+      "target": "workspace/backend_delivery/scripts/test-order-flow.sh",
+      "sha256": "87a52aaa315749997267e84a468b895bd99848bcc3e77bdf02a8ad1ad9dfc37c",
+      "bytes": 360
+    },
+    {
+      "source": "backend_delivery/scripts/test-replay-kafka-dlt-record.sh",
+      "target": "workspace/backend_delivery/scripts/test-replay-kafka-dlt-record.sh",
+      "sha256": "4b8426d2ebafb6d26342d481f1819e77501279e73a94b7e51b16686028dbdd1e",
+      "bytes": 1440
+    },
+    {
+      "source": "backend_delivery/scripts/test-verify-kafka-legacy-retry-drain.sh",
+      "target": "workspace/backend_delivery/scripts/test-verify-kafka-legacy-retry-drain.sh",
+      "sha256": "451d90e6bd310fd7d06752dc78dc9ae24d96695a632e4aa2f0c22d75d4813ffe",
+      "bytes": 5636
+    },
+    {
+      "source": "backend_delivery/scripts/verify-actuator-config.sh",
+      "target": "workspace/backend_delivery/scripts/verify-actuator-config.sh",
+      "sha256": "56398120ab900b7d157157c6ace63e1843cf46ec3d642108905e0ccd4fe55b9c",
+      "bytes": 3320
+    },
+    {
+      "source": "backend_delivery/scripts/verify-auth-user-outage-retry.sh",
+      "target": "workspace/backend_delivery/scripts/verify-auth-user-outage-retry.sh",
+      "sha256": "bc4d60f1ad0757d5ddb3ff5276ff26bb6ebadd6955de745faa222298128e9bad",
+      "bytes": 9807
+    },
+    {
+      "source": "backend_delivery/scripts/verify-backup-restore-rehearsal.sh",
+      "target": "workspace/backend_delivery/scripts/verify-backup-restore-rehearsal.sh",
+      "sha256": "b6db875ee2da084da02d11f18005dc6f425262b3ef915dafd1a0ef73bf06448c",
+      "bytes": 8697
+    },
+    {
+      "source": "backend_delivery/scripts/verify-build-baseline.sh",
+      "target": "workspace/backend_delivery/scripts/verify-build-baseline.sh",
+      "sha256": "d62643508f2e1ff19af14491a83cf371a54d1c7068a9e071c0641109d7828c8b",
+      "bytes": 49679
+    },
+    {
+      "source": "backend_delivery/scripts/verify-clean-compose-e2e.sh",
+      "target": "workspace/backend_delivery/scripts/verify-clean-compose-e2e.sh",
+      "sha256": "2ed2c001f1ed76138d27a86d92345c72a924e481ec0bad05aa7cb6baeba85aa0",
+      "bytes": 7081
+    },
+    {
+      "source": "backend_delivery/scripts/verify-compose-config.sh",
+      "target": "workspace/backend_delivery/scripts/verify-compose-config.sh",
+      "sha256": "2f65a286e9229204283462df34d32c3412c498b27198d7b08141093b11b55fad",
+      "bytes": 20723
+    },
+    {
+      "source": "backend_delivery/scripts/verify-delivery-postgres-migrations.sh",
+      "target": "workspace/backend_delivery/scripts/verify-delivery-postgres-migrations.sh",
+      "sha256": "e76c265dad5fb786090a32f54218cf9782052ddae7efdbb8effa102ac92a9c96",
+      "bytes": 6445
+    },
+    {
+      "source": "backend_delivery/scripts/verify-docker-artifact-freshness.sh",
+      "target": "workspace/backend_delivery/scripts/verify-docker-artifact-freshness.sh",
+      "sha256": "e71e28d082ec1a3ab08f3af3bfa5e43308f4886d1abfa8d60516523788853478",
+      "bytes": 2634
+    },
+    {
+      "source": "backend_delivery/scripts/verify-docker-runtime-security.sh",
+      "target": "workspace/backend_delivery/scripts/verify-docker-runtime-security.sh",
+      "sha256": "e73f8782a5a45f0bff241e556f48dbcb23007f5a6afd3aac6fd1e81463d0407d",
+      "bytes": 1326
+    },
+    {
+      "source": "backend_delivery/scripts/verify-hot-query-plans.sh",
+      "target": "workspace/backend_delivery/scripts/verify-hot-query-plans.sh",
+      "sha256": "4a932b3d71435c91530f326e9b342b78576d8e14f5da9e75d67e7d2803efe1bc",
+      "bytes": 5961
+    },
+    {
+      "source": "backend_delivery/scripts/verify-http-api-inventory.sh",
+      "target": "workspace/backend_delivery/scripts/verify-http-api-inventory.sh",
+      "sha256": "2fd46e08ec53f22abe13fcce3e2b2155697938a74df7776341d2e8e64686049e",
+      "bytes": 1926
+    },
+    {
+      "source": "backend_delivery/scripts/verify-identity-explicit-claims.sh",
+      "target": "workspace/backend_delivery/scripts/verify-identity-explicit-claims.sh",
+      "sha256": "9298e81c6568f92c0a77ce78d0bd42302296322071c61f2524e5c1b338891edc",
+      "bytes": 5887
+    },
+    {
+      "source": "backend_delivery/scripts/verify-identity-principal-compose.sh",
+      "target": "workspace/backend_delivery/scripts/verify-identity-principal-compose.sh",
+      "sha256": "7df34370413f4feb92702ce9cae91fcfb4f45fa2179bf463f5760bff2315de52",
+      "bytes": 15513
+    },
+    {
+      "source": "backend_delivery/scripts/verify-identity-principal-migration.sh",
+      "target": "workspace/backend_delivery/scripts/verify-identity-principal-migration.sh",
+      "sha256": "910f438fb2cacd2393535446fc36d57481703e431d9d9a8b25d5c3c503e791dc",
+      "bytes": 1734
+    },
+    {
+      "source": "backend_delivery/scripts/verify-kafka-legacy-retry-drain.sh",
+      "target": "workspace/backend_delivery/scripts/verify-kafka-legacy-retry-drain.sh",
+      "sha256": "2ea4b2db438474259d5f67662d77194ab0bbcc6830a96d6ec703178d74d2a237",
+      "bytes": 11646
+    },
+    {
+      "source": "backend_delivery/scripts/verify-kafka-resilience-topics.sh",
+      "target": "workspace/backend_delivery/scripts/verify-kafka-resilience-topics.sh",
+      "sha256": "fdd53ed17e1ae413dc4e51941b9310b23bdc28b6d247dd0e41d2d93a268d54af",
+      "bytes": 15225
+    },
+    {
+      "source": "backend_delivery/scripts/verify-kubernetes-manifests.sh",
+      "target": "workspace/backend_delivery/scripts/verify-kubernetes-manifests.sh",
+      "sha256": "bbb745138c20136ee1bea1baff3e320a9955300f9af8691304de908b9af946ac",
+      "bytes": 9906
+    },
+    {
+      "source": "backend_delivery/scripts/verify-local-runtime-operations.sh",
+      "target": "workspace/backend_delivery/scripts/verify-local-runtime-operations.sh",
+      "sha256": "19ece2811ec22d4812f1f5a7629f6ec596a0224cba17e0d294bb948c81e8dd7f",
+      "bytes": 1506
+    },
+    {
+      "source": "backend_delivery/scripts/verify-match-location-replay.sh",
+      "target": "workspace/backend_delivery/scripts/verify-match-location-replay.sh",
+      "sha256": "56a9c9d3f2a366006c36663f7f1dece4e8f3cf6c081d69c12fff4d8d4b27a79d",
+      "bytes": 4842
+    },
+    {
+      "source": "backend_delivery/scripts/verify-mvp-cod-flow.sh",
+      "target": "workspace/backend_delivery/scripts/verify-mvp-cod-flow.sh",
+      "sha256": "6a11a271d5f6d1cba0bd3dc092e331c2a9ae3c51409aaf09c386f2d71884bdaf",
+      "bytes": 8922
+    },
+    {
+      "source": "backend_delivery/scripts/verify-mvp-failure-matrix.sh",
+      "target": "workspace/backend_delivery/scripts/verify-mvp-failure-matrix.sh",
+      "sha256": "74ed0ba23cdd4887927aabc073d0780f760f03bd878ab470d35ad52f3332cc86",
+      "bytes": 13219
+    },
+    {
+      "source": "backend_delivery/scripts/verify-observability-runtime.sh",
+      "target": "workspace/backend_delivery/scripts/verify-observability-runtime.sh",
+      "sha256": "01d3a1847c01dc327d939ef1ea5bf23dcdc60fd09088c48163c94bd7fd5ca9aa",
+      "bytes": 2969
+    },
+    {
+      "source": "backend_delivery/scripts/verify-prometheus-resilience-rules.sh",
+      "target": "workspace/backend_delivery/scripts/verify-prometheus-resilience-rules.sh",
+      "sha256": "8032533f033a613d8297c9cd76dcabbb7263088c34f8803932752c4983942eaa",
+      "bytes": 2254
+    },
+    {
+      "source": "backend_delivery/scripts/verify-restored-critical-data.sh",
+      "target": "workspace/backend_delivery/scripts/verify-restored-critical-data.sh",
+      "sha256": "1468a97c6c3a264a37f9970c6288831c81ae62d5020943727fcd068fb3eda987",
+      "bytes": 4162
+    },
+    {
+      "source": "backend_delivery/scripts/verify-runtime-startup.sh",
+      "target": "workspace/backend_delivery/scripts/verify-runtime-startup.sh",
+      "sha256": "f3f9843739b7d56c4c5b7312e7341b86ac0506078cf7282211037cb28d454345",
+      "bytes": 16848
+    },
+    {
+      "source": "backend_delivery/scripts/verify-saga-match-crash-replay.sh",
+      "target": "workspace/backend_delivery/scripts/verify-saga-match-crash-replay.sh",
+      "sha256": "ae9e323a6aa8ea4ea06d6d3af1408c43525225843d3789ae66906ab7d03e42f6",
+      "bytes": 22123
+    },
+    {
+      "source": "backend_delivery/scripts/verify-sandbox-config.sh",
+      "target": "workspace/backend_delivery/scripts/verify-sandbox-config.sh",
+      "sha256": "03361070cbc6af4885d09538708174eff76171503cd5d1dcae0fa3182c45d896",
+      "bytes": 7104
+    },
+    {
+      "source": "backend_delivery/scripts/verify-secrets.sh",
+      "target": "workspace/backend_delivery/scripts/verify-secrets.sh",
+      "sha256": "aec7c3a34e91ebf9950cb6f1c8daa083c0d109d46428436957f162e8c775efc3",
+      "bytes": 1574
+    },
+    {
+      "source": "backend_delivery/scripts/verify-settlement-crash-window.sh",
+      "target": "workspace/backend_delivery/scripts/verify-settlement-crash-window.sh",
+      "sha256": "22652f3a1246a002d80d9f1d0b5b684faa2d9b7849ba18270207e9d406e13905",
+      "bytes": 8049
+    },
+    {
+      "source": "backend_delivery/scripts/verify-settlement-reconciliation.sh",
+      "target": "workspace/backend_delivery/scripts/verify-settlement-reconciliation.sh",
+      "sha256": "4565523161bfc65c3477bf058e8aea4f1d65265b8e2dfadb74162e624104ec91",
+      "bytes": 3617
+    },
+    {
+      "source": "backend_delivery/scripts/verify-test-context-isolation.sh",
+      "target": "workspace/backend_delivery/scripts/verify-test-context-isolation.sh",
+      "sha256": "193fff194921cffa3aea2ccb5456eb5b63f60adde8849bd4b022500ee73d6606",
+      "bytes": 1842
+    },
+    {
+      "source": "backend_delivery/scripts/verify-voucher-flashsale-checkout.sh",
+      "target": "workspace/backend_delivery/scripts/verify-voucher-flashsale-checkout.sh",
+      "sha256": "c139e984d42bf937f4dfa3bef663597d6af77e449be4b2b0d4005e597f7166b3",
+      "bytes": 38057
+    },
+    {
+      "source": "backend_delivery/scripts/workspace/verify-mvp-polyrepo-contract.sh",
+      "target": "workspace/backend_delivery/scripts/workspace/verify-mvp-polyrepo-contract.sh",
+      "sha256": "e9dcd50e38f956b101fd7696c8fa06b8092618d9d100b488f6774311f8937edf",
+      "bytes": 5831
+    },
+    {
+      "source": "backend_delivery/search-service/pom.xml",
+      "target": "workspace/backend_delivery/search-service/pom.xml",
+      "sha256": "afb663e935fb85cc963740be5f7b4aeb8a1513d3fb7717953d574bfee28c16f4",
+      "bytes": 3685
+    },
+    {
+      "source": "backend_delivery/search-service/src/main/resources/application.yml",
+      "target": "workspace/backend_delivery/search-service/src/main/resources/application.yml",
+      "sha256": "6aee9bded1a2327a0624a0de52172f88e0d7bd97a63466daa8d660c8ffe1ae97",
+      "bytes": 2141
+    },
+    {
+      "source": "backend_delivery/SECURITY.md",
+      "target": "workspace/backend_delivery/SECURITY.md",
+      "sha256": "573618b90c6415f911510582055c4381094baa46fafd0bb0a1d5e6cee70c76b2",
+      "bytes": 4944
+    },
+    {
+      "source": "backend_delivery/settlement-service/HELP.md",
+      "target": "workspace/backend_delivery/settlement-service/HELP.md",
+      "sha256": "750c9da11c68e80edb071ed817d932edcd9987a88a81a0e841cf70b78e0ff029",
+      "bytes": 828
+    },
+    {
+      "source": "backend_delivery/settlement-service/pom.xml",
+      "target": "workspace/backend_delivery/settlement-service/pom.xml",
+      "sha256": "1c66ca37bcba80db125c092ba151cdf128473621e4a0b1344fcb31b4da794411",
+      "bytes": 4246
+    },
+    {
+      "source": "backend_delivery/settlement-service/src/main/resources/application.properties",
+      "target": "workspace/backend_delivery/settlement-service/src/main/resources/application.properties",
+      "sha256": "fba6af7e2e5dfdb4f54e875de376ea28096aedb29bb56a2b2170164d74f5f6e7",
+      "bytes": 5927
+    },
+    {
+      "source": "backend_delivery/settlement-service/src/main/resources/db/migration/V3__hot_query_indexes.sql",
+      "target": "workspace/backend_delivery/settlement-service/src/main/resources/db/migration/V3__hot_query_indexes.sql",
+      "sha256": "950030aaa00a7d43757e5ac32d60ba6faf71d2572219da86c870a3f1f8094b0c",
+      "bytes": 408
+    },
+    {
+      "source": "backend_delivery/settlement-service/src/main/resources/db/migration/V4__refund_case_schema.sql",
+      "target": "workspace/backend_delivery/settlement-service/src/main/resources/db/migration/V4__refund_case_schema.sql",
+      "sha256": "69bd260846e4b3c4ba36c134f2f9b4fa84e26cdfce5f7901a836d712d6a0678f",
+      "bytes": 2328
+    },
+    {
+      "source": "backend_delivery/settlement-service/src/main/resources/db/migration/V5__refund_case_principal.sql",
+      "target": "workspace/backend_delivery/settlement-service/src/main/resources/db/migration/V5__refund_case_principal.sql",
+      "sha256": "cd33bbdd931f3b9ed6d4711f8c51f9dd636ffa35d7686b2f518035a8f458fe7a",
+      "bytes": 201
+    },
+    {
+      "source": "backend_delivery/settlement-service/src/main/resources/db/migration/V6__cod_capacity_holds.sql",
+      "target": "workspace/backend_delivery/settlement-service/src/main/resources/db/migration/V6__cod_capacity_holds.sql",
+      "sha256": "a82dca3bf875198d24ee52fd8b562d8cb379143790b0af665da8fea5a0ecd10d",
+      "bytes": 1182
+    },
+    {
+      "source": "backend_delivery/setup.md",
+      "target": "workspace/backend_delivery/setup.md",
+      "sha256": "539b063879d81d5bf3d2ca35be1c1e0031c1cb717eeb9dd98365cb1174f96b6f",
+      "bytes": 81
+    },
+    {
+      "source": "backend_delivery/shipper-service/pom.xml",
+      "target": "workspace/backend_delivery/shipper-service/pom.xml",
+      "sha256": "72db44c5fb262b49b6a89280f0602c0227b2a6d19cc1e0a3f1a4567dabe28a60",
+      "bytes": 4299
+    },
+    {
+      "source": "backend_delivery/shipper-service/README.md",
+      "target": "workspace/backend_delivery/shipper-service/README.md",
+      "sha256": "eabff68be9855c7a16889f71ae6fbd138f380648a9693a04cdd6ddae98c904bb",
+      "bytes": 9605
+    },
+    {
+      "source": "backend_delivery/shipper-service/src/main/resources/application.properties",
+      "target": "workspace/backend_delivery/shipper-service/src/main/resources/application.properties",
+      "sha256": "1953f4a0fa00066efb97f5f51c21c2e90d9ffed394b50238f2cb8598815c1502",
+      "bytes": 4047
+    },
+    {
+      "source": "backend_delivery/simulator-service/pom.xml",
+      "target": "workspace/backend_delivery/simulator-service/pom.xml",
+      "sha256": "a59d8a5da947421ed51009980a0537e798d95c1c40f380a2b88b10893ea789e7",
+      "bytes": 2256
+    },
+    {
+      "source": "backend_delivery/simulator-service/README.md",
+      "target": "workspace/backend_delivery/simulator-service/README.md",
+      "sha256": "cc90659945a8d31e4f0cb354e307085e78d354b560ad9f2d86389e143ecc36b0",
+      "bytes": 2671
+    },
+    {
+      "source": "backend_delivery/simulator-service/src/main/resources/application.properties",
+      "target": "workspace/backend_delivery/simulator-service/src/main/resources/application.properties",
+      "sha256": "6941243ff6a2b8b56a9dfb2785daf93fde536c4da1a7e1acd0a62dec249c5349",
+      "bytes": 2130
+    },
+    {
+      "source": "backend_delivery/SYSTEM_REVIEW.md",
+      "target": "workspace/backend_delivery/SYSTEM_REVIEW.md",
+      "sha256": "26205513e3f29c0030803c0495c6a2df14ed2c29f25d33289b54de15a924011a",
+      "bytes": 12927
+    },
+    {
+      "source": "backend_delivery/tracking-service/pom.xml",
+      "target": "workspace/backend_delivery/tracking-service/pom.xml",
+      "sha256": "0dc72ed4cb9661847c4ab576c701afd16a2371068298c7fd2a94450c43f8949d",
+      "bytes": 6252
+    },
+    {
+      "source": "backend_delivery/tracking-service/README.md",
+      "target": "workspace/backend_delivery/tracking-service/README.md",
+      "sha256": "048225a18ee633755165a33f328665f6f65ad85532dbdacd98207d7deb1ce814",
+      "bytes": 3269
+    },
+    {
+      "source": "backend_delivery/tracking-service/REDIS_GEO_DEMO.md",
+      "target": "workspace/backend_delivery/tracking-service/REDIS_GEO_DEMO.md",
+      "sha256": "05f05d89e47ea666a161072dc0ce7e9ae2e2ac1e1fd9ed3313d31b395d0b69a3",
+      "bytes": 6867
+    },
+    {
+      "source": "backend_delivery/tracking-service/src/main/resources/application.properties",
+      "target": "workspace/backend_delivery/tracking-service/src/main/resources/application.properties",
+      "sha256": "756fbe01247f0cb7f2ab8adb4a22982085ca989d2e292bc721ac62dcec193efe",
+      "bytes": 6611
+    },
+    {
+      "source": "backend_delivery/tracking-service/src/main/resources/db/migration/V1__location_history.sql",
+      "target": "workspace/backend_delivery/tracking-service/src/main/resources/db/migration/V1__location_history.sql",
+      "sha256": "c4b09fb7057bd59d20e37d824266a444d03272a5d55559b30d0fce5135c0b422",
+      "bytes": 1283
+    },
+    {
+      "source": "backend_delivery/tracking-service/src/main/resources/db/migration/V2__location_history_receipt_fingerprint.sql",
+      "target": "workspace/backend_delivery/tracking-service/src/main/resources/db/migration/V2__location_history_receipt_fingerprint.sql",
+      "sha256": "73a68aefda01eb8e6383edfdc9602f81bed57cd60a6c481c94dad88e413a8cf0",
+      "bytes": 410
+    },
+    {
+      "source": "backend_delivery/USE_CASES.md",
+      "target": "workspace/backend_delivery/USE_CASES.md",
+      "sha256": "01d00a3c5afb5931dc322652337dd1704ca23c89ad72b765e93fde65b15cb1af",
+      "bytes": 20975
+    },
+    {
+      "source": "backend_delivery/user-service/pom.xml",
+      "target": "workspace/backend_delivery/user-service/pom.xml",
+      "sha256": "f62cf477ff0da60ecf3de066e472ad453af3bc51394ae7e6fac880fb40de224e",
+      "bytes": 4071
+    },
+    {
+      "source": "backend_delivery/user-service/src/main/resources/application.properties",
+      "target": "workspace/backend_delivery/user-service/src/main/resources/application.properties",
+      "sha256": "7b8ce0ffeb643dc082defb9c5c0f5440ee05710f72fbbe21c291e704bbdb6e67",
+      "bytes": 3791
+    },
+    {
+      "source": "delivery_app/.stitch_designs/DESIGN_ANALYSIS.md",
+      "target": "workspace/delivery_app/.stitch_designs/DESIGN_ANALYSIS.md",
+      "sha256": "c4d7377dac3db8bb2c3a6ebe29e063459e8628a8882ebf56239f99db563a46b8",
+      "bytes": 10462
+    },
+    {
+      "source": "delivery_app/.stitch_designs/IMPLEMENTATION_PLAN.md",
+      "target": "workspace/delivery_app/.stitch_designs/IMPLEMENTATION_PLAN.md",
+      "sha256": "d4a4c846db169f411f1c28308c2bac5ba778388ba8869e79a26f5b7bc1cacd1b",
+      "bytes": 8876
+    },
+    {
+      "source": "delivery_app/.stitch_designs/ORDERS_ANALYSIS.md",
+      "target": "workspace/delivery_app/.stitch_designs/ORDERS_ANALYSIS.md",
+      "sha256": "082943da7794cbca253b7633a6ca53291706cd76d4dbef5d86f69d573a697128",
+      "bytes": 5899
+    },
+    {
+      "source": "delivery_app/.stitch_designs/ORDERS_COMPLETE_SUMMARY.md",
+      "target": "workspace/delivery_app/.stitch_designs/ORDERS_COMPLETE_SUMMARY.md",
+      "sha256": "fd78a6c3488dba9526fd2437002d89b3b771dca5b1608dfedade385074fc3287",
+      "bytes": 8146
+    },
+    {
+      "source": "delivery_app/.stitch_designs/ORDERS_IMPLEMENTATION_SUMMARY.md",
+      "target": "workspace/delivery_app/.stitch_designs/ORDERS_IMPLEMENTATION_SUMMARY.md",
+      "sha256": "fbdebcc9ee00ddcd38e576076f2f43c8c4527ad5b33c2b8719af0140e4081fbe",
+      "bytes": 5985
+    },
+    {
+      "source": "delivery_app/.stitch_designs/README.md",
+      "target": "workspace/delivery_app/.stitch_designs/README.md",
+      "sha256": "13880af13febabb6e3d3ac9c88dc79efa72ee882d7d5ceb1e93bbc8c1a202c3c",
+      "bytes": 4479
+    },
+    {
+      "source": "delivery_app/docs/AMBER_HEARTH_DESIGN_SYSTEM.md",
+      "target": "workspace/delivery_app/docs/AMBER_HEARTH_DESIGN_SYSTEM.md",
+      "sha256": "3b5eaadda49a5641f61e41e6148878555f8fea220f77a4eab5c0416158fa0eed",
+      "bytes": 4559
+    },
+    {
+      "source": "delivery_app/docs/CONDITIONAL_OVERRIDE_GUIDE.md",
+      "target": "workspace/delivery_app/docs/CONDITIONAL_OVERRIDE_GUIDE.md",
+      "sha256": "5b35c6be9398e6029109f9e207ddb1dcd76a309eca2ea1a7e66c2d6b0ea68e26",
+      "bytes": 6569
+    },
+    {
+      "source": "delivery_app/docs/DESIGN_SYSTEM_CHANGES.md",
+      "target": "workspace/delivery_app/docs/DESIGN_SYSTEM_CHANGES.md",
+      "sha256": "313d464666447ddc4326a8121fa5be92f5c12d9941366a0111b13e4a64cf4cb2",
+      "bytes": 4901
+    },
+    {
+      "source": "delivery_app/docs/DIO_AUTH_TOKEN_FLOW.md",
+      "target": "workspace/delivery_app/docs/DIO_AUTH_TOKEN_FLOW.md",
+      "sha256": "7e4b93bed65357c30b05e8c177946e921a55d22853907d4fb102c15f307e0f33",
+      "bytes": 5938
+    },
+    {
+      "source": "delivery_app/docs/IAP_SUBSCRIPTION_IMPLEMENTATION.md",
+      "target": "workspace/delivery_app/docs/IAP_SUBSCRIPTION_IMPLEMENTATION.md",
+      "sha256": "c207bf7fd4fec47284dc3cb01ab493b0f6ed5f84be6251084047623188f3e029",
+      "bytes": 8752
+    },
+    {
+      "source": "delivery_app/docs/OPTIMIZATION_SUMMARY.md",
+      "target": "workspace/delivery_app/docs/OPTIMIZATION_SUMMARY.md",
+      "sha256": "4b5da7fd251a45ff295eac6fae44e181ca685b1dab588538a0665991a3b81c70",
+      "bytes": 4885
+    },
+    {
+      "source": "delivery_app/docs/PHASE_1_2_COMPLETE.md",
+      "target": "workspace/delivery_app/docs/PHASE_1_2_COMPLETE.md",
+      "sha256": "a990066d48e6bc53c5e6ca6d5a1dd3188639670ce0fd605742e68fb4ca2d12cb",
+      "bytes": 8339
+    },
+    {
+      "source": "delivery_app/docs/REFACTORING_COMPLETE.md",
+      "target": "workspace/delivery_app/docs/REFACTORING_COMPLETE.md",
+      "sha256": "1eb917de6f5e13abfd28ce8bd0bcc255fde55de61b861f98a1391090c1567ee8",
+      "bytes": 6567
+    },
+    {
+      "source": "delivery_app/docs/SCREENS_AND_FEATURES.md",
+      "target": "workspace/delivery_app/docs/SCREENS_AND_FEATURES.md",
+      "sha256": "42e19094a143263d84cdbb84385299b4b4392a2a56215da33f9c691e57af3ee8",
+      "bytes": 24353
+    },
+    {
+      "source": "delivery_app/docs/STITCH_DELIVERY_DESIGN_SYSTEM.md",
+      "target": "workspace/delivery_app/docs/STITCH_DELIVERY_DESIGN_SYSTEM.md",
+      "sha256": "6ba2765266477d786f8a9db79d238ae0bc0286d37568b517e14ce224ed77464a",
+      "bytes": 8129
+    },
+    {
+      "source": "delivery_app/docs/STITCH_DESIGN_IMPLEMENTATION.md",
+      "target": "workspace/delivery_app/docs/STITCH_DESIGN_IMPLEMENTATION.md",
+      "sha256": "1340802bcf8f302bab3d379b51e639b0e9e372d8dde7618455cd1ff122d58568",
+      "bytes": 9224
+    },
+    {
+      "source": "delivery_app/docs/STITCH_IMPLEMENTATION_SUMMARY.md",
+      "target": "workspace/delivery_app/docs/STITCH_IMPLEMENTATION_SUMMARY.md",
+      "sha256": "831b4713f19a894270816fa466e68b8faf8642999a35f3675ce8c378b20106e9",
+      "bytes": 11441
+    },
+    {
+      "source": "delivery_app/docs/STITCH_SUMMARY.md",
+      "target": "workspace/delivery_app/docs/STITCH_SUMMARY.md",
+      "sha256": "ab7e9078b12e9fa5e18d94be5b8bbf45c0d0d61ab2491a5ecd993be96fec6044",
+      "bytes": 6672
+    },
+    {
+      "source": "delivery_app/docs/WIDGET_REFACTORING.md",
+      "target": "workspace/delivery_app/docs/WIDGET_REFACTORING.md",
+      "sha256": "60c677e7d971b03f75678bdccbdc2f1442614710af1d45f75d71e4f8d9bd7014",
+      "bytes": 9087
+    },
+    {
+      "source": "delivery_app/ios/Runner/Assets.xcassets/LaunchImage.imageset/README.md",
+      "target": "workspace/delivery_app/ios/Runner/Assets.xcassets/LaunchImage.imageset/README.md",
+      "sha256": "a985b626c4f7546a8ba392d135e9226c3547c8e2b46895f5f2bdf40d7b14ef9f",
+      "bytes": 336
+    },
+    {
+      "source": "delivery_app/lib/core/widgets/feedback/toast/README.md",
+      "target": "workspace/delivery_app/lib/core/widgets/feedback/toast/README.md",
+      "sha256": "5f20086881fce8c4a8e58573a23eb192bd66c8f0d34aabac87e621b8406bb1f6",
+      "bytes": 5154
+    },
+    {
+      "source": "delivery_app/lib/features/cart/ASYNC_NOTIFIER_USAGE.md",
+      "target": "workspace/delivery_app/lib/features/cart/ASYNC_NOTIFIER_USAGE.md",
+      "sha256": "20bfd06da0fc92e6144dbafffcb3f3012879bc3c64370427f4e75a58153cd9a9",
+      "bytes": 5219
+    },
+    {
+      "source": "delivery_app/lib/features/cart/README.md",
+      "target": "workspace/delivery_app/lib/features/cart/README.md",
+      "sha256": "e8e219a0506dcb6c30c0c0f605d05bcaea6ec864a77267b16c2036b155b8ae5c",
+      "bytes": 3880
+    },
+    {
+      "source": "delivery_app/lib/features/main/README.md",
+      "target": "workspace/delivery_app/lib/features/main/README.md",
+      "sha256": "226218856911385f7be1faabcec84648fd7479a7af10c1fb6a5e57c6906045b4",
+      "bytes": 2975
+    },
+    {
+      "source": "delivery_app/lib/features/orders/ORDER_DETAIL_UPDATE_SUMMARY.md",
+      "target": "workspace/delivery_app/lib/features/orders/ORDER_DETAIL_UPDATE_SUMMARY.md",
+      "sha256": "d0a7e8cf5d58af9e515cc2e35ea003f5b4635e37208e0fdee96ac425457d9029",
+      "bytes": 7596
+    },
+    {
+      "source": "delivery_app/lib/features/orders/README.md",
+      "target": "workspace/delivery_app/lib/features/orders/README.md",
+      "sha256": "bae43edf6b9606b9dca70648cf927eaf5258d24e88dc9f9e45aeb2e84441521a",
+      "bytes": 7416
+    },
+    {
+      "source": "delivery_app/lib/features/README.md",
+      "target": "workspace/delivery_app/lib/features/README.md",
+      "sha256": "94912203a294596dac7348361ea3deab232a82714ff9be85e4b6bca7b6e2f9e0",
+      "bytes": 6149
+    },
+    {
+      "source": "delivery_app/lib/features/restaurants/FIXED_ISSUES.md",
+      "target": "workspace/delivery_app/lib/features/restaurants/FIXED_ISSUES.md",
+      "sha256": "2183d6c5547a201a373c86807d542d434d2cd6ef93c1267e8088b2c37a0d15d1",
+      "bytes": 2285
+    },
+    {
+      "source": "delivery_app/lib/features/restaurants/README.md",
+      "target": "workspace/delivery_app/lib/features/restaurants/README.md",
+      "sha256": "2fc55c6e2db50ec5b500f761ac1df14dee22077e21f111512b41fe128e469514",
+      "bytes": 1892
+    },
+    {
+      "source": "delivery_app/lib/features/user_address/README.md",
+      "target": "workspace/delivery_app/lib/features/user_address/README.md",
+      "sha256": "f877df0689956449ae8f550fec5dda2b41fd78bd90fab2b1e0245f41741752a0",
+      "bytes": 6161
+    },
+    {
+      "source": "delivery_app/MAPBOX_SETUP.md",
+      "target": "workspace/delivery_app/MAPBOX_SETUP.md",
+      "sha256": "63b30e952a610258690607e9b1dfc9f22b703aba7cb50543bc87c58fafb0952f",
+      "bytes": 1367
+    },
+    {
+      "source": "delivery_app/pubspec.yaml",
+      "target": "workspace/delivery_app/pubspec.yaml",
+      "sha256": "80260f6bd7b89d157b08edab977667f48c60a278a468e283057662f91f09bd32",
+      "bytes": 2052
+    },
+    {
+      "source": "delivery_app/README.md",
+      "target": "workspace/delivery_app/README.md",
+      "sha256": "d07cd8ea772c7d498a19ef3cc183210e37a1d87e29fb9a7ffa12353521e552c0",
+      "bytes": 1490
+    },
+    {
+      "source": "delivery_app/TESTING.md",
+      "target": "workspace/delivery_app/TESTING.md",
+      "sha256": "ccf4cfdfecbe6634f307c6db940c0b0ee61109b7bce1e1fd0a4b12be6ad18009",
+      "bytes": 1612
+    },
+    {
+      "source": "delivery_app/THEME_MIGRATION_REPORT.md",
+      "target": "workspace/delivery_app/THEME_MIGRATION_REPORT.md",
+      "sha256": "869a2b6d640df7873d69d32f50d54a3b86c9a20186a84015408f134abc08b445",
+      "bytes": 4584
+    },
+    {
+      "source": "delivery_web/.github/copilot-instructions.md",
+      "target": "workspace/delivery_web/.github/copilot-instructions.md",
+      "sha256": "dea07c621e10d56155b474d904f8bb956ce9dea0b15ac996f49c9b508579c067",
+      "bytes": 9882
+    },
+    {
+      "source": "delivery_web/APP_FEATURES.md",
+      "target": "workspace/delivery_web/APP_FEATURES.md",
+      "sha256": "1f67a3d6b17334fa02379c692d6010e3b61786c44745774d67f498cd19458b74",
+      "bytes": 5590
+    },
+    {
+      "source": "delivery_web/docs/action-contract-matrix.md",
+      "target": "workspace/delivery_web/docs/action-contract-matrix.md",
+      "sha256": "7b80c4b2c32fd81ed377bb03893f5cc4654636bcfcf2540b8aef9fa1ce3a6ed2",
+      "bytes": 26416
+    },
+    {
+      "source": "delivery_web/docs/e2e/difficult-case-matrix.md",
+      "target": "workspace/delivery_web/docs/e2e/difficult-case-matrix.md",
+      "sha256": "9ea5dc7b47116083ca5b2be96ddf40a4d25ba40641a64e4982f6b42528017897",
+      "bytes": 19039
+    },
+    {
+      "source": "delivery_web/package.json",
+      "target": "workspace/delivery_web/package.json",
+      "sha256": "8c91a5efe8687b6b7fa5756f85f5fe645400878b0471fe88ec17cf6342631871",
+      "bytes": 2015
+    },
+    {
+      "source": "delivery_web/README.md",
+      "target": "workspace/delivery_web/README.md",
+      "sha256": "71ec4cafe237445992ff5fd7472468e5a7fdf97e074f5b497ac80191f544b52b",
+      "bytes": 1380
+    },
+    {
+      "source": "delivery_web/TESTING.md",
+      "target": "workspace/delivery_web/TESTING.md",
+      "sha256": "22fb567c8f427c8ed2dbffb290b9c3dacd7b4a4035c1e2ba1ae441dae783c885",
+      "bytes": 2290
+    },
+    {
+      "source": "shipper_app2/APP_FLOW_AND_FEATURES_FOR_DESIGN.md",
+      "target": "workspace/shipper_app2/APP_FLOW_AND_FEATURES_FOR_DESIGN.md",
+      "sha256": "cf32a202f9b3115c68f99f5201bb5d804d97d3cd0972be21e0f1e7a973d213b2",
+      "bytes": 7356
+    },
+    {
+      "source": "shipper_app2/COMPONENT_USAGE_GUIDE.md",
+      "target": "workspace/shipper_app2/COMPONENT_USAGE_GUIDE.md",
+      "sha256": "af7f0b73d86b0621e41bcaaa77c00ea6dbbca3e890a8c10470442312c087c471",
+      "bytes": 11673
+    },
+    {
+      "source": "shipper_app2/DESIGN_IMPLEMENTATION_STATUS.md",
+      "target": "workspace/shipper_app2/DESIGN_IMPLEMENTATION_STATUS.md",
+      "sha256": "9b3d08a7d866bfc2fa9e48138c7a8966f4d2eb8b5e77472c19669a19bdcf58bb",
+      "bytes": 7611
+    },
+    {
+      "source": "shipper_app2/docs/ARCHITECTURE.md",
+      "target": "workspace/shipper_app2/docs/ARCHITECTURE.md",
+      "sha256": "3bdee945794cc485e895f2819e70c3520127953a3878b9d69a19f985d8317750",
+      "bytes": 2167
+    },
+    {
+      "source": "shipper_app2/docs/AUTH_CONTRACT.md",
+      "target": "workspace/shipper_app2/docs/AUTH_CONTRACT.md",
+      "sha256": "367508a51fbb14540e58a576099f57f3a7c7bcacb77ea8f988cac1a87278fac6",
+      "bytes": 792
+    },
+    {
+      "source": "shipper_app2/docs/SCREEN_POLICY.md",
+      "target": "workspace/shipper_app2/docs/SCREEN_POLICY.md",
+      "sha256": "7004941f4ea126830d02e3ca96de96dce330d3f555711af426e56f0a37a8d665",
+      "bytes": 1228
+    },
+    {
+      "source": "shipper_app2/IMPLEMENTATION_ROADMAP.md",
+      "target": "workspace/shipper_app2/IMPLEMENTATION_ROADMAP.md",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "source": "shipper_app2/package.json",
+      "target": "workspace/shipper_app2/package.json",
+      "sha256": "f5dc46add9431f6fd309fcfe2c5fd49a9c8a3cdca968dce74f87a7682067f04e",
+      "bytes": 2499
+    },
+    {
+      "source": "shipper_app2/README_FIGMA_IMPLEMENTATION.md",
+      "target": "workspace/shipper_app2/README_FIGMA_IMPLEMENTATION.md",
+      "sha256": "1bee44c5f8459c0dbe5a5dcab4e9a4bbd31e0b5c91dabfad578b84f4f67c5cb1",
+      "bytes": 10416
+    },
+    {
+      "source": "shipper_app2/README.md",
+      "target": "workspace/shipper_app2/README.md",
+      "sha256": "d32fc894188d9c590628d30b35d36fcef773e2bac9495e2fb38b398d86f6085c",
+      "bytes": 1305
+    },
+    {
+      "source": "shipper_app2/SCREEN_DESIGNS_DOCUMENTATION.md",
+      "target": "workspace/shipper_app2/SCREEN_DESIGNS_DOCUMENTATION.md",
+      "sha256": "373b1cc5f7f1870e31f42f9a2241c47934a8c7fbc8354179e498279f60029641",
+      "bytes": 9024
+    },
+    {
+      "source": "shipper_app2/TESTING.md",
+      "target": "workspace/shipper_app2/TESTING.md",
+      "sha256": "483fc123877a3d78fa82caa85b86ab0fefaa45fce75160ac75fd26a8a2889df5",
+      "bytes": 1348
+    },
+    {
+      "source": "shipper_app2/VIETNAMESE_FEATURE_DOCUMENTATION.md",
+      "target": "workspace/shipper_app2/VIETNAMESE_FEATURE_DOCUMENTATION.md",
+      "sha256": "4bfbf1a9f0e686f053f9e30a7789749f41287b556923629a6e9e33657c652a32",
+      "bytes": 38762
+    }
+  ]
+}

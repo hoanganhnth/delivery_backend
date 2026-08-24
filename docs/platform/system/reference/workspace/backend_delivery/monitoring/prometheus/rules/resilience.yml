@@ -1,0 +1,12 @@
+groups:
+  - name: delivery-resilience
+    rules:
+      - alert: DeliveryKafkaDltIncreasing
+        expr: increase(delivery_kafka_events_total{event="dlt"}[5m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+          component: kafka
+        annotations:
+          summary: "Delivery Kafka DLT received a record"
+          description: "{{ $labels.instance }} recorded {{ $value }} DLT recovery event(s) in the last five minutes. Inspect original topic/partition/offset, eventId, correlationId and exception metadata before replay."

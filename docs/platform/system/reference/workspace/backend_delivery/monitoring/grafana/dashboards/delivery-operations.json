@@ -1,0 +1,22 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "panels": [
+    {"type":"timeseries","title":"Gateway HTTP p95 (seconds)","targets":[{"expr":"histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{application=\"api-gateway\"}[5m])))"}]},
+    {"type":"timeseries","title":"HTTP 5xx rate by service","targets":[{"expr":"sum by (application) (rate(http_server_requests_seconds_count{status=~\"5..\"}[5m]))"}]},
+    {"type":"timeseries","title":"Order business events","targets":[{"expr":"sum by (event) (rate(delivery_business_events_total{application=\"order-service\"}[5m]))"}]},
+    {"type":"timeseries","title":"Delivery business events","targets":[{"expr":"sum by (event) (rate(delivery_business_events_total{application=\"delivery-service\"}[5m]))"}]},
+    {"type":"timeseries","title":"Match no-shipper events","targets":[{"expr":"sum(rate(delivery_business_events_total{application=\"match-service\",event=\"shipper_not_found\"}[5m]))"}]},
+    {"type":"timeseries","title":"Kafka retries and DLTs","targets":[{"expr":"sum by (application,event) (rate(delivery_kafka_events_total[5m]))"},{"expr":"max by (application,client_id) (kafka_consumer_fetch_manager_records_lag_max)"}]},
+    {"type":"timeseries","title":"Identity outbox pending and oldest age","targets":[{"expr":"sum by (application,owner) (delivery_identity_outbox_pending)"},{"expr":"max by (application,owner) (delivery_identity_outbox_oldest_age_seconds)"}]},
+    {"type":"timeseries","title":"Identity outbox relay failures","targets":[{"expr":"sum by (application,owner) (rate(delivery_identity_outbox_relay_total{outcome=\"failed\"}[5m]))"},{"expr":"sum by (application,owner) (rate(delivery_identity_outbox_relay_total{outcome=\"published\"}[5m]))"}]},
+    {"type":"timeseries","title":"Identity bootstrap pending","targets":[{"expr":"sum by (application,owner,event) (delivery_identity_bootstrap_pending)"}]},
+    {"type":"timeseries","title":"Registration rollout admission","targets":[{"expr":"sum by (application,outcome,mechanism) (rate(delivery_identity_registration_admission_total[5m]))"}]},
+    {"type":"timeseries","title":"Principal migration legacy fallback","targets":[{"expr":"sum by (application,service,surface) (rate(delivery_identity_legacy_fallback_total[5m]))"}]},
+    {"type":"timeseries","title":"COD settlements completed","targets":[{"expr":"sum(rate(delivery_business_events_total{application=\"settlement-service\",event=\"settlement_completed\"}[5m]))"}]}
+  ],
+  "schemaVersion": 41,
+  "title": "Delivery Operations",
+  "uid": "delivery-operations",
+  "version": 1
+}

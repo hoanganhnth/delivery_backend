@@ -1,0 +1,32 @@
+rule_files:
+  - ../rules/resilience.yml
+
+evaluation_interval: 1m
+
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'delivery_kafka_events_total{event="dlt",instance="saga-a"}'
+        values: '0 0 0 0 0 0'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: DeliveryKafkaDltIncreasing
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: 'delivery_kafka_events_total{event="dlt",instance="saga-a"}'
+        values: '0 0 0 0 0 1'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: DeliveryKafkaDltIncreasing
+        exp_alerts:
+          - exp_labels:
+              alertname: DeliveryKafkaDltIncreasing
+              component: kafka
+              event: dlt
+              instance: saga-a
+              severity: warning
+            exp_annotations:
+              summary: 'Delivery Kafka DLT received a record'
+              description: 'saga-a recorded 1 DLT recovery event(s) in the last five minutes. Inspect original topic/partition/offset, eventId, correlationId and exception metadata before replay.'

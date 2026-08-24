@@ -1,0 +1,15 @@
+# Temporary JWT rotation overlay. Auth signs with the primary key and publishes
+# the retiring public key through JWKS. Remove after the maximum refresh-token
+# lifetime has elapsed and the retiring key is revoked.
+services:
+  auth-service:
+    environment:
+      JWT_PREVIOUS_PUBLIC_KEY_PATH: /run/secrets/jwt-previous-public.pem
+      JWT_RETIRING_KID: ${JWT_RETIRING_KID:?JWT_RETIRING_KID must match the kid in retiring tokens}
+    secrets:
+      - source: jwt-previous-public-key
+        target: jwt-previous-public.pem
+
+secrets:
+  jwt-previous-public-key:
+    file: ${JWT_PREVIOUS_PUBLIC_KEY_FILE:?JWT_PREVIOUS_PUBLIC_KEY_FILE must point to the retiring public PEM file}

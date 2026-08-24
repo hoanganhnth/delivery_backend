@@ -1,0 +1,121 @@
+server:
+  port: 8096
+
+restaurant:
+  service:
+    url: ${RESTAURANT_SERVICE_URL:http://restaurant-service:8083}
+
+app:
+  internal:
+    secret: ${internal-secret:${INTERNAL_SECRET:}}
+  promotion:
+    checkout-enabled: ${PROMOTION_CHECKOUT_ENABLED:false}
+    stacking-enabled: ${PROMOTION_STACKING_ENABLED:false}
+    stacking-canary-principals: ${PROMOTION_STACKING_CANARY_PRINCIPALS:}
+    merchant-create-api-enabled: ${PROMOTION_MERCHANT_CREATE_API_ENABLED:false}
+    reservation-expiry-scan-ms: ${PROMOTION_RESERVATION_EXPIRY_SCAN_MS:30000}
+    outbox-relay-enabled: ${PROMOTION_OUTBOX_RELAY_ENABLED:false}
+    outbox-relay-ms: ${PROMOTION_OUTBOX_RELAY_MS:500}
+  identity:
+    principal-ownership:
+      enforced: ${PROMOTION_PRINCIPAL_OWNERSHIP_ENFORCED:false}
+  kafka:
+    retry:
+      attempts: ${KAFKA_RETRY_ATTEMPTS:4}
+      initial-delay-ms: ${KAFKA_RETRY_INITIAL_DELAY_MS:1000}
+      multiplier: ${KAFKA_RETRY_MULTIPLIER:2.0}
+      max-delay-ms: ${KAFKA_RETRY_MAX_DELAY_MS:10000}
+      auto-create-topics: ${KAFKA_RETRY_AUTO_CREATE_TOPICS:false}
+    topics:
+      voucher-reservation-events: ${VOUCHER_RESERVATION_EVENTS_TOPIC:voucher.reservation.events}
+      order-created: ${ORDER_CREATED_TOPIC:order.created}
+      order-cancelled: ${ORDER_CANCELLED_TOPIC:order.cancelled}
+      refund-eligible: ${ORDER_REFUND_ELIGIBLE_TOPIC:order.refund-eligible}
+
+spring:
+  config:
+    import: ${CONFIG_SERVER_IMPORT:optional:configserver:http://config-server:8888},optional:configtree:/run/secrets/
+  cloud:
+    config:
+      fail-fast: ${CONFIG_SERVER_FAIL_FAST:false}
+  application:
+    name: promotion-service
+  
+  datasource:
+    url: jdbc:postgresql://localhost:5432/promotion_db
+    username: postgres
+    password: ${DB_PASSWORD:}
+    driver-class-name: org.postgresql.Driver
+    
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    show-sql: ${JPA_SHOW_SQL:false}
+    properties:
+      hibernate:
+        format_sql: ${HIBERNATE_FORMAT_SQL:false}
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 0
+
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: promotion-service-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      enable-auto-commit: false
+      properties:
+        spring.json.trusted.packages: "*"
+    listener:
+      ack-mode: manual_immediate
+      auto-startup: ${KAFKA_LISTENER_AUTO_STARTUP:true}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+
+eureka:
+  client:
+    enabled: ${SERVICE_DISCOVERY_ENABLED:false}
+    service-url:
+      defaultZone: ${EUREKA_DEFAULT_ZONE:http://discovery-server:8761/eureka/}
+    healthcheck:
+      enabled: true
+  instance:
+    instance-id: ${spring.application.name}:${HOSTNAME:${random.value}}
+    prefer-ip-address: false
+    metadata-map:
+      management.port: ${management.server.port}
+      readiness-path: /actuator/health/readiness
+
+logging:
+  level:
+    com.delivery.promotion_service: ${APP_LOG_LEVEL:INFO}
+    org.springframework.kafka: INFO
+
+management:
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+  server:
+    port: ${MANAGEMENT_SERVER_PORT:9090}
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: "*"
+        liveness:
+          include: livenessState
+      show-details: never
+      show-components: never

@@ -1,0 +1,83 @@
+# Compose overlay used only by scripts/verify-clean-compose-e2e.sh.
+# It removes fixed host/container identities so a disposable stack can run with
+# project-scoped networks/volumes next to the developer's canonical stack.
+# `!reset`/`!override` are Docker Compose v2 merge tags; they are verified by
+# scripts/verify-compose-config.sh before this overlay is used at runtime.
+services:
+  tracing-collector:
+    ports: !reset []
+
+  postgres:
+    container_name: !reset null
+    ports: !reset []
+
+  redis:
+    container_name: !reset null
+    ports: !reset []
+
+  kafka:
+    container_name: !reset null
+    ports: !reset []
+
+  elasticsearch:
+    container_name: !reset null
+    ports: !reset []
+
+  api-gateway:
+    container_name: !reset null
+    ports: !override
+      - "127.0.0.1::8079"
+
+  auth-service:
+    container_name: !reset null
+
+  user-service:
+    container_name: !reset null
+
+  restaurant-service:
+    container_name: !reset null
+
+  order-service:
+    container_name: !reset null
+
+  delivery-service:
+    container_name: !reset null
+
+  search-service:
+    container_name: !reset null
+
+  shipper-service:
+    container_name: !reset null
+
+  settlement-service:
+    container_name: !reset null
+
+  notification-service:
+    container_name: !reset null
+
+  match-service:
+    container_name: !reset null
+
+  tracking-service:
+    container_name: !reset null
+
+  livestream-service:
+    container_name: !reset null
+
+  saga-orchestrator-service:
+    container_name: !reset null
+
+  promotion-service:
+    container_name: !reset null
+
+  analytics-service:
+    container_name: !reset null
+
+  flashsale-service:
+    container_name: !reset null
+
+  prometheus:
+    container_name: !reset null
+
+  grafana:
+    container_name: !reset null

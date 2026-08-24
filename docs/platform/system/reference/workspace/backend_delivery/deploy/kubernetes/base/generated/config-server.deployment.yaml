@@ -1,0 +1,204 @@
+{
+  "apiVersion": "apps/v1",
+  "kind": "Deployment",
+  "metadata": {
+    "name": "config-server",
+    "labels": {
+      "app.kubernetes.io/name": "config-server",
+      "app.kubernetes.io/part-of": "delivery-platform",
+      "app.kubernetes.io/component": "control-plane",
+      "delivery.platform/template": "provider-neutral",
+      "delivery.platform/wave": "control"
+    }
+  },
+  "spec": {
+    "replicas": 1,
+    "revisionHistoryLimit": 5,
+    "strategy": {
+      "type": "RollingUpdate",
+      "rollingUpdate": {
+        "maxUnavailable": 0,
+        "maxSurge": 1
+      }
+    },
+    "selector": {
+      "matchLabels": {
+        "app.kubernetes.io/name": "config-server"
+      }
+    },
+    "template": {
+      "metadata": {
+        "labels": {
+          "app.kubernetes.io/name": "config-server",
+          "app.kubernetes.io/part-of": "delivery-platform",
+          "app.kubernetes.io/component": "control-plane",
+          "delivery.platform/template": "provider-neutral",
+          "delivery.platform/wave": "control"
+        }
+      },
+      "spec": {
+        "serviceAccountName": "config-server",
+        "automountServiceAccountToken": false,
+        "terminationGracePeriodSeconds": 30,
+        "securityContext": {
+          "fsGroup": 10001,
+          "fsGroupChangePolicy": "OnRootMismatch",
+          "seccompProfile": {
+            "type": "RuntimeDefault"
+          }
+        },
+        "containers": [
+          {
+            "name": "config-server",
+            "image": "registry.example.invalid/delivery/config-server:REPLACE_ME",
+            "imagePullPolicy": "IfNotPresent",
+            "ports": [
+              {
+                "name": "http",
+                "containerPort": 8888,
+                "protocol": "TCP"
+              },
+              {
+                "name": "management",
+                "containerPort": 9090,
+                "protocol": "TCP"
+              }
+            ],
+            "env": [
+              {
+                "name": "CONFIG_SERVER_BACKEND",
+                "valueFrom": {
+                  "configMapKeyRef": {
+                    "name": "delivery-control-plane",
+                    "key": "CONFIG_SERVER_BACKEND"
+                  }
+                }
+              },
+              {
+                "name": "CONFIG_REPOSITORY_GIT_URI",
+                "valueFrom": {
+                  "configMapKeyRef": {
+                    "name": "delivery-control-plane",
+                    "key": "CONFIG_REPOSITORY_GIT_URI"
+                  }
+                }
+              },
+              {
+                "name": "CONFIG_REPOSITORY_DEFAULT_LABEL",
+                "valueFrom": {
+                  "configMapKeyRef": {
+                    "name": "delivery-control-plane",
+                    "key": "CONFIG_REPOSITORY_DEFAULT_LABEL"
+                  }
+                }
+              },
+              {
+                "name": "SPRING_CONFIG_IMPORT",
+                "value": "optional:configtree:/run/secrets/"
+              },
+              {
+                "name": "MANAGEMENT_SERVER_PORT",
+                "value": "9090"
+              },
+              {
+                "name": "JAVA_TOOL_OPTIONS",
+                "value": "-Xms64m -Xmx192m -Djava.io.tmpdir=/tmp"
+              }
+            ],
+            "volumeMounts": [
+              {
+                "name": "tmp",
+                "mountPath": "/tmp"
+              },
+              {
+                "name": "runtime-secrets",
+                "mountPath": "/run/secrets",
+                "readOnly": true
+              }
+            ],
+            "resources": {
+              "requests": {
+                "cpu": "100m",
+                "memory": "128Mi"
+              },
+              "limits": {
+                "cpu": "500m",
+                "memory": "256Mi"
+              }
+            },
+            "securityContext": {
+              "allowPrivilegeEscalation": false,
+              "capabilities": {
+                "drop": [
+                  "ALL"
+                ]
+              },
+              "readOnlyRootFilesystem": true,
+              "runAsNonRoot": true,
+              "runAsUser": 10001,
+              "runAsGroup": 10001
+            },
+            "startupProbe": {
+              "httpGet": {
+                "path": "/actuator/health/readiness",
+                "port": "management"
+              },
+              "periodSeconds": 5,
+              "timeoutSeconds": 3,
+              "failureThreshold": 36
+            },
+            "readinessProbe": {
+              "httpGet": {
+                "path": "/actuator/health/readiness",
+                "port": "management"
+              },
+              "periodSeconds": 5,
+              "timeoutSeconds": 3,
+              "failureThreshold": 3
+            },
+            "livenessProbe": {
+              "httpGet": {
+                "path": "/actuator/health/liveness",
+                "port": "management"
+              },
+              "periodSeconds": 15,
+              "timeoutSeconds": 3,
+              "failureThreshold": 3
+            }
+          }
+        ],
+        "volumes": [
+          {
+            "name": "tmp",
+            "emptyDir": {
+              "sizeLimit": "128Mi"
+            }
+          },
+          {
+            "name": "runtime-secrets",
+            "projected": {
+              "defaultMode": 288,
+              "sources": [
+                {
+                  "secret": {
+                    "name": "delivery-config-repository",
+                    "items": [
+                      {
+                        "key": "username",
+                        "path": "spring.cloud.config.server.git.username"
+                      },
+                      {
+                        "key": "password",
+                        "path": "spring.cloud.config.server.git.password"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  }
+}

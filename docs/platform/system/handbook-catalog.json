@@ -1,0 +1,71 @@
+{
+  "version": 1,
+  "purpose": "Allowlisted, source-owned input for the public read-only Delivery handbook.",
+  "generatedAt": "2026-08-24",
+  "visibility": {
+    "public": "Safe to render in the unauthenticated handbook after the generated-content checks.",
+    "internal": "Keep in repository documentation; do not render in the public handbook.",
+    "archive": "Historical context only; render only when the reader explicitly enables history."
+  },
+  "include": [
+    "backend_delivery/docs/platform/system/README.md",
+    "backend_delivery/docs/platform/system/architecture.md",
+    "backend_delivery/docs/platform/system/diagram-standards.md",
+    "backend_delivery/docs/platform/system/service-catalog.md",
+    "backend_delivery/docs/platform/system/workflows.md",
+    "backend_delivery/docs/platform/system/events-and-data.md",
+    "backend_delivery/docs/platform/system/security.md",
+    "backend_delivery/docs/platform/system/clients.md",
+    "backend_delivery/docs/platform/system/technology-and-tooling.md",
+    "backend_delivery/docs/platform/system/operations/README.md",
+    "backend_delivery/docs/platform/system/operations/*.md",
+    "backend_delivery/docs/platform/system/rebuild/README.md",
+    "backend_delivery/docs/platform/system/rebuild/source-map.md",
+    "backend_delivery/docs/platform/system/simulator/README.md",
+    "backend_delivery/docs/platform/system/api/README.md",
+    "backend_delivery/docs/platform/system/api/http-contract-catalog.md",
+    "backend_delivery/docs/platform/product/overview.md",
+    "backend_delivery/docs/platform/product/features/*.md",
+    "backend_delivery/docs/platform/ARCHITECTURE.md",
+    "backend_delivery/docs/platform/FEATURE_STATUS.md",
+    "backend_delivery/docs/platform/TESTING_READINESS.md",
+    "backend_delivery/docs/platform/decisions/*.md",
+    "backend_delivery/docs/README.md",
+    "backend_delivery/docs/product/overview.md",
+    "backend_delivery/docs/services/*.md",
+    "backend_delivery/docs/workflows/*.md",
+    "backend_delivery/docs/runbooks/*.md",
+    "delivery_app/README.md",
+    "delivery_app/TESTING.md",
+    "delivery_web/README.md",
+    "delivery_web/TESTING.md",
+    "delivery_web/docs/action-contract-matrix.md",
+    "shipper_app2/README.md",
+    "shipper_app2/TESTING.md",
+    "shipper_app2/docs/*.md"
+  ],
+  "exclude": [
+    "system/reference/**",
+    "plans/**",
+    "learning/**",
+    "archive/**",
+    "**/.agents/**",
+    "**/node_modules/**",
+    "**/Pods/**",
+    "**/build/**",
+    "**/.dart_tool/**"
+  ],
+  "classificationDefaults": {
+    "system/api/http-contract-catalog.md": "catalog",
+    "system/simulator/README.md": "dev-only",
+    "system/operations/production-platform-decision-packet.md": "decision-required"
+  },
+  "forbiddenContent": [
+    "BEGIN PRIVATE KEY",
+    "BEGIN RSA PRIVATE KEY",
+    "Authorization: Bearer ey",
+    "customerEmail",
+    "customerPhone",
+    "production database dump"
+  ]
+}

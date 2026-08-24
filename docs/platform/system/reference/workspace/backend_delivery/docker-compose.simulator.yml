@@ -1,0 +1,28 @@
+# Dev/test-only overlay. Never include this file in a production Compose project.
+services:
+  simulator-service:
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: simulator-service } }
+    container_name: delivery-simulator-service
+    ports: ["${SIMULATOR_HOST_PORT:-8100}:8100"]
+    expose: ["9100"]
+    environment:
+      SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8888,optional:configtree:/run/secrets/
+      CONFIG_SERVER_FAIL_FAST: "false"
+      SIMULATOR_ENABLED: "true"
+      SIMULATOR_GATEWAY_BASE_URL: ${SIMULATOR_GATEWAY_BASE_URL:-http://api-gateway:8079}
+      SIMULATOR_ALLOWED_GATEWAY_HOSTS: ${SIMULATOR_ALLOWED_GATEWAY_HOSTS:-api-gateway}
+      SIMULATOR_ALLOWED_ORIGINS: "${SIMULATOR_ALLOWED_ORIGINS:-http://localhost:5174,http://127.0.0.1:5174,http://localhost:4174,http://127.0.0.1:4174}"
+      SIMULATOR_API_TOKEN: ${SIMULATOR_API_TOKEN:-}
+      SIMULATOR_MAX_SHIPPERS: ${SIMULATOR_MAX_SHIPPERS:-50}
+      SIMULATOR_RUN_TIMEOUT_SECONDS: ${SIMULATOR_RUN_TIMEOUT_SECONDS:-900}
+      SIMULATOR_KAFKA_OBSERVER_ENABLED: ${SIMULATOR_KAFKA_OBSERVER_ENABLED:-true}
+      SIMULATOR_KAFKA_BOOTSTRAP_SERVERS: ${SIMULATOR_KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}
+      SIMULATOR_KAFKA_DECISION_TRACE_TOPIC: ${SIMULATOR_KAFKA_DECISION_TRACE_TOPIC:-matching.decision-trace}
+      SIMULATOR_KAFKA_OBSERVER_GROUP_ID: ${SIMULATOR_KAFKA_OBSERVER_GROUP_ID:-simulator-algorithm-observer}
+      MANAGEMENT_SERVER_PORT: "9100"
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks: [delivery-network]

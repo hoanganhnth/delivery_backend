@@ -1,0 +1,61 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.delivery</groupId>
+    <artifactId>deliveryvn</artifactId>
+    <version>1.0.0</version>
+    <packaging>pom</packaging>
+
+    <modules>
+        <module>observability-starter</module>
+        <module>kafka-operations-tool</module>
+        <module>runtime-platform-starter</module>
+        <module>identity-contracts</module>
+        <module>auth-resource-server-starter</module>
+        <module>discovery-server</module>
+        <module>config-server</module>
+        <module>auth-service</module>
+        <module>user-service</module>
+        <module>api-gateway</module>
+        <module>delivery-service</module>
+        <module>notification-service</module>
+        <module>order-service</module>
+        <module>restaurant-service</module>
+        <module>shipper-service</module>
+        <module>search-service</module>
+        <module>saga-orchestrator-service</module>
+        <module>tracking-service</module>
+        <module>match-service</module>
+        <module>routing-service</module>
+        <module>livestream-service</module>
+        <module>settlement-service</module>
+        <module>flashsale-service</module>
+        <module>analytics-service</module>
+        <module>promotion-service</module>
+        <module>simulator-service</module>
+    </modules>
+
+    <build>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-compiler-plugin</artifactId>
+                    <version>3.14.1</version>
+                    <configuration>
+                        <annotationProcessorPaths>
+                            <path>
+                                <groupId>org.projectlombok</groupId>
+                                <artifactId>lombok</artifactId>
+                                <version>${lombok.version}</version>
+                            </path>
+                        </annotationProcessorPaths>
+                    </configuration>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
+</project>

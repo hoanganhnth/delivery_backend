@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: delivery-control-plane
+  labels:
+    app.kubernetes.io/part-of: delivery-platform
+    delivery.platform/template: provider-neutral
+    delivery.platform/wave: control
+data:
+  # Production Config Server must read a protected versioned repository; native
+  # classpath config is local Compose convenience only.
+  CONFIG_SERVER_BACKEND: git
+  CONFIG_REPOSITORY_GIT_URI: https://git.example.invalid/delivery/config.git
+  CONFIG_REPOSITORY_DEFAULT_LABEL: main

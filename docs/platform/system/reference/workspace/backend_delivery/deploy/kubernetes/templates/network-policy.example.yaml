@@ -1,0 +1,15 @@
+# Not included in any Kustomization. Kubernetes NetworkPolicy has no portable
+# DNS/FQDN egress rule, so the platform overlay must supply exact private CIDRs,
+# namespace/pod selectors and DNS policy for its managed data plane.
+# Start with a namespace default-deny policy, then add explicit edge, service,
+# Config/Eureka, data-plane, DNS, telemetry and Prometheus flows documented in
+# docs/system/operations/deployment-foundation.md.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress

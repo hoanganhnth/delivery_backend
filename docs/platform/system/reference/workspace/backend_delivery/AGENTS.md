@@ -1,0 +1,48 @@
+# Agent Instructions
+
+## Project Context
+
+Food-delivery backend, microservices trên Spring Boot 3.x. Giao tiếp async qua
+Kafka, realtime vị trí MVP qua raw WebSocket, cache/GEO qua Redis. Auth phát JWT
+RS256/JWKS và từng resource service xác thực Bearer token; API Gateway chỉ route,
+rate-limit và strip legacy identity headers. gRPC không thuộc contract hiện tại.
+Chi tiết hệ thống và service map: `docs/product/overview.md`.
+
+Tài liệu định hướng (đọc trước khi sửa):
+- `ROADMAP_MVP_TO_PRODUCTION.md` — hiện trạng verify + việc cần làm (MVP → prod).
+- `docs/` — đặc tả service (`docs/services/`) và workflow chéo (`docs/workflows/`).
+- `BACKLOG_FIX.md` — lịch sử fix (P0 đã xong); `SYSTEM_REVIEW.md` **đã lỗi thời**.
+
+Quy ước: mỗi service là một module Maven riêng (`<name>-service/`), gọi nhau qua
+Kafka event (ưu tiên) hoặc HTTP nội bộ. Không hard-code secret; dùng env var.
+
+<!-- HARNESS:BEGIN -->
+## Harness
+
+Start with the requested outcome, then use the repository as the system of
+record. Read `docs/WORKFLOW.md` and only the product, design, plan,
+code, and validation material relevant to the task.
+
+- Answers, explanations, reviews, diagnoses, plans, and status reports are
+  read-only. Inspect only what is needed and do not mutate repository or Harness
+  state.
+- For a bounded change, use an ephemeral plan: inspect the affected behavior and
+  existing proof, implement the change, and run behavior-appropriate validation.
+  No Harness CLI operation is required.
+- Create or update one file under `docs/plans/active/` when work spans sessions,
+  needs coordination or an ordered sequence, has meaningful dependencies, or
+  requires explicit recovery steps. Move it to `docs/plans/completed/` only
+  after validation.
+- Before editing, identify repository authority for each new externally
+  observable policy. If materially different choices remain open, stop before
+  edits; configurable defaults are not authority.
+- Also pause when product intent remains ambiguous, an action is difficult to
+  recover, validation would be weakened, or the request does not authorize the
+  needed action.
+- Claim completion only with relevant executable or observable evidence. Report
+  the outcome, important changed surfaces, validation, and unresolved risks.
+
+SQLite intake, story, trace, scoring, audit, and proposal commands are optional
+compatibility features. Use them only when explicitly requested or required by
+an external orchestrator.
+<!-- HARNESS:END -->
