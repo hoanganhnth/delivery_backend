@@ -24,11 +24,13 @@ are shown at file-and-section granularity.
 
 ## Authority and maintenance
 
-- Product behavior: `docs/product/overview.md` and client feature inventories.
-- Service ownership: `docs/system/service-catalog.md`.
-- API source map: `docs/system/api/http-contract.json` and the backend HTTP
-  inventory.
-- Security and exposure policy: `docs/system/security.md` and this decision.
+- Product behavior: `backend_delivery/docs/platform/product/overview.md` and
+  client feature inventories.
+- Service ownership: `backend_delivery/docs/platform/system/service-catalog.md`.
+- API source map: `backend_delivery/docs/platform/system/api/http-contract.json`
+  and the backend HTTP inventory.
+- Security and exposure policy: `backend_delivery/docs/platform/system/security.md`
+  and this decision.
 
 The generated handbook snapshot is checked for drift from these sources. A
 controller or schema existing in source is not sufficient evidence that a

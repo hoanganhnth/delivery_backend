@@ -1019,8 +1019,8 @@
     {
       "source": "backend_delivery/docs/platform/decisions/system-handbook-public-surface.md",
       "target": "workspace/backend_delivery/docs/platform/decisions/system-handbook-public-surface.md",
-      "sha256": "26c5ca8ff02140ea0796ef77e07cf0b19f813439d6b30b6be9dd7764e56c86e2",
-      "bytes": 1377
+      "sha256": "33492f1ec3af71812318105c974284478e81e900f26264314a763a66c21eb04e",
+      "bytes": 1485
     },
     {
       "source": "backend_delivery/docs/platform/FEATURE_STATUS.md",
@@ -1553,8 +1553,8 @@
     {
       "source": "backend_delivery/docs/platform/system/rebuild/source-map.md",
       "target": "workspace/backend_delivery/docs/platform/system/rebuild/source-map.md",
-      "sha256": "7d69f109f7b21ea3bdb13f4776bc0a56653d017d37ec0838bed536bb2ee2fdde",
-      "bytes": 7188
+      "sha256": "ae95e092d9fb2ad96e9bfe4e83b6a5429b05f872b6061582149af07c75614069",
+      "bytes": 7273
     },
     {
       "source": "backend_delivery/docs/platform/system/rebuild/sync-reference-bundle.mjs",

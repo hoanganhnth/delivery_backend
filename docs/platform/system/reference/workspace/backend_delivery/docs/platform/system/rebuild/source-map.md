@@ -20,7 +20,8 @@
 2. `backend_delivery/docs/system-contract-inventory.md` for service/topic/state
    inventory and `backend_delivery/docs/http-api-inventory.md` for handler paths.
 3. Backend ADRs/runbooks/workflow docs and root ADRs.
-4. `docs/system/` for cross-cutting reconstruction and operations navigation.
+4. `backend_delivery/docs/platform/system/` for cross-cutting reconstruction
+   and operations navigation.
 5. Plans only for progress/evidence history. Historical baseline documents must
    not override newer code or accepted ADRs.
 
@@ -28,9 +29,9 @@
 
 | Subject | Canonical guide | Detailed source / executable authority | Freshness/status |
 | --- | --- | --- | --- |
-| Whole-system diagrams/client boundary | [architecture.md](../architecture.md), [diagram standards](../diagram-standards.md) | [`docs/ARCHITECTURE.md`](../../ARCHITECTURE.md), `docs/product/overview.md` | As-built, 2026-08-09 |
+| Whole-system diagrams/client boundary | [architecture.md](../architecture.md), [diagram standards](../diagram-standards.md) | [`architecture.md`](../architecture.md), [`product/overview.md`](../../product/overview.md) | As-built, 2026-08-24 |
 | Service ownership/ports/capabilities | [service-catalog.md](../service-catalog.md) | [`backend_delivery/docs/system-contract-inventory.md`](../../../system-contract-inventory.md), Compose | As-built, 2026-08-09 |
-| Exact HTTP handlers and signature/DTO source map | [api/README.md](../api/README.md), [generated API catalog](../api/http-contract-catalog.md), [`http-contract.json`](../api/http-contract.json) | [`backend_delivery/docs/http-api-inventory.md`](../../../http-api-inventory.md), controller DTO/tests | 166-handler inventory plus deterministic source-derived JSON/Markdown artifacts; not OpenAPI |
+| Exact HTTP handlers and signature/DTO source map | [api/README.md](../api/README.md), [generated API catalog](../api/http-contract-catalog.md), [`http-contract.json`](../api/http-contract.json) | [`backend_delivery/docs/http-api-inventory.md`](../../../http-api-inventory.md), controller DTO/tests | 220 controller operations and 190 reachable source schemas in deterministic JSON/Markdown artifacts; not OpenAPI |
 | HTTP formatting/pagination/money/time | [api/README.md](../api/README.md) | [`docs/decisions/0001-backend-contract-conventions.md`](../../decisions/0001-backend-contract-conventions.md) | Accepted convention |
 | JWKS/auth/security | [security.md](../security.md) | [`backend ADR 0001`](../../../decisions/0001-jwks-resource-server-authentication.md), Auth/Gateway config/tests | Accepted/as-built, 2026-08-09 |
 | Registration and COD/domain flows | [workflows.md](../workflows.md) | backend `docs/workflows/`, service tests, runtime scripts | As-built, 2026-08-09; proof varies by flow |
@@ -75,14 +76,14 @@ Representative current checks include:
 ```text
 scripts/verify-build-baseline.sh
 scripts/verify-http-api-inventory.sh
-node docs/system/api/generate-http-contract.mjs --check
+node docs/platform/system/api/generate-http-contract.mjs --check
 scripts/verify-compose-config.sh
 scripts/verify-kubernetes-manifests.sh
 scripts/rollout-kubernetes.sh
 scripts/verify-docker-artifact-freshness.sh
 scripts/verify-docker-runtime-security.sh
 scripts/verify-runtime-startup.sh
-../docs/system/rebuild/sync-reference-bundle.mjs --check
+node docs/platform/system/rebuild/sync-reference-bundle.mjs --check
 scripts/verify-mvp-cod-flow.sh
 scripts/verify-settlement-crash-window.sh
 scripts/verify-backup-restore-rehearsal.sh
