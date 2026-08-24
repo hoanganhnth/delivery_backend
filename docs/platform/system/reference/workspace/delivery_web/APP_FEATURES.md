@@ -45,18 +45,22 @@ trùng trong lúc request đang chạy.
 
 | Route | Quyền | Chức năng |
 | :--- | :--- | :--- |
-| `/system-overview` | Public, read-only | Flow-first handbook: chọn workflow, xem swimlane happy/failure path, mở inspector cho từng actor/service/API/event/state và xem architecture overlay theo flow. Không chứa business action hoặc portal navigation. |
+| `/system-overview` | Public, read-only | Flow-first handbook và searchable Markdown Docs Portal: chọn workflow, xem swimlane happy/failure path, mở inspector cho từng actor/service/API/event/state, xem architecture overlay theo flow và đọc corpus canonical theo tài liệu. Không chứa business action hoặc portal navigation. |
 
-Handbook dùng 5 khu vực chính: Tổng quan, Flow Explorer, Architecture, Services &
-Contracts và Operations. Các route cũ dưới `/system-overview/*` vẫn được giữ để
+Handbook dùng 6 khu vực chính: Tổng quan, Flow Explorer, Architecture, Services &
+Contracts, Operations và Tài liệu. `/system-overview/docs` là snapshot tĩnh được
+generate từ allowlist canonical; có tìm kiếm, lọc nhóm, deep link, source/status
+badge và Markdown heading/table/code rendering. Các route cũ dưới `/system-overview/*` vẫn được giữ để
 deep link tương thích; capability/actor/API được mở như context liên kết trong
 workspace mới. Flow Explorer lưu workflow, step, mode, node, operation và event
 trong URL để có thể chia sẻ đúng màn hình đang đọc.
 
-Nội dung là snapshot được generate/check từ system docs và source-derived API
-contract; event/interaction mapping được kiểm tra integrity khi test. Handbook
-không gọi runtime backend, không có Try-it console và không hiển thị secrets,
-customer data hoặc internal route như public contract.
+Nội dung là snapshot được generate/check từ system docs canonical và source-derived
+API contract; event/interaction mapping được kiểm tra integrity khi test. Markdown
+chỉ render nội dung allowlist, chặn raw HTML/URL scheme nguy hiểm và map link `.md`
+nội bộ về route handbook. Handbook không gọi runtime backend, không có Try-it
+console và không hiển thị secrets, customer data hoặc internal route như public
+contract.
 
 ## 5. Storefront khách hàng (`USER`)
 

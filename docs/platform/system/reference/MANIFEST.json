@@ -3107,8 +3107,8 @@
     {
       "source": "delivery_web/APP_FEATURES.md",
       "target": "workspace/delivery_web/APP_FEATURES.md",
-      "sha256": "1f67a3d6b17334fa02379c692d6010e3b61786c44745774d67f498cd19458b74",
-      "bytes": 5590
+      "sha256": "85f6b8b2264a3e9dad1e49e6bc82f7318ae1588c943f76a14ecc851504a66f80",
+      "bytes": 6016
     },
     {
       "source": "delivery_web/docs/action-contract-matrix.md",
@@ -3125,8 +3125,8 @@
     {
       "source": "delivery_web/package.json",
       "target": "workspace/delivery_web/package.json",
-      "sha256": "8c91a5efe8687b6b7fa5756f85f5fe645400878b0471fe88ec17cf6342631871",
-      "bytes": 2015
+      "sha256": "d1a38099ce5470736a87f06ac230ea48297f5fbe413ec262480c21578e284887",
+      "bytes": 2255
     },
     {
       "source": "delivery_web/README.md",

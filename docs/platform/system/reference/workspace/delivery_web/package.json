@@ -17,8 +17,10 @@
     "test:actions": "node scripts/verify-action-contracts.mjs",
     "handbook:generate": "node scripts/generate-system-handbook.mjs --workspace-root .. --write",
     "handbook:check": "node scripts/generate-system-handbook.mjs --workspace-root .. --check",
+    "handbook:docs:generate": "node scripts/generate-system-docs-portal.mjs --workspace-root .. --write",
+    "handbook:docs:check": "node scripts/generate-system-docs-portal.mjs --workspace-root .. --check",
     "typecheck": "tsc --noEmit",
-    "verify": "npm run lint && npm run typecheck && npm test && npm run test:actions && npm run handbook:check && npm run build",
+    "verify": "npm run lint && npm run typecheck && npm test && npm run test:actions && npm run handbook:check && npm run handbook:docs:check && npm run build",
     "verify:ci": "npm run lint && npm run typecheck && npm test && npm run test:actions && npm run build"
   },
   "dependencies": {
