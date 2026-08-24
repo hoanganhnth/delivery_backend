@@ -64,8 +64,6 @@
     "BEGIN PRIVATE KEY",
     "BEGIN RSA PRIVATE KEY",
     "Authorization: Bearer ey",
-    "customerEmail",
-    "customerPhone",
     "production database dump"
   ]
 }

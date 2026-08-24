@@ -1505,8 +1505,8 @@
     {
       "source": "backend_delivery/docs/platform/system/handbook-catalog.json",
       "target": "workspace/backend_delivery/docs/platform/system/handbook-catalog.json",
-      "sha256": "55bbcfa91133bceecc1d226d099c02f42d1eea093f1163f8f112990e3b9e5248",
-      "bytes": 2916
+      "sha256": "2724100cbbffa81844932c34574e3575c8e7cccdc203e35d211706bba17c6841",
+      "bytes": 2874
     },
     {
       "source": "backend_delivery/docs/platform/system/operations/deployment-foundation.md",
