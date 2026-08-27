@@ -359,6 +359,13 @@ class GatewayRouteSecurityTest {
         assertThat(matches(routes, HttpMethod.POST, "/api/settlement/balances/shipper/42/withdraw")).isFalse();
         assertThat(matches(routes, HttpMethod.GET, "/api/settlement/payments/fake-confirm/PAY-1")).isFalse();
         assertThat(matches(routes, HttpMethod.POST, "/api/settlement/payments/create")).isFalse();
+        assertThat(routes).doesNotContainKeys(
+                "settlement-service-customer-payment-create",
+                "settlement-service-customer-payment-reference");
+        assertThat(matches(routes, HttpMethod.GET, "/api/settlement/payments/ref/PAY-1")).isFalse();
+        assertThat(matches(routes, HttpMethod.GET, "/api/settlement/payments/vnpay-callback")).isFalse();
+        assertThat(matches(routes, HttpMethod.GET, "/api/settlement/payments/vnpay-ipn")).isFalse();
+        assertThat(matches(routes, HttpMethod.POST, "/api/settlement/payments/vnpay-ipn")).isFalse();
         assertThat(matches(routes, HttpMethod.GET, "/api/settlement/transactions/42")).isFalse();
         assertThat(matches(routes, HttpMethod.GET,
                 "/api/settlement/internal/shippers/42/cod-eligibility?codAmount=120000")).isFalse();

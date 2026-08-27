@@ -38,8 +38,15 @@ customer money UI remain gated follow-ups; this code is not proof of a real
 PayOS payment or payout.
 
 Thanh toán online/VNPay, API ví tự phục vụ, nạp/rút tiền và mutation của admin đều
-đang hidden/off. Client hiện còn tham chiếu một số API này nhưng chỉ được migrate
-sau khi backend qua Gate B8 và freeze contract.
+đang hidden/off. Một sandbox return boundary có thể được route qua Gateway chỉ
+khi `PAYMENT_CLIENT_API_ENABLED=true` và `PAYMENT_PROCESSING_ENABLED=true`; cả
+hai mặc định `false`. Surface này chỉ gồm `POST /api/settlement/payments/create`
+và `GET /api/settlement/payments/ref/{paymentRef}`, derive USER từ JWT và không
+nhận entity/payer ID từ client. Vì `payment_orders` chưa lưu customer principal
+và Order vẫn COD-only, boundary hiện trả lỗi 409 explicit cho create/read thay vì
+tạo payment hoặc tiết lộ trạng thái: đây là proof cho gate/return handling, không
+phải online-order E2E. VNPay callback, IPN và fake confirmation không đi qua
+Gateway.
 
 ## Luồng chuẩn
 
@@ -106,7 +113,8 @@ cap 100 và chưa có pagination contract.
 
 ## API hidden/off
 
-- `/api/settlement/payments/**`
+- VNPay callback/IPN, fake confirm và legacy internal payment mutation/query
+- `/api/settlement/payments/**` ngoài hai exact sandbox routes được gate ở trên
 - `/api/settlement/balances/**`
 - `/api/settlement/transactions/**`
 - mutation `/api/settlement/admin/transactions/**`

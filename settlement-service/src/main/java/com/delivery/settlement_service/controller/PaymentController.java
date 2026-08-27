@@ -35,7 +35,7 @@ public class PaymentController {
      * Tạo giao dịch thanh toán mới
      * Client nhận paymentUrl để redirect đến cổng thanh toán
      */
-    @PostMapping("/create")
+    @PostMapping("/internal/create")
     public ResponseEntity<BaseResponse<PaymentOrderResponse>> createPayment(
             @Valid @RequestBody CreatePaymentRequest request,
             HttpServletRequest httpRequest) {
@@ -103,7 +103,7 @@ public class PaymentController {
     /**
      * Query trạng thái giao dịch theo ID
      */
-    @GetMapping("/{paymentId}")
+    @GetMapping("/internal/{paymentId}")
     public ResponseEntity<BaseResponse<PaymentOrderResponse>> getPaymentStatus(
             @PathVariable Long paymentId) {
 
@@ -114,7 +114,7 @@ public class PaymentController {
     /**
      * Query trạng thái giao dịch theo mã tham chiếu
      */
-    @GetMapping("/ref/{paymentRef}")
+    @GetMapping("/internal/ref/{paymentRef}")
     public ResponseEntity<BaseResponse<PaymentOrderResponse>> getPaymentByRef(
             @PathVariable String paymentRef) {
 
@@ -125,7 +125,7 @@ public class PaymentController {
     /**
      * Danh sách provider khả dụng
      */
-    @GetMapping("/providers")
+    @GetMapping("/internal/providers")
     public ResponseEntity<BaseResponse<Set<String>>> getAvailableProviders() {
         Set<String> providers = providerRegistry.getAvailableProviders();
         return ResponseEntity.ok(BaseResponse.success(providers, "Available providers"));

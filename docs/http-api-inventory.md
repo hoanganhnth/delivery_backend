@@ -118,8 +118,8 @@ sửa.
 | settlement hold/release/deposit | internal ledger workflow or ADMIN | payment/delivery/admin | hidden/disabled | manual money mutation nằm trong self-service controller mặc định tắt; canonical COD listener/internal eligibility vẫn hoạt động |
 | settlement COD eligibility | match-service credential; shipper + positive canonical COD amount | match | internal/keep | exact internal endpoint dùng shared secret; nearest candidate thiếu ký quỹ bị bỏ qua, lỗi Settlement không bị đổi thành `shipper.not-found`; completion ledger chỉ nhận exact COD và fail-closed với identity/totals/commissions không canonical |
 | settlement admin surfaces | ADMIN | web admin | public-admin/read-only | exact GET balances/transactions/pending/revenue/refund queue; refund case detail/list are read-only and capped; compatibility lists cap 100, aggregate revenue DB-side; approve/reject/reverse tách sang controller mặc định tắt (`SETTLEMENT_ADMIN_MUTATION_API_ENABLED=false`) |
-| payment create/status/provider | authenticated payer owns payment | cả 3 client còn reference legacy | hidden/disabled | không có Gateway route, controller off mặc định và Order payment-event listener cũng off (`ORDER_PAYMENT_EVENT_PROCESSING_ENABLED=false`) trong COD-first MVP |
-| VNPAY callback/IPN | payment provider signature | provider | hidden/disabled-until-verified | toàn payment bean graph off mặc định; provider không có DEMO credential và fail-closed khi env thiếu; callback/reconciliation proof OPEN |
+| customer payment sandbox create/status | JWT-authenticated USER only; payer identity is derived, never supplied | Flutter sandbox return boundary | public-client/gated + fail-closed | Gateway only exposes exact `POST /api/settlement/payments/create` and `GET /api/settlement/payments/ref/{paymentRef}` when both `PAYMENT_CLIENT_API_ENABLED=true` at Gateway and payment processing is enabled at Settlement; both default false. Current `payment_orders` has no customer principal ownership and Order remains COD-only, therefore both operations return explicit 409 unsupported (`CUSTOMER_ORDER_PAYMENT_UNSUPPORTED` / `CUSTOMER_PAYMENT_OWNERSHIP_UNSUPPORTED`) rather than create or disclose arbitrary payment data. |
+| VNPAY callback/IPN | payment provider signature | provider | hidden/disabled-until-verified | toàn payment bean graph off mặc định; provider không có DEMO credential và fail-closed khi env thiếu; callback/IPN/fake confirm không có Gateway route; callback/reconciliation proof OPEN |
 | fake payment confirm | developer | no production client | hidden/dev-test-only | không có production Gateway route; controller/provider cần explicit processing+fake flags và active profile `dev|test`, không thể bật ở `prod` |
 | promotion capability/collect/my/calculate | USER own voucher/order input canonical | Flutter/web | capability + collect/my public; calculate hidden | `/api/promotions/capability` returns the stable-principal canary contract; calculate remains `/api/promotions/internal/calculate` and server-owned. Stacking is default-off and gated by `PROMOTION_STACKING_ENABLED` plus `PROMOTION_STACKING_CANARY_PRINCIPALS`; legacy single-voucher rows remain readable |
 | promotion merchant CRUD/list | SHOP_OWNER owns merchant/restaurant | web restaurant | shop create/list routed; admin review required | `POST/GET /api/promotions/shop` require SHOP_OWNER and canonical Restaurant ownership; shop vouchers stay PENDING until ADMIN approval. Legacy `/merchant` remains compatibility-only |
@@ -311,13 +311,15 @@ sửa.
 | settlement-service | InternalSettlementController | POST | `/api/settlement/internal/cod-capacity/holds` | `createCodCapacityHolds` |
 | settlement-service | InternalSettlementController | POST | `/api/settlement/internal/cod-capacity/holds/{holdId}/commit` | `commitCodCapacityHold` |
 | settlement-service | InternalSettlementController | POST | `/api/settlement/internal/cod-capacity/holds/{holdId}/release` | `releaseCodCapacityHold` |
-| settlement-service | PaymentController | POST | `/api/settlement/payments/create` | `createPayment` |
+| settlement-service | CustomerPaymentController | POST | `/api/settlement/payments/create` | `create` |
+| settlement-service | CustomerPaymentController | GET | `/api/settlement/payments/ref/{paymentRef}` | `getByReference` |
+| settlement-service | PaymentController | POST | `/api/settlement/payments/internal/create` | `createPayment` |
 | settlement-service | PaymentController | GET | `/api/settlement/payments/vnpay-callback` | `vnpayCallback` |
 | settlement-service | PaymentController | GET\|POST | `/api/settlement/payments/vnpay-ipn` | `vnpayIpn` |
 | settlement-service | FakePaymentController | GET | `/api/settlement/payments/fake-confirm/{paymentRef}` | `fakeConfirm` |
-| settlement-service | PaymentController | GET | `/api/settlement/payments/{paymentId}` | `getPaymentStatus` |
-| settlement-service | PaymentController | GET | `/api/settlement/payments/ref/{paymentRef}` | `getPaymentByRef` |
-| settlement-service | PaymentController | GET | `/api/settlement/payments/providers` | `getAvailableProviders` |
+| settlement-service | PaymentController | GET | `/api/settlement/payments/internal/{paymentId}` | `getPaymentStatus` |
+| settlement-service | PaymentController | GET | `/api/settlement/payments/internal/ref/{paymentRef}` | `getPaymentByRef` |
+| settlement-service | PaymentController | GET | `/api/settlement/payments/internal/providers` | `getAvailableProviders` |
 | settlement-service | TransactionController | GET | `/api/settlement/transactions/restaurant/{entityId}` | `getRestaurantTransactions` |
 | settlement-service | TransactionController | GET | `/api/settlement/transactions/shipper/{entityId}` | `getShipperTransactions` |
 | settlement-service | TransactionController | GET | `/api/settlement/transactions/{id}` | `getTransactionById` |

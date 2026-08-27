@@ -25,6 +25,7 @@ public class GatewayRouteConfig {
         private final String promotionServiceUri;
         private final String analyticsServiceUri;
         private final String flashsaleServiceUri;
+        private final boolean paymentClientApiEnabled;
 
         public GatewayRouteConfig(
                         @Value("${app.auth-service.uri:lb://auth-service}") String authServiceUri,
@@ -41,7 +42,8 @@ public class GatewayRouteConfig {
                         @Value("${app.settlement-service.uri:lb://settlement-service}") String settlementServiceUri,
                         @Value("${app.promotion-service.uri:lb://promotion-service}") String promotionServiceUri,
                         @Value("${app.analytics-service.uri:lb://analytics-service}") String analyticsServiceUri,
-                        @Value("${app.flashsale-service.uri:lb://flashsale-service}") String flashsaleServiceUri) {
+                        @Value("${app.flashsale-service.uri:lb://flashsale-service}") String flashsaleServiceUri,
+                        @Value("${app.payment.client-api-enabled:false}") boolean paymentClientApiEnabled) {
                 this.authServiceUri = authServiceUri;
                 this.userServiceUri = userServiceUri;
                 this.restaurantServiceUri = restaurantServiceUri;
@@ -56,12 +58,14 @@ public class GatewayRouteConfig {
                 this.settlementServiceUri = settlementServiceUri;
                 this.promotionServiceUri = promotionServiceUri;
                 this.analyticsServiceUri = analyticsServiceUri;
+                this.paymentClientApiEnabled = paymentClientApiEnabled;
                 this.flashsaleServiceUri = flashsaleServiceUri;
         }
 
         @Bean
         public RouteLocator customRoutes(RouteLocatorBuilder builder) {
-                return builder.routes()
+                RouteLocatorBuilder.Builder routes = builder.routes();
+                routes
                                 // Public auth endpoints (no JWT required)
                                 .route("auth-service-jwks", r -> r.path("/.well-known/jwks.json")
                                                 .and().method(HttpMethod.GET)
@@ -458,8 +462,18 @@ public class GatewayRouteConfig {
                                 .route("analytics-service-admin-dashboard", r -> r.path(
                                                 "/api/analytics/dashboard/admin")
                                                 .and().method(HttpMethod.GET)
-                                                .uri(analyticsServiceUri))
+                                                .uri(analyticsServiceUri));
 
-                                .build();
+                if (paymentClientApiEnabled) {
+                        routes.route("settlement-service-customer-payment-create", r -> r.path(
+                                        "/api/settlement/payments/create")
+                                        .and().method(HttpMethod.POST)
+                                        .uri(settlementServiceUri));
+                        routes.route("settlement-service-customer-payment-reference", r -> r.path(
+                                        "/api/settlement/payments/ref/{paymentRef}")
+                                        .and().method(HttpMethod.GET)
+                                        .uri(settlementServiceUri));
+                }
+                return routes.build();
         }
 }
