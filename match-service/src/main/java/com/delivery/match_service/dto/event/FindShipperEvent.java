@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 import java.math.BigDecimal;
 import java.util.UUID;
+import com.delivery.identity.contracts.SimulationContext;
 
 /**
  * ✅ Event nhận từ Delivery Service để tự động tìm shipper theo AI Instructions
@@ -65,4 +66,5 @@ public class FindShipperEvent {
     /** Client capability negotiated by the order/delivery command producer. */
     private Boolean batchOfferEnabled;
     private Integer batchWave;
+    private SimulationContext simulationContext;
 }

@@ -25,7 +25,9 @@ public class GatewayRouteConfig {
         private final String promotionServiceUri;
         private final String analyticsServiceUri;
         private final String flashsaleServiceUri;
+        private final String simulatorServiceUri;
         private final boolean paymentClientApiEnabled;
+        private final boolean livestreamClientApiEnabled;
 
         public GatewayRouteConfig(
                         @Value("${app.auth-service.uri:lb://auth-service}") String authServiceUri,
@@ -43,7 +45,9 @@ public class GatewayRouteConfig {
                         @Value("${app.promotion-service.uri:lb://promotion-service}") String promotionServiceUri,
                         @Value("${app.analytics-service.uri:lb://analytics-service}") String analyticsServiceUri,
                         @Value("${app.flashsale-service.uri:lb://flashsale-service}") String flashsaleServiceUri,
-                        @Value("${app.payment.client-api-enabled:false}") boolean paymentClientApiEnabled) {
+                        @Value("${app.simulator-service.uri:lb://simulator-service}") String simulatorServiceUri,
+                        @Value("${app.payment.client-api-enabled:false}") boolean paymentClientApiEnabled,
+                        @Value("${app.livestream.client-api-enabled:false}") boolean livestreamClientApiEnabled) {
                 this.authServiceUri = authServiceUri;
                 this.userServiceUri = userServiceUri;
                 this.restaurantServiceUri = restaurantServiceUri;
@@ -58,8 +62,10 @@ public class GatewayRouteConfig {
                 this.settlementServiceUri = settlementServiceUri;
                 this.promotionServiceUri = promotionServiceUri;
                 this.analyticsServiceUri = analyticsServiceUri;
-                this.paymentClientApiEnabled = paymentClientApiEnabled;
                 this.flashsaleServiceUri = flashsaleServiceUri;
+                this.simulatorServiceUri = simulatorServiceUri;
+                this.paymentClientApiEnabled = paymentClientApiEnabled;
+                this.livestreamClientApiEnabled = livestreamClientApiEnabled;
         }
 
         @Bean
@@ -462,7 +468,17 @@ public class GatewayRouteConfig {
                                 .route("analytics-service-admin-dashboard", r -> r.path(
                                                 "/api/analytics/dashboard/admin")
                                                 .and().method(HttpMethod.GET)
-                                                .uri(analyticsServiceUri));
+                                                .uri(analyticsServiceUri))
+
+                                // Simulator control plane is reachable only through this explicit
+                                // admin surface; the worker has no Gateway route.
+                                .route("simulator-admin-control", r -> r.path(
+                                                "/api/admin/simulations",
+                                                "/api/admin/simulations/**")
+                                                .and().method(HttpMethod.GET, HttpMethod.POST, HttpMethod.DELETE)
+                                                .filters(f -> f.rewritePath("/api/admin/simulations(?<segment>/?.*)",
+                                                        "/api/simulator${segment}"))
+                                                .uri(simulatorServiceUri));
 
                 if (paymentClientApiEnabled) {
                         routes.route("settlement-service-customer-payment-create", r -> r.path(
@@ -473,6 +489,21 @@ public class GatewayRouteConfig {
                                         "/api/settlement/payments/ref/{paymentRef}")
                                         .and().method(HttpMethod.GET)
                                         .uri(settlementServiceUri));
+                }
+                if (livestreamClientApiEnabled) {
+                        routes.route("livestream-viewer", r -> r.path(
+                                        "/api/livestreams/active",
+                                        "/api/livestreams/{id:[0-9a-fA-F-]{36}}",
+                                        "/api/livestreams/{id:[0-9a-fA-F-]{36}}/join")
+                                        .and().method(HttpMethod.GET, HttpMethod.POST)
+                                        .uri(livestreamServiceUri));
+                        routes.route("livestream-host", r -> r.path(
+                                        "/api/livestreams",
+                                        "/api/livestreams/{id:[0-9a-fA-F-]{36}}/start",
+                                        "/api/livestreams/{id:[0-9a-fA-F-]{36}}/end",
+                                        "/api/livestreams/restaurant/{restaurantId:[0-9]+}")
+                                        .and().method(HttpMethod.GET, HttpMethod.POST)
+                                        .uri(livestreamServiceUri));
                 }
                 return routes.build();
         }

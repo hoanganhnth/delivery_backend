@@ -6,6 +6,7 @@ import lombok.Setter;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
+import com.delivery.identity.contracts.SimulationContext;
 
 @Getter
 @Setter
@@ -149,6 +150,15 @@ public class Delivery {
     @Column(name = "restaurant_owner_principal_id")
     private Long restaurantOwnerPrincipalId;
 
+    @Column(name = "execution_mode", nullable = false, length = 16)
+    private String executionMode = SimulationContext.ExecutionMode.REAL.name();
+    @Column(name = "simulation_run_id")
+    private UUID simulationRunId;
+    @Column(name = "simulation_cohort_id")
+    private UUID simulationCohortId;
+    @Column(name = "simulation_binding_version")
+    private Long simulationBindingVersion;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
@@ -158,5 +168,20 @@ public class Delivery {
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
+    }
+
+    public SimulationContext getSimulationContext() {
+        if (!SimulationContext.ExecutionMode.SIMULATION.name().equals(executionMode)) return SimulationContext.real();
+        return new SimulationContext(SimulationContext.ExecutionMode.SIMULATION, simulationRunId,
+                simulationCohortId, simulationBindingVersion);
+    }
+
+    public void setSimulationContext(SimulationContext context) {
+        SimulationContext normalized = SimulationContext.orReal(context);
+        normalized.requireValid();
+        executionMode = normalized.mode().name();
+        simulationRunId = normalized.runId();
+        simulationCohortId = normalized.cohortId();
+        simulationBindingVersion = normalized.bindingVersion();
     }
 }

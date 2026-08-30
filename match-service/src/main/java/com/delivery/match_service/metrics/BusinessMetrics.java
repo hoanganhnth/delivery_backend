@@ -15,4 +15,14 @@ public class BusinessMetrics {
     public void kafka(String event) {
         Counter.builder("delivery.kafka.events").tag("event", event).register(registry).increment();
     }
+
+    /** Aggregate rollout evidence without tagging request, order or shipper identifiers. */
+    public void matchingAlgorithmDecision(String algorithm, String version, boolean simulation) {
+        Counter.builder("delivery.matching.algorithm.decisions")
+                .tag("algorithm", algorithm)
+                .tag("version", version)
+                .tag("execution_mode", simulation ? "SIMULATION" : "REAL")
+                .register(registry)
+                .increment();
+    }
 }

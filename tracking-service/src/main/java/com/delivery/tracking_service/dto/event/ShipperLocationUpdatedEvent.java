@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.UUID;
+import com.delivery.identity.contracts.SimulationContext;
 
 /**
  * ✅ Event DTO gửi qua Kafka khi shipper cập nhật vị trí
@@ -26,6 +27,14 @@ public class ShipperLocationUpdatedEvent {
     private Double speed;
     private Double heading;
     private String source;
+    private SimulationContext simulationContext;
+
+    public ShipperLocationUpdatedEvent(Long shipperId, Double latitude, Double longitude, Boolean isOnline,
+                                       long timestamp, UUID eventId, Long deliveryId, Double accuracy,
+                                       Double speed, Double heading, String source) {
+        this(shipperId, latitude, longitude, isOnline, timestamp, eventId, deliveryId, accuracy,
+                speed, heading, source, SimulationContext.real());
+    }
 
     public ShipperLocationUpdatedEvent(Long shipperId, Double latitude, Double longitude,
                                        Boolean isOnline, long timestamp) {

@@ -42,6 +42,10 @@ public class SecurityConfig {
                                 "/actuator/health",
                                 "/actuator/health/**",
                                 "/error").permitAll()
+                        // Private network endpoint with its own mandatory
+                        // internal-secret gate. It cannot rely on an ADMIN
+                        // JWT because it mints the temporary actor JWT.
+                        .requestMatchers("/api/auth/internal/simulation-actors/**").permitAll()
                         .requestMatchers("/api/auth/admin/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/auth/accounts/*").hasRole("ADMIN")
                         .requestMatchers("/api/auth/**").authenticated()

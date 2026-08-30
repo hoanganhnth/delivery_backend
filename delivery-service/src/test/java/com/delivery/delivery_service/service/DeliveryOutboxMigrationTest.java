@@ -146,6 +146,8 @@ class DeliveryOutboxMigrationTest {
                         order_id BIGINT NOT NULL,
                         shipper_id BIGINT,
                         status VARCHAR(255),
+                        total_price DECIMAL(12,2),
+                        shipping_fee DECIMAL(12,2),
                         created_at TIMESTAMP
                     )
                     """);

@@ -33,7 +33,8 @@ public class ShipperLocationController {
         }
 
         ShipperLocationResponse response = shipperLocationService.updateLocation(
-                shipperIdentityResolver.requireShipperId(actor.getPrincipalId(), actor.getLegacyUserId()), request);
+                shipperIdentityResolver.requireShipperId(actor.getPrincipalId(), actor.getLegacyUserId()), request,
+                actor.getSimulationContext());
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Cập nhật vị trí thành công"));
     }
 

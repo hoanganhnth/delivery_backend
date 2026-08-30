@@ -14,6 +14,7 @@ import com.delivery.match_service.service.MatchingOutcomeEventIds;
 import com.delivery.match_service.service.SettlementEligibilityClient;
 import com.delivery.match_service.service.DispatchPoolService;
 import com.delivery.match_service.config.MatchingBatchProperties;
+import com.delivery.match_service.algorithm.BalancedEtaCanaryPolicy;
 import com.delivery.match_service.metrics.BusinessMetrics;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -39,6 +40,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.List;
 import java.util.UUID;
+import com.delivery.identity.contracts.SimulationContext;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.retry.annotation.Backoff;
@@ -65,6 +67,7 @@ public class FindShipperEventListener {
         private final Clock clock;
         private final DispatchPoolService dispatchPoolService;
         private final MatchingBatchProperties matchingBatchProperties;
+        private final BalancedEtaCanaryPolicy balancedEtaCanaryPolicy;
 
         // ✅ Default retry configuration (nếu Saga không gửi)
         private static final int DEFAULT_MAX_RETRY_ATTEMPTS = 10;
@@ -83,9 +86,10 @@ public class FindShipperEventListener {
 				BusinessMetrics businessMetrics,
 				DispatchPoolService dispatchPoolService,
 				MatchingBatchProperties matchingBatchProperties,
+				BalancedEtaCanaryPolicy balancedEtaCanaryPolicy,
 				@Value("${matching.candidate-pool-size:20}") int candidatePoolSize) {
 		this(matchService, matchCommandStore, matchCancellationService, cancellationProjectionRelay, settlementEligibilityClient,
-				businessMetrics, dispatchPoolService, matchingBatchProperties, candidatePoolSize, Clock.systemDefaultZone());
+				businessMetrics, dispatchPoolService, matchingBatchProperties, balancedEtaCanaryPolicy, candidatePoolSize, Clock.systemDefaultZone());
 	}
 
         FindShipperEventListener(
@@ -97,6 +101,7 @@ public class FindShipperEventListener {
 				BusinessMetrics businessMetrics,
 				DispatchPoolService dispatchPoolService,
 				MatchingBatchProperties matchingBatchProperties,
+				BalancedEtaCanaryPolicy balancedEtaCanaryPolicy,
 				int candidatePoolSize,
 				Clock clock) {
 		this.matchService = matchService;
@@ -109,6 +114,7 @@ public class FindShipperEventListener {
 		this.clock = clock;
 		this.dispatchPoolService = dispatchPoolService;
 		this.matchingBatchProperties = matchingBatchProperties;
+		this.balancedEtaCanaryPolicy = balancedEtaCanaryPolicy;
 				this.objectMapper = new ObjectMapper()
                                 .registerModule(new JavaTimeModule())
                                 .configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
@@ -121,10 +127,26 @@ public class FindShipperEventListener {
                                 MatchCancellationProjectionRelay cancellationProjectionRelay,
                                 SettlementEligibilityClient settlementEligibilityClient,
                                 BusinessMetrics businessMetrics,
+                                DispatchPoolService dispatchPoolService,
+                                MatchingBatchProperties matchingBatchProperties,
                                 int candidatePoolSize,
                                 Clock clock) {
                 this(matchService, matchCommandStore, matchCancellationService, cancellationProjectionRelay,
-                                settlementEligibilityClient, businessMetrics, null, null, candidatePoolSize, clock);
+                                settlementEligibilityClient, businessMetrics, dispatchPoolService,
+                                matchingBatchProperties, disabledBalancedEtaPolicy(), candidatePoolSize, clock);
+        }
+
+        FindShipperEventListener(
+                                MatchService matchService,
+                                MatchCommandStore matchCommandStore,
+                                MatchCancellationService matchCancellationService,
+                                MatchCancellationProjectionRelay cancellationProjectionRelay,
+                                SettlementEligibilityClient settlementEligibilityClient,
+                                BusinessMetrics businessMetrics,
+                                int candidatePoolSize,
+                                Clock clock) {
+                this(matchService, matchCommandStore, matchCancellationService, cancellationProjectionRelay,
+                                settlementEligibilityClient, businessMetrics, null, null, disabledBalancedEtaPolicy(), candidatePoolSize, clock);
         }
 
         /** Compatibility constructor for focused listener tests; application wiring uses MeterRegistry. */
@@ -133,8 +155,12 @@ public class FindShipperEventListener {
 				MatchCancellationProjectionRelay cancellationProjectionRelay,
 				SettlementEligibilityClient settlementEligibilityClient, int candidatePoolSize) {
 		this(matchService, matchCommandStore, matchCancellationService, cancellationProjectionRelay, settlementEligibilityClient,
-						new BusinessMetrics(new io.micrometer.core.instrument.simple.SimpleMeterRegistry()), null, null,
-						candidatePoolSize, Clock.systemDefaultZone());
+				new BusinessMetrics(new io.micrometer.core.instrument.simple.SimpleMeterRegistry()), null, null, disabledBalancedEtaPolicy(),
+				candidatePoolSize, Clock.systemDefaultZone());
+        }
+
+        private static BalancedEtaCanaryPolicy disabledBalancedEtaPolicy() {
+                return new BalancedEtaCanaryPolicy(new com.delivery.match_service.config.MatchingAlgorithmProperties());
         }
 
         /**
@@ -219,8 +245,14 @@ public class FindShipperEventListener {
 
         private boolean batchDispatchEnabled(FindShipperEvent event) {
                 return dispatchPoolService != null
-                                && matchingBatchProperties != null
-                                && matchingBatchProperties.isEnabled()
+                        && matchingBatchProperties != null
+                        // Batch dispatch currently persists pool items without
+                        // the simulation context and asks Settlement for real
+                        // COD holds. Fail closed until that contract is
+                        // context-aware; simulation must use the scoped
+                        // per-order path instead of leaking into REAL pools.
+                        && !simulationContext(event).isSimulation()
+                        && matchingBatchProperties.isEnabled()
                                 && (!matchingBatchProperties.isClientCapabilityRequired()
                                 || Boolean.TRUE.equals(event.getBatchOfferEnabled()));
         }
@@ -315,7 +347,7 @@ public class FindShipperEventListener {
 				}
 				trace.recordSearchAttempt();
 				trace.startStage(TraceStage.GEO_QUERY);
-				return matchService.findNearbyShippers(request, systemUserId, systemRole)
+				return findNearbyShippers(request, systemUserId, systemRole, event)
 						.doFinally(signal -> trace.finishStage(TraceStage.GEO_QUERY));
 			})
                                 // ✅ Cancel fast: if delivery already cancelled, stop chain immediately
@@ -362,6 +394,7 @@ public class FindShipperEventListener {
                                                                 + event.getDeliveryId()));
                         }
                                 })
+                                .map(shippers -> applyActiveAlgorithm(event, shippers, trace))
                                 .flatMap(shippers -> selectEligibleShipper(event, shippers, trace))
                                 .flatMap(shippers -> {
                                         if (matchingDeadlineReached(event)) {
@@ -484,8 +517,8 @@ public class FindShipperEventListener {
                         }
                         trace.startStage(TraceStage.RESERVE);
                         trace.markReservationAttempted();
-                        return Mono.fromCallable(() -> matchService.tryReserveShipperOffer(
-                                        shipperId, event.getDeliveryId(), matchingSessionId(event), 180))
+                        return Mono.fromCallable(() -> reserveShipperOffer(
+                                        shipperId, event))
                                         .subscribeOn(Schedulers.boundedElastic())
                                         .doFinally(signal -> trace.finishStage(TraceStage.RESERVE))
                                         .flatMap(reserved -> {
@@ -544,8 +577,7 @@ public class FindShipperEventListener {
         }
 
         private Mono<Void> releaseCandidate(FindShipperEvent event, Long shipperId) {
-                return Mono.fromRunnable(() -> matchService.releaseShipperOffer(
-                                shipperId, event.getDeliveryId(), matchingSessionId(event)))
+                return Mono.fromRunnable(() -> releaseShipperOffer(shipperId, event))
                                 .subscribeOn(Schedulers.boundedElastic())
                                 .then();
         }
@@ -554,6 +586,38 @@ public class FindShipperEventListener {
                 return Mono.fromRunnable(() -> matchCommandStore.cancelCommand(event.getEventId()))
                                 .subscribeOn(Schedulers.boundedElastic())
                                 .then();
+        }
+
+        private Mono<List<NearbyShipperResponse>> findNearbyShippers(
+                        FindNearbyShippersRequest request, Long userId, String role, FindShipperEvent event) {
+                SimulationContext context = simulationContext(event);
+                return context.isSimulation()
+                                ? matchService.findNearbyShippers(request, userId, role, context)
+                                : matchService.findNearbyShippers(request, userId, role);
+        }
+
+        private boolean reserveShipperOffer(Long shipperId, FindShipperEvent event) {
+                SimulationContext context = simulationContext(event);
+                return context.isSimulation()
+                                ? matchService.tryReserveShipperOffer(shipperId, event.getDeliveryId(),
+                                                matchingSessionId(event), 180, context)
+                                : matchService.tryReserveShipperOffer(shipperId, event.getDeliveryId(),
+                                                matchingSessionId(event), 180);
+        }
+
+        private boolean releaseShipperOffer(Long shipperId, FindShipperEvent event) {
+                SimulationContext context = simulationContext(event);
+                return context.isSimulation()
+                                ? matchService.releaseShipperOffer(shipperId, event.getDeliveryId(),
+                                                matchingSessionId(event), context)
+                                : matchService.releaseShipperOffer(shipperId, event.getDeliveryId(),
+                                                matchingSessionId(event));
+        }
+
+        private SimulationContext simulationContext(FindShipperEvent event) {
+                SimulationContext context = SimulationContext.orReal(event.getSimulationContext());
+                context.requireValid();
+                return context;
         }
 
         private Mono<Void> stageShipperNotFound(
@@ -570,6 +634,7 @@ public class FindShipperEventListener {
                 notFoundEvent.setSearchRadius(request.getRadiusKm());
                 notFoundEvent.setPickupLat(request.getLatitude());
                 notFoundEvent.setPickupLng(request.getLongitude());
+                notFoundEvent.setSimulationContext(event.getSimulationContext());
                 return Mono.fromCallable(() -> matchCommandStore.stageNotFoundResult(
                                 event.getEventId(), notFoundEvent, deadlineTerminal))
                                 .subscribeOn(Schedulers.boundedElastic())
@@ -708,6 +773,7 @@ public class FindShipperEventListener {
                 foundEvent.setDeliveryLng(event.getDeliveryLng());
                 foundEvent.setTotalPrice(event.getTotalPrice());
                 foundEvent.setPaymentMethod(event.getPaymentMethod());
+                foundEvent.setSimulationContext(event.getSimulationContext());
 
                 return foundEvent;
         }
@@ -746,11 +812,23 @@ public class FindShipperEventListener {
                                 .doFinally(signal -> trace.finishStage(TraceStage.COD_ELIGIBILITY));
         }
 
+        private List<NearbyShipperResponse> applyActiveAlgorithm(
+                        FindShipperEvent event,
+                        List<NearbyShipperResponse> shippers,
+                        DecisionTraceAccumulator trace) {
+                BalancedEtaCanaryPolicy.Profile profile = balancedEtaCanaryPolicy.select(event.getEventId());
+                List<NearbyShipperResponse> ranked = balancedEtaCanaryPolicy.rank(profile, shippers);
+                trace.applyAlgorithm(profile, ranked);
+                return ranked;
+        }
+
         private void persistDecisionTraceBestEffort(
                         UUID commandId,
                         MatchingDecisionTraceEvent trace) {
                 try {
                         matchCommandStore.stageDecisionTrace(commandId, trace);
+                        businessMetrics.matchingAlgorithmDecision(trace.getAlgorithmId(), trace.getAlgorithmVersion(),
+                                        "SIMULATION".equals(trace.getExecutionMode()));
                 } catch (RuntimeException exception) {
                         // A trace is observability only. Do not turn a durable
                         // assignment/not-found result into a business retry.
@@ -781,6 +859,9 @@ public class FindShipperEventListener {
                 result.setLatencyMs(trace.elapsedMs());
                 result.setOccurredAt(java.time.Instant.now(clock));
                 result.setSelectedShipperId(selectedShipperId);
+                result.setAlgorithmId(trace.algorithmId());
+                result.setAlgorithmVersion(trace.algorithmVersion());
+                result.setExecutionMode(simulationContext(event).isSimulation() ? "SIMULATION" : "REAL");
                 result.setCandidates(trace.snapshot());
                 result.setNotes(new ArrayList<>(trace.notes()));
 
@@ -842,6 +923,8 @@ public class FindShipperEventListener {
                 private boolean reservationLost;
                 private boolean reservationReleased;
                 private boolean reservationWon;
+                private String algorithmId = MatchingDecisionTraceEvent.ALGORITHM_ID;
+                private String algorithmVersion = MatchingDecisionTraceEvent.ALGORITHM_VERSION;
 
                 void recordSearchAttempt() {
                         searchAttempts++;
@@ -884,6 +967,8 @@ public class FindShipperEventListener {
                                 candidate.setLatitude(shipper.getLatitude());
                                 candidate.setLongitude(shipper.getLongitude());
                                 candidate.setDistanceKm(shipper.getDistanceKm());
+                                candidate.setCompletedDeliveries(shipper.getCompletedDeliveries());
+                                candidate.setCombinedScoreMinutes(shipper.getCombinedScoreMinutes());
                                 candidate.setOnline(shipper.isOnline());
                                 candidate.setRank(rank++);
                                 if (!"REJECTED".equals(candidate.getState())) {
@@ -891,6 +976,24 @@ public class FindShipperEventListener {
                                 }
                         }
                 }
+
+                void applyAlgorithm(BalancedEtaCanaryPolicy.Profile profile,
+                                    List<NearbyShipperResponse> shippers) {
+                        algorithmId = profile.id();
+                        algorithmVersion = profile.version();
+                        int rank = 1;
+                        for (NearbyShipperResponse shipper : shippers) {
+                                MatchingDecisionTraceEvent.Candidate candidate = candidates.get(shipper.getShipperId());
+                                if (candidate == null) continue;
+                                candidate.setRank(rank++);
+                                candidate.setCompletedDeliveries(shipper.getCompletedDeliveries());
+                                candidate.setCombinedScoreMinutes(shipper.getCombinedScoreMinutes());
+                        }
+                }
+
+                String algorithmId() { return algorithmId; }
+
+                String algorithmVersion() { return algorithmVersion; }
 
                 void markExcluded(Long shipperId) {
                         MatchingDecisionTraceEvent.Candidate candidate = candidates.get(shipperId);

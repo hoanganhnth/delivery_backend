@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import com.delivery.identity.contracts.SimulationContext;
 
 /**
  * ✅ Event được bắn khi không tìm được shipper sau nhiều lần retry
@@ -26,6 +27,7 @@ public class ShipperNotFoundEvent {
     private Double pickupLng;
     private Double deliveryLat;
     private Double deliveryLng;
+    private SimulationContext simulationContext;
     
     // Constructor cho easy creation
     public ShipperNotFoundEvent(Long deliveryId, Long orderId, Integer retryAttempts) {

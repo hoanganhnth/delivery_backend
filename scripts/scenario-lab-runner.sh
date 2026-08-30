@@ -7,6 +7,7 @@ set -euo pipefail
 readonly API_BASE="${SIMULATOR_API_BASE:-http://127.0.0.1:8100/api/simulator}"
 readonly SCENARIO_FILE="${1:?Usage: scenario-lab-runner.sh path/to/scenario.json}"
 readonly API_TOKEN="${SIMULATOR_API_TOKEN:-}"
+readonly ADMIN_TOKEN="${SIMULATOR_ADMIN_TOKEN:-}"
 readonly POLL_SECONDS="${SIMULATOR_POLL_SECONDS:-2}"
 readonly CLEANUP="${SIMULATOR_CLEANUP:-false}"
 
@@ -19,6 +20,9 @@ command -v jq >/dev/null || { echo "jq is required" >&2; exit 2; }
 headers=(-H 'Accept: application/json' -H 'Content-Type: application/json')
 if [[ -n "$API_TOKEN" ]]; then
   headers+=(-H "X-Simulator-Token: $API_TOKEN")
+fi
+if [[ -n "$ADMIN_TOKEN" ]]; then
+  headers+=(-H "Authorization: Bearer $ADMIN_TOKEN")
 fi
 
 step() {

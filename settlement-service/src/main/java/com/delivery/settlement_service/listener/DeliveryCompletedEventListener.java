@@ -1,6 +1,7 @@
 package com.delivery.settlement_service.listener;
 
 import com.delivery.settlement_service.dto.event.DeliveryCompletedEvent;
+import com.delivery.identity.contracts.SimulationContext;
 import com.delivery.settlement_service.entity.EntityType;
 import com.delivery.settlement_service.entity.SettlementReceipt;
 import com.delivery.settlement_service.entity.Transaction.TransactionDirection;
@@ -114,6 +115,18 @@ public class DeliveryCompletedEventListener {
 
             if (!"COD".equals(event.getPaymentMethod())) {
                 throw new IllegalArgumentException("MVP settlement only accepts COD");
+            }
+
+            // Simulation completions are acknowledged into the isolated
+            // simulator ledger by the Control Plane; never touch real balance,
+            // COD capacity or settlement receipts.
+            SimulationContext context = SimulationContext.orReal(event.getSimulationContext());
+            context.requireValid();
+            if (context.isSimulation()) {
+                log.info("Skipping real settlement for simulation run {} delivery {}",
+                        context.runId(), event.getDeliveryId());
+                acknowledgment.acknowledge();
+                return;
             }
 
             if (event.getRestaurantEarnings() == null || event.getRestaurantEarnings().compareTo(BigDecimal.ZERO) <= 0) {

@@ -6,6 +6,7 @@ import com.delivery.order_service.dto.event.ShipperNotFoundEvent;
 import com.delivery.order_service.service.SagaOrderCommandProcessor;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.delivery.identity.contracts.SimulationContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -193,6 +194,14 @@ public class SagaCommandListener {
         event.setShipperId(optionalPositiveLong(originalEvent, "shipperId"));
         event.setNotes(optionalText(originalEvent, "notes"));
         event.setStatus(status);
+        JsonNode context = originalEvent.get("simulationContext");
+        if (context != null && !context.isNull()) {
+            try {
+                event.setSimulationContext(objectMapper.treeToValue(context, SimulationContext.class));
+            } catch (com.fasterxml.jackson.core.JsonProcessingException ex) {
+                throw new IllegalArgumentException("simulationContext must match the canonical contract", ex);
+            }
+        }
         return event;
     }
 

@@ -8,6 +8,8 @@ import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
+import com.delivery.identity.contracts.SimulationContext;
+import java.util.UUID;
 
 /**
  * ✅ Kafka Listener để replicate vị trí shipper từ tracking-service
@@ -63,9 +65,9 @@ public class ShipperLocationEventListener {
                     return;
                 }
                 matchRedisGeoRepository.addOrUpdateShipperLocation(
-                        shipperId, latitude, longitude, true, timestamp);
+                        shipperId, latitude, longitude, true, timestamp, context(event));
             } else {
-                matchRedisGeoRepository.markShipperOffline(shipperId, timestamp);
+                matchRedisGeoRepository.markShipperOffline(shipperId, timestamp, context(event));
             }
 
             log.debug("📍 Replicated shipper {} location to local Geo", shipperId);
@@ -74,6 +76,27 @@ public class ShipperLocationEventListener {
         } catch (Exception e) {
             log.error("💥 Error processing shipper location event: {}", e.getMessage());
             throw new IllegalStateException("Failed to process shipper location event", e);
+        }
+    }
+
+    private SimulationContext context(Map<String, Object> event) {
+        Object raw = event.get("simulationContext");
+        if (!(raw instanceof Map<?, ?> values)) return SimulationContext.real();
+        try {
+            Object mode = values.get("mode");
+            if (SimulationContext.ExecutionMode.REAL.name().equals(String.valueOf(mode))) {
+                return SimulationContext.real();
+            }
+            Object run = values.get("runId");
+            Object cohort = values.get("cohortId");
+            Object version = values.get("bindingVersion");
+            SimulationContext context = new SimulationContext(SimulationContext.ExecutionMode.valueOf(String.valueOf(mode)),
+                    UUID.fromString(String.valueOf(run)), UUID.fromString(String.valueOf(cohort)),
+                    ((Number) version).longValue());
+            context.requireValid();
+            return context;
+        } catch (RuntimeException invalid) {
+            throw new IllegalArgumentException("Invalid simulation context in shipper location event", invalid);
         }
     }
 
@@ -110,8 +133,14 @@ public class ShipperLocationEventListener {
 
             log.info("📥 [MatchGeo] Received shipper status: shipper={}, status={}", shipperId, status);
 
-            matchRedisGeoRepository.applyShipperStatus(
-                    shipperId, deliveryId, canonicalStatus, timestamp, eventId);
+            SimulationContext simulationContext = context(event);
+            if (simulationContext.isSimulation()) {
+                matchRedisGeoRepository.applyShipperStatus(
+                        shipperId, deliveryId, canonicalStatus, timestamp, eventId, simulationContext);
+            } else {
+                matchRedisGeoRepository.applyShipperStatus(
+                        shipperId, deliveryId, canonicalStatus, timestamp, eventId);
+            }
 
             acknowledgment.acknowledge();
 

@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
+import com.delivery.identity.contracts.SimulationContext;
 
 /**
  * Event received from Kafka when delivery is completed.
@@ -18,6 +19,7 @@ import java.util.UUID;
 @AllArgsConstructor
 @Builder
 public class DeliveryCompletedEvent {
+    private SimulationContext simulationContext;
     private UUID eventId;
     private String eventType;
     private LocalDateTime occurredAt;

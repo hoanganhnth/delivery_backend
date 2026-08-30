@@ -160,11 +160,13 @@ public class DeliveryExceptionService {
                 || batchProgressService.applyExceptionReturn(delivery, true);
         if (routeTerminal && delivery.getShipperId() != null) {
             if (delivery.getBatchId() == null) {
-                eventPublisher.publishShipperStatusChange(
-                        delivery.getShipperId(), "AVAILABLE", delivery.getId(), delivery.getOrderId());
+                publishShipperStatusChange(
+                        delivery.getShipperId(), "AVAILABLE", delivery.getId(), delivery.getOrderId(),
+                        null, delivery.getSimulationContext());
             } else {
-                eventPublisher.publishShipperStatusChange(
-                        delivery.getShipperId(), "AVAILABLE", delivery.getId(), delivery.getOrderId(), delivery.getBatchId());
+                publishShipperStatusChange(
+                        delivery.getShipperId(), "AVAILABLE", delivery.getId(), delivery.getOrderId(), delivery.getBatchId(),
+                        delivery.getSimulationContext());
             }
         }
         return toResponse(exceptionCase);
@@ -379,6 +381,20 @@ public class DeliveryExceptionService {
                 + exceptionCase.getExceptionId() + ":" + exceptionCase.getStatus())
                 .getBytes(java.nio.charset.StandardCharsets.UTF_8)));
         eventPublisher.publishDeliveryExceptionUpdated(event);
+    }
+
+    private void publishShipperStatusChange(Long shipperId, String status, Long deliveryId, Long orderId,
+                                            UUID batchId, com.delivery.identity.contracts.SimulationContext context) {
+        com.delivery.identity.contracts.SimulationContext normalized =
+                com.delivery.identity.contracts.SimulationContext.orReal(context);
+        normalized.requireValid();
+        if (normalized.isSimulation()) {
+            eventPublisher.publishShipperStatusChange(shipperId, status, deliveryId, orderId, batchId, normalized);
+        } else if (batchId == null) {
+            eventPublisher.publishShipperStatusChange(shipperId, status, deliveryId, orderId);
+        } else {
+            eventPublisher.publishShipperStatusChange(shipperId, status, deliveryId, orderId, batchId);
+        }
     }
 
     private DeliveryExceptionResponse toResponse(DeliveryException exceptionCase) {

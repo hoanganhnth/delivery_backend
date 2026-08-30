@@ -6,6 +6,7 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import com.delivery.identity.contracts.SimulationContext;
 
 /**
  * ✅ Event nhận từ match-service khi tìm được shipper
@@ -31,6 +32,7 @@ public class ShipperFoundEvent {
     private Double pickupLng;
     private Double deliveryLat;
     private Double deliveryLng;
+    private SimulationContext simulationContext;
     
     @Data
     @NoArgsConstructor

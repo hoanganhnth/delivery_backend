@@ -50,6 +50,9 @@ const services = [
   { id: 'promotion-service', port: 8096, database: 'promotion_db', internal: true },
   { id: 'analytics-service', port: 8097, database: 'analytics_db' },
   { id: 'flashsale-service', port: 8092, database: 'flashsale_db', internal: true },
+  // Simulator control plane is an ADMIN-only private workload. Virtual
+  // workers are scaled from this image by a separate approved overlay.
+  { id: 'simulator-service', port: 8100, database: 'simulator_db', internal: true },
 ];
 
 function labels(service) {

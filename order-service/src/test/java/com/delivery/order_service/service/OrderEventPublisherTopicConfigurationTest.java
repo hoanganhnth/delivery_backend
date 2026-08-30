@@ -5,6 +5,7 @@ import com.delivery.order_service.dto.event.OrderCreatedEvent;
 import com.delivery.order_service.entity.Order;
 import com.delivery.order_service.entity.OrderItem;
 import com.delivery.order_service.entity.OrderStatus;
+import com.delivery.identity.contracts.SimulationContext;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -89,6 +90,29 @@ class OrderEventPublisherTopicConfigurationTest {
             assertThat(event.getTotalPrice()).isEqualByComparingTo("120000");
             assertThat(event.getPaymentMethod()).isEqualTo("COD");
             assertThat(event.getItems()).hasSize(1);
+        });
+    }
+
+    @Test
+    void createdEventCarriesThePersistedSimulationContext() {
+        OrderOutboxService outboxService = mock(OrderOutboxService.class);
+        OrderEventPublisher publisher = new OrderEventPublisher(outboxService);
+        ReflectionTestUtils.setField(publisher, "orderCreatedTopic", "order.created");
+        Order order = order();
+        UUID runId = UUID.randomUUID();
+        UUID cohortId = UUID.randomUUID();
+        order.setSimulationContext(new SimulationContext(SimulationContext.ExecutionMode.SIMULATION,
+                runId, cohortId, 4L));
+
+        publisher.publishOrderCreatedEvent(order);
+
+        ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
+        verify(outboxService).enqueue(eq("ORDER_CREATED"), eq("970001"),
+                eq("order.created"), eq("970001"), payload.capture());
+        assertThat(payload.getValue()).isInstanceOfSatisfying(OrderCreatedEvent.class, event -> {
+            assertThat(event.getSimulationContext().runId()).isEqualTo(runId);
+            assertThat(event.getSimulationContext().cohortId()).isEqualTo(cohortId);
+            assertThat(event.getSimulationContext().bindingVersion()).isEqualTo(4L);
         });
     }
 

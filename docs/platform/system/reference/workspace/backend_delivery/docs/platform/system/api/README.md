@@ -3,7 +3,7 @@
 > Status: current contract guide, checked 2026-08-24. The exact controller
 > method inventory is maintained by the backend at
 > [`../../../backend_delivery/docs/http-api-inventory.md`](../../../http-api-inventory.md)
-> and currently records 220 handlers. The checked-in
+> and currently records 226 handlers. The checked-in
 > [source-derived contract manifest](./http-contract.json) maps those routes to
 > controller signatures, bindings and reachable DTO declarations. Controller,
 > DTO and test source remain authoritative where any generated artefact differs.
@@ -21,9 +21,9 @@ annotated controller mapping—not only public MVP routes—and records:
 signatures, including nested DTOs and enums where present.
 
 [`http-contract-catalog.md`](./http-contract-catalog.md) is the generated
-human-readable equivalent: it groups all 220 mappings by service and records
+human-readable equivalent: it groups all 226 mappings by service and records
 each verb/path, Java handler/source link, parameter binding/default/validation,
-return type, Java signature and all 190 reachable source-declared DTO/enum
+return type, Java signature and all 202 reachable source-declared DTO/enum
 schemas. It intentionally includes internal, hidden, experimental and dev-only
 controllers too; use the HTTP inventory/Gateway rules below to decide whether a
 route is a supported public contract.

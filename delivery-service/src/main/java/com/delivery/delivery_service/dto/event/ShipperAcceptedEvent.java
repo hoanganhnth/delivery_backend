@@ -4,6 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import com.delivery.identity.contracts.SimulationContext;
 
 /**
  * Canonical payload for delivery.shipper-accepted.
@@ -20,4 +21,5 @@ public class ShipperAcceptedEvent {
     private Long deliveryId;
     private Long shipperId;
     private String notes;
+    private SimulationContext simulationContext;
 }

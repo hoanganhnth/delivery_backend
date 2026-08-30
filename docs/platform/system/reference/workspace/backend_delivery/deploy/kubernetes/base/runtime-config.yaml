@@ -63,6 +63,7 @@ data:
   ORDER_QUOTE_CLEANUP_RETENTION: "PT24H"
   ORDER_QUOTE_CLEANUP_DELAY_MS: "3600000"
   PAYMENT_PROCESSING_ENABLED: "false"
+  PAYMENT_CLIENT_API_ENABLED: "false"
   FAKE_PAYMENT_PROVIDER_ENABLED: "false"
   PAYOUT_PROCESSING_ENABLED: "false"
   SETTLEMENT_SELF_SERVICE_API_ENABLED: "false"
@@ -79,6 +80,7 @@ data:
   FLASHSALE_MERCHANT_REGISTRATION_ENABLED: "false"
   ANALYTICS_PROCESSING_ENABLED: "false"
   LIVESTREAM_API_ENABLED: "false"
+  LIVESTREAM_CLIENT_API_ENABLED: "false"
   # Production Matching v1 remains dark until PostgreSQL/Redis invariants,
   # staging smoke and client capability rollout gates are explicitly passed.
   ORDER_VOUCHER_STACKING_ENABLED: "false"

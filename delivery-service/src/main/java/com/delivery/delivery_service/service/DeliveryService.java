@@ -11,6 +11,7 @@ import com.delivery.delivery_service.dto.response.DeliveryOfferResponse;
 import com.delivery.delivery_service.entity.DeliveryStatus;
 
 import java.util.List;
+import com.delivery.identity.contracts.SimulationContext;
 
 public interface DeliveryService {
 
@@ -42,6 +43,9 @@ public interface DeliveryService {
 
     DeliveryResponse acceptDelivery(AcceptDeliveryRequest request, Long principalId, Long legacyUserId, String role);
 
+    DeliveryResponse acceptDelivery(AcceptDeliveryRequest request, Long principalId, Long legacyUserId,
+                                    String role, SimulationContext simulationContext);
+
     /**
      * ✅ Shipper huỷ đơn SAU khi đã accept (trước khi lấy hàng).
      * Reset đơn về FINDING_SHIPPER, giải phóng shipper, và re-trigger tìm shipper
@@ -51,12 +55,18 @@ public interface DeliveryService {
 
     DeliveryResponse cancelAssignedDelivery(Long orderId, Long principalId, Long legacyUserId, String role, String reason);
 
+    DeliveryResponse cancelAssignedDelivery(Long orderId, Long principalId, Long legacyUserId, String role,
+                                            String reason, SimulationContext simulationContext);
+
     /**
      * Cập nhật trạng thái giao hàng
      */
     DeliveryResponse updateDeliveryStatus(Long deliveryId, DeliveryStatus status, Long userId, String role);
 
     DeliveryResponse updateDeliveryStatus(Long deliveryId, DeliveryStatus status, Long principalId, Long legacyUserId, String role);
+
+    DeliveryResponse updateDeliveryStatus(Long deliveryId, DeliveryStatus status, Long principalId, Long legacyUserId,
+                                          String role, SimulationContext simulationContext);
 
     /**
      * Lấy thông tin delivery theo ID

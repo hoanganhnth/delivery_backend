@@ -16,23 +16,34 @@ import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 
 final class SimulationRunState {
 
     private final ObjectMapper objectMapper;
     private final JsonNode rawScenario;
-    private final String runId = "sim-" + UUID.randomUUID();
+    // The durable simulation_runs primary key is UUID. Keep the externally
+    // returned run id in the same canonical form so persistence and recovery
+    // cannot fail after an otherwise valid start request.
+    private final String runId = UUID.randomUUID().toString();
     private final String correlationId = "sim-" + UUID.randomUUID();
     private final Instant startedAt = Instant.now();
     private final List<Map<String, Object>> timeline = new ArrayList<>();
     private final List<Map<String, Object>> candidates = new ArrayList<>();
     private final List<Map<String, Object>> algorithmTraces = new ArrayList<>();
+    private final List<Map<String, Object>> algorithmComparisons = new ArrayList<>();
+    private final List<Map<String, Object>> orders = new ArrayList<>();
+    private final Set<Long> observedOrderIds = ConcurrentHashMap.newKeySet();
+    private final Set<Long> observedDeliveryIds = ConcurrentHashMap.newKeySet();
+    private final Map<Long, Long> deliveryOrderIds = new ConcurrentHashMap<>();
     private final Map<String, Map<String, Object>> shippers = new LinkedHashMap<>();
     private final List<Map<String, Object>> assertions = new ArrayList<>();
     private final Set<String> firedTriggers = ConcurrentHashMap.newKeySet();
     private final Map<String, Long> offerFirstSeen = new ConcurrentHashMap<>();
     private final List<SseEmitter> emitters = new CopyOnWriteArrayList<>();
     private final AtomicLong sequence = new AtomicLong();
+    private volatile Consumer<Map<String, Object>> eventObserver;
+    private volatile Consumer<Map<String, Object>> assertionObserver;
 
     private volatile String status = "DRAFT";
     private volatile String orderStatus = "INITIALIZING";
@@ -65,6 +76,23 @@ final class SimulationRunState {
         return rawScenario;
     }
 
+    void setEventObserver(Consumer<Map<String, Object>> eventObserver) {
+        this.eventObserver = eventObserver;
+    }
+
+    void setAssertionObserver(Consumer<Map<String, Object>> assertionObserver) {
+        this.assertionObserver = assertionObserver;
+    }
+
+    /**
+     * Durable run metadata is observable by operators after a worker restart.
+     * It must retain scenario shape for diagnostics without storing credentials
+     * used by the active in-memory runner.
+     */
+    String persistableScenarioJson() {
+        return safeScenario().toString();
+    }
+
     synchronized void setStatus(String status) {
         this.status = status;
         if (List.of("PASSED", "PARTIAL", "FAILED", "ABORTED").contains(status)) {
@@ -75,6 +103,8 @@ final class SimulationRunState {
     String getStatus() {
         return status;
     }
+
+    Instant getStartedAt() { return startedAt; }
 
     boolean isPaused() {
         return paused;
@@ -109,6 +139,7 @@ final class SimulationRunState {
 
     void setOrder(Long orderId, String orderStatus) {
         this.orderId = orderId;
+        if (orderId != null && orderId > 0) observedOrderIds.add(orderId);
         if (orderStatus != null) {
             this.orderStatus = orderStatus;
         }
@@ -122,6 +153,10 @@ final class SimulationRunState {
 
     void setDelivery(Long deliveryId, String deliveryStatus) {
         this.deliveryId = deliveryId;
+        if (deliveryId != null && deliveryId > 0) observedDeliveryIds.add(deliveryId);
+        if (deliveryId != null && deliveryId > 0 && orderId != null && orderId > 0) {
+            deliveryOrderIds.put(deliveryId, orderId);
+        }
         if (deliveryStatus != null) {
             this.deliveryStatus = deliveryStatus;
         }
@@ -139,13 +174,43 @@ final class SimulationRunState {
         if (traceOrderId <= 0 || traceDeliveryId <= 0) {
             return false;
         }
-        if (orderId != null && orderId.longValue() != traceOrderId) {
-            return false;
+        return observedOrderIds.contains(traceOrderId)
+                && observedDeliveryIds.contains(traceDeliveryId)
+                && Long.valueOf(traceOrderId).equals(deliveryOrderIds.get(traceDeliveryId));
+    }
+
+    synchronized void beginNextOrder(int sequenceNumber) {
+        if (orderId != null && (orders.isEmpty()
+                || !orderId.equals(orders.get(orders.size() - 1).get("orderId")))) {
+            Map<String, Object> previous = new LinkedHashMap<>();
+            previous.put("sequence", orders.size() + 1);
+            previous.put("orderId", orderId);
+            previous.put("deliveryId", deliveryId);
+            previous.put("orderStatus", orderStatus);
+            previous.put("deliveryStatus", deliveryStatus);
+            previous.put("assignedShipperId", assignedShipperId);
+            orders.add(previous);
         }
-        if (deliveryId != null && deliveryId.longValue() != traceDeliveryId) {
-            return false;
-        }
-        return orderId != null || deliveryId != null;
+        orderId = null;
+        deliveryId = null;
+        orderStatus = "INITIALIZING";
+        deliveryStatus = "NONE";
+        activeOfferShipperId = null;
+        assignedShipperId = null;
+        addEvent("RUNNER", "Bắt đầu benchmark order #" + sequenceNumber,
+                "Cùng actor pool và simulation namespace; counter fairness được giữ lại", "INFO");
+    }
+
+    synchronized void finishCurrentOrder() {
+        if (orderId == null) return;
+        Map<String, Object> current = new LinkedHashMap<>();
+        current.put("sequence", orders.size() + 1);
+        current.put("orderId", orderId);
+        current.put("deliveryId", deliveryId);
+        current.put("orderStatus", orderStatus);
+        current.put("deliveryStatus", deliveryStatus);
+        current.put("assignedShipperId", assignedShipperId);
+        orders.add(current);
     }
 
     synchronized void addAlgorithmTrace(JsonNode trace) {
@@ -168,6 +233,23 @@ final class SimulationRunState {
                 "matching.decision-trace", value);
     }
 
+    synchronized void addAlgorithmComparison(JsonNode comparison) {
+        Map<String, Object> value = objectMapper.convertValue(comparison, LinkedHashMap.class);
+        String sourceEventId = String.valueOf(value.getOrDefault("sourceEventId", ""));
+        String algorithm = String.valueOf(value.getOrDefault("algorithmId", ""));
+        String version = String.valueOf(value.getOrDefault("algorithmVersion", ""));
+        algorithmComparisons.removeIf(existing -> sourceEventId.equals(String.valueOf(existing.get("sourceEventId")))
+                && algorithm.equals(String.valueOf(existing.get("algorithmId")))
+                && version.equals(String.valueOf(existing.get("algorithmVersion"))));
+        algorithmComparisons.add(value);
+        String recommended = String.valueOf(value.getOrDefault("recommendedShipperId", "none"));
+        String actual = String.valueOf(value.getOrDefault("actualSelectedShipperId", "none"));
+        addEvent("ALGORITHM_SHADOW", "Shadow " + algorithm + " · " + version,
+                "Khuyến nghị shipper " + recommended + "; Match thực tế chọn " + actual,
+                Boolean.TRUE.equals(value.get("changesSelection")) ? "WARNING" : "INFO",
+                "simulation.algorithm-shadow", value);
+    }
+
     Long getOrderId() {
         return orderId;
     }
@@ -182,6 +264,12 @@ final class SimulationRunState {
 
     String getDeliveryStatus() {
         return deliveryStatus;
+    }
+
+    /** An actor may only re-enter Auth's pool after its last delivery converged. */
+    boolean isActorReleaseSafe() {
+        return deliveryId == null || Set.of("DELIVERED", "CANCELLED", "SHIPPER_NOT_FOUND", "NONE")
+                .contains(deliveryStatus);
     }
 
     void setActiveOfferShipperId(String shipperId) {
@@ -300,6 +388,16 @@ final class SimulationRunState {
             if (assertionId.equals(String.valueOf(value.get("id")))) {
                 value.put("status", status);
                 value.put("actualValue", actualValue);
+                Consumer<Map<String, Object>> observer = assertionObserver;
+                if (observer != null) {
+                    Map<String, Object> journal = new LinkedHashMap<>();
+                    journal.put("source", "ASSERTION");
+                    journal.put("title", assertionId);
+                    journal.put("assertionId", assertionId);
+                    journal.put("status", status);
+                    journal.put("actualValue", actualValue);
+                    observer.accept(journal);
+                }
             }
         }
     }
@@ -321,6 +419,10 @@ final class SimulationRunState {
         if (topic != null) event.put("topic", topic);
         if (payload != null) event.put("payload", payload);
         timeline.add(0, event);
+        Consumer<Map<String, Object>> observer = eventObserver;
+        if (observer != null) {
+            observer.accept(new LinkedHashMap<>(event));
+        }
         publish();
     }
 
@@ -360,6 +462,20 @@ final class SimulationRunState {
         result.put("timeline", new ArrayList<>(timeline));
         result.put("candidates", new ArrayList<>(candidates));
         result.put("algorithmTraces", new ArrayList<>(algorithmTraces));
+        result.put("algorithmComparisons", new ArrayList<>(algorithmComparisons));
+        List<Map<String, Object>> orderSnapshot = new ArrayList<>(orders);
+        if (orderId != null && (orderSnapshot.isEmpty()
+                || !orderId.equals(orderSnapshot.get(orderSnapshot.size() - 1).get("orderId")))) {
+            Map<String, Object> current = new LinkedHashMap<>();
+            current.put("sequence", orderSnapshot.size() + 1);
+            current.put("orderId", orderId);
+            current.put("deliveryId", deliveryId);
+            current.put("orderStatus", orderStatus);
+            current.put("deliveryStatus", deliveryStatus);
+            current.put("assignedShipperId", assignedShipperId);
+            orderSnapshot.add(current);
+        }
+        result.put("orders", orderSnapshot);
         result.put("liveShippers", new ArrayList<>(shippers.values()));
         result.put("assertions", new ArrayList<>(assertions));
         return result;

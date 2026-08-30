@@ -244,7 +244,7 @@ public class AuthService implements UserDetailsService {
         deactivateSessions(account, request.getDeviceId());
 
         String accessToken = tokenService.generateToken(account.getUserId(), account.getId(), account.getEmail(),
-                account.getRole().name());
+                account.getRole().name(), account.simulationContext());
         String tokenFamilyId = UUID.randomUUID().toString();
         String refreshToken = tokenService.generateRefreshToken(account.getUserId(), account.getId(), account.getEmail(),
                 account.getRole().name(), tokenFamilyId);
@@ -326,7 +326,8 @@ public class AuthService implements UserDetailsService {
         deactivateSessions(account, deviceId);
 
         String accessToken = tokenService.generateToken(
-                account.getUserId(), account.getId(), account.getEmail(), account.getRole().name());
+                account.getUserId(), account.getId(), account.getEmail(), account.getRole().name(),
+                account.simulationContext());
         String tokenFamilyId = UUID.randomUUID().toString();
         String refreshToken = tokenService.generateRefreshToken(
                 account.getUserId(), account.getId(), account.getEmail(), account.getRole().name(), tokenFamilyId);
@@ -397,7 +398,7 @@ public class AuthService implements UserDetailsService {
         requireLinkedUser(account);
 
         String newAccessToken = tokenService.generateToken(account.getUserId(), account.getId(), account.getEmail(),
-                account.getRole().name());
+                account.getRole().name(), account.simulationContext());
         String newRefreshToken = tokenService.generateRefreshToken(account.getUserId(), account.getId(), account.getEmail(),
                 account.getRole().name(), session.getTokenFamilyId());
         LocalDateTime newExpiry = now.plusDays(7);

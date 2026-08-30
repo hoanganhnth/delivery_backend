@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import com.delivery.identity.contracts.SimulationContext;
 
 /**
  * ✅ Delivery Status Updated Event DTO theo AI Coding Instructions
@@ -29,6 +30,7 @@ public class DeliveryStatusUpdatedEvent {
     private Double currentLat;
     private Double currentLng;
     private LocalDateTime estimatedDeliveryTime;
+    private SimulationContext simulationContext;
     
     // ✅ Getter methods để handle cả 2 format
     public String getStatus() {

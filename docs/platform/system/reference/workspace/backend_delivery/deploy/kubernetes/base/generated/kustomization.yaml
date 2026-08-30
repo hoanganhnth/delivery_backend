@@ -61,3 +61,6 @@ resources:
   - flashsale-service.deployment.yaml
   - flashsale-service.service.yaml
   - flashsale-service.serviceaccount.yaml
+  - simulator-service.deployment.yaml
+  - simulator-service.service.yaml
+  - simulator-service.serviceaccount.yaml

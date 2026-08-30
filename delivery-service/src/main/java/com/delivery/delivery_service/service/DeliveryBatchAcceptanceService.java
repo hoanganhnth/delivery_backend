@@ -121,7 +121,8 @@ public class DeliveryBatchAcceptanceService {
                 delivery.setShipperCurrentLng(request.getCurrentLng());
             }
             deliveryRepository.save(delivery);
-            eventPublisher.publishShipperStatusChange(shipperId, "BUSY", delivery.getId(), delivery.getOrderId(), batch.getBatchId());
+            eventPublisher.publishShipperStatusChange(shipperId, "BUSY", delivery.getId(), delivery.getOrderId(),
+                    batch.getBatchId(), delivery.getSimulationContext());
             ShipperAcceptedEvent accepted = ShipperAcceptedEvent.builder()
                     .orderId(delivery.getOrderId()).deliveryId(delivery.getId()).shipperId(shipperId)
                     .notes(request.getNotes()).build();

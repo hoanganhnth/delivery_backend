@@ -25,14 +25,17 @@ public class GatewayClient {
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
     private final SimulatorProperties properties;
+    private final GatewayFaultInjection faultInjection;
 
-    public GatewayClient(ObjectMapper objectMapper, SimulatorProperties properties) {
+    public GatewayClient(ObjectMapper objectMapper, SimulatorProperties properties,
+                         GatewayFaultInjection faultInjection) {
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(5))
                 .followRedirects(HttpClient.Redirect.NEVER)
                 .build();
         this.objectMapper = objectMapper;
         this.properties = properties;
+        this.faultInjection = faultInjection;
     }
 
     public JsonNode get(String path, String bearerToken, String correlationId) {
@@ -62,6 +65,10 @@ public class GatewayClient {
                               JsonNode body, String correlationId,
                               Map<String, String> additionalHeaders) {
         try {
+            if (faultInjection.consumeTransientPollFailure(correlationId, method, path)) {
+                throw new GatewayException(429, method + " " + path,
+                        "Simulator injected transient poll fault");
+            }
             String base = properties.getGatewayBaseUrl().replaceAll("/+$", "");
             String normalizedPath = path.startsWith("/") ? path : "/" + path;
             HttpRequest.Builder builder = HttpRequest.newBuilder()

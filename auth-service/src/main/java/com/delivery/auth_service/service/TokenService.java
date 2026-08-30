@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import com.delivery.auth_service.exception.InvalidTokenException;
+import com.delivery.identity.contracts.SimulationContext;
 
 import java.io.InputStream;
 import java.math.BigInteger;
@@ -184,8 +185,15 @@ public class TokenService {
     }
 
     public String generateToken(Long legacyUserId, Long principalId, String email, String role) {
+        return generateToken(legacyUserId, principalId, email, role, SimulationContext.real());
+    }
+
+    public String generateToken(Long legacyUserId, Long principalId, String email, String role,
+                                SimulationContext simulationContext) {
+        SimulationContext context = SimulationContext.orReal(simulationContext);
+        context.requireValid();
         Instant issuedAt = Instant.now();
-        return Jwts.builder()
+        JwtBuilder builder = Jwts.builder()
                 .setHeaderParam("kid", activeKid)
                 .setIssuer(issuer)
                 .claim("aud", List.of(audience))
@@ -199,9 +207,14 @@ public class TokenService {
                 .claim(TOKEN_TYPE_CLAIM, ACCESS_TOKEN_TYPE)
                 .setId(UUID.randomUUID().toString())
                 .setIssuedAt(Date.from(issuedAt))
-                .setExpiration(Date.from(issuedAt.plus(accessTokenTtl)))
-                .signWith(privateKey, SignatureAlgorithm.RS256)
-                .compact();
+                .setExpiration(Date.from(issuedAt.plus(accessTokenTtl)));
+        if (context.isSimulation()) {
+            builder.claim("simulation_mode", context.mode().name())
+                    .claim("simulation_run_id", context.runId().toString())
+                    .claim("simulation_cohort_id", context.cohortId().toString())
+                    .claim("simulation_binding_version", context.bindingVersion());
+        }
+        return builder.signWith(privateKey, SignatureAlgorithm.RS256).compact();
     }
 
     public String generateRefreshToken(Long userId, String email, String role) {

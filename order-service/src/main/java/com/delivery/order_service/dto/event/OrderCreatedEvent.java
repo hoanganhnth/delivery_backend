@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
+import com.delivery.identity.contracts.SimulationContext;
 
 /**
  * ✅ Event DTO được gửi qua Kafka khi order được tạo theo Backend Instructions
@@ -67,6 +68,8 @@ public class OrderCreatedEvent {
     /** Immutable line snapshot from Order.order_items for downstream projections. */
     private java.util.List<java.util.Map<String, Object>> items;
     private java.util.List<java.util.Map<String, Object>> appliedVouchers;
+    /** Server-owned context; absent old records are interpreted as REAL by consumers. */
+    private SimulationContext simulationContext;
     
     // Event metadata
     private String eventType = "ORDER_CREATED";

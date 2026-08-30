@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.BatchSize;
+import com.delivery.identity.contracts.SimulationContext;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -144,6 +145,18 @@ public class Order {
     @Column(name = "creator_principal_id")
     private Long creatorPrincipalId;
 
+    @Column(name = "execution_mode", nullable = false, length = 16)
+    private String executionMode = SimulationContext.ExecutionMode.REAL.name();
+
+    @Column(name = "simulation_run_id")
+    private UUID simulationRunId;
+
+    @Column(name = "simulation_cohort_id")
+    private UUID simulationCohortId;
+
+    @Column(name = "simulation_binding_version")
+    private Long simulationBindingVersion;
+
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @BatchSize(size = 100)
     private List<OrderItem> items = new ArrayList<>();
@@ -160,5 +173,22 @@ public class Order {
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
+    }
+
+    public SimulationContext getSimulationContext() {
+        if (!SimulationContext.ExecutionMode.SIMULATION.name().equals(executionMode)) {
+            return SimulationContext.real();
+        }
+        return new SimulationContext(SimulationContext.ExecutionMode.SIMULATION, simulationRunId,
+                simulationCohortId, simulationBindingVersion);
+    }
+
+    public void setSimulationContext(SimulationContext context) {
+        SimulationContext normalized = SimulationContext.orReal(context);
+        normalized.requireValid();
+        this.executionMode = normalized.mode().name();
+        this.simulationRunId = normalized.runId();
+        this.simulationCohortId = normalized.cohortId();
+        this.simulationBindingVersion = normalized.bindingVersion();
     }
 }

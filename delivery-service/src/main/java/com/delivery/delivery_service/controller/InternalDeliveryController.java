@@ -15,6 +15,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Set;
+import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/deliveries/internal")
@@ -66,4 +68,22 @@ public class InternalDeliveryController {
         };
         return ResponseEntity.ok(new BaseResponse<>(1, allowed));
     }
+
+    /** Private recovery lookup; exposes only identity and terminal state. */
+    @GetMapping("/simulation-runs/{runId}/deliveries")
+    public ResponseEntity<BaseResponse<List<SimulationDeliveryStatus>>> findSimulationRunDeliveries(
+            @PathVariable UUID runId,
+            @RequestHeader(value = "Internal-Token", required = false) String internalToken) {
+        if (internalSecret == null || internalSecret.isBlank() || !internalSecret.equals(internalToken)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new BaseResponse<>(0, null, "Forbidden"));
+        }
+        List<SimulationDeliveryStatus> result = deliveryRepository.findBySimulationRunIdOrderByIdAsc(runId)
+                .stream()
+                .map(delivery -> new SimulationDeliveryStatus(delivery.getId(), delivery.getOrderId(),
+                        delivery.getStatus() == null ? "UNKNOWN" : delivery.getStatus().name()))
+                .toList();
+        return ResponseEntity.ok(new BaseResponse<>(1, result));
+    }
+
+    public record SimulationDeliveryStatus(Long deliveryId, Long orderId, String status) { }
 }

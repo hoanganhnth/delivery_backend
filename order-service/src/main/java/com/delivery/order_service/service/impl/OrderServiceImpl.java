@@ -24,6 +24,7 @@ import com.delivery.order_service.service.CheckoutFingerprintService;
 import com.delivery.order_service.service.OrderCreateIdempotencyService;
 import com.delivery.order_service.config.OrderCreateAdmission;
 import com.delivery.order_service.entity.OrderCreateIdempotencyReceipt;
+import com.delivery.identity.contracts.SimulationContext;
 import com.delivery.order_service.metrics.BusinessMetrics;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -134,19 +135,29 @@ public class OrderServiceImpl implements OrderService {
     @Override
     public OrderResponse createOrder(CreateOrderRequest request, UUID idempotencyKey,
                                      Long principalId, Long userId, String role) {
+        return createOrder(request, idempotencyKey, principalId, userId, role, SimulationContext.real());
+    }
+
+    @Override
+    public OrderResponse createOrder(CreateOrderRequest request, UUID idempotencyKey,
+                                     Long principalId, Long userId, String role,
+                                     SimulationContext simulationContext) {
         // Reject unauthorized traffic before consuming an admission permit.
         if (!RoleConstants.USER.equals(role)) {
             throw new AccessDeniedException("Chỉ khách hàng được tạo đơn hàng");
         }
         if (createAdmission == null) {
-            return createOrderInternal(request, idempotencyKey, principalId, userId, role);
+            return createOrderInternal(request, idempotencyKey, principalId, userId, role,
+                    SimulationContext.orReal(simulationContext));
         }
         return createAdmission.execute(() -> createOrderInternal(
-                request, idempotencyKey, principalId, userId, role));
+                request, idempotencyKey, principalId, userId, role,
+                SimulationContext.orReal(simulationContext)));
     }
 
     private OrderResponse createOrderInternal(CreateOrderRequest request, UUID idempotencyKey,
-                                              Long principalId, Long userId, String role) {
+                                              Long principalId, Long userId, String role,
+                                              SimulationContext simulationContext) {
         if (!RoleConstants.USER.equals(role)) {
             throw new AccessDeniedException("Chỉ khách hàng được tạo đơn hàng");
         }
@@ -188,7 +199,7 @@ public class OrderServiceImpl implements OrderService {
         try {
             return executeWriteTransaction(() -> persistCreateOrder(
                     request, idempotencyKey, finalFingerprint, finalProcessingToken,
-                    principalId, userId, role, validated));
+                    principalId, userId, role, validated, simulationContext));
         } catch (RuntimeException failure) {
             releaseIdempotencyLease(processingReceipt, processingToken, failure);
             throw failure;
@@ -217,7 +228,8 @@ public class OrderServiceImpl implements OrderService {
     private OrderResponse persistCreateOrder(CreateOrderRequest request, UUID idempotencyKey,
                                               String requestFingerprint, UUID processingToken,
                                               Long principalId, Long userId,
-                                              String role, ValidatedOrderData validated) {
+                                              String role, ValidatedOrderData validated,
+                                              SimulationContext simulationContext) {
         OrderCreateIdempotencyReceipt idempotencyReceipt = null;
         if (idempotencyKey != null) {
             if (idempotencyService == null || checkoutFingerprintService == null) {
@@ -237,6 +249,7 @@ public class OrderServiceImpl implements OrderService {
         //   customerName, customerPhone, paymentMethod, notes.
         //   Các trường nhà hàng sẽ được set rõ ràng từ ValidatedOrderData bên dưới.
         Order order = orderMapper.createOrderRequestToOrder(request);
+        order.setSimulationContext(simulationContext);
         order.setUserId(userId);
         order.setUserPrincipalId(principalId);
 

@@ -202,6 +202,7 @@ public class OrderEventPublisher {
         event.setPlatformSubsidy(order.getPlatformSubsidy());
         event.setShopDiscount(order.getShopDiscount());
         event.setAppliedVouchers(parseBreakdown(order.getPromotionBreakdown()));
+        event.setSimulationContext(order.getSimulationContext());
         
         return event;
     }

@@ -8,14 +8,27 @@ services:
     environment:
       SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8888,optional:configtree:/run/secrets/
       CONFIG_SERVER_FAIL_FAST: "false"
+      # The simulator owns durable run/lease/journal state, so it needs its
+      # own database exactly like the other stateful services. Config Server
+      # intentionally does not own this deployment-specific connection data.
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/simulator_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+      PLATFORM_SECRETS_INTERNAL_SECRET_REQUIRED: "true"
       SIMULATOR_ENABLED: "true"
+      SIMULATOR_ADMIN_ONLY: "true"
       SIMULATOR_GATEWAY_BASE_URL: ${SIMULATOR_GATEWAY_BASE_URL:-http://api-gateway:8079}
+      SIMULATOR_AUTH_BASE_URL: ${SIMULATOR_AUTH_BASE_URL:-http://auth-service:8081}
+      SIMULATOR_MANAGED_ACTOR_POOL_REQUIRED: ${SIMULATOR_MANAGED_ACTOR_POOL_REQUIRED:-true}
       SIMULATOR_ALLOWED_GATEWAY_HOSTS: ${SIMULATOR_ALLOWED_GATEWAY_HOSTS:-api-gateway}
       SIMULATOR_ALLOWED_ORIGINS: "${SIMULATOR_ALLOWED_ORIGINS:-http://localhost:5174,http://127.0.0.1:5174,http://localhost:4174,http://127.0.0.1:4174}"
       SIMULATOR_API_TOKEN: ${SIMULATOR_API_TOKEN:-}
       SIMULATOR_MAX_SHIPPERS: ${SIMULATOR_MAX_SHIPPERS:-50}
+      SIMULATOR_MAX_ORDERS_PER_RUN: ${SIMULATOR_MAX_ORDERS_PER_RUN:-20}
+      SIMULATOR_MOVEMENT_TICK_SECONDS: ${SIMULATOR_MOVEMENT_TICK_SECONDS:-5}
       SIMULATOR_RUN_TIMEOUT_SECONDS: ${SIMULATOR_RUN_TIMEOUT_SECONDS:-900}
       SIMULATOR_KAFKA_OBSERVER_ENABLED: ${SIMULATOR_KAFKA_OBSERVER_ENABLED:-true}
+      SIMULATOR_LEDGER_OBSERVER_ENABLED: ${SIMULATOR_LEDGER_OBSERVER_ENABLED:-true}
       SIMULATOR_KAFKA_BOOTSTRAP_SERVERS: ${SIMULATOR_KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}
       SIMULATOR_KAFKA_DECISION_TRACE_TOPIC: ${SIMULATOR_KAFKA_DECISION_TRACE_TOPIC:-matching.decision-trace}
       SIMULATOR_KAFKA_OBSERVER_GROUP_ID: ${SIMULATOR_KAFKA_OBSERVER_GROUP_ID:-simulator-algorithm-observer}
@@ -26,3 +39,6 @@ services:
       kafka:
         condition: service_healthy
     networks: [delivery-network]
+    secrets:
+      - source: internal-secret
+        target: internal-secret

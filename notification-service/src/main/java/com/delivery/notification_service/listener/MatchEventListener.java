@@ -3,6 +3,7 @@ package com.delivery.notification_service.listener;
 import com.delivery.notification_service.dto.event.ShipperFoundEvent;
 import com.delivery.notification_service.exception.NotificationConflictException;
 import com.delivery.notification_service.service.NotificationService;
+import com.delivery.identity.contracts.SimulationContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.annotation.RetryableTopic;
@@ -76,6 +77,15 @@ public class MatchEventListener {
                     || selected.getDistanceKm() == null || !Double.isFinite(selected.getDistanceKm())
                     || selected.getDistanceKm() < 0) {
                 throw new IllegalArgumentException("Persisted shipper offer has invalid shipper/distance identity");
+            }
+
+            SimulationContext context = SimulationContext.orReal(event.getSimulationContext());
+            context.requireValid();
+            if (context.isSimulation()) {
+                log.info("Skipping external shipper notification for simulation run {} delivery {}",
+                        context.runId(), event.getDeliveryId());
+                acknowledgment.acknowledge();
+                return;
             }
 
             log.info("📥 Received persisted shipper offer from topic '{}': deliveryId={}, orderId={}",

@@ -12,6 +12,7 @@ import org.springframework.stereotype.Repository;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import com.delivery.identity.contracts.SimulationContext;
 
 /**
  * ✅ Local Redis Geo Repository cho Match Service
@@ -34,6 +35,9 @@ public class MatchRedisGeoRepository {
     private static final String CANCELLED_PREFIX = "match:cancelled:";
     private static final String STATUS_VERSION_PREFIX = "match:shipper:status-version:";
     private static final String LOCATION_FRESH_PREFIX = "match:shipper:location-fresh:";
+    private static final String COMPLETED_DELIVERIES_PREFIX = "match:shipper:completed-deliveries:";
+    private static final String COMPLETION_EVENT_PREFIX = "match:delivery-completion:event:";
+    private static final long COMPLETION_EVENT_TTL_SECONDS = 2_592_000L;
     private static final long LOCATION_TTL_SECONDS = 300; // 5 phút — nếu không nhận update thì coi như cũ
     private static final DefaultRedisScript<Long> RESERVE_SHIPPER_OFFER = new DefaultRedisScript<>("""
             if redis.call('EXISTS', KEYS[3]) == 1 then
@@ -160,6 +164,10 @@ public class MatchRedisGeoRepository {
             end
             redis.call('GEOADD', KEYS[2], ARGV[2], ARGV[3], ARGV[4])
             redis.call('SADD', KEYS[3], ARGV[4])
+            -- Refresh the online membership TTL together with the location
+            -- freshness fence. Without this, a set created by an older REAL
+            -- projection can expire while a simulation location remains fresh.
+            redis.call('EXPIRE', KEYS[3], tonumber(ARGV[5]))
             redis.call('SET', KEYS[1], ARGV[1], 'EX', tonumber(ARGV[5]))
             return 1
             """, Long.class);
@@ -176,12 +184,23 @@ public class MatchRedisGeoRepository {
             redis.call('SET', KEYS[1], ARGV[1], 'EX', tonumber(ARGV[3]))
             return 1
             """, Long.class);
+    private static final DefaultRedisScript<Long> RECORD_COMPLETED_DELIVERY = new DefaultRedisScript<>("""
+            if redis.call('SET', KEYS[2], '1', 'NX', 'EX', tonumber(ARGV[1])) then
+              return redis.call('INCR', KEYS[1])
+            end
+            return 0
+            """, Long.class);
 
     /**
      * ✅ Thêm/cập nhật vị trí shipper vào Redis Geo local
      */
     public void addOrUpdateShipperLocation(Long shipperId, Double latitude, Double longitude,
                                            Boolean isOnline, long timestamp) {
+        addOrUpdateShipperLocation(shipperId, latitude, longitude, isOnline, timestamp, SimulationContext.real());
+    }
+
+    public void addOrUpdateShipperLocation(Long shipperId, Double latitude, Double longitude,
+                                           Boolean isOnline, long timestamp, SimulationContext context) {
         try {
             if (shipperId == null || shipperId <= 0 || latitude == null || longitude == null
                     || timestamp <= 0) {
@@ -195,12 +214,15 @@ public class MatchRedisGeoRepository {
             // an online GEO entry merely because the shared Redis fence moved
             // into Lua.
             if (!Boolean.TRUE.equals(isOnline)) {
-                markShipperOffline(shipperId, timestamp);
+                markShipperOffline(shipperId, timestamp, context);
                 return;
             }
 
+            SimulationContext normalized = SimulationContext.orReal(context);
+            normalized.requireValid();
             Long result = redisTemplate.execute(APPLY_ONLINE_LOCATION,
-                    List.of(LOCATION_FRESH_PREFIX + shipperId, GEO_KEY, ONLINE_SET_KEY), timestamp,
+                    List.of(scoped(LOCATION_FRESH_PREFIX, normalized) + shipperId,
+                            scoped(GEO_KEY, normalized), scoped(ONLINE_SET_KEY, normalized)), timestamp,
                     longitude, latitude, shipperId.toString(), LOCATION_TTL_SECONDS);
             if (result == null || result == -2L) {
                 throw new IllegalStateException("Invalid Match location freshness state");
@@ -225,13 +247,20 @@ public class MatchRedisGeoRepository {
      * fences a delayed older online update during the location freshness window.
      */
     public void markShipperOffline(Long shipperId, long timestamp) {
+        markShipperOffline(shipperId, timestamp, SimulationContext.real());
+    }
+
+    public void markShipperOffline(Long shipperId, long timestamp, SimulationContext context) {
         if (shipperId == null || shipperId <= 0 || timestamp <= 0) {
             throw new IllegalArgumentException("positive shipperId and timestamp are required");
         }
 
         try {
+            SimulationContext normalized = SimulationContext.orReal(context);
+            normalized.requireValid();
             Long result = redisTemplate.execute(APPLY_OFFLINE_LOCATION,
-                    List.of(LOCATION_FRESH_PREFIX + shipperId, GEO_KEY, ONLINE_SET_KEY), timestamp,
+                    List.of(scoped(LOCATION_FRESH_PREFIX, normalized) + shipperId,
+                            scoped(GEO_KEY, normalized), scoped(ONLINE_SET_KEY, normalized)), timestamp,
                     shipperId.toString(), LOCATION_TTL_SECONDS);
             if (result == null || result == -2L) {
                 throw new IllegalStateException("Invalid Match location freshness state");
@@ -251,6 +280,19 @@ public class MatchRedisGeoRepository {
      * ✅ Tìm shipper gần trong bán kính — query 100% local, không gọi REST
      */
     public List<NearbyShipperResult> findNearbyShippers(Double lat, Double lng, Double radiusKm, Integer limit) {
+        return findNearbyShippers(lat, lng, radiusKm, limit, SimulationContext.real());
+    }
+
+    /** Run-scoped GEO lookup; virtual shippers can never enter the real pool. */
+    public List<NearbyShipperResult> findNearbyShippers(Double lat, Double lng, Double radiusKm, Integer limit,
+                                                        SimulationContext context) {
+        SimulationContext normalized = SimulationContext.orReal(context);
+        normalized.requireValid();
+        String geoKey = scoped(GEO_KEY, normalized);
+        String onlineKey = scoped(ONLINE_SET_KEY, normalized);
+        String busyPrefix = scoped(BUSY_PREFIX, normalized);
+        String offerPrefix = scoped(OFFER_PREFIX, normalized);
+        String freshPrefix = scoped(LOCATION_FRESH_PREFIX, normalized);
         List<NearbyShipperResult> results = new ArrayList<>();
         GeoOperations<String, Object> geoOps = redisTemplate.opsForGeo();
         Point center = new Point(lng, lat);
@@ -264,7 +306,7 @@ public class MatchRedisGeoRepository {
                 .sortAscending()
                 .limit(limit != null ? limit * 3 : 30); // Lấy nhiều hơn vì sẽ filter busy/offline
 
-        GeoResults<RedisGeoCommands.GeoLocation<Object>> geoResults = geoOps.radius(GEO_KEY, circle, args);
+        GeoResults<RedisGeoCommands.GeoLocation<Object>> geoResults = geoOps.radius(geoKey, circle, args);
 
         if (geoResults != null && geoResults.getContent() != null) {
             int count = 0;
@@ -277,13 +319,10 @@ public class MatchRedisGeoRepository {
 
                     // Filter: chỉ lấy online + không busy
                 boolean isOnline = Boolean.TRUE.equals(
-                        redisTemplate.opsForSet().isMember(ONLINE_SET_KEY, shipperIdStr));
-                boolean isBusy = Boolean.TRUE.equals(
-                        redisTemplate.hasKey(BUSY_PREFIX + shipperIdStr));
-                boolean hasActiveOffer = Boolean.TRUE.equals(
-                        redisTemplate.hasKey(OFFER_PREFIX + shipperIdStr));
-                boolean hasFreshLocation = Boolean.TRUE.equals(
-                        redisTemplate.hasKey(LOCATION_FRESH_PREFIX + shipperIdStr));
+                        redisTemplate.opsForSet().isMember(onlineKey, shipperIdStr));
+                boolean isBusy = Boolean.TRUE.equals(redisTemplate.hasKey(busyPrefix + shipperIdStr));
+                boolean hasActiveOffer = Boolean.TRUE.equals(redisTemplate.hasKey(offerPrefix + shipperIdStr));
+                boolean hasFreshLocation = Boolean.TRUE.equals(redisTemplate.hasKey(freshPrefix + shipperIdStr));
 
                 if (isOnline && hasFreshLocation && !isBusy && !hasActiveOffer) {
                     Long shipperId = Long.parseLong(shipperIdStr);
@@ -303,23 +342,63 @@ public class MatchRedisGeoRepository {
         return results;
     }
 
+    private String scoped(String key, SimulationContext context) {
+        return context.isSimulation() ? key + "simulation:" + context.runId() : key;
+    }
+
+    /** Idempotently counts canonical delivery completions in the matching namespace. */
+    public boolean recordCompletedDelivery(UUID eventId, Long shipperId, SimulationContext context) {
+        if (eventId == null || shipperId == null || shipperId <= 0) {
+            throw new IllegalArgumentException("delivery completion requires eventId and positive shipperId");
+        }
+        SimulationContext normalized = SimulationContext.orReal(context);
+        normalized.requireValid();
+        Long result = redisTemplate.execute(RECORD_COMPLETED_DELIVERY,
+                List.of(scoped(COMPLETED_DELIVERIES_PREFIX, normalized) + ":" + shipperId,
+                        scoped(COMPLETION_EVENT_PREFIX, normalized) + ":" + eventId), COMPLETION_EVENT_TTL_SECONDS);
+        if (result == null) throw new IllegalStateException("Missing completed-delivery projection result");
+        return result > 0;
+    }
+
+    public long completedDeliveries(Long shipperId, SimulationContext context) {
+        if (shipperId == null || shipperId <= 0) return 0L;
+        SimulationContext normalized = SimulationContext.orReal(context);
+        normalized.requireValid();
+        Object value = redisTemplate.opsForValue().get(
+                scoped(COMPLETED_DELIVERIES_PREFIX, normalized) + ":" + shipperId);
+        if (value == null) return 0L;
+        try {
+            return Math.max(0L, Long.parseLong(String.valueOf(value)));
+        } catch (NumberFormatException invalid) {
+            throw new IllegalStateException("Invalid completed-delivery projection state", invalid);
+        }
+    }
+
     public boolean tryReserveShipperOffer(
             Long shipperId,
             Long deliveryId,
             UUID matchingSessionId,
             int timeoutSeconds) {
+        return tryReserveShipperOffer(shipperId, deliveryId, matchingSessionId, timeoutSeconds,
+                SimulationContext.real());
+    }
+
+    public boolean tryReserveShipperOffer(Long shipperId, Long deliveryId, UUID matchingSessionId,
+                                          int timeoutSeconds, SimulationContext context) {
         if (shipperId == null || shipperId <= 0 || deliveryId == null || deliveryId <= 0
                 || matchingSessionId == null) {
             return false;
         }
         int ttlSeconds = Math.max(1, timeoutSeconds);
         try {
+            SimulationContext normalized = SimulationContext.orReal(context);
+            normalized.requireValid();
             Long result = redisTemplate.execute(
                     RESERVE_SHIPPER_OFFER,
-                    List.of(OFFER_PREFIX + shipperId,
-                            DELIVERY_OFFER_PREFIX + deliveryId,
-                            cancellationKey(deliveryId, matchingSessionId),
-                            DELIVERY_OFFER_SESSION_PREFIX + deliveryId),
+                    List.of(scoped(OFFER_PREFIX, normalized) + shipperId,
+                            scoped(DELIVERY_OFFER_PREFIX, normalized) + deliveryId,
+                            cancellationKey(deliveryId, matchingSessionId, normalized),
+                            scoped(DELIVERY_OFFER_SESSION_PREFIX, normalized) + deliveryId),
                     deliveryId.toString(), shipperId.toString(), ttlSeconds, matchingSessionId.toString());
             if (result == null || result == -1L) {
                 throw new IllegalStateException("Contradictory Match offer ownership state");
@@ -333,15 +412,22 @@ public class MatchRedisGeoRepository {
     }
 
     public boolean releaseShipperOffer(Long shipperId, Long deliveryId, UUID matchingSessionId) {
+        return releaseShipperOffer(shipperId, deliveryId, matchingSessionId, SimulationContext.real());
+    }
+
+    public boolean releaseShipperOffer(Long shipperId, Long deliveryId, UUID matchingSessionId,
+                                       SimulationContext context) {
         if (shipperId == null || shipperId <= 0 || deliveryId == null || deliveryId <= 0) {
             return false;
         }
         try {
+            SimulationContext normalized = SimulationContext.orReal(context);
+            normalized.requireValid();
             Long result = redisTemplate.execute(
                     RELEASE_SHIPPER_OFFER,
-                    List.of(OFFER_PREFIX + shipperId,
-                            DELIVERY_OFFER_PREFIX + deliveryId,
-                            DELIVERY_OFFER_SESSION_PREFIX + deliveryId),
+                    List.of(scoped(OFFER_PREFIX, normalized) + shipperId,
+                            scoped(DELIVERY_OFFER_PREFIX, normalized) + deliveryId,
+                            scoped(DELIVERY_OFFER_SESSION_PREFIX, normalized) + deliveryId),
                     deliveryId.toString(), shipperId.toString(),
                     matchingSessionId == null ? "" : matchingSessionId.toString());
             if (result == null) {
@@ -413,6 +499,13 @@ public class MatchRedisGeoRepository {
 
     public boolean applyShipperStatus(Long shipperId, Long deliveryId, String status,
                                       long timestamp, String eventId) {
+        return applyShipperStatus(shipperId, deliveryId, status, timestamp, eventId,
+                SimulationContext.real());
+    }
+
+    /** Apply a status transition inside the same REAL or run-scoped simulation namespace. */
+    public boolean applyShipperStatus(Long shipperId, Long deliveryId, String status,
+                                      long timestamp, String eventId, SimulationContext context) {
         if (shipperId == null || shipperId <= 0 || deliveryId == null || deliveryId <= 0
                 || timestamp <= 0 || eventId == null || eventId.isBlank()
                 || !("BUSY".equals(status) || "AVAILABLE".equals(status))) {
@@ -420,13 +513,15 @@ public class MatchRedisGeoRepository {
                     "positive identity/timestamp, stable eventId and BUSY/AVAILABLE status are required");
         }
         try {
+            SimulationContext normalized = SimulationContext.orReal(context);
+            normalized.requireValid();
             Long result = redisTemplate.execute(
                     APPLY_SHIPPER_STATUS,
-                    List.of(STATUS_VERSION_PREFIX + shipperId,
-                            OFFER_PREFIX + shipperId,
-                            BUSY_PREFIX + shipperId,
-                            DELIVERY_OFFER_PREFIX + deliveryId,
-                            DELIVERY_OFFER_SESSION_PREFIX + deliveryId),
+                    List.of(scoped(STATUS_VERSION_PREFIX, normalized) + shipperId,
+                            scoped(OFFER_PREFIX, normalized) + shipperId,
+                            scoped(BUSY_PREFIX, normalized) + shipperId,
+                            scoped(DELIVERY_OFFER_PREFIX, normalized) + deliveryId,
+                            scoped(DELIVERY_OFFER_SESSION_PREFIX, normalized) + deliveryId),
                     timestamp, eventId, deliveryId.toString(),
                     "BUSY".equals(status) ? 1L : 0L, shipperId.toString());
             if (result == null || result == -2L) {
@@ -445,7 +540,11 @@ public class MatchRedisGeoRepository {
     }
 
     private String cancellationKey(Long deliveryId, UUID matchingSessionId) {
-        return CANCELLED_PREFIX + deliveryId + ":" + matchingSessionId;
+        return cancellationKey(deliveryId, matchingSessionId, SimulationContext.real());
+    }
+
+    private String cancellationKey(Long deliveryId, UUID matchingSessionId, SimulationContext context) {
+        return scoped(CANCELLED_PREFIX, SimulationContext.orReal(context)) + deliveryId + ":" + matchingSessionId;
     }
 
     /**

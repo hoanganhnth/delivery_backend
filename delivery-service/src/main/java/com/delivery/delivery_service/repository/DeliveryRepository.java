@@ -22,6 +22,8 @@ public interface DeliveryRepository extends JpaRepository<Delivery, Long> {
      */
     Optional<Delivery> findByOrderId(Long orderId);
 
+    List<Delivery> findBySimulationRunIdOrderByIdAsc(java.util.UUID simulationRunId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT d FROM Delivery d WHERE d.id = :deliveryId")
     Optional<Delivery> findByIdForUpdate(@Param("deliveryId") Long deliveryId);

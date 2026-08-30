@@ -8,6 +8,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.math.BigDecimal;
 import java.util.UUID;
+import com.delivery.identity.contracts.SimulationContext;
 
 /**
  * ✅ Event được bắn khi tìm được shipper thành công
@@ -35,6 +36,7 @@ public class ShipperFoundEvent {
     private Double deliveryLng;
     private BigDecimal totalPrice;
     private String paymentMethod;
+    private SimulationContext simulationContext;
 
     /** Additive batch contract. Null/false preserves the legacy single-offer flow. */
     private Boolean batchOffer;

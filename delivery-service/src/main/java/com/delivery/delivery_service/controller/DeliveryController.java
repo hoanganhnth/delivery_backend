@@ -125,7 +125,8 @@ public class DeliveryController {
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireActor(actor);
         DeliveryResponse response = deliveryService.acceptDelivery(
-                request, actor.getPrincipalId(), actor.getLegacyUserId(), getRoleString(actor));
+                request, actor.getPrincipalId(), actor.getLegacyUserId(), getRoleString(actor),
+                actor.getSimulationContext());
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Nhận đơn hàng thành công"));
     }
 
@@ -135,7 +136,8 @@ public class DeliveryController {
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireActor(actor);
         DeliveryResponse response = deliveryService.cancelAssignedDelivery(
-                request.getOrderId(), actor.getPrincipalId(), actor.getLegacyUserId(), getRoleString(actor), request.getReason());
+                request.getOrderId(), actor.getPrincipalId(), actor.getLegacyUserId(), getRoleString(actor),
+                request.getReason(), actor.getSimulationContext());
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Đã huỷ đơn, đang tìm shipper mới"));
     }
 
@@ -274,7 +276,8 @@ public class DeliveryController {
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireActor(actor);
         DeliveryResponse response = deliveryService.updateDeliveryStatus(
-                id, status, actor.getPrincipalId(), actor.getLegacyUserId(), getRoleString(actor));
+                id, status, actor.getPrincipalId(), actor.getLegacyUserId(), getRoleString(actor),
+                actor.getSimulationContext());
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Cập nhật trạng thái delivery thành công"));
     }
 

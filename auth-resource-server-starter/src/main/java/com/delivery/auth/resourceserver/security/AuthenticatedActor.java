@@ -1,5 +1,6 @@
 package com.delivery.auth.resourceserver.security;
 
+import com.delivery.identity.contracts.SimulationContext;
 import java.io.Serializable;
 import java.util.Collections;
 import java.util.Objects;
@@ -14,16 +15,24 @@ public class AuthenticatedActor implements Serializable {
     private final Long legacyUserId;
     private final String email;
     private final Set<String> roles;
+    private final SimulationContext simulationContext;
 
     public AuthenticatedActor(Long userId, String email, Set<String> roles) {
-        this(userId, userId, email, roles);
+        this(userId, userId, email, roles, SimulationContext.real());
     }
 
     public AuthenticatedActor(Long principalId, Long legacyUserId, String email, Set<String> roles) {
+        this(principalId, legacyUserId, email, roles, SimulationContext.real());
+    }
+
+    public AuthenticatedActor(Long principalId, Long legacyUserId, String email, Set<String> roles,
+                              SimulationContext simulationContext) {
         this.principalId = principalId;
         this.legacyUserId = legacyUserId;
         this.email = email;
         this.roles = roles != null ? Collections.unmodifiableSet(roles) : Collections.emptySet();
+        this.simulationContext = SimulationContext.orReal(simulationContext);
+        this.simulationContext.requireValid();
     }
 
     public Long getUserId() {
@@ -41,6 +50,10 @@ public class AuthenticatedActor implements Serializable {
     public Set<String> getRoles() {
         return roles;
     }
+
+    public SimulationContext getSimulationContext() { return simulationContext; }
+
+    public boolean isSimulationActor() { return simulationContext.isSimulation(); }
 
     public boolean hasRole(String role) {
         if (role == null || role.isBlank()) {
@@ -77,12 +90,13 @@ public class AuthenticatedActor implements Serializable {
         return Objects.equals(principalId, that.principalId) &&
                Objects.equals(legacyUserId, that.legacyUserId) &&
                Objects.equals(email, that.email) &&
-               Objects.equals(roles, that.roles);
+               Objects.equals(roles, that.roles) &&
+               Objects.equals(simulationContext, that.simulationContext);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(principalId, legacyUserId, email, roles);
+        return Objects.hash(principalId, legacyUserId, email, roles, simulationContext);
     }
 
     @Override
@@ -92,6 +106,7 @@ public class AuthenticatedActor implements Serializable {
                 ", legacyUserId=" + legacyUserId +
                 ", email='" + email + '\'' +
                 ", roles=" + roles +
+                ", simulationContext=" + simulationContext +
                 '}';
     }
 }

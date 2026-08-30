@@ -11,6 +11,7 @@ import reactor.core.scheduler.Schedulers;
 
 import java.util.List;
 import java.util.UUID;
+import com.delivery.identity.contracts.SimulationContext;
 import java.util.stream.Collectors;
 
 /**
@@ -34,28 +35,45 @@ public class MatchServiceImpl implements MatchService {
     @Override
     public Mono<List<NearbyShipperResponse>> findNearbyShippers(FindNearbyShippersRequest request, Long userId,
             String role) {
+        return findNearbyShippers(request, userId, role, SimulationContext.real());
+    }
+
+    @Override
+    public Mono<List<NearbyShipperResponse>> findNearbyShippers(FindNearbyShippersRequest request, Long userId,
+            String role, SimulationContext simulationContext) {
         return Mono.fromCallable(() -> {
             log.info("🔍 [Local Geo] Finding nearby shippers at ({}, {}) radius={}km",
                     request.getLatitude(), request.getLongitude(), request.getRadiusKm());
 
-            List<MatchRedisGeoRepository.NearbyShipperResult> results =
-                    matchRedisGeoRepository.findNearbyShippers(
-                            request.getLatitude(),
-                            request.getLongitude(),
-                            request.getRadiusKm(),
-                            request.getMaxShippers());
+            SimulationContext normalized = SimulationContext.orReal(simulationContext);
+            normalized.requireValid();
+            List<MatchRedisGeoRepository.NearbyShipperResult> results;
+            if (normalized.isSimulation()) {
+                results = matchRedisGeoRepository.findNearbyShippers(
+                        request.getLatitude(), request.getLongitude(), request.getRadiusKm(),
+                        request.getMaxShippers(), normalized);
+            } else {
+                results = matchRedisGeoRepository.findNearbyShippers(
+                        request.getLatitude(), request.getLongitude(), request.getRadiusKm(),
+                        request.getMaxShippers());
+            }
 
             // Convert sang NearbyShipperResponse để giữ tương thích với FindShipperEventListener
             List<NearbyShipperResponse> responses = results.stream()
-                    .map(r -> new NearbyShipperResponse(
-                            r.shipperId,
-                            null, // Match owns location/availability, not profile identity.
-                            null,
-                            r.latitude,
-                            r.longitude,
-                            r.distanceKm,
-                            true,  // đã filter online trong repo
-                            null))
+                    .map(r -> {
+                        NearbyShipperResponse response = new NearbyShipperResponse(
+                                r.shipperId,
+                                null, // Match owns location/availability, not profile identity.
+                                null,
+                                r.latitude,
+                                r.longitude,
+                                r.distanceKm,
+                                true,  // đã filter online trong repo
+                                null);
+                        response.setCompletedDeliveries(
+                                matchRedisGeoRepository.completedDeliveries(r.shipperId, normalized));
+                        return response;
+                    })
                     .collect(Collectors.toList());
 
             log.info("✅ [Local Geo] Found {} available shippers (no REST call)", responses.size());
@@ -75,8 +93,22 @@ public class MatchServiceImpl implements MatchService {
     }
 
     @Override
+    public boolean tryReserveShipperOffer(Long shipperId, Long deliveryId, UUID matchingSessionId,
+                                          int timeoutSeconds, SimulationContext simulationContext) {
+        return matchRedisGeoRepository.tryReserveShipperOffer(shipperId, deliveryId, matchingSessionId,
+                timeoutSeconds, simulationContext);
+    }
+
+    @Override
     public boolean releaseShipperOffer(Long shipperId, Long deliveryId, UUID matchingSessionId) {
         return matchRedisGeoRepository.releaseShipperOffer(shipperId, deliveryId, matchingSessionId);
+    }
+
+    @Override
+    public boolean releaseShipperOffer(Long shipperId, Long deliveryId, UUID matchingSessionId,
+                                       SimulationContext simulationContext) {
+        return matchRedisGeoRepository.releaseShipperOffer(shipperId, deliveryId, matchingSessionId,
+                simulationContext);
     }
 
 }

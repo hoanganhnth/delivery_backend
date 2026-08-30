@@ -11,6 +11,10 @@ import com.delivery.match_service.service.MatchCancellationService;
 import com.delivery.match_service.service.MatchCancellationProjectionRelay;
 import com.delivery.match_service.service.MatchCommandStore;
 import com.delivery.match_service.service.SettlementEligibilityClient;
+import com.delivery.match_service.service.DispatchPoolService;
+import com.delivery.match_service.config.MatchingBatchProperties;
+import com.delivery.match_service.config.MatchingAlgorithmProperties;
+import com.delivery.match_service.algorithm.BalancedEtaCanaryPolicy;
 import com.delivery.match_service.metrics.BusinessMetrics;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,6 +37,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.UUID;
+import com.delivery.identity.contracts.SimulationContext;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -66,6 +71,8 @@ class FindShipperEventListenerTest {
     @Mock
     private SettlementEligibilityClient settlementEligibilityClient;
     private ObjectMapper objectMapper;
+    @Mock
+    private DispatchPoolService dispatchPoolService;
 
     @BeforeEach
     void setUp() {
@@ -134,6 +141,87 @@ class FindShipperEventListenerTest {
         assertEquals(testEvent.getMatchingSessionId().toString(), eventCaptor.getValue().getMatchingSessionId());
         assertEquals(1, eventCaptor.getValue().getAvailableShippers().size());
         assertEquals(1L, eventCaptor.getValue().getAvailableShippers().get(0).getShipperId());
+    }
+
+    @Test
+    void fullBalancedEtaCanaryChangesSelectionAndExplainsTheScoreInTrace() throws Exception {
+        MatchingAlgorithmProperties algorithmProperties = new MatchingAlgorithmProperties();
+        algorithmProperties.setEnabled(true);
+        algorithmProperties.setCanaryPercent(100);
+        SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
+        FindShipperEventListener canaryListener = new FindShipperEventListener(
+                matchService, matchCommandStore, matchCancellationService, cancellationProjectionRelay,
+                settlementEligibilityClient, new BusinessMetrics(meterRegistry), dispatchPoolService,
+                new MatchingBatchProperties(), new BalancedEtaCanaryPolicy(algorithmProperties), 20,
+                Clock.systemDefaultZone());
+        NearbyShipperResponse nearButBusy = createTestShipper(14L, 10.763000, 106.661000);
+        nearButBusy.setDistanceKm(0.1716d);
+        nearButBusy.setCompletedDeliveries(20L);
+        NearbyShipperResponse fartherButFair = createTestShipper(15L, 10.764000, 106.662000);
+        fartherButFair.setDistanceKm(0.3272d);
+        fartherButFair.setCompletedDeliveries(0L);
+        when(matchService.findNearbyShippers(any(FindNearbyShippersRequest.class), anyLong(), anyString()))
+                .thenReturn(Mono.just(List.of(nearButBusy, fartherButFair)));
+
+        canaryListener.handleFindShipperEvent(
+                objectMapper.writeValueAsString(testEvent), "test-topic", 0, System.currentTimeMillis()).block();
+
+        var foundCaptor = org.mockito.ArgumentCaptor.forClass(ShipperFoundEvent.class);
+        verify(matchCommandStore).stageFoundResult(eq(testEvent.getEventId()), foundCaptor.capture());
+        assertEquals(15L, foundCaptor.getValue().getAvailableShippers().get(0).getShipperId());
+        var traceCaptor = org.mockito.ArgumentCaptor.forClass(MatchingDecisionTraceEvent.class);
+        verify(matchCommandStore).stageDecisionTrace(eq(testEvent.getEventId()), traceCaptor.capture());
+        assertEquals("balanced-eta", traceCaptor.getValue().getAlgorithmId());
+        assertEquals("REAL", traceCaptor.getValue().getExecutionMode());
+        assertEquals(0.6544d, traceCaptor.getValue().getCandidates().stream()
+                .filter(candidate -> candidate.getShipperId().equals(15L)).findFirst().orElseThrow()
+                .getCombinedScoreMinutes());
+        assertEquals(1d, meterRegistry.get("delivery.matching.algorithm.decisions")
+                .tag("algorithm", "balanced-eta")
+                .tag("execution_mode", "REAL")
+                .counter().count());
+    }
+
+    @Test
+    void simulationCommandQueriesAndReservesOnlyItsScopedMatchPool() throws Exception {
+        NearbyShipperResponse shipper = createTestShipper(1L, 10.763000, 106.661000);
+        SimulationContext context = new SimulationContext(SimulationContext.ExecutionMode.SIMULATION,
+                UUID.randomUUID(), UUID.randomUUID(), 1L);
+        testEvent.setSimulationContext(context);
+        when(matchService.findNearbyShippers(any(FindNearbyShippersRequest.class), anyLong(), anyString(), eq(context)))
+                .thenReturn(Mono.just(List.of(shipper)));
+        when(matchService.tryReserveShipperOffer(eq(1L), eq(123L), eq(testEvent.getMatchingSessionId()),
+                eq(180), eq(context))).thenReturn(true);
+
+        listener.handleFindShipperEvent(objectMapper.writeValueAsString(testEvent), "test-topic", 0,
+                System.currentTimeMillis()).block();
+
+        verify(matchService, atLeastOnce()).findNearbyShippers(any(FindNearbyShippersRequest.class), anyLong(), anyString(), eq(context));
+        verify(matchService).tryReserveShipperOffer(1L, 123L, testEvent.getMatchingSessionId(), 180, context);
+        verify(matchService, never()).findNearbyShippers(any(FindNearbyShippersRequest.class), anyLong(), anyString());
+    }
+
+    @Test
+    void simulationCommandNeverEntersRealBatchDispatcher() throws Exception {
+        MatchingBatchProperties batchProperties = new MatchingBatchProperties();
+        batchProperties.setEnabled(true);
+        batchProperties.setClientCapabilityRequired(true);
+        FindShipperEventListener isolatedListener = new FindShipperEventListener(
+                matchService, matchCommandStore, matchCancellationService, cancellationProjectionRelay,
+                settlementEligibilityClient, new BusinessMetrics(new SimpleMeterRegistry()), dispatchPoolService,
+                batchProperties, 20, Clock.systemDefaultZone());
+        SimulationContext context = new SimulationContext(SimulationContext.ExecutionMode.SIMULATION,
+                UUID.randomUUID(), UUID.randomUUID(), 1L);
+        testEvent.setSimulationContext(context);
+        testEvent.setBatchOfferEnabled(true);
+        when(matchService.findNearbyShippers(any(FindNearbyShippersRequest.class), anyLong(), anyString(), eq(context)))
+                .thenReturn(Mono.just(Collections.emptyList()));
+
+        isolatedListener.handleFindShipperEvent(objectMapper.writeValueAsString(testEvent), "test-topic", 0,
+                System.currentTimeMillis()).block();
+
+        verify(dispatchPoolService, never()).enqueue(any(), any());
+        verify(matchService, atLeastOnce()).findNearbyShippers(any(FindNearbyShippersRequest.class), anyLong(), anyString(), eq(context));
     }
 
     @Test

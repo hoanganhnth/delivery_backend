@@ -55,6 +55,16 @@ public class OrderEventServiceImpl implements OrderEventService {
         // ✅ Sử dụng orderId từ event để tìm và cập nhật order
         Order order = findOrderById(event.getOrderId());
 
+        com.delivery.identity.contracts.SimulationContext expected =
+                com.delivery.identity.contracts.SimulationContext.orReal(order.getSimulationContext());
+        com.delivery.identity.contracts.SimulationContext actual =
+                com.delivery.identity.contracts.SimulationContext.orReal(event.getSimulationContext());
+        expected.requireValid();
+        actual.requireValid();
+        if (!expected.equals(actual)) {
+            throw new IllegalArgumentException("delivery status execution context does not match order");
+        }
+
         // Map delivery status to order status
         OrderStatus newOrderStatus = mapDeliveryStatusToOrderStatus(event.getStatus());
         
@@ -220,6 +230,16 @@ public class OrderEventServiceImpl implements OrderEventService {
                 event.getOrderId(), event.getShipperId());
 
         Order order = findOrderById(event.getOrderId());
+
+        com.delivery.identity.contracts.SimulationContext expected =
+                com.delivery.identity.contracts.SimulationContext.orReal(order.getSimulationContext());
+        com.delivery.identity.contracts.SimulationContext actual =
+                com.delivery.identity.contracts.SimulationContext.orReal(event.getSimulationContext());
+        expected.requireValid();
+        actual.requireValid();
+        if (!expected.equals(actual)) {
+            throw new IllegalArgumentException("shipper acceptance execution context does not match order");
+        }
 
         if (event.getShipperId() == null || event.getShipperId() <= 0) {
             throw new IllegalArgumentException("shipperId must be positive");

@@ -12,6 +12,9 @@ import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.util.Base64;
 import java.util.Map;
+import java.util.UUID;
+
+import com.delivery.identity.contracts.SimulationContext;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -103,6 +106,25 @@ class TokenServiceKeyPreflightTest {
         long issuedAt = ((Number) claims.get("iat")).longValue();
         long expiresAt = ((Number) claims.get("exp")).longValue();
         assertTrue(expiresAt - issuedAt == java.time.Duration.ofMinutes(15).toSeconds());
+    }
+
+    @Test
+    void accessTokenCarriesOnlyServerSuppliedSimulationContext() throws Exception {
+        KeyPair keyPair = generateKeyPair();
+        Path privateKey = write("simulation-private.pem", keyPair.getPrivate().getEncoded());
+        Path publicKey = write("simulation-public.pem", keyPair.getPublic().getEncoded());
+        TokenService tokenService = new TokenService(privateKey.toString(), publicKey.toString());
+        UUID runId = UUID.randomUUID();
+        UUID cohortId = UUID.randomUUID();
+
+        String token = tokenService.generateToken(7L, 9L, "shipper@example.test", "SHIPPER",
+                new SimulationContext(SimulationContext.ExecutionMode.SIMULATION, runId, cohortId, 2L));
+
+        Map<String, Object> claims = claims(token);
+        assertEquals("SIMULATION", claims.get("simulation_mode"));
+        assertEquals(runId.toString(), claims.get("simulation_run_id"));
+        assertEquals(cohortId.toString(), claims.get("simulation_cohort_id"));
+        assertEquals(2, ((Number) claims.get("simulation_binding_version")).intValue());
     }
 
     @Test

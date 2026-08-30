@@ -5,15 +5,15 @@
 > or JSON Schema. Read [API Contract Guide](README.md) for edge classification,
 > error semantics and compatibility rules.
 
-Current inventory: **220 operations** across **16 controller-owning services** and **190 reachable source schemas**.
+Current inventory: **228 operations** across **16 controller-owning services** and **206 reachable source schemas**.
 
 ## Service index
 
 | Service | Mapped controller operations |
 | --- | --- |
 | analytics-service | 4 |
-| auth-service | 16 |
-| delivery-service | 20 |
+| auth-service | 18 |
+| delivery-service | 21 |
 | flashsale-service | 12 |
 | livestream-service | 14 |
 | notification-service | 12 |
@@ -22,9 +22,9 @@ Current inventory: **220 operations** across **16 controller-owning services** a
 | restaurant-service | 38 |
 | routing-service | 3 |
 | search-service | 2 |
-| settlement-service | 31 |
+| settlement-service | 33 |
 | shipper-service | 8 |
-| simulator-service | 9 |
+| simulator-service | 12 |
 | tracking-service | 4 |
 | user-service | 16 |
 
@@ -256,6 +256,49 @@ public ResponseEntity<BaseResponse<Void>> forgotPassword( @Valid @RequestBody Se
 
 </details>
 
+### `POST` `/api/auth/internal/simulation-actors/{principalId}/bindings`
+
+- Handler: `SimulationActorInternalController.bind`
+- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/SimulationActorInternalController.java:33`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/SimulationActorInternalController.java)
+- Java return type: `ResponseEntity<BindResponse>`
+
+| Binding | Wire name | Java type | Required | Default | Validation/annotations |
+| --- | --- | --- | --- | --- | --- |
+| header | X-Internal-Secret | String | not declared required | — | @RequestHeader(value = "X-Internal-Secret", required = false) |
+| path | principalId | Long | declared required | — | @PathVariable |
+| body | request | BindRequest | declared required | — | @RequestBody |
+
+<details>
+<summary>Java signature for bind</summary>
+
+```java
+public ResponseEntity<BindResponse> bind( @RequestHeader(value = "X-Internal-Secret", required = false) String suppliedSecret, @PathVariable Long principalId, @RequestBody BindRequest request)
+```
+
+</details>
+
+### `DELETE` `/api/auth/internal/simulation-actors/{principalId}/bindings/{runId}`
+
+- Handler: `SimulationActorInternalController.unbind`
+- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/SimulationActorInternalController.java:43`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/SimulationActorInternalController.java)
+- Java return type: `ResponseEntity<Void>`
+
+| Binding | Wire name | Java type | Required | Default | Validation/annotations |
+| --- | --- | --- | --- | --- | --- |
+| header | X-Internal-Secret | String | not declared required | — | @RequestHeader(value = "X-Internal-Secret", required = false) |
+| path | principalId | Long | declared required | — | @PathVariable |
+| path | runId | UUID | declared required | — | @PathVariable |
+| header | X-Simulation-Binding-Version | long | declared required | — | @RequestHeader("X-Simulation-Binding-Version") |
+
+<details>
+<summary>Java signature for unbind</summary>
+
+```java
+public ResponseEntity<Void> unbind( @RequestHeader(value = "X-Internal-Secret", required = false) String suppliedSecret, @PathVariable Long principalId, @PathVariable UUID runId, @RequestHeader("X-Simulation-Binding-Version") long bindingVersion)
+```
+
+</details>
+
 ### `POST` `/api/auth/login`
 
 - Handler: `AuthController.login`
@@ -434,7 +477,7 @@ public ResponseEntity<BaseResponse<AuthResponse>> socialLogin(@Valid @RequestBod
 ### `GET` `/api/deliveries/{deliveryId}/exception`
 
 - Handler: `DeliveryController.getDeliveryException`
-- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:250`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
+- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:252`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<DeliveryExceptionResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -454,7 +497,7 @@ public ResponseEntity<BaseResponse<DeliveryExceptionResponse>> getDeliveryExcept
 ### `POST` `/api/deliveries/{deliveryId}/exceptions/failed`
 
 - Handler: `DeliveryController.reportDeliveryFailure`
-- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:216`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
+- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:218`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<DeliveryExceptionResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -475,7 +518,7 @@ public ResponseEntity<BaseResponse<DeliveryExceptionResponse>> reportDeliveryFai
 ### `POST` `/api/deliveries/{deliveryId}/exceptions/retry`
 
 - Handler: `DeliveryController.useDeliveryRetry`
-- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:228`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
+- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:230`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<DeliveryExceptionResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -495,7 +538,7 @@ public ResponseEntity<BaseResponse<DeliveryExceptionResponse>> useDeliveryRetry(
 ### `POST` `/api/deliveries/{deliveryId}/exceptions/return/confirm`
 
 - Handler: `DeliveryController.confirmDeliveryReturn`
-- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:239`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
+- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:241`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<DeliveryExceptionResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -515,7 +558,7 @@ public ResponseEntity<BaseResponse<DeliveryExceptionResponse>> confirmDeliveryRe
 ### `GET` `/api/deliveries/{deliveryId}/proofs/{proofId}/access`
 
 - Handler: `DeliveryController.createProofReadAccess`
-- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:204`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
+- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:206`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<ProofAccessResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -536,7 +579,7 @@ public ResponseEntity<BaseResponse<ProofAccessResponse>> createProofReadAccess( 
 ### `POST` `/api/deliveries/{deliveryId}/proofs/{proofId}/confirm`
 
 - Handler: `DeliveryController.confirmProofUpload`
-- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:192`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
+- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:194`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<ProofOfDeliveryResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -557,7 +600,7 @@ public ResponseEntity<BaseResponse<ProofOfDeliveryResponse>> confirmProofUpload(
 ### `POST` `/api/deliveries/{deliveryId}/proofs/upload-intent`
 
 - Handler: `DeliveryController.createProofUploadIntent`
-- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:180`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
+- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:182`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<ProofUploadIntentResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -578,7 +621,7 @@ public ResponseEntity<BaseResponse<ProofUploadIntentResponse>> createProofUpload
 ### `GET` `/api/deliveries/{id}`
 
 - Handler: `DeliveryController.getDelivery`
-- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:261`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
+- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:263`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<DeliveryResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -598,7 +641,7 @@ public ResponseEntity<BaseResponse<DeliveryResponse>> getDelivery( @PathVariable
 ### `PUT` `/api/deliveries/{id}/status`
 
 - Handler: `DeliveryController.updateStatus`
-- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:271`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
+- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:273`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<DeliveryResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -679,7 +722,7 @@ public ResponseEntity<BaseResponse<Void>> rejectBatch( @Valid @RequestBody Rejec
 ### `GET` `/api/deliveries/batches/{batchId}`
 
 - Handler: `DeliveryController.getBatchSnapshot`
-- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:167`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
+- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:169`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<com.delivery.delivery_service.dto.response.DeliveryBatchSnapshotResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -699,7 +742,7 @@ public ResponseEntity<BaseResponse<com.delivery.delivery_service.dto.response.De
 ### `POST` `/api/deliveries/cancel-assignment`
 
 - Handler: `DeliveryController.cancelAssignedDelivery`
-- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:133`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
+- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:134`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<DeliveryResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -719,7 +762,7 @@ public ResponseEntity<BaseResponse<DeliveryResponse>> cancelAssignedDelivery( @V
 ### `GET` `/api/deliveries/internal/{deliveryId}/tracking-access`
 
 - Handler: `InternalDeliveryController.canTrack`
-- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/InternalDeliveryController.java:40`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/InternalDeliveryController.java)
+- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/InternalDeliveryController.java:42`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/InternalDeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<Boolean>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -739,10 +782,30 @@ public ResponseEntity<BaseResponse<Boolean>> canTrack( @PathVariable Long delive
 
 </details>
 
+### `GET` `/api/deliveries/internal/simulation-runs/{runId}/deliveries`
+
+- Handler: `InternalDeliveryController.findSimulationRunDeliveries`
+- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/InternalDeliveryController.java:74`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/InternalDeliveryController.java)
+- Java return type: `ResponseEntity<BaseResponse<List<SimulationDeliveryStatus>>>`
+
+| Binding | Wire name | Java type | Required | Default | Validation/annotations |
+| --- | --- | --- | --- | --- | --- |
+| path | runId | UUID | declared required | — | @PathVariable |
+| header | Internal-Token | String | not declared required | — | @RequestHeader(value = "Internal-Token", required = false) |
+
+<details>
+<summary>Java signature for findSimulationRunDeliveries</summary>
+
+```java
+public ResponseEntity<BaseResponse<List<SimulationDeliveryStatus>>> findSimulationRunDeliveries( @PathVariable UUID runId, @RequestHeader(value = "Internal-Token", required = false) String internalToken)
+```
+
+</details>
+
 ### `GET` `/api/deliveries/offers/current`
 
 - Handler: `DeliveryController.getCurrentOffer`
-- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:143`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
+- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:145`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<DeliveryOfferResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -761,7 +824,7 @@ public ResponseEntity<BaseResponse<DeliveryOfferResponse>> getCurrentOffer( @Aut
 ### `GET` `/api/deliveries/offers/current-batch`
 
 - Handler: `DeliveryController.getCurrentBatchOffer`
-- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:154`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
+- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:156`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<com.delivery.delivery_service.dto.response.DeliveryBatchOfferResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -780,7 +843,7 @@ public ResponseEntity<BaseResponse<com.delivery.delivery_service.dto.response.De
 ### `GET` `/api/deliveries/order/{orderId}`
 
 - Handler: `DeliveryController.getDeliveryByOrderId`
-- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:302`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
+- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:305`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<DeliveryResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -800,7 +863,7 @@ public ResponseEntity<BaseResponse<DeliveryResponse>> getDeliveryByOrderId( @Pat
 ### `GET` `/api/deliveries/shipper/{shipperId}`
 
 - Handler: `DeliveryController.getDeliveriesByShipper`
-- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:282`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
+- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:285`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<DeliveryResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -820,7 +883,7 @@ public ResponseEntity<BaseResponse<List<DeliveryResponse>>> getDeliveriesByShipp
 ### `GET` `/api/deliveries/shipper/{shipperId}/active`
 
 - Handler: `DeliveryController.getActiveDeliveriesByShipper`
-- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:292`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
+- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:295`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<DeliveryResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1084,7 +1147,7 @@ public ResponseEntity<BaseResponse<List<FlashSaleItemDto>>> getItems(@PathVariab
 ### `POST` `/api/livestreams`
 
 - Handler: `LivestreamController.createLivestream`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:34`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
+- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:37`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
 - Java return type: `ResponseEntity<BaseResponse<LivestreamResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1104,7 +1167,7 @@ public ResponseEntity<BaseResponse<LivestreamResponse>> createLivestream( @Valid
 ### `GET` `/api/livestreams/{id}`
 
 - Handler: `LivestreamController.getLivestreamById`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:78`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
+- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:84`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
 - Java return type: `ResponseEntity<BaseResponse<LivestreamResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1123,7 +1186,7 @@ public ResponseEntity<BaseResponse<LivestreamResponse>> getLivestreamById(@PathV
 ### `POST` `/api/livestreams/{id}/end`
 
 - Handler: `LivestreamController.endLivestream`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:63`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
+- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:68`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
 - Java return type: `ResponseEntity<BaseResponse<LivestreamResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1143,7 +1206,7 @@ public ResponseEntity<BaseResponse<LivestreamResponse>> endLivestream( @PathVari
 ### `POST` `/api/livestreams/{id}/join`
 
 - Handler: `LivestreamController.joinLivestream`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:53`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
+- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:58`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
 - Java return type: `ResponseEntity<BaseResponse<JoinLivestreamResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1264,7 +1327,7 @@ public ResponseEntity<BaseResponse<List<LivestreamProductResponse>>> getPinnedPr
 ### `POST` `/api/livestreams/{id}/start`
 
 - Handler: `LivestreamController.startLivestream`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:43`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
+- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:47`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
 - Java return type: `ResponseEntity<BaseResponse<StartLivestreamResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1305,7 +1368,7 @@ public ResponseEntity<BaseResponse<TokenResponse>> generateToken( @PathVariable 
 ### `GET` `/api/livestreams/active`
 
 - Handler: `LivestreamController.getActiveLivestreams`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:72`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
+- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:78`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<LivestreamResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1324,18 +1387,19 @@ public ResponseEntity<BaseResponse<List<LivestreamResponse>>> getActiveLivestrea
 ### `GET` `/api/livestreams/restaurant/{restaurantId}`
 
 - Handler: `LivestreamController.getLivestreamsByRestaurant`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:91`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
+- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:97`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<LivestreamResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
 | --- | --- | --- | --- | --- | --- |
 | path | restaurantId | Long | declared required | — | @PathVariable |
+| principal | actor | AuthenticatedActor | not declared required | — | @AuthenticationPrincipal |
 
 <details>
 <summary>Java signature for getLivestreamsByRestaurant</summary>
 
 ```java
-public ResponseEntity<BaseResponse<List<LivestreamResponse>>> getLivestreamsByRestaurant( @PathVariable Long restaurantId)
+public ResponseEntity<BaseResponse<List<LivestreamResponse>>> getLivestreamsByRestaurant( @PathVariable Long restaurantId, @AuthenticationPrincipal AuthenticatedActor actor)
 ```
 
 </details>
@@ -1343,7 +1407,7 @@ public ResponseEntity<BaseResponse<List<LivestreamResponse>>> getLivestreamsByRe
 ### `GET` `/api/livestreams/seller/{sellerId}`
 
 - Handler: `LivestreamController.getLivestreamsBySeller`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:84`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
+- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:90`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<LivestreamResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1602,7 +1666,7 @@ public ResponseEntity<BaseResponse<List<NotificationResponse>>> getUserNotificat
 ### `POST` `/api/orders`
 
 - Handler: `OrderController.createOrder`
-- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/controller/OrderController.java:70`](../../../../order-service/src/main/java/com/delivery/order_service/controller/OrderController.java)
+- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/controller/OrderController.java:71`](../../../../order-service/src/main/java/com/delivery/order_service/controller/OrderController.java)
 - Java return type: `ResponseEntity<BaseResponse<OrderResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1623,7 +1687,7 @@ public ResponseEntity<BaseResponse<OrderResponse>> createOrder( @Valid @RequestB
 ### `GET` `/api/orders/{id}`
 
 - Handler: `OrderController.getOrderById`
-- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/controller/OrderController.java:102`](../../../../order-service/src/main/java/com/delivery/order_service/controller/OrderController.java)
+- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/controller/OrderController.java:104`](../../../../order-service/src/main/java/com/delivery/order_service/controller/OrderController.java)
 - Java return type: `ResponseEntity<BaseResponse<OrderResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1643,7 +1707,7 @@ public ResponseEntity<BaseResponse<OrderResponse>> getOrderById( @PathVariable L
 ### `PUT` `/api/orders/{id}/cancel`
 
 - Handler: `OrderController.cancelOrder`
-- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/controller/OrderController.java:158`](../../../../order-service/src/main/java/com/delivery/order_service/controller/OrderController.java)
+- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/controller/OrderController.java:160`](../../../../order-service/src/main/java/com/delivery/order_service/controller/OrderController.java)
 - Java return type: `ResponseEntity<BaseResponse<OrderResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1664,7 +1728,7 @@ public ResponseEntity<BaseResponse<OrderResponse>> cancelOrder( @PathVariable Lo
 ### `GET` `/api/orders/all`
 
 - Handler: `OrderController.getAllOrders`
-- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/controller/OrderController.java:147`](../../../../order-service/src/main/java/com/delivery/order_service/controller/OrderController.java)
+- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/controller/OrderController.java:149`](../../../../order-service/src/main/java/com/delivery/order_service/controller/OrderController.java)
 - Java return type: `ResponseEntity<BaseResponse<PageResponse<OrderResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1685,7 +1749,7 @@ public ResponseEntity<BaseResponse<PageResponse<OrderResponse>>> getAllOrders( @
 ### `POST` `/api/orders/checkout-preview`
 
 - Handler: `OrderController.checkoutPreview`
-- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/controller/OrderController.java:56`](../../../../order-service/src/main/java/com/delivery/order_service/controller/OrderController.java)
+- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/controller/OrderController.java:57`](../../../../order-service/src/main/java/com/delivery/order_service/controller/OrderController.java)
 - Java return type: `ResponseEntity<BaseResponse<CheckoutPreviewResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1748,7 +1812,7 @@ public ResponseEntity<BaseResponse<Boolean>> isRestaurantDecisionEligible( @Path
 ### `GET` `/api/orders/my-orders`
 
 - Handler: `OrderController.getMyOrders`
-- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/controller/OrderController.java:112`](../../../../order-service/src/main/java/com/delivery/order_service/controller/OrderController.java)
+- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/controller/OrderController.java:114`](../../../../order-service/src/main/java/com/delivery/order_service/controller/OrderController.java)
 - Java return type: `ResponseEntity<BaseResponse<PageResponse<OrderResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1769,7 +1833,7 @@ public ResponseEntity<BaseResponse<PageResponse<OrderResponse>>> getMyOrders( @A
 ### `GET` `/api/orders/my-restaurant-orders`
 
 - Handler: `OrderController.getMyRestaurantOrders`
-- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/controller/OrderController.java:123`](../../../../order-service/src/main/java/com/delivery/order_service/controller/OrderController.java)
+- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/controller/OrderController.java:125`](../../../../order-service/src/main/java/com/delivery/order_service/controller/OrderController.java)
 - Java return type: `ResponseEntity<BaseResponse<PageResponse<OrderResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1790,7 +1854,7 @@ public ResponseEntity<BaseResponse<PageResponse<OrderResponse>>> getMyRestaurant
 ### `GET` `/api/orders/status/{status}`
 
 - Handler: `OrderController.getOrdersByStatus`
-- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/controller/OrderController.java:135`](../../../../order-service/src/main/java/com/delivery/order_service/controller/OrderController.java)
+- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/controller/OrderController.java:137`](../../../../order-service/src/main/java/com/delivery/order_service/controller/OrderController.java)
 - Java return type: `ResponseEntity<BaseResponse<PageResponse<OrderResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -3510,41 +3574,22 @@ public ResponseEntity<BaseResponse<Boolean>> isCodEligible( @PathVariable Long s
 
 </details>
 
-### `GET` `/api/settlement/payments/{paymentId}`
-
-- Handler: `PaymentController.getPaymentStatus`
-- Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/PaymentController.java:107`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/controller/PaymentController.java)
-- Java return type: `ic ResponseEntity<BaseResponse<PaymentOrderResponse>`
-
-| Binding | Wire name | Java type | Required | Default | Validation/annotations |
-| --- | --- | --- | --- | --- | --- |
-| path | payment | s( Long | declared required | — | @PathVariable |
-
-<details>
-<summary>Java signature for getPaymentStatus</summary>
-
-```java
-public ResponseEntity<BaseResponse<PaymentOrderResponse>> getPaymentStatus( @PathVariable Long paymentId)
-```
-
-</details>
-
 ### `POST` `/api/settlement/payments/create`
 
-- Handler: `PaymentController.createPayment`
-- Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/PaymentController.java:39`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/controller/PaymentController.java)
-- Java return type: `ResponseEntity<BaseResponse<PaymentOrderResponse>>`
+- Handler: `CustomerPaymentController.create`
+- Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/CustomerPaymentController.java:30`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/controller/CustomerPaymentController.java)
+- Java return type: `ResponseEntity<BaseResponse<Void>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
 | --- | --- | --- | --- | --- | --- |
-| body | request | CreatePaymentRequest | declared required | — | @Valid |
-| framework | httpRequest | HttpServletRequest | not declared required | — | — |
+| principal | actor | AuthenticatedActor | not declared required | — | @AuthenticationPrincipal |
+| body | request | CustomerPaymentCreateRequest | declared required | — | @RequestBody |
 
 <details>
-<summary>Java signature for createPayment</summary>
+<summary>Java signature for create</summary>
 
 ```java
-public ResponseEntity<BaseResponse<PaymentOrderResponse>> createPayment( @Valid @RequestBody CreatePaymentRequest request, HttpServletRequest httpRequest)
+public ResponseEntity<BaseResponse<Void>> create( @AuthenticationPrincipal AuthenticatedActor actor, @RequestBody CustomerPaymentCreateRequest request)
 ```
 
 </details>
@@ -3568,7 +3613,46 @@ public ResponseEntity<BaseResponse<PaymentOrderResponse>> fakeConfirm( @PathVari
 
 </details>
 
-### `GET` `/api/settlement/payments/providers`
+### `GET` `/api/settlement/payments/internal/{paymentId}`
+
+- Handler: `PaymentController.getPaymentStatus`
+- Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/PaymentController.java:107`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/controller/PaymentController.java)
+- Java return type: `ic ResponseEntity<BaseResponse<PaymentOrderResponse>`
+
+| Binding | Wire name | Java type | Required | Default | Validation/annotations |
+| --- | --- | --- | --- | --- | --- |
+| path | payment | s( Long | declared required | — | @PathVariable |
+
+<details>
+<summary>Java signature for getPaymentStatus</summary>
+
+```java
+public ResponseEntity<BaseResponse<PaymentOrderResponse>> getPaymentStatus( @PathVariable Long paymentId)
+```
+
+</details>
+
+### `POST` `/api/settlement/payments/internal/create`
+
+- Handler: `PaymentController.createPayment`
+- Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/PaymentController.java:39`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/controller/PaymentController.java)
+- Java return type: `ResponseEntity<BaseResponse<PaymentOrderResponse>>`
+
+| Binding | Wire name | Java type | Required | Default | Validation/annotations |
+| --- | --- | --- | --- | --- | --- |
+| body | request | CreatePaymentRequest | declared required | — | @Valid |
+| framework | httpRequest | HttpServletRequest | not declared required | — | — |
+
+<details>
+<summary>Java signature for createPayment</summary>
+
+```java
+public ResponseEntity<BaseResponse<PaymentOrderResponse>> createPayment( @Valid @RequestBody CreatePaymentRequest request, HttpServletRequest httpRequest)
+```
+
+</details>
+
+### `GET` `/api/settlement/payments/internal/providers`
 
 - Handler: `PaymentController.getAvailableProviders`
 - Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/PaymentController.java:129`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/controller/PaymentController.java)
@@ -3587,7 +3671,7 @@ public ResponseEntity<BaseResponse<Set<String>>> getAvailableProviders()
 
 </details>
 
-### `GET` `/api/settlement/payments/ref/{paymentRef}`
+### `GET` `/api/settlement/payments/internal/ref/{paymentRef}`
 
 - Handler: `PaymentController.getPaymentByRef`
 - Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/PaymentController.java:118`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/controller/PaymentController.java)
@@ -3602,6 +3686,26 @@ public ResponseEntity<BaseResponse<Set<String>>> getAvailableProviders()
 
 ```java
 public ResponseEntity<BaseResponse<PaymentOrderResponse>> getPaymentByRef( @PathVariable String paymentRef)
+```
+
+</details>
+
+### `GET` `/api/settlement/payments/ref/{paymentRef}`
+
+- Handler: `CustomerPaymentController.getByReference`
+- Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/CustomerPaymentController.java:47`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/controller/CustomerPaymentController.java)
+- Java return type: `ResponseEntity<BaseResponse<Void>>`
+
+| Binding | Wire name | Java type | Required | Default | Validation/annotations |
+| --- | --- | --- | --- | --- | --- |
+| principal | actor | AuthenticatedActor | not declared required | — | @AuthenticationPrincipal |
+| path | paymentRef | String | declared required | — | @PathVariable |
+
+<details>
+<summary>Java signature for getByReference</summary>
+
+```java
+public ResponseEntity<BaseResponse<Void>> getByReference( @AuthenticationPrincipal AuthenticatedActor actor, @PathVariable String paymentRef)
 ```
 
 </details>
@@ -3882,22 +3986,43 @@ public ResponseEntity<BaseResponse<ShipperResponse>> updateOnlineStatus( @Reques
 
 ## `simulator-service`
 
+### `GET` `/api/simulator/runs`
+
+- Handler: `SimulatorController.list`
+- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java:69`](../../../../simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java)
+- Java return type: `List<Map<String, Object>>`
+
+| Binding | Wire name | Java type | Required | Default | Validation/annotations |
+| --- | --- | --- | --- | --- | --- |
+| header | X-Simulator-Token | String | not declared required | — | @RequestHeader(value = "X-Simulator-Token", required = false) |
+| principal | actor | AuthenticatedActor | not declared required | — | @AuthenticationPrincipal |
+
+<details>
+<summary>Java signature for list</summary>
+
+```java
+public List<Map<String, Object>> list(@RequestHeader(value = "X-Simulator-Token", required = false) String token, @AuthenticationPrincipal AuthenticatedActor actor)
+```
+
+</details>
+
 ### `POST` `/api/simulator/runs`
 
 - Handler: `SimulatorController.start`
-- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java:44`](../../../../simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java)
+- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java:53`](../../../../simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java)
 - Java return type: `ResponseEntity<Map<String, Object>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
 | --- | --- | --- | --- | --- | --- |
 | header | X-Simulator-Token | String | not declared required | — | @RequestHeader(value = "X-Simulator-Token", required = false) |
 | body | scenario | JsonNode | declared required | — | @RequestBody |
+| principal | actor | AuthenticatedActor | not declared required | — | @AuthenticationPrincipal |
 
 <details>
 <summary>Java signature for start</summary>
 
 ```java
-public ResponseEntity<Map<String, Object>> start(@RequestHeader(value = "X-Simulator-Token", required = false) String token, @RequestBody JsonNode scenario)
+public ResponseEntity<Map<String, Object>> start(@RequestHeader(value = "X-Simulator-Token", required = false) String token, @RequestBody JsonNode scenario, @AuthenticationPrincipal AuthenticatedActor actor)
 ```
 
 </details>
@@ -3905,19 +4030,20 @@ public ResponseEntity<Map<String, Object>> start(@RequestHeader(value = "X-Simul
 ### `DELETE` `/api/simulator/runs/{runId}`
 
 - Handler: `SimulatorController.cleanup`
-- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java:95`](../../../../simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java)
+- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java:136`](../../../../simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java)
 - Java return type: `Map<String, Object>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
 | --- | --- | --- | --- | --- | --- |
 | header | X-Simulator-Token | String | not declared required | — | @RequestHeader(value = "X-Simulator-Token", required = false) |
 | path | runId | String | declared required | — | @PathVariable |
+| principal | actor | AuthenticatedActor | not declared required | — | @AuthenticationPrincipal |
 
 <details>
 <summary>Java signature for cleanup</summary>
 
 ```java
-public Map<String, Object> cleanup(@RequestHeader(value = "X-Simulator-Token", required = false) String token, @PathVariable String runId)
+public Map<String, Object> cleanup(@RequestHeader(value = "X-Simulator-Token", required = false) String token, @PathVariable String runId, @AuthenticationPrincipal AuthenticatedActor actor)
 ```
 
 </details>
@@ -3925,19 +4051,20 @@ public Map<String, Object> cleanup(@RequestHeader(value = "X-Simulator-Token", r
 ### `GET` `/api/simulator/runs/{runId}`
 
 - Handler: `SimulatorController.get`
-- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java:51`](../../../../simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java)
+- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java:61`](../../../../simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java)
 - Java return type: `Map<String, Object>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
 | --- | --- | --- | --- | --- | --- |
 | header | X-Simulator-Token | String | not declared required | — | @RequestHeader(value = "X-Simulator-Token", required = false) |
 | path | runId | String | declared required | — | @PathVariable |
+| principal | actor | AuthenticatedActor | not declared required | — | @AuthenticationPrincipal |
 
 <details>
 <summary>Java signature for get</summary>
 
 ```java
-public Map<String, Object> get(@RequestHeader(value = "X-Simulator-Token", required = false) String token, @PathVariable String runId)
+public Map<String, Object> get(@RequestHeader(value = "X-Simulator-Token", required = false) String token, @PathVariable String runId, @AuthenticationPrincipal AuthenticatedActor actor)
 ```
 
 </details>
@@ -3945,19 +4072,20 @@ public Map<String, Object> get(@RequestHeader(value = "X-Simulator-Token", requi
 ### `POST` `/api/simulator/runs/{runId}/abort`
 
 - Handler: `SimulatorController.abort`
-- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java:88`](../../../../simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java)
+- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java:118`](../../../../simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java)
 - Java return type: `Map<String, Object>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
 | --- | --- | --- | --- | --- | --- |
 | header | X-Simulator-Token | String | not declared required | — | @RequestHeader(value = "X-Simulator-Token", required = false) |
 | path | runId | String | declared required | — | @PathVariable |
+| principal | actor | AuthenticatedActor | not declared required | — | @AuthenticationPrincipal |
 
 <details>
 <summary>Java signature for abort</summary>
 
 ```java
-public Map<String, Object> abort(@RequestHeader(value = "X-Simulator-Token", required = false) String token, @PathVariable String runId)
+public Map<String, Object> abort(@RequestHeader(value = "X-Simulator-Token", required = false) String token, @PathVariable String runId, @AuthenticationPrincipal AuthenticatedActor actor)
 ```
 
 </details>
@@ -3965,19 +4093,41 @@ public Map<String, Object> abort(@RequestHeader(value = "X-Simulator-Token", req
 ### `GET` `/api/simulator/runs/{runId}/algorithm-traces`
 
 - Handler: `SimulatorController.traces`
-- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java:58`](../../../../simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java)
+- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java:76`](../../../../simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java)
 - Java return type: `Object`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
 | --- | --- | --- | --- | --- | --- |
 | header | X-Simulator-Token | String | not declared required | — | @RequestHeader(value = "X-Simulator-Token", required = false) |
 | path | runId | String | declared required | — | @PathVariable |
+| principal | actor | AuthenticatedActor | not declared required | — | @AuthenticationPrincipal |
 
 <details>
 <summary>Java signature for traces</summary>
 
 ```java
-public Object traces(@RequestHeader(value = "X-Simulator-Token", required = false) String token, @PathVariable String runId)
+public Object traces(@RequestHeader(value = "X-Simulator-Token", required = false) String token, @PathVariable String runId, @AuthenticationPrincipal AuthenticatedActor actor)
+```
+
+</details>
+
+### `GET` `/api/simulator/runs/{runId}/journal`
+
+- Handler: `SimulatorController.journal`
+- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java:84`](../../../../simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java)
+- Java return type: `List<Map<String, Object>>`
+
+| Binding | Wire name | Java type | Required | Default | Validation/annotations |
+| --- | --- | --- | --- | --- | --- |
+| header | X-Simulator-Token | String | not declared required | — | @RequestHeader(value = "X-Simulator-Token", required = false) |
+| path | runId | String | declared required | — | @PathVariable |
+| principal | actor | AuthenticatedActor | not declared required | — | @AuthenticationPrincipal |
+
+<details>
+<summary>Java signature for journal</summary>
+
+```java
+public List<Map<String, Object>> journal(@RequestHeader(value = "X-Simulator-Token", required = false) String token, @PathVariable String runId, @AuthenticationPrincipal AuthenticatedActor actor)
 ```
 
 </details>
@@ -3985,19 +4135,41 @@ public Object traces(@RequestHeader(value = "X-Simulator-Token", required = fals
 ### `POST` `/api/simulator/runs/{runId}/pause`
 
 - Handler: `SimulatorController.pause`
-- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java:74`](../../../../simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java)
+- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java:102`](../../../../simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java)
 - Java return type: `Map<String, Object>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
 | --- | --- | --- | --- | --- | --- |
 | header | X-Simulator-Token | String | not declared required | — | @RequestHeader(value = "X-Simulator-Token", required = false) |
 | path | runId | String | declared required | — | @PathVariable |
+| principal | actor | AuthenticatedActor | not declared required | — | @AuthenticationPrincipal |
 
 <details>
 <summary>Java signature for pause</summary>
 
 ```java
-public Map<String, Object> pause(@RequestHeader(value = "X-Simulator-Token", required = false) String token, @PathVariable String runId)
+public Map<String, Object> pause(@RequestHeader(value = "X-Simulator-Token", required = false) String token, @PathVariable String runId, @AuthenticationPrincipal AuthenticatedActor actor)
+```
+
+</details>
+
+### `POST` `/api/simulator/runs/{runId}/reconcile`
+
+- Handler: `SimulatorController.reconcile`
+- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java:127`](../../../../simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java)
+- Java return type: `SimulationRecoveryService.RecoveryResult`
+
+| Binding | Wire name | Java type | Required | Default | Validation/annotations |
+| --- | --- | --- | --- | --- | --- |
+| header | X-Simulator-Token | String | not declared required | — | @RequestHeader(value = "X-Simulator-Token", required = false) |
+| path | runId | String | declared required | — | @PathVariable |
+| principal | actor | AuthenticatedActor | not declared required | — | @AuthenticationPrincipal |
+
+<details>
+<summary>Java signature for reconcile</summary>
+
+```java
+public SimulationRecoveryService.RecoveryResult reconcile( @RequestHeader(value = "X-Simulator-Token", required = false) String token, @PathVariable String runId, @AuthenticationPrincipal AuthenticatedActor actor)
 ```
 
 </details>
@@ -4005,19 +4177,20 @@ public Map<String, Object> pause(@RequestHeader(value = "X-Simulator-Token", req
 ### `POST` `/api/simulator/runs/{runId}/resume`
 
 - Handler: `SimulatorController.resume`
-- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java:81`](../../../../simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java)
+- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java:110`](../../../../simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java)
 - Java return type: `Map<String, Object>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
 | --- | --- | --- | --- | --- | --- |
 | header | X-Simulator-Token | String | not declared required | — | @RequestHeader(value = "X-Simulator-Token", required = false) |
 | path | runId | String | declared required | — | @PathVariable |
+| principal | actor | AuthenticatedActor | not declared required | — | @AuthenticationPrincipal |
 
 <details>
 <summary>Java signature for resume</summary>
 
 ```java
-public Map<String, Object> resume(@RequestHeader(value = "X-Simulator-Token", required = false) String token, @PathVariable String runId)
+public Map<String, Object> resume(@RequestHeader(value = "X-Simulator-Token", required = false) String token, @PathVariable String runId, @AuthenticationPrincipal AuthenticatedActor actor)
 ```
 
 </details>
@@ -4025,19 +4198,20 @@ public Map<String, Object> resume(@RequestHeader(value = "X-Simulator-Token", re
 ### `GET` `/api/simulator/runs/{runId}/stream`
 
 - Handler: `SimulatorController.stream`
-- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java:65`](../../../../simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java)
+- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java:92`](../../../../simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java)
 - Java return type: `SseEmitter`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
 | --- | --- | --- | --- | --- | --- |
 | header | X-Simulator-Token | String | not declared required | — | @RequestHeader(value = "X-Simulator-Token", required = false) |
 | path | runId | String | declared required | — | @PathVariable |
+| principal | actor | AuthenticatedActor | not declared required | — | @AuthenticationPrincipal |
 
 <details>
 <summary>Java signature for stream</summary>
 
 ```java
-public SseEmitter stream(@RequestHeader(value = "X-Simulator-Token", required = false) String token, @PathVariable String runId)
+public SseEmitter stream(@RequestHeader(value = "X-Simulator-Token", required = false) String token, @PathVariable String runId, @AuthenticationPrincipal AuthenticatedActor actor)
 ```
 
 </details>
@@ -4045,19 +4219,20 @@ public SseEmitter stream(@RequestHeader(value = "X-Simulator-Token", required = 
 ### `POST` `/api/simulator/validate`
 
 - Handler: `SimulatorController.validate`
-- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java:37`](../../../../simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java)
+- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java:45`](../../../../simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java)
 - Java return type: `Map<String, Object>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
 | --- | --- | --- | --- | --- | --- |
 | header | X-Simulator-Token | String | not declared required | — | @RequestHeader(value = "X-Simulator-Token", required = false) |
 | body | scenario | JsonNode | declared required | — | @RequestBody |
+| principal | actor | AuthenticatedActor | not declared required | — | @AuthenticationPrincipal |
 
 <details>
 <summary>Java signature for validate</summary>
 
 ```java
-public Map<String, Object> validate(@RequestHeader(value = "X-Simulator-Token", required = false) String token, @RequestBody JsonNode scenario)
+public Map<String, Object> validate(@RequestHeader(value = "X-Simulator-Token", required = false) String token, @RequestBody JsonNode scenario, @AuthenticationPrincipal AuthenticatedActor actor)
 ```
 
 </details>
@@ -4087,7 +4262,7 @@ public ResponseEntity<BaseResponse<Void>> markOffline( @PathVariable Long shippe
 ### `POST` `/api/tracking/shipper-locations/offline`
 
 - Handler: `ShipperLocationController.markOffline`
-- Source: [`backend_delivery/tracking-service/src/main/java/com/delivery/tracking_service/controller/ShipperLocationController.java:41`](../../../../tracking-service/src/main/java/com/delivery/tracking_service/controller/ShipperLocationController.java)
+- Source: [`backend_delivery/tracking-service/src/main/java/com/delivery/tracking_service/controller/ShipperLocationController.java:42`](../../../../tracking-service/src/main/java/com/delivery/tracking_service/controller/ShipperLocationController.java)
 - Java return type: `ResponseEntity<BaseResponse<String>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -4567,6 +4742,26 @@ public ResponseEntity<BaseResponse<UserResponse>> registerUser( @Valid @RequestB
 | data | T | not declared required | — |
 | message | String | not declared required | — |
 
+### `com.delivery.auth_service.controller.SimulationActorInternalController.BindRequest`
+
+- Kind: `record`
+- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/SimulationActorInternalController.java:61`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/SimulationActorInternalController.java)
+
+| Field | Java type | Required | Validation/annotations |
+| --- | --- | --- | --- |
+| runId | UUID | not declared required | — |
+| cohortId | UUID | not declared required | — |
+
+### `com.delivery.auth_service.controller.SimulationActorInternalController.BindResponse`
+
+- Kind: `record`
+- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/SimulationActorInternalController.java:69`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/SimulationActorInternalController.java)
+
+| Field | Java type | Required | Validation/annotations |
+| --- | --- | --- | --- |
+| context | SimulationContext | not declared required | — |
+| accessToken | String | not declared required | — |
+
 ### `com.delivery.auth_service.dto.AuthAccountDto`
 
 - Kind: `record`
@@ -4731,6 +4926,17 @@ public ResponseEntity<BaseResponse<UserResponse>> registerUser( @Valid @RequestB
 | status | int | not declared required | — |
 | message | String | not declared required | — |
 | data | T | not declared required | — |
+
+### `com.delivery.delivery_service.controller.InternalDeliveryController.SimulationDeliveryStatus`
+
+- Kind: `record`
+- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/InternalDeliveryController.java:88`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/InternalDeliveryController.java)
+
+| Field | Java type | Required | Validation/annotations |
+| --- | --- | --- | --- |
+| deliveryId | Long | not declared required | — |
+| orderId | Long | not declared required | — |
+| status | String | not declared required | — |
 
 ### `com.delivery.delivery_service.dto.request.AcceptBatchRequest`
 
@@ -5273,6 +5479,38 @@ public ResponseEntity<BaseResponse<UserResponse>> registerUser( @Valid @RequestB
 - Kind: `enum`
 - Source: [`backend_delivery/identity-contracts/src/main/java/com/delivery/identity/contracts/IdentityLifecycleStatus.java:3`](../../../../identity-contracts/src/main/java/com/delivery/identity/contracts/IdentityLifecycleStatus.java)
 - Enum values: `PENDING_PROFILE`, `PENDING_EMAIL_VERIFICATION`, `ACTIVE`, `BLOCKED`
+
+| Field | Java type | Required | Validation/annotations |
+| --- | --- | --- | --- |
+| — | No source-declared fields | — | — |
+
+### `com.delivery.identity.contracts.SimulationContext`
+
+- Kind: `record`
+- Source: [`backend_delivery/identity-contracts/src/main/java/com/delivery/identity/contracts/SimulationContext.java:11`](../../../../identity-contracts/src/main/java/com/delivery/identity/contracts/SimulationContext.java)
+
+| Field | Java type | Required | Validation/annotations |
+| --- | --- | --- | --- |
+| mode | ExecutionMode | not declared required | — |
+| runId | UUID | not declared required | — |
+| cohortId | UUID | not declared required | — |
+| bindingVersion | Long | not declared required | — |
+
+#### `com.delivery.identity.contracts.SimulationContext.ExecutionMode`
+
+- Kind: `enum`
+- Source: [`backend_delivery/identity-contracts/src/main/java/com/delivery/identity/contracts/SimulationContext.java:17`](../../../../identity-contracts/src/main/java/com/delivery/identity/contracts/SimulationContext.java)
+- Enum values: `REAL`, `SIMULATION`
+
+| Field | Java type | Required | Validation/annotations |
+| --- | --- | --- | --- |
+| — | No source-declared fields | — | — |
+
+### `com.delivery.identity.contracts.SimulationContext.ExecutionMode`
+
+- Kind: `enum`
+- Source: [`backend_delivery/identity-contracts/src/main/java/com/delivery/identity/contracts/SimulationContext.java:17`](../../../../identity-contracts/src/main/java/com/delivery/identity/contracts/SimulationContext.java)
+- Enum values: `REAL`, `SIMULATION`
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -7135,6 +7373,15 @@ public ResponseEntity<BaseResponse<UserResponse>> registerUser( @Valid @RequestB
 | totalPages | int | not declared required | — |
 | hasNext | boolean | not declared required | — |
 
+### `com.delivery.settlement_service.controller.CustomerPaymentController.CustomerPaymentCreateRequest`
+
+- Kind: `record`
+- Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/CustomerPaymentController.java:63`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/controller/CustomerPaymentController.java)
+
+| Field | Java type | Required | Validation/annotations |
+| --- | --- | --- | --- |
+| orderId | Long | not declared required | — |
+
 ### `com.delivery.settlement_service.dto.request.CodCapacityHoldRequest`
 
 - Kind: `class`
@@ -7481,6 +7728,170 @@ public ResponseEntity<BaseResponse<UserResponse>> registerUser( @Valid @RequestB
 | totalItems | long | not declared required | — |
 | totalPages | int | not declared required | — |
 | hasNext | boolean | not declared required | — |
+
+### `com.delivery.simulator.config.SimulatorProperties`
+
+- Kind: `class`
+- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/config/SimulatorProperties.java:9`](../../../../simulator-service/src/main/java/com/delivery/simulator/config/SimulatorProperties.java)
+
+| Field | Java type | Required | Validation/annotations |
+| --- | --- | --- | --- |
+| enabled | boolean | not declared required | — |
+| adminOnly | boolean | not declared required | — |
+| apiToken | String | not declared required | — |
+| gatewayBaseUrl | String | not declared required | — |
+| authBaseUrl | String | not declared required | — |
+| deliveryBaseUrl | String | not declared required | — |
+| internalSecret | String | not declared required | — |
+| managedActorPoolRequired | boolean | not declared required | — |
+| allowNonLocalTargets | boolean | not declared required | — |
+| pollIntervalMillis | int | not declared required | — |
+| humanOrderTimeoutSeconds | int | not declared required | — |
+| runTimeoutSeconds | int | not declared required | — |
+| maxShippers | int | not declared required | — |
+| maxOrdersPerRun | int | not declared required | — |
+| maxConcurrentRuns | int | not declared required | — |
+| movementTickSeconds | int | not declared required | — |
+| kafkaObserverEnabled | boolean | not declared required | — |
+| ledgerObserverEnabled | boolean | not declared required | — |
+| kafkaDecisionTraceTopic | String | not declared required | — |
+| kafkaObserverGroupId | String | not declared required | — |
+
+### `com.delivery.simulator.repository.SimulationActorLeaseRepository`
+
+- Kind: `interface`
+- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/repository/SimulationActorLeaseRepository.java:11`](../../../../simulator-service/src/main/java/com/delivery/simulator/repository/SimulationActorLeaseRepository.java)
+
+| Field | Java type | Required | Validation/annotations |
+| --- | --- | --- | --- |
+| — | No source-declared fields | — | — |
+
+### `com.delivery.simulator.repository.SimulationRunJournalRepository`
+
+- Kind: `interface`
+- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/repository/SimulationRunJournalRepository.java:7`](../../../../simulator-service/src/main/java/com/delivery/simulator/repository/SimulationRunJournalRepository.java)
+
+| Field | Java type | Required | Validation/annotations |
+| --- | --- | --- | --- |
+| — | No source-declared fields | — | — |
+
+### `com.delivery.simulator.repository.SimulationRunRepository`
+
+- Kind: `interface`
+- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/repository/SimulationRunRepository.java:9`](../../../../simulator-service/src/main/java/com/delivery/simulator/repository/SimulationRunRepository.java)
+
+| Field | Java type | Required | Validation/annotations |
+| --- | --- | --- | --- |
+| — | No source-declared fields | — | — |
+
+### `com.delivery.simulator.service.GatewayClient`
+
+- Kind: `class`
+- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/service/GatewayClient.java:23`](../../../../simulator-service/src/main/java/com/delivery/simulator/service/GatewayClient.java)
+
+| Field | Java type | Required | Validation/annotations |
+| --- | --- | --- | --- |
+| httpClient | HttpClient | not declared required | — |
+| objectMapper | ObjectMapper | not declared required | — |
+| properties | SimulatorProperties | not declared required | — |
+| faultInjection | GatewayFaultInjection | not declared required | — |
+
+#### `com.delivery.simulator.service.GatewayClient.GatewayException`
+
+- Kind: `class`
+- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/service/GatewayClient.java:118`](../../../../simulator-service/src/main/java/com/delivery/simulator/service/GatewayClient.java)
+
+| Field | Java type | Required | Validation/annotations |
+| --- | --- | --- | --- |
+| status | int | not declared required | — |
+| operation | String | not declared required | — |
+
+### `com.delivery.simulator.service.GatewayFaultInjection`
+
+- Kind: `class`
+- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/service/GatewayFaultInjection.java:13`](../../../../simulator-service/src/main/java/com/delivery/simulator/service/GatewayFaultInjection.java)
+
+| Field | Java type | Required | Validation/annotations |
+| --- | --- | --- | --- |
+| — | No source-declared fields | — | — |
+
+### `com.delivery.simulator.service.SimulationActorPoolClient`
+
+- Kind: `interface`
+- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/service/SimulationActorPoolClient.java:7`](../../../../simulator-service/src/main/java/com/delivery/simulator/service/SimulationActorPoolClient.java)
+
+| Field | Java type | Required | Validation/annotations |
+| --- | --- | --- | --- |
+| — | No source-declared fields | — | — |
+
+#### `com.delivery.simulator.service.SimulationActorPoolClient.BoundActor`
+
+- Kind: `record`
+- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/service/SimulationActorPoolClient.java:12`](../../../../simulator-service/src/main/java/com/delivery/simulator/service/SimulationActorPoolClient.java)
+
+| Field | Java type | Required | Validation/annotations |
+| --- | --- | --- | --- |
+| principalId | Long | not declared required | — |
+| context | SimulationContext | not declared required | — |
+| accessToken | String | not declared required | — |
+
+### `com.delivery.simulator.service.SimulationDeliveryRecoveryClient`
+
+- Kind: `interface`
+- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/service/SimulationDeliveryRecoveryClient.java:7`](../../../../simulator-service/src/main/java/com/delivery/simulator/service/SimulationDeliveryRecoveryClient.java)
+
+| Field | Java type | Required | Validation/annotations |
+| --- | --- | --- | --- |
+| — | No source-declared fields | — | — |
+
+#### `com.delivery.simulator.service.SimulationDeliveryRecoveryClient.DeliveryStatus`
+
+- Kind: `record`
+- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/service/SimulationDeliveryRecoveryClient.java:10`](../../../../simulator-service/src/main/java/com/delivery/simulator/service/SimulationDeliveryRecoveryClient.java)
+
+| Field | Java type | Required | Validation/annotations |
+| --- | --- | --- | --- |
+| deliveryId | Long | not declared required | — |
+| orderId | Long | not declared required | — |
+| status | String | not declared required | — |
+
+### `com.delivery.simulator.service.SimulationLeaseService`
+
+- Kind: `class`
+- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/service/SimulationLeaseService.java:13`](../../../../simulator-service/src/main/java/com/delivery/simulator/service/SimulationLeaseService.java)
+
+| Field | Java type | Required | Validation/annotations |
+| --- | --- | --- | --- |
+| leases | SimulationActorLeaseRepository | not declared required | — |
+| ttlSeconds | long | not declared required | — |
+
+### `com.delivery.simulator.service.SimulationRecoveryService`
+
+- Kind: `class`
+- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/service/SimulationRecoveryService.java:26`](../../../../simulator-service/src/main/java/com/delivery/simulator/service/SimulationRecoveryService.java)
+
+| Field | Java type | Required | Validation/annotations |
+| --- | --- | --- | --- |
+| mapper | ObjectMapper | not declared required | — |
+| runs | SimulationRunRepository | not declared required | — |
+| journal | SimulationRunJournalRepository | not declared required | — |
+| gateway | GatewayClient | not declared required | — |
+| actors | SimulationActorPoolClient | not declared required | — |
+| leases | SimulationLeaseService | not declared required | — |
+| deliveryRecovery | SimulationDeliveryRecoveryClient | not declared required | — |
+
+#### `com.delivery.simulator.service.SimulationRecoveryService.RecoveryResult`
+
+- Kind: `record`
+- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/service/SimulationRecoveryService.java:170`](../../../../simulator-service/src/main/java/com/delivery/simulator/service/SimulationRecoveryService.java)
+
+| Field | Java type | Required | Validation/annotations |
+| --- | --- | --- | --- |
+| runId | UUID | not declared required | — |
+| reconciled | boolean | not declared required | — |
+| deliveryIds | List<Long> | not declared required | — |
+| deliveryStatuses | Map<Long, String> | not declared required | — |
+| releasedActors | int | not declared required | — |
 
 ### `com.delivery.tracking_service.dto.request.UpdateLocationRequest`
 

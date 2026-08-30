@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import jakarta.annotation.PreDestroy;
+import jakarta.annotation.PostConstruct;
 import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
@@ -24,6 +25,11 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.annotation.Scheduled;
+import com.delivery.simulator.repository.SimulationRunRepository;
+import com.delivery.simulator.entity.SimulationRun;
+import com.delivery.simulator.entity.SimulationActorLease;
 
 @Service
 public class SimulationService {
@@ -31,9 +37,18 @@ public class SimulationService {
     private final ObjectMapper objectMapper;
     private final SimulatorProperties properties;
     private final GatewayClient gateway;
+    private final GatewayFaultInjection faultInjection;
+    private final ShadowAlgorithmComparator shadowAlgorithmComparator;
     private final Map<String, SimulationRunState> runs = new ConcurrentHashMap<>();
     private final Map<String, PendingAlgorithmTrace> pendingAlgorithmTraces = new ConcurrentHashMap<>();
     private final ExecutorService executor;
+
+    private final SimulationRunRepository runRepository;
+    private final SimulationLeaseService leaseService;
+    private final SimulationActorPoolClient actorPoolClient;
+    private final SimulationRunJournalService journalService;
+    private final Map<String, List<SimulationActorLease>> runLeases = new ConcurrentHashMap<>();
+    private final Map<String, List<SimulationActorPoolClient.BoundActor>> runActors = new ConcurrentHashMap<>();
 
     private static final Duration PENDING_TRACE_RETENTION = Duration.ofMinutes(20);
     private static final int MAX_PENDING_ALGORITHM_TRACES = 2048;
@@ -41,14 +56,75 @@ public class SimulationService {
     public SimulationService(ObjectMapper objectMapper,
                              SimulatorProperties properties,
                              GatewayClient gateway) {
+        this(objectMapper, properties, gateway, null, null, null, null,
+                new GatewayFaultInjection());
+    }
+
+    public SimulationService(ObjectMapper objectMapper,
+                             SimulatorProperties properties,
+                             GatewayClient gateway,
+                             SimulationRunRepository runRepository,
+                             SimulationLeaseService leaseService) {
+        this(objectMapper, properties, gateway, runRepository, leaseService, null, null,
+                new GatewayFaultInjection());
+    }
+
+    public SimulationService(ObjectMapper objectMapper,
+                             SimulatorProperties properties,
+                             GatewayClient gateway,
+                             SimulationRunRepository runRepository,
+                             SimulationLeaseService leaseService,
+                             SimulationActorPoolClient actorPoolClient) {
+        this(objectMapper, properties, gateway, runRepository, leaseService, actorPoolClient, null,
+                new GatewayFaultInjection());
+    }
+
+    @Autowired
+    public SimulationService(ObjectMapper objectMapper,
+                             SimulatorProperties properties,
+                             GatewayClient gateway,
+                             SimulationRunRepository runRepository,
+                             SimulationLeaseService leaseService,
+                             SimulationActorPoolClient actorPoolClient,
+                             SimulationRunJournalService journalService,
+                             GatewayFaultInjection faultInjection) {
         this.objectMapper = objectMapper;
         this.properties = properties;
         this.gateway = gateway;
+        this.shadowAlgorithmComparator = new ShadowAlgorithmComparator(objectMapper);
+        this.runRepository = runRepository;
+        this.leaseService = leaseService;
+        this.actorPoolClient = actorPoolClient;
+        this.journalService = journalService;
+        this.faultInjection = faultInjection;
         this.executor = Executors.newFixedThreadPool(properties.getMaxConcurrentRuns(), runnable -> {
             Thread thread = new Thread(runnable, "simulator-runner");
             thread.setDaemon(true);
             return thread;
         });
+    }
+
+    /**
+     * An in-flight run cannot be resumed after a process loss because the
+     * actor credentials are deliberately memory-only. Mark it terminal so an
+     * operator never mistakes an orphaned row for a live runner; actor leases
+     * expire independently and are fenced before any later claim.
+     */
+    @PostConstruct
+    public void reconcileOrphanedRuns() {
+        if (runRepository == null) return;
+        List<SimulationRun> orphans = runRepository.findByStatusIn(
+                List.of("STARTING", "PROVISIONING", "RUNNING", "PAUSED"));
+        if (orphans.isEmpty()) return;
+        orphans.forEach(run -> {
+            // A process loss leaves us unable to prove whether a delivery was
+            // already accepted/picked up. Preserve Auth's run binding and
+            // quarantine the simulator lease; manual recovery must reconcile
+            // the Delivery projection before that actor may be reused.
+            if (leaseService != null) leaseService.quarantineRun(run.getRunId());
+            run.setStatus("ABORTED");
+        });
+        runRepository.saveAll(orphans);
     }
 
     public Map<String, Object> validate(JsonNode scenario) {
@@ -72,7 +148,23 @@ public class SimulationService {
         }
 
         SimulationRunState state = new SimulationRunState(objectMapper, scenario);
+        if (journalService != null) {
+            state.setEventObserver(event -> journalService.record(UUID.fromString(state.getRunId()), event));
+            state.setAssertionObserver(assertion -> journalService.record(UUID.fromString(state.getRunId()), assertion));
+        }
+        resolveManagedActors(state);
         runs.put(state.getRunId(), state);
+        if (runRepository != null) {
+            try {
+                Instant createdAt = Instant.now();
+                runRepository.save(new SimulationRun(UUID.fromString(state.getRunId()), "STARTING", createdAt,
+                        createdAt.plusSeconds(properties.getRunTimeoutSeconds()), state.persistableScenarioJson()));
+            } catch (RuntimeException persistenceFailure) {
+                runs.remove(state.getRunId());
+                releaseManagedActors(state.getRunId());
+                throw new IllegalStateException("Cannot durably register simulation run", persistenceFailure);
+            }
+        }
         executor.submit(() -> execute(state));
         return state.snapshot();
     }
@@ -83,6 +175,26 @@ public class SimulationService {
         return state.snapshot();
     }
 
+    public List<Map<String, Object>> listRuns() {
+        if (runRepository == null) {
+            return runs.values().stream().map(SimulationRunState::snapshot).toList();
+        }
+        return runRepository.findAll().stream().map(run -> {
+            Map<String, Object> value = new LinkedHashMap<>();
+            value.put("runId", run.getRunId().toString());
+            value.put("status", run.getStatus());
+            value.put("createdAt", run.getCreatedAt());
+            value.put("expiresAt", run.getExpiresAt());
+            return value;
+        }).toList();
+    }
+
+    public List<Map<String, Object>> journal(String runId) {
+        if (journalService == null) return List.of();
+        try { return journalService.entries(UUID.fromString(runId)); }
+        catch (IllegalArgumentException invalid) { throw new IllegalArgumentException("Invalid simulation run id", invalid); }
+    }
+
     /** Attach a read-only Match decision trace to the matching active run. */
     public void recordAlgorithmTrace(JsonNode trace) {
         if (trace == null || !trace.isObject() || !trace.path("eventId").isTextual()) {
@@ -91,7 +203,7 @@ public class SimulationService {
         prunePendingAlgorithmTraces();
         for (SimulationRunState state : runs.values()) {
             if (state.matchesAlgorithmTrace(trace)) {
-                state.addAlgorithmTrace(trace);
+                attachAlgorithmObservations(state, trace);
                 return;
             }
         }
@@ -138,11 +250,30 @@ public class SimulationService {
     }
 
     public Map<String, Object> cleanup(String runId) {
-        SimulationRunState state = requireRun(runId);
+        SimulationRunState state = runs.get(runId);
+        if (state == null) {
+            if (runRepository == null) throw new IllegalArgumentException("Không tìm thấy simulator run: " + runId);
+            UUID durableRunId;
+            try {
+                durableRunId = UUID.fromString(runId);
+            } catch (IllegalArgumentException invalid) {
+                throw new IllegalArgumentException("Không tìm thấy simulator run: " + runId);
+            }
+            SimulationRun durable = runRepository.findById(durableRunId)
+                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy simulator run: " + runId));
+            if (!Set.of("PASSED", "PARTIAL", "FAILED", "ABORTED").contains(durable.getStatus())) {
+                throw new IllegalStateException("Chỉ được cleanup run đã terminal hoặc đã abort");
+            }
+            // The memory-only credentials/emitters are already gone. Do not
+            // alter any durable fence here: failed/aborted runs still require
+            // explicit reconciliation after Delivery terminal proof.
+            return Map.of("runId", runId, "cleaned", true, "idempotent", true);
+        }
         if (!state.isTerminal()) {
             throw new IllegalStateException("Chỉ được cleanup run đã terminal hoặc đã abort");
         }
         state.completeEmitters();
+        releaseLeases(runId);
         runs.remove(runId);
         return Map.of("runId", runId, "cleaned", true);
     }
@@ -153,54 +284,25 @@ public class SimulationService {
     }
 
     private void execute(SimulationRunState state) {
+        String customerToken = null;
         try {
             state.setStatus("PROVISIONING");
+            persistStatus(state, "PROVISIONING");
             state.addEvent("RUNNER", "Khởi tạo Scenario Run", "Run " + state.getRunId() + " chạy qua Gateway thật", "INFO");
             seedLocations(state);
 
             JsonNode scenario = state.getRawScenario();
-            String customerToken = requiredToken(scenario.path("customer"), "token", "customer");
+            customerToken = requiredToken(scenario.path("customer"), "token", "customer");
             JsonNode restaurant = scenario.path("restaurant");
             String ownerToken = text(restaurant, "ownerToken", "");
             String mode = text(scenario, "orderMode", "SIMULATED_ORDER");
-
-            if ("HUMAN_ORDER".equals(mode)) {
-                state.setStatus("WAITING_FOR_ORDER");
-                state.addEvent("RUNNER", "Đang chờ đơn thật từ Delivery App", "Runner poll GET /api/orders/my-orders; không tự sinh order", "WARNING");
-                waitForHumanOrder(state, customerToken);
-            } else {
-                state.setStatus("RUNNING");
-                createOrder(state, customerToken);
+            int orderCount = scenario.path("orderCount").asInt(1);
+            for (int sequence = 1; sequence <= orderCount; sequence++) {
+                if (sequence > 1) state.beginNextOrder(sequence);
+                executeOneOrder(state, customerToken, ownerToken, mode);
+                if (state.isAborted() || state.isTerminal()) break;
+                state.finishCurrentOrder();
             }
-
-            if (state.isAborted()) return;
-            pollState(state, customerToken);
-            fireTriggers(state, "PENDING", customerToken, ownerToken);
-            // Cancellation/rejection is usually propagated asynchronously. Do
-            // not continue with the next irreversible actor action using the
-            // pre-trigger snapshot (for example, auto-confirming an order the
-            // customer or restaurant has just terminated).
-            pollState(state, customerToken);
-            if (isTerminalProjectionConverged(state.getOrderStatus(), state.getDeliveryStatus())) {
-                finishAssertions(state);
-                return;
-            }
-
-            boolean autoConfirm = restaurant.path("autoConfirm").asBoolean(false);
-            boolean pendingTriggerFired = state.isTriggerFiredAtStage("PENDING");
-            if ("PENDING".equals(state.getOrderStatus()) && autoConfirm
-                    && !ownerToken.isBlank() && !pendingTriggerFired) {
-                confirmRestaurant(state, ownerToken);
-                pollState(state, customerToken);
-            } else {
-                state.addEvent("RUNNER", "Không tự xác nhận nhà hàng",
-                        pendingTriggerFired
-                                ? "Đã có trigger tại PENDING; runner chờ backend hội tụ trước khi thực hiện action tiếp theo"
-                                : "autoConfirm=false, order đã qua PENDING hoặc chưa cấu hình ownerToken",
-                        "WARNING");
-            }
-
-            runDeliveryLoop(state, customerToken, ownerToken);
             finishAssertions(state);
         } catch (RunAbortedException ignored) {
             state.abort();
@@ -211,8 +313,156 @@ public class SimulationService {
             if (state.isAborted()) {
                 state.setStatus("ABORTED");
             }
+            persistStatus(state, state.getStatus());
+            finalizeActorLifecycle(state, customerToken);
             state.completeEmitters();
         }
+    }
+
+    private void finalizeActorLifecycle(SimulationRunState state, String customerToken) {
+        if (!state.isActorReleaseSafe() && customerToken != null && !customerToken.isBlank()) {
+            tryCancelUnacceptedDelivery(state, customerToken);
+        }
+        if (state.isActorReleaseSafe()) {
+            releaseManagedActors(state.getRunId());
+            return;
+        }
+        quarantineRunActors(state);
+        state.addEvent("LEASE", "Actor bị quarantine sau run không hội tụ",
+                "Delivery " + state.getDeliveryStatus()
+                        + " chưa terminal; giữ Auth binding để không tái sử dụng actor sai cách", "ERROR");
+    }
+
+    private void tryCancelUnacceptedDelivery(SimulationRunState state, String customerToken) {
+        if (state.getOrderId() == null) return;
+        if (!Set.of("FINDING_SHIPPER", "WAIT_SHIPPER_CONFIRM", "OFFERED", "ASSIGNED")
+                .contains(state.getDeliveryStatus())) return;
+        try {
+            ObjectNode request = objectMapper.createObjectNode();
+            request.put("reason", "Simulator cleanup after aborted run");
+            gateway.put("/api/orders/" + state.getOrderId() + "/cancel", customerToken,
+                    request, state.getCorrelationId());
+            pollState(state, customerToken);
+        } catch (RuntimeException ignored) {
+            // A cancellation that cannot be proven is never a reason to reuse
+            // the actor. The fallback below quarantines it.
+        }
+    }
+
+    private void quarantineRunActors(SimulationRunState state) {
+        if (leaseService != null) {
+            List<SimulationActorLease> leases = runLeases.remove(state.getRunId());
+            if (leases != null) leases.forEach(lease ->
+                    leaseService.quarantine(lease.getLeaseId(), lease.getFencingToken()));
+        }
+        // Deliberately retain Auth's active binding. A later manual repair must
+        // prove Delivery is terminal before calling the fenced unbind endpoint.
+        runActors.remove(state.getRunId());
+    }
+
+    private void executeOneOrder(SimulationRunState state, String customerToken, String ownerToken, String mode) {
+        JsonNode restaurant = state.getRawScenario().path("restaurant");
+        if ("HUMAN_ORDER".equals(mode)) {
+            state.setStatus("WAITING_FOR_ORDER");
+            state.addEvent("RUNNER", "Đang chờ đơn thật từ Delivery App", "Runner poll GET /api/orders/my-orders; không tự sinh order", "WARNING");
+            waitForHumanOrder(state, customerToken);
+        } else {
+            state.setStatus("RUNNING");
+            createOrder(state, customerToken);
+        }
+
+        if (state.isAborted()) return;
+        pollState(state, customerToken);
+        fireTriggers(state, "PENDING", customerToken, ownerToken);
+        pollState(state, customerToken);
+        if (isTerminalProjectionConverged(state.getOrderStatus(), state.getDeliveryStatus())) return;
+
+        boolean autoConfirm = restaurant.path("autoConfirm").asBoolean(false);
+        boolean pendingTriggerFired = state.isTriggerFiredAtStage("PENDING");
+        if ("PENDING".equals(state.getOrderStatus()) && autoConfirm
+                && !ownerToken.isBlank() && !pendingTriggerFired) {
+            confirmRestaurant(state, ownerToken);
+            pollState(state, customerToken);
+        } else {
+            state.addEvent("RUNNER", "Không tự xác nhận nhà hàng",
+                    pendingTriggerFired
+                            ? "Đã có trigger tại PENDING; runner chờ backend hội tụ trước khi thực hiện action tiếp theo"
+                            : "autoConfirm=false, order đã qua PENDING hoặc chưa cấu hình ownerToken",
+                    "WARNING");
+        }
+        runDeliveryLoop(state, customerToken, ownerToken);
+    }
+
+    /** Binds configured principals and writes their short-lived tokens only to the in-memory scenario. */
+    void resolveManagedActors(SimulationRunState state) {
+        if (!properties.isManagedActorPoolRequired()) return;
+        if (actorPoolClient == null) {
+            throw new IllegalStateException("Managed simulation actor pool client is unavailable");
+        }
+        JsonNode raw = state.getRawScenario();
+        if (!(raw instanceof ObjectNode scenario)) {
+            throw new IllegalArgumentException("scenario must be an object");
+        }
+        UUID runId = UUID.fromString(state.getRunId());
+        UUID cohortId = UUID.fromString(scenario.path("cohortId").asText());
+        List<SimulationActorPoolClient.BoundActor> bound = new ArrayList<>();
+        try {
+            bindActor((ObjectNode) scenario.path("customer"), "principalId", "token", runId, cohortId, bound);
+            ObjectNode restaurant = (ObjectNode) scenario.path("restaurant");
+            if (restaurant.path("autoConfirm").asBoolean(false)
+                    || containsTrigger(scenario, "RESTAURANT_REJECT")) {
+                bindActor(restaurant, "ownerPrincipalId", "ownerToken", runId, cohortId, bound);
+            }
+            for (JsonNode shipper : scenario.withArray("shippers")) {
+                bindActor((ObjectNode) shipper, "principalId", "token", runId, cohortId, bound);
+            }
+            runActors.put(state.getRunId(), bound);
+        } catch (RuntimeException failure) {
+            releaseActors(runId, bound);
+            throw failure;
+        }
+    }
+
+    private void bindActor(ObjectNode actor, String principalField, String tokenField,
+                           UUID runId, UUID cohortId,
+                           List<SimulationActorPoolClient.BoundActor> bound) {
+        long principalId = actor.path(principalField).asLong(-1);
+        if (principalId <= 0) {
+            throw new IllegalArgumentException("Missing managed simulation actor " + principalField);
+        }
+        SimulationActorPoolClient.BoundActor binding = actorPoolClient.bind(principalId, runId, cohortId);
+        if (!runId.equals(binding.context().runId()) || !cohortId.equals(binding.context().cohortId())) {
+            throw new IllegalStateException("Auth returned a simulation actor binding for another run or cohort");
+        }
+        actor.put(tokenField, binding.accessToken());
+        actor.put("simulationBindingVersion", binding.context().bindingVersion());
+        bound.add(binding);
+    }
+
+    private void releaseManagedActors(String runId) {
+        List<SimulationActorPoolClient.BoundActor> bound = runActors.remove(runId);
+        if (bound == null) return;
+        releaseActors(UUID.fromString(runId), bound);
+    }
+
+    private void releaseActors(UUID runId, List<SimulationActorPoolClient.BoundActor> bound) {
+        if (actorPoolClient == null) return;
+        for (SimulationActorPoolClient.BoundActor actor : bound) {
+            try {
+                actorPoolClient.unbind(actor.principalId(), runId, actor.context().bindingVersion());
+            } catch (RuntimeException ignored) {
+                // Auth keeps the binding fence; operator reconciliation must
+                // quarantine a failed cleanup instead of silently reusing it.
+            }
+        }
+    }
+
+    private void persistStatus(SimulationRunState state, String status) {
+        if (runRepository == null) return;
+        runRepository.findById(UUID.fromString(state.getRunId())).ifPresent(run -> {
+            run.setStatus(status);
+            runRepository.save(run);
+        });
     }
 
     private void attachPendingAlgorithmTraces(SimulationRunState state) {
@@ -220,9 +470,17 @@ public class SimulationService {
         for (Map.Entry<String, PendingAlgorithmTrace> entry : pendingAlgorithmTraces.entrySet()) {
             PendingAlgorithmTrace pending = entry.getValue();
             if (state.matchesAlgorithmTrace(pending.trace())) {
-                state.addAlgorithmTrace(pending.trace());
+                attachAlgorithmObservations(state, pending.trace());
                 pendingAlgorithmTraces.remove(entry.getKey(), pending);
             }
+        }
+    }
+
+    private void attachAlgorithmObservations(SimulationRunState state, JsonNode trace) {
+        state.addAlgorithmTrace(trace);
+        for (ObjectNode comparison : shadowAlgorithmComparator.compareAll(trace, state.getRawScenario())) {
+            comparison.put("sourceEventId", trace.path("eventId").asText());
+            state.addAlgorithmComparison(comparison);
         }
     }
 
@@ -253,10 +511,50 @@ public class SimulationService {
             checkControl(state);
             String id = text(shipper, "id", "unknown");
             String token = requiredToken(shipper, "token", "shipper " + id);
+            if (leaseService != null && shipper.hasNonNull("principalId")) {
+                SimulationActorLease lease = leaseService.claim(UUID.fromString(state.getRunId()),
+                        shipper.get("principalId").asLong());
+                runLeases.computeIfAbsent(state.getRunId(), ignored -> new ArrayList<>()).add(lease);
+            }
             boolean online = shipper.path("isOnline").asBoolean(false);
             updateLocation(state, id, token,
                     number(shipper, "initialLat", 0), number(shipper, "initialLng", 0), online);
         }
+    }
+
+    private void releaseLeases(String runId) {
+        if (leaseService == null) return;
+        List<SimulationActorLease> leases = runLeases.remove(runId);
+        if (leases != null) leases.forEach(lease -> leaseService.releaseOrQuarantine(lease.getLeaseId(), lease.getFencingToken()));
+    }
+
+    /** Keep every claimed actor alive; a failed heartbeat fences the run. */
+    @Scheduled(fixedDelayString = "${simulator.lease-heartbeat-delay-ms:5000}")
+    void heartbeatLeases() {
+        if (leaseService == null) return;
+        for (Map.Entry<String, List<SimulationActorLease>> entry : runLeases.entrySet()) {
+            SimulationRunState state = runs.get(entry.getKey());
+            if (state == null || state.isTerminal()) continue;
+            for (SimulationActorLease lease : entry.getValue()) {
+                if (!leaseService.renew(lease.getLeaseId(), lease.getFencingToken())) {
+                    state.abort();
+                    state.addEvent("LEASE", "Lease shipper hết hạn", "Run bị dừng để tránh worker stale gửi action", "ERROR");
+                    break;
+                }
+            }
+        }
+    }
+
+    @Scheduled(fixedDelayString = "${simulator.run-expiry-check-delay-ms:10000}")
+    void abortExpiredRuns() {
+        Instant cutoff = Instant.now().minusSeconds(properties.getRunTimeoutSeconds());
+        runs.values().forEach(state -> {
+            if (!state.isTerminal() && state.getStartedAt().isBefore(cutoff)) {
+                state.abort();
+                state.addEvent("RUNNER", "Run hết TTL", "Tự động abort để giải phóng actor và offer", "ERROR");
+                persistStatus(state, "ABORTED");
+            }
+        });
     }
 
     private void createOrder(SimulationRunState state, String customerToken) {
@@ -614,16 +912,36 @@ public class SimulationService {
         String id = text(shipper, "id", "unknown");
         double startLat = number(shipper, "currentLat", number(shipper, "initialLat", targetLat));
         double startLng = number(shipper, "currentLng", number(shipper, "initialLng", targetLng));
-        for (int index = 1; index <= 3; index++) {
+        double speedKmH = Math.max(1d, number(shipper, "speedKmH", 30d));
+        DeterministicPolyline route = new DeterministicPolyline(startLat, startLng, targetLat, targetLng,
+                state.getRunId().hashCode());
+        long totalSeconds = Math.max(1L, Math.round(haversineKm(startLat, startLng, targetLat, targetLng)
+                / speedKmH * 3600d));
+        long tickSeconds = Math.max(1L, properties.getMovementTickSeconds());
+        int steps = (int) Math.min(200L, Math.max(1L, (totalSeconds + tickSeconds - 1) / tickSeconds));
+        for (int index = 1; index <= steps; index++) {
             checkControl(state);
-            double ratio = index / 3d;
-            double lat = startLat + (targetLat - startLat) * ratio;
-            double lng = startLng + (targetLng - startLng) * ratio;
+            long elapsed = Math.min(totalSeconds, (long) index * totalSeconds / steps);
+            DeterministicPolyline.Position position = route.positionAfterSeconds(elapsed, speedKmH);
+            double lat = position.latitude();
+            double lng = position.longitude();
             updateLocation(state, id, token, lat, lng, true);
-            sleepControlled(state, 250);
+            if (shipper instanceof ObjectNode object) {
+                object.put("currentLat", lat);
+                object.put("currentLng", lng);
+            }
+            sleepControlled(state, Math.min(5000L, tickSeconds * 1000L));
         }
         state.addEvent("TRACKING_WS", "Shipper " + id + " " + label,
                 "Location thật đã được gửi qua Tracking REST fallback", "INFO");
+    }
+
+    private double haversineKm(double fromLat, double fromLng, double toLat, double toLng) {
+        double lat = Math.toRadians(toLat - fromLat), lng = Math.toRadians(toLng - fromLng);
+        double a = Math.sin(lat / 2) * Math.sin(lat / 2)
+                + Math.cos(Math.toRadians(fromLat)) * Math.cos(Math.toRadians(toLat))
+                * Math.sin(lng / 2) * Math.sin(lng / 2);
+        return 6371d * 2d * Math.atan2(Math.sqrt(a), Math.sqrt(1d - a));
     }
 
     private void updateLocation(SimulationRunState state, String id, String token,
@@ -632,7 +950,18 @@ public class SimulationService {
         request.put("latitude", latitude);
         request.put("longitude", longitude);
         request.put("isOnline", online);
-        gateway.post("/api/tracking/shipper-locations/update", token, request, state.getCorrelationId());
+        // A large actor pool shares one Gateway peer/window. Location writes
+        // are idempotent snapshots, so a 429 is safe to retry with bounded
+        // exponential backoff instead of aborting an otherwise valid run.
+        for (int attempt = 0; ; attempt++) {
+            try {
+                gateway.post("/api/tracking/shipper-locations/update", token, request, state.getCorrelationId());
+                break;
+            } catch (GatewayClient.GatewayException exception) {
+                if (!isTransientRateLimit(exception) || attempt >= 8) throw exception;
+                sleepControlled(state, locationRetryDelayMillis(attempt));
+            }
+        }
         state.updateShipper(id, online ? "ONLINE" : "OFFLINE", online, latitude, longitude);
         state.addEvent("TRACKING_WS", "Cập nhật vị trí shipper " + id,
                 "POST /api/tracking/shipper-locations/update", "INFO");
@@ -668,6 +997,11 @@ public class SimulationService {
 
     static boolean isTransientRateLimit(GatewayClient.GatewayException exception) {
         return exception != null && exception.getStatus() == 429;
+    }
+
+    static long locationRetryDelayMillis(int attempt) {
+        int boundedAttempt = Math.max(0, Math.min(8, attempt));
+        return Math.min(30_000L, 1_000L << boundedAttempt);
     }
 
     private void fireTriggers(SimulationRunState state, String stage,
@@ -718,8 +1052,9 @@ public class SimulationService {
                             "POST /api/tracking/shipper-locations/offline", "WARNING");
                 }
             } else if ("NETWORK_DELAY".equals(type)) {
-                state.addEvent("RUNNER", "Inject delay test-only tại " + stage,
-                        "Delay được ghi rõ trong timeline; không sửa state backend", "WARNING");
+                faultInjection.armOneTransientPollFailure(state.getCorrelationId());
+                state.addEvent("RUNNER", "Inject transient Gateway poll fault tại " + stage,
+                        "Lần GET /api/orders/{id} kế tiếp trả synthetic HTTP 429; runner sẽ poll lại", "WARNING");
             }
         }
     }
@@ -798,9 +1133,27 @@ public class SimulationService {
         if (!Set.of("HUMAN_ORDER", "SIMULATED_ORDER").contains(text(scenario, "orderMode", ""))) {
             errors.add("orderMode phải là HUMAN_ORDER hoặc SIMULATED_ORDER");
         }
+        int orderCount = scenario.path("orderCount").asInt(1);
+        if (orderCount < 1 || orderCount > properties.getMaxOrdersPerRun()) {
+            errors.add("orderCount phải nằm trong khoảng 1-" + properties.getMaxOrdersPerRun());
+        }
+        if (orderCount > 1 && !"SIMULATED_ORDER".equals(text(scenario, "orderMode", ""))) {
+            errors.add("orderCount > 1 chỉ hỗ trợ SIMULATED_ORDER");
+        }
         JsonNode customer = scenario.path("customer");
         JsonNode restaurant = scenario.path("restaurant");
-        if (!customer.path("token").isTextual() || customer.path("token").asText().isBlank()) {
+        if (properties.isManagedActorPoolRequired()) {
+            requireActorPoolPrincipal(errors, customer, "customer");
+            if (!scenario.path("cohortId").isTextual()) {
+                errors.add("cohortId là UUID bắt buộc khi dùng managed actor pool");
+            } else {
+                try {
+                    UUID.fromString(scenario.path("cohortId").asText());
+                } catch (IllegalArgumentException invalid) {
+                    errors.add("cohortId phải là UUID hợp lệ");
+                }
+            }
+        } else if (!customer.path("token").isTextual() || customer.path("token").asText().isBlank()) {
             errors.add("customer.token là bắt buộc cho Gateway actor");
         }
         if (restaurant.path("id").asLong(-1) <= 0) errors.add("restaurant.id phải là ID thật trong isolated environment");
@@ -824,7 +1177,9 @@ public class SimulationService {
             for (JsonNode shipper : shippers) {
                 String id = text(shipper, "id", "");
                 if (id.isBlank() || !ids.add(id)) errors.add("shipper id phải có và không trùng: " + id);
-                if (!shipper.path("token").isTextual() || shipper.path("token").asText().isBlank()) {
+                if (properties.isManagedActorPoolRequired()) {
+                    requireActorPoolPrincipal(errors, shipper, "shipper " + id);
+                } else if (!shipper.path("token").isTextual() || shipper.path("token").asText().isBlank()) {
                     errors.add("shipper " + id + ".token là bắt buộc");
                 }
                 if (!coordinateValid(shipper.path("initialLat").asDouble(Double.NaN),
@@ -842,6 +1197,9 @@ public class SimulationService {
         if (!triggers.isArray()) {
             errors.add("triggers phải là JSON array");
         } else {
+            if (orderCount > 1 && !triggers.isEmpty()) {
+                errors.add("orderCount > 1 chưa hỗ trợ triggers; dùng benchmark happy-path tách biệt");
+            }
             for (JsonNode trigger : triggers) {
                 if (!Set.of("CUSTOMER_CANCEL", "RESTAURANT_REJECT", "SHIPPER_DISCONNECT", "NETWORK_DELAY")
                         .contains(text(trigger, "type", ""))) {
@@ -870,11 +1228,25 @@ public class SimulationService {
         }
         boolean needsOwner = restaurant.path("autoConfirm").asBoolean(false)
                 || containsTrigger(scenario, "RESTAURANT_REJECT");
-        if (needsOwner && (!restaurant.path("ownerToken").isTextual()
-                || restaurant.path("ownerToken").asText().isBlank())) {
-            errors.add("restaurant.ownerToken là bắt buộc khi runner điều khiển nhà hàng");
+        if (needsOwner) {
+            if (properties.isManagedActorPoolRequired()) {
+                requireActorPoolPrincipal(errors, restaurant, "restaurant owner", "ownerPrincipalId");
+            } else if (!restaurant.path("ownerToken").isTextual()
+                    || restaurant.path("ownerToken").asText().isBlank()) {
+                errors.add("restaurant.ownerToken là bắt buộc khi runner điều khiển nhà hàng");
+            }
         }
         return errors;
+    }
+
+    private void requireActorPoolPrincipal(List<String> errors, JsonNode actor, String label) {
+        requireActorPoolPrincipal(errors, actor, label, "principalId");
+    }
+
+    private void requireActorPoolPrincipal(List<String> errors, JsonNode actor, String label, String field) {
+        if (actor.path(field).asLong(-1) <= 0) {
+            errors.add(label + "." + field + " là bắt buộc khi dùng managed actor pool");
+        }
     }
 
     private boolean containsTrigger(JsonNode scenario, String type) {
@@ -955,7 +1327,16 @@ public class SimulationService {
         // Order and may legitimately have no Delivery projection yet. A
         // successful delivery is different: require both projections so the
         // runner cannot report success while Order still says PICKED_UP.
-        return !"DELIVERED".equals(orderStatus) || "DELIVERED".equals(deliveryStatus);
+        if ("DELIVERED".equals(orderStatus)) {
+            return "DELIVERED".equals(deliveryStatus);
+        }
+        // A cancellation or no-shipper result can legitimately happen before
+        // Delivery exists. Once Delivery has been observed, however, wait for
+        // its terminal compensation projection instead of reporting a green
+        // run while an assigned shipper is still active.
+        return "NONE".equals(deliveryStatus)
+                || "CANCELLED".equals(deliveryStatus)
+                || "SHIPPER_NOT_FOUND".equals(deliveryStatus);
     }
 
     private boolean isTerminalOrder(String status) {

@@ -1,5 +1,6 @@
 package com.delivery.auth.resourceserver.security;
 
+import com.delivery.identity.contracts.SimulationContext;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -8,6 +9,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.Jwt;
 
 import java.util.*;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 public class DeliveryJwtAuthenticationConverter implements Converter<Jwt, AbstractAuthenticationToken> {
@@ -45,7 +47,8 @@ public class DeliveryJwtAuthenticationConverter implements Converter<Jwt, Abstra
             }
         }
 
-        AuthenticatedActor actor = new AuthenticatedActor(principalId, legacyUserId, email, rolesSet);
+        AuthenticatedActor actor = new AuthenticatedActor(principalId, legacyUserId, email, rolesSet,
+                simulationContext(jwt));
 
         Set<GrantedAuthority> authorities = rolesSet.stream()
                 .filter(Objects::nonNull)
@@ -70,5 +73,33 @@ public class DeliveryJwtAuthenticationConverter implements Converter<Jwt, Abstra
         } catch (NumberFormatException ignored) {
             return null;
         }
+    }
+
+    private SimulationContext simulationContext(Jwt jwt) {
+        String rawMode = jwt.getClaimAsString("simulation_mode");
+        String rawRunId = jwt.getClaimAsString("simulation_run_id");
+        String rawCohortId = jwt.getClaimAsString("simulation_cohort_id");
+        Long bindingVersion = numeric(jwt.getClaim("simulation_binding_version"));
+        if (blank(rawMode) && blank(rawRunId) && blank(rawCohortId) && bindingVersion == null) {
+            return SimulationContext.real();
+        }
+        try {
+            SimulationContext.ExecutionMode mode = SimulationContext.ExecutionMode.valueOf(
+                    rawMode == null ? "" : rawMode.trim().toUpperCase(Locale.ROOT));
+            SimulationContext context = new SimulationContext(mode,
+                    uuid(rawRunId), uuid(rawCohortId), bindingVersion);
+            context.requireValid();
+            return context;
+        } catch (IllegalArgumentException invalid) {
+            throw new BadCredentialsException("Access token has invalid simulation claims", invalid);
+        }
+    }
+
+    private UUID uuid(String value) {
+        return blank(value) ? null : UUID.fromString(value);
+    }
+
+    private boolean blank(String value) {
+        return value == null || value.isBlank();
     }
 }

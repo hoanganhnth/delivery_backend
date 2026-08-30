@@ -1364,7 +1364,8 @@ public class SagaManager {
         copyIfPresent(parsedAttempt, payload,
                 "orderId", "deliveryId", "pickupAddress", "pickupLat", "pickupLng",
                 "deliveryAddress", "deliveryLat", "deliveryLng", "totalPrice",
-                "shippingFee", "paymentMethod", "restaurantId", "restaurantName", "matchingDeadlineAt");
+                "shippingFee", "paymentMethod", "restaurantId", "restaurantName", "matchingDeadlineAt",
+                "simulationContext");
         copyIfPresent(parsedAttempt, payload, "batchOfferEnabled", "batchWave");
         payload.put("batchOfferEnabled", batchClientCapabilityEnabled);
 
@@ -1383,7 +1384,7 @@ public class SagaManager {
 
         JsonNode order = objectMapper.readTree(saga.getPayload());
         copyIfPresent(order, payload, "orderId", "totalPrice", "shippingFee", "paymentMethod",
-                "restaurantId", "restaurantName");
+                "restaurantId", "restaurantName", "simulationContext");
 
         if (!payload.hasNonNull("orderId") || !payload.hasNonNull("deliveryId")) {
             throw new IllegalArgumentException("Canonical matching payload is missing orderId/deliveryId");

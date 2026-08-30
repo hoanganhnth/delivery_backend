@@ -30,3 +30,19 @@ tests:
             exp_annotations:
               summary: 'Delivery Kafka DLT received a record'
               description: 'saga-a recorded 1 DLT recovery event(s) in the last five minutes. Inspect original topic/partition/offset, eventId, correlationId and exception metadata before replay.'
+
+  - interval: 1m
+    input_series:
+      - series: 'delivery_simulator_actor_leases{application="simulator-service",state="quarantined"}'
+        values: '0 2'
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: DeliverySimulatorActorQuarantined
+        exp_alerts:
+          - exp_labels:
+              alertname: DeliverySimulatorActorQuarantined
+              component: simulator
+              severity: warning
+            exp_annotations:
+              summary: 'Simulator actor requires delivery reconciliation'
+              description: '2 simulator actor lease(s) are quarantined. Verify the Delivery projection is terminal, then use the ADMIN reconcile endpoint; never clear Auth fencing directly.'

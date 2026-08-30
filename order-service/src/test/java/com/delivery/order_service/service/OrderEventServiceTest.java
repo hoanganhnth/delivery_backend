@@ -21,6 +21,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
+import com.delivery.identity.contracts.SimulationContext;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
@@ -379,6 +380,25 @@ class OrderEventServiceTest {
         DeliveryStatusUpdatedEvent event = new DeliveryStatusUpdatedEvent();
         event.setOrderId(1L);
         event.setStatus("TELEPORTED");
+
+        assertThrows(IllegalArgumentException.class,
+                () -> orderEventService.handleDeliveryStatusUpdate(event));
+        verify(orderRepository, never()).save(any(Order.class));
+    }
+
+    @Test
+    void simulationDeliveryStatusCannotMutateOrderFromAnotherRun() {
+        UUID expectedRun = UUID.randomUUID();
+        UUID cohort = UUID.randomUUID();
+        testOrder.setSimulationContext(new SimulationContext(
+                SimulationContext.ExecutionMode.SIMULATION, expectedRun, cohort, 1L));
+        when(orderRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(testOrder));
+
+        DeliveryStatusUpdatedEvent event = new DeliveryStatusUpdatedEvent();
+        event.setOrderId(1L);
+        event.setStatus("DELIVERED");
+        event.setSimulationContext(new SimulationContext(
+                SimulationContext.ExecutionMode.SIMULATION, UUID.randomUUID(), cohort, 1L));
 
         assertThrows(IllegalArgumentException.class,
                 () -> orderEventService.handleDeliveryStatusUpdate(event));

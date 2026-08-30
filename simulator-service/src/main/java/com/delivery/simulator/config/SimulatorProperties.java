@@ -9,8 +9,13 @@ import java.util.List;
 public class SimulatorProperties {
 
     private boolean enabled = false;
+    private boolean adminOnly = true;
     private String apiToken = "";
     private String gatewayBaseUrl = "http://localhost:8079";
+    private String authBaseUrl = "http://auth-service:8081";
+    private String deliveryBaseUrl = "http://delivery-service:8085";
+    private String internalSecret = "";
+    private boolean managedActorPoolRequired = true;
     private boolean allowNonLocalTargets = false;
     private List<String> allowedOrigins = new ArrayList<>(List.of(
             "http://localhost:5174", "http://127.0.0.1:5174",
@@ -21,8 +26,11 @@ public class SimulatorProperties {
     private int humanOrderTimeoutSeconds = 300;
     private int runTimeoutSeconds = 900;
     private int maxShippers = 50;
+    private int maxOrdersPerRun = 20;
     private int maxConcurrentRuns = 4;
+    private int movementTickSeconds = 5;
     private boolean kafkaObserverEnabled = false;
+    private boolean ledgerObserverEnabled = false;
     private String kafkaDecisionTraceTopic = "matching.decision-trace";
     private String kafkaObserverGroupId = "simulator-algorithm-observer";
 
@@ -33,6 +41,9 @@ public class SimulatorProperties {
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
     }
+
+    public boolean isAdminOnly() { return adminOnly; }
+    public void setAdminOnly(boolean adminOnly) { this.adminOnly = adminOnly; }
 
     public String getApiToken() {
         return apiToken;
@@ -49,6 +60,15 @@ public class SimulatorProperties {
     public void setGatewayBaseUrl(String gatewayBaseUrl) {
         this.gatewayBaseUrl = gatewayBaseUrl == null ? "" : gatewayBaseUrl;
     }
+
+    public String getAuthBaseUrl() { return authBaseUrl; }
+    public void setAuthBaseUrl(String value) { authBaseUrl = value == null ? "" : value; }
+    public String getDeliveryBaseUrl() { return deliveryBaseUrl; }
+    public void setDeliveryBaseUrl(String value) { deliveryBaseUrl = value == null ? "" : value; }
+    public String getInternalSecret() { return internalSecret; }
+    public void setInternalSecret(String value) { internalSecret = value == null ? "" : value; }
+    public boolean isManagedActorPoolRequired() { return managedActorPoolRequired; }
+    public void setManagedActorPoolRequired(boolean value) { managedActorPoolRequired = value; }
 
     public boolean isAllowNonLocalTargets() {
         return allowNonLocalTargets;
@@ -110,6 +130,9 @@ public class SimulatorProperties {
         this.maxShippers = Math.max(1, Math.min(50, maxShippers));
     }
 
+    public int getMaxOrdersPerRun() { return maxOrdersPerRun; }
+    public void setMaxOrdersPerRun(int value) { maxOrdersPerRun = Math.max(1, Math.min(50, value)); }
+
     public int getMaxConcurrentRuns() {
         return maxConcurrentRuns;
     }
@@ -117,6 +140,8 @@ public class SimulatorProperties {
     public void setMaxConcurrentRuns(int maxConcurrentRuns) {
         this.maxConcurrentRuns = Math.max(1, Math.min(16, maxConcurrentRuns));
     }
+    public int getMovementTickSeconds() { return movementTickSeconds; }
+    public void setMovementTickSeconds(int value) { movementTickSeconds = Math.max(1, Math.min(60, value)); }
 
     public boolean isKafkaObserverEnabled() {
         return kafkaObserverEnabled;
@@ -125,6 +150,8 @@ public class SimulatorProperties {
     public void setKafkaObserverEnabled(boolean kafkaObserverEnabled) {
         this.kafkaObserverEnabled = kafkaObserverEnabled;
     }
+    public boolean isLedgerObserverEnabled() { return ledgerObserverEnabled; }
+    public void setLedgerObserverEnabled(boolean enabled) { this.ledgerObserverEnabled = enabled; }
 
     public String getKafkaDecisionTraceTopic() {
         return kafkaDecisionTraceTopic;

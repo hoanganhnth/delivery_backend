@@ -1,7 +1,7 @@
 {
   "format": 1,
   "purpose": "Deterministic reference snapshot for the Delivery reconstruction documentation.",
-  "sourceCount": 535,
+  "sourceCount": 559,
   "generatedFiles": [
     "README.md",
     "MANIFEST.json",
@@ -89,14 +89,14 @@
     {
       "source": "backend_delivery/api-gateway/src/main/resources/application.properties",
       "target": "workspace/backend_delivery/api-gateway/src/main/resources/application.properties",
-      "sha256": "9c333ed76d8b4240f8e2e58ad6177ce2cad70fbd66483121832a55c04870f41c",
-      "bytes": 4548
+      "sha256": "e9976e68f6e8d2db792f5bcbcde9482a04d4a954d482ba01f9208194bad8f3e4",
+      "bytes": 4992
     },
     {
       "source": "backend_delivery/auth-resource-server-starter/pom.xml",
       "target": "workspace/backend_delivery/auth-resource-server-starter/pom.xml",
-      "sha256": "4f26448a2214e504c97190718cb533356a3eab5a7fa0bbe087e9c3a275dc71fe",
-      "bytes": 1660
+      "sha256": "595398562374a7745ad170397e6a339ce1c2a0d66196086503dbc71b5aaa6595",
+      "bytes": 1849
     },
     {
       "source": "backend_delivery/auth-service/pom.xml",
@@ -503,8 +503,8 @@
     {
       "source": "backend_delivery/deploy/kubernetes/base/generated/kustomization.yaml",
       "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/kustomization.yaml",
-      "sha256": "00ca1dae0fc7a4228060c75a33df94ce0df46d20613333a9b40f1cd25244d63f",
-      "bytes": 2303
+      "sha256": "d363e39f664c4a9fd880dca75ec6a1b8142048bbae6e4b93bde21d20549b6acf",
+      "bytes": 2418
     },
     {
       "source": "backend_delivery/deploy/kubernetes/base/generated/livestream-service.deployment.yaml",
@@ -705,6 +705,24 @@
       "bytes": 427
     },
     {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/simulator-service.deployment.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/simulator-service.deployment.yaml",
+      "sha256": "2f8ad7932dcd0c7b2a42c88e53fe5164c27d7cb8b42fab8e42defa7767c99014",
+      "bytes": 6272
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/simulator-service.service.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/simulator-service.service.yaml",
+      "sha256": "f5f8fdc4ca1b038a603f1ee23de16303fc9ab9a9bec126f2fcd740ad39173aea",
+      "bytes": 772
+    },
+    {
+      "source": "backend_delivery/deploy/kubernetes/base/generated/simulator-service.serviceaccount.yaml",
+      "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/simulator-service.serviceaccount.yaml",
+      "sha256": "797791196ccfac5bb328f9f56ef64d2fad64d402361314f303e48bc2946939dc",
+      "bytes": 431
+    },
+    {
       "source": "backend_delivery/deploy/kubernetes/base/generated/tracking-service.deployment.yaml",
       "target": "workspace/backend_delivery/deploy/kubernetes/base/generated/tracking-service.deployment.yaml",
       "sha256": "baeb368d74ffa69f755eaf4b2acaaddc97dfbe215687318cb61615db71ed5066",
@@ -749,14 +767,14 @@
     {
       "source": "backend_delivery/deploy/kubernetes/base/runtime-config.yaml",
       "target": "workspace/backend_delivery/deploy/kubernetes/base/runtime-config.yaml",
-      "sha256": "dddb4925f440c33a84c46cc3c4026deaf4e0f249a9de9fca311182052860f123",
-      "bytes": 4548
+      "sha256": "d1469204dc243bdbc24aee247db58ea533398fd1d56d2df82ca3ff78950a9563",
+      "bytes": 4627
     },
     {
       "source": "backend_delivery/deploy/kubernetes/generate.mjs",
       "target": "workspace/backend_delivery/deploy/kubernetes/generate.mjs",
-      "sha256": "78068116344bdf18aa06309b49a670edeff0334fd6c530280f64927439c05d62",
-      "bytes": 14524
+      "sha256": "3c8000d769609b487c72c7651276b6745a30d5f8553591fc327492ec4ebf6753",
+      "bytes": 14753
     },
     {
       "source": "backend_delivery/deploy/kubernetes/overlays/production-template/kustomization.yaml",
@@ -827,8 +845,8 @@
     {
       "source": "backend_delivery/docker-compose.sandbox.yml",
       "target": "workspace/backend_delivery/docker-compose.sandbox.yml",
-      "sha256": "99e52a7ce02ed430ec5e1715eadce3c4c00c7a1cebe46492b43b8e3e1b544b88",
-      "bytes": 6867
+      "sha256": "45f44dda014b56148da47c12afa6bf70dd73e719e5163b8be598bb8c3809c886",
+      "bytes": 7805
     },
     {
       "source": "backend_delivery/docker-compose.secrets.yml",
@@ -839,8 +857,8 @@
     {
       "source": "backend_delivery/docker-compose.simulator.yml",
       "target": "workspace/backend_delivery/docker-compose.simulator.yml",
-      "sha256": "b65f58d51e80d298eedc75f2702f3e8616cadc461133a1d8ab83ce3305c3d19b",
-      "bytes": 1614
+      "sha256": "207bec4d72ac04d35e4e06605d1a91d5e8eeff506d29f778262eee7a459595ea",
+      "bytes": 2624
     },
     {
       "source": "backend_delivery/docker-compose.static-routes.yml",
@@ -851,8 +869,8 @@
     {
       "source": "backend_delivery/docker-compose.yml",
       "target": "workspace/backend_delivery/docker-compose.yml",
-      "sha256": "70dff13ad1f7e2e28222b667668cd03bae23c0bd1a6838b6107b440316610e74",
-      "bytes": 29769
+      "sha256": "1709cf958c9e048bfff5849a9651aa5acc30e0c3c3673097573759ae7eb2b76d",
+      "bytes": 30234
     },
     {
       "source": "backend_delivery/Dockerfile",
@@ -875,8 +893,8 @@
     {
       "source": "backend_delivery/docs/http-api-inventory.md",
       "target": "workspace/backend_delivery/docs/http-api-inventory.md",
-      "sha256": "2ba1a1984d569abfa8cfca20368cee4a41142e92d2c0965c90e36afb7fd13b0d",
-      "bytes": 55926
+      "sha256": "c12a70420a9df5bb341abbf3493eac4548f98b9acd7f4dcaada0a514ec858366",
+      "bytes": 57382
     },
     {
       "source": "backend_delivery/docs/operations/centralized-configuration.md",
@@ -1173,6 +1191,12 @@
       "bytes": 10636
     },
     {
+      "source": "backend_delivery/docs/platform/plans/active/readme-reconciliation-design.md",
+      "target": "workspace/backend_delivery/docs/platform/plans/active/readme-reconciliation-design.md",
+      "sha256": "bb4662420a62a7dab96b77d1a2aba72866c924ccb4f9673eb6be7816c886a578",
+      "bytes": 7161
+    },
+    {
       "source": "backend_delivery/docs/platform/plans/active/README.md",
       "target": "workspace/backend_delivery/docs/platform/plans/active/README.md",
       "sha256": "aec64998a72585b2a9c4c8909c7ed775c396c4c2e39c71b0ce4ee6e392784160",
@@ -1427,8 +1451,8 @@
     {
       "source": "backend_delivery/docs/platform/product/features/settlement.md",
       "target": "workspace/backend_delivery/docs/platform/product/features/settlement.md",
-      "sha256": "67b235541fd58b2250f5261fc66b350afbd930be140dbd0d53be15af20d71d3b",
-      "bytes": 7590
+      "sha256": "1d6c5f751fd972587fd39deade5e55bf7b5c87724b88d4c162f76e893d09afc2",
+      "bytes": 8291
     },
     {
       "source": "backend_delivery/docs/platform/product/features/voucher-flashsale-checkout.md",
@@ -1463,19 +1487,19 @@
     {
       "source": "backend_delivery/docs/platform/system/api/http-contract-catalog.md",
       "target": "workspace/backend_delivery/docs/platform/system/api/http-contract-catalog.md",
-      "sha256": "8904351e27d78305c13f9b26bcdfa88f1bbc3af3b94974d4f06c93ddda0b7cd8",
-      "bytes": 395138
+      "sha256": "0d5bd5d7224a3333c022effdbaa8b2d574386cecc357d99500984801b3ccbb57",
+      "bytes": 417718
     },
     {
       "source": "backend_delivery/docs/platform/system/api/http-contract.json",
       "target": "workspace/backend_delivery/docs/platform/system/api/http-contract.json",
-      "sha256": "21db994d3cc3cf735453cc8c6cd97375e969beb4800702b9aa2897fb44a40a73",
-      "bytes": 703791
+      "sha256": "f363cb5b2050d3afaffe6877f195fbdb7dbf6c892c418d36c12b19909630d04b",
+      "bytes": 736135
     },
     {
       "source": "backend_delivery/docs/platform/system/api/README.md",
       "target": "workspace/backend_delivery/docs/platform/system/api/README.md",
-      "sha256": "c9e56c3d5e3c10b3773eb61ab910f5cbf4f188e8a2e35a346bb1f1f57db68fea",
+      "sha256": "90cf7dfd6d2433c626d0655180cd792f562f17349220556598b5411d078d972f",
       "bytes": 10070
     },
     {
@@ -1691,8 +1715,8 @@
     {
       "source": "backend_delivery/docs/runbooks/production-like-sandbox.md",
       "target": "workspace/backend_delivery/docs/runbooks/production-like-sandbox.md",
-      "sha256": "ef7aa762506c1a8dc498a7fba623bcd96f2ec3ea972af3dc12ef021a7c2934fe",
-      "bytes": 7138
+      "sha256": "b9fbd3d4e082dfdbb5e74242173ccedb4f3c2230288438bfb16dfa5418c5d509",
+      "bytes": 12645
     },
     {
       "source": "backend_delivery/docs/runbooks/refund-workflow.md",
@@ -1769,8 +1793,8 @@
     {
       "source": "backend_delivery/docs/system-contract-inventory.md",
       "target": "workspace/backend_delivery/docs/system-contract-inventory.md",
-      "sha256": "2e0ac07ac541710bd258ec497a1b52488582543303d7f28f0d9447b2d195148b",
-      "bytes": 142972
+      "sha256": "2c1a0d7260a4c4de4e8aa1ce180433e2672d0d3a3bc69ed96e5173aded2788cc",
+      "bytes": 143140
     },
     {
       "source": "backend_delivery/docs/templates/decision.md",
@@ -1877,8 +1901,8 @@
     {
       "source": "backend_delivery/identity-contracts/pom.xml",
       "target": "workspace/backend_delivery/identity-contracts/pom.xml",
-      "sha256": "bf69f82b13a67a7cdb7083f0569ee1b6669d7dee241f7d3f45e8e6301a41bbcb",
-      "bytes": 815
+      "sha256": "582a4e51f2053dd9cc68abf289e63491247aba4069190ecf1f11327b61dbce82",
+      "bytes": 1392
     },
     {
       "source": "backend_delivery/kafka-operations-tool/pom.xml",
@@ -1901,8 +1925,8 @@
     {
       "source": "backend_delivery/livestream-service/src/main/resources/application.properties",
       "target": "workspace/backend_delivery/livestream-service/src/main/resources/application.properties",
-      "sha256": "4196be6a2ed240b640286119e1f6eb9502ab952abfcccb8632b9af6d3b362f85",
-      "bytes": 2820
+      "sha256": "51f10f4e8532ce3130a15293d6df453c87f931fa7cf04257fa0f81edf8e75e1e",
+      "bytes": 2940
     },
     {
       "source": "backend_delivery/match-service/CONTINUOUS_SHIPPER_SEARCH.md",
@@ -1919,8 +1943,8 @@
     {
       "source": "backend_delivery/match-service/pom.xml",
       "target": "workspace/backend_delivery/match-service/pom.xml",
-      "sha256": "a7c850b168e4828476201a123e20c023384be3b54ecdb0389535ba30c823cc1f",
-      "bytes": 5525
+      "sha256": "c339aca3b38cc55ebc355fab9e63b54fff05587e49f73b51d7250394eb4aa71a",
+      "bytes": 5660
     },
     {
       "source": "backend_delivery/match-service/RETRY_LOGIC_FIX.md",
@@ -1931,8 +1955,8 @@
     {
       "source": "backend_delivery/match-service/src/main/resources/application.properties",
       "target": "workspace/backend_delivery/match-service/src/main/resources/application.properties",
-      "sha256": "2d920ed6d7258c54844a48650ef0e1f84bfd5acaeedd72423c9a89559cc2394a",
-      "bytes": 7676
+      "sha256": "bc299b6caf4ad054129a1ea46786881c4386712f57e83f4f3ab782afa6b5b150",
+      "bytes": 8299
     },
     {
       "source": "backend_delivery/match-service/src/main/resources/db/migration/V1__match_command_result_outbox.sql",
@@ -1973,8 +1997,8 @@
     {
       "source": "backend_delivery/monitoring/grafana/dashboards/delivery-operations.json",
       "target": "workspace/backend_delivery/monitoring/grafana/dashboards/delivery-operations.json",
-      "sha256": "f6169b961c5dfcd8b34614f31c74d2ebe390df6369fdc4dbeb2c4b4728371b3d",
-      "bytes": 2598
+      "sha256": "0dc12f1d4ce81f28d6b5891b4091d03b314a715eb29dd8afdf1965229ffa0a47",
+      "bytes": 3050
     },
     {
       "source": "backend_delivery/monitoring/grafana/provisioning/dashboards/dashboards.yml",
@@ -1997,14 +2021,14 @@
     {
       "source": "backend_delivery/monitoring/prometheus/rules/resilience.yml",
       "target": "workspace/backend_delivery/monitoring/prometheus/rules/resilience.yml",
-      "sha256": "b10c55aa51332ff480aa927b1ea9e3b960d1d0f7c92558b741ce5b288dffbc86",
-      "bytes": 550
+      "sha256": "cacce58dd859af981b3f4298a0cc80b73b86deb72d99d228e536f45efca41881",
+      "bytes": 1055
     },
     {
       "source": "backend_delivery/monitoring/prometheus/tests/resilience-rules.test.yml",
       "target": "workspace/backend_delivery/monitoring/prometheus/tests/resilience-rules.test.yml",
-      "sha256": "1f2f06bdb18ba6832c1560c5804bc80ee832f0ef10e8d09ab450cc9378f21973",
-      "bytes": 1062
+      "sha256": "9d708c6de0710c39d1c026dd09c64645ca8ebb2880cdae5ca9b60fc5dcdab45f",
+      "bytes": 1783
     },
     {
       "source": "backend_delivery/notification-service/MATCH_SERVICE_TEST.md",
@@ -2021,8 +2045,8 @@
     {
       "source": "backend_delivery/notification-service/pom.xml",
       "target": "workspace/backend_delivery/notification-service/pom.xml",
-      "sha256": "7450bed6b10b528f7238a192413f222c9ec7f880c0dba99e79141ee715a973c6",
-      "bytes": 4793
+      "sha256": "682677325aa8dab29194f5852c8b5e26cac8a39dc80d61c83a2c3f3431ff6184",
+      "bytes": 4928
     },
     {
       "source": "backend_delivery/notification-service/QUICK_TEST.md",
@@ -2069,8 +2093,8 @@
     {
       "source": "backend_delivery/order-service/pom.xml",
       "target": "workspace/backend_delivery/order-service/pom.xml",
-      "sha256": "49f8eb855b3e4fc5055bb543350e3790ff3685e3b050922f2fa64ab927f43f98",
-      "bytes": 4776
+      "sha256": "23f57b3584d2b9c8951bf83db26995669df72dfbbb7e4a595f218ef88c5b6a58",
+      "bytes": 4911
     },
     {
       "source": "backend_delivery/order-service/SINGLE_LAYER_VALIDATION.md",
@@ -2241,6 +2265,12 @@
       "bytes": 3571
     },
     {
+      "source": "backend_delivery/README.md",
+      "target": "workspace/backend_delivery/README.md",
+      "sha256": "19d8744aa5ec8fe09cd878cf597d2f7ee683c3a9a07c700a835dc6aef1deb481",
+      "bytes": 8266
+    },
+    {
       "source": "backend_delivery/restaurant-service/pom.xml",
       "target": "workspace/backend_delivery/restaurant-service/pom.xml",
       "sha256": "d21a66d840ef7debdfe5ee1de1f7725c95a39421178e845655e58ba5b35f8fa8",
@@ -2327,8 +2357,8 @@
     {
       "source": "backend_delivery/saga-orchestrator-service/pom.xml",
       "target": "workspace/backend_delivery/saga-orchestrator-service/pom.xml",
-      "sha256": "09deacff12a5985e329886597083cc18440bacf4fa7d4209cd59f07c7882a9ee",
-      "bytes": 4223
+      "sha256": "d9dcc04e4665b392afe70f3f7f150a7f7fb35a05e523da06d16c237048712117",
+      "bytes": 4358
     },
     {
       "source": "backend_delivery/saga-orchestrator-service/SAGA_DESIGN.md",
@@ -2465,14 +2495,14 @@
     {
       "source": "backend_delivery/scripts/sandbox-make-scenario.sh",
       "target": "workspace/backend_delivery/scripts/sandbox-make-scenario.sh",
-      "sha256": "a2674c7822c74ff5b7431b6263e7e0719c9065d60d3c2a0f7f4ad0ab2c0597ba",
-      "bytes": 5006
+      "sha256": "8dbfb805f36111eade69e888ae47770b6e71a83cf18000bd525d4f48755eaf4b",
+      "bytes": 10270
     },
     {
       "source": "backend_delivery/scripts/sandbox-run.sh",
       "target": "workspace/backend_delivery/scripts/sandbox-run.sh",
-      "sha256": "18f43e2a06296fe324e62b28ab06d7d99f1f23b4926fe0ded97416b753b99abb",
-      "bytes": 3652
+      "sha256": "da287ea3902a343215ae8658f172bc354427cece474e6bf85757a09903b21176",
+      "bytes": 5085
     },
     {
       "source": "backend_delivery/scripts/sandbox-status.sh",
@@ -2483,14 +2513,14 @@
     {
       "source": "backend_delivery/scripts/sandbox-up.sh",
       "target": "workspace/backend_delivery/scripts/sandbox-up.sh",
-      "sha256": "68c91607b8816994df1e1a8ccba2833e09d884a23a59ccbd9dcd03f5d21e9831",
-      "bytes": 16733
+      "sha256": "466ec32ea879675f76130bda49228b7e9a784a46f5ea06902984386b59f0bf9a",
+      "bytes": 19531
     },
     {
       "source": "backend_delivery/scripts/scenario-lab-runner.sh",
       "target": "workspace/backend_delivery/scripts/scenario-lab-runner.sh",
-      "sha256": "319062b8c97b3a82df1d2fcb805843c8b4c274539e32bfa45719e9629bdf48d5",
-      "bytes": 2366
+      "sha256": "e59f02f94231983293f5559d3ee88efb35fcd30462912afc7a124b07ef7fcb6b",
+      "bytes": 2505
     },
     {
       "source": "backend_delivery/scripts/seed-realistic-catalog.sh",
@@ -2501,8 +2531,8 @@
     {
       "source": "backend_delivery/scripts/seed.sh",
       "target": "workspace/backend_delivery/scripts/seed.sh",
-      "sha256": "6931c8ad2f8978862828546c2c841ca7094807e33afaaedfbe289b3c13ae8148",
-      "bytes": 13537
+      "sha256": "ba8c627a3f05f1e228d714c7c6b8d82d535861d698c9e28204a0f2c9b72b1275",
+      "bytes": 17901
     },
     {
       "source": "backend_delivery/scripts/test-order-flow.sh",
@@ -2515,6 +2545,18 @@
       "target": "workspace/backend_delivery/scripts/test-replay-kafka-dlt-record.sh",
       "sha256": "4b8426d2ebafb6d26342d481f1819e77501279e73a94b7e51b16686028dbdd1e",
       "bytes": 1440
+    },
+    {
+      "source": "backend_delivery/scripts/test-sandbox-make-scenario.sh",
+      "target": "workspace/backend_delivery/scripts/test-sandbox-make-scenario.sh",
+      "sha256": "2b23067c3f21859cd32b87e5c45c71fe143bc8a21f3a8ae57fbb8b3e7d4159fb",
+      "bytes": 2073
+    },
+    {
+      "source": "backend_delivery/scripts/test-sandbox-run-usage.sh",
+      "target": "workspace/backend_delivery/scripts/test-sandbox-run-usage.sh",
+      "sha256": "eb01acecf3655c8657a6c72a9975d251c63648767f8a90f69f4d4e5167989c1c",
+      "bytes": 1484
     },
     {
       "source": "backend_delivery/scripts/test-verify-kafka-legacy-retry-drain.sh",
@@ -2747,14 +2789,14 @@
     {
       "source": "backend_delivery/settlement-service/pom.xml",
       "target": "workspace/backend_delivery/settlement-service/pom.xml",
-      "sha256": "1c66ca37bcba80db125c092ba151cdf128473621e4a0b1344fcb31b4da794411",
-      "bytes": 4246
+      "sha256": "998f939b3548dbfe6f3bbf39e4186b6999a693f81498cdbc4001a030e073ced9",
+      "bytes": 4381
     },
     {
       "source": "backend_delivery/settlement-service/src/main/resources/application.properties",
       "target": "workspace/backend_delivery/settlement-service/src/main/resources/application.properties",
-      "sha256": "fba6af7e2e5dfdb4f54e875de376ea28096aedb29bb56a2b2170164d74f5f6e7",
-      "bytes": 5927
+      "sha256": "2954671725a94b0911aa4953e9d1e2de661d5cad4231972d327cd4e1e39d2f57",
+      "bytes": 5994
     },
     {
       "source": "backend_delivery/settlement-service/src/main/resources/db/migration/V3__hot_query_indexes.sql",
@@ -2807,8 +2849,8 @@
     {
       "source": "backend_delivery/simulator-service/pom.xml",
       "target": "workspace/backend_delivery/simulator-service/pom.xml",
-      "sha256": "a59d8a5da947421ed51009980a0537e798d95c1c40f380a2b88b10893ea789e7",
-      "bytes": 2256
+      "sha256": "b390c2788d91b4d03ee4278f234341367acec8603c36056888dd77af2afc947d",
+      "bytes": 2878
     },
     {
       "source": "backend_delivery/simulator-service/README.md",
@@ -2819,8 +2861,8 @@
     {
       "source": "backend_delivery/simulator-service/src/main/resources/application.properties",
       "target": "workspace/backend_delivery/simulator-service/src/main/resources/application.properties",
-      "sha256": "6941243ff6a2b8b56a9dfb2785daf93fde536c4da1a7e1acd0a62dec249c5349",
-      "bytes": 2130
+      "sha256": "62bb984f0515568f3656c1068e0c11a1b3e848657fac0e61aed61a7c03d0d82b",
+      "bytes": 2703
     },
     {
       "source": "backend_delivery/SYSTEM_REVIEW.md",
@@ -2917,6 +2959,84 @@
       "target": "workspace/delivery_app/.stitch_designs/README.md",
       "sha256": "13880af13febabb6e3d3ac9c88dc79efa72ee882d7d5ceb1e93bbc8c1a202c3c",
       "bytes": 4479
+    },
+    {
+      "source": "delivery_app/.superpowers/sdd/restore-all-capabilities/progress.md",
+      "target": "workspace/delivery_app/.superpowers/sdd/restore-all-capabilities/progress.md",
+      "sha256": "f0c333a1a70dee59230598c8ee4bf6c5c497a14d1fa95251bd86aa4901b3ab53",
+      "bytes": 9066
+    },
+    {
+      "source": "delivery_app/.superpowers/sdd/restore-all-capabilities/task-3-brief.md",
+      "target": "workspace/delivery_app/.superpowers/sdd/restore-all-capabilities/task-3-brief.md",
+      "sha256": "267c95ef2253afea8eb6c6301444027ba5c6da5d898a8c775edd967a19760fdb",
+      "bytes": 446
+    },
+    {
+      "source": "delivery_app/.superpowers/sdd/restore-all-capabilities/task-3-report.md",
+      "target": "workspace/delivery_app/.superpowers/sdd/restore-all-capabilities/task-3-report.md",
+      "sha256": "245093784ef4f90d8e0f977b6903a5e2f0a838c61d66abaecb344afead06b626",
+      "bytes": 10321
+    },
+    {
+      "source": "delivery_app/.superpowers/sdd/restore-all-capabilities/task-4-brief.md",
+      "target": "workspace/delivery_app/.superpowers/sdd/restore-all-capabilities/task-4-brief.md",
+      "sha256": "06c2c16813fc7aeb25d5f6fab5677972a41bfd3dad1571d90559f2181c9d10fc",
+      "bytes": 2461
+    },
+    {
+      "source": "delivery_app/.superpowers/sdd/restore-all-capabilities/task-4-report.md",
+      "target": "workspace/delivery_app/.superpowers/sdd/restore-all-capabilities/task-4-report.md",
+      "sha256": "06486dfa5ffbf78cee6cba0aba9d6e59b788917a60d6eef3adf5cc2ee97d55c7",
+      "bytes": 10740
+    },
+    {
+      "source": "delivery_app/.superpowers/sdd/restore-all-capabilities/task-5-brief.md",
+      "target": "workspace/delivery_app/.superpowers/sdd/restore-all-capabilities/task-5-brief.md",
+      "sha256": "ca2ef93e45d8e8caf18cbc4789ac3be11c72338d26d933aa98e5dcc30487ad7a",
+      "bytes": 2177
+    },
+    {
+      "source": "delivery_app/.superpowers/sdd/restore-all-capabilities/task-5-report.md",
+      "target": "workspace/delivery_app/.superpowers/sdd/restore-all-capabilities/task-5-report.md",
+      "sha256": "7e85d2d5e2c3287fae80bb4b3fa5659fcbe774d20dbdfb2b40cb274ccb41abd4",
+      "bytes": 1725
+    },
+    {
+      "source": "delivery_app/.superpowers/sdd/restore-all-capabilities/task-5-review-backend.md",
+      "target": "workspace/delivery_app/.superpowers/sdd/restore-all-capabilities/task-5-review-backend.md",
+      "sha256": "52c1e0ffee39effbe8470d324725701a577b02ed7a74a0260cd6a486cddf081a",
+      "bytes": 25373
+    },
+    {
+      "source": "delivery_app/.superpowers/sdd/restore-all-capabilities/task-5-review-flutter.md",
+      "target": "workspace/delivery_app/.superpowers/sdd/restore-all-capabilities/task-5-review-flutter.md",
+      "sha256": "78dd6feb9e30554719930589f5e3dbe05695d45cca32fd2e8105c463859f6093",
+      "bytes": 33629
+    },
+    {
+      "source": "delivery_app/.superpowers/sdd/restore-all-capabilities/task-5-review-web.md",
+      "target": "workspace/delivery_app/.superpowers/sdd/restore-all-capabilities/task-5-review-web.md",
+      "sha256": "f6cd76825dc11c3a95e47033d03086191cf7fbe6e00255d70fdfdcd950f1cc8f",
+      "bytes": 25718
+    },
+    {
+      "source": "delivery_app/.superpowers/sdd/restore-all-capabilities/task-6-brief.md",
+      "target": "workspace/delivery_app/.superpowers/sdd/restore-all-capabilities/task-6-brief.md",
+      "sha256": "07ee01443ff9447bb563d029ae008c7ec9d715f4b077a42b8ef3f44a602da80d",
+      "bytes": 224
+    },
+    {
+      "source": "delivery_app/.superpowers/sdd/restore-all-capabilities/task-6a-report.md",
+      "target": "workspace/delivery_app/.superpowers/sdd/restore-all-capabilities/task-6a-report.md",
+      "sha256": "193217d1be8f508c50154cb11b6b64bb2c9f2aee478c7f33554b599680e943dc",
+      "bytes": 1279
+    },
+    {
+      "source": "delivery_app/.superpowers/sdd/restore-all-capabilities/task-7-brief.md",
+      "target": "workspace/delivery_app/.superpowers/sdd/restore-all-capabilities/task-7-brief.md",
+      "sha256": "dd9ba40c8d52694d150c582d39a7c552024a593b94b2d447b8de34b971c98ac5",
+      "bytes": 1847
     },
     {
       "source": "delivery_app/docs/AMBER_HEARTH_DESIGN_SYSTEM.md",
@@ -3083,8 +3203,8 @@
     {
       "source": "delivery_app/README.md",
       "target": "workspace/delivery_app/README.md",
-      "sha256": "d07cd8ea772c7d498a19ef3cc183210e37a1d87e29fb9a7ffa12353521e552c0",
-      "bytes": 1490
+      "sha256": "afd5ce84d067d76acf4af88abb066cdd1ea86100552274a402d3bb03ed4aa7df",
+      "bytes": 6014
     },
     {
       "source": "delivery_app/TESTING.md",
@@ -3123,16 +3243,40 @@
       "bytes": 19039
     },
     {
+      "source": "delivery_web/docs/superpowers/plans/2026-08-27-architecture-handbook.md",
+      "target": "workspace/delivery_web/docs/superpowers/plans/2026-08-27-architecture-handbook.md",
+      "sha256": "dc10cbff01ba2e3e8cc9e06a8dcef95ceba08023fc69e5adebaa11e4dbd56be1",
+      "bytes": 16315
+    },
+    {
+      "source": "delivery_web/docs/superpowers/plans/2026-08-28-architecture-hub.md",
+      "target": "workspace/delivery_web/docs/superpowers/plans/2026-08-28-architecture-hub.md",
+      "sha256": "d6cf4cd8f32c4aad3cef53e17cdde9ea8de72b927a09f88748db1e5db95d4f00",
+      "bytes": 6245
+    },
+    {
+      "source": "delivery_web/docs/superpowers/specs/2026-08-27-architecture-handbook-design.md",
+      "target": "workspace/delivery_web/docs/superpowers/specs/2026-08-27-architecture-handbook-design.md",
+      "sha256": "34757c0115b61e31b81d49102358192c2ee28b4c94179c52ae13b70d545ae524",
+      "bytes": 8695
+    },
+    {
+      "source": "delivery_web/docs/superpowers/specs/2026-08-28-architecture-hub-design.md",
+      "target": "workspace/delivery_web/docs/superpowers/specs/2026-08-28-architecture-hub-design.md",
+      "sha256": "6d765e147dc538b76eb16cfe5d7383054f12473bb514db664ea4be9e108ae0b5",
+      "bytes": 2050
+    },
+    {
       "source": "delivery_web/package.json",
       "target": "workspace/delivery_web/package.json",
-      "sha256": "d1a38099ce5470736a87f06ac230ea48297f5fbe413ec262480c21578e284887",
-      "bytes": 2255
+      "sha256": "55362d7def6e2d9fecb4b926e72216abf9be0229f8dd33a2c537dc7473a92a22",
+      "bytes": 2312
     },
     {
       "source": "delivery_web/README.md",
       "target": "workspace/delivery_web/README.md",
-      "sha256": "71ec4cafe237445992ff5fd7472468e5a7fdf97e074f5b497ac80191f544b52b",
-      "bytes": 1380
+      "sha256": "96072f5c348d69936a7826c2a18d4fb4994dd29204a7fdf2805377555d381166",
+      "bytes": 7860
     },
     {
       "source": "delivery_web/TESTING.md",
@@ -3197,8 +3341,8 @@
     {
       "source": "shipper_app2/README.md",
       "target": "workspace/shipper_app2/README.md",
-      "sha256": "d32fc894188d9c590628d30b35d36fcef773e2bac9495e2fb38b398d86f6085c",
-      "bytes": 1305
+      "sha256": "c0d04697a6b6dc2ad689e7db5c868e8cf6e2464bc74858ff4b509c9838075c73",
+      "bytes": 6621
     },
     {
       "source": "shipper_app2/SCREEN_DESIGNS_DOCUMENTATION.md",

@@ -9,12 +9,12 @@
   "scope": "Every annotated controller mapping, including internal, hidden, dev-only and experimental endpoints. Consult the HTTP inventory for public-edge classification and capability status.",
   "schemaStatus": "Field metadata is extracted from Java declarations and validation annotations. It is a source map, not an inferred OpenAPI/JSON Schema; controller/DTO source remains authoritative for Jackson, inheritance, polymorphism and error behavior.",
   "counts": {
-    "operations": 226,
+    "operations": 228,
     "services": 16,
-    "sourceSchemas": 202,
+    "sourceSchemas": 206,
     "byService": {
       "analytics-service": 4,
-      "auth-service": 16,
+      "auth-service": 18,
       "delivery-service": 21,
       "flashsale-service": 12,
       "livestream-service": 14,
@@ -868,6 +868,132 @@
         "signature": "public ResponseEntity<Map<String, Object>> getJwks()",
         "returnType": "ResponseEntity<Map<String, Object>>",
         "parameters": []
+      }
+    },
+    {
+      "id": "auth-service:SimulationActorInternalController.bind:POST:/api/auth/internal/simulation-actors/{principalId}/bindings",
+      "service": "auth-service",
+      "controller": "SimulationActorInternalController",
+      "verbs": [
+        "POST"
+      ],
+      "path": "/api/auth/internal/simulation-actors/{principalId}/bindings",
+      "handler": "bind",
+      "source": {
+        "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/SimulationActorInternalController.java",
+        "line": 33
+      },
+      "java": {
+        "signature": "public ResponseEntity<BindResponse> bind( @RequestHeader(value = \"X-Internal-Secret\", required = false) String suppliedSecret, @PathVariable Long principalId, @RequestBody BindRequest request)",
+        "returnType": "ResponseEntity<BindResponse>",
+        "parameters": [
+          {
+            "name": "suppliedSecret",
+            "type": "String",
+            "annotations": [
+              {
+                "name": "RequestHeader",
+                "arguments": "value = \"X-Internal-Secret\", required = false"
+              }
+            ],
+            "required": false,
+            "binding": "header",
+            "wireName": "X-Internal-Secret"
+          },
+          {
+            "name": "principalId",
+            "type": "Long",
+            "annotations": [
+              {
+                "name": "PathVariable"
+              }
+            ],
+            "required": true,
+            "binding": "path",
+            "wireName": "principalId"
+          },
+          {
+            "name": "request",
+            "type": "BindRequest",
+            "annotations": [
+              {
+                "name": "RequestBody"
+              }
+            ],
+            "required": true,
+            "binding": "body"
+          }
+        ]
+      }
+    },
+    {
+      "id": "auth-service:SimulationActorInternalController.unbind:DELETE:/api/auth/internal/simulation-actors/{principalId}/bindings/{runId}",
+      "service": "auth-service",
+      "controller": "SimulationActorInternalController",
+      "verbs": [
+        "DELETE"
+      ],
+      "path": "/api/auth/internal/simulation-actors/{principalId}/bindings/{runId}",
+      "handler": "unbind",
+      "source": {
+        "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/SimulationActorInternalController.java",
+        "line": 43
+      },
+      "java": {
+        "signature": "public ResponseEntity<Void> unbind( @RequestHeader(value = \"X-Internal-Secret\", required = false) String suppliedSecret, @PathVariable Long principalId, @PathVariable UUID runId, @RequestHeader(\"X-Simulation-Binding-Version\") long bindingVersion)",
+        "returnType": "ResponseEntity<Void>",
+        "parameters": [
+          {
+            "name": "suppliedSecret",
+            "type": "String",
+            "annotations": [
+              {
+                "name": "RequestHeader",
+                "arguments": "value = \"X-Internal-Secret\", required = false"
+              }
+            ],
+            "required": false,
+            "binding": "header",
+            "wireName": "X-Internal-Secret"
+          },
+          {
+            "name": "principalId",
+            "type": "Long",
+            "annotations": [
+              {
+                "name": "PathVariable"
+              }
+            ],
+            "required": true,
+            "binding": "path",
+            "wireName": "principalId"
+          },
+          {
+            "name": "runId",
+            "type": "UUID",
+            "annotations": [
+              {
+                "name": "PathVariable"
+              }
+            ],
+            "required": true,
+            "binding": "path",
+            "wireName": "runId"
+          },
+          {
+            "name": "bindingVersion",
+            "type": "long",
+            "annotations": [
+              {
+                "name": "RequestHeader",
+                "arguments": "\"X-Simulation-Binding-Version\""
+              }
+            ],
+            "required": true,
+            "binding": "header",
+            "wireName": "X-Simulation-Binding-Version"
+          }
+        ]
       }
     },
     {
@@ -2384,7 +2510,7 @@
       "handler": "createLivestream",
       "source": {
         "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java",
-        "line": 34
+        "line": 37
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<LivestreamResponse>> createLivestream( @Valid @RequestBody CreateLivestreamRequest request, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -2434,7 +2560,7 @@
       "handler": "startLivestream",
       "source": {
         "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java",
-        "line": 43
+        "line": 47
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<StartLivestreamResponse>> startLivestream( @PathVariable UUID id, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -2477,7 +2603,7 @@
       "handler": "joinLivestream",
       "source": {
         "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java",
-        "line": 53
+        "line": 58
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<JoinLivestreamResponse>> joinLivestream( @PathVariable UUID id, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -2520,7 +2646,7 @@
       "handler": "endLivestream",
       "source": {
         "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java",
-        "line": 63
+        "line": 68
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<LivestreamResponse>> endLivestream( @PathVariable UUID id, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -2563,7 +2689,7 @@
       "handler": "getActiveLivestreams",
       "source": {
         "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java",
-        "line": 72
+        "line": 78
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<List<LivestreamResponse>>> getActiveLivestreams()",
@@ -2582,7 +2708,7 @@
       "handler": "getLivestreamById",
       "source": {
         "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java",
-        "line": 78
+        "line": 84
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<LivestreamResponse>> getLivestreamById(@PathVariable UUID id)",
@@ -2614,7 +2740,7 @@
       "handler": "getLivestreamsBySeller",
       "source": {
         "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java",
-        "line": 84
+        "line": 90
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<List<LivestreamResponse>>> getLivestreamsBySeller( @PathVariable Long sellerId)",
@@ -2646,10 +2772,10 @@
       "handler": "getLivestreamsByRestaurant",
       "source": {
         "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java",
-        "line": 91
+        "line": 97
       },
       "java": {
-        "signature": "public ResponseEntity<BaseResponse<List<LivestreamResponse>>> getLivestreamsByRestaurant( @PathVariable Long restaurantId)",
+        "signature": "public ResponseEntity<BaseResponse<List<LivestreamResponse>>> getLivestreamsByRestaurant( @PathVariable Long restaurantId, @AuthenticationPrincipal AuthenticatedActor actor)",
         "returnType": "ResponseEntity<BaseResponse<List<LivestreamResponse>>>",
         "parameters": [
           {
@@ -2663,6 +2789,17 @@
             "required": true,
             "binding": "path",
             "wireName": "restaurantId"
+          },
+          {
+            "name": "actor",
+            "type": "AuthenticatedActor",
+            "annotations": [
+              {
+                "name": "AuthenticationPrincipal"
+              }
+            ],
+            "required": false,
+            "binding": "principal"
           }
         ]
       }
@@ -10795,6 +10932,48 @@
         }
       ]
     },
+    "com.delivery.auth_service.controller.SimulationActorInternalController.BindRequest": {
+      "kind": "record",
+      "source": {
+        "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/SimulationActorInternalController.java",
+        "line": 61
+      },
+      "fields": [
+        {
+          "name": "runId",
+          "type": "UUID",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "cohortId",
+          "type": "UUID",
+          "annotations": [],
+          "required": false
+        }
+      ]
+    },
+    "com.delivery.auth_service.controller.SimulationActorInternalController.BindResponse": {
+      "kind": "record",
+      "source": {
+        "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/SimulationActorInternalController.java",
+        "line": 69
+      },
+      "fields": [
+        {
+          "name": "context",
+          "type": "SimulationContext",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "accessToken",
+          "type": "String",
+          "annotations": [],
+          "required": false
+        }
+      ]
+    },
     "com.delivery.auth_service.dto.AuthAccountDto": {
       "kind": "record",
       "source": {
@@ -13698,6 +13877,65 @@
         "PENDING_EMAIL_VERIFICATION",
         "ACTIVE",
         "BLOCKED"
+      ]
+    },
+    "com.delivery.identity.contracts.SimulationContext": {
+      "kind": "record",
+      "source": {
+        "file": "backend_delivery/identity-contracts/src/main/java/com/delivery/identity/contracts/SimulationContext.java",
+        "line": 11
+      },
+      "fields": [
+        {
+          "name": "mode",
+          "type": "ExecutionMode",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "runId",
+          "type": "UUID",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "cohortId",
+          "type": "UUID",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "bindingVersion",
+          "type": "Long",
+          "annotations": [],
+          "required": false
+        }
+      ],
+      "nestedTypes": {
+        "ExecutionMode": {
+          "kind": "enum",
+          "source": {
+            "file": "backend_delivery/identity-contracts/src/main/java/com/delivery/identity/contracts/SimulationContext.java",
+            "line": 17
+          },
+          "fields": [],
+          "values": [
+            "REAL",
+            "SIMULATION"
+          ]
+        }
+      }
+    },
+    "com.delivery.identity.contracts.SimulationContext.ExecutionMode": {
+      "kind": "enum",
+      "source": {
+        "file": "backend_delivery/identity-contracts/src/main/java/com/delivery/identity/contracts/SimulationContext.java",
+        "line": 17
+      },
+      "fields": [],
+      "values": [
+        "REAL",
+        "SIMULATION"
       ]
     },
     "com.delivery.livestream_service.dto.request.CreateLivestreamRequest": {

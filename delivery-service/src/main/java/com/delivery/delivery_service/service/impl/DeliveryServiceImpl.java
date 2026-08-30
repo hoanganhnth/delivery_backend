@@ -41,6 +41,7 @@ import java.util.Objects;
 import java.util.List;
 import java.util.UUID;
 import java.nio.charset.StandardCharsets;
+import com.delivery.identity.contracts.SimulationContext;
 
 @Slf4j
 @Service
@@ -126,6 +127,7 @@ public class DeliveryServiceImpl implements DeliveryService {
 
             // ✅ Tự động tạo delivery record từ OrderCreatedEvent theo Backend Instructions
             Delivery delivery = new Delivery();
+            delivery.setSimulationContext(event.getSimulationContext());
             delivery.setCreateEventId(event.getEventId());
 
             // Set basic order info
@@ -396,14 +398,16 @@ public class DeliveryServiceImpl implements DeliveryService {
 
         // ✅ Publish event based on action
         if (ShipperActionConstants.ACCEPT.equals(request.getAction())) {
-            deliveryEventPublisher.publishShipperStatusChange(
-                    shipperId, "BUSY", savedDelivery.getId(), savedDelivery.getOrderId());
+            publishShipperStatusChange(
+                    shipperId, "BUSY", savedDelivery.getId(), savedDelivery.getOrderId(),
+                    null, savedDelivery.getSimulationContext());
             publishMatchAcceptedEvent(savedDelivery, shipperId, request);
             log.info("✅ Delivery {} ACCEPTED successfully by shipper {}", delivery.getId(), shipperId);
         } else if (ShipperActionConstants.REJECT.equals(request.getAction())) {
             publishMatchRejectedEvent(savedDelivery, shipperId, request);
-            deliveryEventPublisher.publishShipperStatusChange(
-                    shipperId, "AVAILABLE", savedDelivery.getId(), savedDelivery.getOrderId());
+            publishShipperStatusChange(
+                    shipperId, "AVAILABLE", savedDelivery.getId(), savedDelivery.getOrderId(),
+                    null, savedDelivery.getSimulationContext());
             log.info("❌ Delivery {} REJECTED by shipper {} - Reason: {}",
                     delivery.getId(), shipperId, request.getRejectReason());
         }
@@ -417,6 +421,35 @@ public class DeliveryServiceImpl implements DeliveryService {
     @Transactional
     public DeliveryResponse acceptDelivery(AcceptDeliveryRequest request, Long principalId, Long legacyUserId, String role) {
         return acceptDelivery(request, resolveShipperId(principalId, legacyUserId, role), role);
+    }
+
+    @Override
+    @Transactional
+    public DeliveryResponse acceptDelivery(AcceptDeliveryRequest request, Long principalId, Long legacyUserId,
+                                           String role, SimulationContext simulationContext) {
+        if (request == null || request.getOrderId() == null) {
+            throw new InvalidStatusException("Order ID is required");
+        }
+        Delivery delivery = deliveryRepository.findByOrderIdForUpdate(request.getOrderId())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Không tìm thấy thông tin giao hàng cho đơn hàng: " + request.getOrderId()));
+        requireCompatibleSimulationContext(delivery.getSimulationContext(), simulationContext);
+        return acceptDelivery(request, principalId, legacyUserId, role);
+    }
+
+    private void requireCompatibleSimulationContext(SimulationContext deliveryContext,
+                                                    SimulationContext actorContext) {
+        SimulationContext expected = SimulationContext.orReal(deliveryContext);
+        SimulationContext actual = SimulationContext.orReal(actorContext);
+        expected.requireValid();
+        actual.requireValid();
+        if (expected.isSimulation() != actual.isSimulation()) {
+            throw new AccessDeniedException("Actor simulation context does not match delivery execution mode");
+        }
+        if (expected.isSimulation() && (!expected.runId().equals(actual.runId())
+                || !expected.cohortId().equals(actual.cohortId()))) {
+            throw new AccessDeniedException("Actor simulation context does not match delivery run or cohort");
+        }
     }
 
     @Override
@@ -563,6 +596,7 @@ public class DeliveryServiceImpl implements DeliveryService {
         result.setMatchingSessionId(matchingSessionId);
         result.setOfferedShipperId(delivery.getOfferedShipperId());
         result.setOfferExpiresAt(delivery.getOfferExpiresAt());
+        result.setSimulationContext(delivery.getSimulationContext());
         deliveryEventPublisher.publishOfferPersisted(result);
     }
 
@@ -661,11 +695,13 @@ public class DeliveryServiceImpl implements DeliveryService {
 
         // ✅ Giải phóng shipper (đánh dấu rảnh)
         if (savedDelivery.getBatchId() == null) {
-            deliveryEventPublisher.publishShipperStatusChange(
-                    shipperId, "AVAILABLE", savedDelivery.getId(), savedDelivery.getOrderId());
+            publishShipperStatusChange(
+                    shipperId, "AVAILABLE", savedDelivery.getId(), savedDelivery.getOrderId(),
+                    null, savedDelivery.getSimulationContext());
         } else {
-            deliveryEventPublisher.publishShipperStatusChange(
-                    shipperId, "AVAILABLE", savedDelivery.getId(), savedDelivery.getOrderId(), savedDelivery.getBatchId());
+            publishShipperStatusChange(
+                    shipperId, "AVAILABLE", savedDelivery.getId(), savedDelivery.getOrderId(), savedDelivery.getBatchId(),
+                    savedDelivery.getSimulationContext());
         }
 
         // ✅ Re-trigger tìm shipper mới qua CÙNG cơ chế rematch của Saga
@@ -684,6 +720,17 @@ public class DeliveryServiceImpl implements DeliveryService {
         return cancelAssignedDelivery(orderId, resolveShipperId(principalId, legacyUserId, role), role, reason);
     }
 
+    @Override
+    @Transactional
+    public DeliveryResponse cancelAssignedDelivery(Long orderId, Long principalId, Long legacyUserId, String role,
+                                                   String reason, SimulationContext simulationContext) {
+        Delivery delivery = deliveryRepository.findByOrderIdForUpdate(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Không tìm thấy thông tin giao hàng cho đơn hàng: " + orderId));
+        requireCompatibleSimulationContext(delivery.getSimulationContext(), simulationContext);
+        return cancelAssignedDelivery(orderId, principalId, legacyUserId, role, reason);
+    }
+
     /**
      * ✅ Bắn event lên topic 'delivery.shipper-rejected' để Saga re-trigger tìm shipper
      * mới. Dùng chung cho cả REJECT (trước accept) và CANCEL (sau accept).
@@ -700,6 +747,7 @@ public class DeliveryServiceImpl implements DeliveryService {
             rejectedEvent.put("deliveryAddress", delivery.getDeliveryAddress());
             rejectedEvent.put("deliveryLat", delivery.getDeliveryLat());
             rejectedEvent.put("deliveryLng", delivery.getDeliveryLng());
+            rejectedEvent.put("simulationContext", delivery.getSimulationContext());
             rejectedEvent.put("eventType", "SHIPPER_REJECTED");
             rejectedEvent.put("timestamp", System.currentTimeMillis());
 
@@ -759,24 +807,25 @@ public class DeliveryServiceImpl implements DeliveryService {
                 || batchProgressService.apply(updatedDelivery, status);
         if (status == DeliveryStatus.DELIVERED && updatedDelivery.getShipperId() != null && batchCompleted) {
             if (updatedDelivery.getBatchId() == null) {
-                deliveryEventPublisher.publishShipperStatusChange(
-                        updatedDelivery.getShipperId(), "AVAILABLE", updatedDelivery.getId(), updatedDelivery.getOrderId());
+                publishShipperStatusChange(
+                        updatedDelivery.getShipperId(), "AVAILABLE", updatedDelivery.getId(), updatedDelivery.getOrderId(),
+                        null, updatedDelivery.getSimulationContext());
             } else {
-                deliveryEventPublisher.publishShipperStatusChange(
+                publishShipperStatusChange(
                         updatedDelivery.getShipperId(), "AVAILABLE", updatedDelivery.getId(),
-                        updatedDelivery.getOrderId(), updatedDelivery.getBatchId());
+                        updatedDelivery.getOrderId(), updatedDelivery.getBatchId(), updatedDelivery.getSimulationContext());
             }
         }
 
         // ✅ Publish delivery status update event với orderId
         if (delivery.getCustomerPrincipalId() == null) {
-            deliveryEventPublisher.publishDeliveryStatusUpdated(
+            publishDeliveryStatusUpdated(
                     deliveryId, delivery.getOrderId(), delivery.getCreatorId(), delivery.getShipperId(),
-                    status.name(), oldStatus);
+                    status.name(), oldStatus, updatedDelivery.getSimulationContext());
         } else {
-            deliveryEventPublisher.publishDeliveryStatusUpdated(
+            publishDeliveryStatusUpdated(
                     deliveryId, delivery.getOrderId(), delivery.getCreatorId(), delivery.getCustomerPrincipalId(),
-                    delivery.getShipperId(), status.name(), oldStatus);
+                    delivery.getShipperId(), status.name(), oldStatus, updatedDelivery.getSimulationContext());
         }
 
         DeliveryResponse response = deliveryMapper.deliveryToDeliveryResponse(updatedDelivery);
@@ -789,6 +838,18 @@ public class DeliveryServiceImpl implements DeliveryService {
     public DeliveryResponse updateDeliveryStatus(Long deliveryId, DeliveryStatus status, Long principalId, Long legacyUserId, String role) {
         Long actorId = RoleConstants.SHIPPER.equals(role) ? resolveShipperId(principalId, legacyUserId, role) : legacyUserId;
         return updateDeliveryStatus(deliveryId, status, actorId, role);
+    }
+
+    @Override
+    @Transactional
+    public DeliveryResponse updateDeliveryStatus(Long deliveryId, DeliveryStatus status, Long principalId,
+                                                 Long legacyUserId, String role,
+                                                 SimulationContext simulationContext) {
+        Delivery delivery = deliveryRepository.findByIdForUpdate(deliveryId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Không tìm thấy thông tin giao hàng với ID: " + deliveryId));
+        requireCompatibleSimulationContext(delivery.getSimulationContext(), simulationContext);
+        return updateDeliveryStatus(deliveryId, status, principalId, legacyUserId, role);
     }
 
     @Override
@@ -998,6 +1059,7 @@ public class DeliveryServiceImpl implements DeliveryService {
                     .deliveryId(delivery.getId())
                     .shipperId(shipperId)
                     .notes(request.getNotes())
+                    .simulationContext(delivery.getSimulationContext())
                     .build();
 
             deliveryEventPublisher.publishShipperAcceptedEvent(event);
@@ -1073,6 +1135,9 @@ public class DeliveryServiceImpl implements DeliveryService {
                     totalPlatformEarnings);
 
             DeliveryCompletedEvent event = DeliveryCompletedEvent.builder()
+                    .eventId(java.util.UUID.randomUUID())
+                    .eventType("DELIVERY_COMPLETED")
+                    .simulationContext(delivery.getSimulationContext())
                     .deliveryId(delivery.getId())
                     .orderId(delivery.getOrderId())
                     .shipperId(delivery.getShipperId())
@@ -1217,11 +1282,13 @@ public class DeliveryServiceImpl implements DeliveryService {
                 // ✅ Publish event đánh dấu shipper rảnh (thay thế REST call)
                 if (delivery.getShipperId() != null) {
                     if (delivery.getBatchId() == null) {
-                        deliveryEventPublisher.publishShipperStatusChange(
-                                delivery.getShipperId(), "AVAILABLE", delivery.getId(), delivery.getOrderId());
+                        publishShipperStatusChange(
+                                delivery.getShipperId(), "AVAILABLE", delivery.getId(), delivery.getOrderId(),
+                                null, delivery.getSimulationContext());
                     } else {
-                        deliveryEventPublisher.publishShipperStatusChange(
-                                delivery.getShipperId(), "AVAILABLE", delivery.getId(), delivery.getOrderId(), delivery.getBatchId());
+                        publishShipperStatusChange(
+                                delivery.getShipperId(), "AVAILABLE", delivery.getId(), delivery.getOrderId(), delivery.getBatchId(),
+                                delivery.getSimulationContext());
                     }
                 }
 
@@ -1231,13 +1298,13 @@ public class DeliveryServiceImpl implements DeliveryService {
                 // cannot leave a committed cancellation without an eventual
                 // confirmation event.
                 if (delivery.getCustomerPrincipalId() == null) {
-                    deliveryEventPublisher.publishDeliveryStatusUpdated(
+                    publishDeliveryStatusUpdated(
                             delivery.getId(), delivery.getOrderId(), delivery.getCreatorId(), delivery.getShipperId(),
-                            DeliveryStatus.CANCELLED.name(), previousStatus.name());
+                            DeliveryStatus.CANCELLED.name(), previousStatus.name(), delivery.getSimulationContext());
                 } else {
-                    deliveryEventPublisher.publishDeliveryStatusUpdated(
+                    publishDeliveryStatusUpdated(
                             delivery.getId(), delivery.getOrderId(), delivery.getCreatorId(), delivery.getCustomerPrincipalId(),
-                            delivery.getShipperId(), DeliveryStatus.CANCELLED.name(), previousStatus.name());
+                            delivery.getShipperId(), DeliveryStatus.CANCELLED.name(), previousStatus.name(), delivery.getSimulationContext());
                 }
 
                 log.info("✅ Successfully cancelled delivery {} for order: {}",
@@ -1312,13 +1379,13 @@ public class DeliveryServiceImpl implements DeliveryService {
             // Persist this event in the same transaction as the terminal status so
             // the customer is notified without introducing a second notification path.
             if (delivery.getCustomerPrincipalId() == null) {
-                deliveryEventPublisher.publishDeliveryStatusUpdated(
+                publishDeliveryStatusUpdated(
                         delivery.getId(), delivery.getOrderId(), delivery.getCreatorId(), delivery.getShipperId(),
-                        DeliveryStatus.SHIPPER_NOT_FOUND.name(), previousStatus.name());
+                        DeliveryStatus.SHIPPER_NOT_FOUND.name(), previousStatus.name(), delivery.getSimulationContext());
             } else {
-                deliveryEventPublisher.publishDeliveryStatusUpdated(
+                publishDeliveryStatusUpdated(
                         delivery.getId(), delivery.getOrderId(), delivery.getCreatorId(), delivery.getCustomerPrincipalId(),
-                        delivery.getShipperId(), DeliveryStatus.SHIPPER_NOT_FOUND.name(), previousStatus.name());
+                        delivery.getShipperId(), DeliveryStatus.SHIPPER_NOT_FOUND.name(), previousStatus.name(), delivery.getSimulationContext());
             }
 
             log.info("✅ Updated delivery {} status from {} to SHIPPER_NOT_FOUND after {} retry attempts",
@@ -1328,6 +1395,47 @@ public class DeliveryServiceImpl implements DeliveryService {
             log.error("💥 Error updating delivery status from ShipperNotFoundEvent for delivery: {}: {}",
                     event.getDeliveryId(), e.getMessage(), e);
             throw new IllegalStateException("Failed to apply shipper-not-found event", e);
+        }
+    }
+
+    private void publishShipperStatusChange(Long shipperId, String status, Long deliveryId, Long orderId,
+                                            UUID batchId, SimulationContext context) {
+        SimulationContext normalized = SimulationContext.orReal(context);
+        normalized.requireValid();
+        if (normalized.isSimulation()) {
+            deliveryEventPublisher.publishShipperStatusChange(shipperId, status, deliveryId, orderId,
+                    batchId, normalized);
+        } else if (batchId == null) {
+            deliveryEventPublisher.publishShipperStatusChange(shipperId, status, deliveryId, orderId);
+        } else {
+            deliveryEventPublisher.publishShipperStatusChange(shipperId, status, deliveryId, orderId, batchId);
+        }
+    }
+
+    private void publishDeliveryStatusUpdated(Long deliveryId, Long orderId, Long userId, Long shipperId,
+                                              String status, String previousStatus, SimulationContext context) {
+        SimulationContext normalized = SimulationContext.orReal(context);
+        normalized.requireValid();
+        if (normalized.isSimulation()) {
+            deliveryEventPublisher.publishDeliveryStatusUpdated(deliveryId, orderId, userId, null, shipperId,
+                    status, previousStatus, normalized);
+        } else {
+            deliveryEventPublisher.publishDeliveryStatusUpdated(deliveryId, orderId, userId, shipperId,
+                    status, previousStatus);
+        }
+    }
+
+    private void publishDeliveryStatusUpdated(Long deliveryId, Long orderId, Long userId, Long userPrincipalId,
+                                              Long shipperId, String status, String previousStatus,
+                                              SimulationContext context) {
+        SimulationContext normalized = SimulationContext.orReal(context);
+        normalized.requireValid();
+        if (normalized.isSimulation()) {
+            deliveryEventPublisher.publishDeliveryStatusUpdated(deliveryId, orderId, userId, userPrincipalId,
+                    shipperId, status, previousStatus, normalized);
+        } else {
+            deliveryEventPublisher.publishDeliveryStatusUpdated(deliveryId, orderId, userId, userPrincipalId,
+                    shipperId, status, previousStatus);
         }
     }
 

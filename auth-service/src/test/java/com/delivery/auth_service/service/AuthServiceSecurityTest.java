@@ -30,6 +30,8 @@ import com.delivery.auth_service.repository.AuthAccountRepository;
 import com.delivery.auth_service.repository.AuthSessionRepository;
 import com.delivery.auth_service.repository.RefreshTokenRecordRepository;
 import com.delivery.auth_service.payload.BaseResponse;
+import com.delivery.identity.contracts.IdentityLifecycleStatus;
+import com.delivery.identity.contracts.SimulationContext;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -261,9 +263,11 @@ class AuthServiceSecurityTest {
         account.setEmailVerificationRequired(false);
         account.setEmailVerificationRequired(true);
         when(accountRepository.findByEmail(account.getEmail())).thenReturn(Optional.of(account));
-        when(tokenService.generateToken(61L, account.getEmail(), "SHIPPER")).thenReturn("access");
+        when(tokenService.generateToken(
+                eq(61L), eq(51L), eq(account.getEmail()), eq("SHIPPER"), any(SimulationContext.class)))
+                .thenReturn("access");
         when(tokenService.generateRefreshToken(
-                eq(61L), eq(account.getEmail()), eq("SHIPPER"), anyString()))
+                eq(61L), eq(51L), eq(account.getEmail()), eq("SHIPPER"), anyString()))
                 .thenReturn("refresh");
 
         var request = com.delivery.auth_service.dto.SocialLoginRequest.builder()
@@ -303,9 +307,11 @@ class AuthServiceSecurityTest {
                 .thenReturn(Optional.empty(), Optional.of(winner));
         when(accountRepository.save(any(AuthAccount.class)))
                 .thenThrow(new DataIntegrityViolationException("duplicate email"));
-        when(tokenService.generateToken(81L, winner.getEmail(), "USER")).thenReturn("access");
+        when(tokenService.generateToken(
+                eq(81L), eq(71L), eq(winner.getEmail()), eq("USER"), any(SimulationContext.class)))
+                .thenReturn("access");
         when(tokenService.generateRefreshToken(
-                eq(81L), eq(winner.getEmail()), eq("USER"), anyString()))
+                eq(81L), eq(71L), eq(winner.getEmail()), eq("USER"), anyString()))
                 .thenReturn("refresh");
 
         var request = com.delivery.auth_service.dto.SocialLoginRequest.builder()
@@ -330,6 +336,7 @@ class AuthServiceSecurityTest {
         account.setPasswordHash("hash");
         account.setRole(AuthAccount.Role.USER);
         account.setIsActive(true);
+        account.setLifecycleStatus(IdentityLifecycleStatus.ACTIVE);
         when(accountRepository.findByEmail(account.getEmail())).thenReturn(Optional.of(account));
         when(passwordEncoder.matches("secret", "hash")).thenReturn(true);
 
@@ -382,11 +389,14 @@ class AuthServiceSecurityTest {
         account.setPasswordHash("hash");
         account.setRole(AuthAccount.Role.USER);
         account.setIsActive(true);
+        account.setLifecycleStatus(IdentityLifecycleStatus.ACTIVE);
         when(accountRepository.findByEmail(account.getEmail())).thenReturn(Optional.of(account));
         when(passwordEncoder.matches("secret", "hash")).thenReturn(true);
-        when(tokenService.generateToken(17L, account.getEmail(), "USER")).thenReturn("access-token");
+        when(tokenService.generateToken(
+                eq(17L), eq(3L), eq(account.getEmail()), eq("USER"), any(SimulationContext.class)))
+                .thenReturn("access-token");
         when(tokenService.generateRefreshToken(
-                eq(17L), eq(account.getEmail()), eq("USER"), anyString()))
+                eq(17L), eq(3L), eq(account.getEmail()), eq("USER"), anyString()))
                 .thenReturn("refresh-token");
 
         LoginRequest request = new LoginRequest();
@@ -399,10 +409,12 @@ class AuthServiceSecurityTest {
         assertThat(response.getAuthId()).isEqualTo(3L);
         verify(sessionRepository).deactivateActiveSessionsForDevice(
                 eq(3L), eq("device-1"), any(LocalDateTime.class));
-        verify(tokenService).generateToken(17L, account.getEmail(), "USER");
+        verify(tokenService).generateToken(
+                eq(17L), eq(3L), eq(account.getEmail()), eq("USER"), any(SimulationContext.class));
         verify(tokenService).generateRefreshToken(
-                eq(17L), eq(account.getEmail()), eq("USER"), anyString());
-        verify(tokenService, never()).generateToken(3L, account.getEmail(), "USER");
+                eq(17L), eq(3L), eq(account.getEmail()), eq("USER"), anyString());
+        verify(tokenService, never()).generateToken(
+                eq(3L), eq(3L), eq(account.getEmail()), eq("USER"), any(SimulationContext.class));
     }
 
     @Test

@@ -207,7 +207,7 @@ class DeliverySagaKafkaPostgresIntegrationTest {
                             });
                     assertThat(outboxRepository.findAll())
                             .extracting(OutboxEvent::getEventType)
-                            .containsExactly("SHIPPER_OFFERED");
+                            .containsExactlyInAnyOrder("SHIPPER_OFFERED", "OFFER_PERSISTED");
                 });
     }
 
@@ -233,7 +233,9 @@ class DeliverySagaKafkaPostgresIntegrationTest {
                                 assertThat(value.getOfferedShipperId()).isNull();
                                 assertThat(value.getOfferExpiresAt()).isNull();
                             });
-                    assertThat(outboxRepository.count()).isZero();
+                    assertThat(outboxRepository.findAll())
+                            .extracting(OutboxEvent::getEventType)
+                            .containsExactly("OFFER_RETIRED");
                 });
     }
 

@@ -14,6 +14,7 @@ import com.delivery.order_service.service.CheckoutQuoteService;
 import com.delivery.order_service.service.OrderService;
 import com.delivery.order_service.exception.ValidationException;
 import com.delivery.auth.resourceserver.security.AuthenticatedActor;
+import com.delivery.identity.contracts.SimulationContext;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -84,7 +85,8 @@ public class OrderController {
         }
         OrderResponse response;
         if (!hasKey) {
-            response = orderService.createOrder(request, actor.getPrincipalId(), actor.getLegacyUserId(), getPrimaryRole(actor));
+            response = orderService.createOrder(request, null, actor.getPrincipalId(), actor.getLegacyUserId(),
+                    getPrimaryRole(actor), actor.getSimulationContext());
         } else {
             UUID idempotencyKey;
             try {
@@ -93,7 +95,7 @@ public class OrderController {
                 throw new ValidationException("Idempotency-Key phải là UUID hợp lệ");
             }
             response = orderService.createOrder(request, idempotencyKey, actor.getPrincipalId(),
-                    actor.getLegacyUserId(), getPrimaryRole(actor));
+                    actor.getLegacyUserId(), getPrimaryRole(actor), actor.getSimulationContext());
         }
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Tạo đơn hàng thành công"));
     }

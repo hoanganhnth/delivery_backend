@@ -31,6 +31,7 @@ import com.delivery.auth_service.exception.RefreshTokenReuseException;
 import com.delivery.auth_service.repository.AuthAccountRepository;
 import com.delivery.auth_service.repository.AuthSessionRepository;
 import com.delivery.auth_service.repository.RefreshTokenRecordRepository;
+import com.delivery.identity.contracts.IdentityLifecycleStatus;
 
 @SpringBootTest(properties = {
         "spring.datasource.url=jdbc:h2:mem:auth_refresh_rotation;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE",
@@ -184,6 +185,7 @@ class AuthRefreshTokenRotationIntegrationTest {
             created.setPasswordHash(passwordEncoder.encode("Password123!"));
             created.setRole(AuthAccount.Role.USER);
             created.setIsActive(true);
+            created.setLifecycleStatus(IdentityLifecycleStatus.ACTIVE);
             return accountRepository.saveAndFlush(created);
         });
 

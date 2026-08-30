@@ -15,6 +15,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
+import com.delivery.identity.contracts.SimulationContext;
 
 /**
  * ✅ Event Publisher — Transactional Outbox Pattern
@@ -62,11 +63,17 @@ public class DeliveryEventPublisher {
      */
     public void publishDeliveryStatusUpdated(Long deliveryId, Long orderId, Long userId, Long userPrincipalId, Long shipperId,
                                              String status, String previousStatus) {
+        publishDeliveryStatusUpdated(deliveryId, orderId, userId, userPrincipalId, shipperId,
+                status, previousStatus, SimulationContext.real());
+    }
+
+    public void publishDeliveryStatusUpdated(Long deliveryId, Long orderId, Long userId, Long userPrincipalId, Long shipperId,
+                                             String status, String previousStatus, SimulationContext context) {
         log.info("📦 [Kafka] Sending delivery status update: {} -> {} for delivery: {}, order: {}",
                 previousStatus, status, deliveryId, orderId);
 
         DeliveryStatusUpdateEvent statusEvent = new DeliveryStatusUpdateEvent(
-                deliveryId, orderId, userId, userPrincipalId, shipperId, status, previousStatus
+                deliveryId, orderId, userId, userPrincipalId, shipperId, status, previousStatus, context
         );
 
         save(deliveryId, "DELIVERY_STATUS_UPDATED", deliveryStatusUpdatedTopic, statusEvent);
@@ -90,11 +97,18 @@ public class DeliveryEventPublisher {
         public final String status;
         public final String newStatus;
         public final String oldStatus;
+        public final SimulationContext simulationContext;
         public final String eventType = "DELIVERY_STATUS_UPDATED";
         public final LocalDateTime timestamp = LocalDateTime.now();
 
         public DeliveryStatusUpdateEvent(Long deliveryId, Long orderId, Long userId, Long userPrincipalId, Long shipperId,
                                          String newStatus, String oldStatus) {
+            this(deliveryId, orderId, userId, userPrincipalId, shipperId, newStatus, oldStatus,
+                    SimulationContext.real());
+        }
+
+        public DeliveryStatusUpdateEvent(Long deliveryId, Long orderId, Long userId, Long userPrincipalId, Long shipperId,
+                                         String newStatus, String oldStatus, SimulationContext context) {
             this.deliveryId = deliveryId;
             this.orderId = orderId;
             this.userId = userId;
@@ -103,6 +117,8 @@ public class DeliveryEventPublisher {
             this.status = newStatus;
             this.newStatus = newStatus;
             this.oldStatus = oldStatus;
+            this.simulationContext = SimulationContext.orReal(context);
+            this.simulationContext.requireValid();
         }
     }
 
@@ -124,6 +140,12 @@ public class DeliveryEventPublisher {
 
     public void publishShipperStatusChange(Long shipperId, String status, Long deliveryId, Long orderId,
                                            UUID batchId) {
+        publishShipperStatusChange(shipperId, status, deliveryId, orderId, batchId,
+                SimulationContext.real());
+    }
+
+    public void publishShipperStatusChange(Long shipperId, String status, Long deliveryId, Long orderId,
+                                           UUID batchId, SimulationContext context) {
         log.info("📦 [Kafka] Sending shipper status change: shipper={}, status={}", shipperId, status);
 
         Map<String, Object> event = new HashMap<>();
@@ -133,6 +155,9 @@ public class DeliveryEventPublisher {
         event.put("orderId", orderId);
         event.put("timestamp", System.currentTimeMillis());
         if (batchId != null) event.put("batchId", batchId.toString());
+        SimulationContext normalized = SimulationContext.orReal(context);
+        normalized.requireValid();
+        event.put("simulationContext", normalized);
 
         outboxService.saveEvent("DELIVERY", deliveryId.toString(), "SHIPPER_STATUS_CHANGE",
                 shipperStatusChangeTopic, shipperId.toString(), event);

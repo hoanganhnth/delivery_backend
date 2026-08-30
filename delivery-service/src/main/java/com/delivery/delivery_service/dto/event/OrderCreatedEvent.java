@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
+import com.delivery.identity.contracts.SimulationContext;
 
 /**
  * ✅ Event DTO nhận từ Order Service qua Kafka theo Backend Instructions
@@ -70,5 +71,6 @@ public class OrderCreatedEvent {
     private LocalDateTime eventTimestamp;
     private UUID promotionReservationId;
     private java.util.List<java.util.Map<String, Object>> appliedVouchers;
+    private SimulationContext simulationContext;
 
 }

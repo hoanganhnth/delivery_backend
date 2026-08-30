@@ -14,6 +14,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.when;
+import com.delivery.identity.contracts.SimulationContext;
+import java.util.UUID;
 
 @ExtendWith(MockitoExtension.class)
 class SagaCommandListenerTest {
@@ -82,6 +84,27 @@ class SagaCommandListenerTest {
                 Long.valueOf(1L).equals(event.getOrderId())
                         && Long.valueOf(8L).equals(event.getDeliveryId())
                         && "FINDING_SHIPPER".equals(event.getStatus())));
+        verify(acknowledgment).acknowledge();
+    }
+
+    @Test
+    void deliveryStatusCommandPreservesSimulationContext() {
+        when(commandProcessor.applyDeliveryStatus(any(), any(), any(), any(), any())).thenReturn(true);
+        String context = "{\"mode\":\"SIMULATION\",\"runId\":\"11111111-1111-1111-1111-111111111111\","
+                + "\"cohortId\":\"22222222-2222-2222-2222-222222222222\",\"bindingVersion\":3}";
+
+        listener.handleUpdateOrderStatusCommand(
+                command("PICKED_UP", 1L,
+                        "{\"orderId\":1,\"deliveryId\":8,\"simulationContext\":" + context + "}"),
+                acknowledgment);
+
+        verify(commandProcessor).applyDeliveryStatus(any(), any(), any(), any(), argThat(event -> {
+            SimulationContext actual = event.getSimulationContext();
+            return actual != null
+                    && actual.isSimulation()
+                    && actual.runId().equals(UUID.fromString("11111111-1111-1111-1111-111111111111"))
+                    && actual.bindingVersion() == 3L;
+        }));
         verify(acknowledgment).acknowledge();
     }
 

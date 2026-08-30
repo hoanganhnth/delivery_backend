@@ -13,7 +13,9 @@
     {"type":"timeseries","title":"Identity bootstrap pending","targets":[{"expr":"sum by (application,owner,event) (delivery_identity_bootstrap_pending)"}]},
     {"type":"timeseries","title":"Registration rollout admission","targets":[{"expr":"sum by (application,outcome,mechanism) (rate(delivery_identity_registration_admission_total[5m]))"}]},
     {"type":"timeseries","title":"Principal migration legacy fallback","targets":[{"expr":"sum by (application,service,surface) (rate(delivery_identity_legacy_fallback_total[5m]))"}]},
-    {"type":"timeseries","title":"COD settlements completed","targets":[{"expr":"sum(rate(delivery_business_events_total{application=\"settlement-service\",event=\"settlement_completed\"}[5m]))"}]}
+    {"type":"timeseries","title":"COD settlements completed","targets":[{"expr":"sum(rate(delivery_business_events_total{application=\"settlement-service\",event=\"settlement_completed\"}[5m]))"}]},
+    {"type":"timeseries","title":"Simulator active runs and actor quarantine","targets":[{"expr":"delivery_simulator_runs_active{application=\"simulator-service\"}"},{"expr":"delivery_simulator_actor_leases{application=\"simulator-service\"}"}]},
+    {"type":"timeseries","title":"Matching algorithm decisions by execution mode","targets":[{"expr":"sum by (algorithm,version,execution_mode) (rate(delivery_matching_algorithm_decisions_total[5m]))"}]}
   ],
   "schemaVersion": 41,
   "title": "Delivery Operations",

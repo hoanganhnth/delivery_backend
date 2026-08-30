@@ -23,6 +23,8 @@ public class NearbyShipperResponse {
     private double longitude;
     private double distanceKm; // Khoảng cách từ điểm giao hàng
     private boolean isOnline;
+    private long completedDeliveries;
+    private Double combinedScoreMinutes;
 
     // Metadata
     private String lastUpdated;

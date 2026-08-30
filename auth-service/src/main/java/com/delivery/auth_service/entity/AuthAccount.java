@@ -2,6 +2,8 @@ package com.delivery.auth_service.entity;
 
 import jakarta.persistence.*;
 import com.delivery.identity.contracts.IdentityLifecycleStatus;
+import com.delivery.identity.contracts.SimulationContext;
+import java.util.UUID;
 import java.time.LocalDateTime;
 
 @Entity
@@ -65,6 +67,18 @@ public class AuthAccount {
 
     @Column(name = "user_status_sync_last_error", columnDefinition = "TEXT")
     private String userStatusSyncLastError;
+
+    @Column(name = "simulation_actor", nullable = false)
+    private Boolean simulationActor = false;
+
+    @Column(name = "simulation_cohort_id")
+    private UUID simulationCohortId;
+
+    @Column(name = "active_simulation_run_id")
+    private UUID activeSimulationRunId;
+
+    @Column(name = "simulation_binding_version", nullable = false)
+    private Long simulationBindingVersion = 0L;
 
     @Column(name = "user_status_sync_updated_at")
     private LocalDateTime userStatusSyncUpdatedAt;
@@ -221,4 +235,21 @@ public class AuthAccount {
     public void setLifecycleStatus(IdentityLifecycleStatus lifecycleStatus) { this.lifecycleStatus = lifecycleStatus; }
     public Long getLifecycleVersion() { return lifecycleVersion; }
     public void setLifecycleVersion(Long lifecycleVersion) { this.lifecycleVersion = lifecycleVersion; }
+
+    public Boolean getSimulationActor() { return simulationActor; }
+    public void setSimulationActor(Boolean simulationActor) { this.simulationActor = simulationActor; }
+    public UUID getSimulationCohortId() { return simulationCohortId; }
+    public void setSimulationCohortId(UUID simulationCohortId) { this.simulationCohortId = simulationCohortId; }
+    public UUID getActiveSimulationRunId() { return activeSimulationRunId; }
+    public void setActiveSimulationRunId(UUID activeSimulationRunId) { this.activeSimulationRunId = activeSimulationRunId; }
+    public Long getSimulationBindingVersion() { return simulationBindingVersion; }
+    public void setSimulationBindingVersion(Long simulationBindingVersion) { this.simulationBindingVersion = simulationBindingVersion; }
+
+    public SimulationContext simulationContext() {
+        if (!Boolean.TRUE.equals(simulationActor) || activeSimulationRunId == null) {
+            return SimulationContext.real();
+        }
+        return new SimulationContext(SimulationContext.ExecutionMode.SIMULATION, activeSimulationRunId,
+                simulationCohortId, simulationBindingVersion);
+    }
 }

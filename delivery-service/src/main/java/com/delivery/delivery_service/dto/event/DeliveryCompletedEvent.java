@@ -4,6 +4,7 @@ import lombok.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import com.delivery.identity.contracts.SimulationContext;
 
 /**
  * ✅ Event được publish khi delivery hoàn thành
@@ -15,6 +16,9 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Builder
 public class DeliveryCompletedEvent {
+    private java.util.UUID eventId;
+    private String eventType;
+    private SimulationContext simulationContext;
     
     private Long deliveryId;
     private Long orderId;

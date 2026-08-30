@@ -1,10 +1,10 @@
 # HTTP API Inventory
 
-Ngày cập nhật inventory: 2026-08-23
+Ngày cập nhật inventory: 2026-08-30
 
 Tài liệu này liệt kê toàn bộ method có mapping trong 18 service có controller.
 `saga-orchestrator-service` không có HTTP controller. Danh sách được sinh trực
-tiếp từ annotation Java và hiện có **220 method**.
+tiếp từ annotation Java và hiện có **228 method**.
 
 Contract backend MVP được freeze ngày 2026-07-26 sau clean Gate B8, API surface
 classification và full reactor 602 test. Các capability ghi hidden/disabled hoặc
@@ -161,6 +161,8 @@ sửa.
 | auth-service | AuthController | POST | `/api/auth/admin/accounts/{id}/block` | `blockAccount` |
 | auth-service | AuthController | POST | `/api/auth/admin/accounts/{id}/unblock` | `unblockAccount` |
 | auth-service | JwksController | GET | `/.well-known/jwks.json` | `getJwks` |
+| auth-service | SimulationActorInternalController | POST | `/api/auth/internal/simulation-actors/{principalId}/bindings` | `bind` |
+| auth-service | SimulationActorInternalController | DELETE | `/api/auth/internal/simulation-actors/{principalId}/bindings/{runId}` | `unbind` |
 | delivery-service | DeliveryController | POST | `/api/deliveries/accept` | `acceptDelivery` |
 | delivery-service | DeliveryController | POST | `/api/deliveries/batch/accept` | `acceptBatch` |
 | delivery-service | DeliveryController | POST | `/api/deliveries/batch/reject` | `rejectBatch` |
@@ -325,13 +327,17 @@ sửa.
 | settlement-service | TransactionController | GET | `/api/settlement/transactions/{id}` | `getTransactionById` |
 | simulator-service | SimulatorController | POST | `/api/simulator/validate` | `validate` |
 | simulator-service | SimulatorController | POST | `/api/simulator/runs` | `start` |
+| simulator-service | SimulatorController | GET | `/api/simulator/runs` | `list` |
 | simulator-service | SimulatorController | GET | `/api/simulator/runs/{runId}` | `get` |
 | simulator-service | SimulatorController | GET | `/api/simulator/runs/{runId}/algorithm-traces` | `traces` |
+| simulator-service | SimulatorController | GET | `/api/simulator/runs/{runId}/journal` | `journal` |
 | simulator-service | SimulatorController | GET | `/api/simulator/runs/{runId}/stream` | `stream` |
 | simulator-service | SimulatorController | POST | `/api/simulator/runs/{runId}/pause` | `pause` |
 | simulator-service | SimulatorController | POST | `/api/simulator/runs/{runId}/resume` | `resume` |
 | simulator-service | SimulatorController | POST | `/api/simulator/runs/{runId}/abort` | `abort` |
+| simulator-service | SimulatorController | POST | `/api/simulator/runs/{runId}/reconcile` | `reconcile` |
 | simulator-service | SimulatorController | DELETE | `/api/simulator/runs/{runId}` | `cleanup` |
+| delivery-service | InternalDeliveryController | GET | `/api/deliveries/internal/simulation-runs/{runId}/deliveries` | `findSimulationRunDeliveries` |
 | shipper-service | ShipperController | POST | `/api/shippers` | `create` |
 | shipper-service | ShipperController | GET | `/api/shippers/my-profile` | `getMyProfile` |
 | shipper-service | ShipperController | PUT | `/api/shippers` | `update` |

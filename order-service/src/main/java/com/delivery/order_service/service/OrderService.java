@@ -8,6 +8,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 import java.util.UUID;
+import com.delivery.identity.contracts.SimulationContext;
 
 public interface OrderService {
     
@@ -20,6 +21,10 @@ public interface OrderService {
 
     OrderResponse createOrder(CreateOrderRequest request, UUID idempotencyKey,
                               Long principalId, Long legacyUserId, String role);
+
+    OrderResponse createOrder(CreateOrderRequest request, UUID idempotencyKey,
+                              Long principalId, Long legacyUserId, String role,
+                              SimulationContext simulationContext);
     
     /**
      * Lấy thông tin đơn hàng theo ID

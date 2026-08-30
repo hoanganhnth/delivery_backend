@@ -34,6 +34,7 @@ public class MatchingDecisionTraceEvent {
     private int eventVersion = EVENT_VERSION;
     private String algorithmId = ALGORITHM_ID;
     private String algorithmVersion = ALGORITHM_VERSION;
+    private String executionMode = "REAL";
     private String mode = "ACTIVE";
     private String decision;
     private Double pickupLat;
@@ -66,6 +67,8 @@ public class MatchingDecisionTraceEvent {
         private Double latitude;
         private Double longitude;
         private Double distanceKm;
+        private Long completedDeliveries;
+        private Double combinedScoreMinutes;
         private Boolean online;
         private Boolean codEligible;
         private Integer rank;

@@ -9,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import com.delivery.identity.contracts.SimulationContext;
 
 @Service
 @RequiredArgsConstructor
@@ -30,6 +31,11 @@ public class ShipperLocationService {
      * ✅ Update shipper location with Redis GEO support theo Backend Instructions
      */
     public ShipperLocationResponse updateLocation(Long shipperId, UpdateLocationRequest request) {
+        return updateLocation(shipperId, request, SimulationContext.real());
+    }
+
+    public ShipperLocationResponse updateLocation(Long shipperId, UpdateLocationRequest request,
+                                                  SimulationContext simulationContext) {
         validateUpdateRequest(request);
         try {
             // Create response object with location data
@@ -54,7 +60,7 @@ public class ShipperLocationService {
             webSocketHandler.broadcastShipperLocation(response);
 
             // ✅ Publish vị trí qua Kafka để match-service replicate
-            locationEventPublisher.publishLocationUpdate(response, "REST");
+            locationEventPublisher.publishLocationUpdate(response, "REST", simulationContext);
 
             log.info("✅ Updated location for shipper {} - online={} [Redis GEO + WebSocket + Kafka]",
                     shipperId, request.getIsOnline());

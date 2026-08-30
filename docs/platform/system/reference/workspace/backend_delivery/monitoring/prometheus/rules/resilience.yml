@@ -10,3 +10,12 @@ groups:
         annotations:
           summary: "Delivery Kafka DLT received a record"
           description: "{{ $labels.instance }} recorded {{ $value }} DLT recovery event(s) in the last five minutes. Inspect original topic/partition/offset, eventId, correlationId and exception metadata before replay."
+      - alert: DeliverySimulatorActorQuarantined
+        expr: sum(delivery_simulator_actor_leases{state="quarantined"}) > 0
+        for: 0m
+        labels:
+          severity: warning
+          component: simulator
+        annotations:
+          summary: "Simulator actor requires delivery reconciliation"
+          description: "{{ $value }} simulator actor lease(s) are quarantined. Verify the Delivery projection is terminal, then use the ADMIN reconcile endpoint; never clear Auth fencing directly."

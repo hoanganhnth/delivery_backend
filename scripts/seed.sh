@@ -15,11 +15,15 @@ BACKEND_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 BASE="${BASE:-http://localhost:8079}"   # API Gateway (server.port=8079)
 PASS="${PASS:-Password123!}"
 SHIPPER_DEPOSIT="${SHIPPER_DEPOSIT:-500000}"
+SEED_SHIPPER_COUNT="${SEED_SHIPPER_COUNT:-1}"
 RUN_ID="${RUN_ID:-$(date +%s)}"
 RUN_SUFFIX="${RUN_ID: -8}"
 SEED_OUTPUT_FILE="${SEED_OUTPUT_FILE:-}"
 SEED_SKIP_OFFLINE_PREVIOUS_SHIPPERS="${SEED_SKIP_OFFLINE_PREVIOUS_SHIPPERS:-false}"
 SEED_SKIP_SHIPPER="${SEED_SKIP_SHIPPER:-false}"
+SEED_AUTH_DIRECT_LOGIN="${SEED_AUTH_DIRECT_LOGIN:-false}"
+SEED_SIMULATION_ACTORS="${SEED_SIMULATION_ACTORS:-false}"
+SIMULATION_COHORT_ID="${SIMULATION_COHORT_ID:-$(uuidgen | tr '[:upper:]' '[:lower:]')}"
 # Runtime rehearsals may use an isolated local database fixture without an
 # SMTP inbox. Production/default seeding never bypasses email verification.
 SEED_LOCAL_FIXTURE_EMAIL_VERIFIED="${SEED_LOCAL_FIXTURE_EMAIL_VERIFIED:-false}"
@@ -45,11 +49,30 @@ command -v grep >/dev/null || { echo "❌ Cần grep để xác nhận fixture l
   echo "SEED_SKIP_SHIPPER must be true or false" >&2
   exit 2
 }
+[[ "$SEED_SHIPPER_COUNT" =~ ^[1-9][0-9]*$ ]] || {
+  echo "SEED_SHIPPER_COUNT must be a positive integer" >&2
+  exit 2
+}
+[[ "$SEED_AUTH_DIRECT_LOGIN" == "true" || "$SEED_AUTH_DIRECT_LOGIN" == "false" ]] || {
+  echo "SEED_AUTH_DIRECT_LOGIN must be true or false" >&2
+  exit 2
+}
+[[ "$SEED_SIMULATION_ACTORS" == "true" || "$SEED_SIMULATION_ACTORS" == "false" ]] || {
+  echo "SEED_SIMULATION_ACTORS must be true or false" >&2
+  exit 2
+}
+[[ "$SIMULATION_COHORT_ID" =~ ^[0-9a-fA-F-]{36}$ ]] || {
+  echo "SIMULATION_COHORT_ID must be a UUID" >&2
+  exit 2
+}
 
 # A retained-volume rehearsal may need to log in several older fixture shippers
 # before the new one. Respect Gateway 429 Retry-After instead of weakening the
 # public-auth rate-limit policy for test automation.
-CURL_RETRY_ARGS=(--retry 4 --retry-all-errors --retry-max-time 240)
+# Multi-shipper simulation fixtures legitimately perform several login/profile
+# calls in one run. Honour gateway Retry-After instead of weakening public auth
+# limits; the broader budget lets a 3+ actor fixture drain the fixed window.
+CURL_RETRY_ARGS=(--retry 12 --retry-all-errors --retry-max-time 600)
 
 # A caller may supply a run-scoped COMPOSE_FILE/COMPOSE_PROJECT_NAME pair (for
 # example, the disposable clean E2E harness).  Do not replace it with the
@@ -108,6 +131,30 @@ register() { # email role
 }
 
 login() { # email deviceId -> echoes accessToken
+  if [[ "$SEED_AUTH_DIRECT_LOGIN" == "true" ]]; then
+    # Sandbox fixture bootstrap only: retain Auth's real login and JWT issuance
+    # while avoiding the public Gateway fixed-window shared by a large actor
+    # cohort. Simulator traffic itself always goes through Gateway.
+    local attempt response token request_body
+    request_body="$(jq -nc --arg email "$1" --arg password "$PASS" --arg device_id "$2" \
+      '{email:$email,password:$password,deviceId:$device_id,deviceName:"MVP seed",deviceType:"WEB"}')"
+    # Auth only permits login after the User profile-created event has linked
+    # the newly registered identity.  The public path already retries; direct
+    # sandbox fixture login must wait for the same asynchronous convergence.
+    for attempt in $(seq 1 20); do
+      response="$("${COMPOSE_COMMAND[@]}" exec -T auth-service wget -qO- \
+        --header='Content-Type: application/json' \
+        --post-data="$request_body" \
+        http://localhost:8081/api/auth/login 2>/dev/null || true)"
+      token="$(jq -r '.accessToken // .data.accessToken // empty' <<< "$response" 2>/dev/null || true)"
+      if [[ -n "$token" ]]; then
+        printf '%s\n' "$token"
+        return 0
+      fi
+      sleep 1
+    done
+    return 1
+  fi
   curl "${CURL_RETRY_ARGS[@]}" --fail-with-body --silent --show-error \
     -X POST "$BASE/api/auth/login" \
     -H 'Content-Type: application/json' \
@@ -191,56 +238,77 @@ echo "✅ Menu item id=$MENU_ID"
 # --- 3. Shipper: hồ sơ + online + vị trí ---
 SHIPPER_TOKEN=""
 SHIPPER_USER_ID=""
+SHIPPER_FIXTURES_JSON='[]'
+SHIPPER_EMAILS=()
 if [[ "$SEED_SKIP_SHIPPER" == "true" ]]; then
   echo "SEED_SKIP_SHIPPER=true — bỏ qua shipper, ký quỹ và vị trí Redis GEO."
 else
 if [[ "$SEED_SKIP_OFFLINE_PREVIOUS_SHIPPERS" != "true" ]]; then
   offline_previous_seed_shippers
 fi
-SHIPPER_EMAIL="shipper+$RUN_ID@test.dev"
-operator_provision_shipper "$SHIPPER_EMAIL"
-SHIPPER_TOKEN="$(login "$SHIPPER_EMAIL" "seed-$RUN_ID-shipper")"
-[[ -n "$SHIPPER_TOKEN" ]] || { echo "❌ Login shipper không trả access token"; exit 1; }
-echo "✅ Shipper: $SHIPPER_EMAIL (token ${SHIPPER_TOKEN:+ok})"
-
-curl --fail-with-body --silent --show-error -X POST "$BASE/api/shippers" \
-  -H "Authorization: Bearer $SHIPPER_TOKEN" -H 'Content-Type: application/json' \
-  -d "{\"fullName\":\"Shipper Test\",\"vehicleType\":\"MOTORBIKE\",\"licenseNumber\":\"LIC-$RUN_ID\",\"idCard\":\"ID-$RUN_ID\",\"phone\":\"09$RUN_SUFFIX\",\"licensePlate\":\"59-X1-$RUN_SUFFIX\"}" >/dev/null
-echo "✅ Hồ sơ shipper đã tạo"
-
-SHIPPER_USER_ID="$(curl --fail-with-body --silent --show-error "$BASE/api/shippers/my-profile" \
-  -H "Authorization: Bearer $SHIPPER_TOKEN" \
-  | jq -r '.data.userId // .userId // empty')"
-if [[ ! "$SHIPPER_USER_ID" =~ ^[0-9]+$ ]]; then
-  echo "❌ Không lấy được userId canonical của shipper; dừng trước khi seed ký quỹ"
-  exit 1
+for shipper_index in $(seq 1 "$SEED_SHIPPER_COUNT"); do
+  shipper_suffix="${RUN_SUFFIX}${shipper_index}"
+  shipper_email="shipper+$RUN_ID-$shipper_index@test.dev"
+  shipper_lat="$(awk -v base="$SHIPPER_LAT" -v n="$shipper_index" 'BEGIN { printf "%.6f", base + ((n - 1) * 0.001) }')"
+  shipper_lng="$(awk -v base="$SHIPPER_LNG" -v n="$shipper_index" 'BEGIN { printf "%.6f", base + ((n - 1) * 0.001) }')"
+  operator_provision_shipper "$shipper_email"
+  shipper_token="$(login "$shipper_email" "seed-$RUN_ID-shipper-$shipper_index")"
+  [[ -n "$shipper_token" ]] || { echo "❌ Login shipper không trả access token"; exit 1; }
+  curl --fail-with-body --silent --show-error -X POST "$BASE/api/shippers" \
+    -H "Authorization: Bearer $shipper_token" -H 'Content-Type: application/json' \
+    -d "{\"fullName\":\"Shipper Test $shipper_index\",\"vehicleType\":\"MOTORBIKE\",\"licenseNumber\":\"LIC-$RUN_ID-$shipper_index\",\"idCard\":\"ID-$RUN_ID-$shipper_index\",\"phone\":\"09$shipper_suffix\",\"licensePlate\":\"59-X$shipper_index-$RUN_SUFFIX\"}" >/dev/null
+  shipper_user_id="$(curl --fail-with-body --silent --show-error "$BASE/api/shippers/my-profile" \
+    -H "Authorization: Bearer $shipper_token" | jq -r '.data.userId // .userId // empty')"
+  [[ "$shipper_user_id" =~ ^[0-9]+$ ]] || { echo "❌ Không lấy được userId canonical của shipper"; exit 1; }
+  "${COMPOSE_COMMAND[@]}" exec -T postgres psql -U postgres -d settlement_db \
+    -v shipper_id="$shipper_user_id" -v deposit_amount="$SHIPPER_DEPOSIT" \
+    -f - < "$BACKEND_DIR/scripts/seed-settlement.sql" >/dev/null
+  if [[ "$SEED_SIMULATION_ACTORS" == "true" ]]; then
+    # Simulator binds these actors before it submits locations. Never seed a
+    # real JWT location for a simulation-only actor, or it contaminates the
+    # REAL Match GEO namespace before the run begins.
+    echo "✅ Shipper fixture $shipper_index is simulation-only; no REAL GEO update"
+  else
+    curl --fail-with-body --silent --show-error -X PATCH "$BASE/api/shippers/online-status?isOnline=true" \
+      -H "Authorization: Bearer $shipper_token" >/dev/null
+    curl --fail-with-body --silent --show-error -X POST "$BASE/api/tracking/shipper-locations/update" \
+      -H "Authorization: Bearer $shipper_token" -H 'Content-Type: application/json' \
+      -d "{\"latitude\":$shipper_lat,\"longitude\":$shipper_lng,\"isOnline\":true}" >/dev/null
+  fi
+  SHIPPER_EMAILS+=("$shipper_email")
+  SHIPPER_FIXTURES_JSON="$(jq -c --arg id "sandbox-shipper-$shipper_index" --arg email "$shipper_email" \
+    --arg token "$shipper_token" --argjson userId "$shipper_user_id" --argjson lat "$shipper_lat" --argjson lng "$shipper_lng" \
+    '. + [{id:$id,email:$email,token:$token,userId:$userId,lat:$lat,lng:$lng}]' <<< "$SHIPPER_FIXTURES_JSON")"
+  if [[ "$shipper_index" == "1" ]]; then
+    SHIPPER_EMAIL="$shipper_email"; SHIPPER_TOKEN="$shipper_token"; SHIPPER_USER_ID="$shipper_user_id"
+  fi
+  echo "✅ Shipper fixture $shipper_index/$SEED_SHIPPER_COUNT online tại ($shipper_lat, $shipper_lng)"
+done
 fi
 
-# Local-only fixture: append một ledger entry idempotent rồi cập nhật projection
-# balance trong cùng transaction. Không mở fake payment/manual deposit qua Gateway.
-"${COMPOSE_COMMAND[@]}" exec -T postgres psql \
-  -U postgres -d settlement_db \
-  -v shipper_id="$SHIPPER_USER_ID" \
-  -v deposit_amount="$SHIPPER_DEPOSIT" \
-  -f - < "$BACKEND_DIR/scripts/seed-settlement.sql" >/dev/null
-echo "✅ Ký quỹ local shipper userId=$SHIPPER_USER_ID: $SHIPPER_DEPOSIT VND"
-
-# Bật online; resource service lấy shipper identity từ JWT claims.
-curl --fail-with-body --silent --show-error -X PATCH "$BASE/api/shippers/online-status?isOnline=true" \
-  -H "Authorization: Bearer $SHIPPER_TOKEN" >/dev/null
-echo "✅ Shipper online"
-
-# Đẩy vị trí vào Redis GEO (để match GEORADIUS tìm thấy)
-curl --fail-with-body --silent --show-error -X POST "$BASE/api/tracking/shipper-locations/update" \
-  -H "Authorization: Bearer $SHIPPER_TOKEN" -H 'Content-Type: application/json' \
-  -d "{\"latitude\":$SHIPPER_LAT,\"longitude\":$SHIPPER_LNG,\"isOnline\":true}" >/dev/null
-echo "✅ Vị trí shipper đã cập nhật ($SHIPPER_LAT,$SHIPPER_LNG)"
+if [[ "$SEED_SKIP_SHIPPER" != "true" ]]; then
+  "${COMPOSE_COMMAND[@]}" exec -T postgres psql -U postgres -d auth_db -qAt -c \
+    "UPDATE auth_account SET simulation_actor = true,
+        simulation_cohort_id = COALESCE(simulation_cohort_id, '$SIMULATION_COHORT_ID')
+     WHERE email IN ('$CUST_EMAIL', '$OWNER_EMAIL'$(printf ",'%s'" "${SHIPPER_EMAILS[@]}"));" >/dev/null
+  simulation_cohort_ids="$("${COMPOSE_COMMAND[@]}" exec -T postgres psql -U postgres -d auth_db -qAt -c \
+    "SELECT DISTINCT simulation_cohort_id FROM auth_account
+     WHERE email IN ('$CUST_EMAIL', '$OWNER_EMAIL'$(printf ",'%s'" "${SHIPPER_EMAILS[@]}"))
+       AND simulation_actor = true
+     ORDER BY simulation_cohort_id;" | sed '/^$/d')"
+  if [[ "$(wc -l <<< "$simulation_cohort_ids" | tr -d ' ')" != "1" ]]; then
+    echo "❌ Fixture actors must belong to exactly one simulation cohort" >&2
+    exit 1
+  fi
+  SIMULATION_COHORT_ID="$simulation_cohort_ids"
+  echo "✅ Actor simulation allowlist đã được gán cho customer/owner/shipper fixture"
 fi
 
 if [[ -n "$SEED_OUTPUT_FILE" ]]; then
   umask 077
   jq -n \
     --arg runId "$RUN_ID" \
+    --arg simulationCohortId "$SIMULATION_COHORT_ID" \
     --arg customerToken "$CUST_TOKEN" \
     --arg outsiderToken "$OUTSIDER_TOKEN" \
     --arg ownerToken "$OWNER_TOKEN" \
@@ -248,6 +316,7 @@ if [[ -n "$SEED_OUTPUT_FILE" ]]; then
     --argjson restaurantId "$REST_ID" \
     --argjson menuItemId "$MENU_ID" \
     --argjson shipperUserId "${SHIPPER_USER_ID:-null}" \
+    --argjson shippers "$SHIPPER_FIXTURES_JSON" \
     --argjson restaurantLat "$REST_LAT" \
     --argjson restaurantLng "$REST_LNG" \
     --argjson shipperLat "$SHIPPER_LAT" \
@@ -255,10 +324,12 @@ if [[ -n "$SEED_OUTPUT_FILE" ]]; then
     --argjson customerLat "$CUSTOMER_LAT" \
     --argjson customerLng "$CUSTOMER_LNG" \
     --argjson menuPrice "$MENU_PRICE" \
-    '{runId: $runId, customerToken: $customerToken, outsiderToken: $outsiderToken,
+    '{runId: $runId, simulationCohortId: $simulationCohortId,
+      customerToken: $customerToken, outsiderToken: $outsiderToken,
       ownerToken: $ownerToken,
       shipperToken: $shipperToken, restaurantId: $restaurantId,
       menuItemId: $menuItemId, shipperUserId: $shipperUserId,
+      shippers: $shippers,
       restaurantLat: $restaurantLat, restaurantLng: $restaurantLng,
       shipperLat: $shipperLat, shipperLng: $shipperLng,
       customerLat: $customerLat, customerLng: $customerLng,

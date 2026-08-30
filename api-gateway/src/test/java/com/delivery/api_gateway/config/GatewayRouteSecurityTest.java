@@ -84,6 +84,9 @@ class GatewayRouteSecurityTest {
         assertThat(matches(routes, HttpMethod.GET, "/api/auth/admin/accounts")).isFalse();
         assertThat(matches(routes, HttpMethod.POST, "/api/orders/admin/cancel-all-pending")).isFalse();
         assertThat(matches(routes, HttpMethod.GET, "/api/orders/admin/future-endpoint")).isFalse();
+        assertThat(routes.get("simulator-admin-control")).isNotNull();
+        assertThat(matches(routes, HttpMethod.POST, "/api/admin/simulations/runs")).isTrue();
+        assertThat(matches(routes, HttpMethod.PUT, "/api/admin/simulations/runs/1")).isFalse();
     }
 
     @Test
@@ -125,6 +128,7 @@ class GatewayRouteSecurityTest {
                 "/api/analytics/reconcile?date=2026-07-23")).isFalse();
         assertThat(matches(routes, HttpMethod.GET, "/api/livestreams/active")).isFalse();
         assertThat(matches(routes, HttpMethod.POST, "/api/livestreams")).isFalse();
+        assertThat(matches(routes, HttpMethod.POST, "/api/livestreams/00000000-0000-4000-8000-000000000001/token")).isFalse();
     }
 
     @Test

@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -68,6 +69,12 @@ class DeliveryMapperTest {
         delivery.setPickupAddress("Restaurant");
         delivery.setDeliveryAddress("Customer address");
         delivery.setShippingFee(new BigDecimal("20000"));
+        delivery.setGrossShippingFee(new BigDecimal("25000"));
+        delivery.setCustomerShippingFee(new BigDecimal("15000"));
+        delivery.setPlatformSubsidy(new BigDecimal("5000"));
+        delivery.setShopDiscount(new BigDecimal("5000"));
+        UUID promotionReservationId = UUID.randomUUID();
+        delivery.setPromotionReservationId(promotionReservationId);
         delivery.setTotalPrice(new BigDecimal("120000"));
         delivery.setPaymentMethod("COD");
 
@@ -78,7 +85,13 @@ class DeliveryMapperTest {
         assertThat(response.getStatus()).isEqualTo("WAIT_SHIPPER_CONFIRM");
         assertThat(response.getExpiresAt()).isEqualTo(LocalDateTime.of(2026, 7, 25, 15, 0));
         assertThat(response.getEstimatedEarnings()).isEqualByComparingTo("17000");
+        assertThat(response.getGrossShippingFee()).isEqualByComparingTo("25000");
+        assertThat(response.getCustomerShippingFee()).isEqualByComparingTo("15000");
+        assertThat(response.getPlatformSubsidy()).isEqualByComparingTo("5000");
+        assertThat(response.getShopDiscount()).isEqualByComparingTo("5000");
+        assertThat(response.getPromotionReservationId()).isEqualTo(promotionReservationId);
         assertThat(response).hasNoNullFieldsOrPropertiesExcept(
-                "pickupLat", "pickupLng", "deliveryLat", "deliveryLng", "restaurantId");
+                "pickupLat", "pickupLng", "deliveryLat", "deliveryLng", "restaurantId",
+                "batchId", "pickupSequence", "dropoffSequence");
     }
 }

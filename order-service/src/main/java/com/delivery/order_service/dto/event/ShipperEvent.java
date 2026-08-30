@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import com.delivery.identity.contracts.SimulationContext;
 
 /**
  * ✅ Shipper Event DTO theo AI Coding Instructions
@@ -24,4 +25,5 @@ public class ShipperEvent {
     private Double estimatedPickupTime; // in minutes for accepted orders
     private Double currentLat;
     private Double currentLng;
+    private SimulationContext simulationContext;
 }

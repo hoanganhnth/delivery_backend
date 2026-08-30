@@ -6,6 +6,8 @@ import com.delivery.delivery_service.repository.DeliveryRepository;
 import org.junit.jupiter.api.Test;
 
 import java.util.Optional;
+import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
@@ -68,5 +70,21 @@ class InternalDeliveryControllerAuthorizationTest {
 
         assertThat(controller.canTrack(1L, 7L, "USER", 42L, "shared-secret").getBody().getData())
                 .isEqualTo(Boolean.FALSE);
+    }
+
+    @Test
+    void returnsOnlySimulationDeliveryIdentityAndStatusForSharedSecret() {
+        UUID runId = UUID.randomUUID();
+        Delivery delivery = new Delivery();
+        delivery.setId(9L);
+        delivery.setOrderId(17L);
+        delivery.setStatus(DeliveryStatus.DELIVERED);
+        when(repository.findBySimulationRunIdOrderByIdAsc(runId)).thenReturn(List.of(delivery));
+
+        var response = controller.findSimulationRunDeliveries(runId, "shared-secret");
+
+        assertThat(response.getStatusCode().value()).isEqualTo(200);
+        assertThat(response.getBody().getData()).containsExactly(
+                new InternalDeliveryController.SimulationDeliveryStatus(9L, 17L, "DELIVERED"));
     }
 }

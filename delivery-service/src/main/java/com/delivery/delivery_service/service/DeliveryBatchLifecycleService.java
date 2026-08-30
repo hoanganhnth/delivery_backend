@@ -171,7 +171,7 @@ public class DeliveryBatchLifecycleService {
             delivery.setUpdatedAt(now);
             deliveryRepository.save(delivery);
             eventPublisher.publishShipperStatusChange(shipperId, "AVAILABLE", delivery.getId(),
-                    delivery.getOrderId(), batchId);
+                    delivery.getOrderId(), batchId, delivery.getSimulationContext());
             publishRejected(delivery, shipperId, delivery.getRejectReason(), batchWaveForNext(batch));
         }
         items.forEach(item -> {
@@ -214,6 +214,7 @@ public class DeliveryBatchLifecycleService {
         event.put("deliveryAddress", delivery.getDeliveryAddress());
         event.put("deliveryLat", delivery.getDeliveryLat());
         event.put("deliveryLng", delivery.getDeliveryLng());
+        event.put("simulationContext", delivery.getSimulationContext());
         event.put("eventType", "SHIPPER_REJECTED");
         event.put("batchWave", nextWave);
         event.put("timestamp", System.currentTimeMillis());

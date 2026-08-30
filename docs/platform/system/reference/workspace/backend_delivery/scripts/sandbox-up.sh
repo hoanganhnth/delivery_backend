@@ -80,6 +80,12 @@ readonly SEED_FILE="$STATE_DIR/seed.json"
 readonly HAPPY_SCENARIO="$STATE_DIR/scenario-happy.json"
 readonly REJECT_SCENARIO="$STATE_DIR/scenario-restaurant-reject.json"
 readonly NO_SHIPPER_SCENARIO="$STATE_DIR/scenario-no-shipper.json"
+readonly SHIPPER_REJECT_SCENARIO="$STATE_DIR/scenario-shipper-reject.json"
+readonly OFFER_TIMEOUT_SCENARIO="$STATE_DIR/scenario-offer-timeout.json"
+readonly CUSTOMER_CANCEL_SCENARIO="$STATE_DIR/scenario-customer-cancel.json"
+readonly CUSTOMER_CANCEL_AFTER_ACCEPT_SCENARIO="$STATE_DIR/scenario-customer-cancel-after-accept.json"
+readonly SHIPPER_DISCONNECT_SCENARIO="$STATE_DIR/scenario-shipper-disconnect.json"
+readonly NETWORK_DELAY_SCENARIO="$STATE_DIR/scenario-network-delay.json"
 readonly HUMAN_SCENARIO="$STATE_DIR/scenario-human-order.json"
 
 if [[ "$PROJECT_NAME" == "backend_delivery" || "$PROJECT_NAME" != delivery_sandbox_* ]]; then
@@ -142,6 +148,8 @@ readonly INTERNAL_SECRET="$(tr -d '\r\n' < "$INTERNAL_SECRET_FILE")"
 readonly POSTGRES_PASSWORD="$(tr -d '\r\n' < "$DB_PASSWORD_FILE")"
 readonly GRAFANA_ADMIN_PASSWORD="$(openssl rand -hex 24)"
 readonly SIMULATOR_API_TOKEN="$(openssl rand -hex 32)"
+readonly SIMULATOR_ADMIN_EMAIL="simulator-admin+$RUN_ID@test.dev"
+readonly SIMULATOR_ADMIN_PASSWORD="$(openssl rand -hex 24)"
 
 export COMPOSE_PROJECT_NAME="$PROJECT_NAME"
 export SANDBOX_NETWORK_NAME="$NETWORK_NAME"
@@ -184,6 +192,7 @@ SANDBOX_SIMULATOR_BASE_URL=
 SANDBOX_PROMETHEUS_BASE_URL=
 SANDBOX_GRAFANA_BASE_URL=
 SANDBOX_SIMULATOR_API_TOKEN=$SIMULATOR_API_TOKEN
+SANDBOX_SIMULATOR_ADMIN_TOKEN=
 SANDBOX_COMPOSE_FILE=$COMPOSE_FILE_VALUE
 INTERNAL_SECRET_FILE=$INTERNAL_SECRET_FILE
 DB_PASSWORD_FILE=$DB_PASSWORD_FILE
@@ -328,10 +337,38 @@ COMPOSE_PROJECT_NAME="$PROJECT_NAME" \
 POSTGRES_VOLUME_NAME="$POSTGRES_VOLUME" \
 KAFKA_VOLUME_NAME="$KAFKA_VOLUME" \
 SEED_LOCAL_FIXTURE_EMAIL_VERIFIED=true \
+SEED_AUTH_DIRECT_LOGIN=true \
 SEED_SKIP_SHIPPER="$SANDBOX_SKIP_SHIPPER" \
 SEED_OUTPUT_FILE="$SEED_FILE" \
 BASE="$GATEWAY_BASE_URL" \
   bash scripts/seed.sh
+
+# Simulator control endpoints remain ADMIN-only even in the disposable sandbox.
+# Provision this fixture through Auth-owned code, then obtain its short-lived
+# access JWT locally without consuming the public Gateway login rate-limit used
+# by the high-cardinality seed cohort.  The JWT is saved only in 0600 state and
+# never printed; simulator traffic still enters the system through Gateway.
+echo "Provisioning local ADMIN fixture for simulator control..."
+env COMPOSE_FILE="$COMPOSE_FILE_VALUE" \
+  COMPOSE_PROJECT_NAME="$PROJECT_NAME" \
+  POSTGRES_VOLUME_NAME="$POSTGRES_VOLUME" \
+  KAFKA_VOLUME_NAME="$KAFKA_VOLUME" \
+  ADMIN_EMAIL="$SIMULATOR_ADMIN_EMAIL" \
+  ADMIN_PASSWORD="$SIMULATOR_ADMIN_PASSWORD" \
+  RUN_ID="$RUN_ID" \
+  bash scripts/operator-provision-admin.sh
+admin_login_body="$(jq -nc \
+  --arg email "$SIMULATOR_ADMIN_EMAIL" \
+  --arg password "$SIMULATOR_ADMIN_PASSWORD" \
+  '{email:$email,password:$password,deviceId:"sandbox-simulator-control",deviceName:"Sandbox simulator control",deviceType:"WEB"}')"
+SIMULATOR_ADMIN_TOKEN="$(compose exec -T auth-service wget -qO- \
+  --header='Content-Type: application/json' \
+  --post-data="$admin_login_body" \
+  http://localhost:8081/api/auth/login | jq -r '.accessToken // .data.accessToken // empty')"
+[[ -n "$SIMULATOR_ADMIN_TOKEN" ]] || {
+  echo "ADMIN fixture login did not return an access token." >&2
+  exit 1
+}
 
 if [[ "$SANDBOX_SKIP_SCENARIOS" == "true" ]]; then
   echo "SANDBOX_SKIP_SCENARIOS=true — skipping simulator scenario fixtures."
@@ -339,6 +376,12 @@ else
   bash scripts/sandbox-make-scenario.sh "$SEED_FILE" "$HAPPY_SCENARIO" happy
   bash scripts/sandbox-make-scenario.sh "$SEED_FILE" "$REJECT_SCENARIO" restaurant-reject
   bash scripts/sandbox-make-scenario.sh "$SEED_FILE" "$NO_SHIPPER_SCENARIO" no-shipper
+  bash scripts/sandbox-make-scenario.sh "$SEED_FILE" "$SHIPPER_REJECT_SCENARIO" shipper-reject
+  bash scripts/sandbox-make-scenario.sh "$SEED_FILE" "$OFFER_TIMEOUT_SCENARIO" offer-timeout
+  bash scripts/sandbox-make-scenario.sh "$SEED_FILE" "$CUSTOMER_CANCEL_SCENARIO" customer-cancel
+  bash scripts/sandbox-make-scenario.sh "$SEED_FILE" "$CUSTOMER_CANCEL_AFTER_ACCEPT_SCENARIO" customer-cancel-after-accept
+  bash scripts/sandbox-make-scenario.sh "$SEED_FILE" "$SHIPPER_DISCONNECT_SCENARIO" shipper-disconnect
+  bash scripts/sandbox-make-scenario.sh "$SEED_FILE" "$NETWORK_DELAY_SCENARIO" network-delay
   bash scripts/sandbox-make-scenario.sh "$SEED_FILE" "$HUMAN_SCENARIO" human-order
 fi
 
@@ -347,13 +390,14 @@ fi
 sed -i.bak \
   -e "s#^SANDBOX_GATEWAY_BASE_URL=.*#SANDBOX_GATEWAY_BASE_URL=$GATEWAY_BASE_URL#" \
   -e "s#^SANDBOX_SIMULATOR_BASE_URL=.*#SANDBOX_SIMULATOR_BASE_URL=$SIMULATOR_BASE_URL#" \
+  -e "s#^SANDBOX_SIMULATOR_ADMIN_TOKEN=.*#SANDBOX_SIMULATOR_ADMIN_TOKEN=$SIMULATOR_ADMIN_TOKEN#" \
   -e "s#^SANDBOX_PROMETHEUS_BASE_URL=.*#SANDBOX_PROMETHEUS_BASE_URL=$PROMETHEUS_BASE_URL#" \
   -e "s#^SANDBOX_GRAFANA_BASE_URL=.*#SANDBOX_GRAFANA_BASE_URL=$GRAFANA_BASE_URL#" \
   "$STATE_FILE"
 rm -f "$STATE_FILE.bak"
 chmod 600 "$STATE_FILE" "$SEED_FILE"
 if [[ "$SANDBOX_SKIP_SCENARIOS" != "true" ]]; then
-  chmod 600 "$HAPPY_SCENARIO" "$REJECT_SCENARIO" "$NO_SHIPPER_SCENARIO" "$HUMAN_SCENARIO"
+  chmod 600 "$HAPPY_SCENARIO" "$REJECT_SCENARIO" "$NO_SHIPPER_SCENARIO" "$CUSTOMER_CANCEL_AFTER_ACCEPT_SCENARIO" "$HUMAN_SCENARIO"
 fi
 
 started=false

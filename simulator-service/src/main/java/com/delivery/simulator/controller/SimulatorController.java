@@ -3,6 +3,7 @@ package com.delivery.simulator.controller;
 import com.delivery.simulator.config.SimulatorProperties;
 import com.delivery.simulator.service.GatewayClient;
 import com.delivery.simulator.service.SimulationService;
+import com.delivery.simulator.service.SimulationRecoveryService;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -20,90 +21,134 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.List;
+import java.util.UUID;
+import com.delivery.auth.resourceserver.security.AuthenticatedActor;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 
 @RestController
 @RequestMapping("/api/simulator")
 public class SimulatorController {
 
     private final SimulationService simulationService;
+    private final SimulationRecoveryService recoveryService;
     private final SimulatorProperties properties;
 
-    public SimulatorController(SimulationService simulationService, SimulatorProperties properties) {
+    public SimulatorController(SimulationService simulationService, SimulationRecoveryService recoveryService,
+                               SimulatorProperties properties) {
         this.simulationService = simulationService;
+        this.recoveryService = recoveryService;
         this.properties = properties;
     }
 
     @PostMapping("/validate")
     public Map<String, Object> validate(@RequestHeader(value = "X-Simulator-Token", required = false) String token,
-                                        @RequestBody JsonNode scenario) {
-        authorize(token);
+                                        @RequestBody JsonNode scenario,
+                                        @AuthenticationPrincipal AuthenticatedActor actor) {
+        authorize(token, actor);
         return simulationService.validate(scenario);
     }
 
     @PostMapping("/runs")
     public ResponseEntity<Map<String, Object>> start(@RequestHeader(value = "X-Simulator-Token", required = false) String token,
-                                                     @RequestBody JsonNode scenario) {
-        authorize(token);
+                                                     @RequestBody JsonNode scenario,
+                                                     @AuthenticationPrincipal AuthenticatedActor actor) {
+        authorize(token, actor);
         return ResponseEntity.accepted().body(simulationService.start(scenario));
     }
 
     @GetMapping("/runs/{runId}")
     public Map<String, Object> get(@RequestHeader(value = "X-Simulator-Token", required = false) String token,
-                                   @PathVariable String runId) {
-        authorize(token);
+                                   @PathVariable String runId,
+                                   @AuthenticationPrincipal AuthenticatedActor actor) {
+        authorize(token, actor);
         return simulationService.snapshot(runId);
+    }
+
+    @GetMapping("/runs")
+    public List<Map<String, Object>> list(@RequestHeader(value = "X-Simulator-Token", required = false) String token,
+                                          @AuthenticationPrincipal AuthenticatedActor actor) {
+        authorize(token, actor);
+        return simulationService.listRuns();
     }
 
     @GetMapping("/runs/{runId}/algorithm-traces")
     public Object traces(@RequestHeader(value = "X-Simulator-Token", required = false) String token,
-                         @PathVariable String runId) {
-        authorize(token);
+                         @PathVariable String runId,
+                         @AuthenticationPrincipal AuthenticatedActor actor) {
+        authorize(token, actor);
         return simulationService.snapshot(runId).get("algorithmTraces");
+    }
+
+    @GetMapping("/runs/{runId}/journal")
+    public List<Map<String, Object>> journal(@RequestHeader(value = "X-Simulator-Token", required = false) String token,
+                                              @PathVariable String runId,
+                                              @AuthenticationPrincipal AuthenticatedActor actor) {
+        authorize(token, actor);
+        return simulationService.journal(runId);
     }
 
     @GetMapping(value = "/runs/{runId}/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter stream(@RequestHeader(value = "X-Simulator-Token", required = false) String token,
-                             @PathVariable String runId) {
+                             @PathVariable String runId,
+                             @AuthenticationPrincipal AuthenticatedActor actor) {
         // Keep the runner token in a request header. Query-string tokens are
         // easily copied into browser history, proxy logs, and referrer data.
-        authorize(token);
+        authorize(token, actor);
         return simulationService.stream(runId);
     }
 
     @PostMapping("/runs/{runId}/pause")
     public Map<String, Object> pause(@RequestHeader(value = "X-Simulator-Token", required = false) String token,
-                                     @PathVariable String runId) {
-        authorize(token);
+                                     @PathVariable String runId,
+                                     @AuthenticationPrincipal AuthenticatedActor actor) {
+        authorize(token, actor);
         return simulationService.pause(runId);
     }
 
     @PostMapping("/runs/{runId}/resume")
     public Map<String, Object> resume(@RequestHeader(value = "X-Simulator-Token", required = false) String token,
-                                      @PathVariable String runId) {
-        authorize(token);
+                                      @PathVariable String runId,
+                                      @AuthenticationPrincipal AuthenticatedActor actor) {
+        authorize(token, actor);
         return simulationService.resume(runId);
     }
 
     @PostMapping("/runs/{runId}/abort")
     public Map<String, Object> abort(@RequestHeader(value = "X-Simulator-Token", required = false) String token,
-                                     @PathVariable String runId) {
-        authorize(token);
+                                     @PathVariable String runId,
+                                     @AuthenticationPrincipal AuthenticatedActor actor) {
+        authorize(token, actor);
         return simulationService.abort(runId);
+    }
+
+    /** Reconcile a post-restart ABORTED run; actors release only after terminal delivery proof. */
+    @PostMapping("/runs/{runId}/reconcile")
+    public SimulationRecoveryService.RecoveryResult reconcile(
+            @RequestHeader(value = "X-Simulator-Token", required = false) String token,
+            @PathVariable String runId,
+            @AuthenticationPrincipal AuthenticatedActor actor) {
+        authorize(token, actor);
+        return recoveryService.reconcile(UUID.fromString(runId));
     }
 
     @DeleteMapping("/runs/{runId}")
     public Map<String, Object> cleanup(@RequestHeader(value = "X-Simulator-Token", required = false) String token,
-                                       @PathVariable String runId) {
-        authorize(token);
+                                       @PathVariable String runId,
+                                       @AuthenticationPrincipal AuthenticatedActor actor) {
+        authorize(token, actor);
         return simulationService.cleanup(runId);
     }
 
-    private void authorize(String token) {
+    private void authorize(String token, AuthenticatedActor actor) {
         if (!properties.isEnabled()) {
             throw new SimulatorDisabledException();
         }
         String expected = properties.getApiToken();
         if (expected != null && !expected.isBlank() && !expected.equals(token)) {
+            throw new SimulatorUnauthorizedException();
+        }
+        if (properties.isAdminOnly() && (actor == null || !actor.isAdmin())) {
             throw new SimulatorUnauthorizedException();
         }
     }

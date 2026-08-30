@@ -5,14 +5,14 @@
 > or JSON Schema. Read [API Contract Guide](README.md) for edge classification,
 > error semantics and compatibility rules.
 
-Current inventory: **226 operations** across **16 controller-owning services** and **202 reachable source schemas**.
+Current inventory: **228 operations** across **16 controller-owning services** and **206 reachable source schemas**.
 
 ## Service index
 
 | Service | Mapped controller operations |
 | --- | --- |
 | analytics-service | 4 |
-| auth-service | 16 |
+| auth-service | 18 |
 | delivery-service | 21 |
 | flashsale-service | 12 |
 | livestream-service | 14 |
@@ -252,6 +252,49 @@ public ResponseEntity<BaseResponse<Void>> requestEmailVerification( @Valid @Requ
 
 ```java
 public ResponseEntity<BaseResponse<Void>> forgotPassword( @Valid @RequestBody SecurityEmailRequest request, HttpServletRequest servletRequest)
+```
+
+</details>
+
+### `POST` `/api/auth/internal/simulation-actors/{principalId}/bindings`
+
+- Handler: `SimulationActorInternalController.bind`
+- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/SimulationActorInternalController.java:33`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/SimulationActorInternalController.java)
+- Java return type: `ResponseEntity<BindResponse>`
+
+| Binding | Wire name | Java type | Required | Default | Validation/annotations |
+| --- | --- | --- | --- | --- | --- |
+| header | X-Internal-Secret | String | not declared required | — | @RequestHeader(value = "X-Internal-Secret", required = false) |
+| path | principalId | Long | declared required | — | @PathVariable |
+| body | request | BindRequest | declared required | — | @RequestBody |
+
+<details>
+<summary>Java signature for bind</summary>
+
+```java
+public ResponseEntity<BindResponse> bind( @RequestHeader(value = "X-Internal-Secret", required = false) String suppliedSecret, @PathVariable Long principalId, @RequestBody BindRequest request)
+```
+
+</details>
+
+### `DELETE` `/api/auth/internal/simulation-actors/{principalId}/bindings/{runId}`
+
+- Handler: `SimulationActorInternalController.unbind`
+- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/SimulationActorInternalController.java:43`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/SimulationActorInternalController.java)
+- Java return type: `ResponseEntity<Void>`
+
+| Binding | Wire name | Java type | Required | Default | Validation/annotations |
+| --- | --- | --- | --- | --- | --- |
+| header | X-Internal-Secret | String | not declared required | — | @RequestHeader(value = "X-Internal-Secret", required = false) |
+| path | principalId | Long | declared required | — | @PathVariable |
+| path | runId | UUID | declared required | — | @PathVariable |
+| header | X-Simulation-Binding-Version | long | declared required | — | @RequestHeader("X-Simulation-Binding-Version") |
+
+<details>
+<summary>Java signature for unbind</summary>
+
+```java
+public ResponseEntity<Void> unbind( @RequestHeader(value = "X-Internal-Secret", required = false) String suppliedSecret, @PathVariable Long principalId, @PathVariable UUID runId, @RequestHeader("X-Simulation-Binding-Version") long bindingVersion)
 ```
 
 </details>
@@ -1104,7 +1147,7 @@ public ResponseEntity<BaseResponse<List<FlashSaleItemDto>>> getItems(@PathVariab
 ### `POST` `/api/livestreams`
 
 - Handler: `LivestreamController.createLivestream`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:34`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
+- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:37`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
 - Java return type: `ResponseEntity<BaseResponse<LivestreamResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1124,7 +1167,7 @@ public ResponseEntity<BaseResponse<LivestreamResponse>> createLivestream( @Valid
 ### `GET` `/api/livestreams/{id}`
 
 - Handler: `LivestreamController.getLivestreamById`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:78`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
+- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:84`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
 - Java return type: `ResponseEntity<BaseResponse<LivestreamResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1143,7 +1186,7 @@ public ResponseEntity<BaseResponse<LivestreamResponse>> getLivestreamById(@PathV
 ### `POST` `/api/livestreams/{id}/end`
 
 - Handler: `LivestreamController.endLivestream`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:63`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
+- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:68`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
 - Java return type: `ResponseEntity<BaseResponse<LivestreamResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1163,7 +1206,7 @@ public ResponseEntity<BaseResponse<LivestreamResponse>> endLivestream( @PathVari
 ### `POST` `/api/livestreams/{id}/join`
 
 - Handler: `LivestreamController.joinLivestream`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:53`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
+- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:58`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
 - Java return type: `ResponseEntity<BaseResponse<JoinLivestreamResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1284,7 +1327,7 @@ public ResponseEntity<BaseResponse<List<LivestreamProductResponse>>> getPinnedPr
 ### `POST` `/api/livestreams/{id}/start`
 
 - Handler: `LivestreamController.startLivestream`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:43`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
+- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:47`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
 - Java return type: `ResponseEntity<BaseResponse<StartLivestreamResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1325,7 +1368,7 @@ public ResponseEntity<BaseResponse<TokenResponse>> generateToken( @PathVariable 
 ### `GET` `/api/livestreams/active`
 
 - Handler: `LivestreamController.getActiveLivestreams`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:72`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
+- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:78`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<LivestreamResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1344,18 +1387,19 @@ public ResponseEntity<BaseResponse<List<LivestreamResponse>>> getActiveLivestrea
 ### `GET` `/api/livestreams/restaurant/{restaurantId}`
 
 - Handler: `LivestreamController.getLivestreamsByRestaurant`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:91`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
+- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:97`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<LivestreamResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
 | --- | --- | --- | --- | --- | --- |
 | path | restaurantId | Long | declared required | — | @PathVariable |
+| principal | actor | AuthenticatedActor | not declared required | — | @AuthenticationPrincipal |
 
 <details>
 <summary>Java signature for getLivestreamsByRestaurant</summary>
 
 ```java
-public ResponseEntity<BaseResponse<List<LivestreamResponse>>> getLivestreamsByRestaurant( @PathVariable Long restaurantId)
+public ResponseEntity<BaseResponse<List<LivestreamResponse>>> getLivestreamsByRestaurant( @PathVariable Long restaurantId, @AuthenticationPrincipal AuthenticatedActor actor)
 ```
 
 </details>
@@ -1363,7 +1407,7 @@ public ResponseEntity<BaseResponse<List<LivestreamResponse>>> getLivestreamsByRe
 ### `GET` `/api/livestreams/seller/{sellerId}`
 
 - Handler: `LivestreamController.getLivestreamsBySeller`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:84`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
+- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:90`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<LivestreamResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -4698,6 +4742,26 @@ public ResponseEntity<BaseResponse<UserResponse>> registerUser( @Valid @RequestB
 | data | T | not declared required | — |
 | message | String | not declared required | — |
 
+### `com.delivery.auth_service.controller.SimulationActorInternalController.BindRequest`
+
+- Kind: `record`
+- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/SimulationActorInternalController.java:61`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/SimulationActorInternalController.java)
+
+| Field | Java type | Required | Validation/annotations |
+| --- | --- | --- | --- |
+| runId | UUID | not declared required | — |
+| cohortId | UUID | not declared required | — |
+
+### `com.delivery.auth_service.controller.SimulationActorInternalController.BindResponse`
+
+- Kind: `record`
+- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/SimulationActorInternalController.java:69`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/SimulationActorInternalController.java)
+
+| Field | Java type | Required | Validation/annotations |
+| --- | --- | --- | --- |
+| context | SimulationContext | not declared required | — |
+| accessToken | String | not declared required | — |
+
 ### `com.delivery.auth_service.dto.AuthAccountDto`
 
 - Kind: `record`
@@ -5415,6 +5479,38 @@ public ResponseEntity<BaseResponse<UserResponse>> registerUser( @Valid @RequestB
 - Kind: `enum`
 - Source: [`backend_delivery/identity-contracts/src/main/java/com/delivery/identity/contracts/IdentityLifecycleStatus.java:3`](../../../../identity-contracts/src/main/java/com/delivery/identity/contracts/IdentityLifecycleStatus.java)
 - Enum values: `PENDING_PROFILE`, `PENDING_EMAIL_VERIFICATION`, `ACTIVE`, `BLOCKED`
+
+| Field | Java type | Required | Validation/annotations |
+| --- | --- | --- | --- |
+| — | No source-declared fields | — | — |
+
+### `com.delivery.identity.contracts.SimulationContext`
+
+- Kind: `record`
+- Source: [`backend_delivery/identity-contracts/src/main/java/com/delivery/identity/contracts/SimulationContext.java:11`](../../../../identity-contracts/src/main/java/com/delivery/identity/contracts/SimulationContext.java)
+
+| Field | Java type | Required | Validation/annotations |
+| --- | --- | --- | --- |
+| mode | ExecutionMode | not declared required | — |
+| runId | UUID | not declared required | — |
+| cohortId | UUID | not declared required | — |
+| bindingVersion | Long | not declared required | — |
+
+#### `com.delivery.identity.contracts.SimulationContext.ExecutionMode`
+
+- Kind: `enum`
+- Source: [`backend_delivery/identity-contracts/src/main/java/com/delivery/identity/contracts/SimulationContext.java:17`](../../../../identity-contracts/src/main/java/com/delivery/identity/contracts/SimulationContext.java)
+- Enum values: `REAL`, `SIMULATION`
+
+| Field | Java type | Required | Validation/annotations |
+| --- | --- | --- | --- |
+| — | No source-declared fields | — | — |
+
+### `com.delivery.identity.contracts.SimulationContext.ExecutionMode`
+
+- Kind: `enum`
+- Source: [`backend_delivery/identity-contracts/src/main/java/com/delivery/identity/contracts/SimulationContext.java:17`](../../../../identity-contracts/src/main/java/com/delivery/identity/contracts/SimulationContext.java)
+- Enum values: `REAL`, `SIMULATION`
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |

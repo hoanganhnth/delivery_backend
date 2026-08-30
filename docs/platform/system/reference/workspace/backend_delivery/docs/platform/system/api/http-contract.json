@@ -9,13 +9,13 @@
   "scope": "Every annotated controller mapping, including internal, hidden, dev-only and experimental endpoints. Consult the HTTP inventory for public-edge classification and capability status.",
   "schemaStatus": "Field metadata is extracted from Java declarations and validation annotations. It is a source map, not an inferred OpenAPI/JSON Schema; controller/DTO source remains authoritative for Jackson, inheritance, polymorphism and error behavior.",
   "counts": {
-    "operations": 220,
+    "operations": 228,
     "services": 16,
-    "sourceSchemas": 190,
+    "sourceSchemas": 206,
     "byService": {
       "analytics-service": 4,
-      "auth-service": 16,
-      "delivery-service": 20,
+      "auth-service": 18,
+      "delivery-service": 21,
       "flashsale-service": 12,
       "livestream-service": 14,
       "notification-service": 12,
@@ -24,9 +24,9 @@
       "restaurant-service": 38,
       "routing-service": 3,
       "search-service": 2,
-      "settlement-service": 31,
+      "settlement-service": 33,
       "shipper-service": 8,
-      "simulator-service": 9,
+      "simulator-service": 12,
       "tracking-service": 4,
       "user-service": 16
     }
@@ -871,6 +871,132 @@
       }
     },
     {
+      "id": "auth-service:SimulationActorInternalController.bind:POST:/api/auth/internal/simulation-actors/{principalId}/bindings",
+      "service": "auth-service",
+      "controller": "SimulationActorInternalController",
+      "verbs": [
+        "POST"
+      ],
+      "path": "/api/auth/internal/simulation-actors/{principalId}/bindings",
+      "handler": "bind",
+      "source": {
+        "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/SimulationActorInternalController.java",
+        "line": 33
+      },
+      "java": {
+        "signature": "public ResponseEntity<BindResponse> bind( @RequestHeader(value = \"X-Internal-Secret\", required = false) String suppliedSecret, @PathVariable Long principalId, @RequestBody BindRequest request)",
+        "returnType": "ResponseEntity<BindResponse>",
+        "parameters": [
+          {
+            "name": "suppliedSecret",
+            "type": "String",
+            "annotations": [
+              {
+                "name": "RequestHeader",
+                "arguments": "value = \"X-Internal-Secret\", required = false"
+              }
+            ],
+            "required": false,
+            "binding": "header",
+            "wireName": "X-Internal-Secret"
+          },
+          {
+            "name": "principalId",
+            "type": "Long",
+            "annotations": [
+              {
+                "name": "PathVariable"
+              }
+            ],
+            "required": true,
+            "binding": "path",
+            "wireName": "principalId"
+          },
+          {
+            "name": "request",
+            "type": "BindRequest",
+            "annotations": [
+              {
+                "name": "RequestBody"
+              }
+            ],
+            "required": true,
+            "binding": "body"
+          }
+        ]
+      }
+    },
+    {
+      "id": "auth-service:SimulationActorInternalController.unbind:DELETE:/api/auth/internal/simulation-actors/{principalId}/bindings/{runId}",
+      "service": "auth-service",
+      "controller": "SimulationActorInternalController",
+      "verbs": [
+        "DELETE"
+      ],
+      "path": "/api/auth/internal/simulation-actors/{principalId}/bindings/{runId}",
+      "handler": "unbind",
+      "source": {
+        "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/SimulationActorInternalController.java",
+        "line": 43
+      },
+      "java": {
+        "signature": "public ResponseEntity<Void> unbind( @RequestHeader(value = \"X-Internal-Secret\", required = false) String suppliedSecret, @PathVariable Long principalId, @PathVariable UUID runId, @RequestHeader(\"X-Simulation-Binding-Version\") long bindingVersion)",
+        "returnType": "ResponseEntity<Void>",
+        "parameters": [
+          {
+            "name": "suppliedSecret",
+            "type": "String",
+            "annotations": [
+              {
+                "name": "RequestHeader",
+                "arguments": "value = \"X-Internal-Secret\", required = false"
+              }
+            ],
+            "required": false,
+            "binding": "header",
+            "wireName": "X-Internal-Secret"
+          },
+          {
+            "name": "principalId",
+            "type": "Long",
+            "annotations": [
+              {
+                "name": "PathVariable"
+              }
+            ],
+            "required": true,
+            "binding": "path",
+            "wireName": "principalId"
+          },
+          {
+            "name": "runId",
+            "type": "UUID",
+            "annotations": [
+              {
+                "name": "PathVariable"
+              }
+            ],
+            "required": true,
+            "binding": "path",
+            "wireName": "runId"
+          },
+          {
+            "name": "bindingVersion",
+            "type": "long",
+            "annotations": [
+              {
+                "name": "RequestHeader",
+                "arguments": "\"X-Simulation-Binding-Version\""
+              }
+            ],
+            "required": true,
+            "binding": "header",
+            "wireName": "X-Simulation-Binding-Version"
+          }
+        ]
+      }
+    },
+    {
       "id": "delivery-service:DeliveryController.acceptDelivery:POST:/api/deliveries/accept",
       "service": "delivery-service",
       "controller": "DeliveryController",
@@ -1031,7 +1157,7 @@
       "handler": "cancelAssignedDelivery",
       "source": {
         "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
-        "line": 133
+        "line": 134
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<DeliveryResponse>> cancelAssignedDelivery( @Valid @RequestBody CancelDeliveryAssignmentRequest request, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -1081,7 +1207,7 @@
       "handler": "getCurrentOffer",
       "source": {
         "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
-        "line": 143
+        "line": 145
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<DeliveryOfferResponse>> getCurrentOffer( @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -1112,7 +1238,7 @@
       "handler": "getCurrentBatchOffer",
       "source": {
         "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
-        "line": 154
+        "line": 156
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<com.delivery.delivery_service.dto.response.DeliveryBatchOfferResponse>> getCurrentBatchOffer( @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -1143,7 +1269,7 @@
       "handler": "getBatchSnapshot",
       "source": {
         "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
-        "line": 167
+        "line": 169
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<com.delivery.delivery_service.dto.response.DeliveryBatchSnapshotResponse>> getBatchSnapshot( @PathVariable UUID batchId, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -1186,7 +1312,7 @@
       "handler": "createProofUploadIntent",
       "source": {
         "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
-        "line": 180
+        "line": 182
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<ProofUploadIntentResponse>> createProofUploadIntent( @PathVariable Long deliveryId, @Valid @RequestBody CreateProofUploadIntentRequest request, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -1248,7 +1374,7 @@
       "handler": "confirmProofUpload",
       "source": {
         "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
-        "line": 192
+        "line": 194
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<ProofOfDeliveryResponse>> confirmProofUpload( @PathVariable Long deliveryId, @PathVariable UUID proofId, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -1303,7 +1429,7 @@
       "handler": "createProofReadAccess",
       "source": {
         "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
-        "line": 204
+        "line": 206
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<ProofAccessResponse>> createProofReadAccess( @PathVariable Long deliveryId, @PathVariable UUID proofId, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -1358,7 +1484,7 @@
       "handler": "reportDeliveryFailure",
       "source": {
         "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
-        "line": 216
+        "line": 218
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<DeliveryExceptionResponse>> reportDeliveryFailure( @PathVariable Long deliveryId, @Valid @RequestBody ReportDeliveryFailureRequest request, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -1420,7 +1546,7 @@
       "handler": "useDeliveryRetry",
       "source": {
         "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
-        "line": 228
+        "line": 230
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<DeliveryExceptionResponse>> useDeliveryRetry( @PathVariable Long deliveryId, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -1463,7 +1589,7 @@
       "handler": "confirmDeliveryReturn",
       "source": {
         "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
-        "line": 239
+        "line": 241
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<DeliveryExceptionResponse>> confirmDeliveryReturn( @PathVariable Long deliveryId, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -1506,7 +1632,7 @@
       "handler": "getDeliveryException",
       "source": {
         "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
-        "line": 250
+        "line": 252
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<DeliveryExceptionResponse>> getDeliveryException( @PathVariable Long deliveryId, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -1549,7 +1675,7 @@
       "handler": "getDelivery",
       "source": {
         "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
-        "line": 261
+        "line": 263
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<DeliveryResponse>> getDelivery( @PathVariable Long id, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -1592,7 +1718,7 @@
       "handler": "updateStatus",
       "source": {
         "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
-        "line": 271
+        "line": 273
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<DeliveryResponse>> updateStatus( @PathVariable Long id, @RequestParam DeliveryStatus status, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -1647,7 +1773,7 @@
       "handler": "getDeliveriesByShipper",
       "source": {
         "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
-        "line": 282
+        "line": 285
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<List<DeliveryResponse>>> getDeliveriesByShipper( @PathVariable Long shipperId, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -1690,7 +1816,7 @@
       "handler": "getActiveDeliveriesByShipper",
       "source": {
         "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
-        "line": 292
+        "line": 295
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<List<DeliveryResponse>>> getActiveDeliveriesByShipper( @PathVariable Long shipperId, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -1733,7 +1859,7 @@
       "handler": "getDeliveryByOrderId",
       "source": {
         "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
-        "line": 302
+        "line": 305
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<DeliveryResponse>> getDeliveryByOrderId( @PathVariable Long orderId, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -1776,7 +1902,7 @@
       "handler": "canTrack",
       "source": {
         "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/InternalDeliveryController.java",
-        "line": 40
+        "line": 42
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<Boolean>> canTrack( @PathVariable Long deliveryId, @RequestParam Long userId, @RequestParam String role, @RequestParam Long shipperId, @RequestHeader(value = \"Internal-Token\", required = false) String internalToken)",
@@ -2384,7 +2510,7 @@
       "handler": "createLivestream",
       "source": {
         "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java",
-        "line": 34
+        "line": 37
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<LivestreamResponse>> createLivestream( @Valid @RequestBody CreateLivestreamRequest request, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -2434,7 +2560,7 @@
       "handler": "startLivestream",
       "source": {
         "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java",
-        "line": 43
+        "line": 47
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<StartLivestreamResponse>> startLivestream( @PathVariable UUID id, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -2477,7 +2603,7 @@
       "handler": "joinLivestream",
       "source": {
         "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java",
-        "line": 53
+        "line": 58
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<JoinLivestreamResponse>> joinLivestream( @PathVariable UUID id, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -2520,7 +2646,7 @@
       "handler": "endLivestream",
       "source": {
         "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java",
-        "line": 63
+        "line": 68
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<LivestreamResponse>> endLivestream( @PathVariable UUID id, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -2563,7 +2689,7 @@
       "handler": "getActiveLivestreams",
       "source": {
         "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java",
-        "line": 72
+        "line": 78
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<List<LivestreamResponse>>> getActiveLivestreams()",
@@ -2582,7 +2708,7 @@
       "handler": "getLivestreamById",
       "source": {
         "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java",
-        "line": 78
+        "line": 84
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<LivestreamResponse>> getLivestreamById(@PathVariable UUID id)",
@@ -2614,7 +2740,7 @@
       "handler": "getLivestreamsBySeller",
       "source": {
         "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java",
-        "line": 84
+        "line": 90
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<List<LivestreamResponse>>> getLivestreamsBySeller( @PathVariable Long sellerId)",
@@ -2646,10 +2772,10 @@
       "handler": "getLivestreamsByRestaurant",
       "source": {
         "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java",
-        "line": 91
+        "line": 97
       },
       "java": {
-        "signature": "public ResponseEntity<BaseResponse<List<LivestreamResponse>>> getLivestreamsByRestaurant( @PathVariable Long restaurantId)",
+        "signature": "public ResponseEntity<BaseResponse<List<LivestreamResponse>>> getLivestreamsByRestaurant( @PathVariable Long restaurantId, @AuthenticationPrincipal AuthenticatedActor actor)",
         "returnType": "ResponseEntity<BaseResponse<List<LivestreamResponse>>>",
         "parameters": [
           {
@@ -2663,6 +2789,17 @@
             "required": true,
             "binding": "path",
             "wireName": "restaurantId"
+          },
+          {
+            "name": "actor",
+            "type": "AuthenticatedActor",
+            "annotations": [
+              {
+                "name": "AuthenticationPrincipal"
+              }
+            ],
+            "required": false,
+            "binding": "principal"
           }
         ]
       }
@@ -3474,7 +3611,7 @@
       "handler": "checkoutPreview",
       "source": {
         "file": "backend_delivery/order-service/src/main/java/com/delivery/order_service/controller/OrderController.java",
-        "line": 56
+        "line": 57
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<CheckoutPreviewResponse>> checkoutPreview( @Valid @RequestBody CheckoutPreviewRequest request, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -3524,7 +3661,7 @@
       "handler": "createOrder",
       "source": {
         "file": "backend_delivery/order-service/src/main/java/com/delivery/order_service/controller/OrderController.java",
-        "line": 70
+        "line": 71
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<OrderResponse>> createOrder( @Valid @RequestBody CreateOrderRequest request, @RequestHeader(name = \"Idempotency-Key\", required = false) String idempotencyKeyHeader, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -3587,7 +3724,7 @@
       "handler": "getOrderById",
       "source": {
         "file": "backend_delivery/order-service/src/main/java/com/delivery/order_service/controller/OrderController.java",
-        "line": 102
+        "line": 104
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<OrderResponse>> getOrderById( @PathVariable Long id, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -3630,7 +3767,7 @@
       "handler": "getMyOrders",
       "source": {
         "file": "backend_delivery/order-service/src/main/java/com/delivery/order_service/controller/OrderController.java",
-        "line": 112
+        "line": 114
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<PageResponse<OrderResponse>>> getMyOrders( @AuthenticationPrincipal AuthenticatedActor actor, @RequestParam(defaultValue = \"0\") int page, @RequestParam(defaultValue = \"10\") int size)",
@@ -3689,7 +3826,7 @@
       "handler": "getMyRestaurantOrders",
       "source": {
         "file": "backend_delivery/order-service/src/main/java/com/delivery/order_service/controller/OrderController.java",
-        "line": 123
+        "line": 125
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<PageResponse<OrderResponse>>> getMyRestaurantOrders( @AuthenticationPrincipal AuthenticatedActor actor, @RequestParam(defaultValue = \"0\") int page, @RequestParam(defaultValue = \"10\") int size)",
@@ -3748,7 +3885,7 @@
       "handler": "getOrdersByStatus",
       "source": {
         "file": "backend_delivery/order-service/src/main/java/com/delivery/order_service/controller/OrderController.java",
-        "line": 135
+        "line": 137
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<PageResponse<OrderResponse>>> getOrdersByStatus( @PathVariable String status, @AuthenticationPrincipal AuthenticatedActor actor, @RequestParam(defaultValue = \"0\") int page, @RequestParam(defaultValue = \"10\") int size)",
@@ -3819,7 +3956,7 @@
       "handler": "getAllOrders",
       "source": {
         "file": "backend_delivery/order-service/src/main/java/com/delivery/order_service/controller/OrderController.java",
-        "line": 147
+        "line": 149
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<PageResponse<OrderResponse>>> getAllOrders( @AuthenticationPrincipal AuthenticatedActor actor, @RequestParam(defaultValue = \"0\") int page, @RequestParam(defaultValue = \"10\") int size)",
@@ -3878,7 +4015,7 @@
       "handler": "cancelOrder",
       "source": {
         "file": "backend_delivery/order-service/src/main/java/com/delivery/order_service/controller/OrderController.java",
-        "line": 158
+        "line": 160
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<OrderResponse>> cancelOrder( @PathVariable Long id, @AuthenticationPrincipal AuthenticatedActor actor, @Valid @RequestBody(required = false) CancelOrderRequest cancelRequest)",
@@ -7997,13 +8134,98 @@
       }
     },
     {
-      "id": "settlement-service:PaymentController.createPayment:POST:/api/settlement/payments/create",
+      "id": "settlement-service:CustomerPaymentController.create:POST:/api/settlement/payments/create",
+      "service": "settlement-service",
+      "controller": "CustomerPaymentController",
+      "verbs": [
+        "POST"
+      ],
+      "path": "/api/settlement/payments/create",
+      "handler": "create",
+      "source": {
+        "file": "backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/CustomerPaymentController.java",
+        "line": 30
+      },
+      "java": {
+        "signature": "public ResponseEntity<BaseResponse<Void>> create( @AuthenticationPrincipal AuthenticatedActor actor, @RequestBody CustomerPaymentCreateRequest request)",
+        "returnType": "ResponseEntity<BaseResponse<Void>>",
+        "parameters": [
+          {
+            "name": "actor",
+            "type": "AuthenticatedActor",
+            "annotations": [
+              {
+                "name": "AuthenticationPrincipal"
+              }
+            ],
+            "required": false,
+            "binding": "principal"
+          },
+          {
+            "name": "request",
+            "type": "CustomerPaymentCreateRequest",
+            "annotations": [
+              {
+                "name": "RequestBody"
+              }
+            ],
+            "required": true,
+            "binding": "body"
+          }
+        ]
+      }
+    },
+    {
+      "id": "settlement-service:CustomerPaymentController.getByReference:GET:/api/settlement/payments/ref/{paymentRef}",
+      "service": "settlement-service",
+      "controller": "CustomerPaymentController",
+      "verbs": [
+        "GET"
+      ],
+      "path": "/api/settlement/payments/ref/{paymentRef}",
+      "handler": "getByReference",
+      "source": {
+        "file": "backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/CustomerPaymentController.java",
+        "line": 47
+      },
+      "java": {
+        "signature": "public ResponseEntity<BaseResponse<Void>> getByReference( @AuthenticationPrincipal AuthenticatedActor actor, @PathVariable String paymentRef)",
+        "returnType": "ResponseEntity<BaseResponse<Void>>",
+        "parameters": [
+          {
+            "name": "actor",
+            "type": "AuthenticatedActor",
+            "annotations": [
+              {
+                "name": "AuthenticationPrincipal"
+              }
+            ],
+            "required": false,
+            "binding": "principal"
+          },
+          {
+            "name": "paymentRef",
+            "type": "String",
+            "annotations": [
+              {
+                "name": "PathVariable"
+              }
+            ],
+            "required": true,
+            "binding": "path",
+            "wireName": "paymentRef"
+          }
+        ]
+      }
+    },
+    {
+      "id": "settlement-service:PaymentController.createPayment:POST:/api/settlement/payments/internal/create",
       "service": "settlement-service",
       "controller": "PaymentController",
       "verbs": [
         "POST"
       ],
-      "path": "/api/settlement/payments/create",
+      "path": "/api/settlement/payments/internal/create",
       "handler": "createPayment",
       "source": {
         "file": "backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/PaymentController.java",
@@ -8140,13 +8362,13 @@
       }
     },
     {
-      "id": "settlement-service:PaymentController.getPaymentStatus:GET:/api/settlement/payments/{paymentId}",
+      "id": "settlement-service:PaymentController.getPaymentStatus:GET:/api/settlement/payments/internal/{paymentId}",
       "service": "settlement-service",
       "controller": "PaymentController",
       "verbs": [
         "GET"
       ],
-      "path": "/api/settlement/payments/{paymentId}",
+      "path": "/api/settlement/payments/internal/{paymentId}",
       "handler": "getPaymentStatus",
       "source": {
         "file": "backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/PaymentController.java",
@@ -8172,13 +8394,13 @@
       }
     },
     {
-      "id": "settlement-service:PaymentController.getPaymentByRef:GET:/api/settlement/payments/ref/{paymentRef}",
+      "id": "settlement-service:PaymentController.getPaymentByRef:GET:/api/settlement/payments/internal/ref/{paymentRef}",
       "service": "settlement-service",
       "controller": "PaymentController",
       "verbs": [
         "GET"
       ],
-      "path": "/api/settlement/payments/ref/{paymentRef}",
+      "path": "/api/settlement/payments/internal/ref/{paymentRef}",
       "handler": "getPaymentByRef",
       "source": {
         "file": "backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/PaymentController.java",
@@ -8204,13 +8426,13 @@
       }
     },
     {
-      "id": "settlement-service:PaymentController.getAvailableProviders:GET:/api/settlement/payments/providers",
+      "id": "settlement-service:PaymentController.getAvailableProviders:GET:/api/settlement/payments/internal/providers",
       "service": "settlement-service",
       "controller": "PaymentController",
       "verbs": [
         "GET"
       ],
-      "path": "/api/settlement/payments/providers",
+      "path": "/api/settlement/payments/internal/providers",
       "handler": "getAvailableProviders",
       "source": {
         "file": "backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/PaymentController.java",
@@ -8329,10 +8551,10 @@
       "handler": "validate",
       "source": {
         "file": "backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java",
-        "line": 37
+        "line": 45
       },
       "java": {
-        "signature": "public Map<String, Object> validate(@RequestHeader(value = \"X-Simulator-Token\", required = false) String token, @RequestBody JsonNode scenario)",
+        "signature": "public Map<String, Object> validate(@RequestHeader(value = \"X-Simulator-Token\", required = false) String token, @RequestBody JsonNode scenario, @AuthenticationPrincipal AuthenticatedActor actor)",
         "returnType": "Map<String, Object>",
         "parameters": [
           {
@@ -8358,6 +8580,17 @@
             ],
             "required": true,
             "binding": "body"
+          },
+          {
+            "name": "actor",
+            "type": "AuthenticatedActor",
+            "annotations": [
+              {
+                "name": "AuthenticationPrincipal"
+              }
+            ],
+            "required": false,
+            "binding": "principal"
           }
         ]
       }
@@ -8373,10 +8606,10 @@
       "handler": "start",
       "source": {
         "file": "backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java",
-        "line": 44
+        "line": 53
       },
       "java": {
-        "signature": "public ResponseEntity<Map<String, Object>> start(@RequestHeader(value = \"X-Simulator-Token\", required = false) String token, @RequestBody JsonNode scenario)",
+        "signature": "public ResponseEntity<Map<String, Object>> start(@RequestHeader(value = \"X-Simulator-Token\", required = false) String token, @RequestBody JsonNode scenario, @AuthenticationPrincipal AuthenticatedActor actor)",
         "returnType": "ResponseEntity<Map<String, Object>>",
         "parameters": [
           {
@@ -8402,6 +8635,61 @@
             ],
             "required": true,
             "binding": "body"
+          },
+          {
+            "name": "actor",
+            "type": "AuthenticatedActor",
+            "annotations": [
+              {
+                "name": "AuthenticationPrincipal"
+              }
+            ],
+            "required": false,
+            "binding": "principal"
+          }
+        ]
+      }
+    },
+    {
+      "id": "simulator-service:SimulatorController.list:GET:/api/simulator/runs",
+      "service": "simulator-service",
+      "controller": "SimulatorController",
+      "verbs": [
+        "GET"
+      ],
+      "path": "/api/simulator/runs",
+      "handler": "list",
+      "source": {
+        "file": "backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java",
+        "line": 69
+      },
+      "java": {
+        "signature": "public List<Map<String, Object>> list(@RequestHeader(value = \"X-Simulator-Token\", required = false) String token, @AuthenticationPrincipal AuthenticatedActor actor)",
+        "returnType": "List<Map<String, Object>>",
+        "parameters": [
+          {
+            "name": "token",
+            "type": "String",
+            "annotations": [
+              {
+                "name": "RequestHeader",
+                "arguments": "value = \"X-Simulator-Token\", required = false"
+              }
+            ],
+            "required": false,
+            "binding": "header",
+            "wireName": "X-Simulator-Token"
+          },
+          {
+            "name": "actor",
+            "type": "AuthenticatedActor",
+            "annotations": [
+              {
+                "name": "AuthenticationPrincipal"
+              }
+            ],
+            "required": false,
+            "binding": "principal"
           }
         ]
       }
@@ -8417,10 +8705,10 @@
       "handler": "get",
       "source": {
         "file": "backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java",
-        "line": 51
+        "line": 61
       },
       "java": {
-        "signature": "public Map<String, Object> get(@RequestHeader(value = \"X-Simulator-Token\", required = false) String token, @PathVariable String runId)",
+        "signature": "public Map<String, Object> get(@RequestHeader(value = \"X-Simulator-Token\", required = false) String token, @PathVariable String runId, @AuthenticationPrincipal AuthenticatedActor actor)",
         "returnType": "Map<String, Object>",
         "parameters": [
           {
@@ -8447,6 +8735,17 @@
             "required": true,
             "binding": "path",
             "wireName": "runId"
+          },
+          {
+            "name": "actor",
+            "type": "AuthenticatedActor",
+            "annotations": [
+              {
+                "name": "AuthenticationPrincipal"
+              }
+            ],
+            "required": false,
+            "binding": "principal"
           }
         ]
       }
@@ -8462,10 +8761,10 @@
       "handler": "traces",
       "source": {
         "file": "backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java",
-        "line": 58
+        "line": 76
       },
       "java": {
-        "signature": "public Object traces(@RequestHeader(value = \"X-Simulator-Token\", required = false) String token, @PathVariable String runId)",
+        "signature": "public Object traces(@RequestHeader(value = \"X-Simulator-Token\", required = false) String token, @PathVariable String runId, @AuthenticationPrincipal AuthenticatedActor actor)",
         "returnType": "Object",
         "parameters": [
           {
@@ -8492,6 +8791,73 @@
             "required": true,
             "binding": "path",
             "wireName": "runId"
+          },
+          {
+            "name": "actor",
+            "type": "AuthenticatedActor",
+            "annotations": [
+              {
+                "name": "AuthenticationPrincipal"
+              }
+            ],
+            "required": false,
+            "binding": "principal"
+          }
+        ]
+      }
+    },
+    {
+      "id": "simulator-service:SimulatorController.journal:GET:/api/simulator/runs/{runId}/journal",
+      "service": "simulator-service",
+      "controller": "SimulatorController",
+      "verbs": [
+        "GET"
+      ],
+      "path": "/api/simulator/runs/{runId}/journal",
+      "handler": "journal",
+      "source": {
+        "file": "backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java",
+        "line": 84
+      },
+      "java": {
+        "signature": "public List<Map<String, Object>> journal(@RequestHeader(value = \"X-Simulator-Token\", required = false) String token, @PathVariable String runId, @AuthenticationPrincipal AuthenticatedActor actor)",
+        "returnType": "List<Map<String, Object>>",
+        "parameters": [
+          {
+            "name": "token",
+            "type": "String",
+            "annotations": [
+              {
+                "name": "RequestHeader",
+                "arguments": "value = \"X-Simulator-Token\", required = false"
+              }
+            ],
+            "required": false,
+            "binding": "header",
+            "wireName": "X-Simulator-Token"
+          },
+          {
+            "name": "runId",
+            "type": "String",
+            "annotations": [
+              {
+                "name": "PathVariable"
+              }
+            ],
+            "required": true,
+            "binding": "path",
+            "wireName": "runId"
+          },
+          {
+            "name": "actor",
+            "type": "AuthenticatedActor",
+            "annotations": [
+              {
+                "name": "AuthenticationPrincipal"
+              }
+            ],
+            "required": false,
+            "binding": "principal"
           }
         ]
       }
@@ -8507,10 +8873,10 @@
       "handler": "stream",
       "source": {
         "file": "backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java",
-        "line": 65
+        "line": 92
       },
       "java": {
-        "signature": "public SseEmitter stream(@RequestHeader(value = \"X-Simulator-Token\", required = false) String token, @PathVariable String runId)",
+        "signature": "public SseEmitter stream(@RequestHeader(value = \"X-Simulator-Token\", required = false) String token, @PathVariable String runId, @AuthenticationPrincipal AuthenticatedActor actor)",
         "returnType": "SseEmitter",
         "parameters": [
           {
@@ -8537,6 +8903,17 @@
             "required": true,
             "binding": "path",
             "wireName": "runId"
+          },
+          {
+            "name": "actor",
+            "type": "AuthenticatedActor",
+            "annotations": [
+              {
+                "name": "AuthenticationPrincipal"
+              }
+            ],
+            "required": false,
+            "binding": "principal"
           }
         ]
       }
@@ -8552,10 +8929,10 @@
       "handler": "pause",
       "source": {
         "file": "backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java",
-        "line": 74
+        "line": 102
       },
       "java": {
-        "signature": "public Map<String, Object> pause(@RequestHeader(value = \"X-Simulator-Token\", required = false) String token, @PathVariable String runId)",
+        "signature": "public Map<String, Object> pause(@RequestHeader(value = \"X-Simulator-Token\", required = false) String token, @PathVariable String runId, @AuthenticationPrincipal AuthenticatedActor actor)",
         "returnType": "Map<String, Object>",
         "parameters": [
           {
@@ -8582,6 +8959,17 @@
             "required": true,
             "binding": "path",
             "wireName": "runId"
+          },
+          {
+            "name": "actor",
+            "type": "AuthenticatedActor",
+            "annotations": [
+              {
+                "name": "AuthenticationPrincipal"
+              }
+            ],
+            "required": false,
+            "binding": "principal"
           }
         ]
       }
@@ -8597,10 +8985,10 @@
       "handler": "resume",
       "source": {
         "file": "backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java",
-        "line": 81
+        "line": 110
       },
       "java": {
-        "signature": "public Map<String, Object> resume(@RequestHeader(value = \"X-Simulator-Token\", required = false) String token, @PathVariable String runId)",
+        "signature": "public Map<String, Object> resume(@RequestHeader(value = \"X-Simulator-Token\", required = false) String token, @PathVariable String runId, @AuthenticationPrincipal AuthenticatedActor actor)",
         "returnType": "Map<String, Object>",
         "parameters": [
           {
@@ -8627,6 +9015,17 @@
             "required": true,
             "binding": "path",
             "wireName": "runId"
+          },
+          {
+            "name": "actor",
+            "type": "AuthenticatedActor",
+            "annotations": [
+              {
+                "name": "AuthenticationPrincipal"
+              }
+            ],
+            "required": false,
+            "binding": "principal"
           }
         ]
       }
@@ -8642,10 +9041,10 @@
       "handler": "abort",
       "source": {
         "file": "backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java",
-        "line": 88
+        "line": 118
       },
       "java": {
-        "signature": "public Map<String, Object> abort(@RequestHeader(value = \"X-Simulator-Token\", required = false) String token, @PathVariable String runId)",
+        "signature": "public Map<String, Object> abort(@RequestHeader(value = \"X-Simulator-Token\", required = false) String token, @PathVariable String runId, @AuthenticationPrincipal AuthenticatedActor actor)",
         "returnType": "Map<String, Object>",
         "parameters": [
           {
@@ -8672,6 +9071,73 @@
             "required": true,
             "binding": "path",
             "wireName": "runId"
+          },
+          {
+            "name": "actor",
+            "type": "AuthenticatedActor",
+            "annotations": [
+              {
+                "name": "AuthenticationPrincipal"
+              }
+            ],
+            "required": false,
+            "binding": "principal"
+          }
+        ]
+      }
+    },
+    {
+      "id": "simulator-service:SimulatorController.reconcile:POST:/api/simulator/runs/{runId}/reconcile",
+      "service": "simulator-service",
+      "controller": "SimulatorController",
+      "verbs": [
+        "POST"
+      ],
+      "path": "/api/simulator/runs/{runId}/reconcile",
+      "handler": "reconcile",
+      "source": {
+        "file": "backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java",
+        "line": 127
+      },
+      "java": {
+        "signature": "public SimulationRecoveryService.RecoveryResult reconcile( @RequestHeader(value = \"X-Simulator-Token\", required = false) String token, @PathVariable String runId, @AuthenticationPrincipal AuthenticatedActor actor)",
+        "returnType": "SimulationRecoveryService.RecoveryResult",
+        "parameters": [
+          {
+            "name": "token",
+            "type": "String",
+            "annotations": [
+              {
+                "name": "RequestHeader",
+                "arguments": "value = \"X-Simulator-Token\", required = false"
+              }
+            ],
+            "required": false,
+            "binding": "header",
+            "wireName": "X-Simulator-Token"
+          },
+          {
+            "name": "runId",
+            "type": "String",
+            "annotations": [
+              {
+                "name": "PathVariable"
+              }
+            ],
+            "required": true,
+            "binding": "path",
+            "wireName": "runId"
+          },
+          {
+            "name": "actor",
+            "type": "AuthenticatedActor",
+            "annotations": [
+              {
+                "name": "AuthenticationPrincipal"
+              }
+            ],
+            "required": false,
+            "binding": "principal"
           }
         ]
       }
@@ -8687,10 +9153,10 @@
       "handler": "cleanup",
       "source": {
         "file": "backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java",
-        "line": 95
+        "line": 136
       },
       "java": {
-        "signature": "public Map<String, Object> cleanup(@RequestHeader(value = \"X-Simulator-Token\", required = false) String token, @PathVariable String runId)",
+        "signature": "public Map<String, Object> cleanup(@RequestHeader(value = \"X-Simulator-Token\", required = false) String token, @PathVariable String runId, @AuthenticationPrincipal AuthenticatedActor actor)",
         "returnType": "Map<String, Object>",
         "parameters": [
           {
@@ -8717,6 +9183,62 @@
             "required": true,
             "binding": "path",
             "wireName": "runId"
+          },
+          {
+            "name": "actor",
+            "type": "AuthenticatedActor",
+            "annotations": [
+              {
+                "name": "AuthenticationPrincipal"
+              }
+            ],
+            "required": false,
+            "binding": "principal"
+          }
+        ]
+      }
+    },
+    {
+      "id": "delivery-service:InternalDeliveryController.findSimulationRunDeliveries:GET:/api/deliveries/internal/simulation-runs/{runId}/deliveries",
+      "service": "delivery-service",
+      "controller": "InternalDeliveryController",
+      "verbs": [
+        "GET"
+      ],
+      "path": "/api/deliveries/internal/simulation-runs/{runId}/deliveries",
+      "handler": "findSimulationRunDeliveries",
+      "source": {
+        "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/InternalDeliveryController.java",
+        "line": 74
+      },
+      "java": {
+        "signature": "public ResponseEntity<BaseResponse<List<SimulationDeliveryStatus>>> findSimulationRunDeliveries( @PathVariable UUID runId, @RequestHeader(value = \"Internal-Token\", required = false) String internalToken)",
+        "returnType": "ResponseEntity<BaseResponse<List<SimulationDeliveryStatus>>>",
+        "parameters": [
+          {
+            "name": "runId",
+            "type": "UUID",
+            "annotations": [
+              {
+                "name": "PathVariable"
+              }
+            ],
+            "required": true,
+            "binding": "path",
+            "wireName": "runId"
+          },
+          {
+            "name": "internalToken",
+            "type": "String",
+            "annotations": [
+              {
+                "name": "RequestHeader",
+                "arguments": "value = \"Internal-Token\", required = false"
+              }
+            ],
+            "required": false,
+            "binding": "header",
+            "wireName": "Internal-Token"
           }
         ]
       }
@@ -9099,7 +9621,7 @@
       "handler": "markOffline",
       "source": {
         "file": "backend_delivery/tracking-service/src/main/java/com/delivery/tracking_service/controller/ShipperLocationController.java",
-        "line": 41
+        "line": 42
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<String>> markOffline( @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -10410,6 +10932,48 @@
         }
       ]
     },
+    "com.delivery.auth_service.controller.SimulationActorInternalController.BindRequest": {
+      "kind": "record",
+      "source": {
+        "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/SimulationActorInternalController.java",
+        "line": 61
+      },
+      "fields": [
+        {
+          "name": "runId",
+          "type": "UUID",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "cohortId",
+          "type": "UUID",
+          "annotations": [],
+          "required": false
+        }
+      ]
+    },
+    "com.delivery.auth_service.controller.SimulationActorInternalController.BindResponse": {
+      "kind": "record",
+      "source": {
+        "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/SimulationActorInternalController.java",
+        "line": 69
+      },
+      "fields": [
+        {
+          "name": "context",
+          "type": "SimulationContext",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "accessToken",
+          "type": "String",
+          "annotations": [],
+          "required": false
+        }
+      ]
+    },
     "com.delivery.auth_service.dto.AuthAccountDto": {
       "kind": "record",
       "source": {
@@ -11028,6 +11592,33 @@
         {
           "name": "data",
           "type": "T",
+          "annotations": [],
+          "required": false
+        }
+      ]
+    },
+    "com.delivery.delivery_service.controller.InternalDeliveryController.SimulationDeliveryStatus": {
+      "kind": "record",
+      "source": {
+        "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/InternalDeliveryController.java",
+        "line": 88
+      },
+      "fields": [
+        {
+          "name": "deliveryId",
+          "type": "Long",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "orderId",
+          "type": "Long",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "status",
+          "type": "String",
           "annotations": [],
           "required": false
         }
@@ -13286,6 +13877,65 @@
         "PENDING_EMAIL_VERIFICATION",
         "ACTIVE",
         "BLOCKED"
+      ]
+    },
+    "com.delivery.identity.contracts.SimulationContext": {
+      "kind": "record",
+      "source": {
+        "file": "backend_delivery/identity-contracts/src/main/java/com/delivery/identity/contracts/SimulationContext.java",
+        "line": 11
+      },
+      "fields": [
+        {
+          "name": "mode",
+          "type": "ExecutionMode",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "runId",
+          "type": "UUID",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "cohortId",
+          "type": "UUID",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "bindingVersion",
+          "type": "Long",
+          "annotations": [],
+          "required": false
+        }
+      ],
+      "nestedTypes": {
+        "ExecutionMode": {
+          "kind": "enum",
+          "source": {
+            "file": "backend_delivery/identity-contracts/src/main/java/com/delivery/identity/contracts/SimulationContext.java",
+            "line": 17
+          },
+          "fields": [],
+          "values": [
+            "REAL",
+            "SIMULATION"
+          ]
+        }
+      }
+    },
+    "com.delivery.identity.contracts.SimulationContext.ExecutionMode": {
+      "kind": "enum",
+      "source": {
+        "file": "backend_delivery/identity-contracts/src/main/java/com/delivery/identity/contracts/SimulationContext.java",
+        "line": 17
+      },
+      "fields": [],
+      "values": [
+        "REAL",
+        "SIMULATION"
       ]
     },
     "com.delivery.livestream_service.dto.request.CreateLivestreamRequest": {
@@ -22060,6 +22710,21 @@
         }
       ]
     },
+    "com.delivery.settlement_service.controller.CustomerPaymentController.CustomerPaymentCreateRequest": {
+      "kind": "record",
+      "source": {
+        "file": "backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/CustomerPaymentController.java",
+        "line": 63
+      },
+      "fields": [
+        {
+          "name": "orderId",
+          "type": "Long",
+          "annotations": [],
+          "required": false
+        }
+      ]
+    },
     "com.delivery.settlement_service.dto.request.CodCapacityHoldRequest": {
       "kind": "class",
       "source": {
@@ -23735,6 +24400,410 @@
           "required": false
         }
       ]
+    },
+    "com.delivery.simulator.config.SimulatorProperties": {
+      "kind": "class",
+      "source": {
+        "file": "backend_delivery/simulator-service/src/main/java/com/delivery/simulator/config/SimulatorProperties.java",
+        "line": 9
+      },
+      "fields": [
+        {
+          "name": "enabled",
+          "type": "boolean",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "adminOnly",
+          "type": "boolean",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "apiToken",
+          "type": "String",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "gatewayBaseUrl",
+          "type": "String",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "authBaseUrl",
+          "type": "String",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "deliveryBaseUrl",
+          "type": "String",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "internalSecret",
+          "type": "String",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "managedActorPoolRequired",
+          "type": "boolean",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "allowNonLocalTargets",
+          "type": "boolean",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "pollIntervalMillis",
+          "type": "int",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "humanOrderTimeoutSeconds",
+          "type": "int",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "runTimeoutSeconds",
+          "type": "int",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "maxShippers",
+          "type": "int",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "maxOrdersPerRun",
+          "type": "int",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "maxConcurrentRuns",
+          "type": "int",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "movementTickSeconds",
+          "type": "int",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "kafkaObserverEnabled",
+          "type": "boolean",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "ledgerObserverEnabled",
+          "type": "boolean",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "kafkaDecisionTraceTopic",
+          "type": "String",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "kafkaObserverGroupId",
+          "type": "String",
+          "annotations": [],
+          "required": false
+        }
+      ]
+    },
+    "com.delivery.simulator.repository.SimulationActorLeaseRepository": {
+      "kind": "interface",
+      "source": {
+        "file": "backend_delivery/simulator-service/src/main/java/com/delivery/simulator/repository/SimulationActorLeaseRepository.java",
+        "line": 11
+      },
+      "fields": []
+    },
+    "com.delivery.simulator.repository.SimulationRunJournalRepository": {
+      "kind": "interface",
+      "source": {
+        "file": "backend_delivery/simulator-service/src/main/java/com/delivery/simulator/repository/SimulationRunJournalRepository.java",
+        "line": 7
+      },
+      "fields": []
+    },
+    "com.delivery.simulator.repository.SimulationRunRepository": {
+      "kind": "interface",
+      "source": {
+        "file": "backend_delivery/simulator-service/src/main/java/com/delivery/simulator/repository/SimulationRunRepository.java",
+        "line": 9
+      },
+      "fields": []
+    },
+    "com.delivery.simulator.service.GatewayClient": {
+      "kind": "class",
+      "source": {
+        "file": "backend_delivery/simulator-service/src/main/java/com/delivery/simulator/service/GatewayClient.java",
+        "line": 23
+      },
+      "fields": [
+        {
+          "name": "httpClient",
+          "type": "HttpClient",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "objectMapper",
+          "type": "ObjectMapper",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "properties",
+          "type": "SimulatorProperties",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "faultInjection",
+          "type": "GatewayFaultInjection",
+          "annotations": [],
+          "required": false
+        }
+      ],
+      "nestedTypes": {
+        "GatewayException": {
+          "kind": "class",
+          "source": {
+            "file": "backend_delivery/simulator-service/src/main/java/com/delivery/simulator/service/GatewayClient.java",
+            "line": 118
+          },
+          "fields": [
+            {
+              "name": "status",
+              "type": "int",
+              "annotations": [],
+              "required": false
+            },
+            {
+              "name": "operation",
+              "type": "String",
+              "annotations": [],
+              "required": false
+            }
+          ]
+        }
+      }
+    },
+    "com.delivery.simulator.service.GatewayFaultInjection": {
+      "kind": "class",
+      "source": {
+        "file": "backend_delivery/simulator-service/src/main/java/com/delivery/simulator/service/GatewayFaultInjection.java",
+        "line": 13
+      },
+      "fields": []
+    },
+    "com.delivery.simulator.service.SimulationActorPoolClient": {
+      "kind": "interface",
+      "source": {
+        "file": "backend_delivery/simulator-service/src/main/java/com/delivery/simulator/service/SimulationActorPoolClient.java",
+        "line": 7
+      },
+      "fields": [],
+      "nestedTypes": {
+        "BoundActor": {
+          "kind": "record",
+          "source": {
+            "file": "backend_delivery/simulator-service/src/main/java/com/delivery/simulator/service/SimulationActorPoolClient.java",
+            "line": 12
+          },
+          "fields": [
+            {
+              "name": "principalId",
+              "type": "Long",
+              "annotations": [],
+              "required": false
+            },
+            {
+              "name": "context",
+              "type": "SimulationContext",
+              "annotations": [],
+              "required": false
+            },
+            {
+              "name": "accessToken",
+              "type": "String",
+              "annotations": [],
+              "required": false
+            }
+          ]
+        }
+      }
+    },
+    "com.delivery.simulator.service.SimulationDeliveryRecoveryClient": {
+      "kind": "interface",
+      "source": {
+        "file": "backend_delivery/simulator-service/src/main/java/com/delivery/simulator/service/SimulationDeliveryRecoveryClient.java",
+        "line": 7
+      },
+      "fields": [],
+      "nestedTypes": {
+        "DeliveryStatus": {
+          "kind": "record",
+          "source": {
+            "file": "backend_delivery/simulator-service/src/main/java/com/delivery/simulator/service/SimulationDeliveryRecoveryClient.java",
+            "line": 10
+          },
+          "fields": [
+            {
+              "name": "deliveryId",
+              "type": "Long",
+              "annotations": [],
+              "required": false
+            },
+            {
+              "name": "orderId",
+              "type": "Long",
+              "annotations": [],
+              "required": false
+            },
+            {
+              "name": "status",
+              "type": "String",
+              "annotations": [],
+              "required": false
+            }
+          ]
+        }
+      }
+    },
+    "com.delivery.simulator.service.SimulationLeaseService": {
+      "kind": "class",
+      "source": {
+        "file": "backend_delivery/simulator-service/src/main/java/com/delivery/simulator/service/SimulationLeaseService.java",
+        "line": 13
+      },
+      "fields": [
+        {
+          "name": "leases",
+          "type": "SimulationActorLeaseRepository",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "ttlSeconds",
+          "type": "long",
+          "annotations": [],
+          "required": false
+        }
+      ]
+    },
+    "com.delivery.simulator.service.SimulationRecoveryService": {
+      "kind": "class",
+      "source": {
+        "file": "backend_delivery/simulator-service/src/main/java/com/delivery/simulator/service/SimulationRecoveryService.java",
+        "line": 26
+      },
+      "fields": [
+        {
+          "name": "mapper",
+          "type": "ObjectMapper",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "runs",
+          "type": "SimulationRunRepository",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "journal",
+          "type": "SimulationRunJournalRepository",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "gateway",
+          "type": "GatewayClient",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "actors",
+          "type": "SimulationActorPoolClient",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "leases",
+          "type": "SimulationLeaseService",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "deliveryRecovery",
+          "type": "SimulationDeliveryRecoveryClient",
+          "annotations": [],
+          "required": false
+        }
+      ],
+      "nestedTypes": {
+        "RecoveryResult": {
+          "kind": "record",
+          "source": {
+            "file": "backend_delivery/simulator-service/src/main/java/com/delivery/simulator/service/SimulationRecoveryService.java",
+            "line": 170
+          },
+          "fields": [
+            {
+              "name": "runId",
+              "type": "UUID",
+              "annotations": [],
+              "required": false
+            },
+            {
+              "name": "reconciled",
+              "type": "boolean",
+              "annotations": [],
+              "required": false
+            },
+            {
+              "name": "deliveryIds",
+              "type": "List<Long>",
+              "annotations": [],
+              "required": false
+            },
+            {
+              "name": "deliveryStatuses",
+              "type": "Map<Long, String>",
+              "annotations": [],
+              "required": false
+            },
+            {
+              "name": "releasedActors",
+              "type": "int",
+              "annotations": [],
+              "required": false
+            }
+          ]
+        }
+      }
     },
     "com.delivery.tracking_service.dto.request.UpdateLocationRequest": {
       "kind": "class",

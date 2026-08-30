@@ -8,6 +8,8 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.kafka.core.KafkaTemplate;
 
 import java.util.Optional;
+import java.util.UUID;
+import com.delivery.identity.contracts.SimulationContext;
 import java.util.concurrent.CompletableFuture;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -68,5 +70,26 @@ class ShipperLocationEventPublisherTest {
 
         assertThrows(IllegalStateException.class,
                 () -> publisher.publishLocationUpdate(7L, 10.7, 106.6, true));
+    }
+
+    @Test
+    void locationEventCarriesTheServerOwnedSimulationContext() {
+        @SuppressWarnings("unchecked") KafkaTemplate<String, Object> kafka = mock(KafkaTemplate.class);
+        var metadata = new org.apache.kafka.clients.producer.RecordMetadata(
+                new org.apache.kafka.common.TopicPartition("shipper.location-updated", 0), 1L, 0,
+                System.currentTimeMillis(), 1, 1);
+        var result = new org.springframework.kafka.support.SendResult<String, Object>(
+                new org.apache.kafka.clients.producer.ProducerRecord<>("shipper.location-updated", "7", new Object()), metadata);
+        when(kafka.send(anyString(), anyString(), any())).thenReturn(CompletableFuture.completedFuture(result));
+        ShipperLocationResponse location = new ShipperLocationResponse();
+        location.setShipperId(7L); location.setLatitude(10.7); location.setLongitude(106.6); location.setIsOnline(true);
+        SimulationContext context = new SimulationContext(SimulationContext.ExecutionMode.SIMULATION,
+                UUID.randomUUID(), UUID.randomUUID(), 2L);
+
+        new ShipperLocationEventPublisher(kafka).publishLocationUpdate(location, "REST", context);
+
+        ArgumentCaptor<Object> event = ArgumentCaptor.forClass(Object.class);
+        verify(kafka).send(eq("shipper.location-updated"), eq("7"), event.capture());
+        assertThat(((ShipperLocationUpdatedEvent) event.getValue()).getSimulationContext()).isEqualTo(context);
     }
 }

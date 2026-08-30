@@ -9,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import java.util.concurrent.TimeUnit;
+import com.delivery.identity.contracts.SimulationContext;
 
 /**
  * ✅ Publisher gửi sự kiện vị trí shipper qua Kafka
@@ -46,6 +47,11 @@ public class ShipperLocationEventPublisher {
     }
 
     public void publishLocationUpdate(ShipperLocationResponse location, String source) {
+        publishLocationUpdate(location, source, SimulationContext.real());
+    }
+
+    public void publishLocationUpdate(ShipperLocationResponse location, String source,
+                                      SimulationContext simulationContext) {
         Long shipperId = location.getShipperId();
         try {
             ShipperLocationUpdatedEvent event = new ShipperLocationUpdatedEvent(
@@ -54,6 +60,7 @@ public class ShipperLocationEventPublisher {
                     assignments == null ? null : assignments.activeDelivery(shipperId).orElse(null),
                     location.getAccuracy(), location.getSpeed(), location.getHeading(), source
             );
+            event.setSimulationContext(SimulationContext.orReal(simulationContext));
 
             var result = kafkaTemplate.send(
                     KafkaTopicConstants.SHIPPER_LOCATION_UPDATED_TOPIC,

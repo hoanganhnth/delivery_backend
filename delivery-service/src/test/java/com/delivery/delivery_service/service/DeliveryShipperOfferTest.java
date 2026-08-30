@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import com.delivery.identity.contracts.SimulationContext;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -182,6 +183,58 @@ class DeliveryShipperOfferTest {
                 .hasMessageContaining("không được offer");
         verify(repository, never()).save(any());
         verifyNoInteractions(eventPublisher);
+    }
+
+    @Test
+    void realShipperCannotAcceptASimulationDelivery() {
+        Delivery delivery = waitingDelivery();
+        delivery.setOfferedShipperId(10L);
+        delivery.setOfferExpiresAt(LocalDateTime.now().plusMinutes(2));
+        delivery.setStatus(DeliveryStatus.WAIT_SHIPPER_CONFIRM);
+        delivery.setSimulationContext(new SimulationContext(SimulationContext.ExecutionMode.SIMULATION,
+                UUID.randomUUID(), UUID.randomUUID(), 1L));
+        when(repository.findByOrderIdForUpdate(20L)).thenReturn(Optional.of(delivery));
+        AcceptDeliveryRequest request = new AcceptDeliveryRequest();
+        request.setOrderId(20L);
+        request.setAction("ACCEPT");
+
+        assertThatThrownBy(() -> service.acceptDelivery(request, 10L, 10L, "SHIPPER",
+                SimulationContext.real()))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("simulation context");
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    void realShipperCannotCancelASimulationDelivery() {
+        Delivery delivery = waitingDelivery();
+        delivery.setShipperId(10L);
+        delivery.setStatus(DeliveryStatus.ASSIGNED);
+        delivery.setSimulationContext(new SimulationContext(SimulationContext.ExecutionMode.SIMULATION,
+                UUID.randomUUID(), UUID.randomUUID(), 1L));
+        when(repository.findByOrderIdForUpdate(20L)).thenReturn(Optional.of(delivery));
+
+        assertThatThrownBy(() -> service.cancelAssignedDelivery(20L, 10L, 10L, "SHIPPER", "test",
+                SimulationContext.real()))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("simulation context");
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    void realShipperCannotUpdateASimulationDelivery() {
+        Delivery delivery = waitingDelivery();
+        delivery.setShipperId(10L);
+        delivery.setStatus(DeliveryStatus.ASSIGNED);
+        delivery.setSimulationContext(new SimulationContext(SimulationContext.ExecutionMode.SIMULATION,
+                UUID.randomUUID(), UUID.randomUUID(), 1L));
+        when(repository.findByIdForUpdate(1L)).thenReturn(Optional.of(delivery));
+
+        assertThatThrownBy(() -> service.updateDeliveryStatus(1L, DeliveryStatus.PICKED_UP, 10L, 10L,
+                "SHIPPER", SimulationContext.real()))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("simulation context");
+        verify(repository, never()).save(any());
     }
 
     @Test
