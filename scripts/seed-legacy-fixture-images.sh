@@ -16,7 +16,9 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+WORKSPACE_DIR="$(cd "$BACKEND_DIR/.." && pwd)"
 
+CATALOG_FILE="${CATALOG_FILE:-$WORKSPACE_DIR/data/catalog/hanoi-catalog.json}"
 PASS="${PASS:-Password123!}"
 DRY_RUN="${DRY_RUN:-true}"
 LOCAL_BULK_SEED="${LOCAL_BULK_SEED:-false}"
@@ -26,16 +28,16 @@ LOGIN_ATTEMPTS="${LOGIN_ATTEMPTS:-20}"
 RESTAURANT_LIMIT="${RESTAURANT_LIMIT:-0}"
 RESTAURANT_START="${RESTAURANT_START:-0}"
 
-RESTAURANT_IMAGE='https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=1200&q=85'
-MENU_IMAGE='https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1200&q=85'
-
 command -v jq >/dev/null || { echo "❌ Cần jq" >&2; exit 2; }
-command -v docker >/dev/null || { echo "❌ Cần Docker" >&2; exit 2; }
+[[ -f "$CATALOG_FILE" ]] || { echo "❌ Không tìm thấy catalog: $CATALOG_FILE" >&2; exit 2; }
 [[ "$DRY_RUN" == "true" || "$DRY_RUN" == "false" ]] || {
   echo "❌ DRY_RUN chỉ nhận true hoặc false" >&2
   exit 2
 }
+[[ "$RESTAURANT_LIMIT" =~ ^[0-9]+$ ]] || { echo "❌ RESTAURANT_LIMIT không hợp lệ" >&2; exit 2; }
+[[ "$RESTAURANT_START" =~ ^[0-9]+$ ]] || { echo "❌ RESTAURANT_START không hợp lệ" >&2; exit 2; }
 if [[ "$DRY_RUN" == "false" ]]; then
+  command -v docker >/dev/null || { echo "❌ Cần Docker" >&2; exit 2; }
   [[ "$LOCAL_BULK_SEED" == "true" ]] || {
     echo "❌ Đây là runner local-only; truyền LOCAL_BULK_SEED=true để xác nhận." >&2
     exit 2
@@ -45,8 +47,50 @@ if [[ "$DRY_RUN" == "false" ]]; then
     exit 2
   }
   [[ "$LOGIN_ATTEMPTS" =~ ^[1-9][0-9]*$ ]] || { echo "❌ LOGIN_ATTEMPTS không hợp lệ" >&2; exit 2; }
-  [[ "$RESTAURANT_LIMIT" =~ ^[0-9]+$ ]] || { echo "❌ RESTAURANT_LIMIT không hợp lệ" >&2; exit 2; }
-  [[ "$RESTAURANT_START" =~ ^[0-9]+$ ]] || { echo "❌ RESTAURANT_START không hợp lệ" >&2; exit 2; }
+fi
+
+validate_catalog() {
+  jq -e '
+    .schemaVersion == 1 and
+    (.restaurants | type == "array" and length > 0) and
+    (.menuItems | type == "array" and length > 0) and
+    all(.restaurants[];
+      (.image | type == "string" and test("^https://huawei-food-cms\\.grab\\.com/"))
+    ) and
+    all(.menuItems[];
+      (.image | type == "string" and test("^https://huawei-food-cms\\.grab\\.com/"))
+    )
+  ' "$CATALOG_FILE" >/dev/null || {
+    echo "❌ Catalog chưa có ảnh Grab CDN hợp lệ cho mọi record" >&2
+    exit 1
+  }
+}
+
+validate_catalog
+RESTAURANT_POOL="$(jq -c '[.restaurants[].image] | unique' "$CATALOG_FILE")"
+MENU_POOL="$(jq -c '[.menuItems[].image] | unique' "$CATALOG_FILE")"
+RESTAURANT_POOL_SIZE="$(jq 'length' <<<"$RESTAURANT_POOL")"
+MENU_POOL_SIZE="$(jq 'length' <<<"$MENU_POOL")"
+[[ "$RESTAURANT_POOL_SIZE" -gt 0 && "$MENU_POOL_SIZE" -gt 0 ]] || {
+  echo "❌ Pool ảnh Grab rỗng" >&2
+  exit 1
+}
+
+pool_image() {
+  local pool="$1"
+  local index="$2"
+  jq -r --argjson index "$index" '.[$index % length]' <<<"$pool"
+}
+
+if [[ "$DRY_RUN" == "true" ]]; then
+  echo "🔎 DRY_RUN=true — không gọi Docker/API."
+  echo "catalogFile=$CATALOG_FILE"
+  echo "legacyFixtureLimit=35"
+  echo "restaurantPoolSize=$RESTAURANT_POOL_SIZE"
+  echo "menuPoolSize=$MENU_POOL_SIZE"
+  echo "sampleRestaurantImage=$(pool_image "$RESTAURANT_POOL" 0)"
+  echo "sampleMenuImage=$(pool_image "$MENU_POOL" 0)"
+  exit 0
 fi
 
 if [[ -n "${COMPOSE_FILE:-}" ]]; then
@@ -133,11 +177,12 @@ login_owner() {
 
 update_restaurant_image() {
   local restaurant_id="$1"
-  local token="$2"
+  local image="$2"
+  local token="$3"
   local payload response
-  payload="$(jq -cn --arg image "$RESTAURANT_IMAGE" '{image:$image}')"
+  payload="$(jq -cn --arg image "$image" '{image:$image}')"
   response="$(direct_put restaurant-service "http://localhost:8083/api/restaurants/$restaurant_id" "$payload" "$token")"
-  jq -e --arg expected "$RESTAURANT_IMAGE" --arg id "$restaurant_id" \
+  jq -e --arg expected "$image" --arg id "$restaurant_id" \
     '(.status == 1) and (.data.id == ($id | tonumber)) and (.data.image == $expected)' \
     <<<"$response" >/dev/null || {
       echo "❌ Không cập nhật image restaurant=$restaurant_id: $(jq -c '.' <<<"$response" 2>/dev/null || echo "$response")" >&2
@@ -147,11 +192,12 @@ update_restaurant_image() {
 
 update_menu_image() {
   local menu_id="$1"
-  local token="$2"
+  local image="$2"
+  local token="$3"
   local payload response
-  payload="$(jq -cn --arg image "$MENU_IMAGE" '{image:$image}')"
+  payload="$(jq -cn --arg image "$image" '{image:$image}')"
   response="$(direct_put restaurant-service "http://localhost:8083/api/menu-items/$menu_id" "$payload" "$token")"
-  jq -e --arg expected "$MENU_IMAGE" --arg id "$menu_id" \
+  jq -e --arg expected "$image" --arg id "$menu_id" \
     '(.status == 1) and (.data.id == ($id | tonumber)) and (.data.image == $expected)' \
     <<<"$response" >/dev/null || {
       echo "❌ Không cập nhật image menu=$menu_id: $(jq -c '.' <<<"$response" 2>/dev/null || echo "$response")" >&2
@@ -167,14 +213,6 @@ legacy_count="$(awk 'NF { count++ } END { print count + 0 }' <<<"$legacy_rows")"
   exit 1
 }
 
-if [[ "$DRY_RUN" == "true" ]]; then
-  echo "🔎 DRY_RUN=true — không gọi Docker/API."
-  echo "legacyRestaurants=$legacy_count"
-  echo "restaurantImage=$RESTAURANT_IMAGE"
-  echo "menuImage=$MENU_IMAGE"
-  exit 0
-fi
-
 target_count="$legacy_count"
 if [[ "$RESTAURANT_START" -ge "$legacy_count" ]]; then
   target_count=0
@@ -189,6 +227,8 @@ echo "   Docker-network API update; existing rows only; no delete/reset."
 
 manifest='[]'
 processed=0
+restaurant_pool_index=0
+menu_pool_index=0
 while IFS='|' read -r restaurant_id restaurant_name creator_id owner_principal_id; do
   [[ -n "$restaurant_id" ]] || continue
   processed=$((processed + 1))
@@ -199,7 +239,9 @@ while IFS='|' read -r restaurant_id restaurant_name creator_id owner_principal_i
   }
   echo "[$processed/$target_count] restaurant=$restaurant_id — $restaurant_name" >&2
   owner_token="$(login_owner "$email" "$restaurant_id")"
-  update_restaurant_image "$restaurant_id" "$owner_token"
+  restaurant_image="$(pool_image "$RESTAURANT_POOL" "$restaurant_pool_index")"
+  restaurant_pool_index=$((restaurant_pool_index + 1))
+  update_restaurant_image "$restaurant_id" "$restaurant_image" "$owner_token"
 
   menu_response="$(direct_get restaurant-service "http://localhost:8083/api/menu-items/restaurant/$restaurant_id" "$owner_token")"
   jq -e '(.status == 1) and (.data | type == "array")' <<<"$menu_response" >/dev/null || {
@@ -209,13 +251,15 @@ while IFS='|' read -r restaurant_id restaurant_name creator_id owner_principal_i
   menu_count=0
   while IFS= read -r menu_id; do
     [[ -n "$menu_id" ]] || continue
-    update_menu_image "$menu_id" "$owner_token"
+    menu_image="$(pool_image "$MENU_POOL" "$menu_pool_index")"
+    menu_pool_index=$((menu_pool_index + 1))
+    update_menu_image "$menu_id" "$menu_image" "$owner_token"
     menu_count=$((menu_count + 1))
   done < <(jq -r '.data[].id' <<<"$menu_response")
   echo "  ✓ menu items=$menu_count" >&2
   manifest="$(jq -c --arg email "$email" --arg id "$restaurant_id" --arg name "$restaurant_name" \
-    --argjson menuCount "$menu_count" --arg restaurantImage "$RESTAURANT_IMAGE" --arg menuImage "$MENU_IMAGE" \
-    '. + [{restaurantId:($id|tonumber),name:$name,ownerEmail:$email,menuCount:$menuCount,restaurantImage:$restaurantImage,menuImage:$menuImage}]' \
+    --argjson menuCount "$menu_count" --arg restaurantImage "$restaurant_image" \
+    '. + [{restaurantId:($id|tonumber),name:$name,ownerEmail:$email,menuCount:$menuCount,restaurantImage:$restaurantImage,imageSourcePlatform:"GrabFood"}]' \
     <<<"$manifest")"
 done < <(awk -F'|' -v start="$RESTAURANT_START" -v limit="$RESTAURANT_LIMIT" \
   'NR > start && (limit == 0 || NR <= start + limit)' <<<"$legacy_rows")
