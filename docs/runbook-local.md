@@ -146,6 +146,27 @@ local chạy trực tiếp qua PostgreSQL container; không có route nạp ti�
 được mở qua Gateway. Settlement service phải boot ít nhất một lần để schema tồn
 tại trước khi chạy seed.
 
+### Reusable Grab image manifest
+
+`scripts/fixtures/hanoi-grab-image-manifest.json` là artifact đã version hóa,
+chứa URL CDN Grab và provenance cho 485 nhà hàng/1.940 món (không chứa token,
+password hoặc file ảnh nhị phân). Sinh/cập nhật artifact từ catalog shared bằng:
+
+```bash
+node scripts/workspace/export-grab-image-manifest.mjs --write \
+  --catalog ../data/catalog/hanoi-catalog.json
+node scripts/workspace/validate-grab-image-catalog.mjs \
+  scripts/fixtures/hanoi-grab-image-manifest.json
+```
+
+Hai script `seed-hanoi-catalog-images.sh` và
+`seed-legacy-fixture-images.sh` ưu tiên `../data/catalog/hanoi-catalog.json`;
+nếu checkout/deployment không có thư mục `data/` ngoài repo thì tự dùng manifest
+version hóa trong `scripts/fixtures/`. Đây là snapshot URL public, nên cần
+validate lại trước mỗi release; nếu production cần độ bền asset lâu dài, nên
+mirror sang CDN/object storage đã được phê duyệt sau khi xác nhận quyền sử dụng.
+Không chạy các local-only fixture seed script trực tiếp vào dữ liệu production.
+
 Vì public Auth registration không còn tạo mới `SHIPPER`, seed dùng auth-service
 one-shot operator runner để provision fixture SHIPPER qua AuthService + User
 internal provisioning, sau đó mới login và tạo Shipper profile qua Gateway. Trước

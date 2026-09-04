@@ -26,7 +26,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 WORKSPACE_DIR="$(cd "$BACKEND_DIR/.." && pwd)"
 
-CATALOG_FILE="${CATALOG_FILE:-$WORKSPACE_DIR/data/catalog/hanoi-catalog.json}"
+DEFAULT_CATALOG_FILE="$WORKSPACE_DIR/data/catalog/hanoi-catalog.json"
+if [[ ! -f "$DEFAULT_CATALOG_FILE" ]]; then
+  DEFAULT_CATALOG_FILE="$SCRIPT_DIR/fixtures/hanoi-grab-image-manifest.json"
+fi
+CATALOG_FILE="${CATALOG_FILE:-$DEFAULT_CATALOG_FILE}"
 PASS="${PASS:-Password123!}"
 DRY_RUN="${DRY_RUN:-true}"
 LOCAL_BULK_SEED="${LOCAL_BULK_SEED:-false}"

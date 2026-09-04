@@ -41,12 +41,31 @@ REST_LAT="20.9717"; REST_LNG="105.7770"
 SHIPPER_LAT="20.9730"; SHIPPER_LNG="105.7790"
 CUSTOMER_LAT="20.9760"; CUSTOMER_LNG="105.7750"
 MENU_PRICE="45000"
-REST_IMAGE="${REST_IMAGE:-https://images.unsplash.com/photo-1552566626-52f8b828add9?auto=format&fit=crop&w=1200&q=85}"
-MENU_IMAGE="${MENU_IMAGE:-https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=900&q=85}"
+IMAGE_MANIFEST_FILE="${IMAGE_MANIFEST_FILE:-$SCRIPT_DIR/fixtures/hanoi-grab-image-manifest.json}"
+REST_IMAGE="${REST_IMAGE:-}"
+MENU_IMAGE="${MENU_IMAGE:-}"
 
 command -v jq >/dev/null || { echo "❌ Cần cài jq"; exit 1; }
 command -v docker >/dev/null || { echo "❌ Cần Docker để seed ledger ký quỹ local"; exit 1; }
 command -v grep >/dev/null || { echo "❌ Cần grep để xác nhận fixture local"; exit 1; }
+
+if [[ -z "$REST_IMAGE" || -z "$MENU_IMAGE" ]]; then
+  [[ -f "$IMAGE_MANIFEST_FILE" ]] || {
+    echo "❌ Không tìm thấy image manifest: $IMAGE_MANIFEST_FILE" >&2
+    exit 1
+  }
+  if [[ -z "$REST_IMAGE" ]]; then
+    REST_IMAGE="$(jq -r '.restaurants[0].image // empty' "$IMAGE_MANIFEST_FILE")"
+  fi
+  if [[ -z "$MENU_IMAGE" ]]; then
+    MENU_IMAGE="$(jq -r '.menuItems[0].image // empty' "$IMAGE_MANIFEST_FILE")"
+  fi
+fi
+[[ -n "$REST_IMAGE" && -n "$MENU_IMAGE" ]] || {
+  echo "❌ Image manifest không có đủ URL ảnh nhà hàng/món ăn" >&2
+  exit 1
+}
+
 [[ "$SEED_SKIP_SHIPPER" == "true" || "$SEED_SKIP_SHIPPER" == "false" ]] || {
   echo "SEED_SKIP_SHIPPER must be true or false" >&2
   exit 2

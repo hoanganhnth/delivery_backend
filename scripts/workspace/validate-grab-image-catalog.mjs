@@ -1,11 +1,16 @@
 #!/usr/bin/env node
 
+import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import process from 'node:process';
 
-const workspaceRoot = resolve(new URL('../..', import.meta.url).pathname);
-const catalogPath = resolve(workspaceRoot, process.argv[2] || 'data/catalog/hanoi-catalog.json');
+const backendRoot = resolve(new URL('../..', import.meta.url).pathname);
+const sharedCatalogPath = resolve(backendRoot, '../data/catalog/hanoi-catalog.json');
+const versionedManifestPath = resolve(backendRoot, 'scripts/fixtures/hanoi-grab-image-manifest.json');
+const requestedPath = process.argv[2] || process.env.CATALOG_FILE;
+const defaultPath = existsSync(sharedCatalogPath) ? sharedCatalogPath : versionedManifestPath;
+const catalogPath = resolve(process.cwd(), requestedPath || defaultPath);
 const grabImageHost = process.env.GRAB_IMAGE_HOST || 'huawei-food-cms.grab.com';
 const minRestaurantUniqueRatio = Number(process.env.MIN_GRAB_RESTAURANT_UNIQUE_RATIO || '0.7');
 const minMenuUniqueRatio = Number(process.env.MIN_GRAB_MENU_UNIQUE_RATIO || '0.3');
