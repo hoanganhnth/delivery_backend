@@ -20,6 +20,7 @@ import org.springframework.web.socket.server.HandshakeInterceptor;
 import java.util.List;
 import java.util.Map;
 import java.util.Locale;
+import java.util.Arrays;
 
 @Configuration
 @EnableWebSocket
@@ -38,7 +39,10 @@ public class WebSocketConfig implements WebSocketConfigurer {
             String allowedOrigins) {
         this.shipperLocationHandler = shipperLocationHandler;
         this.jwtDecoder = jwtDecoder;
-        this.allowedOrigins = allowedOrigins.split(",");
+        this.allowedOrigins = Arrays.stream(allowedOrigins.split(","))
+                .map(String::trim)
+                .filter(origin -> !origin.isBlank())
+                .toArray(String[]::new);
     }
 
     @Override

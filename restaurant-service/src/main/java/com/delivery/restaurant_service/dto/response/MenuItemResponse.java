@@ -3,6 +3,8 @@ package com.delivery.restaurant_service.dto.response;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
+
 public class MenuItemResponse {
     private Long id;
     private Long restaurantId;
@@ -10,8 +12,13 @@ public class MenuItemResponse {
     private String description;
     private BigDecimal price;
     private String status;
+
+    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime createdAt;
+
+    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime updatedAt;
+
     private String image;
 
     // Getters and Setters

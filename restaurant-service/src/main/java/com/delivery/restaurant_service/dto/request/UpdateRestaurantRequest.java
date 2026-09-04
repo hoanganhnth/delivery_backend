@@ -12,7 +12,8 @@ public class UpdateRestaurantRequest {
     @Size(max = 255)
     @Pattern(regexp = ".*\\S.*", message = "name must contain a non-whitespace character")
     private String name;
-    @Size(max = 2000)
+    @Size(min = 10, max = 2000, message = "address must be between 10 and 2000 characters")
+    @Pattern(regexp = ".*\\S.*", message = "address must contain a non-whitespace character")
     private String address;
     @Size(max = 20)
     private String phone;

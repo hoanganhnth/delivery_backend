@@ -36,11 +36,13 @@ ROLE_CUSTOMER="USER"
 ROLE_OWNER="SHOP_OWNER"
 ROLE_SHIPPER="SHIPPER"
 
-# Toạ độ mẫu (TP.HCM) — nhà hàng và shipper gần nhau để match tìm thấy.
-REST_LAT="10.7769"; REST_LNG="106.7009"
-SHIPPER_LAT="10.7780"; SHIPPER_LNG="106.7020"
-CUSTOMER_LAT="10.7740"; CUSTOMER_LNG="106.7040"
+# Toạ độ mẫu Hà Đông — nhà hàng, khách và shipper gần nhau để match tìm thấy.
+REST_LAT="20.9717"; REST_LNG="105.7770"
+SHIPPER_LAT="20.9730"; SHIPPER_LNG="105.7790"
+CUSTOMER_LAT="20.9760"; CUSTOMER_LNG="105.7750"
 MENU_PRICE="45000"
+REST_IMAGE="${REST_IMAGE:-https://images.unsplash.com/photo-1552566626-52f8b828add9?auto=format&fit=crop&w=1200&q=85}"
+MENU_IMAGE="${MENU_IMAGE:-https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=900&q=85}"
 
 command -v jq >/dev/null || { echo "❌ Cần cài jq"; exit 1; }
 command -v docker >/dev/null || { echo "❌ Cần Docker để seed ledger ký quỹ local"; exit 1; }
@@ -223,14 +225,14 @@ echo "✅ Chủ NH: $OWNER_EMAIL (token ${OWNER_TOKEN:+ok})"
 
 REST_ID="$(curl --fail-with-body --silent --show-error -X POST "$BASE/api/restaurants" \
   -H "Authorization: Bearer $OWNER_TOKEN" -H 'Content-Type: application/json' \
-  -d "{\"name\":\"Quán Test\",\"address\":\"123 Lê Lợi, Q1\",\"phone\":\"0900000001\",\"openingHour\":\"00:00\",\"closingHour\":\"23:59\",\"addressLat\":$REST_LAT,\"addressLng\":$REST_LNG,\"description\":\"Seed restaurant\"}" \
+  -d "{\"name\":\"Quán Test HÀ ĐÔNG\",\"address\":\"123 Trần Phú, Phường Mộ Lao, Hà Đông, Hà Nội\",\"phone\":\"0900000001\",\"openingHour\":\"00:00\",\"closingHour\":\"23:59\",\"addressLat\":$REST_LAT,\"addressLng\":$REST_LNG,\"description\":\"Quán test phục vụ món Việt tại Hà Đông\",\"image\":\"$REST_IMAGE\"}" \
   | jq -r '.id // .data.id // empty')"
 [[ "$REST_ID" =~ ^[0-9]+$ ]] || { echo "❌ Không tạo được restaurant canonical"; exit 1; }
 echo "✅ Nhà hàng id=$REST_ID"
 
 MENU_ID="$(curl --fail-with-body --silent --show-error -X POST "$BASE/api/menu-items" \
   -H "Authorization: Bearer $OWNER_TOKEN" -H 'Content-Type: application/json' \
-  -d "{\"name\":\"Cơm gà\",\"description\":\"Món seed\",\"price\":$MENU_PRICE,\"restaurantId\":$REST_ID}" \
+  -d "{\"name\":\"Cơm gà sốt nấm\",\"description\":\"Cơm nóng, gà nướng và sốt nấm nhà làm\",\"price\":$MENU_PRICE,\"restaurantId\":$REST_ID,\"image\":\"$MENU_IMAGE\"}" \
   | jq -r '.id // .data.id // empty')"
 [[ "$MENU_ID" =~ ^[0-9]+$ ]] || { echo "❌ Không tạo được menu item canonical"; exit 1; }
 echo "✅ Menu item id=$MENU_ID"
@@ -257,11 +259,14 @@ for shipper_index in $(seq 1 "$SEED_SHIPPER_COUNT"); do
   curl --fail-with-body --silent --show-error -X POST "$BASE/api/shippers" \
     -H "Authorization: Bearer $shipper_token" -H 'Content-Type: application/json' \
     -d "{\"fullName\":\"Shipper Test $shipper_index\",\"vehicleType\":\"MOTORBIKE\",\"licenseNumber\":\"LIC-$RUN_ID-$shipper_index\",\"idCard\":\"ID-$RUN_ID-$shipper_index\",\"phone\":\"09$shipper_suffix\",\"licensePlate\":\"59-X$shipper_index-$RUN_SUFFIX\"}" >/dev/null
-  shipper_user_id="$(curl --fail-with-body --silent --show-error "$BASE/api/shippers/my-profile" \
-    -H "Authorization: Bearer $shipper_token" | jq -r '.data.userId // .userId // empty')"
+  shipper_profile="$(curl --fail-with-body --silent --show-error "$BASE/api/shippers/my-profile" \
+    -H "Authorization: Bearer $shipper_token")"
+  shipper_id="$(jq -r '.data.id // .id // empty' <<< "$shipper_profile")"
+  shipper_user_id="$(jq -r '.data.userId // .userId // empty' <<< "$shipper_profile")"
+  [[ "$shipper_id" =~ ^[0-9]+$ ]] || { echo "❌ Không lấy được id canonical của shipper"; exit 1; }
   [[ "$shipper_user_id" =~ ^[0-9]+$ ]] || { echo "❌ Không lấy được userId canonical của shipper"; exit 1; }
   "${COMPOSE_COMMAND[@]}" exec -T postgres psql -U postgres -d settlement_db \
-    -v shipper_id="$shipper_user_id" -v deposit_amount="$SHIPPER_DEPOSIT" \
+    -v shipper_id="$shipper_id" -v deposit_amount="$SHIPPER_DEPOSIT" \
     -f - < "$BACKEND_DIR/scripts/seed-settlement.sql" >/dev/null
   if [[ "$SEED_SIMULATION_ACTORS" == "true" ]]; then
     # Simulator binds these actors before it submits locations. Never seed a
@@ -344,10 +349,10 @@ curl -X POST "$BASE/api/orders" \\
   -H "Authorization: Bearer <customer-access-token>" -H 'Content-Type: application/json' \\
   -d '{
     "restaurantId": $REST_ID,
-    "deliveryAddress": "456 Nguyễn Huệ, Q1",
-    "deliveryLat": 10.7740, "deliveryLng": 106.7040,
+    "deliveryAddress": "45 Nguyễn Trãi, Hà Đông, Hà Nội",
+    "deliveryLat": $CUSTOMER_LAT, "deliveryLng": $CUSTOMER_LNG,
     "pickupLat": $REST_LAT, "pickupLng": $REST_LNG,
-    "customerName": "Khách Test", "customerPhone": "0900000001",
+    "customerName": "Khách Hà Đông", "customerPhone": "0900000001",
     "paymentMethod": "COD",
     "items": [ { "menuItemId": $MENU_ID, "quantity": 2, "price": 45000 } ]
   }'

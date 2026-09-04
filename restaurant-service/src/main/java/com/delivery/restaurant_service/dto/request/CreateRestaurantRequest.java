@@ -19,7 +19,8 @@ public class CreateRestaurantRequest {
     @NotBlank
     @Size(max = 255)
     private String name;
-    @Size(max = 2000)
+    @NotBlank(message = "Address must not be blank")
+    @Size(min = 10, max = 2000, message = "Address must be between 10 and 2000 characters")
     private String address;
     @Size(max = 20)
     private String phone;

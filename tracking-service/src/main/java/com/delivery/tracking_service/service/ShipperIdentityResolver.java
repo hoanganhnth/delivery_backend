@@ -25,13 +25,17 @@ public class ShipperIdentityResolver {
         if (principalId == null || principalId <= 0 || legacyUserId == null || legacyUserId <= 0) {
             throw new AccessDeniedException("Missing authenticated shipper identity");
         }
+        var mapping = projections.findById(principalId);
+        if (mapping.isPresent()) {
+            if (!legacyUserId.equals(mapping.get().getLegacyUserId())) {
+                throw new AccessDeniedException("Shipper identity projection is divergent");
+            }
+            return mapping.get().getShipperId();
+        }
         if (!enforced) {
             preEnforcementFallback.increment();
             return legacyUserId;
         }
-        return projections.findById(principalId)
-                .filter(mapping -> legacyUserId.equals(mapping.getLegacyUserId()))
-                .map(mapping -> mapping.getShipperId())
-                .orElseThrow(() -> new AccessDeniedException("Shipper identity projection is not ready"));
+        throw new AccessDeniedException("Shipper identity projection is not ready");
     }
 }

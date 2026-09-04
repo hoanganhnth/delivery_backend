@@ -63,6 +63,16 @@ class CatalogMutationValidationTest {
     }
 
     @Test
+    void restaurantPartialUpdateRejectsWhitespaceOnlyAddress() {
+        UpdateRestaurantRequest request = new UpdateRestaurantRequest();
+        request.setAddress(" ".repeat(10));
+
+        assertThat(validator.validate(request))
+                .extracting(violation -> violation.getPropertyPath().toString())
+                .contains("address");
+    }
+
+    @Test
     void menuPartialUpdateRejectsBlankNameAndInvalidPrice() {
         UpdateMenuItemRequest request = new UpdateMenuItemRequest();
         request.setName(" ");

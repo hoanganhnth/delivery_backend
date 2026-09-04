@@ -9,6 +9,8 @@ import org.springframework.http.server.ServerHttpResponse;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.web.socket.WebSocketHandler;
+import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistration;
+import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry;
 
 import java.util.HashMap;
 import java.util.List;
@@ -17,6 +19,27 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
 class WebSocketConfigAuthenticationTest {
+
+    @Test
+    void registerUsesConfiguredExactOriginsInsteadOfWildcardPatterns() {
+        ShipperLocationWebSocketHandler handler = mock(ShipperLocationWebSocketHandler.class);
+        JwtDecoder jwtDecoder = mock(JwtDecoder.class);
+        WebSocketHandlerRegistry registry = mock(WebSocketHandlerRegistry.class);
+        WebSocketHandlerRegistration registration = mock(WebSocketHandlerRegistration.class);
+        when(registry.addHandler(handler, "/ws/shipper-locations")).thenReturn(registration);
+        when(registration.addInterceptors(any())).thenReturn(registration);
+        when(registration.setAllowedOrigins(any(String[].class))).thenReturn(registration);
+
+        WebSocketConfig config = new WebSocketConfig(
+                handler,
+                jwtDecoder,
+                "http://localhost:5173, https://delivery.example");
+
+        config.registerWebSocketHandlers(registry);
+
+        verify(registration).setAllowedOrigins("http://localhost:5173", "https://delivery.example");
+        verify(registration, never()).setAllowedOriginPatterns(any(String[].class));
+    }
 
     @Test
     void handshakeUsesJwtIdentity() throws Exception {

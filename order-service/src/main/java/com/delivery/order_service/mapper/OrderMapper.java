@@ -75,6 +75,8 @@ public class OrderMapper {
         response.setDeliveryLng(order.getDeliveryLng());
         response.setPickupLat(order.getPickupLat());
         response.setPickupLng(order.getPickupLng());
+        response.setRestaurantLat(order.getPickupLat());
+        response.setRestaurantLng(order.getPickupLng());
         response.setCustomerName(order.getCustomerName());
         response.setCustomerPhone(order.getCustomerPhone());
         response.setNotes(order.getNotes());
