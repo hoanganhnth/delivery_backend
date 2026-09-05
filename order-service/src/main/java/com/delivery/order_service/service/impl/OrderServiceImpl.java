@@ -605,6 +605,14 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @Transactional(readOnly = true)
+    public Page<OrderResponse> getOrdersByRestaurant(Long restaurantId, Pageable pageable) {
+        log.info("📋 Getting orders for restaurant id={}", restaurantId);
+        Page<Order> orders = orderRepository.findByRestaurantIdOrderByCreatedAtDesc(restaurantId, pageable);
+        return orders.map(orderMapper::orderToOrderResponse);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Page<OrderResponse> getOrdersByStatus(String status, Long userId, String role, Pageable pageable) {
         if (!RoleConstants.ADMIN.equals(role)) {
             throw new AccessDeniedException("Chỉ admin được lọc toàn hệ thống theo trạng thái");

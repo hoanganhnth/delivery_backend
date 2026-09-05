@@ -22,6 +22,8 @@ public interface MenuItemService {
     List<MenuItemResponse> getAvailableItems(Long restaurantId);
     
     List<MenuItemResponse> getMenuItemsByCreatorId(Long creatorId);
+    List<MenuItemResponse> getAllItems();
     Page<MenuItemResponse> getItemsByRestaurantPage(Long restaurantId, int page, int size, boolean available);
     Page<MenuItemResponse> getMenuItemsByCreatorPage(Long creatorId, int page, int size);
+    Page<MenuItemResponse> getAllItemsPage(int page, int size);
 }

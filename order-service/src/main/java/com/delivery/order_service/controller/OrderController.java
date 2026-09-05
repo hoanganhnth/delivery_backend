@@ -125,12 +125,27 @@ public class OrderController {
     public ResponseEntity<BaseResponse<PageResponse<OrderResponse>>> getMyRestaurantOrders(
             @AuthenticationPrincipal AuthenticatedActor actor,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
-        requireRestaurantOwnerRole(actor);
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) Long restaurantId) {
+        requireRestaurantOwnerOrAdminRole(actor);
         Pageable pageable = boundedPageable(page, size);
-        Page<OrderResponse> response = orderService.getOrdersByRestaurantOwner(
-                actor.getPrincipalId(), actor.getLegacyUserId(), getPrimaryRole(actor), pageable);
-        return ResponseEntity.ok(new BaseResponse<>(1, PageResponse.from(response), "Lấy danh sách đơn hàng của nhà hàng tôi sở hữu thành công"));
+        Page<OrderResponse> response;
+        if (actor.isAdmin()) {
+            response = restaurantId != null
+                    ? orderService.getOrdersByRestaurant(restaurantId, pageable)
+                    : orderService.getAllOrders(actor.getUserId(), getPrimaryRole(actor), pageable);
+        } else {
+            response = orderService.getOrdersByRestaurantOwner(
+                    actor.getPrincipalId(), actor.getLegacyUserId(), getPrimaryRole(actor), pageable);
+        }
+        return ResponseEntity.ok(new BaseResponse<>(1, PageResponse.from(response), "Lấy danh sách đơn hàng của nhà hàng thành công"));
+    }
+
+    public ResponseEntity<BaseResponse<PageResponse<OrderResponse>>> getMyRestaurantOrders(
+            AuthenticatedActor actor,
+            int page,
+            int size) {
+        return getMyRestaurantOrders(actor, page, size, null);
     }
 
     @GetMapping("/status/{status}")
@@ -188,11 +203,11 @@ public class OrderController {
         }
     }
 
-    private void requireRestaurantOwnerRole(AuthenticatedActor actor) {
+    private void requireRestaurantOwnerOrAdminRole(AuthenticatedActor actor) {
         requireActor(actor);
-        if (!actor.isShopOwner()) {
+        if (!actor.isShopOwner() && !actor.isAdmin()) {
             throw new com.delivery.order_service.exception.AccessDeniedException(
-                    "Chỉ chủ nhà hàng được xem đơn hàng của nhà hàng mình");
+                    "Chỉ chủ nhà hàng hoặc admin được xem đơn hàng của nhà hàng");
         }
     }
 

@@ -77,6 +77,19 @@ class RestaurantOrderControllerAuthorizationTest {
         verify(eventPublisher, never()).publishConfirmed(101L, 7L, 11L, 0, null);
     }
 
+    @Test
+    void adminCanConfirmAnyRestaurantOrder() {
+        AuthenticatedActor actor = new AuthenticatedActor(99L, "admin@example.com", Set.of(RoleConstants.ADMIN));
+
+        var response = controller.confirmOrder(
+                101L,
+                confirmRequest(7L, 20),
+                actor);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        verify(eventPublisher).publishConfirmed(101L, 7L, 99L, 20, null);
+    }
+
     private ConfirmRestaurantOrderRequest confirmRequest(Long restaurantId, Integer prepTime) {
         ConfirmRestaurantOrderRequest request = new ConfirmRestaurantOrderRequest();
         request.setRestaurantId(restaurantId);

@@ -94,12 +94,14 @@ public class RestaurantController {
         if (actor == null || actor.getPrincipalId() == null || actor.getLegacyUserId() == null) {
             throw new IllegalArgumentException("User ID is required");
         }
-        if (!actor.isShopOwner()) {
-            throw new AccessDeniedException("Only SHOP_OWNER can view owned restaurants");
+        if (!actor.isShopOwner() && !actor.isAdmin()) {
+            throw new AccessDeniedException("Only SHOP_OWNER or ADMIN can view owned restaurants");
         }
         
-        List<RestaurantResponse> list = restaurantService.getRestaurantsByOwnerPrincipalId(
-                actor.getPrincipalId(), actor.getLegacyUserId());
+        List<RestaurantResponse> list = actor.isAdmin()
+                ? restaurantService.getAllRestaurants()
+                : restaurantService.getRestaurantsByOwnerPrincipalId(
+                        actor.getPrincipalId(), actor.getLegacyUserId());
         return ResponseEntity.ok(new BaseResponse<>(1, list));
     }
 

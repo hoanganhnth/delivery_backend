@@ -46,6 +46,8 @@ public interface OrderService {
     Page<OrderResponse> getOrdersByRestaurantOwner(Long principalId, Long legacyOwnerId, String role,
             Pageable pageable);
 
+    Page<OrderResponse> getOrdersByRestaurant(Long restaurantId, Pageable pageable);
+
     /**
      * Lấy đơn hàng theo trạng thái
      */

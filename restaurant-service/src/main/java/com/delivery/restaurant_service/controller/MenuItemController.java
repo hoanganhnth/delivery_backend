@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
 
 import java.util.List;
+import org.springframework.data.domain.Page;
 import com.delivery.restaurant_service.payload.PageResponse;
 
 @RestController
@@ -88,27 +89,55 @@ public class MenuItemController {
     
     @GetMapping("/my-menu-items")
     public ResponseEntity<BaseResponse<List<MenuItemResponse>>> getMyMenuItems(
-            @AuthenticationPrincipal AuthenticatedActor actor) {
+            @AuthenticationPrincipal AuthenticatedActor actor,
+            @RequestParam(required = false) Long restaurantId) {
         
         if (actor == null || actor.getUserId() == null) {
             throw new IllegalArgumentException("User ID is required");
         }
-        if (!actor.isShopOwner()) {
-            throw new AccessDeniedException("Only SHOP_OWNER can view owned menu items");
+        if (!actor.isShopOwner() && !actor.isAdmin()) {
+            throw new AccessDeniedException("Only SHOP_OWNER or ADMIN can view owned menu items");
         }
         
-        List<MenuItemResponse> list = menuItemService.getMenuItemsByCreatorId(actor.getUserId());
+        List<MenuItemResponse> list;
+        if (restaurantId != null) {
+            list = menuItemService.getItemsByRestaurant(restaurantId);
+        } else if (actor.isAdmin()) {
+            list = menuItemService.getAllItems();
+        } else {
+            list = menuItemService.getMenuItemsByCreatorId(actor.getUserId());
+        }
         return ResponseEntity.ok(new BaseResponse<>(1, list));
     }
 
     @GetMapping("/my-menu-items/page")
     public ResponseEntity<BaseResponse<PageResponse<MenuItemResponse>>> getMyMenuItemsPage(
             @AuthenticationPrincipal AuthenticatedActor actor,
+            @RequestParam(required = false) Long restaurantId,
             @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "24") int size) {
-        if (actor == null || actor.getUserId() == null || !actor.isShopOwner()) throw new AccessDeniedException("Only SHOP_OWNER can view owned menu items");
+        if (actor == null || actor.getUserId() == null || (!actor.isShopOwner() && !actor.isAdmin())) {
+            throw new AccessDeniedException("Only SHOP_OWNER or ADMIN can view owned menu items");
+        }
         validatePage(page, size);
-        return ResponseEntity.ok(new BaseResponse<>(1, PageResponse.from(
-                menuItemService.getMenuItemsByCreatorPage(actor.getUserId(), page, size))));
+        Page<MenuItemResponse> result;
+        if (restaurantId != null) {
+            result = menuItemService.getItemsByRestaurantPage(restaurantId, page, size, false);
+        } else if (actor.isAdmin()) {
+            result = menuItemService.getAllItemsPage(page, size);
+        } else {
+            result = menuItemService.getMenuItemsByCreatorPage(actor.getUserId(), page, size);
+        }
+        return ResponseEntity.ok(new BaseResponse<>(1, PageResponse.from(result)));
+    }
+
+    public ResponseEntity<BaseResponse<List<MenuItemResponse>>> getMyMenuItems(
+            AuthenticatedActor actor) {
+        return getMyMenuItems(actor, null);
+    }
+
+    public ResponseEntity<BaseResponse<PageResponse<MenuItemResponse>>> getMyMenuItemsPage(
+            AuthenticatedActor actor, int page, int size) {
+        return getMyMenuItemsPage(actor, null, page, size);
     }
 
     private void validatePage(int page, int size) {

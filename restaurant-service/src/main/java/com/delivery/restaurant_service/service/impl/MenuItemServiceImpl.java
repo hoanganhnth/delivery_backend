@@ -153,6 +153,19 @@ public class MenuItemServiceImpl implements MenuItemService {
         return menuItemRepository.findPageByRestaurantCreatorId(creatorId, PageRequest.of(page, size))
                 .map(menuItemMapper::toResponse);
     }
+
+    @Override
+    public List<MenuItemResponse> getAllItems() {
+        return menuItemRepository.findAll(PageRequest.of(0, 100)).stream()
+                .map(menuItemMapper::toResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public Page<MenuItemResponse> getAllItemsPage(int page, int size) {
+        return menuItemRepository.findAll(PageRequest.of(page, size))
+                .map(menuItemMapper::toResponse);
+    }
     
     private void checkPermission(MenuItem item, Long creatorId, String role) {
         boolean isAdmin = RoleConstants.ADMIN.equals(role);
