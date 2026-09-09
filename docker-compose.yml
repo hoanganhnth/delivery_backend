@@ -603,7 +603,7 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/promotion_db
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      JAVA_TOOL_OPTIONS: "-Xmx384m -Xms256m"
+      JAVA_TOOL_OPTIONS: "-Xmx384m -Xms256m -Duser.timezone=UTC"
     deploy: { resources: { limits: { memory: 512M } } }
     secrets:
       - source: internal-secret

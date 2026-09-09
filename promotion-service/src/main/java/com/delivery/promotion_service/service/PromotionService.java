@@ -153,7 +153,13 @@ public class PromotionService {
         request.setScopeRefId(request.getRestaurantId());
         request.setLayerCode(VoucherLayer.SHOP_DISCOUNT.name());
         request.setFundingSource("SHOP");
-        return createVoucher(request);
+        Voucher voucher = createVoucher(request);
+        // Only the ownership-verified shop rail may automatically approve.
+        // Historical pending/rejected rows are deliberately not migrated.
+        voucher.setApprovalStatus("APPROVED");
+        voucher.setApprovedAt(LocalDateTime.now(java.time.ZoneOffset.UTC));
+        voucher.setActive(true);
+        return voucherRepository.saveAndFlush(voucher);
     }
 
     @Transactional
@@ -925,7 +931,7 @@ public class PromotionService {
     @Transactional
     public void deleteVoucher(Long id) {
         validatePositiveId(id, "voucherId");
-        Voucher voucher = voucherRepository.findById(id)
+        Voucher voucher = voucherRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> new IllegalArgumentException("Voucher not found"));
         voucher.setActive(false);
         voucherRepository.save(voucher);

@@ -75,10 +75,16 @@ public class PromotionController {
 
     @PostMapping("/shop")
     public ResponseEntity<BaseResponse<VoucherResponse>> createShopVoucher(
-            @RequestBody @Valid CreateVoucherRequest request,
+            @RequestBody CreateVoucherRequest request,
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireRole(actor, "SHOP_OWNER");
         requirePrincipal(actor);
+        // Scope is server-owned for shop campaigns, not required from clients.
+        request.setScopeType(Voucher.ScopeType.SHOP);
+        request.setScopeRefId(request.getRestaurantId());
+        if (!validator.validate(request).isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid shop voucher request");
+        }
         return ResponseEntity.ok(new BaseResponse<>(1, VoucherResponse.from(
                 promotionService.createShopVoucher(request, actor.getPrincipalId(), actor.getUserId()))));
     }

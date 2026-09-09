@@ -17,7 +17,9 @@ Gateway routes `POST /api/promotions/collect/{code}` and
 ## Authority and price contract
 
 - Platform vouchers/freeship are created by `ADMIN`; shop vouchers are created
-  by `SHOP_OWNER` and require `ADMIN` approval. Legacy `MERCHANT` ownership is
+  by `SHOP_OWNER` and automatically approved after ownership and validation
+  checks. Existing pending/rejected vouchers retain their state; admin can
+  review pending rows and pause/resume approved campaigns. Legacy `MERCHANT` ownership is
   not checkout-eligible.
 - Scope is exactly `ALL` or `SHOP`. A `SHOP` voucher carries a positive
   canonical restaurant ID. Legacy `CATEGORY` scope is not checkout-eligible.
@@ -27,6 +29,14 @@ Gateway routes `POST /api/promotions/collect/{code}` and
   combination and Order snapshots subtotal, shipping, discount, and total.
 
 ## Durable lifecycle
+
+Voucher `startTime`/`endTime` are UTC values in the legacy timezone-less wire
+format. Clients must convert local inputs to UTC and parse responses as UTC.
+No automatic historical timestamp migration is performed.
+Run the Promotion JVM with `-Duser.timezone=UTC` (pinned in Docker Compose),
+including native/local launches. Bean validation and reservation timers use
+the same UTC process clock. Other services' restaurant opening hours are not
+changed by this voucher-specific repair.
 
 ```text
 RESERVED -> COMMITTED | RELEASED | EXPIRED

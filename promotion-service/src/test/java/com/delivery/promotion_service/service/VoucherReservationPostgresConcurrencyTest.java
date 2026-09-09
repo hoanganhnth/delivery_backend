@@ -58,8 +58,35 @@ class VoucherReservationPostgresConcurrencyTest {
     @Autowired VoucherReservationRepository reservationRepository;
     @Autowired PromotionOutboxEventRepository outboxRepository;
     @Autowired JdbcTemplate jdbcTemplate;
+    @Autowired org.springframework.transaction.PlatformTransactionManager transactionManager;
 
     private Long voucherId;
+
+    @Test
+    void adminDeactivationWaitsForConcurrentQuotaWriterWithoutLosingUsage() throws Exception {
+        var transaction = new org.springframework.transaction.support.TransactionTemplate(transactionManager);
+        var executor = Executors.newSingleThreadExecutor();
+        var pending = new java.util.concurrent.atomic.AtomicReference<Future<?>>();
+        try {
+            transaction.executeWithoutResult(status -> {
+                var voucher = voucherRepository.findByIdForUpdate(voucherId).orElseThrow();
+                voucher.setUsedQuantity(1);
+                voucherRepository.saveAndFlush(voucher);
+                pending.set(executor.submit(() -> service.deleteVoucher(voucherId)));
+                // Observe actual PostgreSQL blocking, not a timing-based assumption.
+                org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(10)).until(() ->
+                        jdbcTemplate.queryForObject("SELECT count(*) FROM pg_stat_activity "
+                                + "WHERE datname = current_database() AND wait_event_type = 'Lock' "
+                                + "AND query ILIKE '%vouchers%'", Integer.class) > 0);
+            });
+            pending.get().get(10, java.util.concurrent.TimeUnit.SECONDS);
+            var stored = voucherRepository.findById(voucherId).orElseThrow();
+            assertThat(stored.getActive()).isFalse();
+            assertThat(stored.getUsedQuantity()).isEqualTo(1);
+        } finally {
+            executor.shutdownNow();
+        }
+    }
 
     @BeforeEach
     void seed() {
