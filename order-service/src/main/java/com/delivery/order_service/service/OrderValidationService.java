@@ -438,13 +438,13 @@ public class OrderValidationService {
             List<String> errors) {
         String name = restaurantInfo.get("restaurantName") != null
                 ? restaurantInfo.get("restaurantName").toString()
-                : null;
+                : (restaurantInfo.get("name") != null ? restaurantInfo.get("name").toString() : null);
         String address = restaurantInfo.get("restaurantAddress") != null
                 ? restaurantInfo.get("restaurantAddress").toString()
-                : null;
+                : (restaurantInfo.get("address") != null ? restaurantInfo.get("address").toString() : null);
         String phone = restaurantInfo.get("restaurantPhone") != null
                 ? restaurantInfo.get("restaurantPhone").toString()
-                : null;
+                : (restaurantInfo.get("phone") != null ? restaurantInfo.get("phone").toString() : null);
 
         Double lat = null;
         if (restaurantInfo.get("latitude") != null) {

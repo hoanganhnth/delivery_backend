@@ -2,10 +2,15 @@
 
 import { createHash } from 'node:crypto';
 import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import process from 'node:process';
+import { fileURLToPath } from 'node:url';
 
-const workspaceRoot = resolve(new URL('..', import.meta.url).pathname);
+import { enrichCatalog } from './hanoi-contact-data.mjs';
+
+const scriptDirectory = dirname(fileURLToPath(import.meta.url));
+const backendRoot = resolve(scriptDirectory, '../..');
+const workspaceRoot = resolve(backendRoot, '..');
 const dataRoot = resolve(workspaceRoot, 'data');
 const grabSourceDir = resolve(dataRoot, 'sources/hanoi-grab');
 const grabCacheDir = resolve(grabSourceDir, '.cache');
@@ -359,6 +364,7 @@ const makeReport = ({ pages, errors, restaurants, menuItems, rawRecordCounts }) 
       'GrabFood listing SSR exposes name, cuisine, rating, ETA, distance and promo labels but not a full merchant address/menu payload.',
       'ShopeeFood direct app-shell responses are not treated as private API permission; public detail/listing records are loaded from the committed public snapshot adapter.',
       'Coordinates are approximate district-centroid jitter for local nearby/matching demos, never production dispatch or geocoding truth.',
+      'Phone numbers and generated addresses are deterministic mock fixture data when the public source does not expose contact details.',
       'Menu items are synthetic mock data unless a future public menu snapshot is explicitly added with source fields.',
     ],
   };
@@ -435,20 +441,13 @@ const main = async () => {
   const grabRecords = mergeRawRecords(grab.records, 'GrabFood');
   const shopeeRecords = mergeRawRecords(shopee.records, 'ShopeeFood');
   const canonical = [...grabRecords.map((row) => toCanonicalRecord(row, 'GrabFood')), ...shopeeRecords.map((row) => toCanonicalRecord(row, 'ShopeeFood'))];
-  const restaurants = canonical.map(({ restaurant }) => restaurant).sort((a, b) => a.restaurantKey.localeCompare(b.restaurantKey));
-  const menuItems = canonical.flatMap(({ menuItems: items }) => items).sort((a, b) => `${a.restaurantKey}:${a.name}`.localeCompare(`${b.restaurantKey}:${b.name}`));
+  const rawRestaurants = canonical.map(({ restaurant }) => restaurant).sort((a, b) => a.restaurantKey.localeCompare(b.restaurantKey));
+  const rawMenuItems = canonical.flatMap(({ menuItems: items }) => items).sort((a, b) => `${a.restaurantKey}:${a.name}`.localeCompare(`${b.restaurantKey}:${b.name}`));
   const sourcePages = [...grab.pages, ...shopee.pages];
   const sourceErrors = [...grab.errors, ...shopee.errors];
-  const report = makeReport({
-    pages: sourcePages,
-    errors: sourceErrors,
-    restaurants,
-    menuItems,
-    rawRecordCounts: { ...grab.rawRecordCounts, ...shopee.rawRecordCounts, GrabFoodAfterDedupe: grabRecords.length, ShopeeFoodAfterDedupe: shopeeRecords.length },
-  });
-  const catalog = {
+  const catalog = enrichCatalog({
     schemaVersion: 1,
-    dataset: report.dataset,
+    dataset: `realistic-catalog-hanoi-${observedAt}`,
     city: 'Hà Nội',
     generatedAt: observedAt,
     provenancePolicy: {
@@ -465,9 +464,19 @@ const main = async () => {
       shopeeInput: 'data/sources/hanoi-shopeefood/public-listings.json',
       publicOnly: true,
     },
+    restaurants: rawRestaurants,
+    menuItems: rawMenuItems,
+  });
+  const restaurants = catalog.restaurants;
+  const menuItems = catalog.menuItems;
+  const report = makeReport({
+    pages: sourcePages,
+    errors: sourceErrors,
     restaurants,
     menuItems,
-  };
+    rawRecordCounts: { ...grab.rawRecordCounts, ...shopee.rawRecordCounts, GrabFoodAfterDedupe: grabRecords.length, ShopeeFoodAfterDedupe: shopeeRecords.length },
+  });
+  catalog.dataset = report.dataset;
   await writeFile(resolve(grabSourceDir, 'pages.json'), `${JSON.stringify({ schemaVersion: 1, platform: 'GrabFood', city: 'Hà Nội', observedAt, pages: sourcePages.filter((page) => page.platform === 'GrabFood') }, null, 2)}\n`);
   await writeFile(catalogPath, `${JSON.stringify(catalog, null, 2)}\n`);
   await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`);

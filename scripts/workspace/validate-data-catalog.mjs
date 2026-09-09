@@ -1,11 +1,15 @@
 #!/usr/bin/env node
 
 import { readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import process from 'node:process';
+import { fileURLToPath } from 'node:url';
 
-const workspaceRoot = resolve(new URL('..', import.meta.url).pathname);
-const catalogPath = resolve(workspaceRoot, process.argv[2] || 'data/catalog/hanoi-catalog.json');
+const scriptDirectory = dirname(fileURLToPath(import.meta.url));
+const backendRoot = resolve(scriptDirectory, '../..');
+const workspaceRoot = resolve(backendRoot, '..');
+const defaultCatalogPath = resolve(workspaceRoot, 'data/catalog/hanoi-catalog.json');
+const catalogPath = resolve(process.cwd(), process.argv[2] || defaultCatalogPath);
 const fail = (message) => {
   console.error(`❌ ${message}`);
   process.exitCode = 1;
@@ -24,6 +28,7 @@ for (const restaurant of restaurants) {
   if (!restaurant.restaurantKey || restaurantKeys.has(restaurant.restaurantKey)) fail(`restaurantKey trùng/thiếu: ${restaurant.restaurantKey}`);
   restaurantKeys.add(restaurant.restaurantKey);
   if (!restaurant.name || !restaurant.address) fail(`restaurant thiếu name/address: ${restaurant.restaurantKey}`);
+  if (restaurant.phone !== null && !/^0[0-9]{9,10}$/.test(String(restaurant.phone || ''))) fail(`restaurant thiếu phone mock 10-11 số: ${restaurant.restaurantKey}`);
   if (!Number.isFinite(restaurant.addressLat) || !Number.isFinite(restaurant.addressLng)) fail(`restaurant thiếu tọa độ: ${restaurant.restaurantKey}`);
   if (isHanoi && (restaurant.addressLat < 20.5 || restaurant.addressLat > 21.6 || restaurant.addressLng < 105.4 || restaurant.addressLng > 106.3)) fail(`tọa độ ngoài bounding box Hà Nội: ${restaurant.restaurantKey}`);
   if (!['GrabFood', 'ShopeeFood'].includes(restaurant.source?.platform)) fail(`platform không hợp lệ: ${restaurant.restaurantKey}`);

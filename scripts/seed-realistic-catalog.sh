@@ -47,6 +47,7 @@ validate_catalog() {
       (.restaurantKey | type == "string" and length > 0) and
       (.name | type == "string" and length > 0) and
       (.address | type == "string" and length > 0) and
+      ((.phone == null) or (.phone | type == "string" and test("^[0-9]{10,11}$"))) and
       (.openingHour | type == "string") and
       (.closingHour | type == "string") and
       (.addressLat | type == "number") and
@@ -90,12 +91,13 @@ create_restaurant() {
   payload="$(jq -cn \
     --arg name "$(jq -r '.name' <<<"$row")" \
     --arg address "$(jq -r '.address' <<<"$row")" \
+    --arg phone "$(jq -r '.phone // empty' <<<"$row")" \
     --arg openingHour "$(jq -r '.openingHour' <<<"$row")" \
     --arg closingHour "$(jq -r '.closingHour' <<<"$row")" \
     --arg description "$(jq -r '.description' <<<"$row")" \
     --argjson addressLat "$(jq -r '.addressLat' <<<"$row")" \
     --argjson addressLng "$(jq -r '.addressLng' <<<"$row")" \
-    '{name: $name, address: $address, openingHour: $openingHour,
+    '{name: $name, address: $address, phone: (if $phone == "" then null else $phone end), openingHour: $openingHour,
       closingHour: $closingHour, description: $description,
       addressLat: $addressLat, addressLng: $addressLng}')"
 

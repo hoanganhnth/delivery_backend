@@ -80,6 +80,7 @@ validate_catalog() {
       (.restaurantKey | type == "string" and length > 0) and
       (.name | type == "string" and length > 0) and
       (.address | type == "string" and length > 0) and
+      (.phone | type == "string" and test("^0[0-9]{9,10}$")) and
       (.openingHour | type == "string") and
       (.closingHour | type == "string") and
       (.addressLat | type == "number") and
@@ -174,6 +175,24 @@ direct_get() {
   fi
 }
 
+direct_put() {
+  local service="$1"
+  local url="$2"
+  local payload="$3"
+  local token="$4"
+  local -a wget_args=(
+    --timeout=120
+    --tries=1
+    --method=PUT
+    --body-data="$payload"
+    --header='Content-Type: application/json'
+    --header="Authorization: Bearer $token"
+    "$url"
+  )
+  "${COMPOSE_COMMAND[@]}" exec -T "$service" wget -qO- --content-on-error \
+    "${wget_args[@]}" </dev/null 2>/dev/null || true
+}
+
 register_owner_if_needed() {
   local restaurant="$1"
   local key email row account_id user_id role lifecycle response provisioning_token profile_payload
@@ -250,7 +269,7 @@ login_owner() {
 ensure_restaurant() {
   local restaurant="$1"
   local token="$2"
-  local list response name address restaurant_id payload
+  local list response name address restaurant_id payload existing_by_name
   name="$(jq -r '.name' <<<"$restaurant")"
   address="$(jq -r '.address' <<<"$restaurant")"
   list="$(direct_get restaurant-service http://localhost:8083/api/restaurants/my-restaurants "$token")"
@@ -260,6 +279,27 @@ ensure_restaurant() {
   }
   restaurant_id="$(jq -r --arg name "$name" --arg address "$address" \
     '.data[] | select(.name == $name and .address == $address) | .id' <<<"$list" | head -n 1)"
+
+  if [[ -z "$restaurant_id" ]]; then
+    existing_by_name="$(jq -r --arg name "$name" \
+      '.data[] | select(.name == $name) | .id' <<<"$list" | head -n 1)"
+    if [[ "$existing_by_name" =~ ^[1-9][0-9]*$ ]]; then
+      payload="$(jq -cn --argjson row "$restaurant" \
+        '{address:$row.address,phone:($row.phone // null),
+          addressLat:$row.addressLat,addressLng:$row.addressLng}')"
+      response="$(direct_put restaurant-service "http://localhost:8083/api/restaurants/$existing_by_name" "$payload" "$token")"
+      jq -e --argjson id "$existing_by_name" --arg address "$address" --arg phone "$(jq -r '.phone' <<<"$restaurant")" \
+        --argjson lat "$(jq -r '.addressLat' <<<"$restaurant")" --argjson lng "$(jq -r '.addressLng' <<<"$restaurant")" \
+        '(.status == 1) and (.data.id == $id) and (.data.address == $address) and (.data.phone == $phone) and
+         (.data.latitude == $lat) and (.data.longitude == $lng)' \
+        <<<"$response" >/dev/null || {
+          echo "❌ Không cập nhật contact restaurant=$existing_by_name: $(jq -c '.' <<<"$response" 2>/dev/null || echo "$response")" >&2
+          return 1
+        }
+      restaurant_id="$existing_by_name"
+      echo "  ~ restaurant id=$restaurant_id đã có, cập nhật address/phone/coordinates" >&2
+    fi
+  fi
 
   if [[ -z "$restaurant_id" ]]; then
     payload="$(jq -cn --argjson row "$restaurant" \
