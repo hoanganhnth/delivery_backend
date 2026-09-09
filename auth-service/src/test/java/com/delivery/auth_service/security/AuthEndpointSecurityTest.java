@@ -26,6 +26,7 @@ import com.delivery.auth_service.service.AccountSecurityService;
 import com.delivery.auth_service.service.TokenService;
 import com.delivery.auth_service.service.IdentityRegistrationService;
 import com.delivery.auth_service.service.RegistrationAdmissionPolicy;
+import com.delivery.auth_service.service.FirebaseChatTokenService;
 import org.springframework.web.client.RestTemplate;
 
 import com.delivery.auth.resourceserver.security.DeliveryJwtAuthenticationConverter;
@@ -61,6 +62,9 @@ class AuthEndpointSecurityTest {
     private RegistrationAdmissionPolicy registrationAdmissionPolicy;
 
     @MockitoBean
+    private FirebaseChatTokenService firebaseChatTokenService;
+
+    @MockitoBean
     private RestTemplate restTemplate;
 
     @Test
@@ -78,6 +82,12 @@ class AuthEndpointSecurityTest {
                                 }
                                 """))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void firebaseChatTokenRequiresTheBackendJwt() throws Exception {
+        mockMvc.perform(post("/api/auth/firebase/chat-token"))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test

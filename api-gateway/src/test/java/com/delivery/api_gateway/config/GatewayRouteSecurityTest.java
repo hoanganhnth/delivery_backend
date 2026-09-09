@@ -51,6 +51,8 @@ class GatewayRouteSecurityTest {
         assertThat(matches(routes, HttpMethod.DELETE, "/api/flashsales/admin/campaigns/42")).isFalse();
         assertThat(matches(routes, HttpMethod.GET, "/api/auth/login")).isFalse();
         assertThat(matches(routes, HttpMethod.POST, "/api/auth/login")).isTrue();
+        assertThat(matches(routes, HttpMethod.POST, "/api/auth/firebase/chat-token")).isTrue();
+        assertThat(matches(routes, HttpMethod.GET, "/api/auth/firebase/chat-token")).isFalse();
         assertThat(matches(routes, HttpMethod.POST, "/api/auth/forgot-password")).isTrue();
         assertThat(matches(routes, HttpMethod.POST, "/api/auth/reset-password")).isTrue();
         assertThat(matches(routes, HttpMethod.POST, "/api/auth/email-verification/request")).isTrue();

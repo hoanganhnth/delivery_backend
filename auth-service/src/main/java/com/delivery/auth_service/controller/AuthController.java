@@ -20,6 +20,7 @@ import org.springframework.web.server.ResponseStatusException;
 import com.delivery.auth_service.dto.AuthAccountDto;
 import com.delivery.auth_service.dto.AuthRegisterResponse;
 import com.delivery.auth_service.dto.AuthResponse;
+import com.delivery.auth_service.dto.FirebaseChatTokenResponse;
 import com.delivery.auth_service.dto.BlockAccountRequest;
 import com.delivery.auth_service.dto.LoginRequest;
 import com.delivery.auth_service.dto.RefreshTokenRequest;
@@ -35,6 +36,7 @@ import com.delivery.auth_service.service.AccountSecurityService;
 import com.delivery.auth_service.service.TokenService;
 import com.delivery.auth_service.service.IdentityRegistrationService;
 import com.delivery.auth_service.service.RegistrationAdmissionPolicy;
+import com.delivery.auth_service.service.FirebaseChatTokenService;
 import com.delivery.auth_service.dto.RegistrationStatusResponse;
 
 import jakarta.validation.Valid;
@@ -49,20 +51,23 @@ public class AuthController {
     private final TokenService tokenService;
     private final IdentityRegistrationService identityRegistrationService;
     private final RegistrationAdmissionPolicy registrationAdmissionPolicy;
+    private final FirebaseChatTokenService firebaseChatTokenService;
 
     public AuthController(AuthService authService) {
-        this(authService, null, null, null, null);
+        this(authService, null, null, null, null, null);
     }
 
     @Autowired
     public AuthController(AuthService authService, AccountSecurityService accountSecurityService, TokenService tokenService,
             IdentityRegistrationService identityRegistrationService,
-            RegistrationAdmissionPolicy registrationAdmissionPolicy) {
+            RegistrationAdmissionPolicy registrationAdmissionPolicy,
+            FirebaseChatTokenService firebaseChatTokenService) {
         this.authService = authService;
         this.accountSecurityService = accountSecurityService;
         this.tokenService = tokenService;
         this.identityRegistrationService = identityRegistrationService;
         this.registrationAdmissionPolicy = registrationAdmissionPolicy;
+        this.firebaseChatTokenService = firebaseChatTokenService;
     }
 
     @PostMapping("/register")
@@ -154,6 +159,27 @@ public class AuthController {
         AuthResponse authResponse = authService.refreshToken(request);
         BaseResponse<AuthResponse> response = BaseResponse.success(authResponse, "Token refreshed");
         return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/firebase/chat-token")
+    public ResponseEntity<BaseResponse<FirebaseChatTokenResponse>> firebaseChatToken(
+        Authentication authentication) {
+        if (firebaseChatTokenService == null
+                || authentication == null
+                || !(authentication.getPrincipal() instanceof com.delivery.auth.resourceserver.security.AuthenticatedActor actor)
+                || (!actor.isUser() && !actor.isAdmin())) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(BaseResponse.failure("Support chat is not available for this identity"));
+        }
+
+        try {
+            return ResponseEntity.ok(BaseResponse.success(
+                    firebaseChatTokenService.issue(actor),
+                    "Firebase chat token created"));
+        } catch (FirebaseChatTokenService.FirebaseChatUnavailableException exception) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                    .body(BaseResponse.failure("Support chat is temporarily unavailable"));
+        }
     }
 
     @PostMapping("/logout")
