@@ -496,16 +496,33 @@ public class GatewayRouteConfig {
                 if (livestreamClientApiEnabled) {
                         routes.route("livestream-viewer", r -> r.path(
                                         "/api/livestreams/active",
-                                        "/api/livestreams/{id:[0-9a-fA-F-]{36}}",
+                                        "/api/livestreams/{id:[0-9a-fA-F-]{36}}")
+                                        .and().method(HttpMethod.GET)
+                                        .uri(livestreamServiceUri));
+                        routes.route("livestream-viewer-join", r -> r.path(
                                         "/api/livestreams/{id:[0-9a-fA-F-]{36}}/join")
-                                        .and().method(HttpMethod.GET, HttpMethod.POST)
+                                        .and().method(HttpMethod.POST)
                                         .uri(livestreamServiceUri));
                         routes.route("livestream-host", r -> r.path(
                                         "/api/livestreams",
                                         "/api/livestreams/{id:[0-9a-fA-F-]{36}}/start",
-                                        "/api/livestreams/{id:[0-9a-fA-F-]{36}}/end",
+                                        "/api/livestreams/{id:[0-9a-fA-F-]{36}}/end")
+                                        .and().method(HttpMethod.POST)
+                                        .uri(livestreamServiceUri));
+                        routes.route("livestream-restaurant", r -> r.path(
                                         "/api/livestreams/restaurant/{restaurantId:[0-9]+}")
-                                        .and().method(HttpMethod.GET, HttpMethod.POST)
+                                        .and().method(HttpMethod.GET)
+                                        .uri(livestreamServiceUri));
+                        routes.route("livestream-products-read", r -> r.path(
+                                        "/api/livestreams/{id:[0-9a-fA-F-]{36}}/products",
+                                        "/api/livestreams/{id:[0-9a-fA-F-]{36}}/products/pinned")
+                                        .and().method(HttpMethod.GET)
+                                        .uri(livestreamServiceUri));
+                        routes.route("livestream-products-host", r -> r.path(
+                                        "/api/livestreams/{id:[0-9a-fA-F-]{36}}/products/pin",
+                                        "/api/livestreams/{id:[0-9a-fA-F-]{36}}/products/{productId:[0-9]+}/pin",
+                                        "/api/livestreams/{id:[0-9a-fA-F-]{36}}/products/{productId:[0-9]+}")
+                                        .and().method(HttpMethod.POST, HttpMethod.DELETE)
                                         .uri(livestreamServiceUri));
                 }
                 return routes.build();

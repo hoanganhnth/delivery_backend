@@ -128,6 +128,13 @@ class GatewayRouteSecurityTest {
                 "/api/analytics/dashboard/restaurant/42")).isFalse();
         assertThat(matches(routes, HttpMethod.POST,
                 "/api/analytics/reconcile?date=2026-07-23")).isFalse();
+        assertThat(routes).doesNotContainKeys(
+                "livestream-viewer",
+                "livestream-viewer-join",
+                "livestream-host",
+                "livestream-restaurant",
+                "livestream-products-read",
+                "livestream-products-host");
         assertThat(matches(routes, HttpMethod.GET, "/api/livestreams/active")).isFalse();
         assertThat(matches(routes, HttpMethod.POST, "/api/livestreams")).isFalse();
         assertThat(matches(routes, HttpMethod.POST, "/api/livestreams/00000000-0000-4000-8000-000000000001/token")).isFalse();

@@ -25,7 +25,11 @@ class LivestreamClientGatewayRouteEnabledTest {
     void edgeGateExposesOnlyTheDocumentedViewerAndHostRoutes() {
         Map<String, Route> routes = routeLocator.getRoutes().collectMap(Route::getId).block();
 
-        assertThat(routes).containsKeys("livestream-viewer", "livestream-host");
+        assertThat(routes).containsKeys(
+                "livestream-viewer",
+                "livestream-host",
+                "livestream-products-read",
+                "livestream-products-host");
         assertThat(matches(routes, HttpMethod.GET, "/api/livestreams/active")).isTrue();
         assertThat(matches(routes, HttpMethod.GET, "/api/livestreams/" + ID)).isTrue();
         assertThat(matches(routes, HttpMethod.POST, "/api/livestreams/" + ID + "/join")).isTrue();
@@ -33,11 +37,25 @@ class LivestreamClientGatewayRouteEnabledTest {
         assertThat(matches(routes, HttpMethod.POST, "/api/livestreams/" + ID + "/start")).isTrue();
         assertThat(matches(routes, HttpMethod.POST, "/api/livestreams/" + ID + "/end")).isTrue();
         assertThat(matches(routes, HttpMethod.GET, "/api/livestreams/restaurant/42")).isTrue();
+        assertThat(matches(routes, HttpMethod.GET, "/api/livestreams/" + ID + "/products")).isTrue();
+        assertThat(matches(routes, HttpMethod.GET, "/api/livestreams/" + ID + "/products/pinned")).isTrue();
+        assertThat(matches(routes, HttpMethod.POST, "/api/livestreams/" + ID + "/products/pin")).isTrue();
+        assertThat(matches(routes, HttpMethod.DELETE,
+                "/api/livestreams/" + ID + "/products/42/pin")).isTrue();
+        assertThat(matches(routes, HttpMethod.DELETE,
+                "/api/livestreams/" + ID + "/products/42")).isTrue();
 
         assertThat(matches(routes, HttpMethod.POST, "/api/livestreams/" + ID + "/token")).isFalse();
+        assertThat(matches(routes, HttpMethod.GET, "/api/livestreams")).isFalse();
+        assertThat(matches(routes, HttpMethod.POST, "/api/livestreams/active")).isFalse();
+        assertThat(matches(routes, HttpMethod.POST, "/api/livestreams/restaurant/42")).isFalse();
+        assertThat(matches(routes, HttpMethod.GET, "/api/livestreams/" + ID + "/join")).isFalse();
         assertThat(matches(routes, HttpMethod.GET, "/api/livestreams/seller/42")).isFalse();
         assertThat(matches(routes, HttpMethod.GET, "/api/livestreams/not-a-uuid")).isFalse();
-        assertThat(matches(routes, HttpMethod.GET, "/api/livestreams/" + ID + "/products")).isFalse();
+        assertThat(matches(routes, HttpMethod.PUT, "/api/livestreams/" + ID + "/products")).isFalse();
+        assertThat(matches(routes, HttpMethod.GET, "/api/livestreams/not-a-uuid/products")).isFalse();
+        assertThat(matches(routes, HttpMethod.DELETE,
+                "/api/livestreams/" + ID + "/products/not-a-product")).isFalse();
         assertThat(matches(routes, HttpMethod.PUT, "/api/livestreams/" + ID + "/end")).isFalse();
     }
 
