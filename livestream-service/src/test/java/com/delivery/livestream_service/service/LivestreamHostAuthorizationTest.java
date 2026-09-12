@@ -24,4 +24,13 @@ class LivestreamHostAuthorizationTest {
 
         verifyNoInteractions(restaurants);
     }
+
+    @Test
+    void adminMayHostWithoutRestaurantOwnershipLookup() {
+        AuthenticatedActor admin = new AuthenticatedActor(1L, 1L, "admin@example.test", Set.of("ADMIN"));
+
+        authorization.requireHost(admin, 42L);
+
+        verifyNoInteractions(restaurants);
+    }
 }

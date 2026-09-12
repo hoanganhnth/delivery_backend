@@ -75,20 +75,25 @@ public class LivestreamController {
     }
 
     @GetMapping("/active")
-    public ResponseEntity<BaseResponse<List<LivestreamResponse>>> getActiveLivestreams() {
+    public ResponseEntity<BaseResponse<List<LivestreamResponse>>> getActiveLivestreams(
+            @AuthenticationPrincipal AuthenticatedActor actor) {
+        requireActor(actor);
         List<LivestreamResponse> response = livestreamService.getActiveLivestreams();
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Lấy danh sách livestream đang live thành công"));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<BaseResponse<LivestreamResponse>> getLivestreamById(@PathVariable UUID id) {
+    public ResponseEntity<BaseResponse<LivestreamResponse>> getLivestreamById(
+            @PathVariable UUID id, @AuthenticationPrincipal AuthenticatedActor actor) {
+        requireActor(actor);
         LivestreamResponse response = livestreamService.getLivestreamById(id);
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Lấy thông tin livestream thành công"));
     }
 
     @GetMapping("/seller/{sellerId}")
     public ResponseEntity<BaseResponse<List<LivestreamResponse>>> getLivestreamsBySeller(
-            @PathVariable Long sellerId) {
+            @PathVariable Long sellerId, @AuthenticationPrincipal AuthenticatedActor actor) {
+        requireActor(actor);
         List<LivestreamResponse> response = livestreamService.getLivestreamsBySeller(sellerId);
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Lấy danh sách livestream của seller thành công"));
     }

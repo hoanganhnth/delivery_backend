@@ -14,9 +14,11 @@ public class LivestreamHostAuthorization {
     }
 
     public void requireHost(AuthenticatedActor actor, Long restaurantId) {
-        if (actor == null || actor.getPrincipalId() == null || actor.getLegacyUserId() == null
-                || !actor.isShopOwner()) {
-            throw new UnauthorizedLivestreamAccessException("SHOP_OWNER role is required");
+        if (actor == null || actor.getUserId() == null || (!actor.isAdmin() && !actor.isShopOwner())) {
+            throw new UnauthorizedLivestreamAccessException("ADMIN or SHOP_OWNER role is required");
+        }
+        if (actor.isAdmin()) {
+            return;
         }
         restaurants.requireOwnedBy(restaurantId, actor.getPrincipalId(), actor.getLegacyUserId());
     }

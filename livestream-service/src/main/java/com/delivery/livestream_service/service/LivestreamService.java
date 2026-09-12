@@ -49,6 +49,9 @@ public class LivestreamService {
 
     @Transactional
     public LivestreamResponse createLivestream(CreateLivestreamRequest request, Long sellerId, String role) {
+        if (request.getStreamProvider() != com.delivery.livestream_service.enums.StreamProvider.AGORA) {
+            throw new InvalidLivestreamStatusException("Chỉ hỗ trợ Agora");
+        }
         log.info("Creating livestream: title={}, seller={}, restaurant={}", 
                 request.getTitle(), sellerId, request.getRestaurantId());
 
@@ -73,7 +76,7 @@ public class LivestreamService {
         Livestream livestream = livestreamRepository.findById(id)
                 .orElseThrow(() -> new LivestreamNotFoundException("Không tìm thấy livestream với ID: " + id));
 
-        checkSellerPermission(sellerId, livestream);
+        checkSellerPermission(sellerId, livestream, role);
 
         if (livestream.getStatus() != LivestreamStatus.CREATED) {
             throw new InvalidLivestreamStatusException(
@@ -123,7 +126,7 @@ public class LivestreamService {
         Livestream livestream = livestreamRepository.findById(id)
                 .orElseThrow(() -> new LivestreamNotFoundException("Không tìm thấy livestream với ID: " + id));
 
-        checkSellerPermission(sellerId, livestream);
+        checkSellerPermission(sellerId, livestream, role);
 
         if (livestream.getStatus() != LivestreamStatus.LIVE) {
             throw new InvalidLivestreamStatusException(
@@ -234,8 +237,8 @@ public class LivestreamService {
                 .collect(Collectors.toList());
     }
 
-    private void checkSellerPermission(Long sellerId, Livestream livestream) {
-        if (!livestream.getSellerId().equals(sellerId)) {
+    private void checkSellerPermission(Long sellerId, Livestream livestream, String role) {
+        if (!"ADMIN".equalsIgnoreCase(role) && !livestream.getSellerId().equals(sellerId)) {
             throw new UnauthorizedLivestreamAccessException("Bạn không có quyền thao tác với livestream này");
         }
     }

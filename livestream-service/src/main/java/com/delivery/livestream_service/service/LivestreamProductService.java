@@ -46,10 +46,19 @@ public class LivestreamProductService {
 
     @Transactional
     public LivestreamProductResponse pinProduct(UUID livestreamId, PinProductRequest request, Long sellerId) {
+        return pinProduct(livestreamId, request, sellerId, false);
+    }
+
+    @Transactional
+    public LivestreamProductResponse pinProduct(UUID livestreamId, PinProductRequest request, Long sellerId, boolean admin) {
         log.info("Pinning product: livestream={}, product={}, seller={}", 
                 livestreamId, request.getProductId(), sellerId);
 
-        Livestream livestream = getLivestreamAndCheckPermission(livestreamId, sellerId);
+        Livestream livestream = getLivestreamAndCheckPermission(livestreamId, sellerId, admin);
+
+        if (request.getRestaurantId() != null && !livestream.getRestaurantId().equals(request.getRestaurantId())) {
+            throw new UnauthorizedLivestreamAccessException("Sản phẩm không thuộc restaurant của livestream");
+        }
 
         if (livestream.getStatus() != LivestreamStatus.LIVE && livestream.getStatus() != LivestreamStatus.CREATED) {
             throw new InvalidLivestreamStatusException("Chỉ có thể thêm sản phẩm khi livestream đang chuẩn bị hoặc đang diễn ra");
@@ -66,10 +75,13 @@ public class LivestreamProductService {
                 });
 
         product.setPriceAtLive(request.getPriceAtLive());
-        product.setProductName(request.getProductName());
-        product.setProductImage(request.getProductImage());
-        product.setRestaurantId(request.getRestaurantId());
-        product.setRestaurantName(request.getRestaurantName());
+        // Caller-supplied display metadata is not authoritative. The product/menu
+        // boundary is not available in this service yet, so retain only the
+        // validated restaurant scope and price supplied for this live session.
+        product.setProductName(null);
+        product.setProductImage(null);
+        product.setRestaurantId(livestream.getRestaurantId());
+        product.setRestaurantName(null);
         product.setIsPinned(true);
         product.setPinnedAt(LocalDateTime.now());
         product = productRepository.save(product);
@@ -89,9 +101,14 @@ public class LivestreamProductService {
 
     @Transactional
     public void unpinProduct(UUID livestreamId, Long productId, Long sellerId) {
+        unpinProduct(livestreamId, productId, sellerId, false);
+    }
+
+    @Transactional
+    public void unpinProduct(UUID livestreamId, Long productId, Long sellerId, boolean admin) {
         log.info("Unpinning product: livestream={}, product={}, seller={}", livestreamId, productId, sellerId);
 
-        Livestream livestream = getLivestreamAndCheckPermission(livestreamId, sellerId);
+        Livestream livestream = getLivestreamAndCheckPermission(livestreamId, sellerId, admin);
 
         if (livestream.getStatus() != LivestreamStatus.LIVE && livestream.getStatus() != LivestreamStatus.CREATED) {
             throw new InvalidLivestreamStatusException("Chỉ có thể bỏ sản phẩm khi livestream đang chuẩn bị hoặc đang diễn ra");
@@ -117,9 +134,14 @@ public class LivestreamProductService {
     }
     @Transactional
     public void removeProduct(UUID livestreamId, Long productId, Long sellerId) {
+        removeProduct(livestreamId, productId, sellerId, false);
+    }
+
+    @Transactional
+    public void removeProduct(UUID livestreamId, Long productId, Long sellerId, boolean admin) {
         log.info("Removing product from livestream: livestream={}, product={}, seller={}", livestreamId, productId, sellerId);
 
-        Livestream livestream = getLivestreamAndCheckPermission(livestreamId, sellerId);
+        Livestream livestream = getLivestreamAndCheckPermission(livestreamId, sellerId, admin);
 
         if (livestream.getStatus() != LivestreamStatus.LIVE && livestream.getStatus() != LivestreamStatus.CREATED) {
             throw new InvalidLivestreamStatusException("Chỉ có thể xóa sản phẩm khi livestream đang chuẩn bị hoặc đang diễn ra");
@@ -153,11 +175,11 @@ public class LivestreamProductService {
                 .collect(Collectors.toList());
     }
 
-    private Livestream getLivestreamAndCheckPermission(UUID livestreamId, Long sellerId) {
+    private Livestream getLivestreamAndCheckPermission(UUID livestreamId, Long sellerId, boolean admin) {
         Livestream livestream = livestreamRepository.findById(livestreamId)
                 .orElseThrow(() -> new LivestreamNotFoundException("Không tìm thấy livestream với ID: " + livestreamId));
 
-        if (!livestream.getSellerId().equals(sellerId)) {
+        if (!admin && !livestream.getSellerId().equals(sellerId)) {
             throw new UnauthorizedLivestreamAccessException("Bạn không có quyền thao tác với livestream này");
         }
 
