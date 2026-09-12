@@ -1,5 +1,7 @@
 package com.delivery.livestream_service.enums;
 
 public enum StreamProvider {
-    AGORA
+    AGORA,
+    /** Retained for wire/schema compatibility; creation currently rejects it. */
+    LIVEKIT
 }

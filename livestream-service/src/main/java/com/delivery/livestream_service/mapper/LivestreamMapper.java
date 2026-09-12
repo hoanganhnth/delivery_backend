@@ -33,7 +33,9 @@ public class LivestreamMapper {
         response.setUpdatedAt(livestream.getUpdatedAt());
         List<LivestreamProductResponse> products = livestream.getProducts() == null
                 ? List.of()
-                : livestream.getProducts().stream().map(this::toProductResponse).toList();
+                : livestream.getProducts().stream()
+                    .filter(product -> Boolean.TRUE.equals(product.getIsPinned()))
+                    .map(this::toProductResponse).toList();
         response.setPinnedProducts(products);
         return response;
     }
