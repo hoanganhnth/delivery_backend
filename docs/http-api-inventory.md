@@ -199,6 +199,7 @@ sửa.
 | livestream-service | LivestreamController | POST | `/api/livestreams/{id}/start` | `startLivestream` |
 | livestream-service | LivestreamController | POST | `/api/livestreams/{id}/join` | `joinLivestream` |
 | livestream-service | LivestreamController | POST | `/api/livestreams/{id}/end` | `endLivestream` |
+| livestream-service | LivestreamModerationController | POST | `/api/livestreams/{id}/moderation` | `moderate` (ADMIN-only, transactional audit, experimental/default-off) |
 | livestream-service | LivestreamController | GET | `/api/livestreams/active` | `getActiveLivestreams` |
 | livestream-service | LivestreamController | GET | `/api/livestreams/{id}` | `getLivestreamById` |
 | livestream-service | LivestreamController | GET | `/api/livestreams/seller/{sellerId}` | `getLivestreamsBySeller` |

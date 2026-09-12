@@ -16,6 +16,11 @@ import java.util.Map;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
+    public ResponseEntity<BaseResponse<String>> handleMalformedRequest() {
+        return ResponseEntity.badRequest().body(new BaseResponse<>(0, null, "Dữ liệu không hợp lệ"));
+    }
+
     @ExceptionHandler(LivestreamNotFoundException.class)
     public ResponseEntity<BaseResponse<String>> handleLivestreamNotFound(LivestreamNotFoundException ex) {
         log.error("Livestream not found: {}", ex.getMessage());

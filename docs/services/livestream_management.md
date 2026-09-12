@@ -64,9 +64,10 @@ host Agora token and is the only current host-token response:
 
 ### End
 
-`POST /api/livestreams/{id}/end` (ADMIN or owning SHOP_OWNER host)
+`POST /api/livestreams/{id}/end` (owning ADMIN or SHOP_OWNER host)
 
 No request body. Returns the ended `LivestreamResponse` (`status=ENDED`).
+An ADMIN ending another host's room must use moderation with a reason below.
 
 ### Inspect active and by identity
 
@@ -112,6 +113,59 @@ status, and canonical display fields; copied fields are not trusted. A
 successful pin returns `LivestreamProductResponse`. Product lists may contain
 more than one `isPinned=true` item.
 
+Unpin and remove-product routes require ownership of the room even for ADMIN.
+An ADMIN cannot remove another host's product to bypass the audited unpin route.
+Owning ADMIN hosts retain their normal host controls; cross-owner intervention
+uses moderation.
+
+### Admin moderation and audit
+
+`POST /api/livestreams/{id}/moderation` (ADMIN only; same default-off API flag)
+
+```json
+{"action":"UNPIN","reason":"Product violates content policy","productId":9001}
+```
+
+Request: `action: WARN|UNPIN|FORCE_END`, required non-blank `reason` (maximum
+1000 characters before trimming), and positive `productId` required for UNPIN
+and forbidden for other actions. Actor and time are never request inputs.
+
+| Action | Preconditions and applied effect |
+|---|---|
+| `WARN` | Room exists; records the warning and reason in audit only. Does not change status or deliver a realtime notification. |
+| `UNPIN` | Room is CREATED or LIVE and target product belongs to the room; sets `isPinned=false`, retaining the product row. An already-unpinned existing product remains unpinned and a new audit row is recorded. |
+| `FORCE_END` | Room is LIVE; uses the existing LIVE → ENDED transition and sets `endedAt`. Already-ended or unstarted rooms return 400 without audit. |
+
+Success (HTTP 200):
+
+```json
+{"status":1,"data":{"auditId":123,"livestreamId":"00000000-0000-4000-8000-000000000001","action":"UNPIN","productId":9001,"appliedAt":"2026-09-12T12:00:00Z"},"message":"Áp dụng kiểm duyệt thành công"}
+```
+
+`productId` is null for WARN/FORCE_END. `appliedAt` is an ISO-8601 UTC timestamp.
+Missing room/product returns 404; invalid fields/action/status return 400;
+non-ADMIN returns 403. Rejections do not create successful-action audit rows.
+No idempotency key is accepted: clients must not automatically retry an unknown
+outcome. Successful repeated WARN/UNPIN requests each produce a new audit row.
+
+Flyway V2 creates `livestream_moderation_audits`: identity `id`, FK
+`livestream_id` (no cascading deletion), authenticated `actor_principal_id`
+(stable auth principal, not legacy profile ID), `action`, trimmed `reason`,
+nullable `product_id`, and server-generated `applied_at TIMESTAMP WITH TIME
+ZONE`. Check constraints enforce action/reason/product target validity; an
+index supports `(livestream_id, applied_at DESC)` lookup. No HTTP audit
+read/update/delete endpoint or retention purge is introduced.
+
+Persistence decision: follow the repository's service-local JPA audit table
+pattern, with action and audit in the **same transaction** (not independent
+`REQUIRES_NEW`). Audit insert failure rolls back the room/product change.
+The legacy `livestream_events` table is not reused: it has no actor/reason
+contract and its realtime publisher is inactive. No acknowledgement from Agora,
+Kafka, a host, or viewers is promised; FORCE_END changes application room state
+and does not revoke an already-issued Agora token or eject connected clients.
+Rollback keeps the additive migration/audit data and disables the existing API
+flag. Do not drop the table or reverse applied V2 in a shared environment.
+
 ### Disabled capability and failure cases
 
 When the feature flag is false, routes are not registered (the gateway should
@@ -148,17 +202,11 @@ uses these existing error mappings:
 
 These are not current routes and must not be called by clients yet:
 
-1. **Admin moderation audit:** add one authenticated admin-only moderation
-   mutation (the lifecycle task must choose the final path and action enum).
-   Its request must carry `action` (`END` or `HIDE`), `reason`, and optional
-   `targetUserId`; its response should be a normal `BaseResponse` containing
-   `livestreamId`, `action`, `appliedAt`, and an audit identifier. The first
-   pass writes an audit record and does not promise a realtime acknowledgement.
-2. **Stable client error code:** lifecycle work should add a machine-readable
+1. **Stable client error code:** lifecycle work should add a machine-readable
    error code alongside existing messages so web/Flutter can distinguish
    `LIVESTREAM_DISABLED`, `ROOM_NOT_FOUND`, `INVALID_STATUS`, and
    `OWNERSHIP_DENIED` without parsing Vietnamese text.
-3. **Join/token policy:** `POST /{id}/join` remains the viewer token boundary;
+2. **Join/token policy:** `POST /{id}/join` remains the viewer token boundary;
    the currently exposed caller-controlled `POST /{id}/token` is deliberately
    disabled and must stay disabled unless a future contract replaces it.
 

@@ -69,7 +69,11 @@ public class LivestreamController {
             @PathVariable UUID id,
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireActor(actor);
-        hostAuthorization.requireHost(actor, livestreamService.getLivestreamById(id).getRestaurantId());
+        LivestreamResponse room = livestreamService.getLivestreamById(id);
+        if (actor.isAdmin() && !actor.getUserId().equals(room.getSellerId())) {
+            throw new UnauthorizedLivestreamAccessException("Use the moderation endpoint with a reason to end another host's room");
+        }
+        hostAuthorization.requireHost(actor, room.getRestaurantId());
         LivestreamResponse response = livestreamService.endLivestream(id, actor.getUserId(), getRoleString(actor));
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Kết thúc livestream thành công"));
     }

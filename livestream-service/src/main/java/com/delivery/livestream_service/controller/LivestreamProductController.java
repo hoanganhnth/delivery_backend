@@ -3,6 +3,8 @@ package com.delivery.livestream_service.controller;
 import com.delivery.livestream_service.common.constants.ApiPathConstants;
 import com.delivery.livestream_service.dto.request.PinProductRequest;
 import com.delivery.livestream_service.dto.response.LivestreamProductResponse;
+import com.delivery.livestream_service.dto.response.LivestreamResponse;
+import com.delivery.livestream_service.exception.UnauthorizedLivestreamAccessException;
 import com.delivery.livestream_service.payload.BaseResponse;
 import com.delivery.livestream_service.service.LivestreamProductService;
 import com.delivery.livestream_service.service.LivestreamHostAuthorization;
@@ -52,8 +54,8 @@ public class LivestreamProductController {
             @PathVariable Long productId,
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireActor(actor);
-        hostAuthorization.requireHost(actor, livestreamService.getLivestreamById(id).getRestaurantId());
-        productService.unpinProduct(id, productId, actor.getUserId(), actor.isAdmin());
+        requireOwnRoomForProductRemoval(id, actor);
+        productService.unpinProduct(id, productId, actor.getUserId());
         return ResponseEntity.ok(new BaseResponse<>(1, null, "Bỏ pin sản phẩm thành công"));
     }
 
@@ -63,8 +65,8 @@ public class LivestreamProductController {
             @PathVariable Long productId,
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireActor(actor);
-        hostAuthorization.requireHost(actor, livestreamService.getLivestreamById(id).getRestaurantId());
-        productService.removeProduct(id, productId, actor.getUserId(), actor.isAdmin());
+        requireOwnRoomForProductRemoval(id, actor);
+        productService.removeProduct(id, productId, actor.getUserId());
         return ResponseEntity.ok(new BaseResponse<>(1, null, "Xóa sản phẩm khỏi livestream thành công"));
     }
 
@@ -82,6 +84,14 @@ public class LivestreamProductController {
         requireActor(actor);
         List<LivestreamProductResponse> response = productService.getPinnedProducts(id);
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Lấy sản phẩm đang pin thành công"));
+    }
+
+    private void requireOwnRoomForProductRemoval(UUID id, AuthenticatedActor actor) {
+        LivestreamResponse room = livestreamService.getLivestreamById(id);
+        if (actor.isAdmin() && !actor.getUserId().equals(room.getSellerId())) {
+            throw new UnauthorizedLivestreamAccessException("Use the moderation endpoint with a reason to unpin another host's product");
+        }
+        hostAuthorization.requireHost(actor, room.getRestaurantId());
     }
 
     private void requireActor(AuthenticatedActor actor) {

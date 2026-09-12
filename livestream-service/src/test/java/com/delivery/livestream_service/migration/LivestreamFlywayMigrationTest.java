@@ -19,6 +19,35 @@ class LivestreamFlywayMigrationTest {
     private static final String STREAM_ID = "11111111-1111-1111-1111-111111111111";
 
     @Test
+    void v2UpgradesV1AndEnforcesModerationAuditConstraints() throws Exception {
+        String url = databaseUrl("moderation_upgrade");
+        Flyway.configure().dataSource(url, "sa", "").target("1").load().migrate();
+        try (Connection connection = DriverManager.getConnection(url, "sa", "");
+             Statement statement = connection.createStatement()) {
+            insertLivestream(statement, STREAM_ID, "room-audit", "channel-audit");
+        }
+        migrate(url);
+        try (Connection connection = DriverManager.getConnection(url, "sa", "");
+             Statement statement = connection.createStatement()) {
+            String insert = "INSERT INTO livestream_moderation_audits (livestream_id, actor_principal_id, action, reason, product_id, applied_at) VALUES ('"
+                    + STREAM_ID + "', 90, %s, %s, %s, CURRENT_TIMESTAMP)";
+            statement.executeUpdate(insert.formatted("'WARN'", "'Policy'", "NULL"));
+            statement.executeUpdate(insert.formatted("'UNPIN'", "'Policy'", "23"));
+            assertThat(count(statement, "SELECT count(*) FROM livestreams")).isEqualTo(1);
+            assertThat(count(statement, "SELECT count(*) FROM livestream_moderation_audits")).isEqualTo(2);
+            assertThat(indexExists(connection, "livestream_moderation_audits", "idx_moderation_stream_applied")).isTrue();
+            assertThatThrownBy(() -> statement.executeUpdate(insert.formatted("'HIDE'", "'Policy'", "NULL")))
+                    .isInstanceOf(java.sql.SQLException.class);
+            assertThatThrownBy(() -> statement.executeUpdate(insert.formatted("'WARN'", "'   '", "NULL")))
+                    .isInstanceOf(java.sql.SQLException.class);
+            assertThatThrownBy(() -> statement.executeUpdate(insert.formatted("'UNPIN'", "'Policy'", "NULL")))
+                    .isInstanceOf(java.sql.SQLException.class);
+            assertThatThrownBy(() -> statement.executeUpdate("DELETE FROM livestreams WHERE id='" + STREAM_ID + "'"))
+                    .isInstanceOf(java.sql.SQLException.class);
+        }
+    }
+
+    @Test
     void cleanSchemaCreatesIdentityConstraintsAndQueryIndexes() throws Exception {
         String url = databaseUrl("clean");
         migrate(url);

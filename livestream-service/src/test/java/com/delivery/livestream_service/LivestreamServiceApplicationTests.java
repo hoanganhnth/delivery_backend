@@ -7,6 +7,7 @@ import org.springframework.context.ApplicationContext;
 import com.delivery.livestream_service.controller.LivestreamController;
 import com.delivery.livestream_service.controller.LivestreamProductController;
 import com.delivery.livestream_service.controller.StreamTokenController;
+import com.delivery.livestream_service.controller.LivestreamModerationController;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(properties = {
@@ -27,6 +28,7 @@ class LivestreamServiceApplicationTests {
 		assertThat(context.getBeansOfType(LivestreamController.class)).isEmpty();
 		assertThat(context.getBeansOfType(LivestreamProductController.class)).isEmpty();
 		assertThat(context.getBeansOfType(StreamTokenController.class)).isEmpty();
+		assertThat(context.getBeansOfType(LivestreamModerationController.class)).isEmpty();
 	}
 
 }
