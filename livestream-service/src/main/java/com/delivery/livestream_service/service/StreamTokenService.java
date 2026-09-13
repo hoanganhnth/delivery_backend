@@ -83,13 +83,16 @@ public class StreamTokenService {
                     agoraRole, 
                     timestamp
             );
+            if (token == null || token.isBlank()) {
+                throw new IllegalStateException("Agora credentials are invalid");
+            }
             
             log.info("✅ Agora token generated: channel={}, uid={}, role={}", channelName, uid, role);
             return token;
             
         } catch (Exception e) {
             log.error("❌ Failed to generate Agora token: {}", e.getMessage(), e);
-            throw new RuntimeException("Không thể tạo Agora token: " + e.getMessage());
+            throw new IllegalStateException("Không thể tạo Agora token", e);
         }
     }
 }

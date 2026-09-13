@@ -43,8 +43,8 @@ public class LivestreamProductController {
             @Valid @RequestBody PinProductRequest request,
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireActor(actor);
-        hostAuthorization.requireHost(actor, livestreamService.getLivestreamById(id).getRestaurantId());
-        LivestreamProductResponse response = productService.pinProduct(id, request, actor.getUserId(), actor.isAdmin());
+        requireOwnRoomForProductWrite(id, actor);
+        LivestreamProductResponse response = productService.pinProduct(id, request, actor.getUserId());
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Pin sản phẩm thành công"));
     }
 
@@ -54,7 +54,7 @@ public class LivestreamProductController {
             @PathVariable Long productId,
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireActor(actor);
-        requireOwnRoomForProductRemoval(id, actor);
+        requireOwnRoomForProductWrite(id, actor);
         productService.unpinProduct(id, productId, actor.getUserId());
         return ResponseEntity.ok(new BaseResponse<>(1, null, "Bỏ pin sản phẩm thành công"));
     }
@@ -65,7 +65,7 @@ public class LivestreamProductController {
             @PathVariable Long productId,
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireActor(actor);
-        requireOwnRoomForProductRemoval(id, actor);
+        requireOwnRoomForProductWrite(id, actor);
         productService.removeProduct(id, productId, actor.getUserId());
         return ResponseEntity.ok(new BaseResponse<>(1, null, "Xóa sản phẩm khỏi livestream thành công"));
     }
@@ -86,10 +86,11 @@ public class LivestreamProductController {
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Lấy sản phẩm đang pin thành công"));
     }
 
-    private void requireOwnRoomForProductRemoval(UUID id, AuthenticatedActor actor) {
+    private void requireOwnRoomForProductWrite(UUID id, AuthenticatedActor actor) {
         LivestreamResponse room = livestreamService.getLivestreamById(id);
-        if (actor.isAdmin() && !actor.getUserId().equals(room.getSellerId())) {
-            throw new UnauthorizedLivestreamAccessException("Use the moderation endpoint with a reason to unpin another host's product");
+        if (!actor.getUserId().equals(room.getSellerId())) {
+            throw new UnauthorizedLivestreamAccessException(
+                    "Only the owning host may change livestream products; ADMIN moderation requires a reason");
         }
         hostAuthorization.requireHost(actor, room.getRestaurantId());
     }

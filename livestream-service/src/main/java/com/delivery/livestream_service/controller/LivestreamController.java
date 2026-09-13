@@ -59,7 +59,7 @@ public class LivestreamController {
             @PathVariable UUID id,
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireActor(actor);
-        JoinLivestreamResponse response = livestreamService.joinLivestream(id, actor.getUserId());
+        JoinLivestreamResponse response = livestreamService.joinLivestream(id, actor.getUserId(), !actor.isAdmin());
         return ResponseEntity.ok(new BaseResponse<>(1, response, 
                 "Join livestream thành công. Sử dụng token và channelName để xem trên Agora."));
     }

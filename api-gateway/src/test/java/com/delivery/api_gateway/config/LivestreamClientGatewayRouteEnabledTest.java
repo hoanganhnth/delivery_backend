@@ -33,6 +33,7 @@ class LivestreamClientGatewayRouteEnabledTest {
         assertThat(matches(routes, HttpMethod.GET, "/api/livestreams/active")).isTrue();
         assertThat(matches(routes, HttpMethod.GET, "/api/livestreams/" + ID)).isTrue();
         assertThat(matches(routes, HttpMethod.POST, "/api/livestreams/" + ID + "/join")).isTrue();
+        assertThat(matches(routes, HttpMethod.POST, "/api/livestreams/" + ID + "/token/renew")).isTrue();
         assertThat(matches(routes, HttpMethod.POST, "/api/livestreams")).isTrue();
         assertThat(matches(routes, HttpMethod.POST, "/api/livestreams/" + ID + "/start")).isTrue();
         assertThat(matches(routes, HttpMethod.POST, "/api/livestreams/" + ID + "/end")).isTrue();
@@ -46,6 +47,7 @@ class LivestreamClientGatewayRouteEnabledTest {
                 "/api/livestreams/" + ID + "/products/42")).isTrue();
 
         assertThat(matches(routes, HttpMethod.POST, "/api/livestreams/" + ID + "/token")).isFalse();
+        assertThat(matches(routes, HttpMethod.GET, "/api/livestreams/" + ID + "/token/renew")).isFalse();
         assertThat(matches(routes, HttpMethod.GET, "/api/livestreams")).isFalse();
         assertThat(matches(routes, HttpMethod.POST, "/api/livestreams/active")).isFalse();
         assertThat(matches(routes, HttpMethod.POST, "/api/livestreams/restaurant/42")).isFalse();
@@ -64,5 +66,19 @@ class LivestreamClientGatewayRouteEnabledTest {
                 MockServerHttpRequest.method(method, path).build());
         return routes.values().stream().anyMatch(route -> Boolean.TRUE.equals(
                 Mono.from(route.getPredicate().apply(exchange)).block()));
+    }
+
+    @Test
+    void moderationAndProductWritesUseExactMethods() {
+        Map<String, Route> routes = routeLocator.getRoutes().collectMap(Route::getId).block();
+        String room = "/api/livestreams/" + ID;
+        assertThat(matches(routes, HttpMethod.GET, "/api/livestreams/admin")).isTrue();
+        assertThat(matches(routes, HttpMethod.POST, "/api/livestreams/admin")).isFalse();
+        assertThat(matches(routes, HttpMethod.POST, room + "/moderation")).isTrue();
+        assertThat(matches(routes, HttpMethod.GET, room + "/moderation")).isFalse();
+        assertThat(matches(routes, HttpMethod.DELETE, room + "/moderation")).isFalse();
+        assertThat(matches(routes, HttpMethod.DELETE, room + "/products/pin")).isFalse();
+        assertThat(matches(routes, HttpMethod.POST, room + "/products/42/pin")).isFalse();
+        assertThat(matches(routes, HttpMethod.POST, room + "/products/42")).isFalse();
     }
 }

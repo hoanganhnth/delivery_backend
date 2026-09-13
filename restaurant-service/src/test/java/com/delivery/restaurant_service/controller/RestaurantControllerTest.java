@@ -93,7 +93,7 @@ class RestaurantControllerTest {
         response.setAddress("123 Main Street");
         response.setPhone("0123456789");
 
-        when(restaurantService.createRestaurant(any(CreateRestaurantRequest.class), anyLong(), anyString()))
+        when(restaurantService.createRestaurant(any(CreateRestaurantRequest.class), anyLong(), anyLong(), anyString()))
                 .thenReturn(response);
 
         // When & Then
@@ -109,7 +109,7 @@ class RestaurantControllerTest {
                 .andExpect(jsonPath("$.data.address").value("123 Main Street"))
                 .andExpect(jsonPath("$.data.phone").value("0123456789"));
 
-        verify(restaurantService).createRestaurant(any(CreateRestaurantRequest.class), eq(1L), eq(RoleConstants.OWNER));
+        verify(restaurantService).createRestaurant(any(CreateRestaurantRequest.class), eq(1L), eq(1L), eq(RoleConstants.OWNER));
     }
 
     @Test
@@ -125,7 +125,7 @@ class RestaurantControllerTest {
         response.setName("Updated Pizza Palace");
         response.setAddress("456 New Street");
 
-        when(restaurantService.updateRestaurant(eq(restaurantId), any(UpdateRestaurantRequest.class), anyLong(),
+        when(restaurantService.updateRestaurant(eq(restaurantId), any(UpdateRestaurantRequest.class), anyLong(), anyLong(),
                 eq(RoleConstants.OWNER)))
                 .thenReturn(response);
 
@@ -141,7 +141,7 @@ class RestaurantControllerTest {
                 .andExpect(jsonPath("$.data.name").value("Updated Pizza Palace"))
                 .andExpect(jsonPath("$.data.address").value("456 New Street"));
 
-        verify(restaurantService).updateRestaurant(eq(restaurantId), any(UpdateRestaurantRequest.class), eq(1L),
+        verify(restaurantService).updateRestaurant(eq(restaurantId), any(UpdateRestaurantRequest.class), eq(1L), eq(1L),
                 eq(RoleConstants.OWNER));
     }
 
@@ -159,7 +159,7 @@ class RestaurantControllerTest {
                 .andExpect(jsonPath("$.status").value(1))
                 .andExpect(jsonPath("$.data").isEmpty());
 
-        verify(restaurantService).deleteRestaurant(eq(restaurantId), eq(userId), eq(RoleConstants.OWNER));
+        verify(restaurantService).deleteRestaurant(eq(restaurantId), eq(userId), eq(userId), eq(RoleConstants.OWNER));
     }
 
     @Test

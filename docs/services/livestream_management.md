@@ -92,6 +92,23 @@ No request body. The room must be `LIVE`; the service returns
 {"livestreamId":"00000000-0000-4000-8000-000000000001","channelName":"livestream-...","title":"Friday kitchen","restaurantId":42,"token":"<opaque Agora token>","uid":456,"tokenExpiresAt":"2026-09-12T12:00:00Z","sellerId":7,"startedAt":"2026-09-12T11:00:00Z","currentViewers":0}
 ```
 
+### Renew an Agora token
+
+`POST /api/livestreams/{id}/token/renew` (authenticated caller)
+
+No request body. The room must still be `LIVE`. The server derives the UID,
+role, and fixed 3600-second TTL from the authenticated actor; callers cannot
+request a role, UID, or TTL. The owning ADMIN or SHOP_OWNER host receives a
+`HOST` token. An authenticated customer or an ADMIN monitoring another host's
+room receives a `VIEWER` token. The response is:
+
+```json
+{"livestreamId":"00000000-0000-4000-8000-000000000001","channelName":"livestream-...","token":"<opaque Agora token>","uid":456,"role":"VIEWER","tokenExpiresAt":"2026-09-12T13:00:00Z"}
+```
+
+Clients use this boundary when Agora reports that token privilege will expire.
+They must not use the legacy caller-controlled `POST /{id}/token` route.
+
 ### Products
 
 - `POST /api/livestreams/{id}/products/pin` (authenticated host)
@@ -118,9 +135,36 @@ An ADMIN cannot remove another host's product to bypass the audited unpin route.
 Owning ADMIN hosts retain their normal host controls; cross-owner intervention
 uses moderation.
 
+### Internal product authority boundary
+
+Restaurant service exposes internal-only
+`GET /api/restaurants/internal/{restaurantId}/livestream-products/{productId}`.
+It requires the configured `Internal-Token`, queries a single menu item by ID,
+and returns 404 when missing, not AVAILABLE, or scoped to another restaurant.
+Successful `data` contains productId, restaurantId, productName, productImage,
+restaurantName from restaurant-owned data. Client-supplied copied metadata is
+not used. No public Gateway route is added. Livestream pin calls this boundary
+before persistence through LivestreamProductAuthorityClient with bounded 3s
+connect/read timeouts. Missing secret, unavailable authority, malformed response
+or mismatched IDs reject pin without saving or emitting a success event. Host
+priceAtLive is retained; name/image/restaurant name come from restaurant-service.
+
+### Admin list
+
+`GET /api/livestreams/admin?page=0&size=20` is ADMIN-only and returns the
+normal envelope with `data={content: LivestreamResponse[], page, size,
+totalElements, totalPages}`. Page starts at zero; size must be 1–100. Rooms
+are ordered by createdAt DESC then id DESC so the Admin UI can page through
+all lifecycle states instead of using fixture rooms. Both the service and
+Gateway remain default-off. Sorting and pagination apply at the database.
+
 ### Admin moderation and audit
 
 `POST /api/livestreams/{id}/moderation` (ADMIN only; same default-off API flag)
+
+Gateway forwards this POST only when `app.livestream.client-api-enabled=true`;
+the service independently enforces ADMIN authorization. Both gates remain off
+by default. Product pin is POST-only; unpin/removal are DELETE-only.
 
 ```json
 {"action":"UNPIN","reason":"Product violates content policy","productId":9001}

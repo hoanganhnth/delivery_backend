@@ -15,6 +15,7 @@ import com.delivery.livestream_service.mapper.LivestreamMapper;
 import com.delivery.livestream_service.repository.LivestreamProductRepository;
 import com.delivery.livestream_service.repository.LivestreamRepository;
 import lombok.extern.slf4j.Slf4j;
+import com.delivery.livestream_service.client.LivestreamProductAuthorityClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.domain.PageRequest;
@@ -34,15 +35,17 @@ public class LivestreamProductService {
     private final LivestreamRepository livestreamRepository;
     private final LivestreamEventPublisher eventPublisher;
     private final LivestreamMapper mapper;
+    private final LivestreamProductAuthorityClient authority;
 
     public LivestreamProductService(LivestreamProductRepository productRepository,
                                     LivestreamRepository livestreamRepository,
                                     LivestreamEventPublisher eventPublisher,
-                                    LivestreamMapper mapper) {
+                                    LivestreamMapper mapper, LivestreamProductAuthorityClient authority) {
         this.productRepository = productRepository;
         this.livestreamRepository = livestreamRepository;
         this.eventPublisher = eventPublisher;
         this.mapper = mapper;
+        this.authority = authority;
     }
 
     @Transactional
@@ -80,13 +83,11 @@ public class LivestreamProductService {
         }
 
         product.setPriceAtLive(request.getPriceAtLive());
-        // Caller-supplied display metadata is not authoritative. The product/menu
-        // boundary is not available in this service yet, so retain only the
-        // validated restaurant scope and price supplied for this live session.
-        product.setProductName(null);
-        product.setProductImage(null);
+        var canonical = authority.requireAvailable(livestream.getRestaurantId(), request.getProductId());
+        product.setProductName(canonical.productName());
+        product.setProductImage(canonical.productImage());
         product.setRestaurantId(livestream.getRestaurantId());
-        product.setRestaurantName(null);
+        product.setRestaurantName(canonical.restaurantName());
         product.setIsPinned(true);
         product.setPinnedAt(LocalDateTime.now());
         product = productRepository.save(product);

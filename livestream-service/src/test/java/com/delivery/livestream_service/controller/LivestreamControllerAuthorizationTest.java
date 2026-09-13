@@ -28,7 +28,18 @@ class LivestreamControllerAuthorizationTest {
 
         controller.joinLivestream(livestreamId, viewer);
 
-        verify(livestreams).joinLivestream(livestreamId, 10L);
+        verify(livestreams).joinLivestream(livestreamId, 10L, true);
+        verifyNoInteractions(hostAuthorization);
+    }
+
+    @Test
+    void adminMonitoringDoesNotIncreaseCustomerViewCount() {
+        UUID livestreamId = UUID.randomUUID();
+        AuthenticatedActor admin = new AuthenticatedActor(90L, 9L, "admin@example.test", Set.of("ADMIN"));
+
+        controller.joinLivestream(livestreamId, admin);
+
+        verify(livestreams).joinLivestream(livestreamId, 9L, false);
         verifyNoInteractions(hostAuthorization);
     }
 
@@ -96,5 +107,21 @@ class LivestreamControllerAuthorizationTest {
         assertThatThrownBy(() -> controller.removeProduct(id, 23L, admin))
                 .isInstanceOf(UnauthorizedLivestreamAccessException.class);
         verifyNoInteractions(products);
+    }
+
+    @Test
+    void crossOwnerAdminCannotPinProductsIntoAnotherHostsRoom() {
+        UUID id = UUID.randomUUID();
+        LivestreamResponse room = new LivestreamResponse();
+        room.setRestaurantId(42L); room.setSellerId(11L);
+        when(livestreams.getLivestreamById(id)).thenReturn(room);
+        var products = mock(com.delivery.livestream_service.service.LivestreamProductService.class);
+        var productController = new LivestreamProductController(products, livestreams, hostAuthorization);
+        var admin = new AuthenticatedActor(90L, 9L, "admin@example.test", Set.of("ADMIN"));
+        var request = new com.delivery.livestream_service.dto.request.PinProductRequest();
+
+        assertThatThrownBy(() -> productController.pinProduct(id, request, admin))
+                .isInstanceOf(UnauthorizedLivestreamAccessException.class);
+        verifyNoInteractions(products, hostAuthorization);
     }
 }

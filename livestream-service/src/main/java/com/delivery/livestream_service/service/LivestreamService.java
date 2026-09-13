@@ -176,8 +176,12 @@ public class LivestreamService {
     /**
      * Viewer join livestream - generate token VIEWER
      */
-    @Transactional(readOnly = true)
     public JoinLivestreamResponse joinLivestream(UUID id, Long viewerId) {
+        return joinLivestream(id, viewerId, true);
+    }
+
+    @Transactional
+    public JoinLivestreamResponse joinLivestream(UUID id, Long viewerId, boolean countView) {
         log.info("👀 Viewer joining livestream: id={}, viewer={}", id, viewerId);
 
         Livestream livestream = livestreamRepository.findById(id)
@@ -189,9 +193,11 @@ public class LivestreamService {
                     "Livestream chưa bắt đầu hoặc đã kết thúc. Trạng thái: " + livestream.getStatus());
         }
 
-        // ✅ Tăng tổng lượt xem (cumulative). Mỗi lần join tính 1 view.
-        livestream.setViewCount((livestream.getViewCount() != null ? livestream.getViewCount() : 0L) + 1);
-        livestream = livestreamRepository.save(livestream);
+        // Admin monitoring is an operational view, not a customer view.
+        if (countView) {
+            livestream.setViewCount((livestream.getViewCount() != null ? livestream.getViewCount() : 0L) + 1);
+            livestream = livestreamRepository.save(livestream);
+        }
 
         // Generate Agora token for VIEWER
         int expireSeconds = 3600; // 1 hour

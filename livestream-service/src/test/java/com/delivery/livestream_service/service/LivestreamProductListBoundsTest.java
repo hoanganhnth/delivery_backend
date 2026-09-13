@@ -18,7 +18,7 @@ class LivestreamProductListBoundsTest {
     private final LivestreamProductRepository products = mock(LivestreamProductRepository.class);
     private final LivestreamProductService service = new LivestreamProductService(
             products, mock(LivestreamRepository.class), mock(LivestreamEventPublisher.class),
-            mock(LivestreamMapper.class));
+            mock(LivestreamMapper.class), mock(com.delivery.livestream_service.client.LivestreamProductAuthorityClient.class));
 
     @Test
     void productCompatibilityListsAreCappedAtOneHundredRows() {

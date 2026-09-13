@@ -494,10 +494,16 @@ public class GatewayRouteConfig {
                                         .uri(settlementServiceUri));
                 }
                 if (livestreamClientApiEnabled) {
+                        routes.route("livestream-admin-list", r -> r.path("/api/livestreams/admin")
+                                        .and().method(HttpMethod.GET).uri(livestreamServiceUri));
                         routes.route("livestream-viewer", r -> r.path(
                                         "/api/livestreams/active",
                                         "/api/livestreams/{id:[0-9a-fA-F-]{36}}")
                                         .and().method(HttpMethod.GET)
+                                        .uri(livestreamServiceUri));
+                        routes.route("livestream-token-renewal", r -> r.path(
+                                        "/api/livestreams/{id:[0-9a-fA-F-]{36}}/token/renew")
+                                        .and().method(HttpMethod.POST)
                                         .uri(livestreamServiceUri));
                         routes.route("livestream-viewer-join", r -> r.path(
                                         "/api/livestreams/{id:[0-9a-fA-F-]{36}}/join")
@@ -519,10 +525,17 @@ public class GatewayRouteConfig {
                                         .and().method(HttpMethod.GET)
                                         .uri(livestreamServiceUri));
                         routes.route("livestream-products-host", r -> r.path(
-                                        "/api/livestreams/{id:[0-9a-fA-F-]{36}}/products/pin",
+                                        "/api/livestreams/{id:[0-9a-fA-F-]{36}}/products/pin")
+                                        .and().method(HttpMethod.POST)
+                                        .uri(livestreamServiceUri));
+                        routes.route("livestream-products-remove", r -> r.path(
                                         "/api/livestreams/{id:[0-9a-fA-F-]{36}}/products/{productId:[0-9]+}/pin",
                                         "/api/livestreams/{id:[0-9a-fA-F-]{36}}/products/{productId:[0-9]+}")
-                                        .and().method(HttpMethod.POST, HttpMethod.DELETE)
+                                        .and().method(HttpMethod.DELETE)
+                                        .uri(livestreamServiceUri));
+                        routes.route("livestream-moderation", r -> r.path(
+                                        "/api/livestreams/{id:[0-9a-fA-F-]{36}}/moderation")
+                                        .and().method(HttpMethod.POST)
                                         .uri(livestreamServiceUri));
                 }
                 return routes.build();

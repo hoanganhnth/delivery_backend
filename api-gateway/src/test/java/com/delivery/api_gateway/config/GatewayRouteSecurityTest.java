@@ -134,10 +134,17 @@ class GatewayRouteSecurityTest {
                 "livestream-host",
                 "livestream-restaurant",
                 "livestream-products-read",
-                "livestream-products-host");
+                "livestream-products-host",
+                "livestream-products-remove",
+                "livestream-moderation",
+                "livestream-token-renewal");
+        assertThat(matches(routes, HttpMethod.GET, "/api/livestreams/admin")).isFalse();
+        assertThat(matches(routes, HttpMethod.POST,
+                "/api/livestreams/00000000-0000-4000-8000-000000000001/moderation")).isFalse();
         assertThat(matches(routes, HttpMethod.GET, "/api/livestreams/active")).isFalse();
         assertThat(matches(routes, HttpMethod.POST, "/api/livestreams")).isFalse();
         assertThat(matches(routes, HttpMethod.POST, "/api/livestreams/00000000-0000-4000-8000-000000000001/token")).isFalse();
+        assertThat(matches(routes, HttpMethod.POST, "/api/livestreams/00000000-0000-4000-8000-000000000001/token/renew")).isFalse();
     }
 
     @Test

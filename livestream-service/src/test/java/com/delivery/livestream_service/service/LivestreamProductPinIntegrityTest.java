@@ -22,7 +22,7 @@ class LivestreamProductPinIntegrityTest {
         LivestreamProductRepository products = mock(LivestreamProductRepository.class);
         LivestreamRepository livestreams = mock(LivestreamRepository.class);
         LivestreamProductService service = new LivestreamProductService(
-                products, livestreams, mock(LivestreamEventPublisher.class), mock(LivestreamMapper.class));
+                products, livestreams, mock(LivestreamEventPublisher.class), mock(LivestreamMapper.class), mock(com.delivery.livestream_service.client.LivestreamProductAuthorityClient.class));
         UUID id = UUID.randomUUID();
         Livestream livestream = new Livestream();
         livestream.setId(id);

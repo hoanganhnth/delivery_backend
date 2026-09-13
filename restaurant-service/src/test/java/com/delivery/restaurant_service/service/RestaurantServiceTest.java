@@ -11,7 +11,6 @@ import com.delivery.restaurant_service.service.impl.RestaurantServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.access.AccessDeniedException;
@@ -34,7 +33,6 @@ class RestaurantServiceTest {
     @Mock
     private SearchSyncPublisher searchSyncPublisher;
 
-    @InjectMocks
     private RestaurantServiceImpl restaurantService;
 
     private Restaurant restaurant;
@@ -44,6 +42,8 @@ class RestaurantServiceTest {
     private RestaurantResponse restaurantResponse;
     @BeforeEach
     void setUp() {
+        restaurantService = new RestaurantServiceImpl(restaurantRepository, menuItemMapper,
+                restaurantCacheService, searchSyncPublisher, new io.micrometer.core.instrument.simple.SimpleMeterRegistry());
         restaurant = new Restaurant();
         restaurant.setId(1L);
         restaurant.setName("Test Restaurant");
