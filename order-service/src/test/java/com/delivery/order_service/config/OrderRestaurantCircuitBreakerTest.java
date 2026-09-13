@@ -32,6 +32,7 @@ class OrderRestaurantCircuitBreakerTest {
     private RestaurantCallResilienceProperties shortWindowProperties() {
         RestaurantCallResilienceProperties properties = new RestaurantCallResilienceProperties();
         properties.setSlidingWindowSize(2);
+        properties.setFailureRateThreshold(100);
         properties.setPermittedHalfOpenCalls(1);
         return properties;
     }
