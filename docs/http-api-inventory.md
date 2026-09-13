@@ -200,6 +200,7 @@ sửa.
 | livestream-service | LivestreamController | POST | `/api/livestreams/{id}/join` | `joinLivestream` |
 | livestream-service | LivestreamController | POST | `/api/livestreams/{id}/end` | `endLivestream` |
 | livestream-service | LivestreamModerationController | POST | `/api/livestreams/{id}/moderation` | `moderate` (ADMIN-only, transactional audit, experimental/default-off) |
+| livestream-service | InternalLivestreamCheckoutController | POST | `/api/livestreams/internal/checkout-quote` | internal-token protected server-authoritative pinned price lookup; no Gateway route |
 | livestream-service | LivestreamController | GET | `/api/livestreams/active` | `getActiveLivestreams` |
 | livestream-service | LivestreamController | GET | `/api/livestreams/{id}` | `getLivestreamById` |
 | livestream-service | LivestreamController | GET | `/api/livestreams/seller/{sellerId}` | `getLivestreamsBySeller` |

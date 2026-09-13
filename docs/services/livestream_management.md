@@ -149,6 +149,24 @@ connect/read timeouts. Missing secret, unavailable authority, malformed response
 or mismatched IDs reject pin without saving or emitting a success event. Host
 priceAtLive is retained; name/image/restaurant name come from restaurant-service.
 
+### Internal checkout price authority
+
+Order service resolves live prices through internal-only
+`POST /api/livestreams/internal/checkout-quote`. The route requires the
+configured `Internal-Token` and is never exposed by Gateway.
+
+```json
+{"livestreamId":"00000000-0000-4000-8000-000000000001","restaurantId":42,"productIds":[9001,9002]}
+```
+
+The service requires a `LIVE` room whose restaurant matches the request. The
+response repeats the validated room and restaurant IDs and returns only the
+requested products that are currently pinned, each with its positive
+server-stored `priceAtLive`. Requested products that are not pinned are omitted
+so ordinary items in the same restaurant can retain canonical catalog pricing.
+Malformed pinned prices or restaurant scope fail closed. The request accepts at
+most 50 distinct positive product IDs. Clients never send live prices to Order.
+
 ### Admin list
 
 `GET /api/livestreams/admin?page=0&size=20` is ADMIN-only and returns the
