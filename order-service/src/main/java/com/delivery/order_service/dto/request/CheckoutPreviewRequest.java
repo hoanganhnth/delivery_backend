@@ -4,6 +4,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.util.List;
+import java.util.UUID;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
@@ -21,6 +22,9 @@ import jakarta.validation.constraints.Size;
 @Getter
 @Setter
 public class CheckoutPreviewRequest {
+    /** Optional server-validated source for pinned livestream prices. */
+    private UUID livestreamId;
+
     @NotNull
     @Positive
     private Long restaurantId;

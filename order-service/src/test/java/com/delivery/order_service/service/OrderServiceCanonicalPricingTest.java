@@ -43,6 +43,8 @@ class OrderServiceCanonicalPricingTest {
     @Mock com.delivery.order_service.metrics.BusinessMetrics businessMetrics;
     @Mock CheckoutReservationClient reservationClient;
     @Mock InventoryReservationClient inventoryReservationClient;
+    @Mock LivestreamCheckoutPriceClient livestreamPriceClient;
+    @Mock CheckoutQuoteService checkoutQuoteService;
 
     @Test
     void shipperNotFoundKeepsTerminalStatusAndPublishesRefundEligibilitySnapshot() {
@@ -268,6 +270,53 @@ class OrderServiceCanonicalPricingTest {
         org.assertj.core.api.Assertions.assertThat(item.getPrice()).isEqualByComparingTo("60000");
         org.assertj.core.api.Assertions.assertThat(order.getSubtotalPrice()).isEqualByComparingTo("60000");
         org.assertj.core.api.Assertions.assertThat(order.getTotalPrice()).isEqualByComparingTo("75000");
+    }
+
+    @Test
+    void authoritativeLivestreamPriceIsPersistedIntoSubtotalAndOrderItem() {
+        CreateOrderRequest request = baseRequest();
+        request.setLivestreamId(UUID.randomUUID());
+        when(orderValidationService.validateCreateOrderRequest(request, 21L, 21L))
+                .thenReturn(validatedItem(new BigDecimal("100000")));
+        when(livestreamPriceClient.resolve(request.getLivestreamId(), 7L, List.of(9L)))
+                .thenReturn(Map.of(9L, new BigDecimal("60000")));
+        Order order = persistedMappedOrder(request);
+        when(shippingFeeCalculationService.calculateShippingFee(
+                10.75, 106.66, 10.8, 106.7, new BigDecimal("60000")))
+                .thenReturn(new BigDecimal("15000"));
+        OrderItem item = new OrderItem();
+        when(orderMapper.orderItemRequestToOrderItem(request.getItems().get(0))).thenReturn(item);
+        when(orderMapper.orderToOrderResponse(order)).thenReturn(new OrderResponse());
+        OrderServiceImpl service = service();
+        ReflectionTestUtils.setField(service, "livestreamPriceClient", livestreamPriceClient);
+
+        service.createOrder(request, 21L, "USER");
+
+        org.assertj.core.api.Assertions.assertThat(item.getPrice()).isEqualByComparingTo("60000");
+        org.assertj.core.api.Assertions.assertThat(order.getSubtotalPrice()).isEqualByComparingTo("60000");
+        org.assertj.core.api.Assertions.assertThat(order.getTotalPrice()).isEqualByComparingTo("75000");
+    }
+
+    @Test
+    void mismatchedLivestreamQuoteItemsFailBeforeOrderPersistence() {
+        CreateOrderRequest request = baseRequest();
+        request.setQuoteId(UUID.randomUUID());
+        request.setLivestreamId(UUID.randomUUID());
+        when(checkoutQuoteService.validateAndReprice(request, 21L, 21L)).thenReturn(
+                com.delivery.order_service.dto.response.CheckoutPreviewResponse.builder()
+                        .restaurantId(7L)
+                        .items(List.of(com.delivery.order_service.dto.response.CheckoutPreviewResponse.PreviewItemDetail
+                                .builder().menuItemId(99L).unitPrice(new BigDecimal("60000")).quantity(1)
+                                .lineTotal(new BigDecimal("60000")).build()))
+                        .build());
+        when(orderValidationService.validateCreateOrderRequest(request, 21L, 21L))
+                .thenReturn(validatedItem(new BigDecimal("100000")));
+        OrderServiceImpl service = service();
+        ReflectionTestUtils.setField(service, "checkoutQuoteService", checkoutQuoteService);
+
+        assertThrows(IllegalStateException.class, () -> service.createOrder(request, 21L, "USER"));
+
+        verifyNoInteractions(orderRepository, orderItemRepository, orderEventPublisher);
     }
 
     @Test

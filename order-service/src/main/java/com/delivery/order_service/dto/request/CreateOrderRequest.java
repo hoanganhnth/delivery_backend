@@ -14,6 +14,9 @@ public class CreateOrderRequest {
     /** Required once quote enforcement is enabled; never supplied by a client as price authority. */
     private UUID quoteId;
 
+    /** Optional server-validated source for pinned livestream prices. */
+    private UUID livestreamId;
+
     private Long restaurantId;
     private String restaurantName;
     private String restaurantAddress;

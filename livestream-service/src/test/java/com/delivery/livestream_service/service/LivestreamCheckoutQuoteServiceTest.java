@@ -9,7 +9,6 @@ import com.delivery.livestream_service.exception.UnauthorizedLivestreamAccessExc
 import com.delivery.livestream_service.repository.LivestreamProductRepository;
 import com.delivery.livestream_service.repository.LivestreamRepository;
 import org.junit.jupiter.api.Test;
-import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -19,7 +18,6 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -32,7 +30,8 @@ class LivestreamCheckoutQuoteServiceTest {
     void returnsOnlyRequestedProductsThatAreCurrentlyPinned() {
         UUID roomId = UUID.randomUUID();
         when(rooms.findById(roomId)).thenReturn(Optional.of(room(roomId, 42L, LivestreamStatus.LIVE)));
-        when(products.findByLivestreamIdAndIsPinned(eq(roomId), eq(true), any(Pageable.class)))
+        when(products.findByLivestreamIdAndIsPinnedTrueAndProductIdIn(
+                eq(roomId), eq(List.of(20L, 30L, 10L))))
                 .thenReturn(List.of(product(roomId, 10L, 42L, "89000"),
                         product(roomId, 20L, 42L, "99000")));
 
@@ -61,7 +60,7 @@ class LivestreamCheckoutQuoteServiceTest {
     void failsClosedWhenRequestedPinnedPriceIsInvalid() {
         UUID roomId = UUID.randomUUID();
         when(rooms.findById(roomId)).thenReturn(Optional.of(room(roomId, 42L, LivestreamStatus.LIVE)));
-        when(products.findByLivestreamIdAndIsPinned(eq(roomId), eq(true), any(Pageable.class)))
+        when(products.findByLivestreamIdAndIsPinnedTrueAndProductIdIn(eq(roomId), eq(List.of(10L))))
                 .thenReturn(List.of(product(roomId, 10L, 42L, "0")));
 
         assertThatThrownBy(() -> service.quote(request(roomId, 42L, List.of(10L))))

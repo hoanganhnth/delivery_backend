@@ -167,6 +167,16 @@ so ordinary items in the same restaurant can retain canonical catalog pricing.
 Malformed pinned prices or restaurant scope fail closed. The request accepts at
 most 50 distinct positive product IDs. Clients never send live prices to Order.
 
+Order checkout accepts an optional root-level `livestreamId` in both preview
+and create requests. It is part of the versioned pricing/idempotency
+fingerprints and is preserved during create-time repricing. With
+`ORDER_LIVESTREAM_CHECKOUT_ENABLED=false` (the default), any request carrying
+the field fails closed. When enabled, Order validates the internal response,
+overrides only returned pinned products, and snapshots those prices into the
+subtotal and `OrderItem.price`; other products keep restaurant-owned catalog
+prices. Livestream pricing cannot be combined with Flash Sale. Client-supplied
+item prices remain ignored.
+
 ### Admin list
 
 `GET /api/livestreams/admin?page=0&size=20` is ADMIN-only and returns the

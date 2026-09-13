@@ -9,6 +9,8 @@ import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.Test;
@@ -27,6 +29,28 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import reactor.core.publisher.Mono;
 
 class CheckoutPreviewMvpPolicyTest {
+
+    @Test
+    void livestreamPriceOverridesOnlyThePinnedServerQuotedItem() {
+        ShippingFeeCalculationService shippingFeeService = mock(ShippingFeeCalculationService.class);
+        when(shippingFeeService.calculateShippingFee(
+                10.76, 106.66, 10.78, 106.68, new BigDecimal("80000")))
+                .thenReturn(new BigDecimal("15000"));
+        LivestreamCheckoutPriceClient livePrices = mock(LivestreamCheckoutPriceClient.class);
+        CheckoutPreviewService service = serviceWithCanonicalMenu(shippingFeeService);
+        ReflectionTestUtils.setField(service, "livestreamPriceClient", livePrices);
+        CheckoutPreviewRequest request = validRequest();
+        request.setLivestreamId(UUID.randomUUID());
+        when(livePrices.resolve(request.getLivestreamId(), 7L, List.of(5L)))
+                .thenReturn(Map.of(5L, new BigDecimal("40000")));
+
+        var preview = service.calculatePreview(request, 21L);
+
+        assertThat(preview.getItems()).singleElement()
+                .satisfies(item -> assertThat(item.getUnitPrice()).isEqualByComparingTo("40000"));
+        assertThat(preview.getSubtotal()).isEqualByComparingTo("80000");
+        assertThat(preview.getTotalPrice()).isEqualByComparingTo("95000");
+    }
 
     @Test
     void couponCodeIsRejectedBeforeRestaurantLookupInCodMvp() {

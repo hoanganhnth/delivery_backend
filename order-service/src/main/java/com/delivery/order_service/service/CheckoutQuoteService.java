@@ -42,7 +42,7 @@ public class CheckoutQuoteService {
      * remote restaurant/Promotion calls. The final {@link #consume} call is
      * still the locking authority inside the create-order write transaction.
      */
-    public void validateAndReprice(CreateOrderRequest request, Long principalId, Long userId) {
+    public CheckoutPreviewResponse validateAndReprice(CreateOrderRequest request, Long principalId, Long userId) {
         UUID quoteId = request.getQuoteId();
         if (quoteId == null) {
             throw new OrderApiException("QUOTE_REQUIRED", "Cần báo giá hợp lệ trước khi đặt đơn");
@@ -69,6 +69,7 @@ public class CheckoutQuoteService {
             throw new OrderApiException("PRICE_CHANGED", "Giá đơn hàng đã thay đổi, vui lòng xác nhận lại",
                     Map.of("quote", current));
         }
+        return current;
     }
 
     @Transactional
@@ -86,6 +87,7 @@ public class CheckoutQuoteService {
 
     private CheckoutPreviewRequest toPreviewRequest(CreateOrderRequest request) {
         CheckoutPreviewRequest preview = new CheckoutPreviewRequest();
+        preview.setLivestreamId(request.getLivestreamId());
         preview.setRestaurantId(request.getRestaurantId());
         preview.setDeliveryLat(request.getDeliveryLat());
         preview.setDeliveryLng(request.getDeliveryLng());

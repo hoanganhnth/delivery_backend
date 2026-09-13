@@ -34,6 +34,8 @@ public class CheckoutPreviewService {
     private final VoucherCheckoutCapability voucherCheckoutCapability;
     @Autowired(required = false)
     private CheckoutReservationClient reservationClient;
+    @Autowired(required = false)
+    private LivestreamCheckoutPriceClient livestreamPriceClient;
     @Value("${app.order.voucher-checkout-enabled:false}") private boolean voucherCheckoutEnabled;
     @Value("${app.order.flashsale-checkout-enabled:false}") private boolean flashSaleCheckoutEnabled;
     @Value("${app.order.serviceability-enforcement-enabled:false}") private boolean serviceabilityEnforcementEnabled;
@@ -121,10 +123,19 @@ public class CheckoutPreviewService {
             throw new ValidationException("Voucher checkout is disabled");
         if (hasFlashSale && !flashSaleCheckoutEnabled)
             throw new ValidationException("Flash-sale checkout is disabled");
+        if (request.getLivestreamId() != null && hasFlashSale)
+            throw new ValidationException("Livestream và Flash Sale không được áp dụng cùng một đơn");
         if (hasVoucherSelection && hasFlashSale)
             throw new ValidationException("Voucher và Flash Sale không được áp dụng cùng một đơn");
         if ((hasVoucherSelection || hasFlashSale) && reservationClient == null)
             throw new ValidationException("Checkout reservation capability is unavailable");
+        Map<Long, BigDecimal> livestreamPrices = Map.of();
+        if (request.getLivestreamId() != null) {
+            if (livestreamPriceClient == null)
+                throw new ValidationException("Livestream checkout capability is unavailable");
+            livestreamPrices = livestreamPriceClient.resolve(request.getLivestreamId(), request.getRestaurantId(),
+                    request.getItems().stream().map(CheckoutPreviewRequest.PreviewItem::getMenuItemId).toList());
+        }
 
         // 1. Lấy canonical restaurant + menu item facts qua cùng internal
         // validation contract với create-order. Preview không được gọi public
@@ -190,7 +201,7 @@ public class CheckoutPreviewService {
                 continue;
             }
 
-            BigDecimal unitPrice = serverItem.price();
+            BigDecimal unitPrice = livestreamPrices.getOrDefault(reqItem.getMenuItemId(), serverItem.price());
             if (reqItem.getFlashSaleItemId() != null) {
                 CheckoutReservationClient.FlashLine line = flashQuote.byFlashSaleItemId()
                         .get(reqItem.getFlashSaleItemId());

@@ -16,10 +16,11 @@ import java.util.List;
 /** Versioned, deterministic hashes for quote and idempotency comparison. */
 @Service
 public class CheckoutFingerprintService {
-    public static final String VERSION = "v1";
+    public static final String VERSION = "v2";
 
     public String pricingInput(CheckoutPreviewRequest request) {
         StringBuilder value = new StringBuilder(VERSION);
+        token(value, request.getLivestreamId());
         token(value, request.getRestaurantId());
         token(value, decimal(request.getDeliveryLat()));
         token(value, decimal(request.getDeliveryLng()));
@@ -38,6 +39,7 @@ public class CheckoutFingerprintService {
 
     public String pricingInput(CreateOrderRequest request) {
         StringBuilder value = new StringBuilder(VERSION);
+        token(value, request.getLivestreamId());
         token(value, request.getRestaurantId());
         token(value, decimal(request.getDeliveryLat()));
         token(value, decimal(request.getDeliveryLng()));

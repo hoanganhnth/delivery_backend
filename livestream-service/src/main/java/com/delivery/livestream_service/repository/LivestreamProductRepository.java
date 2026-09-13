@@ -18,4 +18,7 @@ public interface LivestreamProductRepository extends JpaRepository<LivestreamPro
     
     List<LivestreamProduct> findByLivestreamIdAndIsPinned(
             UUID livestreamId, Boolean isPinned, Pageable pageable);
+
+    List<LivestreamProduct> findByLivestreamIdAndIsPinnedTrueAndProductIdIn(
+            UUID livestreamId, List<Long> productIds);
 }

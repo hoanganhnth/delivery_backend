@@ -9,7 +9,6 @@ import com.delivery.livestream_service.exception.LivestreamNotFoundException;
 import com.delivery.livestream_service.exception.UnauthorizedLivestreamAccessException;
 import com.delivery.livestream_service.repository.LivestreamProductRepository;
 import com.delivery.livestream_service.repository.LivestreamRepository;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -44,8 +43,8 @@ public class LivestreamCheckoutQuoteService {
             throw new UnauthorizedLivestreamAccessException("Restaurant không thuộc livestream");
         }
 
-        Map<Long, LivestreamProduct> pinned = products.findByLivestreamIdAndIsPinned(
-                        request.getLivestreamId(), true, PageRequest.of(0, 100)).stream()
+        Map<Long, LivestreamProduct> pinned = products.findByLivestreamIdAndIsPinnedTrueAndProductIdIn(
+                        request.getLivestreamId(), request.getProductIds()).stream()
                 .collect(Collectors.toMap(LivestreamProduct::getProductId, Function.identity()));
 
         List<LivestreamCheckoutQuoteResponse.Item> quoted = request.getProductIds().stream()

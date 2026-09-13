@@ -148,6 +148,25 @@ class CheckoutQuoteServiceTest {
         assertThat(repriced.getValue().getSelectionMode()).isNull();
     }
 
+    @Test
+    void repricingPreservesLivestreamSource() {
+        CreateOrderRequest request = createRequest();
+        request.setLivestreamId(UUID.randomUUID());
+        CheckoutPreviewRequest quotedRequest = previewRequest();
+        quotedRequest.setLivestreamId(request.getLivestreamId());
+        CheckoutPreviewResponse preview = preview("115000");
+        CheckoutQuote quote = quote(request.getQuoteId(), quotedRequest, preview, NOW.plusSeconds(300));
+        when(repository.findById(request.getQuoteId())).thenReturn(Optional.of(quote));
+        when(previewService.calculatePreview(any(CheckoutPreviewRequest.class), eq(PRINCIPAL_ID), eq(LEGACY_USER_ID)))
+                .thenReturn(preview);
+
+        service.validateAndReprice(request, PRINCIPAL_ID, LEGACY_USER_ID);
+
+        ArgumentCaptor<CheckoutPreviewRequest> repriced = ArgumentCaptor.forClass(CheckoutPreviewRequest.class);
+        verify(previewService).calculatePreview(repriced.capture(), eq(PRINCIPAL_ID), eq(LEGACY_USER_ID));
+        assertThat(repriced.getValue().getLivestreamId()).isEqualTo(request.getLivestreamId());
+    }
+
     private CheckoutQuote quote(UUID quoteId, CheckoutPreviewRequest request,
                                 CheckoutPreviewResponse response, Instant expiresAt) {
         return new CheckoutQuote(quoteId, PRINCIPAL_ID, fingerprints.pricingInput(request),

@@ -22,6 +22,8 @@ import com.delivery.order_service.service.CheckoutReservationClient;
 import com.delivery.order_service.service.CheckoutQuoteService;
 import com.delivery.order_service.service.CheckoutFingerprintService;
 import com.delivery.order_service.service.OrderCreateIdempotencyService;
+import com.delivery.order_service.service.LivestreamCheckoutPriceClient;
+import com.delivery.order_service.dto.response.CheckoutPreviewResponse;
 import com.delivery.order_service.config.OrderCreateAdmission;
 import com.delivery.order_service.entity.OrderCreateIdempotencyReceipt;
 import com.delivery.identity.contracts.SimulationContext;
@@ -41,6 +43,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -74,6 +78,9 @@ public class OrderServiceImpl implements OrderService {
 
     @Autowired(required = false)
     private CheckoutFingerprintService checkoutFingerprintService;
+
+    @Autowired(required = false)
+    private LivestreamCheckoutPriceClient livestreamPriceClient;
 
     /**
      * Explicit transaction boundary for create-order.  The old implementation
@@ -186,9 +193,9 @@ public class OrderServiceImpl implements OrderService {
         // transaction.  The final transaction still re-locks/consumes the quote
         // and claims idempotency, so a concurrent request cannot create a second
         // order.
-        ValidatedOrderData validated;
+        PreparedOrderData prepared;
         try {
-            validated = prepareCreateOrder(request, principalId, userId);
+            prepared = prepareCreateOrder(request, principalId, userId);
         } catch (RuntimeException failure) {
             releaseIdempotencyLease(processingReceipt, processingToken, failure);
             throw failure;
@@ -199,19 +206,26 @@ public class OrderServiceImpl implements OrderService {
         try {
             return executeWriteTransaction(() -> persistCreateOrder(
                     request, idempotencyKey, finalFingerprint, finalProcessingToken,
-                    principalId, userId, role, validated, simulationContext));
+                    principalId, userId, role, prepared, simulationContext));
         } catch (RuntimeException failure) {
             releaseIdempotencyLease(processingReceipt, processingToken, failure);
             throw failure;
         }
     }
 
-    private ValidatedOrderData prepareCreateOrder(CreateOrderRequest request, Long principalId, Long userId) {
+    private PreparedOrderData prepareCreateOrder(CreateOrderRequest request, Long principalId, Long userId) {
+        boolean hasFlash = request.getItems() != null && request.getItems().stream()
+                .filter(Objects::nonNull).anyMatch(item -> item.getFlashSaleItemId() != null);
+        if (request.getLivestreamId() != null && hasFlash) {
+            throw new com.delivery.order_service.exception.ValidationException(
+                    "Livestream và Flash Sale không được áp dụng cùng một đơn");
+        }
+        CheckoutPreviewResponse currentQuote = null;
         if (request.getQuoteId() != null) {
             if (checkoutQuoteService == null) {
                 throw new IllegalStateException("Checkout quote service is unavailable");
             }
-            checkoutQuoteService.validateAndReprice(request, principalId, userId);
+            currentQuote = checkoutQuoteService.validateAndReprice(request, principalId, userId);
         }
         // ✅ Validate request + lấy canonical restaurant data từ server (1 lần duy nhất gọi restaurant-service)
         ValidatedOrderData validated = orderValidationService.validateCreateOrderRequest(request, principalId, userId);
@@ -222,14 +236,51 @@ public class OrderServiceImpl implements OrderService {
             );
         }
 
-        return validated;
+        return new PreparedOrderData(validated, resolveLivestreamPrices(request, currentQuote));
+    }
+
+    private Map<Long, BigDecimal> resolveLivestreamPrices(CreateOrderRequest request,
+                                                          CheckoutPreviewResponse currentQuote) {
+        if (request.getLivestreamId() == null) return Map.of();
+        if (currentQuote != null) {
+            if (!request.getRestaurantId().equals(currentQuote.getRestaurantId())
+                    || currentQuote.getItems() == null) {
+                throw new IllegalStateException("Checkout quote is missing livestream prices");
+            }
+            Map<Long, BigDecimal> prices = new LinkedHashMap<>();
+            for (CheckoutPreviewResponse.PreviewItemDetail item : currentQuote.getItems()) {
+                if (item == null || item.getMenuItemId() == null || item.getUnitPrice() == null
+                        || item.getUnitPrice().signum() <= 0
+                        || prices.putIfAbsent(item.getMenuItemId(), item.getUnitPrice()) != null) {
+                    throw new IllegalStateException("Checkout quote is missing livestream prices");
+                }
+            }
+            var requestedIds = request.getItems().stream()
+                    .map(CreateOrderRequest.OrderItemRequest::getMenuItemId)
+                    .collect(Collectors.toCollection(LinkedHashSet::new));
+            if (!prices.keySet().equals(requestedIds)) {
+                throw new IllegalStateException("Checkout quote is missing livestream prices");
+            }
+            return Map.copyOf(prices);
+        }
+        if (livestreamPriceClient == null) {
+            throw new com.delivery.order_service.exception.ValidationException(
+                    "Livestream checkout capability is unavailable");
+        }
+        return livestreamPriceClient.resolve(request.getLivestreamId(), request.getRestaurantId(),
+                request.getItems().stream().map(CreateOrderRequest.OrderItemRequest::getMenuItemId).toList());
+    }
+
+    private record PreparedOrderData(ValidatedOrderData validated, Map<Long, BigDecimal> livestreamPrices) {
     }
 
     private OrderResponse persistCreateOrder(CreateOrderRequest request, UUID idempotencyKey,
                                               String requestFingerprint, UUID processingToken,
                                               Long principalId, Long userId,
-                                              String role, ValidatedOrderData validated,
+                                              String role, PreparedOrderData prepared,
                                               SimulationContext simulationContext) {
+        ValidatedOrderData validated = prepared.validated();
+        Map<Long, BigDecimal> livestreamPrices = prepared.livestreamPrices();
         OrderCreateIdempotencyReceipt idempotencyReceipt = null;
         if (idempotencyKey != null) {
             if (idempotencyService == null || checkoutFingerprintService == null) {
@@ -305,7 +356,8 @@ public class OrderServiceImpl implements OrderService {
 
             CheckoutReservationClient.FlashQuote canonicalFlashQuote = flashQuote;
             BigDecimal subtotal = request.getItems().stream().map(item -> {
-                BigDecimal unitPrice = requireCanonicalItem(canonicalItems, item.getMenuItemId()).price();
+                BigDecimal unitPrice = livestreamPrices.getOrDefault(item.getMenuItemId(),
+                        requireCanonicalItem(canonicalItems, item.getMenuItemId()).price());
                 if (item.getFlashSaleItemId() != null) {
                     CheckoutReservationClient.FlashLine line = canonicalFlashQuote.byFlashSaleItemId()
                             .get(item.getFlashSaleItemId());
@@ -391,7 +443,8 @@ public class OrderServiceImpl implements OrderService {
                         itemRequest.getMenuItemId());
                 OrderItem item = orderMapper.orderItemRequestToOrderItem(itemRequest);
                 item.setMenuItemName(canonical.menuItemName());
-                item.setPrice(itemRequest.getFlashSaleItemId() == null ? canonical.price()
+                item.setPrice(itemRequest.getFlashSaleItemId() == null
+                        ? livestreamPrices.getOrDefault(itemRequest.getMenuItemId(), canonical.price())
                         : canonicalFlashQuote.byFlashSaleItemId().get(itemRequest.getFlashSaleItemId()).unitPrice());
                 item.setOrder(savedOrder);
                 return item;

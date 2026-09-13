@@ -12,6 +12,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import java.util.List;
+import java.util.UUID;
+
+import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -61,6 +64,33 @@ class OrderValidationMvpPolicyTest {
                 webClient,
                 "http://restaurant-service:8083",
                 "test-secret", circuitBreaker());
+
+        assertThrows(ValidationException.class,
+                () -> service.validateCreateOrderRequest(request, 21L));
+        verifyNoInteractions(webClient);
+    }
+
+    @Test
+    void livestreamCheckoutIsClosedByDefault() {
+        CreateOrderRequest request = validCodRequest();
+        request.setLivestreamId(UUID.randomUUID());
+        OrderValidationService service = new OrderValidationService(
+                webClient, "http://restaurant-service:8083", "test-secret", circuitBreaker());
+
+        assertThrows(ValidationException.class,
+                () -> service.validateCreateOrderRequest(request, 21L));
+        verifyNoInteractions(webClient);
+    }
+
+    @Test
+    void livestreamAndFlashSaleCannotBeCombined() {
+        CreateOrderRequest request = validCodRequest();
+        request.setLivestreamId(UUID.randomUUID());
+        request.getItems().get(0).setFlashSaleItemId(4L);
+        OrderValidationService service = new OrderValidationService(
+                webClient, "http://restaurant-service:8083", "test-secret", circuitBreaker());
+        ReflectionTestUtils.setField(service, "livestreamCheckoutEnabled", true);
+        ReflectionTestUtils.setField(service, "flashSaleCheckoutEnabled", true);
 
         assertThrows(ValidationException.class,
                 () -> service.validateCreateOrderRequest(request, 21L));

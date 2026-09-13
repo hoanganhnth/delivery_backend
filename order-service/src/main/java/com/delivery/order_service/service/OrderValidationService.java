@@ -38,6 +38,8 @@ public class OrderValidationService {
     private boolean voucherCheckoutEnabled;
     @Value("${app.order.flashsale-checkout-enabled:false}")
     private boolean flashSaleCheckoutEnabled;
+    @Value("${app.order.livestream-checkout-enabled:false}")
+    private boolean livestreamCheckoutEnabled;
 
     @Autowired
     public OrderValidationService(
@@ -215,6 +217,12 @@ public class OrderValidationService {
 
         boolean hasFlashSale = request.getItems().stream().filter(Objects::nonNull)
                 .anyMatch(item -> item.getFlashSaleItemId() != null);
+        if (request.getLivestreamId() != null && !livestreamCheckoutEnabled) {
+            errors.add("Livestream checkout chưa được mở");
+        }
+        if (request.getLivestreamId() != null && hasFlashSale) {
+            errors.add("Livestream và Flash Sale không được áp dụng cùng một đơn");
+        }
         if (voucherCount > 0 && hasFlashSale) {
             errors.add("Voucher và Flash Sale không được áp dụng cùng một đơn");
         }
