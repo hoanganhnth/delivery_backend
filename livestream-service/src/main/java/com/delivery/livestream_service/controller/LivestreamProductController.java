@@ -14,7 +14,6 @@ import com.delivery.auth.resourceserver.security.AuthenticatedActor;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -97,7 +96,7 @@ public class LivestreamProductController {
 
     private void requireActor(AuthenticatedActor actor) {
         if (actor == null || actor.getUserId() == null) {
-            throw new AccessDeniedException("Yêu cầu đăng nhập");
+            throw new UnauthorizedLivestreamAccessException("Yêu cầu đăng nhập");
         }
     }
 }

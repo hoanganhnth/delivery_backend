@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.cloud.gateway.route.Route;
 import org.springframework.cloud.gateway.route.RouteLocator;
+import org.springframework.context.ApplicationContext;
 import org.springframework.http.HttpMethod;
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
 import org.springframework.mock.web.server.MockServerWebExchange;
@@ -20,6 +21,14 @@ class LivestreamClientGatewayRouteEnabledTest {
 
     @Autowired
     private RouteLocator routeLocator;
+
+    @Autowired
+    private ApplicationContext applicationContext;
+
+    @Test
+    void enabledLivestreamRoutesDoNotInstallTheDisabledResponseFilter() {
+        assertThat(applicationContext.getBeansOfType(LivestreamDisabledWebFilter.class)).isEmpty();
+    }
 
     @Test
     void edgeGateExposesOnlyTheDocumentedViewerAndHostRoutes() {

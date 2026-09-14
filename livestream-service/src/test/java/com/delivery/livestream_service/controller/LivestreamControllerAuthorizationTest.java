@@ -65,6 +65,16 @@ class LivestreamControllerAuthorizationTest {
     }
 
     @Test
+    void productReadsUseTheCanonicalLivestreamAuthorizationFailure() {
+        var products = mock(com.delivery.livestream_service.service.LivestreamProductService.class);
+        var productController = new LivestreamProductController(products, livestreams, hostAuthorization);
+
+        assertThatThrownBy(() -> productController.getPinnedProducts(UUID.randomUUID(), null))
+                .isInstanceOf(UnauthorizedLivestreamAccessException.class);
+        verifyNoInteractions(products);
+    }
+
+    @Test
     void crossOwnerAdminMustUseAuditedModerationForEnd() {
         UUID id = UUID.randomUUID();
         LivestreamResponse room = new LivestreamResponse();

@@ -4,15 +4,24 @@ This document is the canonical contract for the first livestream delivery
 slice. The service is disabled unless `app.livestream.api-enabled=true` (the
 workspace feature flag remains off by default). All routes require an
 authenticated Bearer token unless noted otherwise. Responses use the existing
-`BaseResponse<T>` envelope:
+`BaseResponse<T>` envelope. Successful responses retain the original shape:
 
 ```json
 {"status": 1, "message": "...", "data": {}}
 ```
 
-`status=0` is an error envelope. Error HTTP status and the envelope are both
-observable and must remain stable. Timestamps are ISO-8601 date-times and IDs
-are UUIDs unless a field is explicitly numeric.
+`status=0` is an error envelope. Lifecycle and ownership failures add an
+optional machine-readable error member while preserving the existing message
+and data fields:
+
+```json
+{"status":0,"message":"...","data":null,"error":{"code":"ROOM_NOT_FOUND","details":null}}
+```
+
+`error.details` is optional and currently null for livestream lifecycle errors.
+Error HTTP status and the envelope are both observable and must remain stable.
+Timestamps are ISO-8601 date-times and IDs are UUIDs unless a field is
+explicitly numeric.
 
 ## Authority and roles
 
@@ -240,16 +249,20 @@ flag. Do not drop the table or reverse applied V2 in a shared environment.
 
 ### Disabled capability and failure cases
 
-When the feature flag is false, routes are not registered (the gateway should
-surface its normal disabled/not-found response). Once enabled, the service
-uses these existing error mappings:
+When the feature flag is false, upstream routes are not registered. With the
+Gateway client flag off, the Gateway returns HTTP 404 with
+`error.code=LIVESTREAM_DISABLED` for the `/api/livestreams` namespace without
+forwarding the request. The disabled-response filter is absent when the client
+flag is enabled. Once enabled, the service uses these error mappings:
 
 | Condition | HTTP | Envelope |
 |---|---:|---|
+| disabled Gateway surface | 404 | `status=0`, `error.code=LIVESTREAM_DISABLED` |
 | malformed request | 400 | `status=0`, field map, `Dữ liệu không hợp lệ` |
-| missing room/product | 404 | `status=0`, message |
-| invalid status transition (start/end/join) | 400 | `status=0`, message |
-| unauthenticated/unauthorized host or viewer | 403 | `status=0`, message |
+| missing room | 404 | `status=0`, `error.code=ROOM_NOT_FOUND` |
+| missing product | 404 | `status=0`, message; must not masquerade as a missing room |
+| invalid status transition (start/end/join) | 400 | `status=0`, `error.code=INVALID_STATUS` |
+| unauthenticated/unauthorized host or viewer | 403 | `status=0`, `error.code=OWNERSHIP_DENIED` |
 | duplicate pin | 409 | `status=0`, message |
 
 ## Schemas
@@ -270,14 +283,12 @@ uses these existing error mappings:
 `priceAtLive: decimal`, `isPinned: boolean`, `createdAt: datetime`,
 `pinnedAt: datetime|null`.
 
-## Explicit additions required before lifecycle/client work
+## Stable client error codes
 
-These are not current routes and must not be called by clients yet:
-
-1. **Stable client error code:** lifecycle work should add a machine-readable
-   error code alongside existing messages so web/Flutter can distinguish
-   `LIVESTREAM_DISABLED`, `ROOM_NOT_FOUND`, `INVALID_STATUS`, and
-   `OWNERSHIP_DENIED` without parsing Vietnamese text.
+Web preserves `error.code` and `error.details` in `ApiClientError`. Flutter's
+livestream Gateway preserves them in `LivestreamApiException`. Both clients can
+therefore distinguish `LIVESTREAM_DISABLED`, `ROOM_NOT_FOUND`, `INVALID_STATUS`,
+and `OWNERSHIP_DENIED` without parsing localized message text.
 2. **Join/token policy:** `POST /{id}/join` remains the viewer token boundary;
    the currently exposed caller-controlled `POST /{id}/token` is deliberately
    disabled and must stay disabled unless a future contract replaces it.

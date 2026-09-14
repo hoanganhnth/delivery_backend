@@ -16,6 +16,10 @@ import java.util.Map;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    private static final String ROOM_NOT_FOUND = "ROOM_NOT_FOUND";
+    private static final String INVALID_STATUS = "INVALID_STATUS";
+    private static final String OWNERSHIP_DENIED = "OWNERSHIP_DENIED";
+
     @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
     public ResponseEntity<BaseResponse<String>> handleMalformedRequest() {
         return ResponseEntity.badRequest().body(new BaseResponse<>(0, null, "Dữ liệu không hợp lệ"));
@@ -25,6 +29,14 @@ public class GlobalExceptionHandler {
     public ResponseEntity<BaseResponse<String>> handleLivestreamNotFound(LivestreamNotFoundException ex) {
         log.error("Livestream not found: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(error(ex.getMessage(), ROOM_NOT_FOUND));
+    }
+
+    @ExceptionHandler(LivestreamProductNotFoundException.class)
+    public ResponseEntity<BaseResponse<String>> handleLivestreamProductNotFound(
+            LivestreamProductNotFoundException ex) {
+        log.error("Livestream product not found: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(new BaseResponse<>(0, null, ex.getMessage()));
     }
 
@@ -32,14 +44,14 @@ public class GlobalExceptionHandler {
     public ResponseEntity<BaseResponse<String>> handleInvalidLivestreamStatus(InvalidLivestreamStatusException ex) {
         log.error("Invalid livestream status: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(new BaseResponse<>(0, null, ex.getMessage()));
+                .body(error(ex.getMessage(), INVALID_STATUS));
     }
 
     @ExceptionHandler(UnauthorizedLivestreamAccessException.class)
     public ResponseEntity<BaseResponse<String>> handleUnauthorizedAccess(UnauthorizedLivestreamAccessException ex) {
         log.error("Unauthorized access: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                .body(new BaseResponse<>(0, null, ex.getMessage()));
+                .body(error(ex.getMessage(), OWNERSHIP_DENIED));
     }
 
     @ExceptionHandler(ProductAlreadyPinnedException.class)
@@ -68,5 +80,9 @@ public class GlobalExceptionHandler {
         log.error("Unexpected error: ", ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(new BaseResponse<>(0, null, "Đã xảy ra lỗi hệ thống"));
+    }
+
+    private static BaseResponse<String> error(String message, String code) {
+        return new BaseResponse<>(0, null, message, new BaseResponse.ErrorPayload(code));
     }
 }

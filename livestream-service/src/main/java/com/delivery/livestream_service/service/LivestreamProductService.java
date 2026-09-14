@@ -9,6 +9,7 @@ import com.delivery.livestream_service.entity.LivestreamProduct;
 import com.delivery.livestream_service.enums.LivestreamStatus;
 import com.delivery.livestream_service.exception.InvalidLivestreamStatusException;
 import com.delivery.livestream_service.exception.LivestreamNotFoundException;
+import com.delivery.livestream_service.exception.LivestreamProductNotFoundException;
 import com.delivery.livestream_service.exception.ProductAlreadyPinnedException;
 import com.delivery.livestream_service.exception.UnauthorizedLivestreamAccessException;
 import com.delivery.livestream_service.mapper.LivestreamMapper;
@@ -122,7 +123,7 @@ public class LivestreamProductService {
 
         LivestreamProduct product = productRepository
                 .findByLivestreamIdAndProductId(livestreamId, productId)
-                .orElseThrow(() -> new LivestreamNotFoundException(
+                .orElseThrow(() -> new LivestreamProductNotFoundException(
                         "Không tìm thấy sản phẩm trong livestream"));
 
         product.setIsPinned(false);
@@ -155,7 +156,7 @@ public class LivestreamProductService {
 
         LivestreamProduct product = productRepository
                 .findByLivestreamIdAndProductId(livestreamId, productId)
-                .orElseThrow(() -> new LivestreamNotFoundException(
+                .orElseThrow(() -> new LivestreamProductNotFoundException(
                         "Không tìm thấy sản phẩm trong livestream"));
 
         productRepository.delete(product);
