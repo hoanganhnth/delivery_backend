@@ -1,7 +1,7 @@
 {
   "version": 1,
   "purpose": "Allowlisted, source-owned input for the public read-only Delivery handbook.",
-  "generatedAt": "2026-08-24",
+  "generatedAt": "2026-09-14",
   "visibility": {
     "public": "Safe to render in the unauthenticated handbook after the generated-content checks.",
     "internal": "Keep in repository documentation; do not render in the public handbook.",
@@ -25,6 +25,7 @@
     "backend_delivery/docs/platform/system/api/README.md",
     "backend_delivery/docs/platform/system/api/http-contract-catalog.md",
     "backend_delivery/docs/platform/product/overview.md",
+    "backend_delivery/docs/platform/product/use-cases.md",
     "backend_delivery/docs/platform/product/features/*.md",
     "backend_delivery/docs/platform/ARCHITECTURE.md",
     "backend_delivery/docs/platform/FEATURE_STATUS.md",
