@@ -11,6 +11,7 @@ import org.springframework.http.HttpMethod;
 public class GatewayRouteConfig {
 
         private final String authServiceUri;
+        private final String webBffServiceUri;
         private final String userServiceUri;
         private final String restaurantServiceUri;
         private final String orderServiceUri;
@@ -30,6 +31,7 @@ public class GatewayRouteConfig {
         private final boolean livestreamClientApiEnabled;
 
         public GatewayRouteConfig(
+                        @Value("${app.web-bff-service.uri:lb://web-bff-service}") String webBffServiceUri,
                         @Value("${app.auth-service.uri:lb://auth-service}") String authServiceUri,
                         @Value("${app.user-service.uri:lb://user-service}") String userServiceUri,
                         @Value("${app.restaurant-service.uri:lb://restaurant-service}") String restaurantServiceUri,
@@ -48,6 +50,7 @@ public class GatewayRouteConfig {
                         @Value("${app.simulator-service.uri:lb://simulator-service}") String simulatorServiceUri,
                         @Value("${app.payment.client-api-enabled:false}") boolean paymentClientApiEnabled,
                         @Value("${app.livestream.client-api-enabled:false}") boolean livestreamClientApiEnabled) {
+                this.webBffServiceUri = webBffServiceUri;
                 this.authServiceUri = authServiceUri;
                 this.userServiceUri = userServiceUri;
                 this.restaurantServiceUri = restaurantServiceUri;
@@ -72,6 +75,10 @@ public class GatewayRouteConfig {
         public RouteLocator customRoutes(RouteLocatorBuilder builder) {
                 RouteLocatorBuilder.Builder routes = builder.routes();
                 routes
+                                // Browser-only cookie session boundary. The BFF performs its own
+                                // Origin, CSRF, session, and downstream allowlist enforcement.
+                                .route("web-bff-service", r -> r.path("/bff/**")
+                                                .uri(webBffServiceUri))
                                 // Public auth endpoints (no JWT required)
                                 .route("auth-service-jwks", r -> r.path("/.well-known/jwks.json")
                                                 .and().method(HttpMethod.GET)

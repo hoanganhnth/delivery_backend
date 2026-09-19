@@ -9,9 +9,9 @@
 
 | Repository | Stack | Primary audience | Supported boundary |
 | --- | --- | --- | --- |
-| `delivery_app/` | Flutter/Dart, Riverpod, Dio/Retrofit, Mapbox, Firebase | Customer | Gateway REST with bearer/refresh; Mapbox direct for maps; customer-facing order, profile, restaurant, search and notification flows |
-| `delivery_web/` | React 19, Vite, Axios, React Router, Tailwind, Firebase | Admin and restaurant owner | Gateway REST with bearer/refresh; admin/restaurant dashboard and management flows |
-| `shipper_app2/` | React Native 0.80, React 19, Redux Toolkit, Axios, Mapbox, Firebase Messaging | Shipper | Gateway REST and raw Gateway WebSocket with bearer; current-offer recovery and delivery lifecycle updates |
+| `delivery_app/` | Flutter/Dart, Riverpod, Dio/Retrofit, Mapbox, Firebase | Customer | Gateway REST with bearer/refresh held in native secure storage; Mapbox direct for maps; customer-facing order, profile, restaurant, search and notification flows |
+| `delivery_web/` | React 19, Vite, Axios, React Router, Tailwind, Firebase | Customer, admin and restaurant owner | Gateway `/bff/**` cookie session boundary; protected REST is proxied by Web BFF; public catalog/registration remain direct Gateway requests |
+| `shipper_app2/` | React Native 0.80, React 19, Redux Toolkit, Axios, Mapbox, Firebase Messaging | Shipper | Gateway REST and raw Gateway WebSocket with bearer held in native Keychain/Keystore storage; current-offer recovery and delivery lifecycle updates |
 
 None of the clients is allowed to call a backend service port, Config Server,
 Eureka, database, Kafka or an internal endpoint. All use the same canonical role
@@ -21,7 +21,7 @@ names: `USER`, `SHOP_OWNER`, `SHIPPER`, `ADMIN`.
 
 ```mermaid
 sequenceDiagram
-    participant App as Client app/browser
+    participant App as Native client
     participant G as API Gateway
     participant R as Resource service
     participant A as Auth
@@ -47,6 +47,8 @@ Rules:
   authority for role/ownership. Browser/mobile code never sends trust headers.
 - After refresh/revoke/login failure, clear local session state and take the
   user to the supported login path rather than retrying indefinitely.
+- These bearer rules apply to native clients. The browser uses the BFF flow
+  below and must not read or send Delivery bearer tokens.
 
 ## Customer Flutter app
 
@@ -91,7 +93,12 @@ contracts instead of embedding arbitrary backend URL strings.
 ### Runtime contract
 
 - `VITE_API_BASE_URL` is a Gateway origin.
-- Axios adds bearer token and performs one coordinated refresh operation.
+- Login/session calls use `/bff/session/**`; protected `/api/**` calls are
+  rewritten to `/bff/api/**`. Axios sends cookies and a CSRF header for
+  mutations, never a browser-supplied Authorization header.
+- The BFF owns encrypted bearer tokens and coordinated refresh. Browser storage
+  may cache non-secret profile data only; legacy access/refresh keys are deleted
+  without migration.
 - SHOP_OWNER actions use the canonical Restaurant order decision endpoints;
   the service verifies actual restaurant ownership.
 - Web admin pages must not expose disabled payment/refund mutation, analytics or
@@ -123,6 +130,10 @@ port 8079.
 FCM availability, background execution and a device's socket connectivity are
 not guarantees. REST current-offer/current-delivery state must let the app
 recover after a process kill or missed push.
+
+Native access/refresh token pairs are stored as one secure credential. Legacy
+AsyncStorage token keys are purged without import; user display data and the
+stable device ID may remain in AsyncStorage.
 
 ## Cross-repository contract change checklist
 

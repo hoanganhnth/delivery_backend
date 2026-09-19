@@ -64,6 +64,11 @@ services:
     ports: !override
       - "127.0.0.1::8079"
 
+  web-bff-service:
+    container_name: !reset null
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xmx160m -Xms48m"
+
   auth-service:
     container_name: !reset null
     environment:

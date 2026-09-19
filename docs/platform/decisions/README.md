@@ -18,6 +18,7 @@ documents here as real choices are accepted, then index them in this file.
 | [0003](./0003-voucher-flashsale-checkout-policy.md) | Accepted | Voucher And Flash-Sale Checkout Policy |
 | [0004](./0004-shipper-feature-first-mvvm-architecture.md) | Accepted | Shipper Feature-First MVVM Architecture |
 | [0005](./0005-matching-algorithm-decision-trace.md) | Accepted | Matching Algorithm Decision Trace |
+| [0006](./0006-web-bff-session-boundary.md) | Accepted | Web BFF Session Boundary |
 
 ## Upstream Current Decisions
 

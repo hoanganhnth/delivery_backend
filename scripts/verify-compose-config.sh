@@ -4,6 +4,12 @@ set -euo pipefail
 command -v docker >/dev/null
 command -v jq >/dev/null
 
+# Every discovery-enabled service must consume the Compose-provided registry
+# URL. Merely rendering EUREKA_DEFAULT_ZONE in Compose is insufficient when a
+# service does not bind that variable into Spring's Eureka configuration.
+rg -Fq 'eureka.client.service-url.defaultZone=${EUREKA_DEFAULT_ZONE:http://discovery-server:8761/eureka/}' \
+  web-bff-service/src/main/resources/application.properties
+
 # Contract rendering references an ignored operator-owned secret file. The
 # renderer never reads this placeholder; a real Compose startup requires it.
 if [[ -z "${INTERNAL_SECRET_FILE:-}" ]]; then

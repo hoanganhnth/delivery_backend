@@ -24,6 +24,7 @@ PRIVATE_KEY_FILE="${SECRETS_DIR}/jwt-private.pem"
 PUBLIC_KEY_FILE="${SECRETS_DIR}/jwt-public.pem"
 INTERNAL_SECRET_FILE="${SECRETS_DIR}/internal-secret"
 DB_PASSWORD_FILE="${SECRETS_DIR}/db-password"
+WEB_BFF_ENCRYPTION_KEY_FILE="${SECRETS_DIR}/web-bff-encryption-key"
 ENV_FILE=".env"
 ROTATE_JWT_KEYS="${ROTATE_JWT_KEYS:-false}"
 
@@ -67,6 +68,10 @@ if [[ ! -s "$DB_PASSWORD_FILE" ]]; then
   printf '%s\n' "${legacy_db_password:-$(openssl rand -hex 24)}" > "$DB_PASSWORD_FILE"
   chmod 600 "$DB_PASSWORD_FILE"
 fi
+if [[ ! -s "$WEB_BFF_ENCRYPTION_KEY_FILE" ]]; then
+  openssl rand -base64 -out "$WEB_BFF_ENCRYPTION_KEY_FILE" 32
+  chmod 600 "$WEB_BFF_ENCRYPTION_KEY_FILE"
+fi
 if ! grep -q '^GRAFANA_ADMIN_PASSWORD=' "$ENV_FILE"; then
   printf 'GRAFANA_ADMIN_PASSWORD=%s\n' "$(openssl rand -hex 24)" >> "$ENV_FILE"
 fi
@@ -82,12 +87,16 @@ fi
 if ! grep -q '^DB_PASSWORD_FILE=' "$ENV_FILE"; then
   printf 'DB_PASSWORD_FILE=%s\n' "$DB_PASSWORD_FILE" >> "$ENV_FILE"
 fi
+if ! grep -q '^WEB_BFF_ENCRYPTION_KEY_FILE=' "$ENV_FILE"; then
+  printf 'WEB_BFF_ENCRYPTION_KEY_FILE=%s\n' "$WEB_BFF_ENCRYPTION_KEY_FILE" >> "$ENV_FILE"
+fi
 
 echo "✅ Đã ghi:"
 echo "   - $PRIVATE_KEY_FILE       (PKCS#8, private; Docker secret only)"
 echo "   - $PUBLIC_KEY_FILE        (X.509 public; Docker secret only)"
 echo "   - $INTERNAL_SECRET_FILE   (service credential; Docker secret only)"
 echo "   - $DB_PASSWORD_FILE       (database password; Docker secret only)"
+echo "   - $WEB_BFF_ENCRYPTION_KEY_FILE (Web session AES-256 key; Docker secret only)"
 echo "   - $ENV_FILE               (local paths and generated placeholders, không ghi đè)"
 echo
 echo "⚠️  Khóa này chỉ nằm ở máy local (đã .gitignore). Đừng commit."

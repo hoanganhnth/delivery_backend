@@ -30,7 +30,8 @@ if git grep -n -I -E -e \
 fi
 
 if ! rg -q '^INTERNAL_SECRET_FILE=\./\.secrets/internal-secret$' .env.example \
-    || ! rg -q '^DB_PASSWORD_FILE=\./\.secrets/db-password$' .env.example; then
+    || ! rg -q '^DB_PASSWORD_FILE=\./\.secrets/db-password$' .env.example \
+    || ! rg -q '^WEB_BFF_ENCRYPTION_KEY_FILE=\./\.secrets/web-bff-encryption-key$' .env.example; then
   echo ".env.example must contain only secret file placeholders." >&2
   exit 1
 fi

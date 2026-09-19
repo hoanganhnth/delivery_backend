@@ -15,3 +15,4 @@ CREATE DATABASE promotion_db;
 CREATE DATABASE analytics_db;
 CREATE DATABASE flashsale_db;
 CREATE DATABASE simulator_db;
+CREATE DATABASE web_bff_db;

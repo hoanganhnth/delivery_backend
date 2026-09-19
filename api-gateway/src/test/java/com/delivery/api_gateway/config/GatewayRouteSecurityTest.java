@@ -29,6 +29,10 @@ class GatewayRouteSecurityTest {
 
         assertThat(routes).isNotNull();
         assertThat(routes).doesNotContainKey("match-service");
+        assertThat(routes.get("web-bff-service")).isNotNull();
+        assertThat(matches(routes, HttpMethod.POST, "/bff/session/login")).isTrue();
+        assertThat(matches(routes, HttpMethod.GET, "/bff/api/users")).isTrue();
+        assertThat(matches(routes, HttpMethod.GET, "/bff-internal/session")).isFalse();
 
         Route authPublic = routes.get("auth-service-public");
         assertThat(authPublic).isNotNull();

@@ -178,10 +178,33 @@ services:
       REDIS_HOST: redis
       PAYMENT_CLIENT_API_ENABLED: "false"
       APP_CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:3000,http://localhost:4173,http://127.0.0.1:5173,http://127.0.0.1:3000,http://127.0.0.1:4173}
+      WEB_BFF_SERVICE_URI: http://web-bff-service:8091
     deploy: { resources: { limits: { memory: 512M } } }
     depends_on:
       <<: *control-plane-depends-on
       redis: { condition: service_healthy }
+    networks: [delivery-network]
+
+  web-bff-service:
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: web-bff-service } }
+    container_name: web-bff-service
+    expose: ["8091", "9090"]
+    environment:
+      <<: [*tracing-environment, *runtime-platform-environment]
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/web_bff_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      WEB_BFF_GATEWAY_BASE_URL: http://api-gateway:8079
+      WEB_BFF_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:3000,http://localhost:4173,http://127.0.0.1:5173,http://127.0.0.1:3000,http://127.0.0.1:4173}
+      JAVA_TOOL_OPTIONS: "-Xmx256m -Xms128m"
+    deploy: { resources: { limits: { memory: 384M } } }
+    secrets:
+      - source: db-password
+        target: spring.datasource.password
+      - source: web-bff-encryption-key
+        target: web-bff.encryption-key-base64
+    depends_on:
+      <<: *control-plane-depends-on
+      postgres: { condition: service_healthy }
     networks: [delivery-network]
 
   auth-service:
@@ -722,3 +745,5 @@ secrets:
     file: ${INTERNAL_SECRET_FILE:?INTERNAL_SECRET_FILE must point to an operator-owned secret file}
   db-password:
     file: ${DB_PASSWORD_FILE:?DB_PASSWORD_FILE must point to an operator-owned database password file}
+  web-bff-encryption-key:
+    file: ${WEB_BFF_ENCRYPTION_KEY_FILE:?WEB_BFF_ENCRYPTION_KEY_FILE must point to a base64-encoded 256-bit key file}

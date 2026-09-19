@@ -31,8 +31,9 @@ Firebase Auth/custom-token/Firestore rules chưa có proof.
 
 ### delivery_web/ — Web admin & nhà hàng (React + Vite + Firebase)
 Admin: quản trị nhà hàng/menu/user/shipper/đơn/rating/withdrawal và dashboard.
-Web dùng canonical Gateway action contracts; không dùng STOMP/SockJS hoặc direct
-service ports. Chat/Firebase graph đã được hide khỏi MVP. Nhà hàng: dashboard
+Web dùng cookie session qua Gateway `/bff/**` và Web BFF; bearer token được mã
+hóa phía server, không nằm trong browser storage. Web không dùng STOMP/SockJS
+hoặc direct service ports. Chat/Firebase graph đã được hide khỏi MVP. Nhà hàng: dashboard
 doanh thu, flash sale, coupon, quản lý menu.
 
 ### shipper_app2/ — App shipper (React Native)
@@ -86,10 +87,11 @@ phải đồng bộ ở nhiều nơi, nên dùng plan cấp hệ thống trong `
 - **Kafka event contract**: đổi field event ở backend phải cập nhật consumer
   tương ứng; các app đọc qua REST/WebSocket nên ít ảnh hưởng, nhưng payload
   WebSocket (delivery status, shipper location) thì cả app + web phụ thuộc.
-- **Auth**: cả 3 client gửi Bearer token qua Gateway, nhưng Auth phát JWT/JWKS
-  và từng resource service tự kiểm RS256, kid, issuer, audience, token type, role
-  và ownership. Public password registration là hai request: Auth identity trước,
-  rồi User profile với provisioning token opaque.
+- **Auth**: Flutter và React Native gửi Bearer token từ native secure storage;
+  Web gửi opaque HttpOnly cookie đến BFF, BFF mới gắn Bearer khi proxy qua
+  Gateway. Auth vẫn phát JWT/JWKS và từng resource service tự kiểm RS256, kid,
+  issuer, audience, token type, role và ownership. Public password registration
+  là hai request: Auth identity trước, rồi User profile với provisioning token opaque.
 - **Role naming**: backend canonical dùng `SHOP_OWNER`, `USER`, `SHIPPER`,
   `ADMIN` giữa backend và các client.
 - **Thông báo**: durable inbox và FCM wake-up giữ nguyên contract. Preference

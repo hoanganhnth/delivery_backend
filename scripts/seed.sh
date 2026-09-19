@@ -21,6 +21,7 @@ RUN_SUFFIX="${RUN_ID: -8}"
 SEED_OUTPUT_FILE="${SEED_OUTPUT_FILE:-}"
 SEED_SKIP_OFFLINE_PREVIOUS_SHIPPERS="${SEED_SKIP_OFFLINE_PREVIOUS_SHIPPERS:-false}"
 SEED_SKIP_SHIPPER="${SEED_SKIP_SHIPPER:-false}"
+SEED_SKIP_OUTSIDER="${SEED_SKIP_OUTSIDER:-false}"
 SEED_AUTH_DIRECT_LOGIN="${SEED_AUTH_DIRECT_LOGIN:-false}"
 SEED_SIMULATION_ACTORS="${SEED_SIMULATION_ACTORS:-false}"
 SIMULATION_COHORT_ID="${SIMULATION_COHORT_ID:-$(uuidgen | tr '[:upper:]' '[:lower:]')}"
@@ -68,6 +69,10 @@ fi
 
 [[ "$SEED_SKIP_SHIPPER" == "true" || "$SEED_SKIP_SHIPPER" == "false" ]] || {
   echo "SEED_SKIP_SHIPPER must be true or false" >&2
+  exit 2
+}
+[[ "$SEED_SKIP_OUTSIDER" == "true" || "$SEED_SKIP_OUTSIDER" == "false" ]] || {
+  echo "SEED_SKIP_OUTSIDER must be true or false" >&2
   exit 2
 }
 [[ "$SEED_SHIPPER_COUNT" =~ ^[1-9][0-9]*$ ]] || {
@@ -156,13 +161,18 @@ login() { # email deviceId -> echoes accessToken
     # Sandbox fixture bootstrap only: retain Auth's real login and JWT issuance
     # while avoiding the public Gateway fixed-window shared by a large actor
     # cohort. Simulator traffic itself always goes through Gateway.
-    local attempt response token request_body
+    local attempt response token request_body last_failure='empty response'
     request_body="$(jq -nc --arg email "$1" --arg password "$PASS" --arg device_id "$2" \
       '{email:$email,password:$password,deviceId:$device_id,deviceName:"MVP seed",deviceType:"WEB"}')"
     # Auth only permits login after the User profile-created event has linked
     # the newly registered identity.  The public path already retries; direct
     # sandbox fixture login must wait for the same asynchronous convergence.
-    for attempt in $(seq 1 20); do
+    # A clean sandbox starts Kafka consumers, User's outbox relay and Auth's
+    # profile-link consumer at nearly the same time.  Under a cold Docker host
+    # their first poll/rebalance can take longer than the old 20-second budget;
+    # wait for the real ACTIVE lifecycle rather than treating that convergence
+    # as a failed credential.
+    for attempt in $(seq 1 60); do
       response="$("${COMPOSE_COMMAND[@]}" exec -T auth-service wget -qO- \
         --header='Content-Type: application/json' \
         --post-data="$request_body" \
@@ -172,8 +182,11 @@ login() { # email deviceId -> echoes accessToken
         printf '%s\n' "$token"
         return 0
       fi
+      last_failure="$(jq -r '.message // .error // .data.message // "invalid login response"' <<< "$response" 2>/dev/null || printf '%s' 'invalid login response')"
       sleep 1
     done
+    printf '❌ Auth fixture login did not issue an access token for %s after %s attempts: %s\n' \
+      "$1" "$attempt" "$last_failure" >&2
     return 1
   fi
   curl "${CURL_RETRY_ARGS[@]}" --fail-with-body --silent --show-error \
@@ -229,11 +242,17 @@ CUST_TOKEN="$(login "$CUST_EMAIL" "seed-$RUN_ID-customer")"
 echo "✅ Khách: $CUST_EMAIL (token ${CUST_TOKEN:+ok})"
 
 # Khách không liên quan dùng để khóa participant authorization của raw WebSocket.
-OUTSIDER_EMAIL="outsider+$RUN_ID@test.dev"
-register "$OUTSIDER_EMAIL" "$ROLE_CUSTOMER"
-OUTSIDER_TOKEN="$(login "$OUTSIDER_EMAIL" "seed-$RUN_ID-outsider")"
-[[ -n "$OUTSIDER_TOKEN" ]] || { echo "❌ Login outsider không trả access token"; exit 1; }
-echo "✅ Khách ngoài delivery: $OUTSIDER_EMAIL (token ${OUTSIDER_TOKEN:+ok})"
+OUTSIDER_EMAIL=""
+OUTSIDER_TOKEN=""
+if [[ "$SEED_SKIP_OUTSIDER" == "true" ]]; then
+  echo "SEED_SKIP_OUTSIDER=true — bỏ qua outsider fixture chỉ dùng cho WebSocket authorization."
+else
+  OUTSIDER_EMAIL="outsider+$RUN_ID@test.dev"
+  register "$OUTSIDER_EMAIL" "$ROLE_CUSTOMER"
+  OUTSIDER_TOKEN="$(login "$OUTSIDER_EMAIL" "seed-$RUN_ID-outsider")"
+  [[ -n "$OUTSIDER_TOKEN" ]] || { echo "❌ Login outsider không trả access token"; exit 1; }
+  echo "✅ Khách ngoài delivery: $OUTSIDER_EMAIL (token ${OUTSIDER_TOKEN:+ok})"
+fi
 
 # --- 2. Chủ nhà hàng + nhà hàng + menu ---
 OWNER_EMAIL="owner+$RUN_ID@test.dev"
@@ -333,6 +352,8 @@ if [[ -n "$SEED_OUTPUT_FILE" ]]; then
   jq -n \
     --arg runId "$RUN_ID" \
     --arg simulationCohortId "$SIMULATION_COHORT_ID" \
+    --arg customerEmail "$CUST_EMAIL" \
+    --arg ownerEmail "$OWNER_EMAIL" \
     --arg customerToken "$CUST_TOKEN" \
     --arg outsiderToken "$OUTSIDER_TOKEN" \
     --arg ownerToken "$OWNER_TOKEN" \
@@ -349,6 +370,7 @@ if [[ -n "$SEED_OUTPUT_FILE" ]]; then
     --argjson customerLng "$CUSTOMER_LNG" \
     --argjson menuPrice "$MENU_PRICE" \
     '{runId: $runId, simulationCohortId: $simulationCohortId,
+      customerEmail: $customerEmail, ownerEmail: $ownerEmail,
       customerToken: $customerToken, outsiderToken: $outsiderToken,
       ownerToken: $ownerToken,
       shipperToken: $shipperToken, restaurantId: $restaurantId,
