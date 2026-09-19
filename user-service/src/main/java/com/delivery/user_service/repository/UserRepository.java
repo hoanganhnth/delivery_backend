@@ -8,12 +8,37 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.repository.query.Param;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
 
 import jakarta.persistence.LockModeType;
 
 import com.delivery.user_service.entity.User;
 
 public interface UserRepository extends JpaRepository<User, Long> {
+    @Modifying
+    @Query(value = """
+            INSERT INTO users (
+                auth_id, principal_id, email, role, full_name, phone, dob,
+                avatar_url, address, is_active, is_blocked, identity_status,
+                identity_status_version, created_at, updated_at
+            ) VALUES (
+                :authId, :principalId, :email, :role, :fullName, :phone, :dob,
+                :avatarUrl, :address, true, false, 'ACTIVE', 0,
+                current_timestamp, current_timestamp
+            ) ON CONFLICT DO NOTHING
+            """, nativeQuery = true)
+    int insertProvisionedUserIfAbsent(
+            @Param("authId") Long authId,
+            @Param("principalId") Long principalId,
+            @Param("email") String email,
+            @Param("role") String role,
+            @Param("fullName") String fullName,
+            @Param("phone") String phone,
+            @Param("dob") java.time.LocalDate dob,
+            @Param("avatarUrl") String avatarUrl,
+            @Param("address") String address);
+
     Optional<User> findByAuthId(Long authId);
 
     Optional<User> findByPrincipalId(Long principalId);

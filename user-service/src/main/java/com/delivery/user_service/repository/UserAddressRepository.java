@@ -20,4 +20,12 @@ public interface UserAddressRepository extends JpaRepository<UserAddress, Long> 
     @Transactional
     @Query("UPDATE UserAddress ua SET ua.isDefault = false WHERE ua.userId = :userId")
     void resetDefaultAddressesForUser(@Param("userId") Long userId);
+
+    @Modifying
+    @Transactional
+    @Query("UPDATE UserAddress ua SET ua.isDefault = false "
+            + "WHERE ua.userId = :userId AND ua.id <> :addressId")
+    void resetDefaultAddressesForUserExcept(
+            @Param("userId") Long userId,
+            @Param("addressId") Long addressId);
 }

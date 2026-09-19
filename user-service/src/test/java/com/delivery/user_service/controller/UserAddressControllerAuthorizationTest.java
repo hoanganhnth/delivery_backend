@@ -16,6 +16,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 
 class UserAddressControllerAuthorizationTest {
 
@@ -56,14 +58,14 @@ class UserAddressControllerAuthorizationTest {
         UserAddressRequest request = new UserAddressRequest();
         UserAddressResponse address = UserAddressResponse.builder().id(7L).userId(11L).build();
         when(addressService.getAddressById(7L)).thenReturn(address);
-        when(addressService.updateAddress(7L, request)).thenReturn(address);
+        when(addressService.updateAddress(eq(7L), eq(request), any())).thenReturn(address);
         AuthenticatedActor actor = new AuthenticatedActor(11L, "user@example.com", Set.of("USER"));
         profile(11L, 11L);
 
         var response = controller.updateAddress(7L, request, actor);
 
         assertThat(response.getStatusCode().is2xxSuccessful()).isTrue();
-        verify(addressService).updateAddress(7L, request);
+        verify(addressService).updateAddress(eq(7L), eq(request), any());
     }
 
     @Test
@@ -84,6 +86,6 @@ class UserAddressControllerAuthorizationTest {
         var response = controller.deleteAddress(7L, actor);
 
         assertThat(response.getStatusCode().is2xxSuccessful()).isTrue();
-        verify(addressService).deleteAddress(7L);
+        verify(addressService).deleteAddress(eq(7L), any());
     }
 }

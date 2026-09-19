@@ -50,17 +50,34 @@ class UserServiceProvisioningTest {
         UserRequest request = request(42L, "user@example.com", "USER");
         when(repository.findByPrincipalId(42L)).thenReturn(Optional.empty());
         when(repository.findByEmailIgnoreCase("user@example.com")).thenReturn(Optional.empty());
-        when(repository.saveAndFlush(org.mockito.ArgumentMatchers.any(User.class)))
-                .thenAnswer(invocation -> {
-                    User user = invocation.getArgument(0);
-                    ReflectionTestUtils.setField(user, "id", 7L);
-                    return user;
-                });
+        when(repository.insertProvisionedUserIfAbsent(
+                42L, 42L, "user@example.com", "USER", null, null, null, null, null))
+                .thenReturn(1);
+        when(repository.findByPrincipalId(42L)).thenReturn(Optional.of(
+                provisionedUser(7L, 42L, "user@example.com", "USER")));
 
         var result = service.createUser(request);
 
         assertThat(result.getId()).isEqualTo(7L);
         assertThat(result.getAuthId()).isEqualTo(42L);
+    }
+
+    @Test
+    void concurrentDuplicateProvisioningReturnsTheDatabaseWinner() {
+        UserRequest request = request(42L, "user@example.com", "USER");
+        User winner = provisionedUser(7L, 42L, "user@example.com", "USER");
+        when(repository.findByPrincipalId(42L))
+                .thenReturn(Optional.empty(), Optional.of(winner));
+        when(repository.findByEmailIgnoreCase("user@example.com")).thenReturn(Optional.empty());
+        when(repository.insertProvisionedUserIfAbsent(
+                42L, 42L, "user@example.com", "USER", null, null, null, null, null))
+                .thenReturn(0);
+
+        var result = service.createUser(request);
+
+        assertThat(result.getId()).isEqualTo(7L);
+        verify(repository).insertProvisionedUserIfAbsent(
+                42L, 42L, "user@example.com", "USER", null, null, null, null, null);
     }
 
     @Test
@@ -72,7 +89,12 @@ class UserServiceProvisioningTest {
         assertThatThrownBy(() -> service.createUser(request(99L, "USER@example.com", "USER")))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("409 CONFLICT");
-        verify(repository, never()).saveAndFlush(org.mockito.ArgumentMatchers.any());
+        verify(repository, never()).insertProvisionedUserIfAbsent(
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any());
     }
 
     @Test

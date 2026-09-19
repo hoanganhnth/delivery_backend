@@ -27,13 +27,16 @@ public class V3__enforce_user_auth_principal_identity extends BaseJavaMigration 
         }
         if (!constraintExists(connection)) {
             try (Statement statement = connection.createStatement()) {
-                statement.execute("ALTER TABLE users ADD CONSTRAINT " + CONSTRAINT
-                        + " CHECK (auth_id = principal_id) NOT VALID");
-                // PostgreSQL validates a NOT VALID check with a weaker lock
-                // than adding an immediately validated constraint. The
-                // preceding count remains a clear remediation error, while
-                // VALIDATE closes the race with concurrent legacy writers.
-                statement.execute("ALTER TABLE users VALIDATE CONSTRAINT " + CONSTRAINT);
+                if (isPostgres(connection)) {
+                    statement.execute("ALTER TABLE users ADD CONSTRAINT " + CONSTRAINT
+                            + " CHECK (auth_id = principal_id) NOT VALID");
+                    // PostgreSQL validates a NOT VALID check with a weaker lock
+                    // than adding an immediately validated constraint.
+                    statement.execute("ALTER TABLE users VALIDATE CONSTRAINT " + CONSTRAINT);
+                } else {
+                    statement.execute("ALTER TABLE users ADD CONSTRAINT " + CONSTRAINT
+                            + " CHECK (auth_id = principal_id)");
+                }
             }
         }
     }
@@ -49,11 +52,17 @@ public class V3__enforce_user_auth_principal_identity extends BaseJavaMigration 
 
     private static boolean constraintExists(Connection connection) throws Exception {
         try (var statement = connection.prepareStatement(
-                "SELECT 1 FROM pg_constraint WHERE conname = ? AND conrelid = 'users'::regclass")) {
+                "SELECT 1 FROM information_schema.table_constraints "
+                        + "WHERE constraint_name = ? AND table_name = 'users'")) {
             statement.setString(1, CONSTRAINT);
             try (ResultSet result = statement.executeQuery()) {
                 return result.next();
             }
         }
+    }
+
+    private static boolean isPostgres(Connection connection) throws Exception {
+        return connection.getMetaData().getDatabaseProductName()
+                .toLowerCase(java.util.Locale.ROOT).contains("postgresql");
     }
 }

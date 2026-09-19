@@ -26,10 +26,13 @@ public class UserAddressController {
     public ResponseEntity<BaseResponse<List<UserAddressResponse>>> getUserAddresses(
             @PathVariable Long userId,
             @AuthenticationPrincipal AuthenticatedActor actor) {
-        if (!isSelfOrAdmin(userId, actor)) {
+        List<UserAddressResponse> addresses;
+        if (!isSelfOrAdmin(userId, actor)) return forbidden();
+        try {
+            addresses = addressService.getAllAddressesByUser(userId, actor);
+        } catch (org.springframework.web.server.ResponseStatusException denied) {
             return forbidden();
         }
-        List<UserAddressResponse> addresses = addressService.getAllAddressesByUser(userId);
         return ResponseEntity.ok(new BaseResponse<>(1, addresses));
     }
 
@@ -37,8 +40,12 @@ public class UserAddressController {
     public ResponseEntity<BaseResponse<UserAddressResponse>> getAddress(
             @PathVariable Long id,
             @AuthenticationPrincipal AuthenticatedActor actor) {
-        UserAddressResponse address = addressService.getAddressById(id);
-        if (!isSelfOrAdmin(address.getUserId(), actor)) {
+        UserAddressResponse address;
+        UserAddressResponse existing = addressService.getAddressById(id);
+        if (!isSelfOrAdmin(existing.getUserId(), actor)) return forbidden();
+        try {
+            address = addressService.getAddressById(id, actor);
+        } catch (org.springframework.web.server.ResponseStatusException denied) {
             return forbidden();
         }
         return ResponseEntity.ok(new BaseResponse<>(1, address));
@@ -49,10 +56,13 @@ public class UserAddressController {
             @PathVariable Long userId,
             @Valid @RequestBody UserAddressRequest request,
             @AuthenticationPrincipal AuthenticatedActor actor) {
-        if (!isSelfOrAdmin(userId, actor)) {
+        UserAddressResponse address;
+        if (!isSelfOrAdmin(userId, actor)) return forbidden();
+        try {
+            address = addressService.createAddress(userId, request, actor);
+        } catch (org.springframework.web.server.ResponseStatusException denied) {
             return forbidden();
         }
-        UserAddressResponse address = addressService.createAddress(userId, request);
         return ResponseEntity.ok(new BaseResponse<>(1, address));
     }
 
@@ -61,11 +71,14 @@ public class UserAddressController {
             @PathVariable Long id,
             @Valid @RequestBody UserAddressRequest request,
             @AuthenticationPrincipal AuthenticatedActor actor) {
+        UserAddressResponse address;
         UserAddressResponse existing = addressService.getAddressById(id);
-        if (!isSelfOrAdmin(existing.getUserId(), actor)) {
+        if (!isSelfOrAdmin(existing.getUserId(), actor)) return forbidden();
+        try {
+            address = addressService.updateAddress(id, request, actor);
+        } catch (org.springframework.web.server.ResponseStatusException denied) {
             return forbidden();
         }
-        UserAddressResponse address = addressService.updateAddress(id, request);
         return ResponseEntity.ok(new BaseResponse<>(1, address));
     }
 
@@ -73,12 +86,17 @@ public class UserAddressController {
     public ResponseEntity<BaseResponse<Void>> deleteAddress(
             @PathVariable Long id,
             @AuthenticationPrincipal AuthenticatedActor actor) {
-        UserAddressResponse existing = addressService.getAddressById(id);
-        if (!isSelfOrAdmin(existing.getUserId(), actor)) {
+        try {
+            UserAddressResponse existing = addressService.getAddressById(id);
+            if (!isSelfOrAdmin(existing.getUserId(), actor)) {
+                return ResponseEntity.status(403)
+                        .body(new BaseResponse<>(0, null, "Bạn không có quyền truy cập địa chỉ này"));
+            }
+            addressService.deleteAddress(id, actor);
+        } catch (org.springframework.web.server.ResponseStatusException denied) {
             return ResponseEntity.status(403)
                     .body(new BaseResponse<>(0, null, "Bạn không có quyền truy cập địa chỉ này"));
         }
-        addressService.deleteAddress(id);
         return ResponseEntity.ok(new BaseResponse<>(1, null, "Xóa địa chỉ thành công"));
     }
 
@@ -86,26 +104,21 @@ public class UserAddressController {
     public ResponseEntity<BaseResponse<UserAddressResponse>> setDefault(
             @PathVariable Long id,
             @AuthenticationPrincipal AuthenticatedActor actor) {
+        UserAddressResponse address;
         UserAddressResponse existing = addressService.getAddressById(id);
-        if (!isSelfOrAdmin(existing.getUserId(), actor)) {
+        if (!isSelfOrAdmin(existing.getUserId(), actor)) return forbidden();
+        try {
+            address = addressService.setDefaultAddress(id, actor);
+        } catch (org.springframework.web.server.ResponseStatusException denied) {
             return forbidden();
         }
-        UserAddressResponse address = addressService.setDefaultAddress(id);
         return ResponseEntity.ok(new BaseResponse<>(1, address));
     }
 
     private boolean isSelfOrAdmin(Long ownerId, AuthenticatedActor actor) {
-        if (actor == null) {
-            return false;
-        }
-        if (actor.isAdmin()) {
-            return true;
-        }
-        if (!actor.isUser() || actor.getPrincipalId() == null || ownerId == null) {
-            return false;
-        }
-        // Address rows stay keyed by profile ID. Resolve that profile inside the
-        // service that owns it instead of trusting the migration-era JWT subject.
+        if (actor == null) return false;
+        if (actor.isAdmin()) return true;
+        if (!actor.isUser() || actor.getPrincipalId() == null || ownerId == null) return false;
         return ownerId.equals(userService.getUserByPrincipalId(actor.getPrincipalId()).getId());
     }
 

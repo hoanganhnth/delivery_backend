@@ -131,13 +131,23 @@ class UserFlywayMigrationTest {
     }
 
     private long insertUser(Statement statement, long authId, String email) throws Exception {
+        String identityColumn = hasColumn(statement.getConnection(), "users", "principal_id")
+                ? ", principal_id"
+                : "";
+        String identityValue = identityColumn.isEmpty() ? "" : ", " + authId;
         statement.executeUpdate("""
-                INSERT INTO users (auth_id, email, role, is_active, is_blocked, created_at, updated_at)
-                VALUES (%d, '%s', 'USER', true, false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                """.formatted(authId, email), Statement.RETURN_GENERATED_KEYS);
+                INSERT INTO users (auth_id, email, role, is_active, is_blocked, created_at, updated_at%s)
+                VALUES (%d, '%s', 'USER', true, false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP%s)
+                """.formatted(identityColumn, authId, email, identityValue), Statement.RETURN_GENERATED_KEYS);
         try (ResultSet keys = statement.getGeneratedKeys()) {
             assertThat(keys.next()).isTrue();
             return keys.getLong(1);
+        }
+    }
+
+    private boolean hasColumn(Connection connection, String table, String column) throws Exception {
+        try (ResultSet columns = connection.getMetaData().getColumns(null, null, table, column)) {
+            return columns.next();
         }
     }
 

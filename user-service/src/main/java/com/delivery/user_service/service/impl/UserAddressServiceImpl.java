@@ -2,6 +2,7 @@ package com.delivery.user_service.service.impl;
 
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.Objects;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -12,9 +13,11 @@ import org.springframework.data.domain.PageRequest;
 import com.delivery.user_service.dto.UserAddressRequest;
 import com.delivery.user_service.dto.UserAddressResponse;
 import com.delivery.user_service.entity.UserAddress;
+import com.delivery.user_service.entity.User;
 import com.delivery.user_service.repository.UserAddressRepository;
 import com.delivery.user_service.repository.UserRepository;
 import com.delivery.user_service.service.UserAddressService;
+import com.delivery.auth.resourceserver.security.AuthenticatedActor;
 
 import lombok.RequiredArgsConstructor;
 
@@ -54,10 +57,23 @@ public class UserAddressServiceImpl implements UserAddressService {
     }
 
     @Override
+    public List<UserAddressResponse> getAllAddressesByUser(Long userId, AuthenticatedActor actor) {
+        requireAccess(userId, actor);
+        return getAllAddressesByUser(userId);
+    }
+
+    @Override
     public UserAddressResponse getAddressById(Long id) {
         UserAddress address = addressRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Address not found"));
         return toDto(address);
+    }
+
+    @Override
+    public UserAddressResponse getAddressById(Long id, AuthenticatedActor actor) {
+        UserAddressResponse address = getAddressById(id);
+        requireAccess(address.getUserId(), actor);
+        return address;
     }
 
     @Override
@@ -89,6 +105,12 @@ public class UserAddressServiceImpl implements UserAddressService {
     }
 
     @Override
+    public UserAddressResponse createAddress(Long userId, UserAddressRequest req, AuthenticatedActor actor) {
+        requireAccess(userId, actor);
+        return createAddress(userId, req);
+    }
+
+    @Override
     @Transactional
     public UserAddressResponse updateAddress(Long id, UserAddressRequest req) {
         UserAddress address = addressRepository.findById(id)
@@ -110,13 +132,20 @@ public class UserAddressServiceImpl implements UserAddressService {
         Boolean isDefault = req.getIsDefault();
         if (isDefault != null && isDefault) {
             // Nếu đặt làm mặc định, reset tất cả địa chỉ khác về false
-            addressRepository.resetDefaultAddressesForUser(address.getUserId());
+            addressRepository.resetDefaultAddressesForUserExcept(address.getUserId(), address.getId());
             address.setIsDefault(true);
         } else if (isDefault != null) {
             address.setIsDefault(isDefault);
         }
 
         return toDto(addressRepository.save(address));
+    }
+
+    @Override
+    public UserAddressResponse updateAddress(Long id, UserAddressRequest req, AuthenticatedActor actor) {
+        UserAddressResponse existing = getAddressById(id);
+        requireAccess(existing.getUserId(), actor);
+        return updateAddress(id, req);
     }
 
     @Override
@@ -142,6 +171,13 @@ public class UserAddressServiceImpl implements UserAddressService {
     }
 
     @Override
+    public void deleteAddress(Long id, AuthenticatedActor actor) {
+        UserAddressResponse existing = getAddressById(id);
+        requireAccess(existing.getUserId(), actor);
+        deleteAddress(id);
+    }
+
+    @Override
     @Transactional
     public UserAddressResponse setDefaultAddress(Long id) {
         UserAddress address = addressRepository.findById(id)
@@ -149,13 +185,37 @@ public class UserAddressServiceImpl implements UserAddressService {
         lockUser(address.getUserId());
 
         // Reset tất cả địa chỉ của user về isDefault = false
-        addressRepository.resetDefaultAddressesForUser(address.getUserId());
+        addressRepository.resetDefaultAddressesForUserExcept(address.getUserId(), address.getId());
 
         // Set địa chỉ này là mặc định
         address.setIsDefault(true);
         addressRepository.save(address);
 
         return toDto(address);
+    }
+
+    @Override
+    public UserAddressResponse setDefaultAddress(Long id, AuthenticatedActor actor) {
+        UserAddressResponse existing = getAddressById(id);
+        requireAccess(existing.getUserId(), actor);
+        return setDefaultAddress(id);
+    }
+
+    private void requireAccess(Long ownerId, AuthenticatedActor actor) {
+        if (actor == null) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Authenticated actor is required");
+        }
+        if (actor.isAdmin()) {
+            return;
+        }
+        if (!actor.isUser() || actor.getPrincipalId() == null) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Actor cannot access user addresses");
+        }
+        User owner = userRepository.findByPrincipalId(actor.getPrincipalId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "User profile not found"));
+        if (!Objects.equals(owner.getId(), ownerId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Actor cannot access this address");
+        }
     }
 
     private void lockUser(Long userId) {

@@ -2,7 +2,6 @@ package com.delivery.user_service.service.impl;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.transaction.annotation.Transactional;
@@ -68,32 +67,22 @@ public class UserServiceImpl implements UserService {
         userRepository.findByEmailIgnoreCase(request.getEmail())
                 .ifPresent(conflict -> rejectEmailRebinding(conflict, request));
 
-        User user = User.builder()
-                .authId(request.getAuthId())
-                .principalId(request.getPrincipalId())
-                .email(request.getEmail())
-                .role(request.getRole())
-                .fullName(request.getFullName())
-                .phone(request.getPhone())
-                .dob(request.getDob())
-                .avatarUrl(request.getAvatarUrl())
-                .address(request.getAddress())
-                .build();
-        try {
-            User saved = userRepository.saveAndFlush(user);
-            publishProfileCreated(saved);
-            return toDto(saved);
-        } catch (DataIntegrityViolationException race) {
-            return userRepository.findByPrincipalId(request.getPrincipalId())
-                    .map(concurrent -> {
-                        User current = requireSameProvisioningIdentity(concurrent, request);
-                        publishProfileCreated(current);
-                        return toDto(current);
-                    })
-                    .or(() -> userRepository.findByEmailIgnoreCase(request.getEmail())
-                            .map(conflict -> toDto(rejectEmailRebinding(conflict, request))))
-                    .orElseThrow(() -> race);
-        }
+        userRepository.insertProvisionedUserIfAbsent(
+                request.getAuthId(), request.getPrincipalId(), request.getEmail(), request.getRole(),
+                request.getFullName(), request.getPhone(), request.getDob(), request.getAvatarUrl(),
+                request.getAddress());
+
+        // The atomic INSERT decides the winner. This query runs after the
+        // statement has completed, so duplicate concurrent requests can safely
+        // return the same profile without querying inside an aborted transaction.
+        User persisted = userRepository.findByPrincipalId(request.getPrincipalId())
+                .orElseGet(() -> userRepository.findByEmailIgnoreCase(request.getEmail())
+                        .map(conflict -> rejectEmailRebinding(conflict, request))
+                        .orElseThrow(() -> new ResponseStatusException(
+                                HttpStatus.CONFLICT, "User provisioning could not be completed")));
+        User current = requireSameProvisioningIdentity(persisted, request);
+        publishProfileCreated(current);
+        return toDto(current);
     }
 
     @Override

@@ -5,10 +5,12 @@ import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 
 import java.util.Optional;
+import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
@@ -20,6 +22,7 @@ import com.delivery.user_service.entity.UserAddress;
 import com.delivery.user_service.repository.UserAddressRepository;
 import com.delivery.user_service.repository.UserRepository;
 import com.delivery.user_service.service.impl.UserAddressServiceImpl;
+import com.delivery.auth.resourceserver.security.AuthenticatedActor;
 
 class UserAddressConcurrencyTest {
 
@@ -54,7 +57,25 @@ class UserAddressConcurrencyTest {
         InOrder order = inOrder(addressRepository, userRepository);
         order.verify(addressRepository).findById(4L);
         order.verify(userRepository).findByIdForUpdate(9L);
-        order.verify(addressRepository).resetDefaultAddressesForUser(9L);
+        order.verify(addressRepository).resetDefaultAddressesForUserExcept(9L, 4L);
         order.verify(addressRepository).save(address);
+    }
+
+    @Test
+    void serviceLayerRejectsAddressMutationForAnotherProfile() {
+        UserAddress address = UserAddress.builder().userId(22L).isDefault(false).build();
+        ReflectionTestUtils.setField(address, "id", 4L);
+        when(addressRepository.findById(4L)).thenReturn(Optional.of(address));
+        User owner = User.builder().authId(11L).principalId(11L).build();
+        ReflectionTestUtils.setField(owner, "id", 11L);
+        when(userRepository.findByPrincipalId(11L)).thenReturn(Optional.of(owner));
+        AuthenticatedActor actor = new AuthenticatedActor(11L, "user@example.com", Set.of("USER"));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                () -> service.deleteAddress(4L, actor))
+                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
+                .hasMessageContaining("403 FORBIDDEN");
+        verify(addressRepository, never()).deleteById(4L);
+        verify(userRepository, never()).findByIdForUpdate(org.mockito.ArgumentMatchers.any());
     }
 }

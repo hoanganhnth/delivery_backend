@@ -62,6 +62,7 @@ class UserControllerInternalAuthorizationTest {
     void currentProfileUpdateUsesTheGatewayIdentity() {
         UserRequest request = UserRequest.builder().authId(999L).email("ignored@example.com").build();
         UserResponse updated = UserResponse.builder().id(7L).build();
+        when(userService.getUserByPrincipalId(7L)).thenReturn(UserResponse.builder().id(7L).build());
         when(userService.updateUser(7L, request)).thenReturn(updated);
         AuthenticatedActor actor = new AuthenticatedActor(7L, "user@example.com", Set.of("USER"));
 
