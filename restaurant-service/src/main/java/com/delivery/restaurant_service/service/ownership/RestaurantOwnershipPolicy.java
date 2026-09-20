@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class RestaurantOwnershipPolicy {
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(RestaurantOwnershipPolicy.class);
     private final boolean principalOwnershipEnforced;
 
     public RestaurantOwnershipPolicy(
@@ -21,6 +22,7 @@ public class RestaurantOwnershipPolicy {
 
     public ManagementAccess assertCanManage(Restaurant restaurant, Long principalId,
                                              Long legacyUserId, String role) {
+        if (principalId == null || principalId <= 0) throw denied();
         if (RoleConstants.ADMIN.equalsIgnoreCase(role)) {
             return ManagementAccess.direct();
         }
@@ -39,6 +41,7 @@ public class RestaurantOwnershipPolicy {
                 || !legacyUserId.equals(restaurant.getCreatorId())) {
             throw denied();
         }
+        log.info("Restaurant management used legacy ownership fallback");
         return ManagementAccess.legacyFallback();
     }
 

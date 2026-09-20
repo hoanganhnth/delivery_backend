@@ -28,6 +28,8 @@ public class SecurityConfig {
                                 "/api/restaurants/*/ratings").permitAll()
                         .requestMatchers(HttpMethod.GET,
                                 "/api/menu-items/restaurant/*",
+                                "/api/menu-items/restaurant/*/page",
+                                "/api/menu-items/restaurant/*/available/page",
                                 "/api/menu-items/restaurant/*/available").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/restaurants/validate/order").permitAll()
                         .requestMatchers("/api/restaurants/internal/**").permitAll()

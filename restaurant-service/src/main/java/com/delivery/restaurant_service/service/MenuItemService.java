@@ -8,6 +8,9 @@ import java.util.List;
 import org.springframework.data.domain.Page;
 
 public interface MenuItemService {
+    Page<MenuItemResponse> getManagedItemsPage(Long restaurantId, Long principalId,
+            Long legacyUserId, String role, int page, int size);
+
 
     MenuItemResponse createMenuItem(CreateMenuItemRequest request,
                                     Long creatorId,

@@ -9,6 +9,22 @@
 
 ## 2. Danh sách Use Cases
 
+### Ownership và public catalogue (2026-09-20)
+
+- Menu kế thừa quyền từ Restaurant. `principalId` là identity chính; legacy ID
+  chỉ áp dụng với Restaurant chưa có `ownerPrincipalId`, khi enforcement tắt.
+- Management list và page, có hoặc không có `restaurantId`, đều kiểm tra role
+  và ownership tại service. ADMIN xem toàn bộ; SHOP_OWNER chỉ xem tài nguyên của mình.
+- Các route public `/api/menu-items/restaurant/{id}` và `/available`, kể cả
+  biến thể `/page`, chỉ trả `AVAILABLE`. Muốn xem SOLD_OUT/DISCONTINUED dùng
+  `/api/menu-items/my-menu-items` hoặc `/my-menu-items/page` đã xác thực.
+- Response shape không đổi; client từng dùng public route để quản trị phải
+  chuyển sang management route. Không dựa vào ID do client gửi để cấp quyền.
+- Flutter đọc tọa độ `latitude`/`longitude` trước legacy `addressLat/addressLng`;
+  canonical null không fallback sang giá trị cũ.
+- Unit/integration H2 và MockMvc có bằng chứng; chưa thay thế kiểm chứng live
+  PostgreSQL/JWKS/Gateway/BFF trước release.
+
 | Mã UC | Tên Use Case | Nền tảng | Trạng thái |
 |-------|--------------|----------|------------|
 | UC-2.1 | Xem danh sách nhà hàng (Featured, Nearby) | Customer App | ✅ Done |

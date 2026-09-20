@@ -10,6 +10,13 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class RestaurantOwnershipPolicyTest {
+    @Test
+    void roleWithoutPrincipalIsNotAnAuthenticatedManager() {
+        for (String role : java.util.List.of(RoleConstants.ADMIN, RoleConstants.OWNER)) {
+            assertThrows(AccessDeniedException.class, () -> new RestaurantOwnershipPolicy(false)
+                    .assertCanManage(restaurant(7L, null), null, 7L, role));
+        }
+    }
 
     @Test
     void principalOwnedRestaurantRejectsDifferentPrincipalEvenWhenLegacyIdMatches() {

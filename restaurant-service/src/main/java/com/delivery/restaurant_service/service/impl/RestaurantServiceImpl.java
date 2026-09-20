@@ -75,7 +75,6 @@ public class RestaurantServiceImpl implements RestaurantService {
         // 🔥 Cache restaurant data after creation
         try {
             restaurantCacheService.cacheRestaurant(saved);
-            log.info("✅ Cached new restaurant: {} (ID: {})", saved.getName(), saved.getId());
         } catch (Exception e) {
             log.warn("⚠️ Failed to cache restaurant after creation: {}", e.getMessage());
         }
@@ -106,7 +105,6 @@ public class RestaurantServiceImpl implements RestaurantService {
         // 🔥 Update cache after modification
         try {
             restaurantCacheService.cacheRestaurant(updated);
-            log.info("🔄 Updated cache for restaurant: {} (ID: {})", updated.getName(), updated.getId());
         } catch (Exception e) {
             log.warn("⚠️ Failed to update cache after restaurant update: {}", e.getMessage());
         }
@@ -134,7 +132,6 @@ public class RestaurantServiceImpl implements RestaurantService {
         // 🔥 Remove from cache before deletion
         try {
             restaurantCacheService.removeRestaurantFromCache(id);
-            log.info("🗑️ Removed restaurant from cache: {} (ID: {})", restaurant.getName(), id);
         } catch (Exception e) {
             log.warn("⚠️ Failed to remove restaurant from cache: {}", e.getMessage());
         }

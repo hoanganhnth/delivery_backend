@@ -15,6 +15,12 @@ import java.util.List;
 import java.util.Optional;
 @Repository
 public interface MenuItemRepository extends JpaRepository<MenuItem, Long> {
+    @Query("select m from MenuItem m join m.restaurant r where r.ownerPrincipalId = :principalId "
+            + "or (:legacyAllowed = true and r.ownerPrincipalId is null and r.creatorId = :legacyId)")
+    Page<MenuItem> findManagedByOwner(@Param("principalId") Long principalId,
+            @Param("legacyId") Long legacyId, @Param("legacyAllowed") boolean legacyAllowed,
+            Pageable pageable);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select item from MenuItem item where item.id = :id")
     Optional<MenuItem> findByIdForUpdate(@Param("id") Long id);

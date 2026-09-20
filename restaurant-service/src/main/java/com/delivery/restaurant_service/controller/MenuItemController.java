@@ -61,7 +61,7 @@ public class MenuItemController {
 
     @GetMapping("/restaurant/{restaurantId}")
     public ResponseEntity<BaseResponse<List<MenuItemResponse>>> getByRestaurant(@PathVariable Long restaurantId) {
-        List<MenuItemResponse> list = menuItemService.getItemsByRestaurant(restaurantId);
+        List<MenuItemResponse> list = menuItemService.getAvailableItems(restaurantId);
         return ResponseEntity.ok(new BaseResponse<>(1, list));
     }
 
@@ -77,7 +77,7 @@ public class MenuItemController {
             @RequestParam(defaultValue = "24") int size) {
         validatePage(page, size);
         return ResponseEntity.ok(new BaseResponse<>(1, PageResponse.from(
-                menuItemService.getItemsByRestaurantPage(restaurantId, page, size, false))));
+                menuItemService.getItemsByRestaurantPage(restaurantId, page, size, true))));
     }
 
     @GetMapping("/restaurant/{restaurantId}/available/page")
@@ -99,15 +99,8 @@ public class MenuItemController {
             throw new AccessDeniedException("Only SHOP_OWNER or ADMIN can view owned menu items");
         }
         
-        List<MenuItemResponse> list;
-        if (restaurantId != null) {
-            list = menuItemService.getManagedItemsByRestaurant(
-                    restaurantId, actor.getPrincipalId(), actor.getLegacyUserId(), getRoleString(actor));
-        } else if (actor.isAdmin()) {
-            list = menuItemService.getAllItems();
-        } else {
-            list = menuItemService.getMenuItemsByCreatorId(actor.getUserId());
-        }
+        List<MenuItemResponse> list = menuItemService.getManagedItemsPage(restaurantId,
+                actor.getPrincipalId(), actor.getLegacyUserId(), getRoleString(actor), 0, 100).getContent();
         return ResponseEntity.ok(new BaseResponse<>(1, list));
     }
 
@@ -120,16 +113,8 @@ public class MenuItemController {
             throw new AccessDeniedException("Only SHOP_OWNER or ADMIN can view owned menu items");
         }
         validatePage(page, size);
-        Page<MenuItemResponse> result;
-        if (restaurantId != null) {
-            menuItemService.getManagedItemsByRestaurant(
-                    restaurantId, actor.getPrincipalId(), actor.getLegacyUserId(), getRoleString(actor));
-            result = menuItemService.getItemsByRestaurantPage(restaurantId, page, size, false);
-        } else if (actor.isAdmin()) {
-            result = menuItemService.getAllItemsPage(page, size);
-        } else {
-            result = menuItemService.getMenuItemsByCreatorPage(actor.getUserId(), page, size);
-        }
+        Page<MenuItemResponse> result = menuItemService.getManagedItemsPage(restaurantId,
+                actor.getPrincipalId(), actor.getLegacyUserId(), getRoleString(actor), page, size);
         return ResponseEntity.ok(new BaseResponse<>(1, PageResponse.from(result)));
     }
 

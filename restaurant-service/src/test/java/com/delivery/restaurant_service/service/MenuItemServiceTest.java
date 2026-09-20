@@ -44,8 +44,8 @@ class MenuItemServiceTest {
     private RestaurantCacheService restaurantCacheService;
     @Mock
     private SearchSyncPublisher searchSyncPublisher;
-    @Mock
-    private RestaurantOwnershipPolicy restaurantOwnershipPolicy;
+    @org.mockito.Spy
+    private RestaurantOwnershipPolicy restaurantOwnershipPolicy = new RestaurantOwnershipPolicy(false);
 
     @InjectMocks
     private MenuItemServiceImpl menuItemService;
@@ -76,8 +76,6 @@ class MenuItemServiceTest {
         menuItemResponse = new MenuItemResponse();
         menuItemResponse.setName("Pizza");
         menuItemResponse.setPrice(BigDecimal.valueOf(25.99));
-        lenient().when(restaurantOwnershipPolicy.assertCanManage(any(), any(), any(), any()))
-                .thenReturn(ManagementAccess.direct());
     }
 
     @Test
@@ -171,8 +169,6 @@ class MenuItemServiceTest {
         // Given
         restaurant.setCreatorId(2L); // Different owner
         when(menuItemRepository.findById(1L)).thenReturn(Optional.of(menuItem));
-        doThrow(new AccessDeniedException("denied")).when(restaurantOwnershipPolicy)
-                .assertCanManage(restaurant, 1L, 1L, RoleConstants.OWNER);
 
         // When & Then
         assertThrows(AccessDeniedException.class, () ->

@@ -39,6 +39,26 @@ public class MenuItemServiceImpl implements MenuItemService {
     private final RestaurantOwnershipPolicy restaurantOwnershipPolicy;
 
     @Override
+    @Transactional(readOnly = true)
+    public Page<MenuItemResponse> getManagedItemsPage(Long restaurantId, Long principalId,
+            Long legacyUserId, String role, int page, int size) {
+        requireManagementActor(principalId, legacyUserId, role);
+        if (page < 0 || size < 1 || size > 100) throw new IllegalArgumentException("Invalid page or size");
+        var pageable = PageRequest.of(page, size);
+        if (restaurantId != null) {
+            var restaurant = restaurantRepository.findById(restaurantId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Restaurant not found"));
+            restaurantOwnershipPolicy.assertCanManage(restaurant, principalId, legacyUserId, role);
+            return menuItemRepository.findPageByRestaurantId(restaurantId, pageable).map(menuItemMapper::toResponse);
+        }
+        if (RoleConstants.ADMIN.equalsIgnoreCase(role)) {
+            return menuItemRepository.findAll(pageable).map(menuItemMapper::toResponse);
+        }
+        return menuItemRepository.findManagedByOwner(principalId, legacyUserId,
+                !restaurantOwnershipPolicy.isPrincipalOwnershipEnforced(), pageable).map(menuItemMapper::toResponse);
+    }
+
+    @Override
     @Transactional
     public MenuItemResponse createMenuItem(CreateMenuItemRequest request, Long creatorId, String role) {
         return createMenuItem(request, creatorId, creatorId, role);
@@ -121,7 +141,6 @@ public class MenuItemServiceImpl implements MenuItemService {
         // 🔥 Remove from cache before deletion
         try {
             restaurantCacheService.removeMenuItemFromCache(id);
-            log.info("🗑️ Removed menu item from cache: {} (ID: {})", item.getName(), id);
         } catch (Exception e) {
             log.warn("⚠️ Failed to remove menu item from cache: {}", e.getMessage());
         }
@@ -201,7 +220,7 @@ public class MenuItemServiceImpl implements MenuItemService {
 
     private void requireManagementActor(Long principalId, Long legacyUserId, String role) {
         if (role == null || !RoleConstants.ALLOWED_CREATORS.contains(role.toUpperCase())
-                || (principalId == null && legacyUserId == null)) {
+                || principalId == null || principalId <= 0) {
             throw new AccessDeniedException("Only authenticated ADMIN or SHOP_OWNER can manage menu items");
         }
     }

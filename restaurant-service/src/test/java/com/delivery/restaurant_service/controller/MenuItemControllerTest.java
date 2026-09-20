@@ -170,7 +170,7 @@ class MenuItemControllerTest {
                 createMenuItemResponse(2L, "Burger", BigDecimal.valueOf(15.99))
         );
 
-        when(menuItemService.getItemsByRestaurant(restaurantId)).thenReturn(menuItems);
+        when(menuItemService.getAvailableItems(restaurantId)).thenReturn(menuItems);
 
         // When & Then
         mockMvc.perform(get("/api/menu-items/restaurant/{restaurantId}", restaurantId))
@@ -183,7 +183,7 @@ class MenuItemControllerTest {
                 .andExpect(jsonPath("$.data[1].id").value(2))
                 .andExpect(jsonPath("$.data[1].name").value("Burger"));
 
-        verify(menuItemService).getItemsByRestaurant(restaurantId);
+        verify(menuItemService).getAvailableItems(restaurantId);
     }
 
     @Test
