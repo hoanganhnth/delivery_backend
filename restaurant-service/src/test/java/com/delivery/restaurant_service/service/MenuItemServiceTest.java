@@ -11,6 +11,8 @@ import com.delivery.restaurant_service.mapper.MenuItemMapper;
 import com.delivery.restaurant_service.repository.MenuItemRepository;
 import com.delivery.restaurant_service.repository.RestaurantRepository;
 import com.delivery.restaurant_service.service.impl.MenuItemServiceImpl;
+import com.delivery.restaurant_service.service.ownership.ManagementAccess;
+import com.delivery.restaurant_service.service.ownership.RestaurantOwnershipPolicy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -42,6 +44,8 @@ class MenuItemServiceTest {
     private RestaurantCacheService restaurantCacheService;
     @Mock
     private SearchSyncPublisher searchSyncPublisher;
+    @Mock
+    private RestaurantOwnershipPolicy restaurantOwnershipPolicy;
 
     @InjectMocks
     private MenuItemServiceImpl menuItemService;
@@ -72,6 +76,8 @@ class MenuItemServiceTest {
         menuItemResponse = new MenuItemResponse();
         menuItemResponse.setName("Pizza");
         menuItemResponse.setPrice(BigDecimal.valueOf(25.99));
+        lenient().when(restaurantOwnershipPolicy.assertCanManage(any(), any(), any(), any()))
+                .thenReturn(ManagementAccess.direct());
     }
 
     @Test
@@ -119,6 +125,18 @@ class MenuItemServiceTest {
     }
 
     @Test
+    void createMenuItem_UsesPrincipalAndLegacyIdentityToAuthorizeTheRestaurant() {
+        when(restaurantRepository.findById(1L)).thenReturn(Optional.of(restaurant));
+        when(menuItemMapper.toEntity(any(CreateMenuItemRequest.class))).thenReturn(menuItem);
+        when(menuItemRepository.save(any(MenuItem.class))).thenReturn(menuItem);
+        when(menuItemMapper.toResponse(any(MenuItem.class))).thenReturn(menuItemResponse);
+
+        menuItemService.createMenuItem(createRequest, 70L, 1L, RoleConstants.OWNER);
+
+        verify(restaurantOwnershipPolicy).assertCanManage(restaurant, 70L, 1L, RoleConstants.OWNER);
+    }
+
+    @Test
     void getItemsByRestaurant_ShouldReturnList_WhenRestaurantExists() {
         // Given
         List<MenuItem> menuItems = Collections.singletonList(menuItem);
@@ -153,6 +171,8 @@ class MenuItemServiceTest {
         // Given
         restaurant.setCreatorId(2L); // Different owner
         when(menuItemRepository.findById(1L)).thenReturn(Optional.of(menuItem));
+        doThrow(new AccessDeniedException("denied")).when(restaurantOwnershipPolicy)
+                .assertCanManage(restaurant, 1L, 1L, RoleConstants.OWNER);
 
         // When & Then
         assertThrows(AccessDeniedException.class, () ->
@@ -174,8 +194,6 @@ class MenuItemServiceTest {
 
     @Test
     void deleteMenuItem_ShouldRejectMissingRole_EvenWhenIdentityMatchesOwner() {
-        when(menuItemRepository.findById(1L)).thenReturn(Optional.of(menuItem));
-
         assertThrows(AccessDeniedException.class, () ->
                 menuItemService.deleteMenuItem(1L, 1L, null));
 

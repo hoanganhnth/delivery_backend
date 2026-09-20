@@ -8,6 +8,8 @@ import com.delivery.restaurant_service.exception.ResourceNotFoundException;
 import com.delivery.restaurant_service.mapper.RestaurantMapper;
 import com.delivery.restaurant_service.repository.RestaurantRepository;
 import com.delivery.restaurant_service.service.impl.RestaurantServiceImpl;
+import com.delivery.restaurant_service.service.ownership.RestaurantOwnershipPolicy;
+import com.delivery.restaurant_service.service.ownership.ManagementAccess;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -32,6 +34,8 @@ class RestaurantServiceTest {
     private RestaurantCacheService restaurantCacheService;
     @Mock
     private SearchSyncPublisher searchSyncPublisher;
+    @Mock
+    private RestaurantOwnershipPolicy restaurantOwnershipPolicy;
 
     private RestaurantServiceImpl restaurantService;
 
@@ -43,7 +47,8 @@ class RestaurantServiceTest {
     @BeforeEach
     void setUp() {
         restaurantService = new RestaurantServiceImpl(restaurantRepository, menuItemMapper,
-                restaurantCacheService, searchSyncPublisher, new io.micrometer.core.instrument.simple.SimpleMeterRegistry());
+                restaurantCacheService, searchSyncPublisher, new io.micrometer.core.instrument.simple.SimpleMeterRegistry(),
+                restaurantOwnershipPolicy);
         restaurant = new Restaurant();
         restaurant.setId(1L);
         restaurant.setName("Test Restaurant");
@@ -58,6 +63,9 @@ class RestaurantServiceTest {
         restaurantResponse.setId(1L);
         restaurantResponse.setName("Test Restaurant");
         restaurantResponse.setAddress("123 Test Street");
+        lenient().when(restaurantOwnershipPolicy.assertCanManage(any(), any(), any(), any()))
+                .thenReturn(ManagementAccess.direct());
+        lenient().when(restaurantOwnershipPolicy.isPrincipalOwnershipEnforced()).thenReturn(false);
     }
 
     @Test
@@ -146,6 +154,8 @@ class RestaurantServiceTest {
         // Given
         restaurant.setCreatorId(2L); // Different owner
         when(restaurantRepository.findById(1L)).thenReturn(Optional.of(restaurant));
+        doThrow(new AccessDeniedException("denied")).when(restaurantOwnershipPolicy)
+                .assertCanManage(restaurant, 1L, 1L, RoleConstants.OWNER);
 
         // When & Then
         assertThrows(AccessDeniedException.class, () ->
@@ -168,6 +178,8 @@ class RestaurantServiceTest {
     @Test
     void deleteRestaurant_ShouldRejectMissingRole_EvenWhenIdentityMatchesOwner() {
         when(restaurantRepository.findById(1L)).thenReturn(Optional.of(restaurant));
+        doThrow(new AccessDeniedException("denied")).when(restaurantOwnershipPolicy)
+                .assertCanManage(restaurant, 1L, 1L, null);
 
         assertThrows(AccessDeniedException.class, () ->
                 restaurantService.deleteRestaurant(1L, 1L, null));

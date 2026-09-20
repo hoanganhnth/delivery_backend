@@ -13,13 +13,28 @@ public interface MenuItemService {
                                     Long creatorId,
                                     String role);
 
+    MenuItemResponse createMenuItem(CreateMenuItemRequest request,
+                                    Long principalId,
+                                    Long legacyUserId,
+                                    String role);
+
     MenuItemResponse updateMenuItem(Long id, UpdateMenuItemRequest request, Long creatorId, String role);
 
+    MenuItemResponse updateMenuItem(Long id, UpdateMenuItemRequest request,
+                                    Long principalId, Long legacyUserId, String role);
+
     void deleteMenuItem(Long id, Long creatorId, String role);
+
+    void deleteMenuItem(Long id, Long principalId, Long legacyUserId, String role);
 
     List<MenuItemResponse> getItemsByRestaurant(Long restaurantId);
 
     List<MenuItemResponse> getAvailableItems(Long restaurantId);
+
+    List<MenuItemResponse> getManagedItemsByRestaurant(Long restaurantId,
+                                                        Long principalId,
+                                                        Long legacyUserId,
+                                                        String role);
     
     List<MenuItemResponse> getMenuItemsByCreatorId(Long creatorId);
     List<MenuItemResponse> getAllItems();

@@ -92,7 +92,7 @@ class MenuItemControllerTest {
         response.setDescription("Classic Italian pizza");
         response.setPrice(BigDecimal.valueOf(25.99));
 
-        when(menuItemService.createMenuItem(any(CreateMenuItemRequest.class), anyLong(), anyString()))
+        when(menuItemService.createMenuItem(any(CreateMenuItemRequest.class), anyLong(), anyLong(), anyString()))
                 .thenReturn(response);
 
         // When & Then
@@ -108,7 +108,7 @@ class MenuItemControllerTest {
                 .andExpect(jsonPath("$.data.description").value("Classic Italian pizza"))
                 .andExpect(jsonPath("$.data.price").value(25.99));
 
-        verify(menuItemService).createMenuItem(any(CreateMenuItemRequest.class), eq(1L), eq(RoleConstants.OWNER));
+        verify(menuItemService).createMenuItem(any(CreateMenuItemRequest.class), eq(1L), eq(1L), eq(RoleConstants.OWNER));
     }
 
     @Test
@@ -124,7 +124,7 @@ class MenuItemControllerTest {
         response.setName("Updated Pizza");
         response.setPrice(BigDecimal.valueOf(29.99));
 
-        when(menuItemService.updateMenuItem(eq(menuItemId), any(UpdateMenuItemRequest.class), anyLong(),
+        when(menuItemService.updateMenuItem(eq(menuItemId), any(UpdateMenuItemRequest.class), anyLong(), anyLong(),
                 eq(RoleConstants.OWNER)))
                 .thenReturn(response);
 
@@ -140,7 +140,7 @@ class MenuItemControllerTest {
                 .andExpect(jsonPath("$.data.name").value("Updated Pizza"))
                 .andExpect(jsonPath("$.data.price").value(29.99));
 
-        verify(menuItemService).updateMenuItem(eq(menuItemId), any(UpdateMenuItemRequest.class), eq(1L),
+        verify(menuItemService).updateMenuItem(eq(menuItemId), any(UpdateMenuItemRequest.class), eq(1L), eq(1L),
                 eq(RoleConstants.OWNER));
     }
 
@@ -158,7 +158,7 @@ class MenuItemControllerTest {
                 .andExpect(jsonPath("$.status").value(1))
                 .andExpect(jsonPath("$.data").isEmpty());
 
-        verify(menuItemService).deleteMenuItem(eq(menuItemId), eq(userId), eq(RoleConstants.OWNER));
+        verify(menuItemService).deleteMenuItem(eq(menuItemId), eq(userId), eq(userId), eq(RoleConstants.OWNER));
     }
 
     @Test

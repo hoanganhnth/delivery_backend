@@ -13,6 +13,8 @@ import com.delivery.restaurant_service.repository.RestaurantRepository;
 import com.delivery.restaurant_service.service.MenuItemService;
 import com.delivery.restaurant_service.service.RestaurantCacheService;
 import com.delivery.restaurant_service.service.SearchSyncPublisher;
+import com.delivery.restaurant_service.service.ownership.ManagementAccess;
+import com.delivery.restaurant_service.service.ownership.RestaurantOwnershipPolicy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
@@ -34,23 +36,22 @@ public class MenuItemServiceImpl implements MenuItemService {
     private final RestaurantRepository restaurantRepository;
     private final RestaurantCacheService restaurantCacheService;
     private final SearchSyncPublisher searchSyncPublisher;
+    private final RestaurantOwnershipPolicy restaurantOwnershipPolicy;
 
     @Override
     @Transactional
     public MenuItemResponse createMenuItem(CreateMenuItemRequest request, Long creatorId, String role) {
-        // Check if the creatorId matches the restaurant's creatorId
+        return createMenuItem(request, creatorId, creatorId, role);
+    }
 
-        if (role == null || !RoleConstants.ALLOWED_CREATORS.contains(role.toUpperCase())) {
-            throw new AccessDeniedException("Only ADMIN or OWNER can create menu items");
-        }
-        if (creatorId == null) {
-            throw new AccessDeniedException("You must be authenticated to create a menu item");
-        }
+    @Override
+    @Transactional
+    public MenuItemResponse createMenuItem(CreateMenuItemRequest request, Long principalId,
+                                           Long legacyUserId, String role) {
+        requireManagementActor(principalId, legacyUserId, role);
         Restaurant restaurant = restaurantRepository.findById(request.getRestaurantId())
                 .orElseThrow(() -> new ResourceNotFoundException("Restaurant not found"));
-        if (!restaurant.getCreatorId().equals(creatorId) && !role.equalsIgnoreCase(RoleConstants.ADMIN)) {
-            throw new AccessDeniedException("Creator does not have permission to add items to this restaurant");
-        }
+        authorizeWrite(restaurant, principalId, legacyUserId, role);
         
         MenuItem item = menuItemMapper.toEntity(request);
         item.setRestaurant(restaurant);
@@ -74,9 +75,17 @@ public class MenuItemServiceImpl implements MenuItemService {
     @Override
     @Transactional
     public MenuItemResponse updateMenuItem(Long id, UpdateMenuItemRequest request, Long creatorId, String role) {
+        return updateMenuItem(id, request, creatorId, creatorId, role);
+    }
+
+    @Override
+    @Transactional
+    public MenuItemResponse updateMenuItem(Long id, UpdateMenuItemRequest request, Long principalId,
+                                           Long legacyUserId, String role) {
+        requireManagementActor(principalId, legacyUserId, role);
         MenuItem item = menuItemRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("MenuItem not found"));
-        checkPermission(item, creatorId, role);
+        authorizeWrite(item.getRestaurant(), principalId, legacyUserId, role);
         
         menuItemMapper.updateEntityFromDto(request, item);
         MenuItem updated = menuItemRepository.save(item);
@@ -98,10 +107,16 @@ public class MenuItemServiceImpl implements MenuItemService {
     @Override
     @Transactional
     public void deleteMenuItem(Long id, Long creatorId, String role) {
+        deleteMenuItem(id, creatorId, creatorId, role);
+    }
+
+    @Override
+    @Transactional
+    public void deleteMenuItem(Long id, Long principalId, Long legacyUserId, String role) {
+        requireManagementActor(principalId, legacyUserId, role);
         MenuItem item = menuItemRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("MenuItem not found"));
-
-        checkPermission(item, creatorId, role);
+        authorizeWrite(item.getRestaurant(), principalId, legacyUserId, role);
 
         // 🔥 Remove from cache before deletion
         try {
@@ -129,6 +144,15 @@ public class MenuItemServiceImpl implements MenuItemService {
         return menuItemRepository.findByRestaurantIdAndStatus(
                         restaurantId, MenuItem.Status.AVAILABLE, PageRequest.of(0, 100)).stream()
                 .map(menuItemMapper::toResponse).collect(Collectors.toList());
+    }
+
+    @Override
+    public List<MenuItemResponse> getManagedItemsByRestaurant(Long restaurantId, Long principalId,
+                                                                Long legacyUserId, String role) {
+        Restaurant restaurant = restaurantRepository.findById(restaurantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Restaurant not found"));
+        restaurantOwnershipPolicy.assertCanManage(restaurant, principalId, legacyUserId, role);
+        return getItemsByRestaurant(restaurantId);
     }
     
     @Override
@@ -167,13 +191,18 @@ public class MenuItemServiceImpl implements MenuItemService {
                 .map(menuItemMapper::toResponse);
     }
     
-    private void checkPermission(MenuItem item, Long creatorId, String role) {
-        boolean isAdmin = RoleConstants.ADMIN.equals(role);
-        boolean isOwner = RoleConstants.OWNER.equals(role)
-                && creatorId != null
-                && creatorId.equals(item.getRestaurant().getCreatorId());
-        if (!isAdmin && !isOwner) {
-            throw new AccessDeniedException("Creator does not have permission to modify this menu item");
+    private void authorizeWrite(Restaurant restaurant, Long principalId, Long legacyUserId, String role) {
+        ManagementAccess access = restaurantOwnershipPolicy.assertCanManage(
+                restaurant, principalId, legacyUserId, role);
+        if (access.usedLegacyFallback() && principalId != null) {
+            restaurant.setOwnerPrincipalId(principalId);
+        }
+    }
+
+    private void requireManagementActor(Long principalId, Long legacyUserId, String role) {
+        if (role == null || !RoleConstants.ALLOWED_CREATORS.contains(role.toUpperCase())
+                || (principalId == null && legacyUserId == null)) {
+            throw new AccessDeniedException("Only authenticated ADMIN or SHOP_OWNER can manage menu items");
         }
     }
 }

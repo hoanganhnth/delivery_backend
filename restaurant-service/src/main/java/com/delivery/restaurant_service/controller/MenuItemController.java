@@ -34,7 +34,8 @@ public class MenuItemController {
             @Valid @RequestBody CreateMenuItemRequest request,
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireActor(actor);
-        MenuItemResponse response = menuItemService.createMenuItem(request, actor.getUserId(), getRoleString(actor));
+        MenuItemResponse response = menuItemService.createMenuItem(
+                request, actor.getPrincipalId(), actor.getLegacyUserId(), getRoleString(actor));
         return ResponseEntity.ok(new BaseResponse<>(1, response));
     }
 
@@ -44,7 +45,8 @@ public class MenuItemController {
             @Valid @RequestBody UpdateMenuItemRequest request,
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireActor(actor);
-        MenuItemResponse response = menuItemService.updateMenuItem(id, request, actor.getUserId(), getRoleString(actor));
+        MenuItemResponse response = menuItemService.updateMenuItem(
+                id, request, actor.getPrincipalId(), actor.getLegacyUserId(), getRoleString(actor));
         return ResponseEntity.ok(new BaseResponse<>(1, response));
     }
 
@@ -53,7 +55,7 @@ public class MenuItemController {
             @PathVariable Long id,
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireActor(actor);
-        menuItemService.deleteMenuItem(id, actor.getUserId(), getRoleString(actor));
+        menuItemService.deleteMenuItem(id, actor.getPrincipalId(), actor.getLegacyUserId(), getRoleString(actor));
         return ResponseEntity.ok(new BaseResponse<>(1, null));
     }
 
@@ -92,16 +94,15 @@ public class MenuItemController {
             @AuthenticationPrincipal AuthenticatedActor actor,
             @RequestParam(required = false) Long restaurantId) {
         
-        if (actor == null || actor.getUserId() == null) {
-            throw new IllegalArgumentException("User ID is required");
-        }
+        requireActor(actor);
         if (!actor.isShopOwner() && !actor.isAdmin()) {
             throw new AccessDeniedException("Only SHOP_OWNER or ADMIN can view owned menu items");
         }
         
         List<MenuItemResponse> list;
         if (restaurantId != null) {
-            list = menuItemService.getItemsByRestaurant(restaurantId);
+            list = menuItemService.getManagedItemsByRestaurant(
+                    restaurantId, actor.getPrincipalId(), actor.getLegacyUserId(), getRoleString(actor));
         } else if (actor.isAdmin()) {
             list = menuItemService.getAllItems();
         } else {
@@ -115,12 +116,14 @@ public class MenuItemController {
             @AuthenticationPrincipal AuthenticatedActor actor,
             @RequestParam(required = false) Long restaurantId,
             @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "24") int size) {
-        if (actor == null || actor.getUserId() == null || (!actor.isShopOwner() && !actor.isAdmin())) {
+        if (actor == null || actor.getPrincipalId() == null || (!actor.isShopOwner() && !actor.isAdmin())) {
             throw new AccessDeniedException("Only SHOP_OWNER or ADMIN can view owned menu items");
         }
         validatePage(page, size);
         Page<MenuItemResponse> result;
         if (restaurantId != null) {
+            menuItemService.getManagedItemsByRestaurant(
+                    restaurantId, actor.getPrincipalId(), actor.getLegacyUserId(), getRoleString(actor));
             result = menuItemService.getItemsByRestaurantPage(restaurantId, page, size, false);
         } else if (actor.isAdmin()) {
             result = menuItemService.getAllItemsPage(page, size);
@@ -145,7 +148,7 @@ public class MenuItemController {
     }
 
     private void requireActor(AuthenticatedActor actor) {
-        if (actor == null || actor.getUserId() == null) {
+        if (actor == null || actor.getPrincipalId() == null) {
             throw new AccessDeniedException("Yêu cầu đăng nhập");
         }
     }

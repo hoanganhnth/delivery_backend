@@ -11,6 +11,8 @@ import com.delivery.restaurant_service.repository.RestaurantRepository;
 import com.delivery.restaurant_service.service.RestaurantService;
 import com.delivery.restaurant_service.service.RestaurantCacheService;
 import com.delivery.restaurant_service.service.SearchSyncPublisher;
+import com.delivery.restaurant_service.service.ownership.ManagementAccess;
+import com.delivery.restaurant_service.service.ownership.RestaurantOwnershipPolicy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
@@ -18,7 +20,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Page;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.beans.factory.annotation.Value;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 
@@ -35,9 +36,7 @@ public class RestaurantServiceImpl implements RestaurantService {
     private final RestaurantCacheService restaurantCacheService;
     private final SearchSyncPublisher searchSyncPublisher;
     private final MeterRegistry meterRegistry;
-
-    @Value("${app.identity.principal-ownership.enforced:false}")
-    private boolean principalOwnershipEnforced;
+    private final RestaurantOwnershipPolicy restaurantOwnershipPolicy;
 
     @Override
     @Transactional
@@ -99,9 +98,7 @@ public class RestaurantServiceImpl implements RestaurantService {
             Long ownerPrincipalId, Long creatorId, String role) {
         Restaurant existingRestaurant = restaurantRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Restaurant not found"));
-        if (!canManage(existingRestaurant, ownerPrincipalId, creatorId, role)) {
-            throw new AccessDeniedException("You are not allowed to update this restaurant");
-        }
+        authorizeWrite(existingRestaurant, ownerPrincipalId, creatorId, role);
 
         restaurantMapper.updateEntityFromDto(request, existingRestaurant);
         Restaurant updated = restaurantRepository.save(existingRestaurant);
@@ -132,9 +129,7 @@ public class RestaurantServiceImpl implements RestaurantService {
         Restaurant restaurant = restaurantRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Restaurant not found"));
 
-        if (!canManage(restaurant, ownerPrincipalId, creatorId, role)) {
-            throw new AccessDeniedException("You are not allowed to delete this restaurant");
-        }
+        authorizeWrite(restaurant, ownerPrincipalId, creatorId, role);
 
         // 🔥 Remove from cache before deletion
         try {
@@ -174,16 +169,13 @@ public class RestaurantServiceImpl implements RestaurantService {
         return source.map(restaurantMapper::toResponse);
     }
 
-    private boolean canManage(Restaurant restaurant, Long ownerPrincipalId, Long creatorId, String role) {
-        if (RoleConstants.ADMIN.equals(role)) return true;
-        if (!RoleConstants.OWNER.equals(role)) return false;
-        if (restaurant.getOwnerPrincipalId() != null) {
-            return ownerPrincipalId != null && ownerPrincipalId.equals(restaurant.getOwnerPrincipalId());
+    private void authorizeWrite(Restaurant restaurant, Long ownerPrincipalId, Long creatorId, String role) {
+        ManagementAccess access = restaurantOwnershipPolicy.assertCanManage(
+                restaurant, ownerPrincipalId, creatorId, role);
+        if (access.usedLegacyFallback()) {
+            identityLegacyFallback("owner_manage");
+            if (ownerPrincipalId != null) restaurant.setOwnerPrincipalId(ownerPrincipalId);
         }
-        if (principalOwnershipEnforced) return false;
-        boolean legacyMatch = creatorId != null && creatorId.equals(restaurant.getCreatorId());
-        if (legacyMatch) identityLegacyFallback("owner_manage");
-        return legacyMatch;
     }
 
     @Override
@@ -207,14 +199,12 @@ public class RestaurantServiceImpl implements RestaurantService {
 
     @Override
     public List<RestaurantResponse> getRestaurantsByOwnerPrincipalId(Long ownerPrincipalId, Long legacyCreatorId) {
-        var restaurants = principalOwnershipEnforced
+        var restaurants = restaurantOwnershipPolicy.isPrincipalOwnershipEnforced()
                 ? restaurantRepository.findByOwnerPrincipalId(ownerPrincipalId, PageRequest.of(0, 100)).getContent()
                 : restaurantRepository.findByOwnerPrincipalOrUnmigratedCreator(
                         ownerPrincipalId, legacyCreatorId, PageRequest.of(0, 100)).getContent();
-        if (!principalOwnershipEnforced) {
-            restaurants.stream().filter(restaurant -> restaurant.getOwnerPrincipalId() == null)
-                    .forEach(restaurant -> identityLegacyFallback("owner_list"));
-        }
+        restaurants.stream().filter(restaurant -> restaurant.getOwnerPrincipalId() == null)
+                .forEach(restaurant -> identityLegacyFallback("owner_list"));
         return restaurants.stream()
                 .map(restaurantMapper::toResponse).collect(Collectors.toList());
     }
