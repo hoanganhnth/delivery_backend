@@ -14,6 +14,7 @@ documents here as real choices are accepted, then index them in this file.
 | Decision | Status | Title |
 | --- | --- | --- |
 | [0001](0001-jwks-resource-server-authentication.md) | Accepted | JWKS Resource-Server Authentication |
+| [0002](0002-problem-first-modular-business-architecture.md) | Accepted | Problem-First Modular Business Architecture |
 
 ## Upstream Current Decisions
 

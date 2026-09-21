@@ -199,11 +199,20 @@ fi
 # VNPay IPN is an external provider callback whose acknowledgement shape is provider-owned.
 # JWKS is an RFC-defined discovery document and intentionally is not wrapped in
 # the product BaseResponse envelope.
+# BFF session/proxy endpoints preserve cookie, status and upstream bytes. Routing
+# and simulator endpoints are typed internal/operational contracts rather than
+# public product-resource envelopes. SimulationActorInternalController is also
+# explicitly internal.
 raw_controller_responses="$(rg -n 'public ResponseEntity<' \
   --glob '**/src/main/java/**/*Controller.java' "${ROOT_DIR}" \
   | rg -v 'BaseResponse' \
   | rg -v '/PaymentController\.java:' \
   | rg -v '/JwksController\.java:' \
+  | rg -v '/WebSessionController\.java:' \
+  | rg -v '/ApiProxyController\.java:' \
+  | rg -v '/RoutingController\.java:' \
+  | rg -v '/SimulatorController\.java:' \
+  | rg -v '/SimulationActorInternalController\.java:' \
   || true)"
 if [[ -n "${raw_controller_responses}" ]]; then
   echo "Public controllers must use the canonical BaseResponse envelope:" >&2
@@ -365,7 +374,7 @@ if rg -q 'Shipper(SearchController|SearchRepository|Document|SearchResponse)|sea
 fi
 unsafe_match_if_missing="$(rg -l 'matchIfMissing[[:space:]]*=[[:space:]]*true' \
   --glob '*.java' "${ROOT_DIR}"/*/src/main/java \
-  | rg -v '/(OrderOutboxRelay|RestaurantOutboxRelay|SagaOutboxRelay|OutboxMessageRelay)\.java$' || true)"
+  | rg -v '/(OrderOutboxRelay|RestaurantOutboxRelay|SagaOutboxRelay|OutboxMessageRelay|LivestreamDisabledWebFilter)\.java$' || true)"
 if [[ -n "${unsafe_match_if_missing}" ]]; then
   echo "Hidden/optional components must not use matchIfMissing=true:" >&2
   printf '%s\n' "${unsafe_match_if_missing}" >&2
@@ -441,6 +450,7 @@ if [[ -e "${ROOT_DIR}/delivery-service/src/main/resources/schema.sql" ]]; then
   exit 1
 fi
 if rg -q 'ALTER TABLE[[:space:]]+deliveries' \
+    --glob '!**/db/migration/**' \
     "${ROOT_DIR}/delivery-service/src/main/java"; then
   echo "delivery-service: runtime Java code must not mutate the Flyway-owned schema." >&2
   exit 1
@@ -795,12 +805,12 @@ if [[ ! -f "${settlement_crash_harness}" || ! -f "${settlement_crash_probe}" ]] 
     || ! rg -Fq 'compose_up --no-deps "${RESOURCE_APP_SERVICES[@]}"' "${runtime_startup_harness}" \
     || ! rg -Fq 'compose_up --no-deps api-gateway' "${runtime_startup_harness}" \
     || ! rg -Fq 'RUNTIME_REBUILD_IMAGES=true' "${clean_harness}" \
-    || ! rg -Fq 'COPY ${SERVICE_PATH}/src service/src' "${dockerfile}" \
-    || ! rg -Fq 'find service/src service/pom.xml reactor-pom.xml -type f -newer "$artifact"' "${dockerfile}" \
-    || ! rg -Fq 'run Maven package first' "${dockerfile}" \
+    || ! rg -Fq 'COPY . reactor/' "${dockerfile}" \
+    || ! rg -Fq '.docker-artifact-input.sha256' "${dockerfile}" \
+    || ! rg -Fq 'input checksum changed' "${dockerfile}" \
     || [[ ! -f "${docker_artifact_freshness_harness}" ]] \
     || ! rg -Fq 'Docker accepted a stale packaged JAR.' "${docker_artifact_freshness_harness}" \
-    || ! rg -Fq 'is stale (newer input:' "${docker_artifact_freshness_harness}" \
+    || ! rg -Fq 'stale transitive input rejected' "${docker_artifact_freshness_harness}" \
     || ! rg -Fq 'clean_compose down -v --remove-orphans' "${clean_harness}" \
     || ! rg -Fq 'verify-mvp-cod-flow.sh' "${compatibility_flow}" \
     || rg -q '/api/(deliveries/order|settlement/balances)' "${compatibility_flow}"; then

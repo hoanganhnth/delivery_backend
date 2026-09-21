@@ -16,7 +16,8 @@ class NotificationListenerAcknowledgmentTest {
     @Test
     void orderFailureIsNotAcknowledged() {
         doThrow(new RuntimeException("database unavailable"))
-                .when(notificationService).sendOrderCreatedNotification(any(), anyLong(), anyLong(), anyString());
+                .when(notificationService).sendOrderCreatedNotification(
+                        any(), anyLong(), isNull(), anyLong(), anyString());
 
         assertThrows(IllegalStateException.class, () -> new OrderEventListener(notificationService)
                 .handleOrderCreatedEvent(
@@ -29,7 +30,8 @@ class NotificationListenerAcknowledgmentTest {
     @Test
     void deliveryFailureIsNotAcknowledged() {
         doThrow(new RuntimeException("database unavailable"))
-                .when(notificationService).sendDeliveryStatusNotification(any(), anyLong(), anyLong(), anyString(), any());
+                .when(notificationService).sendDeliveryStatusNotification(
+                        any(), anyLong(), isNull(), anyLong(), anyString(), any());
 
         assertThrows(IllegalStateException.class, () -> new DeliveryEventListener(notificationService)
                 .handleDeliveryStatusUpdatedEvent(

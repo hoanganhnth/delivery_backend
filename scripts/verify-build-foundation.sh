@@ -73,8 +73,8 @@ goals = {
     for goal in active[jacoco_key].findall("m:executions/m:execution/m:goals/m:goal", NS)
     if goal.text
 }
-if not {"prepare-agent", "report"}.issubset(goals):
-    raise SystemExit("JaCoCo prepare-agent and report executions are not both active")
+if not {"prepare-agent", "report", "check"}.issubset(goals):
+    raise SystemExit("JaCoCo prepare-agent, report and check executions are not all active")
 if ("org.springframework.boot", "spring-boot-maven-plugin") in active:
     raise SystemExit("library effective POM activates spring-boot-maven-plugin")
 
@@ -180,6 +180,45 @@ if jar tf "${fixture_jar}" | rg -q '^BOOT-INF/'; then
 fi
 if [[ -e "${fixture_jar}.original" ]]; then
   echo "Spring Boot repackage left an unexpected original library JAR." >&2
+  exit 1
+fi
+
+threshold_fixture="${TEMP_DIR}/coverage-threshold-fixture"
+mkdir -p "${threshold_fixture}"
+cp -R "${fixture_dir}/src" "${threshold_fixture}/src"
+cat > "${threshold_fixture}/pom.xml" <<'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.delivery</groupId>
+        <artifactId>delivery-build-parent</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+        <relativePath/>
+    </parent>
+    <artifactId>delivery-build-coverage-threshold-fixture</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+    <properties>
+        <delivery.coverage.line.minimum>0.85</delivery.coverage.line.minimum>
+        <delivery.coverage.branch.minimum>0.85</delivery.coverage.branch.minimum>
+    </properties>
+    <dependencies>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>
+EOF
+if mvn -B -f "${threshold_fixture}/pom.xml" clean verify \
+    > "${TEMP_DIR}/coverage-threshold.log" 2>&1; then
+  echo "JaCoCo accepted fixture coverage below the required 85%." >&2
+  exit 1
+fi
+if ! rg -Fq 'Coverage checks have not been met' "${TEMP_DIR}/coverage-threshold.log"; then
+  echo "Coverage threshold fixture failed for an unexpected reason." >&2
+  sed -n '1,200p' "${TEMP_DIR}/coverage-threshold.log" >&2
   exit 1
 fi
 

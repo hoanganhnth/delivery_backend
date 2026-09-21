@@ -77,7 +77,8 @@ public class ShipperControllerTest {
         response.setRating(BigDecimal.valueOf(5.0));
         response.setCompletedDeliveries(0);
 
-        when(shipperService.createShipper(any(CreateShipperRequest.class), any(), any()))
+        when(shipperService.createShipper(
+                any(CreateShipperRequest.class), anyLong(), anyLong(), anyString()))
                 .thenReturn(response);
 
         mockMvc.perform(post("/api/shippers")

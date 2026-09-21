@@ -47,7 +47,7 @@ class NotificationControllerAuthorizationTest {
         var response = controller.getUnreadNotifications(actor);
 
         assertThat(response.getStatusCode().is2xxSuccessful()).isTrue();
-        verify(notificationService).getUnreadNotifications(99L);
+        verify(notificationService).getUnreadNotifications(99L, 99L);
     }
 
     @Test
@@ -63,11 +63,11 @@ class NotificationControllerAuthorizationTest {
         controller.getNotificationById(7L, userActor);
         controller.deleteNotification(7L, shipperActor);
 
-        verify(notificationService).getUnreadCount(99L);
-        verify(notificationService).markAsRead(7L, 99L);
-        verify(notificationService).markAllAsRead(99L);
-        verify(notificationService).getNotificationById(7L, 99L);
-        verify(notificationService).deleteNotification(7L, 99L);
+        verify(notificationService).getUnreadCount(99L, 99L);
+        verify(notificationService).markAsRead(7L, 99L, 99L);
+        verify(notificationService).markAllAsRead(99L, 99L);
+        verify(notificationService).getNotificationById(7L, 99L, 99L);
+        verify(notificationService).deleteNotification(7L, 99L, 99L);
     }
 
     @Test

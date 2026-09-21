@@ -2,9 +2,7 @@ FROM amazoncorretto:17-alpine AS artifact-check
 ARG SERVICE_PATH
 
 WORKDIR /build
-COPY pom.xml reactor-pom.xml
-COPY ${SERVICE_PATH}/pom.xml service/pom.xml
-COPY ${SERVICE_PATH}/src service/src
+COPY . reactor/
 COPY ${SERVICE_PATH}/target/*.jar service/target/
 COPY ${SERVICE_PATH}/target/.docker-artifact-input.sha256 service/target/
 
@@ -22,7 +20,7 @@ RUN set -eu; \
       echo "Missing package input manifest for ${SERVICE_PATH}; run scripts/package-compose-services.sh first." >&2; \
       exit 1; \
     }; \
-    actual_digest="$( { sha256sum reactor-pom.xml service/pom.xml; find service/src -type f -print | LC_ALL=C sort | xargs sha256sum; } | awk '{print $1}' | sha256sum | awk '{print $1}' )"; \
+    actual_digest="$( find reactor -type f \( -name pom.xml -o -path '*/src/*' \) -print | LC_ALL=C sort | xargs sha256sum | awk '{print $1}' | sha256sum | awk '{print $1}' )"; \
     if [ "$actual_digest" != "$(cat service/target/.docker-artifact-input.sha256)" ]; then \
       echo "Packaged JAR for ${SERVICE_PATH} is stale (input checksum changed); run scripts/package-compose-services.sh first." >&2; \
       exit 1; \

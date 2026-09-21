@@ -1,0 +1,21 @@
+*
+
+# The artifact-check stage needs the complete Maven reactor inputs so a change
+# in a shared/transitive module invalidates a host JAR packaged earlier.
+!pom.xml
+!*/
+!**/
+!**/pom.xml
+!**/src/
+!**/src/**
+!**/target/
+!**/target/*.jar
+!**/target/.docker-artifact-input.sha256
+
+# Canonical reference snapshots and local/runtime secrets are never build input.
+docs/
+.git/
+.env
+.env.*
+**/.env
+**/.env.*

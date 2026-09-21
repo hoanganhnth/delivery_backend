@@ -2,7 +2,8 @@
 
 ## Status
 
-Active — baseline and phase 0 implementation. Not a completed backend migration.
+Active — phase 0 complete; phase 1 problem analysis is the next gate. This is
+not a completed backend migration.
 
 ## Outcome and authority
 
@@ -57,11 +58,16 @@ Outbox/inbox schemas, atomicity, ordering and business receipts remain local.
 
 ## Ordered implementation
 
-- [ ] Phase 0: baseline tests, coverage inventory, build parent/BOM, architecture
+- [x] Phase 0: baseline tests, coverage inventory, build parent/BOM, architecture
   gates and transitive Docker artifact freshness proof.
-- [ ] Phase 1: Restaurant pilot — ownership, menu reads/writes, Restaurant CRUD,
-  then decision/rating/serviceability/inventory. Preserve mapper, lock/flush,
-  transaction and outbox behavior. Add only testkit helpers actually needed.
+- [ ] Phase 1: Restaurant pilot. Before implementation, approve a problem
+  contract and test matrix for actors/ownership, Restaurant CRUD, menu
+  reads/writes, state transitions, invariants, validation, authorization,
+  duplicate/reordered input, concurrency, transaction failure, external
+  boundaries and compatibility. Only then extract the agreed slice; decision,
+  rating, serviceability and inventory remain separate follow-up problems.
+  Preserve mapper, lock/flush, transaction and outbox behavior. Add only
+  testkit helpers actually needed.
 - [ ] Phase 2: HTTP support, routing-contracts and routing-client; adopt Order
   then Match, retaining different caller failure/fallback policies.
 - [ ] Phase 3: Order/Delivery event contracts and Kafka support in Order then
@@ -94,38 +100,50 @@ Gateway/Discovery/Config/CLI use only layers that have actual responsibility.
 
 ## Execution record
 
-- Worktree created from current committed backend; original checkout remains
-  untouched. Full baseline completed exit 1 in 4m32s; log
-  `/tmp/backend-platform-baseline.log`. Modules through Delivery passed.
-- Notification baseline: 68 tests, 7 failures, 0 errors/skips, before any
-  production/build edits. Failures in NotificationControllerAuthorizationTest
-  (2), DeliveryEventListenerContractTest (3), and
-  NotificationListenerAcknowledgmentTest (2). Later modules were not executed.
-  Do not skip or weaken these tests. Bounded build-foundation canary work can
-  be verified independently; business migration and whole-reactor completion
-  remain gated by this pre-existing baseline gap.
-- Initial slice will establish build/coverage support before moving business
-  behavior. Parent migration must preserve effective dependency versions.
-- Build-foundation canary implemented: `delivery-platform-bom` and the opt-in
-  `delivery-build-parent` are registered; only `identity-contracts` migrated.
-  `scripts/verify-build-foundation.sh` compares pre/post effective dependencies
-  and managed plugin versions, validates inherited JaCoCo executions, proves
-  unexecuted classes remain in XML, checks a library JAR is not repackaged, and
-  confirms an unmigrated service has no JaCoCo plugin. RED before implementation
-  was the missing JaCoCo plugin; GREEN log is
-  `/tmp/backend-build-foundation.log`. A clean temporary Maven repository also
-  passed `mvn -B -pl identity-contracts -am validate`.
+- Worktree was created from commit `52be51c`; the original checkout remains
+  untouched. Build foundation was committed separately as `04dd84c`.
+- The first baseline exposed stale identity-overload tests in Notification,
+  Shipper, Settlement and Flashsale. They were updated to assert both trusted
+  `principalId` and legacy business IDs; production behavior and public wire
+  contracts were not changed. Match integration tests were also stale because
+  they counted all outbox rows after decision-trace observability was added;
+  they now assert exactly one business-result event while retaining the trace.
+- The completed segmented reactor run reports 1,403 tests, 0 failures, 0 errors
+  and 6 skips. PostgreSQL/Kafka/Redis integration tests were retained. Initial
+  failures and repair runs are recorded in `/tmp/backend-platform-phase0-*.log`.
+  A subsequent `mvn -B -DskipTests verify` completed the full reactor and proved
+  packaging plus JaCoCo lifecycle wiring; log
+  `/tmp/backend-platform-phase0-skiptests-verify.log`.
+- `delivery-platform-bom` and the opt-in `delivery-build-parent` are registered;
+  `identity-contracts` is the canary consumer. The foundation verifier compares
+  effective dependencies/plugin management, verifies JaCoCo prepare/report/check,
+  includes unexecuted classes, checks non-repackaged library JARs and proves a
+  negative fixture below 85% fails. Final log:
+  `/tmp/backend-build-foundation-phase0-final.log`.
 - Current `identity-contracts` measurement is 43.48% line and 36.36% branch.
-  This is evidence that reporting works, not an 85% claim. The 85% checks remain
-  pending for each extracted domain/application module.
-- Known build risk: Docker freshness currently hashes only host source/POM and
-  root POM; shared module inputs must be covered before declaring phase 0 done.
-- `bash scripts/verify-test-context-isolation.sh`: exit 0, all 17 application
-  test contexts pass. `bash scripts/verify-build-baseline.sh`: exit 1 before
-  build edits, on the canonical BaseResponse grep (including BFF proxy/session,
-  Routing and Simulator responses); log `/tmp/backend-platform-build-baseline.log`.
-  Do not change public response shapes just to satisfy this legacy gate.
+  This is a reporting canary, not an 85% claim. No extracted domain/application
+  module exists yet. Each future domain/application module must independently
+  pass 85% line and 85% branch coverage.
+- `scripts/verify-module-boundaries.py` rejects framework dependencies/imports,
+  invalid dependency direction, cross-service internal imports and behavior in
+  future application-api interfaces. Its self-test passes; log
+  `/tmp/backend-module-boundaries-phase0-final.log`.
+- Docker artifact freshness now hashes all reactor POM and `src/**` inputs and
+  rejects a manifest after shared-module source changes. This intentionally uses
+  broad invalidation for correctness. Dependency-closure optimization is
+  deferred until build-time measurements justify it. Final log:
+  `/tmp/backend-docker-freshness-phase0-final.log`.
+- Legacy build policy and all 17 isolated application contexts pass without
+  changing public response shapes or runtime defaults. Final logs:
+  `/tmp/backend-build-baseline-phase0-final.log` and
+  `/tmp/backend-test-context-phase0-final.log`.
+- ADR `0002-problem-first-modular-business-architecture.md` makes the problem
+  contract and problem-to-test mapping a binding entry gate for every business
+  extraction. Technology/module choices follow the approved business model.
 
 ## Result
 
-Pending. No platform, coverage or production completion claim yet.
+Phase 0 is complete. The build can now enforce module boundaries and future
+85/85 core coverage without forcing all existing services into the new parent.
+The next action is analysis, not extraction: produce and review the Restaurant/
+Menu problem contract and its unit/boundary/integration test matrix.

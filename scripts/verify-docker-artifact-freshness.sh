@@ -18,19 +18,24 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-mkdir -p "$WORK_DIR/fixture/src/main/java/example" "$WORK_DIR/fixture/target"
+mkdir -p "$WORK_DIR/fixture/src/main/java/example" "$WORK_DIR/fixture/target" \
+  "$WORK_DIR/shared-module/src/main/java/example/shared"
 cp "$ROOT_DIR/Dockerfile" "$WORK_DIR/Dockerfile"
+cp "$ROOT_DIR/.dockerignore" "$WORK_DIR/.dockerignore"
 
 printf '%s\n' '<project/>' > "$WORK_DIR/pom.xml"
 printf '%s\n' '<project/>' > "$WORK_DIR/fixture/pom.xml"
+printf '%s\n' '<project/>' > "$WORK_DIR/shared-module/pom.xml"
 printf '%s\n' 'package example; final class Fixture {}' \
   > "$WORK_DIR/fixture/src/main/java/example/Fixture.java"
+printf '%s\n' 'package example.shared; public final class SharedFixture {}' \
+  > "$WORK_DIR/shared-module/src/main/java/example/shared/SharedFixture.java"
 printf '%s\n' 'fixture artifact' > "$WORK_DIR/fixture/target/fixture.jar"
 
 write_manifest() {
   {
-    shasum -a 256 "$WORK_DIR/pom.xml" "$WORK_DIR/fixture/pom.xml"
-    find "$WORK_DIR/fixture/src" -type f -print | LC_ALL=C sort | while IFS= read -r file; do
+    find "$WORK_DIR" -type f \( -name pom.xml -o -path '*/src/*' \) \
+      -print | LC_ALL=C sort | while IFS= read -r file; do
       shasum -a 256 "$file"
     done
   } | awk '{print $1}' | shasum -a 256 | awk '{print $1}' \
@@ -40,16 +45,19 @@ write_manifest() {
 # Establish deterministic ordering independent of filesystem timestamp precision.
 touch -t 202601010100 "$WORK_DIR/pom.xml" \
   "$WORK_DIR/fixture/pom.xml" \
-  "$WORK_DIR/fixture/src/main/java/example/Fixture.java"
+  "$WORK_DIR/fixture/src/main/java/example/Fixture.java" \
+  "$WORK_DIR/shared-module/pom.xml" \
+  "$WORK_DIR/shared-module/src/main/java/example/shared/SharedFixture.java"
 touch -t 202601010101 "$WORK_DIR/fixture/target/fixture.jar"
 write_manifest
 
 docker build --quiet --tag "$IMAGE_TAG" --build-arg SERVICE_PATH=fixture \
   --file "$WORK_DIR/Dockerfile" "$WORK_DIR" >/dev/null
 
-printf '%s\n' '// source changed after package' \
-  >> "$WORK_DIR/fixture/src/main/java/example/Fixture.java"
-touch -t 202601010102 "$WORK_DIR/fixture/src/main/java/example/Fixture.java"
+printf '%s\n' '// shared source changed after host package' \
+  >> "$WORK_DIR/shared-module/src/main/java/example/shared/SharedFixture.java"
+touch -t 202601010102 \
+  "$WORK_DIR/shared-module/src/main/java/example/shared/SharedFixture.java"
 
 if docker build --tag "$IMAGE_TAG" --build-arg SERVICE_PATH=fixture \
     --file "$WORK_DIR/Dockerfile" "$WORK_DIR" \
@@ -66,4 +74,4 @@ if ! grep -Fq 'is stale (input checksum changed)' "$WORK_DIR/stale-build.log" \
 fi
 
 printf '%s\n' \
-  "Docker artifact freshness proof passed: fresh manifest accepted, stale input rejected."
+  "Docker artifact freshness proof passed: fresh manifest accepted, stale transitive input rejected."

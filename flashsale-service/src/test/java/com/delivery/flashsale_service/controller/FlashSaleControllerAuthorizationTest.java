@@ -84,7 +84,7 @@ class FlashSaleControllerAuthorizationTest {
 
         controller.registerItem(request, shopActor);
 
-        verify(ownershipClient).requireOwnedBy(9L, 21L);
+        verify(ownershipClient).requireOwnedBy(9L, 21L, 21L);
         verify(flashSaleService).registerItem(request);
     }
 

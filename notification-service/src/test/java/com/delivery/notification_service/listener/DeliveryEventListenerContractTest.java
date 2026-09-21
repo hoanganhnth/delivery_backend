@@ -28,7 +28,7 @@ class DeliveryEventListenerContractTest {
 
         verify(notificationService).sendDeliveryStatusNotification(
                 eq(UUID.fromString("7ec910c4-7928-4d80-9f32-fdd83058f31b")),
-                eq(33L), eq(11L), eq("DELIVERING"), isNull());
+                eq(33L), isNull(), eq(11L), eq("DELIVERING"), isNull());
         verify(acknowledgment).acknowledge();
     }
 
@@ -48,7 +48,7 @@ class DeliveryEventListenerContractTest {
 
         verify(notificationService).sendDeliveryStatusNotification(
                 eq(UUID.fromString("8ec910c4-7928-4d80-9f32-fdd83058f31b")),
-                eq(33L), eq(11L), eq("SHIPPER_NOT_FOUND"), isNull());
+                eq(33L), isNull(), eq(11L), eq("SHIPPER_NOT_FOUND"), isNull());
         verify(acknowledgment).acknowledge();
     }
 
@@ -69,7 +69,7 @@ class DeliveryEventListenerContractTest {
 
         verify(notificationService).sendDeliveryStatusNotification(
                 UUID.fromString("9ec910c4-7928-4d80-9f32-fdd83058f31b"),
-                33L, 11L, "DELIVERING", "Nguyen Van A");
+                33L, null, 11L, "DELIVERING", "Nguyen Van A");
         verify(acknowledgment).acknowledge();
     }
 }

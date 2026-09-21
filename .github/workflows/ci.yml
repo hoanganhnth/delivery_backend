@@ -23,13 +23,15 @@ jobs:
         with:
           node-version: '20'
       - name: Verify build platform canary
-        run: bash scripts/verify-build-foundation.sh
+        run: |
+          bash scripts/verify-build-foundation.sh
+          python3 scripts/verify-module-boundaries.py --self-test
       - name: Verify toolchain and dependency baseline
         run: ./scripts/verify-build-baseline.sh
       - name: Verify no-runtime test context isolation
         run: ./scripts/verify-test-context-isolation.sh
       - name: Build and test
-        run: mvn -B clean test
+        run: mvn -B clean verify
       - name: Verify HTTP and public-boundary contracts
         run: |
           ./scripts/verify-http-api-inventory.sh

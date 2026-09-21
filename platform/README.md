@@ -38,3 +38,15 @@ This produces coverage evidence; it does not assert an overall backend coverage
 percentage. The 85% line-and-branch rule will be enabled per migrated domain or
 application module when those pure business modules exist. Adapter, host,
 concurrency, integration, and production behavior need separate evidence.
+
+Each future `*-domain` and `*-application` module must override both inherited
+properties below; the module-boundary gate rejects a core POM that omits them:
+
+```xml
+<delivery.coverage.line.minimum>0.85</delivery.coverage.line.minimum>
+<delivery.coverage.branch.minimum>0.85</delivery.coverage.branch.minimum>
+```
+
+`*-application-api` modules are interface-only and report coverage as N/A. CI
+runs Maven through `verify`, so the JaCoCo check is enforced rather than merely
+generating a report.

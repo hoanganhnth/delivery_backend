@@ -3,8 +3,9 @@ set -euo pipefail
 
 # Packages host artifacts consumed by the Compose Dockerfile and writes a
 # deterministic checksum manifest beside each JAR. Docker compares that
-# manifest with its own source/POM build context, avoiding false stale errors
-# from Maven reproducible JAR timestamps while still rejecting changed input.
+# manifest with the reactor source/POM build context, avoiding false stale
+# errors from Maven reproducible JAR timestamps while still rejecting changes
+# in a host or any shared/transitive module.
 
 readonly ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
@@ -31,8 +32,8 @@ write_manifest() {
     || die "Missing packaged JAR for ${service}"
   tmp="${target}.tmp"
   {
-    shasum -a 256 pom.xml "${service}/pom.xml"
-    find "${service}/src" -type f -print | LC_ALL=C sort | while IFS= read -r file; do
+    find . -type f \( -name pom.xml -o -path '*/src/*' \) \
+      -not -path './docs/*' -print | LC_ALL=C sort | while IFS= read -r file; do
       shasum -a 256 "$file"
     done
   } | awk '{print $1}' | shasum -a 256 | awk '{print $1}' > "$tmp"

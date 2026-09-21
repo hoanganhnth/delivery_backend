@@ -252,11 +252,11 @@ class MatchKafkaPostgresRedisIntegrationTest {
                 commandRepository.findById(HAPPY_FIND_EVENT_ID)
                         .map(persisted -> persisted.getStatus() == MatchCommand.Status.RESULT_STAGED)
                         .orElse(false)
-                        && outboxRepository.count() == 1);
+                        && businessResults().size() == 1);
 
         UUID expectedResultId = UUID.nameUUIDFromBytes(
                 ("match:shipper-found:" + HAPPY_FIND_EVENT_ID).getBytes(StandardCharsets.UTF_8));
-        MatchOutboxEvent result = outboxRepository.findAll().get(0);
+        MatchOutboxEvent result = businessResults().get(0);
         assertThat(result.getStatus()).isEqualTo(MatchOutboxEvent.Status.PENDING);
         assertThat(result.getCommandEventId()).isEqualTo(HAPPY_FIND_EVENT_ID);
         assertThat(result.getEventId()).isEqualTo(expectedResultId);
@@ -276,7 +276,7 @@ class MatchKafkaPostgresRedisIntegrationTest {
         assertThat(commandRepository.findById(HAPPY_FIND_EVENT_ID)).get()
                 .extracting(MatchCommand::getStatus)
                 .isEqualTo(MatchCommand.Status.RESULT_STAGED);
-        assertThat(outboxRepository.findAll()).singleElement()
+        assertThat(businessResults()).singleElement()
                 .extracting(MatchOutboxEvent::getEventId)
                 .isEqualTo(expectedResultId);
 
@@ -291,7 +291,7 @@ class MatchKafkaPostgresRedisIntegrationTest {
                     .isEqualTo(HAPPY_MATCHING_SESSION_ID.toString());
         }
 
-        assertThat(outboxRepository.findAll()).singleElement()
+        assertThat(businessResults()).singleElement()
                 .extracting(MatchOutboxEvent::getStatus)
                 .isEqualTo(MatchOutboxEvent.Status.SENT);
     }
@@ -370,9 +370,9 @@ class MatchKafkaPostgresRedisIntegrationTest {
                 commandRepository.findById(REDIS_RECOVERY_FIND_EVENT_ID)
                         .map(persisted -> persisted.getStatus() == MatchCommand.Status.RESULT_STAGED)
                         .orElse(false)
-                        && outboxRepository.count() == 1);
+                        && businessResults().size() == 1);
 
-        MatchOutboxEvent durableResult = outboxRepository.findAll().get(0);
+        MatchOutboxEvent durableResult = businessResults().get(0);
         UUID expectedResultId = UUID.nameUUIDFromBytes(
                 ("match:shipper-found:" + REDIS_RECOVERY_FIND_EVENT_ID)
                         .getBytes(StandardCharsets.UTF_8));
@@ -392,13 +392,13 @@ class MatchKafkaPostgresRedisIntegrationTest {
         assertThat(commandRepository.findById(REDIS_RECOVERY_FIND_EVENT_ID)).get()
                 .extracting(MatchCommand::getStatus)
                 .isEqualTo(MatchCommand.Status.RESULT_STAGED);
-        assertThat(outboxRepository.findAll()).singleElement()
+        assertThat(businessResults()).singleElement()
                 .extracting(MatchOutboxEvent::getEventId, MatchOutboxEvent::getStatus)
                 .containsExactly(expectedResultId, MatchOutboxEvent.Status.PENDING);
         assertThat(redisTemplate.hasKey("match:shipper:offer:" + SHIPPER_ID)).isFalse();
 
         relayPendingResults();
-        assertThat(outboxRepository.findAll()).singleElement()
+        assertThat(businessResults()).singleElement()
                 .extracting(MatchOutboxEvent::getStatus)
                 .isEqualTo(MatchOutboxEvent.Status.SENT);
 
@@ -429,9 +429,9 @@ class MatchKafkaPostgresRedisIntegrationTest {
                 commandRepository.findById(REDIS_RECOVERY_NEXT_FIND_EVENT_ID)
                         .map(persisted -> persisted.getStatus() == MatchCommand.Status.RESULT_STAGED)
                         .orElse(false)
-                        && outboxRepository.count() == 2);
+                        && businessResults().size() == 2);
 
-        MatchOutboxEvent nextResult = outboxRepository.findAll().stream()
+        MatchOutboxEvent nextResult = businessResults().stream()
                 .filter(event -> REDIS_RECOVERY_NEXT_FIND_EVENT_ID.equals(event.getCommandEventId()))
                 .findFirst()
                 .orElseThrow();
@@ -458,7 +458,7 @@ class MatchKafkaPostgresRedisIntegrationTest {
                 commandRepository.findById(CANCELLED_RESULT_FIND_EVENT_ID)
                         .map(persisted -> persisted.getStatus() == MatchCommand.Status.RESULT_STAGED)
                         .orElse(false)
-                        && outboxRepository.count() == 1);
+                        && businessResults().size() == 1);
         long outputEndBeforeStop = endOffset(FOUND_TOPIC);
 
         startListenersFor(STOP_TOPIC);
@@ -480,7 +480,7 @@ class MatchKafkaPostgresRedisIntegrationTest {
 
         relayPendingResults();
 
-        assertThat(outboxRepository.findAll()).singleElement()
+        assertThat(businessResults()).singleElement()
                 .extracting(MatchOutboxEvent::getStatus)
                 .isEqualTo(MatchOutboxEvent.Status.CANCELLED);
         assertThat(redisTemplate.hasKey("match:shipper:offer:" + SHIPPER_ID)).isFalse();
@@ -664,7 +664,7 @@ class MatchKafkaPostgresRedisIntegrationTest {
         return commandRepository.findById(command.getEventId())
                 .map(persisted -> persisted.getStatus() == MatchCommand.Status.RESULT_STAGED)
                 .orElse(false)
-                && outboxRepository.count() == 1
+                && businessResults().size() == 1
                 && Objects.equals(redisTemplate.opsForValue().get("match:shipper:offer:" + SHIPPER_ID),
                         Long.toString(command.getDeliveryId()))
                 && Objects.equals(redisTemplate.opsForValue().get(
@@ -677,7 +677,7 @@ class MatchKafkaPostgresRedisIntegrationTest {
         assertThat(commandRepository.findById(command.getEventId())).get()
                 .extracting(MatchCommand::getStatus)
                 .isEqualTo(MatchCommand.Status.RESULT_STAGED);
-        assertThat(outboxRepository.findAll()).singleElement().satisfies(outbox -> {
+        assertThat(businessResults()).singleElement().satisfies(outbox -> {
             assertThat(outbox.getCommandEventId()).isEqualTo(command.getEventId());
             assertThat(outbox.getEventId()).isEqualTo(expectedResultId);
             assertThat(outbox.getTopic()).isEqualTo("shipper.found");
@@ -691,6 +691,13 @@ class MatchKafkaPostgresRedisIntegrationTest {
     private AdminClient adminClient() {
         return AdminClient.create(Map.of(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG,
                 KAFKA.getBootstrapServers()));
+    }
+
+    private List<MatchOutboxEvent> businessResults() {
+        return outboxRepository.findAll().stream()
+                .filter(outbox -> "shipper.found".equals(outbox.getTopic())
+                        || "shipper.not-found".equals(outbox.getTopic()))
+                .toList();
     }
 
     private void closeReplicas() {

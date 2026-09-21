@@ -37,7 +37,7 @@ class RefundCustomerControllerTest {
         var response = controller.list(shopActor, 50);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
-        verify(refundCaseService, never()).listCustomerCases(anyLong(), anyInt());
+        verify(refundCaseService, never()).listCustomerCases(anyLong(), anyLong(), anyInt());
     }
 
     @Test
@@ -48,7 +48,7 @@ class RefundCustomerControllerTest {
         var response = controller.list(userActorWithoutId, 50);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
-        verify(refundCaseService, never()).listCustomerCases(anyLong(), anyInt());
+        verify(refundCaseService, never()).listCustomerCases(anyLong(), anyLong(), anyInt());
     }
 
     @Test
@@ -59,13 +59,13 @@ class RefundCustomerControllerTest {
                 .orderId(101L)
                 .status("MANUAL_REVIEW")
                 .build();
-        when(refundCaseService.listCustomerCases(7L, 25)).thenReturn(List.of(refund));
+        when(refundCaseService.listCustomerCases(7L, 7L, 25)).thenReturn(List.of(refund));
 
         var response = controller.list(userActor, 25);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody().getData()).containsExactly(refund);
-        verify(refundCaseService).listCustomerCases(7L, 25);
+        verify(refundCaseService).listCustomerCases(7L, 7L, 25);
     }
 
     @Test
