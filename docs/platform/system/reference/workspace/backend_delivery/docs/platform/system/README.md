@@ -31,7 +31,9 @@ this folder.
 | Read the diagram inventory and Mermaid rules | [diagram-standards.md](./diagram-standards.md) |
 | Find ownership, database, capability and responsibility of a service | [service-catalog.md](./service-catalog.md) |
 | Reproduce business behavior and failure handling | [workflows.md](./workflows.md) |
+| Enumerate actor and system use cases with status boundaries | [product/use-cases.md](../product/use-cases.md) |
 | Build a compatible HTTP client or service | [API guide](./api/README.md), [human-readable API catalog](./api/http-contract-catalog.md) and [machine-readable HTTP contract](./api/http-contract.json) |
+| Review the public Gateway surface | [public-edge catalog](./api/public-edge-catalog.md) and [machine-readable public-edge manifest](./api/public-edge-manifest.json) |
 | Reproduce eventing, state, storage and recovery rules | [events-and-data.md](./events-and-data.md) |
 | Implement identity, authorization and secrets safely | [security.md](./security.md) |
 | Recreate the three clients | [clients.md](./clients.md) |

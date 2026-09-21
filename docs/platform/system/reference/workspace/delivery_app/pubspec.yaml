@@ -28,6 +28,7 @@ dependencies:
   mapbox_maps_flutter: ^2.10.0
   toastification: ^3.0.3
   shared_preferences: ^2.5.3
+  flutter_secure_storage: ^9.2.4
   hive: ^2.2.3
   hive_flutter: ^1.1.0
   freezed_annotation: ^3.1.0
@@ -39,6 +40,7 @@ dependencies:
   cached_network_image: ^3.4.1
   flutter_screenutil: ^5.9.3
   auto_size_text: ^3.0.0
+  agora_rtc_engine: ^6.6.4
   geolocator: ^14.0.2
   geocoding: ^3.0.0
   rxdart: ^0.28.0
@@ -91,6 +93,20 @@ flutter:
     - assets/icons/
     # - assets/lottie/
     - .env
+
+  fonts:
+    - family: Plus Jakarta Sans
+      fonts:
+        - asset: assets/fonts/plus_jakarta_sans/PlusJakartaSans-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/plus_jakarta_sans/PlusJakartaSans-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/plus_jakarta_sans/PlusJakartaSans-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/plus_jakarta_sans/PlusJakartaSans-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/plus_jakarta_sans/PlusJakartaSans-ExtraBold.ttf
+          weight: 800
 
 dependency_overrides:
   retrofit: 4.9.1

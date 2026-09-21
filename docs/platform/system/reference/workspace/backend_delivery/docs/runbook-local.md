@@ -146,11 +146,69 @@ local chạy trực tiếp qua PostgreSQL container; không có route nạp ti�
 được mở qua Gateway. Settlement service phải boot ít nhất một lần để schema tồn
 tại trước khi chạy seed.
 
+### Reusable Grab image manifest
+
+`scripts/fixtures/hanoi-grab-image-manifest.json` là artifact đã version hóa,
+chứa URL CDN Grab và provenance cho 485 nhà hàng/1.940 món (không chứa token,
+password hoặc file ảnh nhị phân). Sinh/cập nhật artifact từ catalog shared bằng:
+
+```bash
+node scripts/workspace/export-grab-image-manifest.mjs --write \
+  --catalog ../data/catalog/hanoi-catalog.json
+node scripts/workspace/validate-grab-image-catalog.mjs \
+  scripts/fixtures/hanoi-grab-image-manifest.json
+```
+
+Hai script `seed-hanoi-catalog-images.sh` và
+`seed-legacy-fixture-images.sh` ưu tiên `../data/catalog/hanoi-catalog.json`;
+nếu checkout/deployment không có thư mục `data/` ngoài repo thì tự dùng manifest
+version hóa trong `scripts/fixtures/`. Đây là snapshot URL public, nên cần
+validate lại trước mỗi release; nếu production cần độ bền asset lâu dài, nên
+mirror sang CDN/object storage đã được phê duyệt sau khi xác nhận quyền sử dụng.
+Không chạy các local-only fixture seed script trực tiếp vào dữ liệu production.
+
 Vì public Auth registration không còn tạo mới `SHIPPER`, seed dùng auth-service
 one-shot operator runner để provision fixture SHIPPER qua AuthService + User
 internal provisioning, sau đó mới login và tạo Shipper profile qua Gateway. Trước
 mỗi run, script đưa các shipper fixture cũ `shipper+*@test.dev` offline qua API
 để Match không offer nhầm cho dữ liệu test cũ. Runner này không tạo ADMIN.
+
+### Reusable Hanoi restaurant contact fixture
+
+`data/catalog/hanoi-catalog.json` là catalog shared nằm ngoài repo backend. Contact
+enrichment giữ nguyên 63 địa chỉ có nguồn; 422 record không lộ địa chỉ chi tiết
+được gán địa chỉ mock xác định theo tên/quận và số điện thoại mock 10 chữ số.
+Tọa độ của record mock được tạo cùng lúc theo tâm quận với jitter nhỏ, chỉ dùng
+cho local demo/nearby matching, không phải geocoding production. Artifact đã
+version hóa tại `scripts/fixtures/hanoi-restaurant-contact-manifest.json` để
+checkout/deploy không cần giữ thư mục `data/` ngoài repo.
+
+```bash
+node scripts/workspace/enrich-hanoi-contact-data.mjs \
+  --write --write-manifest \
+  --catalog ../data/catalog/hanoi-catalog.json
+node scripts/workspace/validate-data-catalog.mjs \
+  ../data/catalog/hanoi-catalog.json
+```
+
+Để cập nhật các row nhà hàng đã có trong Docker, dùng runner local-only sau khi
+catalog đã được enrich. Mỗi request PUT gửi `address`, `phone`, `addressLat` và
+`addressLng` cùng nhau; runner không tạo/xóa restaurant và không đụng menu:
+
+```bash
+DRY_RUN=true bash scripts/backfill-hanoi-catalog-contact-data.sh
+
+LOCAL_BULK_SEED=true \
+ALLOW_LOCAL_EMAIL_VERIFICATION_BYPASS=true \
+DRY_RUN=false \
+bash scripts/backfill-hanoi-catalog-contact-data.sh
+```
+
+Không chạy runner local-only trên production. Kiểm tra nhanh logic fixture bằng:
+
+```bash
+bash scripts/test-hanoi-contact-data.sh
+```
 
 The two flow scripts use Gateway only. A successful Compose render or Maven
 package does not prove the order lifecycle; record container health/logs and the

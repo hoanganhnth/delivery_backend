@@ -4,6 +4,12 @@ set -euo pipefail
 command -v docker >/dev/null
 command -v jq >/dev/null
 
+# Every discovery-enabled service must consume the Compose-provided registry
+# URL. Merely rendering EUREKA_DEFAULT_ZONE in Compose is insufficient when a
+# service does not bind that variable into Spring's Eureka configuration.
+rg -Fq 'eureka.client.service-url.defaultZone=${EUREKA_DEFAULT_ZONE:http://discovery-server:8761/eureka/}' \
+  web-bff-service/src/main/resources/application.properties
+
 # Contract rendering references an ignored operator-owned secret file. The
 # renderer never reads this placeholder; a real Compose startup requires it.
 if [[ -z "${INTERNAL_SECRET_FILE:-}" ]]; then
@@ -118,10 +124,13 @@ printf '%s' "$rendered_config" | jq -e \
     and .services["order-service"].environment.ORDER_PAYMENT_EVENT_PROCESSING_ENABLED == "false"
     and .services["order-service"].environment.ORDER_VOUCHER_CHECKOUT_ENABLED == "false"
     and .services["order-service"].environment.ORDER_FLASHSALE_CHECKOUT_ENABLED == "false"
+    and .services["order-service"].environment.ORDER_LIVESTREAM_CHECKOUT_ENABLED == "false"
     and .services["order-service"].environment.PROMOTION_SERVICE_URL
       == "http://promotion-service:8096"
     and .services["order-service"].environment.FLASHSALE_SERVICE_URL
       == "http://flashsale-service:8092"
+    and .services["order-service"].environment.LIVESTREAM_SERVICE_URL
+      == "http://livestream-service:8094"
     and (.services["delivery-service"].environment | has("DELIVERY_LEGACY_ASSIGNMENT_API_ENABLED") | not)
     and (.services["delivery-service"].environment | has("SPRING_DATA_REDIS_HOST") | not)
     and (.services["delivery-service"].depends_on | has("redis") | not)
@@ -227,11 +236,12 @@ printf '%s' "$rendered_config" | jq -e \
       "tracking-service",
       "livestream-service",
       "saga-orchestrator-service",
-      "promotion-service",
       "analytics-service",
       "flashsale-service"
     ] | all(. as $service |
       $root.services[$service].environment.JAVA_TOOL_OPTIONS == "-Xmx384m -Xms256m"))
+    and .services["promotion-service"].environment.JAVA_TOOL_OPTIONS
+      == "-Xmx384m -Xms256m -Duser.timezone=UTC"
     and ([
       "auth-service",
       "user-service",

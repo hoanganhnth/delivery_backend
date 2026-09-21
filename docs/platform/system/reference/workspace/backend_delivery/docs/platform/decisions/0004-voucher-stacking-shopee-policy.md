@@ -10,8 +10,15 @@ Accepted
 
 - Checkout contains exactly one restaurant and supports at most three vouchers:
   one `SHOP_DISCOUNT`, one `PLATFORM_DISCOUNT`, and one `FREESHIP`.
-- `SHOP_OWNER` creates shop-funded vouchers; `ADMIN` approves, pauses, resumes,
-  or rejects them. `ADMIN` creates platform-funded item discounts and freeship.
+- As amended with product approval on 2026-09-09, `SHOP_OWNER` creates
+  shop-funded vouchers that are automatically approved after canonical
+  restaurant ownership and request validation. Admin may pause/resume them.
+  Historical pending vouchers retain manual approval/rejection; rejected rows
+  are never automatically activated. `ADMIN` creates platform-funded item
+  discounts and freeship. Automatic approval has no impersonated admin ID.
+- Voucher start/end timestamps use UTC in the existing timezone-less API and
+  persistence representation. Clients convert local input to UTC and UTC
+  responses to local display. Existing rows are not shifted automatically.
 - Discounts apply in the order shop, platform, freeship. Minimum-order value is
   checked against the pre-discount item subtotal. All money rounds to two
   decimals using `HALF_UP`.

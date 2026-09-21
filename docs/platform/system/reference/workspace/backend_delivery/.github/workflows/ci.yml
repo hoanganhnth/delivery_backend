@@ -19,6 +19,9 @@ jobs:
           distribution: temurin
           java-version: '17'
           cache: maven
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
       - name: Verify toolchain and dependency baseline
         run: ./scripts/verify-build-baseline.sh
       - name: Verify no-runtime test context isolation
@@ -26,7 +29,11 @@ jobs:
       - name: Build and test
         run: mvn -B clean test
       - name: Verify HTTP and public-boundary contracts
-        run: ./scripts/verify-http-api-inventory.sh
+        run: |
+          ./scripts/verify-http-api-inventory.sh
+          node --test docs/platform/system/api/*.test.mjs
+          node docs/platform/system/api/generate-http-contract.mjs --check
+          node docs/platform/system/api/generate-public-edge-manifest.mjs --check
       - name: Verify discovery/config/secrets Compose topology
         run: ./scripts/verify-compose-config.sh
       - name: Verify local runtime recovery script safety

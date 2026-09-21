@@ -87,6 +87,7 @@ readonly ALL_OBSERVABILITY_SERVICES=(prometheus grafana)
 readonly CONTROL_PLANE_SERVICES=(config-server discovery-server)
 readonly CORE_APP_SERVICES=(
   api-gateway
+  web-bff-service
   auth-service
   user-service
   restaurant-service

@@ -5,21 +5,21 @@
 > or JSON Schema. Read [API Contract Guide](README.md) for edge classification,
 > error semantics and compatibility rules.
 
-Current inventory: **228 operations** across **16 controller-owning services** and **206 reachable source schemas**.
+Current inventory: **239 operations** across **17 controller-owning services** and **219 reachable source schemas**.
 
 ## Service index
 
 | Service | Mapped controller operations |
 | --- | --- |
 | analytics-service | 4 |
-| auth-service | 18 |
+| auth-service | 19 |
 | delivery-service | 21 |
 | flashsale-service | 12 |
-| livestream-service | 14 |
+| livestream-service | 18 |
 | notification-service | 12 |
 | order-service | 10 |
 | promotion-service | 21 |
-| restaurant-service | 38 |
+| restaurant-service | 39 |
 | routing-service | 3 |
 | search-service | 2 |
 | settlement-service | 33 |
@@ -27,6 +27,7 @@ Current inventory: **228 operations** across **16 controller-owning services** a
 | simulator-service | 12 |
 | tracking-service | 4 |
 | user-service | 16 |
+| web-bff-service | 5 |
 
 ## Operations by service
 
@@ -141,7 +142,7 @@ public ResponseEntity<Map<String, Object>> getJwks()
 ### `GET` `/api/auth/accounts/{id}`
 
 - Handler: `AuthController.getAccountById`
-- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java:192`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java)
+- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java:218`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java)
 - Java return type: `ResponseEntity<BaseResponse<AuthAccountDto>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -160,7 +161,7 @@ public ResponseEntity<BaseResponse<AuthAccountDto>> getAccountById(@PathVariable
 ### `POST` `/api/auth/admin/accounts/{id}/block`
 
 - Handler: `AuthController.blockAccount`
-- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java:208`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java)
+- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java:234`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java)
 - Java return type: `ResponseEntity<BaseResponse<Void>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -180,7 +181,7 @@ public ResponseEntity<BaseResponse<Void>> blockAccount( @PathVariable Long id, @
 ### `POST` `/api/auth/admin/accounts/{id}/unblock`
 
 - Handler: `AuthController.unblockAccount`
-- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java:238`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java)
+- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java:264`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java)
 - Java return type: `ResponseEntity<BaseResponse<Void>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -199,7 +200,7 @@ public ResponseEntity<BaseResponse<Void>> unblockAccount(@PathVariable Long id)
 ### `POST` `/api/auth/email-verification/confirm`
 
 - Handler: `AuthController.confirmEmailVerification`
-- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java:131`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java)
+- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java:136`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java)
 - Java return type: `ResponseEntity<BaseResponse<Void>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -219,7 +220,7 @@ public ResponseEntity<BaseResponse<Void>> confirmEmailVerification( @Valid @Requ
 ### `POST` `/api/auth/email-verification/request`
 
 - Handler: `AuthController.requestEmailVerification`
-- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java:122`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java)
+- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java:127`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java)
 - Java return type: `ResponseEntity<BaseResponse<Void>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -236,10 +237,29 @@ public ResponseEntity<BaseResponse<Void>> requestEmailVerification( @Valid @Requ
 
 </details>
 
+### `POST` `/api/auth/firebase/chat-token`
+
+- Handler: `AuthController.firebaseChatToken`
+- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java:165`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java)
+- Java return type: `ResponseEntity<BaseResponse<FirebaseChatTokenResponse>>`
+
+| Binding | Wire name | Java type | Required | Default | Validation/annotations |
+| --- | --- | --- | --- | --- | --- |
+| framework | authentication | Authentication | not declared required | — | — |
+
+<details>
+<summary>Java signature for firebaseChatToken</summary>
+
+```java
+public ResponseEntity<BaseResponse<FirebaseChatTokenResponse>> firebaseChatToken( Authentication authentication)
+```
+
+</details>
+
 ### `POST` `/api/auth/forgot-password`
 
 - Handler: `AuthController.forgotPassword`
-- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java:104`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java)
+- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java:109`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java)
 - Java return type: `ResponseEntity<BaseResponse<Void>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -302,7 +322,7 @@ public ResponseEntity<Void> unbind( @RequestHeader(value = "X-Internal-Secret", 
 ### `POST` `/api/auth/login`
 
 - Handler: `AuthController.login`
-- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java:139`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java)
+- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java:144`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java)
 - Java return type: `ResponseEntity<BaseResponse<AuthResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -321,7 +341,7 @@ public ResponseEntity<BaseResponse<AuthResponse>> login(@Valid @RequestBody Logi
 ### `POST` `/api/auth/logout`
 
 - Handler: `AuthController.logout`
-- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java:160`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java)
+- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java:186`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java)
 - Java return type: `ResponseEntity<BaseResponse<Void>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -340,7 +360,7 @@ public ResponseEntity<BaseResponse<Void>> logout(@Valid @RequestBody RefreshToke
 ### `POST` `/api/auth/refresh-token`
 
 - Handler: `AuthController.refreshToken`
-- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java:153`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java)
+- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java:158`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java)
 - Java return type: `ResponseEntity<BaseResponse<AuthResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -359,7 +379,7 @@ public ResponseEntity<BaseResponse<AuthResponse>> refreshToken(@Valid @RequestBo
 ### `POST` `/api/auth/register`
 
 - Handler: `AuthController.register`
-- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java:69`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java)
+- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java:74`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java)
 - Java return type: `ResponseEntity<BaseResponse<AuthRegisterResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -379,7 +399,7 @@ public ResponseEntity<BaseResponse<AuthRegisterResponse>> register( @Valid @Requ
 ### `GET` `/api/auth/registrations/{handle}`
 
 - Handler: `AuthController.registrationStatus`
-- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java:96`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java)
+- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java:101`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java)
 - Java return type: `ResponseEntity<BaseResponse<RegistrationStatusResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -398,7 +418,7 @@ public ResponseEntity<BaseResponse<RegistrationStatusResponse>> registrationStat
 ### `POST` `/api/auth/reset-password`
 
 - Handler: `AuthController.resetPassword`
-- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java:113`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java)
+- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java:118`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java)
 - Java return type: `ResponseEntity<BaseResponse<Void>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -418,7 +438,7 @@ public ResponseEntity<BaseResponse<Void>> resetPassword( @Valid @RequestBody Res
 ### `GET` `/api/auth/sessions`
 
 - Handler: `AuthController.getSessions`
-- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java:167`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java)
+- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java:193`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<SessionInfoResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -437,7 +457,7 @@ public ResponseEntity<BaseResponse<List<SessionInfoResponse>>> getSessions()
 ### `DELETE` `/api/auth/sessions/{deviceId}`
 
 - Handler: `AuthController.revokeDeviceSession`
-- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java:180`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java)
+- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java:206`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java)
 - Java return type: `ResponseEntity<BaseResponse<Void>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -456,7 +476,7 @@ public ResponseEntity<BaseResponse<Void>> revokeDeviceSession(@PathVariable Stri
 ### `POST` `/api/auth/social-login`
 
 - Handler: `AuthController.socialLogin`
-- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java:146`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java)
+- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java:151`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java)
 - Java return type: `ResponseEntity<BaseResponse<AuthResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1167,18 +1187,19 @@ public ResponseEntity<BaseResponse<LivestreamResponse>> createLivestream( @Valid
 ### `GET` `/api/livestreams/{id}`
 
 - Handler: `LivestreamController.getLivestreamById`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:84`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
+- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:90`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
 - Java return type: `ResponseEntity<BaseResponse<LivestreamResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
 | --- | --- | --- | --- | --- | --- |
 | path | id | UUID | declared required | — | @PathVariable |
+| principal | actor | AuthenticatedActor | not declared required | — | @AuthenticationPrincipal |
 
 <details>
 <summary>Java signature for getLivestreamById</summary>
 
 ```java
-public ResponseEntity<BaseResponse<LivestreamResponse>> getLivestreamById(@PathVariable UUID id)
+public ResponseEntity<BaseResponse<LivestreamResponse>> getLivestreamById( @PathVariable UUID id, @AuthenticationPrincipal AuthenticatedActor actor)
 ```
 
 </details>
@@ -1223,21 +1244,43 @@ public ResponseEntity<BaseResponse<JoinLivestreamResponse>> joinLivestream( @Pat
 
 </details>
 
+### `POST` `/api/livestreams/{id}/moderation`
+
+- Handler: `LivestreamModerationController.moderate`
+- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamModerationController.java:27`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamModerationController.java)
+- Java return type: `ResponseEntity<BaseResponse<LivestreamModerationResponse>>`
+
+| Binding | Wire name | Java type | Required | Default | Validation/annotations |
+| --- | --- | --- | --- | --- | --- |
+| path | id | UUID | declared required | — | @PathVariable |
+| body | request | ModerateLivestreamRequest | declared required | — | @Valid |
+| principal | actor | AuthenticatedActor | not declared required | — | @AuthenticationPrincipal |
+
+<details>
+<summary>Java signature for moderate</summary>
+
+```java
+public ResponseEntity<BaseResponse<LivestreamModerationResponse>> moderate( @PathVariable UUID id, @Valid @RequestBody ModerateLivestreamRequest request, @AuthenticationPrincipal AuthenticatedActor actor)
+```
+
+</details>
+
 ### `GET` `/api/livestreams/{id}/products`
 
 - Handler: `LivestreamProductController.getProductsByLivestream`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamProductController.java:62`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamProductController.java)
+- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamProductController.java:73`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamProductController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<LivestreamProductResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
 | --- | --- | --- | --- | --- | --- |
 | path | id | UUID | declared required | — | @PathVariable |
+| principal | actor | AuthenticatedActor | not declared required | — | @AuthenticationPrincipal |
 
 <details>
 <summary>Java signature for getProductsByLivestream</summary>
 
 ```java
-public ResponseEntity<BaseResponse<List<LivestreamProductResponse>>> getProductsByLivestream( @PathVariable UUID id)
+public ResponseEntity<BaseResponse<List<LivestreamProductResponse>>> getProductsByLivestream( @PathVariable UUID id, @AuthenticationPrincipal AuthenticatedActor actor)
 ```
 
 </details>
@@ -1245,7 +1288,7 @@ public ResponseEntity<BaseResponse<List<LivestreamProductResponse>>> getProducts
 ### `DELETE` `/api/livestreams/{id}/products/{productId}`
 
 - Handler: `LivestreamProductController.removeProduct`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamProductController.java:52`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamProductController.java)
+- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamProductController.java:62`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamProductController.java)
 - Java return type: `ResponseEntity<BaseResponse<Void>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1266,7 +1309,7 @@ public ResponseEntity<BaseResponse<Void>> removeProduct( @PathVariable UUID id, 
 ### `DELETE` `/api/livestreams/{id}/products/{productId}/pin`
 
 - Handler: `LivestreamProductController.unpinProduct`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamProductController.java:42`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamProductController.java)
+- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamProductController.java:51`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamProductController.java)
 - Java return type: `ResponseEntity<BaseResponse<Void>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1287,7 +1330,7 @@ public ResponseEntity<BaseResponse<Void>> unpinProduct( @PathVariable UUID id, @
 ### `POST` `/api/livestreams/{id}/products/pin`
 
 - Handler: `LivestreamProductController.pinProduct`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamProductController.java:32`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamProductController.java)
+- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamProductController.java:40`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamProductController.java)
 - Java return type: `ResponseEntity<BaseResponse<LivestreamProductResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1308,18 +1351,19 @@ public ResponseEntity<BaseResponse<LivestreamProductResponse>> pinProduct( @Path
 ### `GET` `/api/livestreams/{id}/products/pinned`
 
 - Handler: `LivestreamProductController.getPinnedProducts`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamProductController.java:69`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamProductController.java)
+- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamProductController.java:81`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamProductController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<LivestreamProductResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
 | --- | --- | --- | --- | --- | --- |
 | path | id | UUID | declared required | — | @PathVariable |
+| principal | actor | AuthenticatedActor | not declared required | — | @AuthenticationPrincipal |
 
 <details>
 <summary>Java signature for getPinnedProducts</summary>
 
 ```java
-public ResponseEntity<BaseResponse<List<LivestreamProductResponse>>> getPinnedProducts( @PathVariable UUID id)
+public ResponseEntity<BaseResponse<List<LivestreamProductResponse>>> getPinnedProducts( @PathVariable UUID id, @AuthenticationPrincipal AuthenticatedActor actor)
 ```
 
 </details>
@@ -1365,21 +1409,82 @@ public ResponseEntity<BaseResponse<TokenResponse>> generateToken( @PathVariable 
 
 </details>
 
+### `POST` `/api/livestreams/{id}/token/renew`
+
+- Handler: `LivestreamTokenRenewalController.renew`
+- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamTokenRenewalController.java:46`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamTokenRenewalController.java)
+- Java return type: `ResponseEntity<BaseResponse<RenewLivestreamTokenResponse>>`
+
+| Binding | Wire name | Java type | Required | Default | Validation/annotations |
+| --- | --- | --- | --- | --- | --- |
+| path | id | UUID | declared required | — | @PathVariable |
+| principal | actor | AuthenticatedActor | not declared required | — | @AuthenticationPrincipal |
+
+<details>
+<summary>Java signature for renew</summary>
+
+```java
+public ResponseEntity<BaseResponse<RenewLivestreamTokenResponse>> renew( @PathVariable UUID id, @AuthenticationPrincipal AuthenticatedActor actor)
+```
+
+</details>
+
 ### `GET` `/api/livestreams/active`
 
 - Handler: `LivestreamController.getActiveLivestreams`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:78`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
+- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:82`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<LivestreamResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
 | --- | --- | --- | --- | --- | --- |
-| — | — | No source-declared parameters | — | — | — |
+| principal | actor | AuthenticatedActor | not declared required | — | @AuthenticationPrincipal |
 
 <details>
 <summary>Java signature for getActiveLivestreams</summary>
 
 ```java
-public ResponseEntity<BaseResponse<List<LivestreamResponse>>> getActiveLivestreams()
+public ResponseEntity<BaseResponse<List<LivestreamResponse>>> getActiveLivestreams( @AuthenticationPrincipal AuthenticatedActor actor)
+```
+
+</details>
+
+### `GET` `/api/livestreams/admin`
+
+- Handler: `LivestreamAdminController.list`
+- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamAdminController.java:34`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamAdminController.java)
+- Java return type: `ResponseEntity<BaseResponse<RoomPage>>`
+
+| Binding | Wire name | Java type | Required | Default | Validation/annotations |
+| --- | --- | --- | --- | --- | --- |
+| principal | actor | AuthenticatedActor | not declared required | — | @AuthenticationPrincipal |
+| query | page | int | not declared required | 0 | @RequestParam(defaultValue = "0") |
+| query | size | int | not declared required | 20 | @RequestParam(defaultValue = "20") |
+
+<details>
+<summary>Java signature for list</summary>
+
+```java
+public ResponseEntity<BaseResponse<RoomPage>> list( @AuthenticationPrincipal AuthenticatedActor actor, @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size)
+```
+
+</details>
+
+### `POST` `/api/livestreams/internal/checkout-quote`
+
+- Handler: `InternalLivestreamCheckoutController.quote`
+- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/InternalLivestreamCheckoutController.java:34`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/InternalLivestreamCheckoutController.java)
+- Java return type: `ResponseEntity<BaseResponse<LivestreamCheckoutQuoteResponse>>`
+
+| Binding | Wire name | Java type | Required | Default | Validation/annotations |
+| --- | --- | --- | --- | --- | --- |
+| body | request | LivestreamCheckoutQuoteRequest | declared required | — | @Valid |
+| header | Internal-Token | String | not declared required | — | @RequestHeader(value = "Internal-Token", required = false) |
+
+<details>
+<summary>Java signature for quote</summary>
+
+```java
+public ResponseEntity<BaseResponse<LivestreamCheckoutQuoteResponse>> quote( @Valid @RequestBody LivestreamCheckoutQuoteRequest request, @RequestHeader(value = "Internal-Token", required = false) String token)
 ```
 
 </details>
@@ -1387,7 +1492,7 @@ public ResponseEntity<BaseResponse<List<LivestreamResponse>>> getActiveLivestrea
 ### `GET` `/api/livestreams/restaurant/{restaurantId}`
 
 - Handler: `LivestreamController.getLivestreamsByRestaurant`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:97`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
+- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:106`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<LivestreamResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1407,18 +1512,19 @@ public ResponseEntity<BaseResponse<List<LivestreamResponse>>> getLivestreamsByRe
 ### `GET` `/api/livestreams/seller/{sellerId}`
 
 - Handler: `LivestreamController.getLivestreamsBySeller`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:90`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
+- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:98`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<LivestreamResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
 | --- | --- | --- | --- | --- | --- |
 | path | sellerId | Long | declared required | — | @PathVariable |
+| principal | actor | AuthenticatedActor | not declared required | — | @AuthenticationPrincipal |
 
 <details>
 <summary>Java signature for getLivestreamsBySeller</summary>
 
 ```java
-public ResponseEntity<BaseResponse<List<LivestreamResponse>>> getLivestreamsBySeller( @PathVariable Long sellerId)
+public ResponseEntity<BaseResponse<List<LivestreamResponse>>> getLivestreamsBySeller( @PathVariable Long sellerId, @AuthenticationPrincipal AuthenticatedActor actor)
 ```
 
 </details>
@@ -1707,7 +1813,7 @@ public ResponseEntity<BaseResponse<OrderResponse>> getOrderById( @PathVariable L
 ### `PUT` `/api/orders/{id}/cancel`
 
 - Handler: `OrderController.cancelOrder`
-- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/controller/OrderController.java:160`](../../../../order-service/src/main/java/com/delivery/order_service/controller/OrderController.java)
+- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/controller/OrderController.java:175`](../../../../order-service/src/main/java/com/delivery/order_service/controller/OrderController.java)
 - Java return type: `ResponseEntity<BaseResponse<OrderResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1728,7 +1834,7 @@ public ResponseEntity<BaseResponse<OrderResponse>> cancelOrder( @PathVariable Lo
 ### `GET` `/api/orders/all`
 
 - Handler: `OrderController.getAllOrders`
-- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/controller/OrderController.java:149`](../../../../order-service/src/main/java/com/delivery/order_service/controller/OrderController.java)
+- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/controller/OrderController.java:164`](../../../../order-service/src/main/java/com/delivery/order_service/controller/OrderController.java)
 - Java return type: `ResponseEntity<BaseResponse<PageResponse<OrderResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1841,12 +1947,13 @@ public ResponseEntity<BaseResponse<PageResponse<OrderResponse>>> getMyOrders( @A
 | principal | actor | AuthenticatedActor | not declared required | — | @AuthenticationPrincipal |
 | query | page | int | not declared required | 0 | @RequestParam(defaultValue = "0") |
 | query | size | int | not declared required | 10 | @RequestParam(defaultValue = "10") |
+| query | restaurantId | Long | not declared required | — | @RequestParam(required = false) |
 
 <details>
 <summary>Java signature for getMyRestaurantOrders</summary>
 
 ```java
-public ResponseEntity<BaseResponse<PageResponse<OrderResponse>>> getMyRestaurantOrders( @AuthenticationPrincipal AuthenticatedActor actor, @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size)
+public ResponseEntity<BaseResponse<PageResponse<OrderResponse>>> getMyRestaurantOrders( @AuthenticationPrincipal AuthenticatedActor actor, @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size, @RequestParam(required = false) Long restaurantId)
 ```
 
 </details>
@@ -1854,7 +1961,7 @@ public ResponseEntity<BaseResponse<PageResponse<OrderResponse>>> getMyRestaurant
 ### `GET` `/api/orders/status/{status}`
 
 - Handler: `OrderController.getOrdersByStatus`
-- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/controller/OrderController.java:137`](../../../../order-service/src/main/java/com/delivery/order_service/controller/OrderController.java)
+- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/controller/OrderController.java:152`](../../../../order-service/src/main/java/com/delivery/order_service/controller/OrderController.java)
 - Java return type: `ResponseEntity<BaseResponse<PageResponse<OrderResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1878,7 +1985,7 @@ public ResponseEntity<BaseResponse<PageResponse<OrderResponse>>> getOrdersByStat
 ### `DELETE` `/api/promotions/{id}`
 
 - Handler: `PromotionController.deleteVoucher`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:181`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
+- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:187`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
 - Java return type: `ResponseEntity<BaseResponse<Void>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1898,7 +2005,7 @@ public ResponseEntity<BaseResponse<Void>> deleteVoucher( @PathVariable Long id, 
 ### `GET` `/api/promotions/admin`
 
 - Handler: `PromotionController.listAllVouchers`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:128`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
+- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:134`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<VoucherResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1917,7 +2024,7 @@ public ResponseEntity<BaseResponse<List<VoucherResponse>>> listAllVouchers( @Aut
 ### `POST` `/api/promotions/admin/{id}/approve`
 
 - Handler: `PromotionController.approveShopVoucher`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:142`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
+- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:148`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
 - Java return type: `ResponseEntity<BaseResponse<VoucherResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1937,7 +2044,7 @@ public ResponseEntity<BaseResponse<VoucherResponse>> approveShopVoucher( @PathVa
 ### `POST` `/api/promotions/admin/{id}/pause`
 
 - Handler: `PromotionController.pauseVoucher`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:163`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
+- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:169`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
 - Java return type: `ResponseEntity<BaseResponse<VoucherResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1957,7 +2064,7 @@ public ResponseEntity<BaseResponse<VoucherResponse>> pauseVoucher( @PathVariable
 ### `POST` `/api/promotions/admin/{id}/reject`
 
 - Handler: `PromotionController.rejectShopVoucher`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:152`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
+- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:158`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
 - Java return type: `ResponseEntity<BaseResponse<VoucherResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1978,7 +2085,7 @@ public ResponseEntity<BaseResponse<VoucherResponse>> rejectShopVoucher( @PathVar
 ### `POST` `/api/promotions/admin/{id}/resume`
 
 - Handler: `PromotionController.resumeVoucher`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:172`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
+- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:178`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
 - Java return type: `ResponseEntity<BaseResponse<VoucherResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1998,7 +2105,7 @@ public ResponseEntity<BaseResponse<VoucherResponse>> resumeVoucher( @PathVariabl
 ### `GET` `/api/promotions/admin/pending-shop`
 
 - Handler: `PromotionController.listPendingShopVouchers`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:135`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
+- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:141`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<VoucherResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -2036,7 +2143,7 @@ public ResponseEntity<BaseResponse<VoucherCapabilityResponse>> capability( @Auth
 ### `POST` `/api/promotions/collect/{code}`
 
 - Handler: `PromotionController.collectVoucher`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:87`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
+- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:93`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
 - Java return type: `ResponseEntity<BaseResponse<String>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -2056,7 +2163,7 @@ public ResponseEntity<BaseResponse<String>> collectVoucher( @PathVariable String
 ### `POST` `/api/promotions/internal/calculate`
 
 - Handler: `PromotionController.calculate`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:190`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
+- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:196`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
 - Java return type: `ResponseEntity<BaseResponse<CalculateResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -2076,7 +2183,7 @@ public ResponseEntity<BaseResponse<CalculateResponse>> calculate( @RequestBody C
 ### `POST` `/api/promotions/internal/promotion-reservations/{reservationId}/commit`
 
 - Handler: `PromotionController.commitBulk`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:253`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
+- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:259`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
 - Java return type: `ResponseEntity<BaseResponse<PromotionReservationResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -2098,7 +2205,7 @@ public ResponseEntity<BaseResponse<PromotionReservationResponse>> commitBulk( @P
 ### `POST` `/api/promotions/internal/promotion-reservations/{reservationId}/release`
 
 - Handler: `PromotionController.releaseBulk`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:264`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
+- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:270`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
 - Java return type: `ResponseEntity<BaseResponse<PromotionReservationResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -2120,7 +2227,7 @@ public ResponseEntity<BaseResponse<PromotionReservationResponse>> releaseBulk( @
 ### `POST` `/api/promotions/internal/reservations`
 
 - Handler: `PromotionController.reserveBulk`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:225`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
+- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:231`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
 - Java return type: `ResponseEntity<BaseResponse<PromotionReservationResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -2140,7 +2247,7 @@ public ResponseEntity<BaseResponse<PromotionReservationResponse>> reserveBulk( @
 ### `POST` `/api/promotions/internal/reservations/{reservationId}/commit`
 
 - Handler: `PromotionController.commit`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:233`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
+- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:239`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
 - Java return type: `ResponseEntity<BaseResponse<VoucherReservationResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -2161,7 +2268,7 @@ public ResponseEntity<BaseResponse<VoucherReservationResponse>> commit( @PathVar
 ### `POST` `/api/promotions/internal/reservations/{reservationId}/release`
 
 - Handler: `PromotionController.release`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:243`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
+- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:249`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
 - Java return type: `ResponseEntity<BaseResponse<VoucherReservationResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -2182,7 +2289,7 @@ public ResponseEntity<BaseResponse<VoucherReservationResponse>> release( @PathVa
 ### `POST` `/api/promotions/internal/reserve`
 
 - Handler: `PromotionController.reserve`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:206`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
+- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:212`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
 - Java return type: `ResponseEntity<BaseResponse<VoucherReservationResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -2202,7 +2309,7 @@ public ResponseEntity<BaseResponse<VoucherReservationResponse>> reserve( @Reques
 ### `GET` `/api/promotions/merchant`
 
 - Handler: `PromotionController.listMerchantVouchers`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:112`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
+- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:118`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<VoucherResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -2221,7 +2328,7 @@ public ResponseEntity<BaseResponse<List<VoucherResponse>>> listMerchantVouchers(
 ### `GET` `/api/promotions/my-vouchers`
 
 - Handler: `PromotionController.getMyVouchers`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:100`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
+- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:106`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<VoucherResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -2260,7 +2367,7 @@ public ResponseEntity<BaseResponse<VoucherResponse>> createPlatformVoucher( @Req
 ### `GET` `/api/promotions/shop`
 
 - Handler: `PromotionController.listShopVouchers`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:119`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
+- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:125`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<VoucherResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -2284,14 +2391,14 @@ public ResponseEntity<BaseResponse<List<VoucherResponse>>> listShopVouchers( @Au
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
 | --- | --- | --- | --- | --- | --- |
-| body | request | CreateVoucherRequest | declared required | — | @Valid |
+| body | request | CreateVoucherRequest | declared required | — | @RequestBody |
 | principal | actor | AuthenticatedActor | not declared required | — | @AuthenticationPrincipal |
 
 <details>
 <summary>Java signature for createShopVoucher</summary>
 
 ```java
-public ResponseEntity<BaseResponse<VoucherResponse>> createShopVoucher( @RequestBody @Valid CreateVoucherRequest request, @AuthenticationPrincipal AuthenticatedActor actor)
+public ResponseEntity<BaseResponse<VoucherResponse>> createShopVoucher( @RequestBody CreateVoucherRequest request, @AuthenticationPrincipal AuthenticatedActor actor)
 ```
 
 </details>
@@ -2301,7 +2408,7 @@ public ResponseEntity<BaseResponse<VoucherResponse>> createShopVoucher( @Request
 ### `POST` `/api/menu-items`
 
 - Handler: `MenuItemController.create`
-- Source: [`backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java:32`](../../../../restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java)
+- Source: [`backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java:33`](../../../../restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java)
 - Java return type: `ResponseEntity<BaseResponse<MenuItemResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -2321,7 +2428,7 @@ public ResponseEntity<BaseResponse<MenuItemResponse>> create( @Valid @RequestBod
 ### `DELETE` `/api/menu-items/{id}`
 
 - Handler: `MenuItemController.delete`
-- Source: [`backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java:51`](../../../../restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java)
+- Source: [`backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java:54`](../../../../restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java)
 - Java return type: `ResponseEntity<BaseResponse<Void>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -2341,7 +2448,7 @@ public ResponseEntity<BaseResponse<Void>> delete( @PathVariable Long id, @Authen
 ### `PUT` `/api/menu-items/{id}`
 
 - Handler: `MenuItemController.update`
-- Source: [`backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java:41`](../../../../restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java)
+- Source: [`backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java:43`](../../../../restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java)
 - Java return type: `ResponseEntity<BaseResponse<MenuItemResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -2465,18 +2572,19 @@ public ResponseEntity<BaseResponse<InventoryReservationResponse>> release( @Path
 ### `GET` `/api/menu-items/my-menu-items`
 
 - Handler: `MenuItemController.getMyMenuItems`
-- Source: [`backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java:90`](../../../../restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java)
+- Source: [`backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java:93`](../../../../restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<MenuItemResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
 | --- | --- | --- | --- | --- | --- |
 | principal | actor | AuthenticatedActor | not declared required | — | @AuthenticationPrincipal |
+| query | restaurantId | Long | not declared required | — | @RequestParam(required = false) |
 
 <details>
 <summary>Java signature for getMyMenuItems</summary>
 
 ```java
-public ResponseEntity<BaseResponse<List<MenuItemResponse>>> getMyMenuItems( @AuthenticationPrincipal AuthenticatedActor actor)
+public ResponseEntity<BaseResponse<List<MenuItemResponse>>> getMyMenuItems( @AuthenticationPrincipal AuthenticatedActor actor, @RequestParam(required = false) Long restaurantId)
 ```
 
 </details>
@@ -2484,12 +2592,13 @@ public ResponseEntity<BaseResponse<List<MenuItemResponse>>> getMyMenuItems( @Aut
 ### `GET` `/api/menu-items/my-menu-items/page`
 
 - Handler: `MenuItemController.getMyMenuItemsPage`
-- Source: [`backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java:105`](../../../../restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java)
+- Source: [`backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java:108`](../../../../restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java)
 - Java return type: `ResponseEntity<BaseResponse<PageResponse<MenuItemResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
 | --- | --- | --- | --- | --- | --- |
 | principal | actor | AuthenticatedActor | not declared required | — | @AuthenticationPrincipal |
+| query | restaurantId | Long | not declared required | — | @RequestParam(required = false) |
 | query | page | int | not declared required | 0 | @RequestParam(defaultValue = "0") |
 | query | size | int | not declared required | 24 | @RequestParam(defaultValue = "24") |
 
@@ -2497,7 +2606,7 @@ public ResponseEntity<BaseResponse<List<MenuItemResponse>>> getMyMenuItems( @Aut
 <summary>Java signature for getMyMenuItemsPage</summary>
 
 ```java
-public ResponseEntity<BaseResponse<PageResponse<MenuItemResponse>>> getMyMenuItemsPage( @AuthenticationPrincipal AuthenticatedActor actor, @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "24") int size)
+public ResponseEntity<BaseResponse<PageResponse<MenuItemResponse>>> getMyMenuItemsPage( @AuthenticationPrincipal AuthenticatedActor actor, @RequestParam(required = false) Long restaurantId, @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "24") int size)
 ```
 
 </details>
@@ -2505,7 +2614,7 @@ public ResponseEntity<BaseResponse<PageResponse<MenuItemResponse>>> getMyMenuIte
 ### `GET` `/api/menu-items/restaurant/{restaurantId}`
 
 - Handler: `MenuItemController.getByRestaurant`
-- Source: [`backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java:60`](../../../../restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java)
+- Source: [`backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java:63`](../../../../restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<MenuItemResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -2524,7 +2633,7 @@ public ResponseEntity<BaseResponse<List<MenuItemResponse>>> getByRestaurant(@Pat
 ### `GET` `/api/menu-items/restaurant/{restaurantId}/available`
 
 - Handler: `MenuItemController.getAvailableItems`
-- Source: [`backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java:66`](../../../../restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java)
+- Source: [`backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java:69`](../../../../restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<MenuItemResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -2543,7 +2652,7 @@ public ResponseEntity<BaseResponse<List<MenuItemResponse>>> getAvailableItems(@P
 ### `GET` `/api/menu-items/restaurant/{restaurantId}/available/page`
 
 - Handler: `MenuItemController.getAvailablePage`
-- Source: [`backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java:81`](../../../../restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java)
+- Source: [`backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java:84`](../../../../restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java)
 - Java return type: `ResponseEntity<BaseResponse<PageResponse<MenuItemResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -2564,7 +2673,7 @@ public ResponseEntity<BaseResponse<PageResponse<MenuItemResponse>>> getAvailable
 ### `GET` `/api/menu-items/restaurant/{restaurantId}/page`
 
 - Handler: `MenuItemController.getPage`
-- Source: [`backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java:72`](../../../../restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java)
+- Source: [`backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java:75`](../../../../restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java)
 - Java return type: `ResponseEntity<BaseResponse<PageResponse<MenuItemResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -2883,6 +2992,27 @@ public ResponseEntity<BaseResponse<RestaurantRatingResponse>> updateRatingStatus
 
 ```java
 public ResponseEntity<BaseResponse<PageResponse<RestaurantRatingResponse>>> getAllRatingsPage( @AuthenticationPrincipal AuthenticatedActor actor, @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size)
+```
+
+</details>
+
+### `GET` `/api/restaurants/internal/{restaurantId}/livestream-products/{productId}`
+
+- Handler: `InternalLivestreamProductController.get`
+- Source: [`backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/InternalLivestreamProductController.java:31`](../../../../restaurant-service/src/main/java/com/delivery/restaurant_service/controller/InternalLivestreamProductController.java)
+- Java return type: `ResponseEntity<BaseResponse<Product>>`
+
+| Binding | Wire name | Java type | Required | Default | Validation/annotations |
+| --- | --- | --- | --- | --- | --- |
+| path | restaurantId | Long | declared required | — | @PathVariable |
+| path | productId | Long | declared required | — | @PathVariable |
+| header | Internal-Token | String | not declared required | — | @RequestHeader(value = "Internal-Token", required = false) |
+
+<details>
+<summary>Java signature for get</summary>
+
+```java
+public ResponseEntity<BaseResponse<Product>> get(@PathVariable Long restaurantId, @PathVariable Long productId, @RequestHeader(value = "Internal-Token", required = false) String token)
 ```
 
 </details>
@@ -4326,7 +4456,7 @@ public List<LocationHistoryPointResponse> byDelivery( @PathVariable long deliver
 ### `DELETE` `/api/addresses/{id}`
 
 - Handler: `UserAddressController.deleteAddress`
-- Source: [`backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserAddressController.java:73`](../../../../user-service/src/main/java/com/delivery/user_service/controller/UserAddressController.java)
+- Source: [`backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserAddressController.java:86`](../../../../user-service/src/main/java/com/delivery/user_service/controller/UserAddressController.java)
 - Java return type: `ResponseEntity<BaseResponse<Void>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -4346,7 +4476,7 @@ public ResponseEntity<BaseResponse<Void>> deleteAddress( @PathVariable Long id, 
 ### `GET` `/api/addresses/{id}`
 
 - Handler: `UserAddressController.getAddress`
-- Source: [`backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserAddressController.java:37`](../../../../user-service/src/main/java/com/delivery/user_service/controller/UserAddressController.java)
+- Source: [`backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserAddressController.java:40`](../../../../user-service/src/main/java/com/delivery/user_service/controller/UserAddressController.java)
 - Java return type: `ResponseEntity<BaseResponse<UserAddressResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -4366,7 +4496,7 @@ public ResponseEntity<BaseResponse<UserAddressResponse>> getAddress( @PathVariab
 ### `PUT` `/api/addresses/{id}`
 
 - Handler: `UserAddressController.updateAddress`
-- Source: [`backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserAddressController.java:60`](../../../../user-service/src/main/java/com/delivery/user_service/controller/UserAddressController.java)
+- Source: [`backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserAddressController.java:70`](../../../../user-service/src/main/java/com/delivery/user_service/controller/UserAddressController.java)
 - Java return type: `ResponseEntity<BaseResponse<UserAddressResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -4387,7 +4517,7 @@ public ResponseEntity<BaseResponse<UserAddressResponse>> updateAddress( @PathVar
 ### `PATCH` `/api/addresses/{id}/default`
 
 - Handler: `UserAddressController.setDefault`
-- Source: [`backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserAddressController.java:86`](../../../../user-service/src/main/java/com/delivery/user_service/controller/UserAddressController.java)
+- Source: [`backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserAddressController.java:104`](../../../../user-service/src/main/java/com/delivery/user_service/controller/UserAddressController.java)
 - Java return type: `ResponseEntity<BaseResponse<UserAddressResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -4427,7 +4557,7 @@ public ResponseEntity<BaseResponse<List<UserAddressResponse>>> getUserAddresses(
 ### `POST` `/api/addresses/users/{userId}/addresses`
 
 - Handler: `UserAddressController.createAddress`
-- Source: [`backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserAddressController.java:48`](../../../../user-service/src/main/java/com/delivery/user_service/controller/UserAddressController.java)
+- Source: [`backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserAddressController.java:55`](../../../../user-service/src/main/java/com/delivery/user_service/controller/UserAddressController.java)
 - Java return type: `ResponseEntity<BaseResponse<UserAddressResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -4646,6 +4776,112 @@ public ResponseEntity<BaseResponse<UserResponse>> registerUser( @Valid @RequestB
 
 </details>
 
+## `web-bff-service`
+
+### `ANY` `/bff/api/**`
+
+- Handler: `ApiProxyController.proxy`
+- Source: [`backend_delivery/web-bff-service/src/main/java/com/delivery/web_bff/proxy/ApiProxyController.java:20`](../../../../web-bff-service/src/main/java/com/delivery/web_bff/proxy/ApiProxyController.java)
+- Java return type: `ResponseEntity<byte[]>`
+
+| Binding | Wire name | Java type | Required | Default | Validation/annotations |
+| --- | --- | --- | --- | --- | --- |
+| framework | request | HttpServletRequest | not declared required | — | — |
+| header | headers | HttpHeaders | declared required | — | @RequestHeader |
+| framework | rawSessionId | String | not declared required | — | @CookieValue(name = WebSessionController.COOKIE, required = false) |
+| header | X-CSRF-Token | String | not declared required | — | @RequestHeader(name = "X-CSRF-Token", required = false) |
+
+<details>
+<summary>Java signature for proxy</summary>
+
+```java
+public ResponseEntity<byte[]> proxy(HttpServletRequest request, @RequestHeader HttpHeaders headers, @CookieValue(name = WebSessionController.COOKIE, required = false) String rawSessionId, @RequestHeader(name = "X-CSRF-Token", required = false) String csrfToken) throws IOException
+```
+
+</details>
+
+### `GET` `/bff/session`
+
+- Handler: `WebSessionController.current`
+- Source: [`backend_delivery/web-bff-service/src/main/java/com/delivery/web_bff/session/WebSessionController.java:56`](../../../../web-bff-service/src/main/java/com/delivery/web_bff/session/WebSessionController.java)
+- Java return type: `SessionView`
+
+| Binding | Wire name | Java type | Required | Default | Validation/annotations |
+| --- | --- | --- | --- | --- | --- |
+| framework | rawSessionId | String | not declared required | — | @CookieValue(name = COOKIE, required = false) |
+| framework | response | HttpServletResponse | not declared required | — | — |
+
+<details>
+<summary>Java signature for current</summary>
+
+```java
+public SessionView current(@CookieValue(name = COOKIE, required = false) String rawSessionId, HttpServletResponse response)
+```
+
+</details>
+
+### `POST` `/bff/session/login`
+
+- Handler: `WebSessionController.login`
+- Source: [`backend_delivery/web-bff-service/src/main/java/com/delivery/web_bff/session/WebSessionController.java:47`](../../../../web-bff-service/src/main/java/com/delivery/web_bff/session/WebSessionController.java)
+- Java return type: `ResponseEntity<SessionView>`
+
+| Binding | Wire name | Java type | Required | Default | Validation/annotations |
+| --- | --- | --- | --- | --- | --- |
+| body | request | LoginRequest | declared required | — | @Valid |
+| framework | response | HttpServletResponse | not declared required | — | — |
+
+<details>
+<summary>Java signature for login</summary>
+
+```java
+public ResponseEntity<SessionView> login(@Valid @RequestBody LoginRequest request, HttpServletResponse response)
+```
+
+</details>
+
+### `POST` `/bff/session/logout`
+
+- Handler: `WebSessionController.logout`
+- Source: [`backend_delivery/web-bff-service/src/main/java/com/delivery/web_bff/session/WebSessionController.java:65`](../../../../web-bff-service/src/main/java/com/delivery/web_bff/session/WebSessionController.java)
+- Java return type: `ResponseEntity<Void>`
+
+| Binding | Wire name | Java type | Required | Default | Validation/annotations |
+| --- | --- | --- | --- | --- | --- |
+| framework | rawSessionId | String | not declared required | — | @CookieValue(name = COOKIE, required = false) |
+| header | X-CSRF-Token | String | not declared required | — | @RequestHeader(name = "X-CSRF-Token", required = false) |
+| framework | response | HttpServletResponse | not declared required | — | — |
+
+<details>
+<summary>Java signature for logout</summary>
+
+```java
+public ResponseEntity<Void> logout( @CookieValue(name = COOKIE, required = false) String rawSessionId, @RequestHeader(name = "X-CSRF-Token", required = false) String csrf, HttpServletResponse response)
+```
+
+</details>
+
+### `POST` `/bff/session/refresh`
+
+- Handler: `WebSessionController.refresh`
+- Source: [`backend_delivery/web-bff-service/src/main/java/com/delivery/web_bff/session/WebSessionController.java:38`](../../../../web-bff-service/src/main/java/com/delivery/web_bff/session/WebSessionController.java)
+- Java return type: `SessionView`
+
+| Binding | Wire name | Java type | Required | Default | Validation/annotations |
+| --- | --- | --- | --- | --- | --- |
+| framework | rawSessionId | String | not declared required | — | @CookieValue(name = COOKIE, required = false) |
+| header | X-CSRF-Token | String | not declared required | — | @RequestHeader(name = "X-CSRF-Token", required = false) |
+| framework | response | HttpServletResponse | not declared required | — | — |
+
+<details>
+<summary>Java signature for refresh</summary>
+
+```java
+public SessionView refresh( @CookieValue(name = COOKIE, required = false) String rawSessionId, @RequestHeader(name = "X-CSRF-Token", required = false) String csrf, HttpServletResponse response)
+```
+
+</details>
+
 ## Reachable source schemas
 
 ### `com.delivery.analytics_service.dto.DashboardResponse`
@@ -4810,6 +5046,18 @@ public ResponseEntity<BaseResponse<UserResponse>> registerUser( @Valid @RequestB
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
 | reason | String | not declared required | @Size(max = 500) |
+
+### `com.delivery.auth_service.dto.FirebaseChatTokenResponse`
+
+- Kind: `record`
+- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/dto/FirebaseChatTokenResponse.java:3`](../../../../auth-service/src/main/java/com/delivery/auth_service/dto/FirebaseChatTokenResponse.java)
+
+| Field | Java type | Required | Validation/annotations |
+| --- | --- | --- | --- |
+| token | String | not declared required | — |
+| expiresInSeconds | long | not declared required | — |
+| principalId | long | not declared required | — |
+| role | String | not declared required | — |
 
 ### `com.delivery.auth_service.dto.LoginRequest`
 
@@ -5516,16 +5764,29 @@ public ResponseEntity<BaseResponse<UserResponse>> registerUser( @Valid @RequestB
 | --- | --- | --- | --- |
 | — | No source-declared fields | — | — |
 
+### `com.delivery.livestream_service.controller.LivestreamAdminController.RoomPage`
+
+- Kind: `record`
+- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamAdminController.java:30`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamAdminController.java)
+
+| Field | Java type | Required | Validation/annotations |
+| --- | --- | --- | --- |
+| content | List<LivestreamResponse> | not declared required | — |
+| page | int | not declared required | — |
+| size | int | not declared required | — |
+| totalElements | long | not declared required | — |
+| totalPages | int | not declared required | — |
+
 ### `com.delivery.livestream_service.dto.request.CreateLivestreamRequest`
 
 - Kind: `class`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/dto/request/CreateLivestreamRequest.java:11`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/dto/request/CreateLivestreamRequest.java)
+- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/dto/request/CreateLivestreamRequest.java:12`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/dto/request/CreateLivestreamRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
 | title | String | declared required | @NotBlank(message = "Title không được để trống") |
 | description | String | not declared required | — |
-| restaurantId | Long | declared required | @NotNull(message = "Restaurant ID không được để trống") |
+| restaurantId | Long | declared required | @NotNull(message = "Restaurant ID không được để trống"), @Positive(message = "Restaurant ID phải lớn hơn 0") |
 | streamProvider | StreamProvider | declared required | @NotNull(message = "Stream provider không được để trống") |
 
 ### `com.delivery.livestream_service.dto.request.GenerateTokenRequest`
@@ -5538,14 +5799,36 @@ public ResponseEntity<BaseResponse<UserResponse>> registerUser( @Valid @RequestB
 | role | TokenRole | declared required | @NotNull(message = "Role không được để trống") |
 | expireSeconds | Integer | not declared required | — |
 
-### `com.delivery.livestream_service.dto.request.PinProductRequest`
+### `com.delivery.livestream_service.dto.request.LivestreamCheckoutQuoteRequest`
 
 - Kind: `class`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/dto/request/PinProductRequest.java:12`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/dto/request/PinProductRequest.java)
+- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/dto/request/LivestreamCheckoutQuoteRequest.java:15`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/dto/request/LivestreamCheckoutQuoteRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
-| productId | Long | declared required | @NotNull(message = "Product ID không được để trống") |
+| livestreamId | UUID | declared required | @NotNull |
+| restaurantId | Long | declared required | @NotNull, @Positive |
+| productIds | List< Long> | declared required | @NotEmpty, @Size(max = 50), @NotNull, @Positive |
+
+### `com.delivery.livestream_service.dto.request.ModerateLivestreamRequest`
+
+- Kind: `record`
+- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/dto/request/ModerateLivestreamRequest.java:10`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/dto/request/ModerateLivestreamRequest.java)
+
+| Field | Java type | Required | Validation/annotations |
+| --- | --- | --- | --- |
+| action | LivestreamModerationAction | declared required | @NotNull |
+| reason | String | declared required | @NotBlank, @Size(max = 1000) |
+| productId | Long | not declared required | @Positive |
+
+### `com.delivery.livestream_service.dto.request.PinProductRequest`
+
+- Kind: `class`
+- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/dto/request/PinProductRequest.java:13`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/dto/request/PinProductRequest.java)
+
+| Field | Java type | Required | Validation/annotations |
+| --- | --- | --- | --- |
+| productId | Long | declared required | @NotNull(message = "Product ID không được để trống"), @Positive(message = "Product ID phải lớn hơn 0") |
 | priceAtLive | BigDecimal | declared required | @NotNull(message = "Giá không được để trống"), @DecimalMin(value = "0.0", inclusive = false, message = "Giá phải lớn hơn 0") |
 | productName | String | not declared required | — |
 | productImage | String | not declared required | — |
@@ -5569,6 +5852,50 @@ public ResponseEntity<BaseResponse<UserResponse>> registerUser( @Valid @RequestB
 | sellerId | Long | not declared required | — |
 | startedAt | LocalDateTime | not declared required | — |
 | currentViewers | Integer | not declared required | — |
+
+### `com.delivery.livestream_service.dto.response.LivestreamCheckoutQuoteResponse`
+
+- Kind: `record`
+- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/dto/response/LivestreamCheckoutQuoteResponse.java:7`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/dto/response/LivestreamCheckoutQuoteResponse.java)
+
+| Field | Java type | Required | Validation/annotations |
+| --- | --- | --- | --- |
+| livestreamId | UUID | not declared required | — |
+| restaurantId | Long | not declared required | — |
+| items | List<Item> | not declared required | — |
+
+#### `com.delivery.livestream_service.dto.response.LivestreamCheckoutQuoteResponse.Item`
+
+- Kind: `record`
+- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/dto/response/LivestreamCheckoutQuoteResponse.java:12`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/dto/response/LivestreamCheckoutQuoteResponse.java)
+
+| Field | Java type | Required | Validation/annotations |
+| --- | --- | --- | --- |
+| productId | Long | not declared required | — |
+| priceAtLive | BigDecimal | not declared required | — |
+
+### `com.delivery.livestream_service.dto.response.LivestreamCheckoutQuoteResponse.Item`
+
+- Kind: `record`
+- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/dto/response/LivestreamCheckoutQuoteResponse.java:12`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/dto/response/LivestreamCheckoutQuoteResponse.java)
+
+| Field | Java type | Required | Validation/annotations |
+| --- | --- | --- | --- |
+| productId | Long | not declared required | — |
+| priceAtLive | BigDecimal | not declared required | — |
+
+### `com.delivery.livestream_service.dto.response.LivestreamModerationResponse`
+
+- Kind: `record`
+- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/dto/response/LivestreamModerationResponse.java:7`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/dto/response/LivestreamModerationResponse.java)
+
+| Field | Java type | Required | Validation/annotations |
+| --- | --- | --- | --- |
+| auditId | Long | not declared required | — |
+| livestreamId | UUID | not declared required | — |
+| action | LivestreamModerationAction | not declared required | — |
+| productId | Long | not declared required | — |
+| appliedAt | Instant | not declared required | @JsonFormat(shape = com.fasterxml.jackson.annotation.JsonFormat.Shape.STRING) |
 
 ### `com.delivery.livestream_service.dto.response.LivestreamProductResponse`
 
@@ -5612,6 +5939,20 @@ public ResponseEntity<BaseResponse<UserResponse>> registerUser( @Valid @RequestB
 | updatedAt | LocalDateTime | not declared required | — |
 | pinnedProducts | List<LivestreamProductResponse> | not declared required | — |
 
+### `com.delivery.livestream_service.dto.response.RenewLivestreamTokenResponse`
+
+- Kind: `class`
+- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/dto/response/RenewLivestreamTokenResponse.java:11`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/dto/response/RenewLivestreamTokenResponse.java)
+
+| Field | Java type | Required | Validation/annotations |
+| --- | --- | --- | --- |
+| livestreamId | UUID | not declared required | — |
+| channelName | String | not declared required | — |
+| token | String | not declared required | — |
+| uid | int | not declared required | — |
+| role | String | not declared required | — |
+| tokenExpiresAt | LocalDateTime | not declared required | — |
+
 ### `com.delivery.livestream_service.dto.response.StartLivestreamResponse`
 
 - Kind: `class`
@@ -5641,6 +5982,16 @@ public ResponseEntity<BaseResponse<UserResponse>> registerUser( @Valid @RequestB
 | roomId | String | not declared required | — |
 | livestreamId | UUID | not declared required | — |
 | expiresAt | LocalDateTime | not declared required | — |
+
+### `com.delivery.livestream_service.enums.LivestreamModerationAction`
+
+- Kind: `enum`
+- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/enums/LivestreamModerationAction.java:3`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/enums/LivestreamModerationAction.java)
+- Enum values: `WARN`, `UNPIN`, `FORCE_END`
+
+| Field | Java type | Required | Validation/annotations |
+| --- | --- | --- | --- |
+| — | No source-declared fields | — | — |
 
 ### `com.delivery.livestream_service.enums.LivestreamStatus`
 
@@ -5675,13 +6026,34 @@ public ResponseEntity<BaseResponse<UserResponse>> registerUser( @Valid @RequestB
 ### `com.delivery.livestream_service.payload.BaseResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/payload/BaseResponse.java:3`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/payload/BaseResponse.java)
+- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/payload/BaseResponse.java:5`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/payload/BaseResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
 | status | int | not declared required | — |
 | message | String | not declared required | — |
 | data | T | not declared required | — |
+| error | ErrorPayload | not declared required | @JsonInclude(JsonInclude.Include.NON_NULL) |
+
+#### `com.delivery.livestream_service.payload.BaseResponse.ErrorPayload`
+
+- Kind: `record`
+- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/payload/BaseResponse.java:46`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/payload/BaseResponse.java)
+
+| Field | Java type | Required | Validation/annotations |
+| --- | --- | --- | --- |
+| code | String | not declared required | — |
+| details | Object | not declared required | — |
+
+### `com.delivery.livestream_service.payload.BaseResponse.ErrorPayload`
+
+- Kind: `record`
+- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/payload/BaseResponse.java:46`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/payload/BaseResponse.java)
+
+| Field | Java type | Required | Validation/annotations |
+| --- | --- | --- | --- |
+| code | String | not declared required | — |
+| details | Object | not declared required | — |
 
 ### `com.delivery.notification_service.controller.FirebaseController.TokenRequest`
 
@@ -5778,10 +6150,11 @@ public ResponseEntity<BaseResponse<UserResponse>> registerUser( @Valid @RequestB
 ### `com.delivery.order_service.dto.request.CheckoutPreviewRequest`
 
 - Kind: `class`
-- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/dto/request/CheckoutPreviewRequest.java:23`](../../../../order-service/src/main/java/com/delivery/order_service/dto/request/CheckoutPreviewRequest.java)
+- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/dto/request/CheckoutPreviewRequest.java:24`](../../../../order-service/src/main/java/com/delivery/order_service/dto/request/CheckoutPreviewRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
+| livestreamId | UUID | not declared required | — |
 | restaurantId | Long | declared required | @NotNull, @Positive |
 | deliveryLat | Double | declared required | @NotNull, @DecimalMin("8.0"), @DecimalMax("24.0") |
 | deliveryLng | Double | declared required | @NotNull, @DecimalMin("102.0"), @DecimalMax("110.0") |
@@ -5794,7 +6167,7 @@ public ResponseEntity<BaseResponse<UserResponse>> registerUser( @Valid @RequestB
 #### `com.delivery.order_service.dto.request.CheckoutPreviewRequest.PreviewItem`
 
 - Kind: `class`
-- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/dto/request/CheckoutPreviewRequest.java:58`](../../../../order-service/src/main/java/com/delivery/order_service/dto/request/CheckoutPreviewRequest.java)
+- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/dto/request/CheckoutPreviewRequest.java:62`](../../../../order-service/src/main/java/com/delivery/order_service/dto/request/CheckoutPreviewRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5805,7 +6178,7 @@ public ResponseEntity<BaseResponse<UserResponse>> registerUser( @Valid @RequestB
 ### `com.delivery.order_service.dto.request.CheckoutPreviewRequest.PreviewItem`
 
 - Kind: `class`
-- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/dto/request/CheckoutPreviewRequest.java:58`](../../../../order-service/src/main/java/com/delivery/order_service/dto/request/CheckoutPreviewRequest.java)
+- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/dto/request/CheckoutPreviewRequest.java:62`](../../../../order-service/src/main/java/com/delivery/order_service/dto/request/CheckoutPreviewRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5821,6 +6194,7 @@ public ResponseEntity<BaseResponse<UserResponse>> registerUser( @Valid @RequestB
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
 | quoteId | UUID | not declared required | — |
+| livestreamId | UUID | not declared required | — |
 | restaurantId | Long | not declared required | — |
 | restaurantName | String | not declared required | — |
 | restaurantAddress | String | not declared required | — |
@@ -5841,7 +6215,7 @@ public ResponseEntity<BaseResponse<UserResponse>> registerUser( @Valid @RequestB
 #### `com.delivery.order_service.dto.request.CreateOrderRequest.OrderItemRequest`
 
 - Kind: `class`
-- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/dto/request/CreateOrderRequest.java:36`](../../../../order-service/src/main/java/com/delivery/order_service/dto/request/CreateOrderRequest.java)
+- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/dto/request/CreateOrderRequest.java:39`](../../../../order-service/src/main/java/com/delivery/order_service/dto/request/CreateOrderRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5855,7 +6229,7 @@ public ResponseEntity<BaseResponse<UserResponse>> registerUser( @Valid @RequestB
 ### `com.delivery.order_service.dto.request.CreateOrderRequest.OrderItemRequest`
 
 - Kind: `class`
-- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/dto/request/CreateOrderRequest.java:36`](../../../../order-service/src/main/java/com/delivery/order_service/dto/request/CreateOrderRequest.java)
+- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/dto/request/CreateOrderRequest.java:39`](../../../../order-service/src/main/java/com/delivery/order_service/dto/request/CreateOrderRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6644,6 +7018,19 @@ public ResponseEntity<BaseResponse<UserResponse>> registerUser( @Valid @RequestB
 | --- | --- | --- | --- |
 | — | No source-declared fields | — | — |
 
+### `com.delivery.restaurant_service.controller.InternalLivestreamProductController.Product`
+
+- Kind: `record`
+- Source: [`backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/InternalLivestreamProductController.java:26`](../../../../restaurant-service/src/main/java/com/delivery/restaurant_service/controller/InternalLivestreamProductController.java)
+
+| Field | Java type | Required | Validation/annotations |
+| --- | --- | --- | --- |
+| productId | Long | not declared required | — |
+| restaurantId | Long | not declared required | — |
+| productName | String | not declared required | — |
+| productImage | String | not declared required | — |
+| restaurantName | String | not declared required | — |
+
 ### `com.delivery.restaurant_service.dto.request.ConfirmRestaurantOrderRequest`
 
 - Kind: `class`
@@ -6676,7 +7063,7 @@ public ResponseEntity<BaseResponse<UserResponse>> registerUser( @Valid @RequestB
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
 | name | String | declared required | @NotBlank, @Size(max = 255) |
-| address | String | not declared required | @Size(max = 2000) |
+| address | String | declared required | @NotBlank(message = "Address must not be blank"), @Size(min = 10, max = 2000, message = "Address must be between 10 and 2000 characters") |
 | phone | String | not declared required | @Size(max = 20) |
 | openingHour | LocalTime | not declared required | — |
 | closingHour | LocalTime | not declared required | — |
@@ -6833,7 +7220,7 @@ public ResponseEntity<BaseResponse<UserResponse>> registerUser( @Valid @RequestB
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
 | name | String | not declared required | @Size(max = 255), @Pattern(regexp = ".*\\\\S.*", message = "name must contain a non-whitespace character") |
-| address | String | not declared required | @Size(max = 2000) |
+| address | String | not declared required | @Size(min = 10, max = 2000, message = "address must be between 10 and 2000 characters"), @Pattern(regexp = ".*\\\\S.*", message = "address must contain a non-whitespace character") |
 | phone | String | not declared required | @Size(max = 20) |
 | openingHour | LocalTime | not declared required | — |
 | closingHour | LocalTime | not declared required | — |
@@ -6906,7 +7293,7 @@ public ResponseEntity<BaseResponse<UserResponse>> registerUser( @Valid @RequestB
 ### `com.delivery.restaurant_service.dto.response.MenuItemResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/dto/response/MenuItemResponse.java:6`](../../../../restaurant-service/src/main/java/com/delivery/restaurant_service/dto/response/MenuItemResponse.java)
+- Source: [`backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/dto/response/MenuItemResponse.java:8`](../../../../restaurant-service/src/main/java/com/delivery/restaurant_service/dto/response/MenuItemResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6916,8 +7303,8 @@ public ResponseEntity<BaseResponse<UserResponse>> registerUser( @Valid @RequestB
 | description | String | not declared required | — |
 | price | BigDecimal | not declared required | — |
 | status | String | not declared required | — |
-| createdAt | LocalDateTime | not declared required | — |
-| updatedAt | LocalDateTime | not declared required | — |
+| createdAt | LocalDateTime | not declared required | @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss") |
+| updatedAt | LocalDateTime | not declared required | @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss") |
 | image | String | not declared required | — |
 
 ### `com.delivery.restaurant_service.dto.response.OrderValidationResultResponse`
@@ -8092,4 +8479,30 @@ public ResponseEntity<BaseResponse<UserResponse>> registerUser( @Valid @RequestB
 | status | int | not declared required | — |
 | message | String | not declared required | — |
 | data | T | not declared required | — |
+
+### `com.delivery.web_bff.session.WebSessionController.LoginRequest`
+
+- Kind: `record`
+- Source: [`backend_delivery/web-bff-service/src/main/java/com/delivery/web_bff/session/WebSessionController.java:91`](../../../../web-bff-service/src/main/java/com/delivery/web_bff/session/WebSessionController.java)
+
+| Field | Java type | Required | Validation/annotations |
+| --- | --- | --- | --- |
+| email | String | declared required | @NotBlank, @Email |
+| password | String | declared required | @NotBlank |
+| role | String | declared required | @NotBlank |
+| deviceName | String | not declared required | — |
+
+### `com.delivery.web_bff.session.WebSessionController.SessionView`
+
+- Kind: `record`
+- Source: [`backend_delivery/web-bff-service/src/main/java/com/delivery/web_bff/session/WebSessionController.java:98`](../../../../web-bff-service/src/main/java/com/delivery/web_bff/session/WebSessionController.java)
+
+| Field | Java type | Required | Validation/annotations |
+| --- | --- | --- | --- |
+| authenticated | boolean | not declared required | — |
+| principalId | Long | not declared required | — |
+| email | String | not declared required | — |
+| role | String | not declared required | — |
+| sessionVersion | long | not declared required | — |
+| csrfToken | String | not declared required | — |
 

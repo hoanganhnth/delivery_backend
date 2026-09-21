@@ -21,6 +21,7 @@ RUN_SUFFIX="${RUN_ID: -8}"
 SEED_OUTPUT_FILE="${SEED_OUTPUT_FILE:-}"
 SEED_SKIP_OFFLINE_PREVIOUS_SHIPPERS="${SEED_SKIP_OFFLINE_PREVIOUS_SHIPPERS:-false}"
 SEED_SKIP_SHIPPER="${SEED_SKIP_SHIPPER:-false}"
+SEED_SKIP_OUTSIDER="${SEED_SKIP_OUTSIDER:-false}"
 SEED_AUTH_DIRECT_LOGIN="${SEED_AUTH_DIRECT_LOGIN:-false}"
 SEED_SIMULATION_ACTORS="${SEED_SIMULATION_ACTORS:-false}"
 SIMULATION_COHORT_ID="${SIMULATION_COHORT_ID:-$(uuidgen | tr '[:upper:]' '[:lower:]')}"
@@ -36,17 +37,42 @@ ROLE_CUSTOMER="USER"
 ROLE_OWNER="SHOP_OWNER"
 ROLE_SHIPPER="SHIPPER"
 
-# Toạ độ mẫu (TP.HCM) — nhà hàng và shipper gần nhau để match tìm thấy.
-REST_LAT="10.7769"; REST_LNG="106.7009"
-SHIPPER_LAT="10.7780"; SHIPPER_LNG="106.7020"
-CUSTOMER_LAT="10.7740"; CUSTOMER_LNG="106.7040"
+# Toạ độ mẫu Hà Đông — nhà hàng, khách và shipper gần nhau để match tìm thấy.
+REST_LAT="20.9717"; REST_LNG="105.7770"
+SHIPPER_LAT="20.9730"; SHIPPER_LNG="105.7790"
+CUSTOMER_LAT="20.9760"; CUSTOMER_LNG="105.7750"
 MENU_PRICE="45000"
+IMAGE_MANIFEST_FILE="${IMAGE_MANIFEST_FILE:-$SCRIPT_DIR/fixtures/hanoi-grab-image-manifest.json}"
+REST_IMAGE="${REST_IMAGE:-}"
+MENU_IMAGE="${MENU_IMAGE:-}"
 
 command -v jq >/dev/null || { echo "❌ Cần cài jq"; exit 1; }
 command -v docker >/dev/null || { echo "❌ Cần Docker để seed ledger ký quỹ local"; exit 1; }
 command -v grep >/dev/null || { echo "❌ Cần grep để xác nhận fixture local"; exit 1; }
+
+if [[ -z "$REST_IMAGE" || -z "$MENU_IMAGE" ]]; then
+  [[ -f "$IMAGE_MANIFEST_FILE" ]] || {
+    echo "❌ Không tìm thấy image manifest: $IMAGE_MANIFEST_FILE" >&2
+    exit 1
+  }
+  if [[ -z "$REST_IMAGE" ]]; then
+    REST_IMAGE="$(jq -r '.restaurants[0].image // empty' "$IMAGE_MANIFEST_FILE")"
+  fi
+  if [[ -z "$MENU_IMAGE" ]]; then
+    MENU_IMAGE="$(jq -r '.menuItems[0].image // empty' "$IMAGE_MANIFEST_FILE")"
+  fi
+fi
+[[ -n "$REST_IMAGE" && -n "$MENU_IMAGE" ]] || {
+  echo "❌ Image manifest không có đủ URL ảnh nhà hàng/món ăn" >&2
+  exit 1
+}
+
 [[ "$SEED_SKIP_SHIPPER" == "true" || "$SEED_SKIP_SHIPPER" == "false" ]] || {
   echo "SEED_SKIP_SHIPPER must be true or false" >&2
+  exit 2
+}
+[[ "$SEED_SKIP_OUTSIDER" == "true" || "$SEED_SKIP_OUTSIDER" == "false" ]] || {
+  echo "SEED_SKIP_OUTSIDER must be true or false" >&2
   exit 2
 }
 [[ "$SEED_SHIPPER_COUNT" =~ ^[1-9][0-9]*$ ]] || {
@@ -135,13 +161,18 @@ login() { # email deviceId -> echoes accessToken
     # Sandbox fixture bootstrap only: retain Auth's real login and JWT issuance
     # while avoiding the public Gateway fixed-window shared by a large actor
     # cohort. Simulator traffic itself always goes through Gateway.
-    local attempt response token request_body
+    local attempt response token request_body last_failure='empty response'
     request_body="$(jq -nc --arg email "$1" --arg password "$PASS" --arg device_id "$2" \
       '{email:$email,password:$password,deviceId:$device_id,deviceName:"MVP seed",deviceType:"WEB"}')"
     # Auth only permits login after the User profile-created event has linked
     # the newly registered identity.  The public path already retries; direct
     # sandbox fixture login must wait for the same asynchronous convergence.
-    for attempt in $(seq 1 20); do
+    # A clean sandbox starts Kafka consumers, User's outbox relay and Auth's
+    # profile-link consumer at nearly the same time.  Under a cold Docker host
+    # their first poll/rebalance can take longer than the old 20-second budget;
+    # wait for the real ACTIVE lifecycle rather than treating that convergence
+    # as a failed credential.
+    for attempt in $(seq 1 60); do
       response="$("${COMPOSE_COMMAND[@]}" exec -T auth-service wget -qO- \
         --header='Content-Type: application/json' \
         --post-data="$request_body" \
@@ -151,8 +182,11 @@ login() { # email deviceId -> echoes accessToken
         printf '%s\n' "$token"
         return 0
       fi
+      last_failure="$(jq -r '.message // .error // .data.message // "invalid login response"' <<< "$response" 2>/dev/null || printf '%s' 'invalid login response')"
       sleep 1
     done
+    printf '❌ Auth fixture login did not issue an access token for %s after %s attempts: %s\n' \
+      "$1" "$attempt" "$last_failure" >&2
     return 1
   fi
   curl "${CURL_RETRY_ARGS[@]}" --fail-with-body --silent --show-error \
@@ -208,11 +242,17 @@ CUST_TOKEN="$(login "$CUST_EMAIL" "seed-$RUN_ID-customer")"
 echo "✅ Khách: $CUST_EMAIL (token ${CUST_TOKEN:+ok})"
 
 # Khách không liên quan dùng để khóa participant authorization của raw WebSocket.
-OUTSIDER_EMAIL="outsider+$RUN_ID@test.dev"
-register "$OUTSIDER_EMAIL" "$ROLE_CUSTOMER"
-OUTSIDER_TOKEN="$(login "$OUTSIDER_EMAIL" "seed-$RUN_ID-outsider")"
-[[ -n "$OUTSIDER_TOKEN" ]] || { echo "❌ Login outsider không trả access token"; exit 1; }
-echo "✅ Khách ngoài delivery: $OUTSIDER_EMAIL (token ${OUTSIDER_TOKEN:+ok})"
+OUTSIDER_EMAIL=""
+OUTSIDER_TOKEN=""
+if [[ "$SEED_SKIP_OUTSIDER" == "true" ]]; then
+  echo "SEED_SKIP_OUTSIDER=true — bỏ qua outsider fixture chỉ dùng cho WebSocket authorization."
+else
+  OUTSIDER_EMAIL="outsider+$RUN_ID@test.dev"
+  register "$OUTSIDER_EMAIL" "$ROLE_CUSTOMER"
+  OUTSIDER_TOKEN="$(login "$OUTSIDER_EMAIL" "seed-$RUN_ID-outsider")"
+  [[ -n "$OUTSIDER_TOKEN" ]] || { echo "❌ Login outsider không trả access token"; exit 1; }
+  echo "✅ Khách ngoài delivery: $OUTSIDER_EMAIL (token ${OUTSIDER_TOKEN:+ok})"
+fi
 
 # --- 2. Chủ nhà hàng + nhà hàng + menu ---
 OWNER_EMAIL="owner+$RUN_ID@test.dev"
@@ -223,14 +263,14 @@ echo "✅ Chủ NH: $OWNER_EMAIL (token ${OWNER_TOKEN:+ok})"
 
 REST_ID="$(curl --fail-with-body --silent --show-error -X POST "$BASE/api/restaurants" \
   -H "Authorization: Bearer $OWNER_TOKEN" -H 'Content-Type: application/json' \
-  -d "{\"name\":\"Quán Test\",\"address\":\"123 Lê Lợi, Q1\",\"phone\":\"0900000001\",\"openingHour\":\"00:00\",\"closingHour\":\"23:59\",\"addressLat\":$REST_LAT,\"addressLng\":$REST_LNG,\"description\":\"Seed restaurant\"}" \
+  -d "{\"name\":\"Quán Test HÀ ĐÔNG\",\"address\":\"123 Trần Phú, Phường Mộ Lao, Hà Đông, Hà Nội\",\"phone\":\"0900000001\",\"openingHour\":\"00:00\",\"closingHour\":\"23:59\",\"addressLat\":$REST_LAT,\"addressLng\":$REST_LNG,\"description\":\"Quán test phục vụ món Việt tại Hà Đông\",\"image\":\"$REST_IMAGE\"}" \
   | jq -r '.id // .data.id // empty')"
 [[ "$REST_ID" =~ ^[0-9]+$ ]] || { echo "❌ Không tạo được restaurant canonical"; exit 1; }
 echo "✅ Nhà hàng id=$REST_ID"
 
 MENU_ID="$(curl --fail-with-body --silent --show-error -X POST "$BASE/api/menu-items" \
   -H "Authorization: Bearer $OWNER_TOKEN" -H 'Content-Type: application/json' \
-  -d "{\"name\":\"Cơm gà\",\"description\":\"Món seed\",\"price\":$MENU_PRICE,\"restaurantId\":$REST_ID}" \
+  -d "{\"name\":\"Cơm gà sốt nấm\",\"description\":\"Cơm nóng, gà nướng và sốt nấm nhà làm\",\"price\":$MENU_PRICE,\"restaurantId\":$REST_ID,\"image\":\"$MENU_IMAGE\"}" \
   | jq -r '.id // .data.id // empty')"
 [[ "$MENU_ID" =~ ^[0-9]+$ ]] || { echo "❌ Không tạo được menu item canonical"; exit 1; }
 echo "✅ Menu item id=$MENU_ID"
@@ -257,11 +297,14 @@ for shipper_index in $(seq 1 "$SEED_SHIPPER_COUNT"); do
   curl --fail-with-body --silent --show-error -X POST "$BASE/api/shippers" \
     -H "Authorization: Bearer $shipper_token" -H 'Content-Type: application/json' \
     -d "{\"fullName\":\"Shipper Test $shipper_index\",\"vehicleType\":\"MOTORBIKE\",\"licenseNumber\":\"LIC-$RUN_ID-$shipper_index\",\"idCard\":\"ID-$RUN_ID-$shipper_index\",\"phone\":\"09$shipper_suffix\",\"licensePlate\":\"59-X$shipper_index-$RUN_SUFFIX\"}" >/dev/null
-  shipper_user_id="$(curl --fail-with-body --silent --show-error "$BASE/api/shippers/my-profile" \
-    -H "Authorization: Bearer $shipper_token" | jq -r '.data.userId // .userId // empty')"
+  shipper_profile="$(curl --fail-with-body --silent --show-error "$BASE/api/shippers/my-profile" \
+    -H "Authorization: Bearer $shipper_token")"
+  shipper_id="$(jq -r '.data.id // .id // empty' <<< "$shipper_profile")"
+  shipper_user_id="$(jq -r '.data.userId // .userId // empty' <<< "$shipper_profile")"
+  [[ "$shipper_id" =~ ^[0-9]+$ ]] || { echo "❌ Không lấy được id canonical của shipper"; exit 1; }
   [[ "$shipper_user_id" =~ ^[0-9]+$ ]] || { echo "❌ Không lấy được userId canonical của shipper"; exit 1; }
   "${COMPOSE_COMMAND[@]}" exec -T postgres psql -U postgres -d settlement_db \
-    -v shipper_id="$shipper_user_id" -v deposit_amount="$SHIPPER_DEPOSIT" \
+    -v shipper_id="$shipper_id" -v deposit_amount="$SHIPPER_DEPOSIT" \
     -f - < "$BACKEND_DIR/scripts/seed-settlement.sql" >/dev/null
   if [[ "$SEED_SIMULATION_ACTORS" == "true" ]]; then
     # Simulator binds these actors before it submits locations. Never seed a
@@ -309,6 +352,8 @@ if [[ -n "$SEED_OUTPUT_FILE" ]]; then
   jq -n \
     --arg runId "$RUN_ID" \
     --arg simulationCohortId "$SIMULATION_COHORT_ID" \
+    --arg customerEmail "$CUST_EMAIL" \
+    --arg ownerEmail "$OWNER_EMAIL" \
     --arg customerToken "$CUST_TOKEN" \
     --arg outsiderToken "$OUTSIDER_TOKEN" \
     --arg ownerToken "$OWNER_TOKEN" \
@@ -325,6 +370,7 @@ if [[ -n "$SEED_OUTPUT_FILE" ]]; then
     --argjson customerLng "$CUSTOMER_LNG" \
     --argjson menuPrice "$MENU_PRICE" \
     '{runId: $runId, simulationCohortId: $simulationCohortId,
+      customerEmail: $customerEmail, ownerEmail: $ownerEmail,
       customerToken: $customerToken, outsiderToken: $outsiderToken,
       ownerToken: $ownerToken,
       shipperToken: $shipperToken, restaurantId: $restaurantId,
@@ -344,10 +390,10 @@ curl -X POST "$BASE/api/orders" \\
   -H "Authorization: Bearer <customer-access-token>" -H 'Content-Type: application/json' \\
   -d '{
     "restaurantId": $REST_ID,
-    "deliveryAddress": "456 Nguyễn Huệ, Q1",
-    "deliveryLat": 10.7740, "deliveryLng": 106.7040,
+    "deliveryAddress": "45 Nguyễn Trãi, Hà Đông, Hà Nội",
+    "deliveryLat": $CUSTOMER_LAT, "deliveryLng": $CUSTOMER_LNG,
     "pickupLat": $REST_LAT, "pickupLng": $REST_LNG,
-    "customerName": "Khách Test", "customerPhone": "0900000001",
+    "customerName": "Khách Hà Đông", "customerPhone": "0900000001",
     "paymentMethod": "COD",
     "items": [ { "menuItemId": $MENU_ID, "quantity": 2, "price": 45000 } ]
   }'

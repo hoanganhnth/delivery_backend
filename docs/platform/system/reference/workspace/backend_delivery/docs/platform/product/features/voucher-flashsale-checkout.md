@@ -5,7 +5,7 @@ by default.
 
 | Concern | Voucher | Flash sale |
 |---|---|---|
-| Ownership | Platform vouchers/freeship are ADMIN-owned; shop vouchers are SHOP_OWNER-created and ADMIN-approved | ADMIN campaign; restaurant-owned item; admin approval |
+| Ownership | Platform vouchers/freeship are ADMIN-owned; new shop-funded vouchers auto-approved after SHOP_OWNER ownership/validation; legacy pending rows retain admin review | ADMIN campaign; restaurant-owned item; admin approval |
 | Client input | `AUTO` or up to three wallet `selectedVoucherIds`, one per layer | approved catalog `flashSaleItemId` + quantity |
 | Price owner | Promotion | Flash-sale service |
 | Durable hold | `voucher_reservations` (legacy) or `promotion_reservations` + lines (stacking) | reservation + line tables |

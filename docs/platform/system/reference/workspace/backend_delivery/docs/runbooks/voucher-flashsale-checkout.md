@@ -11,6 +11,17 @@
    catalog, while internal quote/reservation paths remain absent.
 5. Confirm dashboards/alerts exist for reservation age/state, outbox PENDING/DEAD,
    release failures, stock/counter mismatch, and settlement rejection.
+6. Run Promotion with `-Duser.timezone=UTC` (Compose pins this explicitly).
+   Voucher start/end fields are UTC despite the legacy wire format lacking
+   a timezone suffix. Web must convert local input before submission. Audit
+   historical campaigns entered through older clients; do not shift all rows
+   because older API/operator-created UTC rows may already be correct.
+
+New ownership-verified, shop-funded vouchers auto-approve; old PENDING and
+REJECTED rows are not migrated. Verify an unrelated owner cannot create for
+the restaurant and that admin pause prevents new collection/reservation while
+leaving existing reservation recovery intact. Auto-approval does not enable
+any checkout rollout flag.
 
 ### Preflight không dùng Docker
 

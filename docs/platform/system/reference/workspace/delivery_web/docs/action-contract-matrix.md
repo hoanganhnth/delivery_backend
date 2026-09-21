@@ -108,6 +108,7 @@ demonstrates the action or its failure/retry behavior.
 | ADMIN-18 | Load pending shop vouchers | `ADMIN` | `GET /api/promotions/admin/pending-shop` | No body; admin identity is authenticated | `AdminCoupon[]` pending shop vouchers | Loading, empty and error states are explicit | `src/modules/admin/pages/AdminCouponsPage.tsx`; `e2e/web-journeys.spec.ts` |
 | ADMIN-19 | Approve shop voucher | `ADMIN` | `PUT /api/promotions/admin/{id}/approve` | Pending voucher ID | Updated `AdminCoupon` | Failure remains visible/retryable; no optimistic approval | `src/modules/admin/pages/AdminCouponsPage.tsx`; `e2e/web-journeys.spec.ts` |
 | ADMIN-20 | Reject shop voucher | `ADMIN` | `PUT /api/promotions/admin/{id}/reject` | Pending voucher ID and optional reason | Updated `AdminCoupon` | Failure remains visible/retryable; no optimistic rejection | `src/modules/admin/pages/AdminCouponsPage.tsx`; `e2e/web-journeys.spec.ts` |
+| ADMIN-21 | Support chat inbox and text reply | `ADMIN` | `POST /api/auth/firebase/chat-token` then Firestore listeners/writes for `conversations` and `messages` | Backend JWT actor; Firestore Rules derive sender identity from Firebase custom claims | Realtime support conversations/messages | Feature is fail-closed when the Firebase service account or Rules/indexes are unavailable; client cannot choose `senderPrincipalId` or conversation owner | `src/modules/admin/services/firebaseChatService.ts`; `src/modules/admin/pages/AdminChatPage.tsx`; `src/modules/admin/__tests__/admin-chat.test.tsx` |
 
 ## UI-only actions
 
@@ -130,7 +131,10 @@ the visible router, navigation and production API calls:
 - Online payment, settlement, withdrawal and refund actions.
 - Browser realtime shipper map, rating, reorder and notification actions.
 - User administration CRUD not exposed by the current Web routes.
-- Firebase/Chat, livestream and tracking pages.
+- Restaurant-owner chat, media upload, typing presence and livestream chat.
+  Customer ↔ ADMIN support chat is the explicitly scoped Firebase capability;
+  it remains unavailable until the external token service and Rules/indexes are
+  provisioned.
 - Direct service ports, `/api/api` paths, gRPC, STOMP and SockJS.
 - Voucher/flash-sale checkout activation; related checkout flags remain
   disabled/default `false`.

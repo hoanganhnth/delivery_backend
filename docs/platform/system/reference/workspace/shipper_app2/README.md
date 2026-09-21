@@ -40,19 +40,24 @@ hoặc GPS route giả làm fallback.
 Mọi production screen theo luồng:
 
 ```text
-Route → ViewModel → View
+App composition → Route → ViewModel → View
 ```
 
 - `View` chỉ render immutable state và phát discriminated `ViewEvent`; không
   import Redux, navigation, repository, storage, native service, `Alert` hoặc
   runtime configuration.
 - `ViewModel` sở hữu event, validation, loading/error feedback, navigation port,
-  timer, lifecycle effect và feature command.
-- `Route` chỉ nối navigation với ViewModel và View.
+  timer, lifecycle effect và feature command. ViewModel và feature state không
+  import `app/store`, `AppRuntimeContext`, concrete adapters, hoặc feature khác.
+- `Route` chỉ nối navigation với ViewModel và View; các route feature chỉ nhận
+  contract/props thuần.
+- `App composition` là nơi duy nhất lắp Redux, runtime ports, feature-to-feature
+  workflow và navigation contracts.
 
 ```text
 src/
   app/          composition root, navigation, store, bootstrap, overlay
+  app/development/  debug tooling, local diagnostics, dev-only controls
   config/       env và Gateway runtime config
   core/         API/session/platform contracts và generic adapters
   shared/       UI primitives, tokens, formatters, pure helpers
@@ -66,8 +71,9 @@ src/
 
 `createAppStore` lắp Redux Toolkit và các repository port; `AppRuntimeProvider`
 cấp scheduler, lifecycle, GPS, feedback, media picker, social identity, push và
-tracking configuration. Production native adapters được tạo tại `src/app/`;
-test dùng `test-support/testDependencies.ts` và không khởi tạo SDK thật.
+tracking configuration. Production native adapters và workflow orchestration
+được tạo tại `src/app/composition/`; test dùng `test-support/testDependencies.ts`
+và không khởi tạo SDK thật.
 
 ## Boundary auth và dữ liệu
 
@@ -81,6 +87,8 @@ test dùng `test-support/testDependencies.ts` và không khởi tạo SDK thật
   Socket có heartbeat/reconnect và phải tôn trọng delivery-room authorization.
 - `shipper.id` là identity canonical của fulfilment; không thay bằng user-provided
   header hoặc dữ liệu local không xác minh.
+- `debug` là tooling phát triển app, không phải feature production; boundary này
+  nằm ở `src/app/development/` và `src/app/composition/screens/DebugToolsScreen.tsx`.
 
 ## Capability bị ẩn hoặc chưa có contract
 
@@ -141,7 +149,11 @@ npm run verify:coverage
 
 Unit/integration tests dùng fake repository, clock, GPS, push, Mapbox và socket.
 Device Mapbox, background GPS, native permissions và FCM delivery cần smoke
-check riêng; xem [TESTING.md](TESTING.md).
+check riêng; xem [TESTING.md](TESTING.md). iOS Simulator đã được smoke-test
+thành công ở mức native build/install/relaunch, Metro bundle, màn hình login,
+CoreLocation permission và simulated location. Các flow authenticated Mapbox,
+background GPS, native WebSocket, FCM và Android vẫn là release gate vì môi
+trường hiện tại chưa có Gateway/Firebase credentials và Android emulator.
 
 ## Đọc tiếp
 

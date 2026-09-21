@@ -3,7 +3,7 @@
 > Status: current contract guide, checked 2026-08-24. The exact controller
 > method inventory is maintained by the backend at
 > [`../../../backend_delivery/docs/http-api-inventory.md`](../../../http-api-inventory.md)
-> and currently records 226 handlers. The checked-in
+> and is checked against mapped controller source. The checked-in
 > [source-derived contract manifest](./http-contract.json) maps those routes to
 > controller signatures, bindings and reachable DTO declarations. Controller,
 > DTO and test source remain authoritative where any generated artefact differs.
@@ -21,7 +21,7 @@ annotated controller mapping—not only public MVP routes—and records:
 signatures, including nested DTOs and enums where present.
 
 [`http-contract-catalog.md`](./http-contract-catalog.md) is the generated
-human-readable equivalent: it groups all 226 mappings by service and records
+human-readable equivalent: it groups every inventoried mapping by service and records
 each verb/path, Java handler/source link, parameter binding/default/validation,
 return type, Java signature and all 202 reachable source-declared DTO/enum
 schemas. It intentionally includes internal, hidden, experimental and dev-only
@@ -39,6 +39,27 @@ Refresh/check it after a controller or DTO change:
 ```bash
 node backend_delivery/docs/platform/system/api/generate-http-contract.mjs --write
 node backend_delivery/docs/platform/system/api/generate-http-contract.mjs --check
+```
+
+## Public-edge route manifest
+
+[`public-edge-manifest.json`](./public-edge-manifest.json) and
+[`public-edge-catalog.md`](./public-edge-catalog.md) are deterministic
+projections of `GatewayRouteConfig.java`. They record every route ID, path,
+method, downstream URI binding, feature gate and rewrite rule. The extractor
+fails if a route declaration cannot be parsed, so a new Gateway DSL shape
+cannot disappear silently from the projection.
+
+The edge manifest does not auto-publish controller mappings and does not prove
+downstream JWT, role or ownership enforcement. Rate-limit classification is
+request-dependent and remains owned by `GatewayRateLimitFilter` rather than
+being duplicated into generated route metadata.
+
+Refresh/check it after a Gateway route change:
+
+```bash
+node backend_delivery/docs/platform/system/api/generate-public-edge-manifest.mjs --write
+node backend_delivery/docs/platform/system/api/generate-public-edge-manifest.mjs --check
 ```
 
 ## Edge rules
@@ -165,6 +186,9 @@ authorized delivery. STOMP and gRPC are not compatibility transports to revive.
 - [Machine-readable source-derived HTTP contract](./http-contract.json)
 - [Generated human-readable operation and DTO catalog](./http-contract-catalog.md)
 - [Deterministic contract extractor](./generate-http-contract.mjs)
+- [Machine-readable public-edge route manifest](./public-edge-manifest.json)
+- [Generated public-edge route catalog](./public-edge-catalog.md)
+- [Fail-closed public-edge extractor](./generate-public-edge-manifest.mjs)
 - [Exact HTTP method/path/controller inventory](../../../http-api-inventory.md)
 - [HTTP conventions ADR](../../decisions/0001-backend-contract-conventions.md)
 - [Gateway routes and test proof](../../../../api-gateway/src/main/resources)

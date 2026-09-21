@@ -25,6 +25,7 @@ sequenceDiagram
     participant G as API Gateway
     participant O as Order
     participant R as Restaurant
+    participant L as Livestream
     participant K as Kafka
     participant S as Saga
     participant D as Delivery
@@ -41,6 +42,10 @@ sequenceDiagram
     O->>O: Re-price canonical facts; 409 PRICE_CHANGED/QUOTE_EXPIRED if confirmation is stale
     O->>R: Internal canonical menu/order validation
     R-->>O: Canonical catalog facts
+    opt Request carries livestreamId and capability is enabled
+        O->>L: Internal quote(livestreamId, restaurantId, productIds)
+        L-->>O: Current pinned prices for matching LIVE room
+    end
     O->>O: Persist order snapshot and transactional outbox
     O-->>K: order.created
     K-->>S: Consume order.created idempotently
@@ -122,6 +127,10 @@ stateDiagram-v2
 - Order snapshots canonical price, restaurant/menu facts and COD monetary values
   before emitting order.created. Downstream services do not recreate price from
   mutable catalog data.
+- Optional livestream pricing remains default-off. When enabled, preview and
+  create bind the same `livestreamId` into the quote fingerprint; Order accepts
+  prices only from Livestream's internal-token boundary and rejects stale,
+  ended, foreign, malformed, or Flash-Sale-combined sources.
 - Outbox write and source service state transition share one local database
   transaction. Relay publishes later; consumer receipt/idempotency makes an exact
   Kafka replay safe.

@@ -1,0 +1,14 @@
+# Optional local overlay for Firebase support chat. The service-account file is
+# operator-owned and must live outside the repository.
+services:
+  auth-service:
+    environment:
+      FIREBASE_CHAT_ENABLED: "true"
+      FIREBASE_SERVICE_ACCOUNT_KEY_PATH: file:/run/secrets/firebase-service-account.json
+    secrets:
+      - source: firebase-service-account
+        target: firebase-service-account.json
+
+secrets:
+  firebase-service-account:
+    file: ${FIREBASE_SERVICE_ACCOUNT_FILE:?FIREBASE_SERVICE_ACCOUNT_FILE must point to an operator-owned Firebase JSON file}

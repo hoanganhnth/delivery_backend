@@ -117,6 +117,13 @@
             <version>1.43.3</version>
         </dependency>
 
+        <!-- Firebase Custom Token bridge for the authenticated support-chat clients. -->
+        <dependency>
+            <groupId>com.google.firebase</groupId>
+            <artifactId>firebase-admin</artifactId>
+            <version>9.2.0</version>
+        </dependency>
+
         <!-- Test -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

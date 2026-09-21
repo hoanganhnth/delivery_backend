@@ -3,7 +3,8 @@
 Web portal hiện phục vụ ba actor/surface: khách hàng, quản trị viên hệ thống và
 chủ nhà hàng. Trang kiến trúc hệ thống là một technical surface độc lập, không
 thuộc business portal và không yêu cầu đăng nhập. Customer Web dùng COD core; realtime map, rating, reorder,
-notification, payment online và promotion checkout vẫn chưa mở.
+ notification, payment online và promotion checkout vẫn chưa mở. Chat CSKH
+ giữa khách hàng và ADMIN dùng Firebase Auth custom token + Firestore Rules.
 
 ## 1. Xác thực và session
 
@@ -33,6 +34,8 @@ vẫn truy cập được dưới breakpoint desktop.
 | :--- | :--- |
 | `/admin/dashboard` | KPI, xu hướng đơn/GMV, phân bổ trạng thái, top nhà hàng và shortcut nghiệp vụ; dữ liệu đọc qua analytics Gateway contract. |
 | `/admin/orders` | Xem/phân trang/lọc đơn toàn hệ thống. |
+| `/admin/chat` | Inbox realtime chat CSKH với khách hàng; gửi text, đánh dấu đã đọc và đóng hội thoại. |
+| `/admin/restaurants` | Xem, tìm kiếm nhà hàng và mở trực tiếp portal quản lý của từng nhà hàng. |
 | `/admin/shippers` | Xem danh sách shipper, filter online/offline và tìm kiếm local. |
 | `/admin/ratings` | Moderation rating: approve/reject, retry được khi backend lỗi. |
 | `/admin/coupons` | Tạo/xóa platform coupon, kiểm tra time window và scope. |
@@ -80,7 +83,9 @@ authority tài chính.
 ## 6. Explicit exclusions
 
 - User administration CRUD chưa có route canonical trong Web MVP.
-- Firebase/Chat, livestream, realtime shipper map, rating, reorder và notification.
+- Chat nhà hàng, media upload, typing presence và livestream chat; chat CSKH
+  khách hàng ↔ ADMIN là capability riêng, cần backend Firebase token + Rules đã
+  được provision.
 - Dashboard nhà hàng chi tiết, export lịch sử và financial reporting nâng cao chỉ
   mở sau khi analytics ownership/backfill gates hoàn tất.
 - Online payment, settlement, withdrawal, refund UI và voucher/flash-sale

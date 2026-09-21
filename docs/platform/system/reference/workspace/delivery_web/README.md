@@ -19,7 +19,8 @@ Client chỉ gọi Gateway origin và thêm prefix `/api` theo endpoint contract
 quản lý Bearer access token và single-flight refresh khi protected request trả
 `401`; refresh token mới được lưu trước khi retry request đang chờ. Browser không
 được gọi service port, Config Server, Eureka, database, Kafka hoặc gửi
-`Internal-Token`.
+`Internal-Token`. Riêng chat CSKH dùng Firebase Auth/Firestore sau khi backend
+mint custom token qua Gateway; Firebase Rules vẫn là lớp kiểm soát quyền đọc/ghi.
 
 Role và resource ownership do resource service kiểm tra bằng Auth JWKS. Client có
 thể dùng role để điều hướng UI, nhưng không được coi role/ID do browser gửi là
@@ -59,6 +60,8 @@ trong local cart chỉ mang tính tham khảo.
 | --- | --- |
 | `/admin/dashboard` | KPI, xu hướng đơn/GMV, breakdown trạng thái và top nhà hàng từ analytics contract khi projection khả dụng |
 | `/admin/orders` | Xem, phân trang và lọc đơn toàn hệ thống |
+| `/admin/chat` | Inbox realtime chat CSKH với khách hàng; gửi text, đánh dấu đã đọc và đóng hội thoại |
+| `/admin/restaurants` | Xem, tìm kiếm nhà hàng và mở trực tiếp portal quản lý của từng nhà hàng |
 | `/admin/shippers` | Xem danh sách shipper, tab online/offline và tìm kiếm local |
 | `/admin/ratings` | Approve/reject rating và retry mutation khi backend lỗi |
 | `/admin/coupons` | Tạo/xóa platform coupon và duyệt shop voucher pending |
@@ -93,7 +96,7 @@ src/
     auth/              Login, registration, session recovery
     customer/          Storefront, cart, address, checkout và orders
     restaurant/        Owner portal, menu/order/profile/review/import
-    admin/              Dashboard, moderation, coupon/flash-sale/catalog admin
+    admin/              Dashboard, moderation, support chat, coupon/flash-sale/catalog admin
     system-handbook/   Public Flow Explorer và generated Docs Portal
   components/          Layout và UI primitives dùng chung
   test/                Test dependencies, routed harness và builders
@@ -110,8 +113,9 @@ Các capability sau không được hiểu là public MVP chỉ vì source hoặ
 có thể tồn tại:
 
 - Online payment, settlement, withdrawal và refund UI.
-- Browser realtime shipper map, rating/reorder/notification customer, Firebase
-  chat và livestream.
+- Browser realtime shipper map, rating/reorder/notification customer, livestream
+  chat và restaurant-owner chat. Customer ↔ ADMIN support chat dùng Firebase
+  nhưng vẫn fail-closed nếu token service/Rules chưa được provision.
 - User administration CRUD chưa có route canonical.
 - Dashboard nhà hàng chi tiết, export lịch sử và financial reporting nâng cao
   chờ analytics ownership/backfill gate.

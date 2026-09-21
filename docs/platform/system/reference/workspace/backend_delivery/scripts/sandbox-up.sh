@@ -123,7 +123,7 @@ readonly -a COMPOSE_FILES=(
 )
 readonly COMPOSE_FILE_VALUE="docker-compose.yml:docker-compose.secrets.yml:docker-compose.isolated-e2e.yml:docker-compose.simulator.yml:docker-compose.sandbox.yml"
 readonly -a SANDBOX_BUILD_SERVICES=(
-  config-server discovery-server auth-service user-service api-gateway
+  config-server discovery-server auth-service user-service api-gateway web-bff-service
   restaurant-service order-service delivery-service search-service shipper-service
   settlement-service notification-service match-service tracking-service routing-service
   saga-orchestrator-service simulator-service
@@ -137,12 +137,14 @@ readonly JWT_PRIVATE_KEY_FILE="$SECRETS_DIR/jwt-private.pem"
 readonly JWT_PUBLIC_KEY_FILE="$SECRETS_DIR/jwt-public.pem"
 readonly INTERNAL_SECRET_FILE="$SECRETS_DIR/internal-secret"
 readonly DB_PASSWORD_FILE="$SECRETS_DIR/db-password"
+readonly WEB_BFF_ENCRYPTION_KEY_FILE="$SECRETS_DIR/web-bff-encryption-key"
 
 openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 \
   -out "$JWT_PRIVATE_KEY_FILE" 2>/dev/null
 openssl pkey -in "$JWT_PRIVATE_KEY_FILE" -pubout -out "$JWT_PUBLIC_KEY_FILE" 2>/dev/null
 printf '%s\n' "$(openssl rand -hex 32)" > "$INTERNAL_SECRET_FILE"
 printf '%s\n' "$(openssl rand -hex 24)" > "$DB_PASSWORD_FILE"
+openssl rand -base64 -out "$WEB_BFF_ENCRYPTION_KEY_FILE" 32
 
 readonly INTERNAL_SECRET="$(tr -d '\r\n' < "$INTERNAL_SECRET_FILE")"
 readonly POSTGRES_PASSWORD="$(tr -d '\r\n' < "$DB_PASSWORD_FILE")"
@@ -156,6 +158,7 @@ export SANDBOX_NETWORK_NAME="$NETWORK_NAME"
 export POSTGRES_VOLUME_NAME="$POSTGRES_VOLUME"
 export KAFKA_VOLUME_NAME="$KAFKA_VOLUME"
 export JWT_PRIVATE_KEY_FILE JWT_PUBLIC_KEY_FILE INTERNAL_SECRET_FILE DB_PASSWORD_FILE
+export WEB_BFF_ENCRYPTION_KEY_FILE
 export INTERNAL_SECRET POSTGRES_PASSWORD GRAFANA_ADMIN_PASSWORD
 export SANDBOX_SIMULATOR_API_TOKEN="$SIMULATOR_API_TOKEN"
 export SANDBOX_BATCH_ENABLED="${SANDBOX_BATCH_ENABLED:-true}"
@@ -196,6 +199,7 @@ SANDBOX_SIMULATOR_ADMIN_TOKEN=
 SANDBOX_COMPOSE_FILE=$COMPOSE_FILE_VALUE
 INTERNAL_SECRET_FILE=$INTERNAL_SECRET_FILE
 DB_PASSWORD_FILE=$DB_PASSWORD_FILE
+WEB_BFF_ENCRYPTION_KEY_FILE=$WEB_BFF_ENCRYPTION_KEY_FILE
 JWT_PRIVATE_KEY_FILE=$JWT_PRIVATE_KEY_FILE
 JWT_PUBLIC_KEY_FILE=$JWT_PUBLIC_KEY_FILE
 GRAFANA_ADMIN_PASSWORD=$GRAFANA_ADMIN_PASSWORD
@@ -249,7 +253,7 @@ compose config --quiet
 if [[ "$SANDBOX_SKIP_BUILD" != "true" ]]; then
   echo "Packaging fresh artifacts for the production-like service set..."
   bash scripts/package-compose-services.sh \
-    config-server discovery-server auth-service user-service api-gateway \
+    config-server discovery-server auth-service user-service api-gateway web-bff-service \
     restaurant-service order-service delivery-service search-service \
     shipper-service settlement-service notification-service match-service \
     tracking-service routing-service saga-orchestrator-service simulator-service

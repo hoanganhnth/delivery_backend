@@ -1,7 +1,7 @@
 {
   "format": 1,
   "purpose": "Deterministic reference snapshot for the Delivery reconstruction documentation.",
-  "sourceCount": 559,
+  "sourceCount": 599,
   "generatedFiles": [
     "README.md",
     "MANIFEST.json",
@@ -35,20 +35,14 @@
     {
       "source": "backend_delivery/.github/workflows/ci.yml",
       "target": "workspace/backend_delivery/.github/workflows/ci.yml",
-      "sha256": "0776e4a6cd32b2c80972dcd6c217b87236cf288a9e412b7358bf210af3933821",
-      "bytes": 2262
+      "sha256": "fe1faf0961ea26ecbe2a90aac588877e2d3ae301d749b8a4bfbd9bd36f006b6f",
+      "bytes": 2568
     },
     {
       "source": "backend_delivery/AGENTS.md",
       "target": "workspace/backend_delivery/AGENTS.md",
       "sha256": "22033983fb64a5875cc94218414de982684a48d156313a8dc8d0be28b5eb337a",
       "bytes": 2573
-    },
-    {
-      "source": "backend_delivery/analytics-service/HELP.md",
-      "target": "workspace/backend_delivery/analytics-service/HELP.md",
-      "sha256": "d2ad0c6454d1cfefea58bc0a0424a3d37047c7395fa62dfe9811cb880d84a404",
-      "bytes": 828
     },
     {
       "source": "backend_delivery/analytics-service/pom.xml",
@@ -89,8 +83,8 @@
     {
       "source": "backend_delivery/api-gateway/src/main/resources/application.properties",
       "target": "workspace/backend_delivery/api-gateway/src/main/resources/application.properties",
-      "sha256": "e9976e68f6e8d2db792f5bcbcde9482a04d4a954d482ba01f9208194bad8f3e4",
-      "bytes": 4992
+      "sha256": "a11ebbb0b967cf92ec92a0d32a357ffac7e396d6be9cca598554df44c20e54ca",
+      "bytes": 5060
     },
     {
       "source": "backend_delivery/auth-resource-server-starter/pom.xml",
@@ -101,14 +95,14 @@
     {
       "source": "backend_delivery/auth-service/pom.xml",
       "target": "workspace/backend_delivery/auth-service/pom.xml",
-      "sha256": "e45886c956f03919f354ae7ceaba31211dafd116eb8fca9b9b674ef4d6a55e0f",
-      "bytes": 6226
+      "sha256": "1cbd70cf60e0f0bc3e820b8b1c0119415436ba85d33585639da49181364fbe5e",
+      "bytes": 6500
     },
     {
       "source": "backend_delivery/auth-service/src/main/resources/application.properties",
       "target": "workspace/backend_delivery/auth-service/src/main/resources/application.properties",
-      "sha256": "b9d8c86b707c57b0c4b13fec33bba6e30679c60657230d009d61c8b06c2d1cb5",
-      "bytes": 8858
+      "sha256": "8a3566205d26b41a6fc64db406e3119dfdbafedf7700de29c6f764911b024d47",
+      "bytes": 9125
     },
     {
       "source": "backend_delivery/BACKLOG_FIX.md",
@@ -831,10 +825,16 @@
       "bytes": 735
     },
     {
+      "source": "backend_delivery/docker-compose.firebase-chat.yml",
+      "target": "workspace/backend_delivery/docker-compose.firebase-chat.yml",
+      "sha256": "e328442f645bc9bdc622799a3669527d0d899dc5a5e89d41bb5c8d1e052466f2",
+      "bytes": 566
+    },
+    {
       "source": "backend_delivery/docker-compose.isolated-e2e.yml",
       "target": "workspace/backend_delivery/docker-compose.isolated-e2e.yml",
-      "sha256": "705f3beb0d2687c399d64a07b95fe982b9b95967530b34429090726e49b74b1d",
-      "bytes": 1730
+      "sha256": "7fd6f5a13943c69c9c899522a1c87f7b8ca750a18695fbb78398edda5d99b2a6",
+      "bytes": 1782
     },
     {
       "source": "backend_delivery/docker-compose.jwt-overlap.yml",
@@ -845,8 +845,8 @@
     {
       "source": "backend_delivery/docker-compose.sandbox.yml",
       "target": "workspace/backend_delivery/docker-compose.sandbox.yml",
-      "sha256": "45f44dda014b56148da47c12afa6bf70dd73e719e5163b8be598bb8c3809c886",
-      "bytes": 7805
+      "sha256": "647ce6c891829dcb0488fe9f80bba271e09eaf532eefa8a2b9a79c7c4e23e243",
+      "bytes": 7918
     },
     {
       "source": "backend_delivery/docker-compose.secrets.yml",
@@ -869,8 +869,8 @@
     {
       "source": "backend_delivery/docker-compose.yml",
       "target": "workspace/backend_delivery/docker-compose.yml",
-      "sha256": "1709cf958c9e048bfff5849a9651aa5acc30e0c3c3673097573759ae7eb2b76d",
-      "bytes": 30234
+      "sha256": "76791160f42b9cf44b735192c4cec74c9f4646c0585ce49eea9528cd7fc39272",
+      "bytes": 31619
     },
     {
       "source": "backend_delivery/Dockerfile",
@@ -893,8 +893,8 @@
     {
       "source": "backend_delivery/docs/http-api-inventory.md",
       "target": "workspace/backend_delivery/docs/http-api-inventory.md",
-      "sha256": "c12a70420a9df5bb341abbf3493eac4548f98b9acd7f4dcaada0a514ec858366",
-      "bytes": 57382
+      "sha256": "8e5fbee8d08fa93239456036998568579f1a7e446e2bef785090c5aad81b47a9",
+      "bytes": 58550
     },
     {
       "source": "backend_delivery/docs/operations/centralized-configuration.md",
@@ -1019,8 +1019,8 @@
     {
       "source": "backend_delivery/docs/platform/decisions/0004-voucher-stacking-shopee-policy.md",
       "target": "workspace/backend_delivery/docs/platform/decisions/0004-voucher-stacking-shopee-policy.md",
-      "sha256": "45f4fa9ae1d13a9d33f4dccc3fc6d3cba0f7aed602c3b6c2df3e012ee0723df2",
-      "bytes": 1622
+      "sha256": "47079a90bd9af7aa8b36f08c20b75bff9d9dfe9fcea16aa5f2f73a06011f23e7",
+      "bytes": 2132
     },
     {
       "source": "backend_delivery/docs/platform/decisions/0005-matching-algorithm-decision-trace.md",
@@ -1029,10 +1029,16 @@
       "bytes": 2196
     },
     {
+      "source": "backend_delivery/docs/platform/decisions/0006-web-bff-session-boundary.md",
+      "target": "workspace/backend_delivery/docs/platform/decisions/0006-web-bff-session-boundary.md",
+      "sha256": "bbebd3e32216a172c087d69750c5fdf667802657bbeed6ccf5c745c33219cd9a",
+      "bytes": 3274
+    },
+    {
       "source": "backend_delivery/docs/platform/decisions/README.md",
       "target": "workspace/backend_delivery/docs/platform/decisions/README.md",
-      "sha256": "4840b6fc5e77ad395ba0cf0dd8829100d1ea4f015a11ea26e59168809d844e7f",
-      "bytes": 4914
+      "sha256": "68324b68a6ab49361964513d26c9f288a06dd07f9f6473845ced5aa4e135fa9a",
+      "bytes": 4999
     },
     {
       "source": "backend_delivery/docs/platform/decisions/system-handbook-public-surface.md",
@@ -1457,20 +1463,26 @@
     {
       "source": "backend_delivery/docs/platform/product/features/voucher-flashsale-checkout.md",
       "target": "workspace/backend_delivery/docs/platform/product/features/voucher-flashsale-checkout.md",
-      "sha256": "7132fec3aba16eb39c193687d599a2eb6682594434d8c4a679c72664da3eee94",
-      "bytes": 1503
+      "sha256": "2eca31030058b895be9e42f4a67cc721a4c3c93403ad3cd15b54d6823372a2b7",
+      "bytes": 1565
     },
     {
       "source": "backend_delivery/docs/platform/product/overview.md",
       "target": "workspace/backend_delivery/docs/platform/product/overview.md",
-      "sha256": "43b3876020f6d2765771200cf933610b1fe3356e7398f61f8b3aa4f347529d23",
-      "bytes": 6639
+      "sha256": "c1363a0bf1d92b8d1f8f6e4c39c873d7d3c550075c1e2fda44413836e69dd383",
+      "bytes": 6856
     },
     {
       "source": "backend_delivery/docs/platform/product/README.md",
       "target": "workspace/backend_delivery/docs/platform/product/README.md",
-      "sha256": "8d1834591efccd4267f475905d32d26d9ba3a6c9d78acf2805bf69af48cb6c01",
-      "bytes": 1237
+      "sha256": "ec71684da9b2428d63ddb1b493a258d35af69a31219ce4bcfa83d0d99b520fec",
+      "bytes": 1584
+    },
+    {
+      "source": "backend_delivery/docs/platform/product/use-cases.md",
+      "target": "workspace/backend_delivery/docs/platform/product/use-cases.md",
+      "sha256": "25d7cfbd7760534d603b484b87e879ba87f14564422e1230ebb041cef0955efa",
+      "bytes": 30555
     },
     {
       "source": "backend_delivery/docs/platform/README.md",
@@ -1481,26 +1493,74 @@
     {
       "source": "backend_delivery/docs/platform/system/api/generate-http-contract.mjs",
       "target": "workspace/backend_delivery/docs/platform/system/api/generate-http-contract.mjs",
-      "sha256": "6931f612288c0e10e9c32b6426521c19b6b655e19cb1029f44dc3ab8384e50f8",
-      "bytes": 31215
+      "sha256": "ea2d575d9bdac674688854f87e4552cc7102f6099d045c4c608b242d5560213c",
+      "bytes": 29436
+    },
+    {
+      "source": "backend_delivery/docs/platform/system/api/generate-public-edge-manifest.mjs",
+      "target": "workspace/backend_delivery/docs/platform/system/api/generate-public-edge-manifest.mjs",
+      "sha256": "a071f051fa1046192ffb84bb2497cca62751800dbff66af63bcfc8c09f6de269",
+      "bytes": 4677
+    },
+    {
+      "source": "backend_delivery/docs/platform/system/api/http-api-inventory-lib.mjs",
+      "target": "workspace/backend_delivery/docs/platform/system/api/http-api-inventory-lib.mjs",
+      "sha256": "28daa22cc57c7d83eb5fd2937f101b82d5fce5f3d8f409a5ba50bbcf0a47e80f",
+      "bytes": 6792
+    },
+    {
+      "source": "backend_delivery/docs/platform/system/api/http-api-inventory-lib.test.mjs",
+      "target": "workspace/backend_delivery/docs/platform/system/api/http-api-inventory-lib.test.mjs",
+      "sha256": "d1a0fd4d13fed7dc9a8fa3e07fc84731b571b48012f4612fc31834f490af8597",
+      "bytes": 3295
     },
     {
       "source": "backend_delivery/docs/platform/system/api/http-contract-catalog.md",
       "target": "workspace/backend_delivery/docs/platform/system/api/http-contract-catalog.md",
-      "sha256": "0d5bd5d7224a3333c022effdbaa8b2d574386cecc357d99500984801b3ccbb57",
-      "bytes": 417718
+      "sha256": "10822bd4d980739ab9ccfc0902eec01c62d8abb92e3ad843772e1a6abbb80cc3",
+      "bytes": 440319
     },
     {
       "source": "backend_delivery/docs/platform/system/api/http-contract.json",
       "target": "workspace/backend_delivery/docs/platform/system/api/http-contract.json",
-      "sha256": "f363cb5b2050d3afaffe6877f195fbdb7dbf6c892c418d36c12b19909630d04b",
-      "bytes": 736135
+      "sha256": "d5a64c5d12c9b49153d338da3ea260bba86ac4b689a915ee5240a33d5c9477a0",
+      "bytes": 775204
+    },
+    {
+      "source": "backend_delivery/docs/platform/system/api/public-edge-catalog.md",
+      "target": "workspace/backend_delivery/docs/platform/system/api/public-edge-catalog.md",
+      "sha256": "839846085f9e0abcd7b7a0077fef643243c0d459ae75a7ed0aef26598aa1c946",
+      "bytes": 35653
+    },
+    {
+      "source": "backend_delivery/docs/platform/system/api/public-edge-manifest-lib.mjs",
+      "target": "workspace/backend_delivery/docs/platform/system/api/public-edge-manifest-lib.mjs",
+      "sha256": "b0ba88bdc6527b7b0ecf6e14c786a21b64586ead8e71bc45947e21b9b67393c1",
+      "bytes": 10874
+    },
+    {
+      "source": "backend_delivery/docs/platform/system/api/public-edge-manifest-lib.test.mjs",
+      "target": "workspace/backend_delivery/docs/platform/system/api/public-edge-manifest-lib.test.mjs",
+      "sha256": "e55031ebf667ddeda3998208fbca8e67d5a3dd57f5a1cb98b1d99b7c6ad6673f",
+      "bytes": 4956
+    },
+    {
+      "source": "backend_delivery/docs/platform/system/api/public-edge-manifest.json",
+      "target": "workspace/backend_delivery/docs/platform/system/api/public-edge-manifest.json",
+      "sha256": "cb06b2712e4106010082b36fe655c33cc8f7be58254b6a5ab78101b5b88f6a25",
+      "bytes": 76768
     },
     {
       "source": "backend_delivery/docs/platform/system/api/README.md",
       "target": "workspace/backend_delivery/docs/platform/system/api/README.md",
-      "sha256": "90cf7dfd6d2433c626d0655180cd792f562f17349220556598b5411d078d972f",
-      "bytes": 10070
+      "sha256": "9486e8120f115b390fda0ee7ed2b8b763267e05bc361b0b490ef895a11bc474c",
+      "bytes": 11269
+    },
+    {
+      "source": "backend_delivery/docs/platform/system/api/verify-http-api-inventory.mjs",
+      "target": "workspace/backend_delivery/docs/platform/system/api/verify-http-api-inventory.mjs",
+      "sha256": "ab687dc77939d996029cb958dee1e98d5f460a06ed7509af3cd17bffbcefa859",
+      "bytes": 2638
     },
     {
       "source": "backend_delivery/docs/platform/system/architecture.md",
@@ -1511,8 +1571,8 @@
     {
       "source": "backend_delivery/docs/platform/system/clients.md",
       "target": "workspace/backend_delivery/docs/platform/system/clients.md",
-      "sha256": "9e942db2134fedde92cfb43d94c516efda79056f37110e4b0d779a112318d167",
-      "bytes": 6718
+      "sha256": "20b1297cd8b23a818bd07ae3e186903ae4a75369efaaf802d805da141ba39ed6",
+      "bytes": 7502
     },
     {
       "source": "backend_delivery/docs/platform/system/diagram-standards.md",
@@ -1529,8 +1589,8 @@
     {
       "source": "backend_delivery/docs/platform/system/handbook-catalog.json",
       "target": "workspace/backend_delivery/docs/platform/system/handbook-catalog.json",
-      "sha256": "2724100cbbffa81844932c34574e3575c8e7cccdc203e35d211706bba17c6841",
-      "bytes": 2874
+      "sha256": "77563434f57527a106e14ac9ad0730fd4a028aced48b7e5b9d2ad2f58387ac18",
+      "bytes": 2933
     },
     {
       "source": "backend_delivery/docs/platform/system/operations/deployment-foundation.md",
@@ -1565,8 +1625,8 @@
     {
       "source": "backend_delivery/docs/platform/system/README.md",
       "target": "workspace/backend_delivery/docs/platform/system/README.md",
-      "sha256": "2d4231c59ae5c52b436ab40ec07f98ec4cee5b42fe9e0123539dfc05abf0fb95",
-      "bytes": 11505
+      "sha256": "206e9e375ce530a10279cafcd2ed5f9419d42dd72fff8548efd1d051f8a353b5",
+      "bytes": 11788
     },
     {
       "source": "backend_delivery/docs/platform/system/rebuild/README.md",
@@ -1577,8 +1637,8 @@
     {
       "source": "backend_delivery/docs/platform/system/rebuild/source-map.md",
       "target": "workspace/backend_delivery/docs/platform/system/rebuild/source-map.md",
-      "sha256": "ae95e092d9fb2ad96e9bfe4e83b6a5429b05f872b6061582149af07c75614069",
-      "bytes": 7273
+      "sha256": "9bf3a1583a2af079680b52b18c30ba6dd8d998022a1252f7e0bd335a9aeca2a2",
+      "bytes": 7851
     },
     {
       "source": "backend_delivery/docs/platform/system/rebuild/sync-reference-bundle.mjs",
@@ -1619,8 +1679,8 @@
     {
       "source": "backend_delivery/docs/platform/system/verify-docs.mjs",
       "target": "workspace/backend_delivery/docs/platform/system/verify-docs.mjs",
-      "sha256": "21a5d7c43fecd856ddae257ecc5ae3fdefe1da6f8bd630cdb842cb0eb40177f7",
-      "bytes": 7593
+      "sha256": "0b7bd990ca800ed817554f2596f284158d928c682578305ea6261dfbb3517af0",
+      "bytes": 8206
     },
     {
       "source": "backend_delivery/docs/platform/system/workflows.md",
@@ -1673,8 +1733,8 @@
     {
       "source": "backend_delivery/docs/runbook-local.md",
       "target": "workspace/backend_delivery/docs/runbook-local.md",
-      "sha256": "9edd36fff4830784a8fc01141b23f23a54ae8e30ff16fa29bc67e63d08deed21",
-      "bytes": 8918
+      "sha256": "6332b61e4296dbc2b3945247b0ce430d8a94c8ff65fb90ed54f7af5698bb705a",
+      "bytes": 11582
     },
     {
       "source": "backend_delivery/docs/runbooks/account-recovery-email-verification.md",
@@ -1745,8 +1805,8 @@
     {
       "source": "backend_delivery/docs/runbooks/voucher-flashsale-checkout.md",
       "target": "workspace/backend_delivery/docs/runbooks/voucher-flashsale-checkout.md",
-      "sha256": "f83c16b57e1b16e60032839d16559ebbc64b88d6b3425702a91d4ee99b9a869b",
-      "bytes": 5160
+      "sha256": "89d211385664e3a7d16c0272927ceff83266d44ab913159b03b827e53b363930",
+      "bytes": 5868
     },
     {
       "source": "backend_delivery/docs/services/analytics_dashboard.md",
@@ -1763,8 +1823,8 @@
     {
       "source": "backend_delivery/docs/services/livestream_management.md",
       "target": "workspace/backend_delivery/docs/services/livestream_management.md",
-      "sha256": "3e504b72286f5e7baf22acb0cc624fc9d176cadde4d01a952e8a1b45df7624a6",
-      "bytes": 2083
+      "sha256": "938835dd004cc8bd5e7ac185447f0c0e7984dce1047a807b546f70366c1a9990",
+      "bytes": 14460
     },
     {
       "source": "backend_delivery/docs/services/notification_service.md",
@@ -1775,8 +1835,8 @@
     {
       "source": "backend_delivery/docs/services/restaurant_and_menu.md",
       "target": "workspace/backend_delivery/docs/services/restaurant_and_menu.md",
-      "sha256": "94d86e674281436716a99899a5a7eb24df109f152012a56f2deeb8144ec531d8",
-      "bytes": 3687
+      "sha256": "89bc35ac5322f2f3e49f8986d0e8c515a1ad42e3f3b046b5964234f78069c57d",
+      "bytes": 4824
     },
     {
       "source": "backend_delivery/docs/services/search_service.md",
@@ -1835,14 +1895,14 @@
     {
       "source": "backend_delivery/docs/workflows/order_lifecycle_flow.md",
       "target": "workspace/backend_delivery/docs/workflows/order_lifecycle_flow.md",
-      "sha256": "b25e37122aa61a49ec8608ff96028ac400a346b8c2dbc9c5e6ed15c7a88a9ba7",
-      "bytes": 6928
+      "sha256": "5c22924f5d5c7b7e953834cd4afcbce9e0e19b1260da5277035c7980ef913a20",
+      "bytes": 7455
     },
     {
       "source": "backend_delivery/docs/workflows/promotion_voucher_flow.md",
       "target": "workspace/backend_delivery/docs/workflows/promotion_voucher_flow.md",
-      "sha256": "5d6576cd055a991cee3a1f8e4305b40a478b5dbde8cf2521c4f5ec77157a1093",
-      "bytes": 4402
+      "sha256": "dcc70d073a28351f40b8115471ff2c2d7cb6e6dadf1fa7f24c3d3ead6b134058",
+      "bytes": 5049
     },
     {
       "source": "backend_delivery/docs/workflows/settlement_finance_flow.md",
@@ -1855,12 +1915,6 @@
       "target": "workspace/backend_delivery/docs/workflows/technical_bottlenecks_and_solutions.md",
       "sha256": "1fe986ce5f51a0b120ee910d5418213407029efcb99e88b5aa250cba86b2e573",
       "bytes": 5211
-    },
-    {
-      "source": "backend_delivery/flashsale-service/HELP.md",
-      "target": "workspace/backend_delivery/flashsale-service/HELP.md",
-      "sha256": "d2ad0c6454d1cfefea58bc0a0424a3d37047c7395fa62dfe9811cb880d84a404",
-      "bytes": 828
     },
     {
       "source": "backend_delivery/flashsale-service/pom.xml",
@@ -1909,12 +1963,6 @@
       "target": "workspace/backend_delivery/kafka-operations-tool/pom.xml",
       "sha256": "fb92591e6f237d36b2a25627cdf39d5f050d0d614e71d5ddfd9866f8d82a11c6",
       "bytes": 2090
-    },
-    {
-      "source": "backend_delivery/livestream-service/HELP.md",
-      "target": "workspace/backend_delivery/livestream-service/HELP.md",
-      "sha256": "750c9da11c68e80edb071ed817d932edcd9987a88a81a0e841cf70b78e0ff029",
-      "bytes": 828
     },
     {
       "source": "backend_delivery/livestream-service/pom.xml",
@@ -2105,8 +2153,8 @@
     {
       "source": "backend_delivery/order-service/src/main/resources/application.properties",
       "target": "workspace/backend_delivery/order-service/src/main/resources/application.properties",
-      "sha256": "2163bda061b7ec8b3066f2700df9bca3fd0288ca04ea7bf2d99e3696a4f74ccb",
-      "bytes": 7970
+      "sha256": "a166d63fd83f66310548df2554c1f408ee0ba7f9b47cc4804b1c5d418d538899",
+      "bytes": 8131
     },
     {
       "source": "backend_delivery/order-service/src/main/resources/db/migration/V10__order_principal_ownership.sql",
@@ -2207,14 +2255,8 @@
     {
       "source": "backend_delivery/pom.xml",
       "target": "workspace/backend_delivery/pom.xml",
-      "sha256": "817cb515ac58ebee4cce781704f24a8ff88b6abe085c11c01481236e3c757eb7",
-      "bytes": 2355
-    },
-    {
-      "source": "backend_delivery/promotion-service/HELP.md",
-      "target": "workspace/backend_delivery/promotion-service/HELP.md",
-      "sha256": "d2ad0c6454d1cfefea58bc0a0424a3d37047c7395fa62dfe9811cb880d84a404",
-      "bytes": 828
+      "sha256": "9e732aa4a72b77690051421d0ae001b1add881097af96996a1c0217f3b90f05d",
+      "bytes": 2396
     },
     {
       "source": "backend_delivery/promotion-service/pom.xml",
@@ -2409,6 +2451,18 @@
       "bytes": 530
     },
     {
+      "source": "backend_delivery/saga-orchestrator-service/src/main/resources/db/migration/V8__allow_offer_persisting_and_retiring_status.sql",
+      "target": "workspace/backend_delivery/saga-orchestrator-service/src/main/resources/db/migration/V8__allow_offer_persisting_and_retiring_status.sql",
+      "sha256": "28ef6be82f848e465b36f43d8d85e9129e88e47a3d832ac435216640f0cd8f32",
+      "bytes": 431
+    },
+    {
+      "source": "backend_delivery/scripts/backfill-hanoi-catalog-contact-data.sh",
+      "target": "workspace/backend_delivery/scripts/backfill-hanoi-catalog-contact-data.sh",
+      "sha256": "badc330f387dd61453230c401f5d08f59ab58fe99104e8858cb29bb371d75fb2",
+      "bytes": 12033
+    },
+    {
       "source": "backend_delivery/scripts/backup-data-plane.sh",
       "target": "workspace/backend_delivery/scripts/backup-data-plane.sh",
       "sha256": "e5c565bb081a8a0fb999e04f7790d563d279c65215a183a5dcee7d081262d4c9",
@@ -2429,8 +2483,8 @@
     {
       "source": "backend_delivery/scripts/gen-keys.sh",
       "target": "workspace/backend_delivery/scripts/gen-keys.sh",
-      "sha256": "390444659a65fe181836adf048f500d9be0f1b2468715b57002ee8a024a04c3f",
-      "bytes": 4232
+      "sha256": "1395a0c250fa64a05720db2a0d11ee85fadd336d024d9e9715595c306510b721",
+      "bytes": 4702
     },
     {
       "source": "backend_delivery/scripts/operator-provision-admin.sh",
@@ -2441,8 +2495,8 @@
     {
       "source": "backend_delivery/scripts/package-compose-services.sh",
       "target": "workspace/backend_delivery/scripts/package-compose-services.sh",
-      "sha256": "13cd441e1de823b2a85e91db45a942830bef8ef3fd8ec51471d4769e19ce5913",
-      "bytes": 1516
+      "sha256": "35ebd12464c6821c3f4d5ea3de678820642d2a2a04899fda33a9070ee1995d88",
+      "bytes": 1532
     },
     {
       "source": "backend_delivery/scripts/provision-kafka-resilience-topics.sh",
@@ -2513,8 +2567,8 @@
     {
       "source": "backend_delivery/scripts/sandbox-up.sh",
       "target": "workspace/backend_delivery/scripts/sandbox-up.sh",
-      "sha256": "466ec32ea879675f76130bda49228b7e9a784a46f5ea06902984386b59f0bf9a",
-      "bytes": 19531
+      "sha256": "83fbfd3cef1073dfe1f268017991c94f56618472adf31ddd85f0cb2b412fa721",
+      "bytes": 19790
     },
     {
       "source": "backend_delivery/scripts/scenario-lab-runner.sh",
@@ -2523,16 +2577,40 @@
       "bytes": 2505
     },
     {
+      "source": "backend_delivery/scripts/seed-hanoi-catalog-images.sh",
+      "target": "workspace/backend_delivery/scripts/seed-hanoi-catalog-images.sh",
+      "sha256": "bfe6332b2b0b3547b1a0a549b1a32e4f39c90c3755b5135acbe3a8d4b72b2fdf",
+      "bytes": 11400
+    },
+    {
+      "source": "backend_delivery/scripts/seed-hanoi-catalog-owners.sh",
+      "target": "workspace/backend_delivery/scripts/seed-hanoi-catalog-owners.sh",
+      "sha256": "d43ec07095523b4a01dd4b2360a725beb074979a5568d9db700a4ddae66280f9",
+      "bytes": 18252
+    },
+    {
+      "source": "backend_delivery/scripts/seed-legacy-fixture-images.sh",
+      "target": "workspace/backend_delivery/scripts/seed-legacy-fixture-images.sh",
+      "sha256": "8be31ff103cf960bef0cfd05b9a667858008517c803b2bc4fc4502f7d08d8c14",
+      "bytes": 10980
+    },
+    {
       "source": "backend_delivery/scripts/seed-realistic-catalog.sh",
       "target": "workspace/backend_delivery/scripts/seed-realistic-catalog.sh",
-      "sha256": "e5e6058e20c01c6548f2fa27d6e2b6d1d1965b4cff11edc1393168c38376dd50",
-      "bytes": 8120
+      "sha256": "0fac4f1f19068b513b9408caedb0bd09fba68134b2e33d1e95bc75cfc4207585",
+      "bytes": 8316
     },
     {
       "source": "backend_delivery/scripts/seed.sh",
       "target": "workspace/backend_delivery/scripts/seed.sh",
-      "sha256": "ba8c627a3f05f1e228d714c7c6b8d82d535861d698c9e28204a0f2c9b72b1275",
-      "bytes": 17901
+      "sha256": "bd78f7a6fc8b469509922455730170f00a5e38229b3b1047039b8f44b218c899",
+      "bytes": 20301
+    },
+    {
+      "source": "backend_delivery/scripts/test-hanoi-contact-data.sh",
+      "target": "workspace/backend_delivery/scripts/test-hanoi-contact-data.sh",
+      "sha256": "4b405788add75a02e59df0d3e5495adcf98642882b26919f458dc777104fe3cb",
+      "bytes": 1245
     },
     {
       "source": "backend_delivery/scripts/test-order-flow.sh",
@@ -2559,10 +2637,22 @@
       "bytes": 1484
     },
     {
+      "source": "backend_delivery/scripts/test-seed-image-pools.sh",
+      "target": "workspace/backend_delivery/scripts/test-seed-image-pools.sh",
+      "sha256": "803a3b657f37a7f3a6163a5a8c04bfcb2910b5a14858e7ef6c04ed716cfcfcba",
+      "bytes": 2296
+    },
+    {
       "source": "backend_delivery/scripts/test-verify-kafka-legacy-retry-drain.sh",
       "target": "workspace/backend_delivery/scripts/test-verify-kafka-legacy-retry-drain.sh",
       "sha256": "451d90e6bd310fd7d06752dc78dc9ae24d96695a632e4aa2f0c22d75d4813ffe",
       "bytes": 5636
+    },
+    {
+      "source": "backend_delivery/scripts/test-web-bff-live-e2e-contract.sh",
+      "target": "workspace/backend_delivery/scripts/test-web-bff-live-e2e-contract.sh",
+      "sha256": "4c5621648ad58461974333e3a4bb2946a0de47d1ab88599e235a0c64c6ba2fab",
+      "bytes": 1379
     },
     {
       "source": "backend_delivery/scripts/verify-actuator-config.sh",
@@ -2585,8 +2675,8 @@
     {
       "source": "backend_delivery/scripts/verify-build-baseline.sh",
       "target": "workspace/backend_delivery/scripts/verify-build-baseline.sh",
-      "sha256": "d62643508f2e1ff19af14491a83cf371a54d1c7068a9e071c0641109d7828c8b",
-      "bytes": 49679
+      "sha256": "90e23ead2021f057e7a1d423f1338982ffa9c9e5c8a7d7f011cce5da87ae05b3",
+      "bytes": 49820
     },
     {
       "source": "backend_delivery/scripts/verify-clean-compose-e2e.sh",
@@ -2597,8 +2687,8 @@
     {
       "source": "backend_delivery/scripts/verify-compose-config.sh",
       "target": "workspace/backend_delivery/scripts/verify-compose-config.sh",
-      "sha256": "2f65a286e9229204283462df34d32c3412c498b27198d7b08141093b11b55fad",
-      "bytes": 20723
+      "sha256": "7e7d3d51b046fa83a29949ec4e449459598c0f77aacb2fb3b6ac307cd5d70be4",
+      "bytes": 21417
     },
     {
       "source": "backend_delivery/scripts/verify-delivery-postgres-migrations.sh",
@@ -2627,8 +2717,8 @@
     {
       "source": "backend_delivery/scripts/verify-http-api-inventory.sh",
       "target": "workspace/backend_delivery/scripts/verify-http-api-inventory.sh",
-      "sha256": "2fd46e08ec53f22abe13fcce3e2b2155697938a74df7776341d2e8e64686049e",
-      "bytes": 1926
+      "sha256": "0c384c52b9dc4c867de29a3c4aa3157ea990539deaa8faaa52fd0729831248b3",
+      "bytes": 179
     },
     {
       "source": "backend_delivery/scripts/verify-identity-explicit-claims.sh",
@@ -2711,8 +2801,8 @@
     {
       "source": "backend_delivery/scripts/verify-runtime-startup.sh",
       "target": "workspace/backend_delivery/scripts/verify-runtime-startup.sh",
-      "sha256": "f3f9843739b7d56c4c5b7312e7341b86ac0506078cf7282211037cb28d454345",
-      "bytes": 16848
+      "sha256": "55041c965297cbcdcc6f378868bdfb63085ae85a760e51701ba5f7ce1b989ca3",
+      "bytes": 16866
     },
     {
       "source": "backend_delivery/scripts/verify-saga-match-crash-replay.sh",
@@ -2729,8 +2819,8 @@
     {
       "source": "backend_delivery/scripts/verify-secrets.sh",
       "target": "workspace/backend_delivery/scripts/verify-secrets.sh",
-      "sha256": "aec7c3a34e91ebf9950cb6f1c8daa083c0d109d46428436957f162e8c775efc3",
-      "bytes": 1574
+      "sha256": "07a0ab7d12592481fb4ddb5e9883655531119d52a3da13727babf47974159b37",
+      "bytes": 1672
     },
     {
       "source": "backend_delivery/scripts/verify-settlement-crash-window.sh",
@@ -2779,12 +2869,6 @@
       "target": "workspace/backend_delivery/SECURITY.md",
       "sha256": "573618b90c6415f911510582055c4381094baa46fafd0bb0a1d5e6cee70c76b2",
       "bytes": 4944
-    },
-    {
-      "source": "backend_delivery/settlement-service/HELP.md",
-      "target": "workspace/backend_delivery/settlement-service/HELP.md",
-      "sha256": "750c9da11c68e80edb071ed817d932edcd9987a88a81a0e841cf70b78e0ff029",
-      "bytes": 828
     },
     {
       "source": "backend_delivery/settlement-service/pom.xml",
@@ -2925,6 +3009,24 @@
       "bytes": 3791
     },
     {
+      "source": "backend_delivery/web-bff-service/pom.xml",
+      "target": "workspace/backend_delivery/web-bff-service/pom.xml",
+      "sha256": "2c62861e8bf83aaff4cc445e6036103435b088e3febe525430b1769e92d8a9ab",
+      "bytes": 2427
+    },
+    {
+      "source": "backend_delivery/web-bff-service/src/main/resources/application.properties",
+      "target": "workspace/backend_delivery/web-bff-service/src/main/resources/application.properties",
+      "sha256": "3928867868b79288a48b4396c80adc97479dc7d2597875d89d73aad5b8b25c09",
+      "bytes": 1116
+    },
+    {
+      "source": "backend_delivery/web-bff-service/src/main/resources/db/migration/V1__web_session_schema.sql",
+      "target": "workspace/backend_delivery/web-bff-service/src/main/resources/db/migration/V1__web_session_schema.sql",
+      "sha256": "d9e246a5223ca5657cb9619925557f110e1885edc8ecee27652e6574dc0fc7f9",
+      "bytes": 718
+    },
+    {
       "source": "delivery_app/.stitch_designs/DESIGN_ANALYSIS.md",
       "target": "workspace/delivery_app/.stitch_designs/DESIGN_ANALYSIS.md",
       "sha256": "c4d7377dac3db8bb2c3a6ebe29e063459e8628a8882ebf56239f99db563a46b8",
@@ -2961,28 +3063,16 @@
       "bytes": 4479
     },
     {
-      "source": "delivery_app/.superpowers/sdd/restore-all-capabilities/progress.md",
-      "target": "workspace/delivery_app/.superpowers/sdd/restore-all-capabilities/progress.md",
-      "sha256": "f0c333a1a70dee59230598c8ee4bf6c5c497a14d1fa95251bd86aa4901b3ab53",
-      "bytes": 9066
+      "source": "delivery_app/.superpowers/sdd/flutter-feature-boundaries-refactor/task-1-report.md",
+      "target": "workspace/delivery_app/.superpowers/sdd/flutter-feature-boundaries-refactor/task-1-report.md",
+      "sha256": "548d7dabe83168988a94a94a451420cb66fc8af204b07ebd63269f3702e674de",
+      "bytes": 17889
     },
     {
-      "source": "delivery_app/.superpowers/sdd/restore-all-capabilities/task-3-brief.md",
-      "target": "workspace/delivery_app/.superpowers/sdd/restore-all-capabilities/task-3-brief.md",
-      "sha256": "267c95ef2253afea8eb6c6301444027ba5c6da5d898a8c775edd967a19760fdb",
-      "bytes": 446
-    },
-    {
-      "source": "delivery_app/.superpowers/sdd/restore-all-capabilities/task-3-report.md",
-      "target": "workspace/delivery_app/.superpowers/sdd/restore-all-capabilities/task-3-report.md",
-      "sha256": "245093784ef4f90d8e0f977b6903a5e2f0a838c61d66abaecb344afead06b626",
-      "bytes": 10321
-    },
-    {
-      "source": "delivery_app/.superpowers/sdd/restore-all-capabilities/task-4-brief.md",
-      "target": "workspace/delivery_app/.superpowers/sdd/restore-all-capabilities/task-4-brief.md",
-      "sha256": "06c2c16813fc7aeb25d5f6fab5677972a41bfd3dad1571d90559f2181c9d10fc",
-      "bytes": 2461
+      "source": "delivery_app/.superpowers/sdd/flutter-feature-boundaries-refactor/task-2-report.md",
+      "target": "workspace/delivery_app/.superpowers/sdd/flutter-feature-boundaries-refactor/task-2-report.md",
+      "sha256": "6a51c9052cf42d35d241b33b91a13d1704ca9b397537321e62fd3a9acea8e668",
+      "bytes": 7487
     },
     {
       "source": "delivery_app/.superpowers/sdd/restore-all-capabilities/task-4-report.md",
@@ -2991,52 +3081,10 @@
       "bytes": 10740
     },
     {
-      "source": "delivery_app/.superpowers/sdd/restore-all-capabilities/task-5-brief.md",
-      "target": "workspace/delivery_app/.superpowers/sdd/restore-all-capabilities/task-5-brief.md",
-      "sha256": "ca2ef93e45d8e8caf18cbc4789ac3be11c72338d26d933aa98e5dcc30487ad7a",
-      "bytes": 2177
-    },
-    {
-      "source": "delivery_app/.superpowers/sdd/restore-all-capabilities/task-5-report.md",
-      "target": "workspace/delivery_app/.superpowers/sdd/restore-all-capabilities/task-5-report.md",
-      "sha256": "7e85d2d5e2c3287fae80bb4b3fa5659fcbe774d20dbdfb2b40cb274ccb41abd4",
-      "bytes": 1725
-    },
-    {
-      "source": "delivery_app/.superpowers/sdd/restore-all-capabilities/task-5-review-backend.md",
-      "target": "workspace/delivery_app/.superpowers/sdd/restore-all-capabilities/task-5-review-backend.md",
-      "sha256": "52c1e0ffee39effbe8470d324725701a577b02ed7a74a0260cd6a486cddf081a",
-      "bytes": 25373
-    },
-    {
-      "source": "delivery_app/.superpowers/sdd/restore-all-capabilities/task-5-review-flutter.md",
-      "target": "workspace/delivery_app/.superpowers/sdd/restore-all-capabilities/task-5-review-flutter.md",
-      "sha256": "78dd6feb9e30554719930589f5e3dbe05695d45cca32fd2e8105c463859f6093",
-      "bytes": 33629
-    },
-    {
-      "source": "delivery_app/.superpowers/sdd/restore-all-capabilities/task-5-review-web.md",
-      "target": "workspace/delivery_app/.superpowers/sdd/restore-all-capabilities/task-5-review-web.md",
-      "sha256": "f6cd76825dc11c3a95e47033d03086191cf7fbe6e00255d70fdfdcd950f1cc8f",
-      "bytes": 25718
-    },
-    {
-      "source": "delivery_app/.superpowers/sdd/restore-all-capabilities/task-6-brief.md",
-      "target": "workspace/delivery_app/.superpowers/sdd/restore-all-capabilities/task-6-brief.md",
-      "sha256": "07ee01443ff9447bb563d029ae008c7ec9d715f4b077a42b8ef3f44a602da80d",
-      "bytes": 224
-    },
-    {
-      "source": "delivery_app/.superpowers/sdd/restore-all-capabilities/task-6a-report.md",
-      "target": "workspace/delivery_app/.superpowers/sdd/restore-all-capabilities/task-6a-report.md",
-      "sha256": "193217d1be8f508c50154cb11b6b64bb2c9f2aee478c7f33554b599680e943dc",
-      "bytes": 1279
-    },
-    {
-      "source": "delivery_app/.superpowers/sdd/restore-all-capabilities/task-7-brief.md",
-      "target": "workspace/delivery_app/.superpowers/sdd/restore-all-capabilities/task-7-brief.md",
-      "sha256": "dd9ba40c8d52694d150c582d39a7c552024a593b94b2d447b8de34b971c98ac5",
-      "bytes": 1847
+      "source": "delivery_app/assets/fonts/plus_jakarta_sans/README.md",
+      "target": "workspace/delivery_app/assets/fonts/plus_jakarta_sans/README.md",
+      "sha256": "38f0fdb082a10a3c67a903b3c04d2ea604bfe8350d0446748faae5e717047f94",
+      "bytes": 473
     },
     {
       "source": "delivery_app/docs/AMBER_HEARTH_DESIGN_SYSTEM.md",
@@ -3079,6 +3127,12 @@
       "target": "workspace/delivery_app/docs/PHASE_1_2_COMPLETE.md",
       "sha256": "a990066d48e6bc53c5e6ca6d5a1dd3188639670ce0fd605742e68fb4ca2d12cb",
       "bytes": 8339
+    },
+    {
+      "source": "delivery_app/docs/plans/active/flutter-preview-ui.md",
+      "target": "workspace/delivery_app/docs/plans/active/flutter-preview-ui.md",
+      "sha256": "722910e489dca4c8fd850412a806d2ca7569e3f40ceb903f56b080fbeeee6a99",
+      "bytes": 9271
     },
     {
       "source": "delivery_app/docs/REFACTORING_COMPLETE.md",
@@ -3197,14 +3251,14 @@
     {
       "source": "delivery_app/pubspec.yaml",
       "target": "workspace/delivery_app/pubspec.yaml",
-      "sha256": "80260f6bd7b89d157b08edab977667f48c60a278a468e283057662f91f09bd32",
-      "bytes": 2052
+      "sha256": "32b789663e432d3a353ef09bd2a6a7d04758dcb71e622cebf17eaa68dd73f433",
+      "bytes": 2656
     },
     {
       "source": "delivery_app/README.md",
       "target": "workspace/delivery_app/README.md",
-      "sha256": "afd5ce84d067d76acf4af88abb066cdd1ea86100552274a402d3bb03ed4aa7df",
-      "bytes": 6014
+      "sha256": "f8a8a0e035cc4ada420477287cb06dc83ce1a544b8de795616971e7a61c3b0ba",
+      "bytes": 6308
     },
     {
       "source": "delivery_app/TESTING.md",
@@ -3227,20 +3281,62 @@
     {
       "source": "delivery_web/APP_FEATURES.md",
       "target": "workspace/delivery_web/APP_FEATURES.md",
-      "sha256": "85f6b8b2264a3e9dad1e49e6bc82f7318ae1588c943f76a14ecc851504a66f80",
-      "bytes": 6016
+      "sha256": "5615eb7927065f385154042cee23b5138ab6a62a3ec9b64aef92dec93a5e8778",
+      "bytes": 6466
     },
     {
       "source": "delivery_web/docs/action-contract-matrix.md",
       "target": "workspace/delivery_web/docs/action-contract-matrix.md",
-      "sha256": "7b80c4b2c32fd81ed377bb03893f5cc4654636bcfcf2540b8aef9fa1ce3a6ed2",
-      "bytes": 26416
+      "sha256": "87687bedf77da8f88d606f24e912c42f7acfdf5601b498ef9e795f8827e9608d",
+      "bytes": 27220
     },
     {
       "source": "delivery_web/docs/e2e/difficult-case-matrix.md",
       "target": "workspace/delivery_web/docs/e2e/difficult-case-matrix.md",
       "sha256": "9ea5dc7b47116083ca5b2be96ddf40a4d25ba40641a64e4982f6b42528017897",
       "bytes": 19039
+    },
+    {
+      "source": "delivery_web/docs/firebase-support-chat.md",
+      "target": "workspace/delivery_web/docs/firebase-support-chat.md",
+      "sha256": "f3439c02fa966d2786097e8c3d693acb577e592bb66ce1b2b0da39f364507cb1",
+      "bytes": 1938
+    },
+    {
+      "source": "delivery_web/docs/plans/active/shopeefood-mobile-preview.md",
+      "target": "workspace/delivery_web/docs/plans/active/shopeefood-mobile-preview.md",
+      "sha256": "856ea29021cb46cc2089afde1c580ec550c21154670d42e1fb995cc0498a3ab8",
+      "bytes": 4703
+    },
+    {
+      "source": "delivery_web/docs/plans/completed/customer-desktop-mobile-parity.md",
+      "target": "workspace/delivery_web/docs/plans/completed/customer-desktop-mobile-parity.md",
+      "sha256": "16eedc29dd2ba0f6f3014d54a376307f88a9a5c1d1a1888be1f1f95e8505313c",
+      "bytes": 2705
+    },
+    {
+      "source": "delivery_web/docs/plans/completed/portal-preview-real-ui.md",
+      "target": "workspace/delivery_web/docs/plans/completed/portal-preview-real-ui.md",
+      "sha256": "4569b733c0f653524d304fb8546bc1b9bae76c7ec3fc4c1ef01b848add6d6bfb",
+      "bytes": 1492
+    },
+    {
+      "source": "delivery_web/docs/plans/completed/restaurant-admin-design-parity.md",
+      "target": "workspace/delivery_web/docs/plans/completed/restaurant-admin-design-parity.md",
+      "sha256": "4ca6afdffcb508fd0f5a29b09c93b9b081768202b9ae320df8894cf0a5d7a5bd",
+      "bytes": 10845
+    },
+    {
+      "source": "delivery_web/docs/plans/completed/shipper-mobile-preview.md",
+      "target": "workspace/delivery_web/docs/plans/completed/shipper-mobile-preview.md",
+      "sha256": "1376905ac590e2459cb3d58e93d90d7bd1b5f8da7857c26573d76aefa5779d35",
+      "bytes": 1900
+    },
+    {
+      "source": "delivery_web/docs/static-preview.md",
+      "target": "workspace/delivery_web/docs/static-preview.md",
+      "sha256": "de815a79f92adcccddd155b27ab79c772c778981ae81fd6a95931a1775919774",
+      "bytes": 1065
     },
     {
       "source": "delivery_web/docs/superpowers/plans/2026-08-27-architecture-handbook.md",
@@ -3269,14 +3365,32 @@
     {
       "source": "delivery_web/package.json",
       "target": "workspace/delivery_web/package.json",
-      "sha256": "55362d7def6e2d9fecb4b926e72216abf9be0229f8dd33a2c537dc7473a92a22",
-      "bytes": 2312
+      "sha256": "87818f92fb7a81a9a06ef877f19c23d92b14e5ccd3313549991e298087ad30e2",
+      "bytes": 2554
     },
     {
       "source": "delivery_web/README.md",
       "target": "workspace/delivery_web/README.md",
-      "sha256": "96072f5c348d69936a7826c2a18d4fb4994dd29204a7fdf2805377555d381166",
-      "bytes": 7860
+      "sha256": "82d3f45452dd05c93c6ad3c55fd5127656afb399ffd85c7577e197a0dae40b37",
+      "bytes": 8418
+    },
+    {
+      "source": "delivery_web/src/modules/customer-preview/README.md",
+      "target": "workspace/delivery_web/src/modules/customer-preview/README.md",
+      "sha256": "b62553282fe66e7a95d01d6f92c4c34d6cedc5fa96c075a67eab3b10c3ba4c8d",
+      "bytes": 3164
+    },
+    {
+      "source": "delivery_web/src/modules/portal-preview/README.md",
+      "target": "workspace/delivery_web/src/modules/portal-preview/README.md",
+      "sha256": "4e8f214ed0220a6976536c73926492dfba4d39819863b181e9fb3773d8e89d61",
+      "bytes": 1551
+    },
+    {
+      "source": "delivery_web/src/modules/shipper-preview/README.md",
+      "target": "workspace/delivery_web/src/modules/shipper-preview/README.md",
+      "sha256": "1d279a28147d90cd7d4d5a15c19638b4f159a6ca87f016c7f526cb059eb9f2af",
+      "bytes": 4054
     },
     {
       "source": "delivery_web/TESTING.md",
@@ -3285,28 +3399,166 @@
       "bytes": 2290
     },
     {
+      "source": "shipper_app2/.superpowers/sdd/shipper-architecture-refactor/task-1-report.md",
+      "target": "workspace/shipper_app2/.superpowers/sdd/shipper-architecture-refactor/task-1-report.md",
+      "sha256": "ed25fbbfd7b2b029a1c60540b95c8fbef5dbb35821f9bcfe39d395942e463d9a",
+      "bytes": 2938
+    },
+    {
+      "source": "shipper_app2/.superpowers/sdd/shipper-architecture-refactor/task-12-report.md",
+      "target": "workspace/shipper_app2/.superpowers/sdd/shipper-architecture-refactor/task-12-report.md",
+      "sha256": "ef52a54bed6fac36e617b1ad89283769fb74bade020825b96e8f306ca70532df",
+      "bytes": 2575
+    },
+    {
+      "source": "shipper_app2/.superpowers/sdd/shipper-architecture-refactor/task-13-report.md",
+      "target": "workspace/shipper_app2/.superpowers/sdd/shipper-architecture-refactor/task-13-report.md",
+      "sha256": "2f2278615b558295b12cc88ddbd0773b98c00a38c60b7d6d0828008a6e262bdf",
+      "bytes": 4840
+    },
+    {
+      "source": "shipper_app2/.superpowers/sdd/shipper-architecture-refactor/task-14-report.md",
+      "target": "workspace/shipper_app2/.superpowers/sdd/shipper-architecture-refactor/task-14-report.md",
+      "sha256": "d201654530d4bf6c1c77ebaec234f5269d36d043dcf2cd92ecab39a0914ae231",
+      "bytes": 5552
+    },
+    {
+      "source": "shipper_app2/.superpowers/sdd/shipper-architecture-refactor/task-15-report.md",
+      "target": "workspace/shipper_app2/.superpowers/sdd/shipper-architecture-refactor/task-15-report.md",
+      "sha256": "a6f37a62ad0e9ee18d96287bb0677159e89e14e4aea67d4f60e0f20186db0ac5",
+      "bytes": 8348
+    },
+    {
+      "source": "shipper_app2/.superpowers/sdd/shipper-architecture-refactor/task-16-report.md",
+      "target": "workspace/shipper_app2/.superpowers/sdd/shipper-architecture-refactor/task-16-report.md",
+      "sha256": "8b4ba88aa4f840c7c3239ec56477ef8fa13535fce048b61be6697af77d686517",
+      "bytes": 12097
+    },
+    {
+      "source": "shipper_app2/.superpowers/sdd/shipper-architecture-refactor/task-17-report.md",
+      "target": "workspace/shipper_app2/.superpowers/sdd/shipper-architecture-refactor/task-17-report.md",
+      "sha256": "5d660ccfacc42958b48c5809d4d5043559a9af3b8981c556430a228c00bf9306",
+      "bytes": 4682
+    },
+    {
+      "source": "shipper_app2/.superpowers/sdd/shipper-architecture-refactor/task-19-report.md",
+      "target": "workspace/shipper_app2/.superpowers/sdd/shipper-architecture-refactor/task-19-report.md",
+      "sha256": "6ec0e3a251ec544bb08cb1a0faca6371d6da64b7065678f55a1fc314abf2db23",
+      "bytes": 2428
+    },
+    {
+      "source": "shipper_app2/.superpowers/sdd/shipper-architecture-refactor/task-2-report.md",
+      "target": "workspace/shipper_app2/.superpowers/sdd/shipper-architecture-refactor/task-2-report.md",
+      "sha256": "bd5b9eb89ef2fcfe30753d3c45faea7f240e3d7c30d21ccc877130d492c835a8",
+      "bytes": 1789
+    },
+    {
+      "source": "shipper_app2/.superpowers/sdd/shipper-architecture-refactor/task-20-report.md",
+      "target": "workspace/shipper_app2/.superpowers/sdd/shipper-architecture-refactor/task-20-report.md",
+      "sha256": "334b42481c2002f7c4050c36f20c297db048913dde137d1b2f3c74b108ff76fa",
+      "bytes": 4214
+    },
+    {
+      "source": "shipper_app2/.superpowers/sdd/shipper-architecture-refactor/task-21-report.md",
+      "target": "workspace/shipper_app2/.superpowers/sdd/shipper-architecture-refactor/task-21-report.md",
+      "sha256": "9aedb2952b153eab0a06c719cdbff83c991c43e706692f960d0776a44a22fd2e",
+      "bytes": 4097
+    },
+    {
+      "source": "shipper_app2/.superpowers/sdd/shipper-architecture-refactor/task-23-report.md",
+      "target": "workspace/shipper_app2/.superpowers/sdd/shipper-architecture-refactor/task-23-report.md",
+      "sha256": "bd80db49ee4b14910ab734574c2cfc2ffa62f5f2dac24e44b8707b02b53c1229",
+      "bytes": 3896
+    },
+    {
+      "source": "shipper_app2/.superpowers/sdd/shipper-architecture-refactor/task-25-report.md",
+      "target": "workspace/shipper_app2/.superpowers/sdd/shipper-architecture-refactor/task-25-report.md",
+      "sha256": "3ed99becd50885cfd01e37a826e1d88e0b287274c99337055de8aa7c02c646d9",
+      "bytes": 19411
+    },
+    {
+      "source": "shipper_app2/.superpowers/sdd/shipper-architecture-refactor/task-26-report.md",
+      "target": "workspace/shipper_app2/.superpowers/sdd/shipper-architecture-refactor/task-26-report.md",
+      "sha256": "623e0e8671985254f4143f6c42bd9d9765ed6f400fa1a472888449171becea43",
+      "bytes": 10439
+    },
+    {
+      "source": "shipper_app2/.superpowers/sdd/shipper-architecture-refactor/task-27-report.md",
+      "target": "workspace/shipper_app2/.superpowers/sdd/shipper-architecture-refactor/task-27-report.md",
+      "sha256": "64daa4df62b01a7a0078daac1507c02a64dfc861191ca18a981b8aa5af435fcb",
+      "bytes": 7597
+    },
+    {
+      "source": "shipper_app2/.superpowers/sdd/shipper-architecture-refactor/task-28-report.md",
+      "target": "workspace/shipper_app2/.superpowers/sdd/shipper-architecture-refactor/task-28-report.md",
+      "sha256": "7c220f5d3aeadde02ea9f3f7c762e9fe44c5d57b85d7969fed588507b91a0f86",
+      "bytes": 6292
+    },
+    {
+      "source": "shipper_app2/.superpowers/sdd/shipper-architecture-refactor/task-29-report.md",
+      "target": "workspace/shipper_app2/.superpowers/sdd/shipper-architecture-refactor/task-29-report.md",
+      "sha256": "98143e93242f7379546f4aca03cb522cec43ff57d0b205eefefd8282e3eb701c",
+      "bytes": 7945
+    },
+    {
+      "source": "shipper_app2/.superpowers/sdd/shipper-architecture-refactor/task-30-report.md",
+      "target": "workspace/shipper_app2/.superpowers/sdd/shipper-architecture-refactor/task-30-report.md",
+      "sha256": "97b75c7a7d8f8dbd37a00015e15b78309e72bff36adf0e6b11f75928187048b0",
+      "bytes": 15232
+    },
+    {
+      "source": "shipper_app2/.superpowers/sdd/shipper-architecture-refactor/task-31-report.md",
+      "target": "workspace/shipper_app2/.superpowers/sdd/shipper-architecture-refactor/task-31-report.md",
+      "sha256": "4d08fe7b4f4122cf8a4913ee17c7d13871967189a51f4b9789d2d27ba9d17496",
+      "bytes": 3618
+    },
+    {
+      "source": "shipper_app2/.superpowers/sdd/shipper-architecture-refactor/task-4-fix-round-1-report.md",
+      "target": "workspace/shipper_app2/.superpowers/sdd/shipper-architecture-refactor/task-4-fix-round-1-report.md",
+      "sha256": "91ebd5f2be3083600c3b957003d5b775962ce9558c5fc95a5728e56cc6f96ead",
+      "bytes": 3552
+    },
+    {
+      "source": "shipper_app2/.superpowers/sdd/shipper-architecture-refactor/task-5-fix-round-1-report.md",
+      "target": "workspace/shipper_app2/.superpowers/sdd/shipper-architecture-refactor/task-5-fix-round-1-report.md",
+      "sha256": "033b438473e8fd7badcd6798096816af3cccbddb398675fbebe7c862537cdc99",
+      "bytes": 2214
+    },
+    {
+      "source": "shipper_app2/.superpowers/sdd/shipper-architecture-refactor/task-6-fix-round-1-report.md",
+      "target": "workspace/shipper_app2/.superpowers/sdd/shipper-architecture-refactor/task-6-fix-round-1-report.md",
+      "sha256": "2fa963dc4effa4d96b7cdfe796666acd704f48416e79d999f7a1f0b648716855",
+      "bytes": 7685
+    },
+    {
+      "source": "shipper_app2/.superpowers/sdd/shipper-architecture-refactor/task-6-report.md",
+      "target": "workspace/shipper_app2/.superpowers/sdd/shipper-architecture-refactor/task-6-report.md",
+      "sha256": "652b148719317d19b3ea46256826387207577badfb0bf89e5c4a5216261493cc",
+      "bytes": 4658
+    },
+    {
+      "source": "shipper_app2/.superpowers/sdd/shipper-architecture-refactor/task-7-fix-round-1-report.md",
+      "target": "workspace/shipper_app2/.superpowers/sdd/shipper-architecture-refactor/task-7-fix-round-1-report.md",
+      "sha256": "6c1c83bb688b275b4adbbd92c0c5b328db3b92efaec2dc0b8f39460a91fd647a",
+      "bytes": 10735
+    },
+    {
+      "source": "shipper_app2/.superpowers/sdd/shipper-architecture-refactor/task-8-report.md",
+      "target": "workspace/shipper_app2/.superpowers/sdd/shipper-architecture-refactor/task-8-report.md",
+      "sha256": "be3eb8f536ba3e5a64842cafc4a6681a88ed1d55088a852bc718b4fe47231f07",
+      "bytes": 20987
+    },
+    {
       "source": "shipper_app2/APP_FLOW_AND_FEATURES_FOR_DESIGN.md",
       "target": "workspace/shipper_app2/APP_FLOW_AND_FEATURES_FOR_DESIGN.md",
       "sha256": "cf32a202f9b3115c68f99f5201bb5d804d97d3cd0972be21e0f1e7a973d213b2",
       "bytes": 7356
     },
     {
-      "source": "shipper_app2/COMPONENT_USAGE_GUIDE.md",
-      "target": "workspace/shipper_app2/COMPONENT_USAGE_GUIDE.md",
-      "sha256": "af7f0b73d86b0621e41bcaaa77c00ea6dbbca3e890a8c10470442312c087c471",
-      "bytes": 11673
-    },
-    {
-      "source": "shipper_app2/DESIGN_IMPLEMENTATION_STATUS.md",
-      "target": "workspace/shipper_app2/DESIGN_IMPLEMENTATION_STATUS.md",
-      "sha256": "9b3d08a7d866bfc2fa9e48138c7a8966f4d2eb8b5e77472c19669a19bdcf58bb",
-      "bytes": 7611
-    },
-    {
       "source": "shipper_app2/docs/ARCHITECTURE.md",
       "target": "workspace/shipper_app2/docs/ARCHITECTURE.md",
-      "sha256": "3bdee945794cc485e895f2819e70c3520127953a3878b9d69a19f985d8317750",
-      "bytes": 2167
+      "sha256": "e51fb4b0be525cf9d007a90bfe79eb9bcf307dfc54b53de2c6efc72c10847711",
+      "bytes": 2740
     },
     {
       "source": "shipper_app2/docs/AUTH_CONTRACT.md",
@@ -3321,28 +3573,16 @@
       "bytes": 1228
     },
     {
-      "source": "shipper_app2/IMPLEMENTATION_ROADMAP.md",
-      "target": "workspace/shipper_app2/IMPLEMENTATION_ROADMAP.md",
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "bytes": 0
-    },
-    {
       "source": "shipper_app2/package.json",
       "target": "workspace/shipper_app2/package.json",
-      "sha256": "f5dc46add9431f6fd309fcfe2c5fd49a9c8a3cdca968dce74f87a7682067f04e",
-      "bytes": 2499
-    },
-    {
-      "source": "shipper_app2/README_FIGMA_IMPLEMENTATION.md",
-      "target": "workspace/shipper_app2/README_FIGMA_IMPLEMENTATION.md",
-      "sha256": "1bee44c5f8459c0dbe5a5dcab4e9a4bbd31e0b5c91dabfad578b84f4f67c5cb1",
-      "bytes": 10416
+      "sha256": "60f201cec7e1c942325563541dba4ed88f8752de1b2e43cc7ff1e5a0fd10c21e",
+      "bytes": 2588
     },
     {
       "source": "shipper_app2/README.md",
       "target": "workspace/shipper_app2/README.md",
-      "sha256": "c0d04697a6b6dc2ad689e7db5c868e8cf6e2464bc74858ff4b509c9838075c73",
-      "bytes": 6621
+      "sha256": "ef0550c816675fd91290ecb96ed2fb728664b0fa1e8a64a7d2d296977d3053b1",
+      "bytes": 7604
     },
     {
       "source": "shipper_app2/SCREEN_DESIGNS_DOCUMENTATION.md",
@@ -3353,8 +3593,8 @@
     {
       "source": "shipper_app2/TESTING.md",
       "target": "workspace/shipper_app2/TESTING.md",
-      "sha256": "483fc123877a3d78fa82caa85b86ab0fefaa45fce75160ac75fd26a8a2889df5",
-      "bytes": 1348
+      "sha256": "e4f20e8e8d9609462535f1b6fd8a62e0ac8a26837b499a58be281ea91da24ff1",
+      "bytes": 2171
     },
     {
       "source": "shipper_app2/VIETNAMESE_FEATURE_DOCUMENTATION.md",

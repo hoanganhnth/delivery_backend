@@ -12,7 +12,7 @@ cd "$ROOT_DIR"
 die() { printf 'Compose package: %s\n' "$*" >&2; exit 1; }
 
 if (( $# == 0 )); then
-  services=(config-server discovery-server auth-service user-service api-gateway)
+  services=(config-server discovery-server auth-service user-service api-gateway web-bff-service)
 else
   services=("$@")
 fi

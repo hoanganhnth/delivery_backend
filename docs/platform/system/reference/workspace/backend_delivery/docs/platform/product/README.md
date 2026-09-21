@@ -10,8 +10,17 @@ files after actual product domains, such as `overview.md`, `billing.md`,
 
 ## Current Product Contract
 
-No consumer-specific product contract is shipped in this generic directory.
-The upstream `repository-harness` contract lives in the root README, current
+The platform product corpus is maintained by the Delivery project in this
+directory:
+
+- [overview.md](./overview.md) — product boundary, client map and capability
+  status.
+- [use-cases.md](./use-cases.md) — source-derived inventory of actor goals,
+  system automation, failure branches and public/gated/experimental boundaries.
+- [features/](./features/README.md) — detailed domain behavior and rollout
+  notes.
+
+The generic repository-harness contract still lives in the root README, current
 workflow and architecture documents, lasting decisions, optional orchestration
 contract, implementation, and executable tests.
 

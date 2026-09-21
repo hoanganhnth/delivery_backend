@@ -298,6 +298,7 @@ hidden_capability_defaults=(
   'order-service/src/main/resources/application.properties|app.order.payment-event-processing-enabled=${ORDER_PAYMENT_EVENT_PROCESSING_ENABLED:false}'
   'order-service/src/main/resources/application.properties|app.order.voucher-checkout-enabled=${ORDER_VOUCHER_CHECKOUT_ENABLED:false}'
   'order-service/src/main/resources/application.properties|app.order.flashsale-checkout-enabled=${ORDER_FLASHSALE_CHECKOUT_ENABLED:false}'
+  'order-service/src/main/resources/application.properties|app.order.livestream-checkout-enabled=${ORDER_LIVESTREAM_CHECKOUT_ENABLED:false}'
   'settlement-service/src/main/resources/application.properties|app.payment.processing-enabled=${PAYMENT_PROCESSING_ENABLED:false}'
   'settlement-service/src/main/resources/application.properties|app.payment.fake-provider-enabled=${FAKE_PAYMENT_PROVIDER_ENABLED:false}'
   'settlement-service/src/main/resources/application.properties|app.payout.processing-enabled=${PAYOUT_PROCESSING_ENABLED:false}'
