@@ -16,6 +16,7 @@ const requiredDocuments = [
   'workflows.md',
   'api/README.md',
   'api/http-contract-catalog.md',
+  'api/public-edge-catalog.md',
   'events-and-data.md',
   'security.md',
   'clients.md',
@@ -75,6 +76,15 @@ if (referenceCheck.status !== 0) {
   problems.push('offline reference bundle is stale or missing; run sync-reference-bundle.mjs --write');
 }
 
+const httpInventoryCheck = spawnSync(
+  path.join(workspace, 'backend_delivery/scripts/verify-http-api-inventory.sh'),
+  [],
+  { encoding: 'utf8' },
+);
+if (httpInventoryCheck.status !== 0) {
+  problems.push('HTTP API inventory does not match mapped controller handlers');
+}
+
 const httpContractCheck = spawnSync(
   process.execPath,
   [path.join(here, 'api/generate-http-contract.mjs'), '--check'],
@@ -82,6 +92,15 @@ const httpContractCheck = spawnSync(
 );
 if (httpContractCheck.status !== 0) {
   problems.push('source-derived HTTP contract is stale or missing; run api/generate-http-contract.mjs --write');
+}
+
+const publicEdgeCheck = spawnSync(
+  process.execPath,
+  [path.join(here, 'api/generate-public-edge-manifest.mjs'), '--check'],
+  { encoding: 'utf8' },
+);
+if (publicEdgeCheck.status !== 0) {
+  problems.push('public-edge manifest is stale or missing; run api/generate-public-edge-manifest.mjs --write');
 }
 
 function walk(directory) {

@@ -31,7 +31,8 @@
 | --- | --- | --- | --- |
 | Whole-system diagrams/client boundary | [architecture.md](../architecture.md), [diagram standards](../diagram-standards.md) | [`architecture.md`](../architecture.md), [`product/overview.md`](../../product/overview.md) | As-built, 2026-08-24 |
 | Service ownership/ports/capabilities | [service-catalog.md](../service-catalog.md) | [`backend_delivery/docs/system-contract-inventory.md`](../../../system-contract-inventory.md), Compose | As-built, 2026-08-09 |
-| Exact HTTP handlers and signature/DTO source map | [api/README.md](../api/README.md), [generated API catalog](../api/http-contract-catalog.md), [`http-contract.json`](../api/http-contract.json) | [`backend_delivery/docs/http-api-inventory.md`](../../../http-api-inventory.md), controller DTO/tests | 220 controller operations and 190 reachable source schemas in deterministic JSON/Markdown artifacts; not OpenAPI |
+| Exact HTTP handlers and signature/DTO source map | [api/README.md](../api/README.md), [generated API catalog](../api/http-contract-catalog.md), [`http-contract.json`](../api/http-contract.json) | [`backend_delivery/docs/http-api-inventory.md`](../../../http-api-inventory.md), controller DTO/tests | Counts are generated from the exact mapped-handler inventory; deterministic JSON/Markdown artifacts, not OpenAPI |
+| Exact public-edge route declarations | [public-edge catalog](../api/public-edge-catalog.md), [`public-edge-manifest.json`](../api/public-edge-manifest.json) | `GatewayRouteConfig.java`; downstream auth remains owner-service policy | Deterministic route/path/method/destination/gate/rewrite projection; never auto-publishes a controller |
 | HTTP formatting/pagination/money/time | [api/README.md](../api/README.md) | [`docs/decisions/0001-backend-contract-conventions.md`](../../decisions/0001-backend-contract-conventions.md) | Accepted convention |
 | JWKS/auth/security | [security.md](../security.md) | [`backend ADR 0001`](../../../decisions/0001-jwks-resource-server-authentication.md), Auth/Gateway config/tests | Accepted/as-built, 2026-08-09 |
 | Registration and COD/domain flows | [workflows.md](../workflows.md) | backend `docs/workflows/`, service tests, runtime scripts | As-built, 2026-08-09; proof varies by flow |
@@ -62,6 +63,7 @@ For every architecture-relevant change, use this matrix:
 | Change | Must update/check |
 | --- | --- |
 | HTTP path/actor/DTO | Controller/test, HTTP inventory, refresh with `generate-http-contract.mjs --write` then prove with `--check`, API guide, client call sites/action checks |
+| Public Gateway surface | `GatewayRouteConfig.java`, refresh with `generate-public-edge-manifest.mjs --write` then prove with `--check`, route security/gate tests |
 | Kafka event/state transition | Producer/consumer test, event inventory, workflow, DLT/replay/migration plan |
 | Database schema/ownership | Flyway, service docs, data map, backup/recovery compatibility |
 | Identity/key/internal security | Auth/Gateway/resource test, security guide, secret/rollout runbook |
@@ -77,6 +79,7 @@ Representative current checks include:
 scripts/verify-build-baseline.sh
 scripts/verify-http-api-inventory.sh
 node docs/platform/system/api/generate-http-contract.mjs --check
+node docs/platform/system/api/generate-public-edge-manifest.mjs --check
 scripts/verify-compose-config.sh
 scripts/verify-kubernetes-manifests.sh
 scripts/rollout-kubernetes.sh
