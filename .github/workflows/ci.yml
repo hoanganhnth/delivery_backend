@@ -22,6 +22,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+      - name: Verify build platform canary
+        run: bash scripts/verify-build-foundation.sh
       - name: Verify toolchain and dependency baseline
         run: ./scripts/verify-build-baseline.sh
       - name: Verify no-runtime test context isolation
@@ -60,6 +62,7 @@ jobs:
           path: |
             **/target/surefire-reports/**
             **/target/failsafe-reports/**
+            **/target/site/jacoco/**
           if-no-files-found: warn
 
   advisory-security:
