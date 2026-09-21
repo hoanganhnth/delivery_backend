@@ -19,6 +19,8 @@ import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
+import { parseHttpInventory } from './http-api-inventory-lib.mjs';
+
 const here = path.dirname(fileURLToPath(import.meta.url));
 // This copy lives under backend_delivery/docs/platform/system/api, while
 // source code and the three client repositories remain siblings of
@@ -70,59 +72,8 @@ function normalizeWhitespace(value) {
   return value.replace(/\s+/g, ' ').trim();
 }
 
-function unquoteCode(value) {
-  return value.trim().replace(/^`|`$/g, '');
-}
-
-function splitMarkdownRow(row) {
-  const cells = [];
-  let current = '';
-  let escaped = false;
-  for (let index = 1; index < row.length - 1; index += 1) {
-    const character = row[index];
-    if (escaped) {
-      current += character;
-      escaped = false;
-    } else if (character === '\\') {
-      escaped = true;
-    } else if (character === '|') {
-      cells.push(current.trim());
-      current = '';
-    } else {
-      current += character;
-    }
-  }
-  cells.push(current.trim());
-  return cells;
-}
-
 function readInventory() {
-  const inventory = fs.readFileSync(inventoryPath, 'utf8');
-  const expectedMatch = inventory.match(/hiện có \*\*(\d+) method\*\*/);
-  if (!expectedMatch) throw new Error('Cannot read expected endpoint count from HTTP inventory.');
-  const expectedCount = Number.parseInt(expectedMatch[1], 10);
-  const heading = '## Exact method inventory';
-  const start = inventory.indexOf(heading);
-  if (start < 0) throw new Error(`Missing '${heading}' in HTTP inventory.`);
-  const rows = [];
-  for (const line of inventory.slice(start).split(/\r?\n/)) {
-    if (!line.startsWith('|')) continue;
-    const cells = splitMarkdownRow(line);
-    if (cells.length !== 5 || cells[0] === 'Service' || /^-+$/.test(cells[0])) continue;
-    const [service, controller, verb, routePath, handler] = cells.map(unquoteCode);
-    if (!service.endsWith('-service')) continue;
-    rows.push({
-      service,
-      controller,
-      verbs: verb.split('|').map((item) => item.trim()).filter(Boolean),
-      path: routePath,
-      handler,
-    });
-  }
-  if (rows.length !== expectedCount) {
-    throw new Error(`HTTP inventory has ${rows.length} rows, expected ${expectedCount}.`);
-  }
-  return { expectedCount, rows };
+  return parseHttpInventory(fs.readFileSync(inventoryPath, 'utf8'));
 }
 
 function stripCommentsAndStrings(source) {
@@ -569,11 +520,11 @@ function buildSchemas(operations, classIndex) {
 }
 
 function buildContract() {
-  const { expectedCount, rows } = readInventory();
+  const rows = readInventory();
   const classIndex = buildClassIndex();
   const controllerByKey = new Map();
   for (const definition of classIndex.byFqcn.values()) {
-    if (!definition.file.includes(`${path.sep}controller${path.sep}`)) continue;
+    if (!path.basename(definition.file).endsWith('Controller.java')) continue;
     const module = relative(definition.file).split('/')[1];
     controllerByKey.set(`${module}:${definition.name}`, definition);
   }
@@ -598,7 +549,6 @@ function buildContract() {
     };
     return operation;
   });
-  if (operations.length !== expectedCount) throw new Error('Operation count changed while building the contract.');
   const schemas = buildSchemas(operations, classIndex);
   const publicOperations = operations.map((operation) => {
     const output = { ...operation };

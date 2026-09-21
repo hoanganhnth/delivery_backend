@@ -9,26 +9,27 @@
   "scope": "Every annotated controller mapping, including internal, hidden, dev-only and experimental endpoints. Consult the HTTP inventory for public-edge classification and capability status.",
   "schemaStatus": "Field metadata is extracted from Java declarations and validation annotations. It is a source map, not an inferred OpenAPI/JSON Schema; controller/DTO source remains authoritative for Jackson, inheritance, polymorphism and error behavior.",
   "counts": {
-    "operations": 228,
-    "services": 16,
-    "sourceSchemas": 206,
+    "operations": 239,
+    "services": 17,
+    "sourceSchemas": 219,
     "byService": {
       "analytics-service": 4,
-      "auth-service": 18,
+      "auth-service": 19,
       "delivery-service": 21,
       "flashsale-service": 12,
-      "livestream-service": 14,
+      "livestream-service": 18,
       "notification-service": 12,
       "order-service": 10,
       "promotion-service": 21,
-      "restaurant-service": 38,
+      "restaurant-service": 39,
       "routing-service": 3,
       "search-service": 2,
       "settlement-service": 33,
       "shipper-service": 8,
       "simulator-service": 12,
       "tracking-service": 4,
-      "user-service": 16
+      "user-service": 16,
+      "web-bff-service": 5
     }
   },
   "operations": [
@@ -285,7 +286,7 @@
       "handler": "register",
       "source": {
         "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java",
-        "line": 69
+        "line": 74
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<AuthRegisterResponse>> register( @Valid @RequestBody RegisterRequest request, HttpServletRequest servletRequest)",
@@ -331,7 +332,7 @@
       "handler": "registrationStatus",
       "source": {
         "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java",
-        "line": 96
+        "line": 101
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<RegistrationStatusResponse>> registrationStatus(@PathVariable String handle)",
@@ -363,7 +364,7 @@
       "handler": "login",
       "source": {
         "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java",
-        "line": 139
+        "line": 144
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<AuthResponse>> login(@Valid @RequestBody LoginRequest request)",
@@ -402,7 +403,7 @@
       "handler": "socialLogin",
       "source": {
         "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java",
-        "line": 146
+        "line": 151
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<AuthResponse>> socialLogin(@Valid @RequestBody SocialLoginRequest request)",
@@ -441,7 +442,7 @@
       "handler": "refreshToken",
       "source": {
         "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java",
-        "line": 153
+        "line": 158
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<AuthResponse>> refreshToken(@Valid @RequestBody RefreshTokenRequest request)",
@@ -480,7 +481,7 @@
       "handler": "logout",
       "source": {
         "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java",
-        "line": 160
+        "line": 186
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<Void>> logout(@Valid @RequestBody RefreshTokenRequest request)",
@@ -519,7 +520,7 @@
       "handler": "forgotPassword",
       "source": {
         "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java",
-        "line": 104
+        "line": 109
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<Void>> forgotPassword( @Valid @RequestBody SecurityEmailRequest request, HttpServletRequest servletRequest)",
@@ -565,7 +566,7 @@
       "handler": "resetPassword",
       "source": {
         "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java",
-        "line": 113
+        "line": 118
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<Void>> resetPassword( @Valid @RequestBody ResetPasswordRequest request, HttpServletRequest servletRequest)",
@@ -611,7 +612,7 @@
       "handler": "requestEmailVerification",
       "source": {
         "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java",
-        "line": 122
+        "line": 127
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<Void>> requestEmailVerification( @Valid @RequestBody SecurityEmailRequest request, HttpServletRequest servletRequest)",
@@ -657,7 +658,7 @@
       "handler": "confirmEmailVerification",
       "source": {
         "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java",
-        "line": 131
+        "line": 136
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<Void>> confirmEmailVerification( @Valid @RequestBody SecurityTokenRequest request, HttpServletRequest servletRequest)",
@@ -693,6 +694,33 @@
       }
     },
     {
+      "id": "auth-service:AuthController.firebaseChatToken:POST:/api/auth/firebase/chat-token",
+      "service": "auth-service",
+      "controller": "AuthController",
+      "verbs": [
+        "POST"
+      ],
+      "path": "/api/auth/firebase/chat-token",
+      "handler": "firebaseChatToken",
+      "source": {
+        "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java",
+        "line": 165
+      },
+      "java": {
+        "signature": "public ResponseEntity<BaseResponse<FirebaseChatTokenResponse>> firebaseChatToken( Authentication authentication)",
+        "returnType": "ResponseEntity<BaseResponse<FirebaseChatTokenResponse>>",
+        "parameters": [
+          {
+            "name": "authentication",
+            "type": "Authentication",
+            "annotations": [],
+            "required": false,
+            "binding": "framework"
+          }
+        ]
+      }
+    },
+    {
       "id": "auth-service:AuthController.getSessions:GET:/api/auth/sessions",
       "service": "auth-service",
       "controller": "AuthController",
@@ -703,7 +731,7 @@
       "handler": "getSessions",
       "source": {
         "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java",
-        "line": 167
+        "line": 193
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<List<SessionInfoResponse>>> getSessions()",
@@ -722,7 +750,7 @@
       "handler": "revokeDeviceSession",
       "source": {
         "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java",
-        "line": 180
+        "line": 206
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<Void>> revokeDeviceSession(@PathVariable String deviceId)",
@@ -754,7 +782,7 @@
       "handler": "getAccountById",
       "source": {
         "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java",
-        "line": 192
+        "line": 218
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<AuthAccountDto>> getAccountById(@PathVariable Long id)",
@@ -786,7 +814,7 @@
       "handler": "blockAccount",
       "source": {
         "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java",
-        "line": 208
+        "line": 234
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<Void>> blockAccount( @PathVariable Long id, @RequestBody(required = false) BlockAccountRequest request)",
@@ -830,7 +858,7 @@
       "handler": "unblockAccount",
       "source": {
         "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java",
-        "line": 238
+        "line": 264
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<Void>> unblockAccount(@PathVariable Long id)",
@@ -2679,6 +2707,222 @@
       }
     },
     {
+      "id": "livestream-service:LivestreamModerationController.moderate:POST:/api/livestreams/{id}/moderation",
+      "service": "livestream-service",
+      "controller": "LivestreamModerationController",
+      "verbs": [
+        "POST"
+      ],
+      "path": "/api/livestreams/{id}/moderation",
+      "handler": "moderate",
+      "source": {
+        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamModerationController.java",
+        "line": 27
+      },
+      "java": {
+        "signature": "public ResponseEntity<BaseResponse<LivestreamModerationResponse>> moderate( @PathVariable UUID id, @Valid @RequestBody ModerateLivestreamRequest request, @AuthenticationPrincipal AuthenticatedActor actor)",
+        "returnType": "ResponseEntity<BaseResponse<LivestreamModerationResponse>>",
+        "parameters": [
+          {
+            "name": "id",
+            "type": "UUID",
+            "annotations": [
+              {
+                "name": "PathVariable"
+              }
+            ],
+            "required": true,
+            "binding": "path",
+            "wireName": "id"
+          },
+          {
+            "name": "request",
+            "type": "ModerateLivestreamRequest",
+            "annotations": [
+              {
+                "name": "Valid"
+              },
+              {
+                "name": "RequestBody"
+              }
+            ],
+            "required": true,
+            "constraints": [
+              {
+                "name": "Valid"
+              }
+            ],
+            "binding": "body"
+          },
+          {
+            "name": "actor",
+            "type": "AuthenticatedActor",
+            "annotations": [
+              {
+                "name": "AuthenticationPrincipal"
+              }
+            ],
+            "required": false,
+            "binding": "principal"
+          }
+        ]
+      }
+    },
+    {
+      "id": "livestream-service:InternalLivestreamCheckoutController.quote:POST:/api/livestreams/internal/checkout-quote",
+      "service": "livestream-service",
+      "controller": "InternalLivestreamCheckoutController",
+      "verbs": [
+        "POST"
+      ],
+      "path": "/api/livestreams/internal/checkout-quote",
+      "handler": "quote",
+      "source": {
+        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/InternalLivestreamCheckoutController.java",
+        "line": 34
+      },
+      "java": {
+        "signature": "public ResponseEntity<BaseResponse<LivestreamCheckoutQuoteResponse>> quote( @Valid @RequestBody LivestreamCheckoutQuoteRequest request, @RequestHeader(value = \"Internal-Token\", required = false) String token)",
+        "returnType": "ResponseEntity<BaseResponse<LivestreamCheckoutQuoteResponse>>",
+        "parameters": [
+          {
+            "name": "request",
+            "type": "LivestreamCheckoutQuoteRequest",
+            "annotations": [
+              {
+                "name": "Valid"
+              },
+              {
+                "name": "RequestBody"
+              }
+            ],
+            "required": true,
+            "constraints": [
+              {
+                "name": "Valid"
+              }
+            ],
+            "binding": "body"
+          },
+          {
+            "name": "token",
+            "type": "String",
+            "annotations": [
+              {
+                "name": "RequestHeader",
+                "arguments": "value = \"Internal-Token\", required = false"
+              }
+            ],
+            "required": false,
+            "binding": "header",
+            "wireName": "Internal-Token"
+          }
+        ]
+      }
+    },
+    {
+      "id": "livestream-service:LivestreamAdminController.list:GET:/api/livestreams/admin",
+      "service": "livestream-service",
+      "controller": "LivestreamAdminController",
+      "verbs": [
+        "GET"
+      ],
+      "path": "/api/livestreams/admin",
+      "handler": "list",
+      "source": {
+        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamAdminController.java",
+        "line": 34
+      },
+      "java": {
+        "signature": "public ResponseEntity<BaseResponse<RoomPage>> list( @AuthenticationPrincipal AuthenticatedActor actor, @RequestParam(defaultValue = \"0\") int page, @RequestParam(defaultValue = \"20\") int size)",
+        "returnType": "ResponseEntity<BaseResponse<RoomPage>>",
+        "parameters": [
+          {
+            "name": "actor",
+            "type": "AuthenticatedActor",
+            "annotations": [
+              {
+                "name": "AuthenticationPrincipal"
+              }
+            ],
+            "required": false,
+            "binding": "principal"
+          },
+          {
+            "name": "page",
+            "type": "int",
+            "annotations": [
+              {
+                "name": "RequestParam",
+                "arguments": "defaultValue = \"0\""
+              }
+            ],
+            "required": false,
+            "binding": "query",
+            "defaultValue": "0",
+            "wireName": "page"
+          },
+          {
+            "name": "size",
+            "type": "int",
+            "annotations": [
+              {
+                "name": "RequestParam",
+                "arguments": "defaultValue = \"20\""
+              }
+            ],
+            "required": false,
+            "binding": "query",
+            "defaultValue": "20",
+            "wireName": "size"
+          }
+        ]
+      }
+    },
+    {
+      "id": "livestream-service:LivestreamTokenRenewalController.renew:POST:/api/livestreams/{id}/token/renew",
+      "service": "livestream-service",
+      "controller": "LivestreamTokenRenewalController",
+      "verbs": [
+        "POST"
+      ],
+      "path": "/api/livestreams/{id}/token/renew",
+      "handler": "renew",
+      "source": {
+        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamTokenRenewalController.java",
+        "line": 46
+      },
+      "java": {
+        "signature": "public ResponseEntity<BaseResponse<RenewLivestreamTokenResponse>> renew( @PathVariable UUID id, @AuthenticationPrincipal AuthenticatedActor actor)",
+        "returnType": "ResponseEntity<BaseResponse<RenewLivestreamTokenResponse>>",
+        "parameters": [
+          {
+            "name": "id",
+            "type": "UUID",
+            "annotations": [
+              {
+                "name": "PathVariable"
+              }
+            ],
+            "required": true,
+            "binding": "path",
+            "wireName": "id"
+          },
+          {
+            "name": "actor",
+            "type": "AuthenticatedActor",
+            "annotations": [
+              {
+                "name": "AuthenticationPrincipal"
+              }
+            ],
+            "required": false,
+            "binding": "principal"
+          }
+        ]
+      }
+    },
+    {
       "id": "livestream-service:LivestreamController.getActiveLivestreams:GET:/api/livestreams/active",
       "service": "livestream-service",
       "controller": "LivestreamController",
@@ -2689,12 +2933,24 @@
       "handler": "getActiveLivestreams",
       "source": {
         "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java",
-        "line": 78
+        "line": 82
       },
       "java": {
-        "signature": "public ResponseEntity<BaseResponse<List<LivestreamResponse>>> getActiveLivestreams()",
+        "signature": "public ResponseEntity<BaseResponse<List<LivestreamResponse>>> getActiveLivestreams( @AuthenticationPrincipal AuthenticatedActor actor)",
         "returnType": "ResponseEntity<BaseResponse<List<LivestreamResponse>>>",
-        "parameters": []
+        "parameters": [
+          {
+            "name": "actor",
+            "type": "AuthenticatedActor",
+            "annotations": [
+              {
+                "name": "AuthenticationPrincipal"
+              }
+            ],
+            "required": false,
+            "binding": "principal"
+          }
+        ]
       }
     },
     {
@@ -2708,10 +2964,10 @@
       "handler": "getLivestreamById",
       "source": {
         "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java",
-        "line": 84
+        "line": 90
       },
       "java": {
-        "signature": "public ResponseEntity<BaseResponse<LivestreamResponse>> getLivestreamById(@PathVariable UUID id)",
+        "signature": "public ResponseEntity<BaseResponse<LivestreamResponse>> getLivestreamById( @PathVariable UUID id, @AuthenticationPrincipal AuthenticatedActor actor)",
         "returnType": "ResponseEntity<BaseResponse<LivestreamResponse>>",
         "parameters": [
           {
@@ -2725,6 +2981,17 @@
             "required": true,
             "binding": "path",
             "wireName": "id"
+          },
+          {
+            "name": "actor",
+            "type": "AuthenticatedActor",
+            "annotations": [
+              {
+                "name": "AuthenticationPrincipal"
+              }
+            ],
+            "required": false,
+            "binding": "principal"
           }
         ]
       }
@@ -2740,10 +3007,10 @@
       "handler": "getLivestreamsBySeller",
       "source": {
         "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java",
-        "line": 90
+        "line": 98
       },
       "java": {
-        "signature": "public ResponseEntity<BaseResponse<List<LivestreamResponse>>> getLivestreamsBySeller( @PathVariable Long sellerId)",
+        "signature": "public ResponseEntity<BaseResponse<List<LivestreamResponse>>> getLivestreamsBySeller( @PathVariable Long sellerId, @AuthenticationPrincipal AuthenticatedActor actor)",
         "returnType": "ResponseEntity<BaseResponse<List<LivestreamResponse>>>",
         "parameters": [
           {
@@ -2757,6 +3024,17 @@
             "required": true,
             "binding": "path",
             "wireName": "sellerId"
+          },
+          {
+            "name": "actor",
+            "type": "AuthenticatedActor",
+            "annotations": [
+              {
+                "name": "AuthenticationPrincipal"
+              }
+            ],
+            "required": false,
+            "binding": "principal"
           }
         ]
       }
@@ -2772,7 +3050,7 @@
       "handler": "getLivestreamsByRestaurant",
       "source": {
         "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java",
-        "line": 97
+        "line": 106
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<List<LivestreamResponse>>> getLivestreamsByRestaurant( @PathVariable Long restaurantId, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -2815,7 +3093,7 @@
       "handler": "pinProduct",
       "source": {
         "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamProductController.java",
-        "line": 32
+        "line": 40
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<LivestreamProductResponse>> pinProduct( @PathVariable UUID id, @Valid @RequestBody PinProductRequest request, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -2877,7 +3155,7 @@
       "handler": "unpinProduct",
       "source": {
         "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamProductController.java",
-        "line": 42
+        "line": 51
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<Void>> unpinProduct( @PathVariable UUID id, @PathVariable Long productId, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -2932,7 +3210,7 @@
       "handler": "removeProduct",
       "source": {
         "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamProductController.java",
-        "line": 52
+        "line": 62
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<Void>> removeProduct( @PathVariable UUID id, @PathVariable Long productId, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -2987,10 +3265,10 @@
       "handler": "getProductsByLivestream",
       "source": {
         "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamProductController.java",
-        "line": 62
+        "line": 73
       },
       "java": {
-        "signature": "public ResponseEntity<BaseResponse<List<LivestreamProductResponse>>> getProductsByLivestream( @PathVariable UUID id)",
+        "signature": "public ResponseEntity<BaseResponse<List<LivestreamProductResponse>>> getProductsByLivestream( @PathVariable UUID id, @AuthenticationPrincipal AuthenticatedActor actor)",
         "returnType": "ResponseEntity<BaseResponse<List<LivestreamProductResponse>>>",
         "parameters": [
           {
@@ -3004,6 +3282,17 @@
             "required": true,
             "binding": "path",
             "wireName": "id"
+          },
+          {
+            "name": "actor",
+            "type": "AuthenticatedActor",
+            "annotations": [
+              {
+                "name": "AuthenticationPrincipal"
+              }
+            ],
+            "required": false,
+            "binding": "principal"
           }
         ]
       }
@@ -3019,10 +3308,10 @@
       "handler": "getPinnedProducts",
       "source": {
         "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamProductController.java",
-        "line": 69
+        "line": 81
       },
       "java": {
-        "signature": "public ResponseEntity<BaseResponse<List<LivestreamProductResponse>>> getPinnedProducts( @PathVariable UUID id)",
+        "signature": "public ResponseEntity<BaseResponse<List<LivestreamProductResponse>>> getPinnedProducts( @PathVariable UUID id, @AuthenticationPrincipal AuthenticatedActor actor)",
         "returnType": "ResponseEntity<BaseResponse<List<LivestreamProductResponse>>>",
         "parameters": [
           {
@@ -3036,6 +3325,17 @@
             "required": true,
             "binding": "path",
             "wireName": "id"
+          },
+          {
+            "name": "actor",
+            "type": "AuthenticatedActor",
+            "annotations": [
+              {
+                "name": "AuthenticationPrincipal"
+              }
+            ],
+            "required": false,
+            "binding": "principal"
           }
         ]
       }
@@ -3829,7 +4129,7 @@
         "line": 125
       },
       "java": {
-        "signature": "public ResponseEntity<BaseResponse<PageResponse<OrderResponse>>> getMyRestaurantOrders( @AuthenticationPrincipal AuthenticatedActor actor, @RequestParam(defaultValue = \"0\") int page, @RequestParam(defaultValue = \"10\") int size)",
+        "signature": "public ResponseEntity<BaseResponse<PageResponse<OrderResponse>>> getMyRestaurantOrders( @AuthenticationPrincipal AuthenticatedActor actor, @RequestParam(defaultValue = \"0\") int page, @RequestParam(defaultValue = \"10\") int size, @RequestParam(required = false) Long restaurantId)",
         "returnType": "ResponseEntity<BaseResponse<PageResponse<OrderResponse>>>",
         "parameters": [
           {
@@ -3870,6 +4170,19 @@
             "binding": "query",
             "defaultValue": "10",
             "wireName": "size"
+          },
+          {
+            "name": "restaurantId",
+            "type": "Long",
+            "annotations": [
+              {
+                "name": "RequestParam",
+                "arguments": "required = false"
+              }
+            ],
+            "required": false,
+            "binding": "query",
+            "wireName": "restaurantId"
           }
         ]
       }
@@ -3885,7 +4198,7 @@
       "handler": "getOrdersByStatus",
       "source": {
         "file": "backend_delivery/order-service/src/main/java/com/delivery/order_service/controller/OrderController.java",
-        "line": 137
+        "line": 152
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<PageResponse<OrderResponse>>> getOrdersByStatus( @PathVariable String status, @AuthenticationPrincipal AuthenticatedActor actor, @RequestParam(defaultValue = \"0\") int page, @RequestParam(defaultValue = \"10\") int size)",
@@ -3956,7 +4269,7 @@
       "handler": "getAllOrders",
       "source": {
         "file": "backend_delivery/order-service/src/main/java/com/delivery/order_service/controller/OrderController.java",
-        "line": 149
+        "line": 164
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<PageResponse<OrderResponse>>> getAllOrders( @AuthenticationPrincipal AuthenticatedActor actor, @RequestParam(defaultValue = \"0\") int page, @RequestParam(defaultValue = \"10\") int size)",
@@ -4015,7 +4328,7 @@
       "handler": "cancelOrder",
       "source": {
         "file": "backend_delivery/order-service/src/main/java/com/delivery/order_service/controller/OrderController.java",
-        "line": 160
+        "line": 175
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<OrderResponse>> cancelOrder( @PathVariable Long id, @AuthenticationPrincipal AuthenticatedActor actor, @Valid @RequestBody(required = false) CancelOrderRequest cancelRequest)",
@@ -4288,7 +4601,7 @@
         "line": 77
       },
       "java": {
-        "signature": "public ResponseEntity<BaseResponse<VoucherResponse>> createShopVoucher( @RequestBody @Valid CreateVoucherRequest request, @AuthenticationPrincipal AuthenticatedActor actor)",
+        "signature": "public ResponseEntity<BaseResponse<VoucherResponse>> createShopVoucher( @RequestBody CreateVoucherRequest request, @AuthenticationPrincipal AuthenticatedActor actor)",
         "returnType": "ResponseEntity<BaseResponse<VoucherResponse>>",
         "parameters": [
           {
@@ -4297,17 +4610,9 @@
             "annotations": [
               {
                 "name": "RequestBody"
-              },
-              {
-                "name": "Valid"
               }
             ],
             "required": true,
-            "constraints": [
-              {
-                "name": "Valid"
-              }
-            ],
             "binding": "body"
           },
           {
@@ -4335,7 +4640,7 @@
       "handler": "collectVoucher",
       "source": {
         "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
-        "line": 87
+        "line": 93
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<String>> collectVoucher( @PathVariable String code, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -4378,7 +4683,7 @@
       "handler": "getMyVouchers",
       "source": {
         "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
-        "line": 100
+        "line": 106
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<List<VoucherResponse>>> getMyVouchers( @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -4409,7 +4714,7 @@
       "handler": "listMerchantVouchers",
       "source": {
         "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
-        "line": 112
+        "line": 118
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<List<VoucherResponse>>> listMerchantVouchers( @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -4440,7 +4745,7 @@
       "handler": "listShopVouchers",
       "source": {
         "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
-        "line": 119
+        "line": 125
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<List<VoucherResponse>>> listShopVouchers( @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -4471,7 +4776,7 @@
       "handler": "listAllVouchers",
       "source": {
         "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
-        "line": 128
+        "line": 134
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<List<VoucherResponse>>> listAllVouchers( @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -4502,7 +4807,7 @@
       "handler": "listPendingShopVouchers",
       "source": {
         "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
-        "line": 135
+        "line": 141
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<List<VoucherResponse>>> listPendingShopVouchers( @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -4533,7 +4838,7 @@
       "handler": "approveShopVoucher",
       "source": {
         "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
-        "line": 142
+        "line": 148
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<VoucherResponse>> approveShopVoucher( @PathVariable Long id, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -4576,7 +4881,7 @@
       "handler": "rejectShopVoucher",
       "source": {
         "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
-        "line": 152
+        "line": 158
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<VoucherResponse>> rejectShopVoucher( @PathVariable Long id, @RequestParam(required = false) String reason, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -4632,7 +4937,7 @@
       "handler": "pauseVoucher",
       "source": {
         "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
-        "line": 163
+        "line": 169
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<VoucherResponse>> pauseVoucher( @PathVariable Long id, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -4675,7 +4980,7 @@
       "handler": "resumeVoucher",
       "source": {
         "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
-        "line": 172
+        "line": 178
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<VoucherResponse>> resumeVoucher( @PathVariable Long id, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -4718,7 +5023,7 @@
       "handler": "deleteVoucher",
       "source": {
         "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
-        "line": 181
+        "line": 187
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<Void>> deleteVoucher( @PathVariable Long id, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -4761,7 +5066,7 @@
       "handler": "calculate",
       "source": {
         "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
-        "line": 190
+        "line": 196
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<CalculateResponse>> calculate( @RequestBody CartContextRequest request, @RequestHeader(value = \"Internal-Token\", required = false) String internalToken)",
@@ -4805,7 +5110,7 @@
       "handler": "reserve",
       "source": {
         "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
-        "line": 206
+        "line": 212
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<VoucherReservationResponse>> reserve( @RequestBody ReserveRequest request, @RequestHeader(value = \"Internal-Token\", required = false) String internalToken)",
@@ -4849,7 +5154,7 @@
       "handler": "reserveBulk",
       "source": {
         "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
-        "line": 225
+        "line": 231
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<PromotionReservationResponse>> reserveBulk( @RequestBody @Valid BulkReserveRequest request, @RequestHeader(value = \"Internal-Token\", required = false) String internalToken)",
@@ -4901,7 +5206,7 @@
       "handler": "commit",
       "source": {
         "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
-        "line": 233
+        "line": 239
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<VoucherReservationResponse>> commit( @PathVariable UUID reservationId, @RequestParam Long orderId, @RequestHeader(value = \"Internal-Token\", required = false) String internalToken)",
@@ -4958,7 +5263,7 @@
       "handler": "release",
       "source": {
         "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
-        "line": 243
+        "line": 249
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<VoucherReservationResponse>> release( @PathVariable UUID reservationId, @RequestParam Long orderId, @RequestHeader(value = \"Internal-Token\", required = false) String internalToken)",
@@ -5015,7 +5320,7 @@
       "handler": "commitBulk",
       "source": {
         "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
-        "line": 253
+        "line": 259
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<PromotionReservationResponse>> commitBulk( @PathVariable UUID reservationId, @RequestParam Long orderId, @RequestParam Long userPrincipalId, @RequestHeader(value = \"Internal-Token\", required = false) String internalToken)",
@@ -5084,7 +5389,7 @@
       "handler": "releaseBulk",
       "source": {
         "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
-        "line": 264
+        "line": 270
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<PromotionReservationResponse>> releaseBulk( @PathVariable UUID reservationId, @RequestParam Long orderId, @RequestParam Long userPrincipalId, @RequestHeader(value = \"Internal-Token\", required = false) String internalToken)",
@@ -5153,7 +5458,7 @@
       "handler": "create",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java",
-        "line": 32
+        "line": 33
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<MenuItemResponse>> create( @Valid @RequestBody CreateMenuItemRequest request, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -5203,7 +5508,7 @@
       "handler": "update",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java",
-        "line": 41
+        "line": 43
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<MenuItemResponse>> update( @PathVariable Long id, @Valid @RequestBody UpdateMenuItemRequest request, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -5265,7 +5570,7 @@
       "handler": "delete",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java",
-        "line": 51
+        "line": 54
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<Void>> delete( @PathVariable Long id, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -5308,7 +5613,7 @@
       "handler": "getByRestaurant",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java",
-        "line": 60
+        "line": 63
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<List<MenuItemResponse>>> getByRestaurant(@PathVariable Long restaurantId)",
@@ -5340,7 +5645,7 @@
       "handler": "getAvailableItems",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java",
-        "line": 66
+        "line": 69
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<List<MenuItemResponse>>> getAvailableItems(@PathVariable Long restaurantId)",
@@ -5372,7 +5677,7 @@
       "handler": "getPage",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java",
-        "line": 72
+        "line": 75
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<PageResponse<MenuItemResponse>>> getPage( @PathVariable Long restaurantId, @RequestParam(defaultValue = \"0\") int page, @RequestParam(defaultValue = \"24\") int size)",
@@ -5432,7 +5737,7 @@
       "handler": "getAvailablePage",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java",
-        "line": 81
+        "line": 84
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<PageResponse<MenuItemResponse>>> getAvailablePage( @PathVariable Long restaurantId, @RequestParam(defaultValue = \"0\") int page, @RequestParam(defaultValue = \"24\") int size)",
@@ -5492,10 +5797,10 @@
       "handler": "getMyMenuItems",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java",
-        "line": 90
+        "line": 93
       },
       "java": {
-        "signature": "public ResponseEntity<BaseResponse<List<MenuItemResponse>>> getMyMenuItems( @AuthenticationPrincipal AuthenticatedActor actor)",
+        "signature": "public ResponseEntity<BaseResponse<List<MenuItemResponse>>> getMyMenuItems( @AuthenticationPrincipal AuthenticatedActor actor, @RequestParam(required = false) Long restaurantId)",
         "returnType": "ResponseEntity<BaseResponse<List<MenuItemResponse>>>",
         "parameters": [
           {
@@ -5508,6 +5813,19 @@
             ],
             "required": false,
             "binding": "principal"
+          },
+          {
+            "name": "restaurantId",
+            "type": "Long",
+            "annotations": [
+              {
+                "name": "RequestParam",
+                "arguments": "required = false"
+              }
+            ],
+            "required": false,
+            "binding": "query",
+            "wireName": "restaurantId"
           }
         ]
       }
@@ -5523,10 +5841,10 @@
       "handler": "getMyMenuItemsPage",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java",
-        "line": 105
+        "line": 108
       },
       "java": {
-        "signature": "public ResponseEntity<BaseResponse<PageResponse<MenuItemResponse>>> getMyMenuItemsPage( @AuthenticationPrincipal AuthenticatedActor actor, @RequestParam(defaultValue = \"0\") int page, @RequestParam(defaultValue = \"24\") int size)",
+        "signature": "public ResponseEntity<BaseResponse<PageResponse<MenuItemResponse>>> getMyMenuItemsPage( @AuthenticationPrincipal AuthenticatedActor actor, @RequestParam(required = false) Long restaurantId, @RequestParam(defaultValue = \"0\") int page, @RequestParam(defaultValue = \"24\") int size)",
         "returnType": "ResponseEntity<BaseResponse<PageResponse<MenuItemResponse>>>",
         "parameters": [
           {
@@ -5539,6 +5857,19 @@
             ],
             "required": false,
             "binding": "principal"
+          },
+          {
+            "name": "restaurantId",
+            "type": "Long",
+            "annotations": [
+              {
+                "name": "RequestParam",
+                "arguments": "required = false"
+              }
+            ],
+            "required": false,
+            "binding": "query",
+            "wireName": "restaurantId"
           },
           {
             "name": "page",
@@ -5980,6 +6311,63 @@
             "required": true,
             "binding": "query",
             "wireName": "longitude"
+          },
+          {
+            "name": "token",
+            "type": "String",
+            "annotations": [
+              {
+                "name": "RequestHeader",
+                "arguments": "value = \"Internal-Token\", required = false"
+              }
+            ],
+            "required": false,
+            "binding": "header",
+            "wireName": "Internal-Token"
+          }
+        ]
+      }
+    },
+    {
+      "id": "restaurant-service:InternalLivestreamProductController.get:GET:/api/restaurants/internal/{restaurantId}/livestream-products/{productId}",
+      "service": "restaurant-service",
+      "controller": "InternalLivestreamProductController",
+      "verbs": [
+        "GET"
+      ],
+      "path": "/api/restaurants/internal/{restaurantId}/livestream-products/{productId}",
+      "handler": "get",
+      "source": {
+        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/InternalLivestreamProductController.java",
+        "line": 31
+      },
+      "java": {
+        "signature": "public ResponseEntity<BaseResponse<Product>> get(@PathVariable Long restaurantId, @PathVariable Long productId, @RequestHeader(value = \"Internal-Token\", required = false) String token)",
+        "returnType": "ResponseEntity<BaseResponse<Product>>",
+        "parameters": [
+          {
+            "name": "restaurantId",
+            "type": "Long",
+            "annotations": [
+              {
+                "name": "PathVariable"
+              }
+            ],
+            "required": true,
+            "binding": "path",
+            "wireName": "restaurantId"
+          },
+          {
+            "name": "productId",
+            "type": "Long",
+            "annotations": [
+              {
+                "name": "PathVariable"
+              }
+            ],
+            "required": true,
+            "binding": "path",
+            "wireName": "productId"
           },
           {
             "name": "token",
@@ -9955,7 +10343,7 @@
       "handler": "getAddress",
       "source": {
         "file": "backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserAddressController.java",
-        "line": 37
+        "line": 40
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<UserAddressResponse>> getAddress( @PathVariable Long id, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -9998,7 +10386,7 @@
       "handler": "createAddress",
       "source": {
         "file": "backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserAddressController.java",
-        "line": 48
+        "line": 55
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<UserAddressResponse>> createAddress( @PathVariable Long userId, @Valid @RequestBody UserAddressRequest request, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -10060,7 +10448,7 @@
       "handler": "updateAddress",
       "source": {
         "file": "backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserAddressController.java",
-        "line": 60
+        "line": 70
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<UserAddressResponse>> updateAddress( @PathVariable Long id, @Valid @RequestBody UserAddressRequest request, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -10122,7 +10510,7 @@
       "handler": "deleteAddress",
       "source": {
         "file": "backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserAddressController.java",
-        "line": 73
+        "line": 86
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<Void>> deleteAddress( @PathVariable Long id, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -10165,7 +10553,7 @@
       "handler": "setDefault",
       "source": {
         "file": "backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserAddressController.java",
-        "line": 86
+        "line": 104
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<UserAddressResponse>> setDefault( @PathVariable Long id, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -10682,6 +11070,283 @@
           }
         ]
       }
+    },
+    {
+      "id": "web-bff-service:WebSessionController.refresh:POST:/bff/session/refresh",
+      "service": "web-bff-service",
+      "controller": "WebSessionController",
+      "verbs": [
+        "POST"
+      ],
+      "path": "/bff/session/refresh",
+      "handler": "refresh",
+      "source": {
+        "file": "backend_delivery/web-bff-service/src/main/java/com/delivery/web_bff/session/WebSessionController.java",
+        "line": 38
+      },
+      "java": {
+        "signature": "public SessionView refresh( @CookieValue(name = COOKIE, required = false) String rawSessionId, @RequestHeader(name = \"X-CSRF-Token\", required = false) String csrf, HttpServletResponse response)",
+        "returnType": "SessionView",
+        "parameters": [
+          {
+            "name": "rawSessionId",
+            "type": "String",
+            "annotations": [
+              {
+                "name": "CookieValue",
+                "arguments": "name = COOKIE, required = false"
+              }
+            ],
+            "required": false,
+            "constraints": [
+              {
+                "name": "CookieValue",
+                "arguments": "name = COOKIE, required = false"
+              }
+            ],
+            "binding": "framework"
+          },
+          {
+            "name": "csrf",
+            "type": "String",
+            "annotations": [
+              {
+                "name": "RequestHeader",
+                "arguments": "name = \"X-CSRF-Token\", required = false"
+              }
+            ],
+            "required": false,
+            "binding": "header",
+            "wireName": "X-CSRF-Token"
+          },
+          {
+            "name": "response",
+            "type": "HttpServletResponse",
+            "annotations": [],
+            "required": false,
+            "binding": "framework"
+          }
+        ]
+      }
+    },
+    {
+      "id": "web-bff-service:WebSessionController.login:POST:/bff/session/login",
+      "service": "web-bff-service",
+      "controller": "WebSessionController",
+      "verbs": [
+        "POST"
+      ],
+      "path": "/bff/session/login",
+      "handler": "login",
+      "source": {
+        "file": "backend_delivery/web-bff-service/src/main/java/com/delivery/web_bff/session/WebSessionController.java",
+        "line": 47
+      },
+      "java": {
+        "signature": "public ResponseEntity<SessionView> login(@Valid @RequestBody LoginRequest request, HttpServletResponse response)",
+        "returnType": "ResponseEntity<SessionView>",
+        "parameters": [
+          {
+            "name": "request",
+            "type": "LoginRequest",
+            "annotations": [
+              {
+                "name": "Valid"
+              },
+              {
+                "name": "RequestBody"
+              }
+            ],
+            "required": true,
+            "constraints": [
+              {
+                "name": "Valid"
+              }
+            ],
+            "binding": "body"
+          },
+          {
+            "name": "response",
+            "type": "HttpServletResponse",
+            "annotations": [],
+            "required": false,
+            "binding": "framework"
+          }
+        ]
+      }
+    },
+    {
+      "id": "web-bff-service:WebSessionController.current:GET:/bff/session",
+      "service": "web-bff-service",
+      "controller": "WebSessionController",
+      "verbs": [
+        "GET"
+      ],
+      "path": "/bff/session",
+      "handler": "current",
+      "source": {
+        "file": "backend_delivery/web-bff-service/src/main/java/com/delivery/web_bff/session/WebSessionController.java",
+        "line": 56
+      },
+      "java": {
+        "signature": "public SessionView current(@CookieValue(name = COOKIE, required = false) String rawSessionId, HttpServletResponse response)",
+        "returnType": "SessionView",
+        "parameters": [
+          {
+            "name": "rawSessionId",
+            "type": "String",
+            "annotations": [
+              {
+                "name": "CookieValue",
+                "arguments": "name = COOKIE, required = false"
+              }
+            ],
+            "required": false,
+            "constraints": [
+              {
+                "name": "CookieValue",
+                "arguments": "name = COOKIE, required = false"
+              }
+            ],
+            "binding": "framework"
+          },
+          {
+            "name": "response",
+            "type": "HttpServletResponse",
+            "annotations": [],
+            "required": false,
+            "binding": "framework"
+          }
+        ]
+      }
+    },
+    {
+      "id": "web-bff-service:WebSessionController.logout:POST:/bff/session/logout",
+      "service": "web-bff-service",
+      "controller": "WebSessionController",
+      "verbs": [
+        "POST"
+      ],
+      "path": "/bff/session/logout",
+      "handler": "logout",
+      "source": {
+        "file": "backend_delivery/web-bff-service/src/main/java/com/delivery/web_bff/session/WebSessionController.java",
+        "line": 65
+      },
+      "java": {
+        "signature": "public ResponseEntity<Void> logout( @CookieValue(name = COOKIE, required = false) String rawSessionId, @RequestHeader(name = \"X-CSRF-Token\", required = false) String csrf, HttpServletResponse response)",
+        "returnType": "ResponseEntity<Void>",
+        "parameters": [
+          {
+            "name": "rawSessionId",
+            "type": "String",
+            "annotations": [
+              {
+                "name": "CookieValue",
+                "arguments": "name = COOKIE, required = false"
+              }
+            ],
+            "required": false,
+            "constraints": [
+              {
+                "name": "CookieValue",
+                "arguments": "name = COOKIE, required = false"
+              }
+            ],
+            "binding": "framework"
+          },
+          {
+            "name": "csrf",
+            "type": "String",
+            "annotations": [
+              {
+                "name": "RequestHeader",
+                "arguments": "name = \"X-CSRF-Token\", required = false"
+              }
+            ],
+            "required": false,
+            "binding": "header",
+            "wireName": "X-CSRF-Token"
+          },
+          {
+            "name": "response",
+            "type": "HttpServletResponse",
+            "annotations": [],
+            "required": false,
+            "binding": "framework"
+          }
+        ]
+      }
+    },
+    {
+      "id": "web-bff-service:ApiProxyController.proxy:ANY:/bff/api/**",
+      "service": "web-bff-service",
+      "controller": "ApiProxyController",
+      "verbs": [
+        "ANY"
+      ],
+      "path": "/bff/api/**",
+      "handler": "proxy",
+      "source": {
+        "file": "backend_delivery/web-bff-service/src/main/java/com/delivery/web_bff/proxy/ApiProxyController.java",
+        "line": 20
+      },
+      "java": {
+        "signature": "public ResponseEntity<byte[]> proxy(HttpServletRequest request, @RequestHeader HttpHeaders headers, @CookieValue(name = WebSessionController.COOKIE, required = false) String rawSessionId, @RequestHeader(name = \"X-CSRF-Token\", required = false) String csrfToken) throws IOException",
+        "returnType": "ResponseEntity<byte[]>",
+        "parameters": [
+          {
+            "name": "request",
+            "type": "HttpServletRequest",
+            "annotations": [],
+            "required": false,
+            "binding": "framework"
+          },
+          {
+            "name": "headers",
+            "type": "HttpHeaders",
+            "annotations": [
+              {
+                "name": "RequestHeader"
+              }
+            ],
+            "required": true,
+            "binding": "header",
+            "wireName": "headers"
+          },
+          {
+            "name": "rawSessionId",
+            "type": "String",
+            "annotations": [
+              {
+                "name": "CookieValue",
+                "arguments": "name = WebSessionController.COOKIE, required = false"
+              }
+            ],
+            "required": false,
+            "constraints": [
+              {
+                "name": "CookieValue",
+                "arguments": "name = WebSessionController.COOKIE, required = false"
+              }
+            ],
+            "binding": "framework"
+          },
+          {
+            "name": "csrfToken",
+            "type": "String",
+            "annotations": [
+              {
+                "name": "RequestHeader",
+                "arguments": "name = \"X-CSRF-Token\", required = false"
+              }
+            ],
+            "required": false,
+            "binding": "header",
+            "wireName": "X-CSRF-Token"
+          }
+        ]
+      }
     }
   ],
   "schemas": {
@@ -11120,6 +11785,39 @@
               "arguments": "max = 500"
             }
           ]
+        }
+      ]
+    },
+    "com.delivery.auth_service.dto.FirebaseChatTokenResponse": {
+      "kind": "record",
+      "source": {
+        "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/dto/FirebaseChatTokenResponse.java",
+        "line": 3
+      },
+      "fields": [
+        {
+          "name": "token",
+          "type": "String",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "expiresInSeconds",
+          "type": "long",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "principalId",
+          "type": "long",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "role",
+          "type": "String",
+          "annotations": [],
+          "required": false
         }
       ]
     },
@@ -13938,11 +14636,50 @@
         "SIMULATION"
       ]
     },
+    "com.delivery.livestream_service.controller.LivestreamAdminController.RoomPage": {
+      "kind": "record",
+      "source": {
+        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamAdminController.java",
+        "line": 30
+      },
+      "fields": [
+        {
+          "name": "content",
+          "type": "List<LivestreamResponse>",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "page",
+          "type": "int",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "size",
+          "type": "int",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "totalElements",
+          "type": "long",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "totalPages",
+          "type": "int",
+          "annotations": [],
+          "required": false
+        }
+      ]
+    },
     "com.delivery.livestream_service.dto.request.CreateLivestreamRequest": {
       "kind": "class",
       "source": {
         "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/dto/request/CreateLivestreamRequest.java",
-        "line": 11
+        "line": 12
       },
       "fields": [
         {
@@ -13975,6 +14712,10 @@
             {
               "name": "NotNull",
               "arguments": "message = \"Restaurant ID không được để trống\""
+            },
+            {
+              "name": "Positive",
+              "arguments": "message = \"Restaurant ID phải lớn hơn 0\""
             }
           ],
           "required": true,
@@ -13982,6 +14723,10 @@
             {
               "name": "NotNull",
               "arguments": "message = \"Restaurant ID không được để trống\""
+            },
+            {
+              "name": "Positive",
+              "arguments": "message = \"Restaurant ID phải lớn hơn 0\""
             }
           ]
         },
@@ -14036,11 +14781,153 @@
         }
       ]
     },
+    "com.delivery.livestream_service.dto.request.LivestreamCheckoutQuoteRequest": {
+      "kind": "class",
+      "source": {
+        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/dto/request/LivestreamCheckoutQuoteRequest.java",
+        "line": 15
+      },
+      "fields": [
+        {
+          "name": "livestreamId",
+          "type": "UUID",
+          "annotations": [
+            {
+              "name": "NotNull"
+            }
+          ],
+          "required": true,
+          "constraints": [
+            {
+              "name": "NotNull"
+            }
+          ]
+        },
+        {
+          "name": "restaurantId",
+          "type": "Long",
+          "annotations": [
+            {
+              "name": "NotNull"
+            },
+            {
+              "name": "Positive"
+            }
+          ],
+          "required": true,
+          "constraints": [
+            {
+              "name": "NotNull"
+            },
+            {
+              "name": "Positive"
+            }
+          ]
+        },
+        {
+          "name": "productIds",
+          "type": "List< Long>",
+          "annotations": [
+            {
+              "name": "NotEmpty"
+            },
+            {
+              "name": "Size",
+              "arguments": "max = 50"
+            },
+            {
+              "name": "NotNull"
+            },
+            {
+              "name": "Positive"
+            }
+          ],
+          "required": true,
+          "constraints": [
+            {
+              "name": "NotEmpty"
+            },
+            {
+              "name": "Size",
+              "arguments": "max = 50"
+            },
+            {
+              "name": "NotNull"
+            },
+            {
+              "name": "Positive"
+            }
+          ]
+        }
+      ]
+    },
+    "com.delivery.livestream_service.dto.request.ModerateLivestreamRequest": {
+      "kind": "record",
+      "source": {
+        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/dto/request/ModerateLivestreamRequest.java",
+        "line": 10
+      },
+      "fields": [
+        {
+          "name": "action",
+          "type": "LivestreamModerationAction",
+          "annotations": [
+            {
+              "name": "NotNull"
+            }
+          ],
+          "required": true,
+          "constraints": [
+            {
+              "name": "NotNull"
+            }
+          ]
+        },
+        {
+          "name": "reason",
+          "type": "String",
+          "annotations": [
+            {
+              "name": "NotBlank"
+            },
+            {
+              "name": "Size",
+              "arguments": "max = 1000"
+            }
+          ],
+          "required": true,
+          "constraints": [
+            {
+              "name": "NotBlank"
+            },
+            {
+              "name": "Size",
+              "arguments": "max = 1000"
+            }
+          ]
+        },
+        {
+          "name": "productId",
+          "type": "Long",
+          "annotations": [
+            {
+              "name": "Positive"
+            }
+          ],
+          "required": false,
+          "constraints": [
+            {
+              "name": "Positive"
+            }
+          ]
+        }
+      ]
+    },
     "com.delivery.livestream_service.dto.request.PinProductRequest": {
       "kind": "class",
       "source": {
         "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/dto/request/PinProductRequest.java",
-        "line": 12
+        "line": 13
       },
       "fields": [
         {
@@ -14050,6 +14937,10 @@
             {
               "name": "NotNull",
               "arguments": "message = \"Product ID không được để trống\""
+            },
+            {
+              "name": "Positive",
+              "arguments": "message = \"Product ID phải lớn hơn 0\""
             }
           ],
           "required": true,
@@ -14057,6 +14948,10 @@
             {
               "name": "NotNull",
               "arguments": "message = \"Product ID không được để trống\""
+            },
+            {
+              "name": "Positive",
+              "arguments": "message = \"Product ID phải lớn hơn 0\""
             }
           ]
         },
@@ -14177,6 +15072,127 @@
           "type": "Integer",
           "annotations": [],
           "required": false
+        }
+      ]
+    },
+    "com.delivery.livestream_service.dto.response.LivestreamCheckoutQuoteResponse": {
+      "kind": "record",
+      "source": {
+        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/dto/response/LivestreamCheckoutQuoteResponse.java",
+        "line": 7
+      },
+      "fields": [
+        {
+          "name": "livestreamId",
+          "type": "UUID",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "restaurantId",
+          "type": "Long",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "items",
+          "type": "List<Item>",
+          "annotations": [],
+          "required": false
+        }
+      ],
+      "nestedTypes": {
+        "Item": {
+          "kind": "record",
+          "source": {
+            "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/dto/response/LivestreamCheckoutQuoteResponse.java",
+            "line": 12
+          },
+          "fields": [
+            {
+              "name": "productId",
+              "type": "Long",
+              "annotations": [],
+              "required": false
+            },
+            {
+              "name": "priceAtLive",
+              "type": "BigDecimal",
+              "annotations": [],
+              "required": false
+            }
+          ]
+        }
+      }
+    },
+    "com.delivery.livestream_service.dto.response.LivestreamCheckoutQuoteResponse.Item": {
+      "kind": "record",
+      "source": {
+        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/dto/response/LivestreamCheckoutQuoteResponse.java",
+        "line": 12
+      },
+      "fields": [
+        {
+          "name": "productId",
+          "type": "Long",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "priceAtLive",
+          "type": "BigDecimal",
+          "annotations": [],
+          "required": false
+        }
+      ]
+    },
+    "com.delivery.livestream_service.dto.response.LivestreamModerationResponse": {
+      "kind": "record",
+      "source": {
+        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/dto/response/LivestreamModerationResponse.java",
+        "line": 7
+      },
+      "fields": [
+        {
+          "name": "auditId",
+          "type": "Long",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "livestreamId",
+          "type": "UUID",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "action",
+          "type": "LivestreamModerationAction",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "productId",
+          "type": "Long",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "appliedAt",
+          "type": "Instant",
+          "annotations": [
+            {
+              "name": "JsonFormat",
+              "arguments": "shape = com.fasterxml.jackson.annotation.JsonFormat.Shape.STRING"
+            }
+          ],
+          "required": false,
+          "constraints": [
+            {
+              "name": "JsonFormat",
+              "arguments": "shape = com.fasterxml.jackson.annotation.JsonFormat.Shape.STRING"
+            }
+          ]
         }
       ]
     },
@@ -14354,6 +15370,51 @@
         }
       ]
     },
+    "com.delivery.livestream_service.dto.response.RenewLivestreamTokenResponse": {
+      "kind": "class",
+      "source": {
+        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/dto/response/RenewLivestreamTokenResponse.java",
+        "line": 11
+      },
+      "fields": [
+        {
+          "name": "livestreamId",
+          "type": "UUID",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "channelName",
+          "type": "String",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "token",
+          "type": "String",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "uid",
+          "type": "int",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "role",
+          "type": "String",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "tokenExpiresAt",
+          "type": "LocalDateTime",
+          "annotations": [],
+          "required": false
+        }
+      ]
+    },
     "com.delivery.livestream_service.dto.response.StartLivestreamResponse": {
       "kind": "class",
       "source": {
@@ -14456,6 +15517,19 @@
         }
       ]
     },
+    "com.delivery.livestream_service.enums.LivestreamModerationAction": {
+      "kind": "enum",
+      "source": {
+        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/enums/LivestreamModerationAction.java",
+        "line": 3
+      },
+      "fields": [],
+      "values": [
+        "WARN",
+        "UNPIN",
+        "FORCE_END"
+      ]
+    },
     "com.delivery.livestream_service.enums.LivestreamStatus": {
       "kind": "enum",
       "source": {
@@ -14493,7 +15567,7 @@
       "kind": "class",
       "source": {
         "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/payload/BaseResponse.java",
-        "line": 3
+        "line": 5
       },
       "fields": [
         {
@@ -14511,6 +15585,67 @@
         {
           "name": "data",
           "type": "T",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "error",
+          "type": "ErrorPayload",
+          "annotations": [
+            {
+              "name": "JsonInclude",
+              "arguments": "JsonInclude.Include.NON_NULL"
+            }
+          ],
+          "required": false,
+          "constraints": [
+            {
+              "name": "JsonInclude",
+              "arguments": "JsonInclude.Include.NON_NULL"
+            }
+          ]
+        }
+      ],
+      "nestedTypes": {
+        "ErrorPayload": {
+          "kind": "record",
+          "source": {
+            "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/payload/BaseResponse.java",
+            "line": 46
+          },
+          "fields": [
+            {
+              "name": "code",
+              "type": "String",
+              "annotations": [],
+              "required": false
+            },
+            {
+              "name": "details",
+              "type": "Object",
+              "annotations": [],
+              "required": false
+            }
+          ]
+        }
+      }
+    },
+    "com.delivery.livestream_service.payload.BaseResponse.ErrorPayload": {
+      "kind": "record",
+      "source": {
+        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/payload/BaseResponse.java",
+        "line": 46
+      },
+      "fields": [
+        {
+          "name": "code",
+          "type": "String",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "details",
+          "type": "Object",
           "annotations": [],
           "required": false
         }
@@ -14970,9 +16105,15 @@
       "kind": "class",
       "source": {
         "file": "backend_delivery/order-service/src/main/java/com/delivery/order_service/dto/request/CheckoutPreviewRequest.java",
-        "line": 23
+        "line": 24
       },
       "fields": [
+        {
+          "name": "livestreamId",
+          "type": "UUID",
+          "annotations": [],
+          "required": false
+        },
         {
           "name": "restaurantId",
           "type": "Long",
@@ -15152,7 +16293,7 @@
           "kind": "class",
           "source": {
             "file": "backend_delivery/order-service/src/main/java/com/delivery/order_service/dto/request/CheckoutPreviewRequest.java",
-            "line": 58
+            "line": 62
           },
           "fields": [
             {
@@ -15230,7 +16371,7 @@
       "kind": "class",
       "source": {
         "file": "backend_delivery/order-service/src/main/java/com/delivery/order_service/dto/request/CheckoutPreviewRequest.java",
-        "line": 58
+        "line": 62
       },
       "fields": [
         {
@@ -15311,6 +16452,12 @@
       "fields": [
         {
           "name": "quoteId",
+          "type": "UUID",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "livestreamId",
           "type": "UUID",
           "annotations": [],
           "required": false
@@ -15417,7 +16564,7 @@
           "kind": "class",
           "source": {
             "file": "backend_delivery/order-service/src/main/java/com/delivery/order_service/dto/request/CreateOrderRequest.java",
-            "line": 36
+            "line": 39
           },
           "fields": [
             {
@@ -15464,7 +16611,7 @@
       "kind": "class",
       "source": {
         "file": "backend_delivery/order-service/src/main/java/com/delivery/order_service/dto/request/CreateOrderRequest.java",
-        "line": 36
+        "line": 39
       },
       "fields": [
         {
@@ -19310,6 +20457,45 @@
         "FREESHIP"
       ]
     },
+    "com.delivery.restaurant_service.controller.InternalLivestreamProductController.Product": {
+      "kind": "record",
+      "source": {
+        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/InternalLivestreamProductController.java",
+        "line": 26
+      },
+      "fields": [
+        {
+          "name": "productId",
+          "type": "Long",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "restaurantId",
+          "type": "Long",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "productName",
+          "type": "String",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "productImage",
+          "type": "String",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "restaurantName",
+          "type": "String",
+          "annotations": [],
+          "required": false
+        }
+      ]
+    },
     "com.delivery.restaurant_service.dto.request.ConfirmRestaurantOrderRequest": {
       "kind": "class",
       "source": {
@@ -19530,15 +20716,23 @@
           "type": "String",
           "annotations": [
             {
-              "name": "Size",
-              "arguments": "max = 2000"
-            }
-          ],
-          "required": false,
-          "constraints": [
+              "name": "NotBlank",
+              "arguments": "message = \"Address must not be blank\""
+            },
             {
               "name": "Size",
-              "arguments": "max = 2000"
+              "arguments": "min = 10, max = 2000, message = \"Address must be between 10 and 2000 characters\""
+            }
+          ],
+          "required": true,
+          "constraints": [
+            {
+              "name": "NotBlank",
+              "arguments": "message = \"Address must not be blank\""
+            },
+            {
+              "name": "Size",
+              "arguments": "min = 10, max = 2000, message = \"Address must be between 10 and 2000 characters\""
             }
           ]
         },
@@ -20484,14 +21678,22 @@
           "annotations": [
             {
               "name": "Size",
-              "arguments": "max = 2000"
+              "arguments": "min = 10, max = 2000, message = \"address must be between 10 and 2000 characters\""
+            },
+            {
+              "name": "Pattern",
+              "arguments": "regexp = \".*\\\\S.*\", message = \"address must contain a non-whitespace character\""
             }
           ],
           "required": false,
           "constraints": [
             {
               "name": "Size",
-              "arguments": "max = 2000"
+              "arguments": "min = 10, max = 2000, message = \"address must be between 10 and 2000 characters\""
+            },
+            {
+              "name": "Pattern",
+              "arguments": "regexp = \".*\\\\S.*\", message = \"address must contain a non-whitespace character\""
             }
           ]
         },
@@ -20853,7 +22055,7 @@
       "kind": "class",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/dto/response/MenuItemResponse.java",
-        "line": 6
+        "line": 8
       },
       "fields": [
         {
@@ -20895,14 +22097,36 @@
         {
           "name": "createdAt",
           "type": "LocalDateTime",
-          "annotations": [],
-          "required": false
+          "annotations": [
+            {
+              "name": "JsonFormat",
+              "arguments": "pattern = \"yyyy-MM-dd'T'HH:mm:ss\""
+            }
+          ],
+          "required": false,
+          "constraints": [
+            {
+              "name": "JsonFormat",
+              "arguments": "pattern = \"yyyy-MM-dd'T'HH:mm:ss\""
+            }
+          ]
         },
         {
           "name": "updatedAt",
           "type": "LocalDateTime",
-          "annotations": [],
-          "required": false
+          "annotations": [
+            {
+              "name": "JsonFormat",
+              "arguments": "pattern = \"yyyy-MM-dd'T'HH:mm:ss\""
+            }
+          ],
+          "required": false,
+          "constraints": [
+            {
+              "name": "JsonFormat",
+              "arguments": "pattern = \"yyyy-MM-dd'T'HH:mm:ss\""
+            }
+          ]
         },
         {
           "name": "image",
@@ -25944,6 +27168,117 @@
         {
           "name": "data",
           "type": "T",
+          "annotations": [],
+          "required": false
+        }
+      ]
+    },
+    "com.delivery.web_bff.session.WebSessionController.LoginRequest": {
+      "kind": "record",
+      "source": {
+        "file": "backend_delivery/web-bff-service/src/main/java/com/delivery/web_bff/session/WebSessionController.java",
+        "line": 91
+      },
+      "fields": [
+        {
+          "name": "email",
+          "type": "String",
+          "annotations": [
+            {
+              "name": "NotBlank"
+            },
+            {
+              "name": "Email"
+            }
+          ],
+          "required": true,
+          "constraints": [
+            {
+              "name": "NotBlank"
+            },
+            {
+              "name": "Email"
+            }
+          ]
+        },
+        {
+          "name": "password",
+          "type": "String",
+          "annotations": [
+            {
+              "name": "NotBlank"
+            }
+          ],
+          "required": true,
+          "constraints": [
+            {
+              "name": "NotBlank"
+            }
+          ]
+        },
+        {
+          "name": "role",
+          "type": "String",
+          "annotations": [
+            {
+              "name": "NotBlank"
+            }
+          ],
+          "required": true,
+          "constraints": [
+            {
+              "name": "NotBlank"
+            }
+          ]
+        },
+        {
+          "name": "deviceName",
+          "type": "String",
+          "annotations": [],
+          "required": false
+        }
+      ]
+    },
+    "com.delivery.web_bff.session.WebSessionController.SessionView": {
+      "kind": "record",
+      "source": {
+        "file": "backend_delivery/web-bff-service/src/main/java/com/delivery/web_bff/session/WebSessionController.java",
+        "line": 98
+      },
+      "fields": [
+        {
+          "name": "authenticated",
+          "type": "boolean",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "principalId",
+          "type": "Long",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "email",
+          "type": "String",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "role",
+          "type": "String",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "sessionVersion",
+          "type": "long",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "csrfToken",
+          "type": "String",
           "annotations": [],
           "required": false
         }

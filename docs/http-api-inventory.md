@@ -1,10 +1,11 @@
 # HTTP API Inventory
 
-Ngày cập nhật inventory: 2026-08-30
+Ngày cập nhật inventory: 2026-09-21
 
-Tài liệu này liệt kê toàn bộ method có mapping trong 18 service có controller.
-`saga-orchestrator-service` không có HTTP controller. Danh sách được sinh trực
-tiếp từ annotation Java và hiện có **228 method**.
+Tài liệu này liệt kê toàn bộ method có mapping trong các service có controller.
+`saga-orchestrator-service` không có HTTP controller. Số operation và service
+được tính từ source bởi `scripts/verify-http-api-inventory.sh`; câu văn trong
+tài liệu không phải count authority.
 
 Contract backend MVP được freeze ngày 2026-07-26 sau clean Gate B8, API surface
 classification và full reactor 602 test. Các capability ghi hidden/disabled hoặc
@@ -155,6 +156,7 @@ sửa.
 | auth-service | AuthController | POST | `/api/auth/reset-password` | `resetPassword` |
 | auth-service | AuthController | POST | `/api/auth/email-verification/request` | `requestEmailVerification` |
 | auth-service | AuthController | POST | `/api/auth/email-verification/confirm` | `confirmEmailVerification` |
+| auth-service | AuthController | POST | `/api/auth/firebase/chat-token` | `firebaseChatToken` |
 | auth-service | AuthController | GET | `/api/auth/sessions` | `getSessions` |
 | auth-service | AuthController | DELETE | `/api/auth/sessions/{deviceId}` | `revokeDeviceSession` |
 | auth-service | AuthController | GET | `/api/auth/accounts/{id}` | `getAccountById` |
@@ -199,8 +201,10 @@ sửa.
 | livestream-service | LivestreamController | POST | `/api/livestreams/{id}/start` | `startLivestream` |
 | livestream-service | LivestreamController | POST | `/api/livestreams/{id}/join` | `joinLivestream` |
 | livestream-service | LivestreamController | POST | `/api/livestreams/{id}/end` | `endLivestream` |
-| livestream-service | LivestreamModerationController | POST | `/api/livestreams/{id}/moderation` | `moderate` (ADMIN-only, transactional audit, experimental/default-off) |
-| livestream-service | InternalLivestreamCheckoutController | POST | `/api/livestreams/internal/checkout-quote` | internal-token protected server-authoritative pinned price lookup; no Gateway route |
+| livestream-service | LivestreamModerationController | POST | `/api/livestreams/{id}/moderation` | `moderate` |
+| livestream-service | InternalLivestreamCheckoutController | POST | `/api/livestreams/internal/checkout-quote` | `quote` |
+| livestream-service | LivestreamAdminController | GET | `/api/livestreams/admin` | `list` |
+| livestream-service | LivestreamTokenRenewalController | POST | `/api/livestreams/{id}/token/renew` | `renew` |
 | livestream-service | LivestreamController | GET | `/api/livestreams/active` | `getActiveLivestreams` |
 | livestream-service | LivestreamController | GET | `/api/livestreams/{id}` | `getLivestreamById` |
 | livestream-service | LivestreamController | GET | `/api/livestreams/seller/{sellerId}` | `getLivestreamsBySeller` |
@@ -271,6 +275,7 @@ sửa.
 | restaurant-service | InternalInventoryController | POST | `/api/menu-items/internal/inventory/reservations/{reservationId}/commit` | `commit` |
 | restaurant-service | InternalInventoryController | POST | `/api/menu-items/internal/inventory/reservations/{reservationId}/release` | `release` |
 | restaurant-service | InternalServiceabilityController | GET | `/api/restaurants/internal/{restaurantId}/serviceability` | `evaluate` |
+| restaurant-service | InternalLivestreamProductController | GET | `/api/restaurants/internal/{restaurantId}/livestream-products/{productId}` | `get` |
 | restaurant-service | RestaurantController | POST | `/api/restaurants` | `create` |
 | restaurant-service | RestaurantController | PUT | `/api/restaurants/{id}` | `update` |
 | restaurant-service | RestaurantController | DELETE | `/api/restaurants/{id}` | `delete` |
@@ -371,3 +376,8 @@ sửa.
 | user-service | UserController | POST | `/api/users/admin/{userId}/block` | `blockUser` |
 | user-service | UserController | POST | `/api/users/admin/{userId}/unblock` | `unblockUser` |
 | user-service | InternalUserBlockStatusController | POST | `/api/internal/users/{userId}/block-status` | `synchronizeBlockStatus` |
+| web-bff-service | WebSessionController | POST | `/bff/session/refresh` | `refresh` |
+| web-bff-service | WebSessionController | POST | `/bff/session/login` | `login` |
+| web-bff-service | WebSessionController | GET | `/bff/session` | `current` |
+| web-bff-service | WebSessionController | POST | `/bff/session/logout` | `logout` |
+| web-bff-service | ApiProxyController | ANY | `/bff/api/**` | `proxy` |
