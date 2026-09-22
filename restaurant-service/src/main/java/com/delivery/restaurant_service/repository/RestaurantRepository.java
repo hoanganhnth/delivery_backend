@@ -3,6 +3,8 @@ package com.delivery.restaurant_service.repository;
 import com.delivery.restaurant_service.entity.Restaurant;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.Lock;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -11,6 +13,11 @@ import com.delivery.restaurant.domain.catalog.RestaurantStatus;
 
 @Repository
 public interface RestaurantRepository extends JpaRepository<Restaurant, Long> {
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @org.springframework.data.jpa.repository.Query("select r from Restaurant r where r.id = :id")
+    java.util.Optional<Restaurant> findByIdForUpdate(
+            @org.springframework.data.repository.query.Param("id") Long id);
 
     /**
      * Tìm tất cả nhà hàng có tên chứa từ khoá (không phân biệt hoa thường).

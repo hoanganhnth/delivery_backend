@@ -3,6 +3,7 @@ package com.delivery.restaurant_service.service;
 import com.delivery.restaurant_service.dto.request.RestaurantRatingRequest;
 import com.delivery.restaurant_service.entity.RatingStatus;
 import com.delivery.restaurant_service.entity.Restaurant;
+import com.delivery.restaurant_service.entity.RestaurantRating;
 import com.delivery.restaurant_service.exception.RestaurantRatingConflictException;
 import com.delivery.restaurant_service.repository.RestaurantRatingRepository;
 import com.delivery.restaurant_service.repository.RestaurantRepository;
@@ -32,7 +33,7 @@ class RestaurantRatingServiceImplTest {
         RestaurantRepository restaurants = mock(RestaurantRepository.class);
         Restaurant restaurant = new Restaurant();
         restaurant.setId(7L);
-        when(restaurants.findById(7L)).thenReturn(Optional.of(restaurant));
+        when(restaurants.findByIdForUpdate(7L)).thenReturn(Optional.of(restaurant));
         when(ratings.existsByOrderId(99L)).thenReturn(false);
         when(ratings.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(ratings.countByRestaurantIdAndStatus(7L, RatingStatus.APPROVED)).thenReturn(101L);
@@ -46,6 +47,7 @@ class RestaurantRatingServiceImplTest {
         assertThat(restaurant.getRating()).isEqualTo(4.5);
         assertThat(restaurant.getRatingCount()).isEqualTo(101);
         verify(restaurants).save(restaurant);
+        verify(restaurants).findByIdForUpdate(7L);
     }
 
     @Test
@@ -54,7 +56,7 @@ class RestaurantRatingServiceImplTest {
         RestaurantRepository restaurants = mock(RestaurantRepository.class);
         Restaurant restaurant = new Restaurant();
         restaurant.setId(7L);
-        when(restaurants.findById(7L)).thenReturn(Optional.of(restaurant));
+        when(restaurants.findByIdForUpdate(7L)).thenReturn(Optional.of(restaurant));
         when(ratings.existsByOrderId(99L)).thenReturn(false);
         when(ratings.saveAndFlush(any()))
                 .thenThrow(new DataIntegrityViolationException("uk_restaurant_ratings_order"));
@@ -76,7 +78,7 @@ class RestaurantRatingServiceImplTest {
         RestaurantRepository restaurants = mock(RestaurantRepository.class);
         Restaurant restaurant = new Restaurant();
         restaurant.setId(7L);
-        when(restaurants.findById(7L)).thenReturn(Optional.of(restaurant));
+        when(restaurants.findByIdForUpdate(7L)).thenReturn(Optional.of(restaurant));
         when(ratings.existsByOrderId(99L)).thenReturn(true);
         RestaurantRatingRequest request = new RestaurantRatingRequest();
         request.setOrderId(99L);
@@ -104,5 +106,31 @@ class RestaurantRatingServiceImplTest {
         ArgumentCaptor<Pageable> page = ArgumentCaptor.forClass(Pageable.class);
         verify(ratings).findByRestaurantIdAndStatus(eq(7L), eq(RatingStatus.APPROVED), page.capture());
         assertThat(page.getValue().getPageSize()).isEqualTo(100);
+    }
+
+    @Test
+    void statusUpdateLocksRestaurantBeforeRecalculatingAggregate() {
+        RestaurantRatingRepository ratings = mock(RestaurantRatingRepository.class);
+        RestaurantRepository restaurants = mock(RestaurantRepository.class);
+        RestaurantRating rating = new RestaurantRating();
+        rating.setId(21L);
+        rating.setRestaurantId(7L);
+        rating.setCustomerId(42L);
+        rating.setOrderId(99L);
+        rating.setRating(5);
+        Restaurant restaurant = new Restaurant();
+        restaurant.setId(7L);
+        when(ratings.findById(21L)).thenReturn(Optional.of(rating));
+        when(ratings.save(rating)).thenReturn(rating);
+        when(restaurants.findByIdForUpdate(7L)).thenReturn(Optional.of(restaurant));
+        when(ratings.countByRestaurantIdAndStatus(7L, RatingStatus.APPROVED)).thenReturn(1L);
+        when(ratings.averageRatingByRestaurantAndStatus(7L, RatingStatus.APPROVED)).thenReturn(5.0);
+
+        new RestaurantRatingServiceImpl(ratings, restaurants).updateRatingStatus(21L, "approved");
+
+        assertThat(restaurant.getRating()).isEqualTo(5.0);
+        assertThat(restaurant.getRatingCount()).isEqualTo(1);
+        verify(restaurants).findByIdForUpdate(7L);
+        verify(restaurants).save(restaurant);
     }
 }

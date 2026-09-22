@@ -28,7 +28,7 @@ public class RestaurantRatingServiceImpl implements RestaurantRatingService {
     @Override
     @Transactional
     public RestaurantRatingResponse submitRating(Long restaurantId, Long customerId, RestaurantRatingRequest request) {
-        Restaurant restaurant = restaurantRepository.findById(restaurantId)
+        Restaurant restaurant = restaurantRepository.findByIdForUpdate(restaurantId)
                 .orElseThrow(() -> new IllegalArgumentException("Restaurant not found with ID: " + restaurantId));
 
         if (ratingRepository.existsByOrderId(request.getOrderId())) {
@@ -101,7 +101,7 @@ public class RestaurantRatingServiceImpl implements RestaurantRatingService {
         rating = ratingRepository.save(rating);
 
         // Re-calculate average rating if status changed to/from APPROVED
-        Restaurant restaurant = restaurantRepository.findById(rating.getRestaurantId())
+        Restaurant restaurant = restaurantRepository.findByIdForUpdate(rating.getRestaurantId())
                 .orElseThrow(() -> new IllegalArgumentException("Restaurant not found"));
         updateRestaurantAverageRating(restaurant);
 
