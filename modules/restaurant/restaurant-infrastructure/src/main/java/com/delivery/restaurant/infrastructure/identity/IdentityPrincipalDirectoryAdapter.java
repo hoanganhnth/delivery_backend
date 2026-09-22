@@ -1,21 +1,20 @@
-package com.delivery.restaurant_service.adapter;
+package com.delivery.restaurant.infrastructure.identity;
 
 import com.delivery.identity.client.IdentityPrincipalClient;
 import com.delivery.identity.contracts.IdentityLifecycleStatus;
 import com.delivery.identity.contracts.IdentityRole;
 import com.delivery.restaurant.application.api.PrincipalOwnershipDirectory;
 import com.delivery.restaurant.domain.ownership.PrincipalOwnershipFacts;
+
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Supplier;
 
+/** Adapts the Auth-owned identity contract to the Restaurant application port. */
 public final class IdentityPrincipalDirectoryAdapter implements PrincipalOwnershipDirectory {
-
     private final Supplier<IdentityPrincipalClient> clientSupplier;
 
-    public IdentityPrincipalDirectoryAdapter(IdentityPrincipalClient client) {
-        this(() -> client);
-    }
+    public IdentityPrincipalDirectoryAdapter(IdentityPrincipalClient client) { this(() -> client); }
 
     public IdentityPrincipalDirectoryAdapter(Supplier<IdentityPrincipalClient> clientSupplier) {
         this.clientSupplier = Objects.requireNonNull(clientSupplier, "clientSupplier");

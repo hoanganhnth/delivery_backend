@@ -1,6 +1,6 @@
 package com.delivery.search_service.config;
 
-import com.delivery.search_service.dto.EntitySyncEvent;
+import com.delivery.search.contracts.EntitySyncEvent;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.kafka.support.serializer.JsonDeserializer;

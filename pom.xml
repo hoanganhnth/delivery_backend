@@ -22,6 +22,7 @@
         <module>modules/restaurant/restaurant-domain</module>
         <module>modules/restaurant/restaurant-application-api</module>
         <module>modules/restaurant/restaurant-application</module>
+        <module>modules/restaurant/restaurant-infrastructure</module>
         <module>auth-resource-server-starter</module>
         <module>discovery-server</module>
         <module>config-server</module>

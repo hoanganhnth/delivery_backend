@@ -8,7 +8,7 @@ import com.delivery.restaurant.application.api.PrincipalOwnershipDirectory;
 import com.delivery.restaurant.application.api.RestaurantOwnerAssignmentUseCase;
 import com.delivery.restaurant.domain.catalog.MenuItemLifecyclePolicy;
 import com.delivery.restaurant.domain.catalog.RestaurantLifecyclePolicy;
-import com.delivery.restaurant_service.adapter.IdentityPrincipalDirectoryAdapter;
+import com.delivery.restaurant.infrastructure.identity.IdentityPrincipalDirectoryAdapter;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.time.Duration;

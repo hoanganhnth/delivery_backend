@@ -180,6 +180,9 @@ contracts.
 - [x] Slice 5: Search wire contract extraction and archived projection behavior
   (wire type extracted; archived projection behavior remains covered by the
   existing tombstone/version tests).
+- [ ] Slice 3 hardening: complete `restaurant-infrastructure` extraction for
+  persistence, cache, outbox and internal-client adapters; the first identity
+  adapter has now moved out of the host.
 - [ ] Slice 6: extract existing order decision/outbox behavior unchanged.
 - [ ] Slice 7: rating concurrency fix and extraction.
 - [ ] Slice 8: serviceability and inventory extraction with separate proofs.
@@ -280,6 +283,11 @@ Gateway/Discovery/Config/CLI use only layers that have actual responsibility.
   deduplication/version semantics remain unchanged. A deprecated Search-local
   facade remains only for source-compatible test/integration callers and is not
   used by runtime production code; its removal is a compatibility-cleanup task.
+- Restaurant infrastructure extraction has started: the typed Auth directory
+  adapter now lives in `restaurant-infrastructure` and the service host only
+  wires it. JPA/Redis/outbox adapters remain in the host until each move has a
+  focused regression and runtime proof; the Restaurant pilot is not complete
+  until those moves are finished.
 - Slice 2 then added the policy-free `platform-http-blocking` transport and the
   first service-specific `identity-client`. The platform requires explicit
   headers and a caller-configured `RestTemplate`; it adds no credential,

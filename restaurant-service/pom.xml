@@ -50,6 +50,7 @@
 		<dependency><groupId>com.delivery</groupId><artifactId>restaurant-domain</artifactId><version>1.0.0-SNAPSHOT</version></dependency>
 		<dependency><groupId>com.delivery</groupId><artifactId>restaurant-application-api</artifactId><version>1.0.0-SNAPSHOT</version></dependency>
 		<dependency><groupId>com.delivery</groupId><artifactId>restaurant-application</artifactId><version>1.0.0-SNAPSHOT</version></dependency>
+		<dependency><groupId>com.delivery</groupId><artifactId>restaurant-infrastructure</artifactId><version>1.0.0-SNAPSHOT</version></dependency>
 		<dependency><groupId>com.delivery</groupId><artifactId>identity-client</artifactId><version>1.0.0-SNAPSHOT</version></dependency>
 		<dependency><groupId>com.delivery</groupId><artifactId>runtime-platform-starter</artifactId><version>1.0.0-SNAPSHOT</version></dependency>
 		<dependency><groupId>com.delivery</groupId><artifactId>observability-starter</artifactId><version>1.0.0-SNAPSHOT</version></dependency>
