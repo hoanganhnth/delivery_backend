@@ -15,7 +15,9 @@
         <module>observability-starter</module>
         <module>kafka-operations-tool</module>
         <module>runtime-platform-starter</module>
+        <module>platform/platform-http-blocking</module>
         <module>identity-contracts</module>
+        <module>clients/identity-client</module>
         <module>modules/restaurant/restaurant-domain</module>
         <module>auth-resource-server-starter</module>
         <module>discovery-server</module>

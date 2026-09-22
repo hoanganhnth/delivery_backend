@@ -173,7 +173,7 @@ contracts.
 
 - [x] Slice 1: pure `restaurant-domain` lifecycle and operating-hours rules,
   with independent 85/85 coverage and no runtime wiring.
-- [ ] Slice 2: typed Auth principal lookup and platform HTTP boundary.
+- [x] Slice 2: typed Auth principal lookup and platform HTTP boundary.
 - [ ] Slice 3: Restaurant/Menu persistence, parent/child archive independence,
   lifecycle endpoints, versioning, immutable audit and soft-delete aliases.
 - [ ] Slice 4: PostgreSQL-canonical checkout; then remove obsolete Redis graph.
@@ -257,15 +257,25 @@ Gateway/Discovery/Config/CLI use only layers that have actual responsibility.
   semantics. The Auth reactor passes 102 tests and the generated HTTP catalog
   remains aligned at 240 handlers. Generated source IDs stay canonical as
   `backend_delivery/...`, while the generator accepts explicit workspace and
-  backend roots so links resolve from an isolated worktree. The shared HTTP
-  capability and Restaurant consumer remain pending, so Slice 2 is not yet
-  complete.
+  backend roots so links resolve from an isolated worktree.
+- Slice 2 then added the policy-free `platform-http-blocking` transport and the
+  first service-specific `identity-client`. The platform requires explicit
+  headers and a caller-configured `RestTemplate`; it adds no credential,
+  timeout, retry or fallback policy. The SDK owns only Auth URI/status mapping:
+  404 becomes an absent principal and other failures are classified but remain
+  visible. Review hardened the transport against credential forwarding by
+  disabling redirects, and hardened the SDK against non-2xx, decode errors,
+  empty bodies and malformed/mismatched principal payloads. Restaurant's
+  `ACTIVE`/`SHOP_OWNER` acceptance rule and fail-closed creation behavior remain
+  in Slice 3, where the application boundary can own them rather than the SDK.
 
 ## Result
 
 Phase 0 is complete. The build can now enforce module boundaries and future
 85/85 core coverage without forcing all existing services into the new parent.
 The Restaurant/Menu problem contract is approved above. Slice 1 is complete and
-adds pure, tested rules without changing runtime behavior. Slice 2 has completed
-the typed Auth producer boundary; the platform HTTP capability and its first
-Restaurant consumer are the next implementation gate.
+adds pure, tested rules without changing runtime behavior. Slice 2 is complete:
+the typed Auth producer, policy-free blocking transport and typed identity SDK
+are independently tested. Slice 3 is the next implementation gate and will put
+owner acceptance, persistence, lifecycle, audit and outbox decisions in the
+Restaurant application boundary.
