@@ -295,6 +295,18 @@ class RestaurantControllerTest {
     }
 
     @Test
+    void adminManagementListIncludesArchivedRestaurants() {
+        AuthenticatedActor adminActor = new AuthenticatedActor(
+                7L, "admin@example.com", Set.of(RoleConstants.ADMIN));
+        when(restaurantService.getAllManagedRestaurants()).thenReturn(List.of());
+
+        restaurantController.getMyRestaurants(adminActor);
+
+        verify(restaurantService).getAllManagedRestaurants();
+        verify(restaurantService, org.mockito.Mockito.never()).getAllRestaurants();
+    }
+
+    @Test
     void create_ShouldReject_WithoutAuthenticatedActor() throws Exception {
         // Given
         CreateRestaurantRequest request = new CreateRestaurantRequest();

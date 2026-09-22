@@ -65,6 +65,9 @@ public class RestaurantMapper {
         response.setLongitude(restaurant.getAddressLng());
         response.setRating(restaurant.getRating());
         response.setRatingCount(restaurant.getRatingCount());
+        response.setLifecycleStatus(restaurant.getLifecycleStatus());
+        response.setVersion(restaurant.getVersion());
+        response.setTimeZone(restaurant.getTimeZone());
         response.setOpen(isRestaurantOpen(restaurant.getOpeningHour(), restaurant.getClosingHour()));
         return response;
     }

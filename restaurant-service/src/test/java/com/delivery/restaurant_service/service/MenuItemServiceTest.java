@@ -41,7 +41,7 @@ class MenuItemServiceTest {
     @Mock
     private MenuItemMapper menuItemMapper;
     @Mock
-    private RestaurantCacheService restaurantCacheService;
+    private CatalogCacheSynchronizer cacheSynchronizer;
     @Mock
     private SearchSyncPublisher searchSyncPublisher;
     @org.mockito.Spy
@@ -152,7 +152,7 @@ class MenuItemServiceTest {
     }
 
     @Test
-    void deleteMenuItem_ShouldDeleteSuccessfully_WhenUserIsOwner() {
+    void deleteMenuItem_ShouldArchiveWithoutPhysicalDeletion_WhenUserIsOwner() {
         // Given
         when(menuItemRepository.findById(1L)).thenReturn(Optional.of(menuItem));
 
@@ -161,7 +161,9 @@ class MenuItemServiceTest {
 
         // Then
         verify(menuItemRepository).findById(1L);
-        verify(menuItemRepository).delete(menuItem);
+        assertEquals(MenuItem.Status.ARCHIVED, menuItem.getStatus());
+        verify(menuItemRepository).save(menuItem);
+        verify(menuItemRepository, never()).delete(any());
     }
 
     @Test
@@ -185,7 +187,9 @@ class MenuItemServiceTest {
 
         menuItemService.deleteMenuItem(1L, 99L, RoleConstants.ADMIN);
 
-        verify(menuItemRepository).delete(menuItem);
+        assertEquals(MenuItem.Status.ARCHIVED, menuItem.getStatus());
+        verify(menuItemRepository).save(menuItem);
+        verify(menuItemRepository, never()).delete(any());
     }
 
     @Test
@@ -194,6 +198,17 @@ class MenuItemServiceTest {
                 menuItemService.deleteMenuItem(1L, 1L, null));
 
         verify(menuItemRepository, never()).delete(any());
+    }
+
+    @Test
+    void deleteMenuItem_IsIdempotentWhenAlreadyArchived() {
+        menuItem.setStatus(MenuItem.Status.ARCHIVED);
+        when(menuItemRepository.findById(1L)).thenReturn(Optional.of(menuItem));
+
+        menuItemService.deleteMenuItem(1L, 1L, RoleConstants.OWNER);
+
+        verify(menuItemRepository, never()).save(any());
+        verifyNoInteractions(cacheSynchronizer, searchSyncPublisher);
     }
 
     @Test
@@ -247,7 +262,9 @@ class MenuItemServiceTest {
 
 
         List<MenuItem> availableItems = List.of(availableItem);
-        when(menuItemRepository.findByRestaurantIdAndStatus(eq(1L), eq(MenuItem.Status.AVAILABLE), any()))
+        when(menuItemRepository.findByRestaurantIdAndStatusAndRestaurantLifecycleStatusNot(
+                eq(1L), eq(MenuItem.Status.AVAILABLE),
+                eq(com.delivery.restaurant.domain.catalog.RestaurantStatus.ARCHIVED), any()))
                 .thenReturn(availableItems);
         when(menuItemMapper.toResponse(any(MenuItem.class))).thenReturn(expectedResponse);
         // When
@@ -257,6 +274,8 @@ class MenuItemServiceTest {
         assertNotNull(responses);
         assertEquals(1, responses.size());
         assertEquals("Available Pizza", responses.get(0).getName());
-        verify(menuItemRepository).findByRestaurantIdAndStatus(eq(1L), eq(MenuItem.Status.AVAILABLE), any());
+        verify(menuItemRepository).findByRestaurantIdAndStatusAndRestaurantLifecycleStatusNot(
+                eq(1L), eq(MenuItem.Status.AVAILABLE),
+                eq(com.delivery.restaurant.domain.catalog.RestaurantStatus.ARCHIVED), any());
     }
 }

@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import com.delivery.restaurant.domain.catalog.RestaurantStatus;
 
 @Repository
 public interface RestaurantRepository extends JpaRepository<Restaurant, Long> {
@@ -17,6 +18,14 @@ public interface RestaurantRepository extends JpaRepository<Restaurant, Long> {
     List<Restaurant> findByNameContainingIgnoreCase(String keyword, Pageable pageable);
 
     Page<Restaurant> findPageByNameContainingIgnoreCase(String keyword, Pageable pageable);
+
+    List<Restaurant> findByNameContainingIgnoreCaseAndLifecycleStatusNot(
+            String keyword, RestaurantStatus lifecycleStatus, Pageable pageable);
+
+    Page<Restaurant> findPageByNameContainingIgnoreCaseAndLifecycleStatusNot(
+            String keyword, RestaurantStatus lifecycleStatus, Pageable pageable);
+
+    Page<Restaurant> findByLifecycleStatusNot(RestaurantStatus lifecycleStatus, Pageable pageable);
 
     /**
      * Tìm danh sách nhà hàng được tạo bởi một người dùng cụ thể (theo creatorId).

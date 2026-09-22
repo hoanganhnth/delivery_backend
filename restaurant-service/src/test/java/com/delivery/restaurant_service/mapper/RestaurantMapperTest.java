@@ -4,6 +4,8 @@ import com.delivery.restaurant_service.dto.request.CreateMenuItemRequest;
 import com.delivery.restaurant_service.dto.request.CreateRestaurantRequest;
 import com.delivery.restaurant_service.dto.request.UpdateRestaurantRequest;
 import com.delivery.restaurant_service.entity.Restaurant;
+import com.delivery.restaurant_service.entity.MenuItem;
+import com.delivery.restaurant.domain.catalog.RestaurantStatus;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -26,6 +28,24 @@ class RestaurantMapperTest {
 
         assertThat(restaurant.getImage()).isEqualTo("updated.jpg");
         assertThat(mapper.toResponse(restaurant).getImage()).isEqualTo("updated.jpg");
+    }
+
+    @Test
+    void catalogResponsesExposeLifecycleVersionAndTimezone() {
+        RestaurantMapper restaurantMapper = new RestaurantMapper();
+        Restaurant restaurant = new Restaurant();
+        restaurant.setLifecycleStatus(RestaurantStatus.PAUSED);
+        restaurant.setVersion(7L);
+        restaurant.setTimeZone("Asia/Bangkok");
+
+        assertThat(restaurantMapper.toResponse(restaurant).getLifecycleStatus())
+                .isEqualTo(RestaurantStatus.PAUSED);
+        assertThat(restaurantMapper.toResponse(restaurant).getVersion()).isEqualTo(7L);
+        assertThat(restaurantMapper.toResponse(restaurant).getTimeZone()).isEqualTo("Asia/Bangkok");
+
+        MenuItem item = new MenuItem();
+        item.setVersion(3L);
+        assertThat(new MenuItemMapper().toResponse(item).getVersion()).isEqualTo(3L);
     }
 
     @Test

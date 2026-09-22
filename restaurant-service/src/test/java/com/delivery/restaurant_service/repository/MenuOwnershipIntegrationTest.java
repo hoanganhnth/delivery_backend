@@ -25,7 +25,7 @@ class MenuOwnershipIntegrationTest {
 
     private MenuItemServiceImpl service(boolean enforced) {
         return new MenuItemServiceImpl(items, new MenuItemMapper(), restaurants,
-                mock(RestaurantCacheService.class), mock(SearchSyncPublisher.class),
+                mock(CatalogCacheSynchronizer.class), mock(SearchSyncPublisher.class),
                 new RestaurantOwnershipPolicy(enforced));
     }
     private MenuItem seed(Long principal, long legacy, MenuItem.Status status) {

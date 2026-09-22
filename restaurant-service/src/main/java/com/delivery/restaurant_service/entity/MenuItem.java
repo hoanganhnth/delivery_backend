@@ -11,7 +11,8 @@ public class MenuItem {
     public enum Status {
         AVAILABLE,
         SOLD_OUT,
-        DISCONTINUED
+        DISCONTINUED,
+        ARCHIVED
     }
 
     @Id
@@ -43,6 +44,10 @@ public class MenuItem {
 
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    @Version
+    @Column(nullable = false)
+    private Long version;
 
     @PrePersist
     protected void onCreate() {
@@ -110,6 +115,14 @@ public class MenuItem {
 
     public LocalDateTime getUpdatedAt() {
         return updatedAt;
+    }
+
+    public Long getVersion() {
+        return version;
+    }
+
+    public void setVersion(Long version) {
+        this.version = version;
     }
 
     public String getImage() {

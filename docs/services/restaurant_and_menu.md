@@ -9,7 +9,7 @@
 
 ## 2. Danh sách Use Cases
 
-### Ownership và public catalogue (2026-09-20)
+### Ownership, lifecycle và public catalogue (2026-09-22)
 
 - Menu kế thừa quyền từ Restaurant. `principalId` là identity chính; legacy ID
   chỉ áp dụng với Restaurant chưa có `ownerPrincipalId`, khi enforcement tắt.
@@ -18,8 +18,17 @@
 - Các route public `/api/menu-items/restaurant/{id}` và `/available`, kể cả
   biến thể `/page`, chỉ trả `AVAILABLE`. Muốn xem SOLD_OUT/DISCONTINUED dùng
   `/api/menu-items/my-menu-items` hoặc `/my-menu-items/page` đã xác thực.
-- Response shape không đổi; client từng dùng public route để quản trị phải
-  chuyển sang management route. Không dựa vào ID do client gửi để cấp quyền.
+- `DELETE /api/restaurants/{id}` và `DELETE /api/menu-items/{id}` là alias
+  archive idempotent, không xóa vật lý. Restaurant chuyển sang `ARCHIVED`, Menu
+  chuyển sang `ARCHIVED`; archive Restaurant không tự đổi trạng thái Menu.
+- Public Restaurant list/page/search ẩn `ARCHIVED`; public Menu chỉ trả
+  `AVAILABLE` khi Restaurant cha chưa archive. Detail Restaurant theo ID và các
+  management list vẫn giữ dữ liệu lịch sử.
+- Restaurant response bổ sung `lifecycleStatus`, `version`, `timeZone`; Menu
+  response bổ sung `version`. Đây là field additive; endpoint lifecycle và
+  kiểm tra `expectedVersion` vẫn là TODO của Slice 3.
+- Client từng dùng public route để quản trị phải chuyển sang management route.
+  Không dựa vào ID do client gửi để cấp quyền.
 - Flutter đọc tọa độ `latitude`/`longitude` trước legacy `addressLat/addressLng`;
   canonical null không fallback sang giá trị cũ.
 - Unit/integration H2 và MockMvc có bằng chứng; chưa thay thế kiểm chứng live
@@ -43,11 +52,24 @@ Vì tần suất khách hàng xem danh sách nhà hàng và menu là cực kỳ 
 
 ### 3.2. Luồng Invalidation (Cập nhật dữ liệu)
 Khi Merchant hoặc Admin thực hiện thay đổi trên món ăn (Ví dụ: Đổi giá, cập nhật trạng thái "Hết hàng"):
-1. Service cập nhật trực tiếp vào PostgreSQL.
-2. Xóa (Evict) Key tương ứng trong Redis ngay lập tức để dữ liệu cũ không bị dính cache.
-3. Publish event `entity-sync` lên Kafka để báo cho các service khác (ví dụ: Search Service) biết về sự thay đổi này.
+1. Service cập nhật PostgreSQL và ghi Search outbox trong cùng transaction.
+2. Chỉ sau khi transaction commit, service mới cache/evict Redis. Rollback không
+   được phép tạo cache từ dữ liệu chưa tồn tại; lỗi Redis sau commit là best
+   effort và không đảo ngược business commit.
+3. Outbox relay publish `entity-sync` lên Kafka. Lời gọi Search trong business
+   transaction chỉ lưu outbox row, không gửi broker trực tiếp.
 
-### 3.3. Tính toán khoảng cách (Geolocation)
+### 3.3. Dữ liệu lifecycle và lịch sử
+
+- Migration V10 backfill Restaurant cũ thành `ACTIVE`, version `0`, timezone
+  `Asia/Ho_Chi_Minh`; Menu cũ có version `0`.
+- Restaurant/Menu dùng optimistic version ở persistence. Contract mutation dựa
+  trên `expectedVersion`, audit bất biến và lifecycle PATCH chưa hoàn tất nên
+  chưa được coi là giải quyết xong concurrency ở API.
+- Physical purge và retention policy chưa có authority, vì vậy normal business
+  flow không xóa Restaurant/Menu.
+
+### 3.4. Tính toán khoảng cách (Geolocation)
 - Vị trí của nhà hàng (Lat/Lng) được lưu tĩnh trong DB. 
 - Catalog "Nearby" hiện vẫn là read-only client presentation; checkout không
   được suy luận serviceability từ bán kính hoặc tọa độ client.
@@ -57,7 +79,7 @@ Khi Merchant hoặc Admin thực hiện thay đổi trên món ăn (Ví dụ: Đ
   driving duration + prep estimate, không phải khoảng cách thẳng do client tự
   suy luận. Capability này mặc định tắt cho tới khi có provider/runtime proof.
 
-### 3.4. Inventory món ăn (default-off)
+### 3.5. Inventory món ăn (default-off)
 
 `restaurant-service` là authority duy nhất của `menu_item_inventory` và
 `menu_item_inventory_reservations`. Owner/Admin cập nhật `on_hand_quantity` với

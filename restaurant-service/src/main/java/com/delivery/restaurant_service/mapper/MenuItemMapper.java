@@ -46,6 +46,7 @@ public class MenuItemMapper {
         response.setCreatedAt(item.getCreatedAt());
         response.setUpdatedAt(item.getUpdatedAt());
         response.setImage(item.getImage());
+        response.setVersion(item.getVersion());
         return response;
     }
 }

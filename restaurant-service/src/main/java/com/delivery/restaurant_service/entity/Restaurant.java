@@ -1,5 +1,6 @@
 package com.delivery.restaurant_service.entity;
 
+import com.delivery.restaurant.domain.catalog.RestaurantStatus;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -35,6 +36,17 @@ public class Restaurant {
 
     @Column(name = "owner_principal_id")
     private Long ownerPrincipalId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "lifecycle_status", nullable = false, length = 16)
+    private RestaurantStatus lifecycleStatus = RestaurantStatus.ACTIVE;
+
+    @Version
+    @Column(nullable = false)
+    private Long version;
+
+    @Column(name = "time_zone", nullable = false, length = 64)
+    private String timeZone = "Asia/Ho_Chi_Minh";
 
     @Column(name = "opening_hour")
     private LocalTime openingHour;
@@ -148,6 +160,30 @@ public class Restaurant {
     public Long getOwnerPrincipalId() { return ownerPrincipalId; }
 
     public void setOwnerPrincipalId(Long ownerPrincipalId) { this.ownerPrincipalId = ownerPrincipalId; }
+
+    public RestaurantStatus getLifecycleStatus() {
+        return lifecycleStatus;
+    }
+
+    public void setLifecycleStatus(RestaurantStatus lifecycleStatus) {
+        this.lifecycleStatus = lifecycleStatus;
+    }
+
+    public Long getVersion() {
+        return version;
+    }
+
+    public void setVersion(Long version) {
+        this.version = version;
+    }
+
+    public String getTimeZone() {
+        return timeZone;
+    }
+
+    public void setTimeZone(String timeZone) {
+        this.timeZone = timeZone;
+    }
 
     public LocalTime getOpeningHour() {
         return openingHour;

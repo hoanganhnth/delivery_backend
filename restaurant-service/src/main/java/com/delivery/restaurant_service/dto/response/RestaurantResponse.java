@@ -1,5 +1,6 @@
 package com.delivery.restaurant_service.dto.response;
 
+import com.delivery.restaurant.domain.catalog.RestaurantStatus;
 import java.time.LocalTime;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
@@ -30,4 +31,7 @@ public class RestaurantResponse {
     private Double longitude;
     private Double rating;
     private Integer ratingCount;
+    private RestaurantStatus lifecycleStatus;
+    private Long version;
+    private String timeZone;
 }

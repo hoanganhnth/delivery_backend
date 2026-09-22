@@ -11,10 +11,11 @@ import com.delivery.restaurant_service.mapper.MenuItemMapper;
 import com.delivery.restaurant_service.repository.MenuItemRepository;
 import com.delivery.restaurant_service.repository.RestaurantRepository;
 import com.delivery.restaurant_service.service.MenuItemService;
-import com.delivery.restaurant_service.service.RestaurantCacheService;
+import com.delivery.restaurant_service.service.CatalogCacheSynchronizer;
 import com.delivery.restaurant_service.service.SearchSyncPublisher;
 import com.delivery.restaurant_service.service.ownership.ManagementAccess;
 import com.delivery.restaurant_service.service.ownership.RestaurantOwnershipPolicy;
+import com.delivery.restaurant.domain.catalog.RestaurantStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
@@ -34,7 +35,7 @@ public class MenuItemServiceImpl implements MenuItemService {
     private final MenuItemRepository menuItemRepository;
     private final MenuItemMapper menuItemMapper;
     private final RestaurantRepository restaurantRepository;
-    private final RestaurantCacheService restaurantCacheService;
+    private final CatalogCacheSynchronizer cacheSynchronizer;
     private final SearchSyncPublisher searchSyncPublisher;
     private final RestaurantOwnershipPolicy restaurantOwnershipPolicy;
 
@@ -77,14 +78,7 @@ public class MenuItemServiceImpl implements MenuItemService {
         item.setRestaurant(restaurant);
         MenuItem saved = menuItemRepository.save(item);
         
-        // 🔥 Cache menu item after creation
-        try {
-            restaurantCacheService.cacheMenuItem(saved);
-            log.info("✅ Cached new menu item: {} (ID: {}) for restaurant: {}", 
-                saved.getName(), saved.getId(), restaurant.getName());
-        } catch (Exception e) {
-            log.warn("⚠️ Failed to cache menu item after creation: {}", e.getMessage());
-        }
+        cacheSynchronizer.cacheMenuItemAfterCommit(saved);
         
         // 🔥 Publish sync event for search service
         searchSyncPublisher.publishDishChange(saved, "CREATE");
@@ -110,13 +104,7 @@ public class MenuItemServiceImpl implements MenuItemService {
         menuItemMapper.updateEntityFromDto(request, item);
         MenuItem updated = menuItemRepository.save(item);
         
-        // 🔥 Update cache after modification
-        try {
-            restaurantCacheService.cacheMenuItem(updated);
-            log.info("🔄 Updated cache for menu item: {} (ID: {})", updated.getName(), updated.getId());
-        } catch (Exception e) {
-            log.warn("⚠️ Failed to update cache after menu item update: {}", e.getMessage());
-        }
+        cacheSynchronizer.cacheMenuItemAfterCommit(updated);
         
         // 🔥 Publish sync event for search service
         searchSyncPublisher.publishDishChange(updated, "UPDATE");
@@ -138,17 +126,16 @@ public class MenuItemServiceImpl implements MenuItemService {
                 .orElseThrow(() -> new ResourceNotFoundException("MenuItem not found"));
         authorizeWrite(item.getRestaurant(), principalId, legacyUserId, role);
 
-        // 🔥 Remove from cache before deletion
-        try {
-            restaurantCacheService.removeMenuItemFromCache(id);
-        } catch (Exception e) {
-            log.warn("⚠️ Failed to remove menu item from cache: {}", e.getMessage());
+        if (item.getStatus() == MenuItem.Status.ARCHIVED) {
+            return;
         }
 
-        // 🔥 Publish sync event for search service
-        searchSyncPublisher.publishDishChange(item, "DELETE");
+        item.setStatus(MenuItem.Status.ARCHIVED);
+        MenuItem archived = menuItemRepository.save(item);
 
-        menuItemRepository.delete(item);
+        cacheSynchronizer.removeMenuItemAfterCommit(id);
+
+        searchSyncPublisher.publishDishChange(archived, "DELETE");
     }
 
     @Override
@@ -160,8 +147,9 @@ public class MenuItemServiceImpl implements MenuItemService {
 
     @Override
     public List<MenuItemResponse> getAvailableItems(Long restaurantId) {
-        return menuItemRepository.findByRestaurantIdAndStatus(
-                        restaurantId, MenuItem.Status.AVAILABLE, PageRequest.of(0, 100)).stream()
+        return menuItemRepository.findByRestaurantIdAndStatusAndRestaurantLifecycleStatusNot(
+                        restaurantId, MenuItem.Status.AVAILABLE, RestaurantStatus.ARCHIVED,
+                        PageRequest.of(0, 100)).stream()
                 .map(menuItemMapper::toResponse).collect(Collectors.toList());
     }
 
@@ -186,7 +174,9 @@ public class MenuItemServiceImpl implements MenuItemService {
     @Override
     public Page<MenuItemResponse> getItemsByRestaurantPage(Long restaurantId, int page, int size, boolean available) {
         Page<MenuItem> source = available
-                ? menuItemRepository.findPageByRestaurantIdAndStatus(restaurantId, MenuItem.Status.AVAILABLE, PageRequest.of(page, size))
+                ? menuItemRepository.findPageByRestaurantIdAndStatusAndRestaurantLifecycleStatusNot(
+                        restaurantId, MenuItem.Status.AVAILABLE, RestaurantStatus.ARCHIVED,
+                        PageRequest.of(page, size))
                 : menuItemRepository.findPageByRestaurantId(restaurantId, PageRequest.of(page, size));
         return source.map(menuItemMapper::toResponse);
     }

@@ -107,7 +107,7 @@ public class RestaurantController {
         }
         
         List<RestaurantResponse> list = actor.isAdmin()
-                ? restaurantService.getAllRestaurants()
+                ? restaurantService.getAllManagedRestaurants()
                 : restaurantService.getRestaurantsByOwnerPrincipalId(
                         actor.getPrincipalId(), actor.getLegacyUserId());
         return ResponseEntity.ok(new BaseResponse<>(1, list));

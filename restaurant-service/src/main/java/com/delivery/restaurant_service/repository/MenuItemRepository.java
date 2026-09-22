@@ -13,6 +13,7 @@ import org.springframework.data.domain.Page;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import com.delivery.restaurant.domain.catalog.RestaurantStatus;
 @Repository
 public interface MenuItemRepository extends JpaRepository<MenuItem, Long> {
     @Query("select m from MenuItem m join m.restaurant r where r.ownerPrincipalId = :principalId "
@@ -40,6 +41,10 @@ public interface MenuItemRepository extends JpaRepository<MenuItem, Long> {
      */
     List<MenuItem> findByRestaurantIdAndStatus(Long restaurantId, MenuItem.Status status, Pageable pageable);
     Page<MenuItem> findPageByRestaurantIdAndStatus(Long restaurantId, MenuItem.Status status, Pageable pageable);
+    List<MenuItem> findByRestaurantIdAndStatusAndRestaurantLifecycleStatusNot(
+            Long restaurantId, MenuItem.Status status, RestaurantStatus lifecycleStatus, Pageable pageable);
+    Page<MenuItem> findPageByRestaurantIdAndStatusAndRestaurantLifecycleStatusNot(
+            Long restaurantId, MenuItem.Status status, RestaurantStatus lifecycleStatus, Pageable pageable);
     
     /**
      * Tìm tất cả các món ăn thuộc các nhà hàng được tạo bởi creator cụ thể.

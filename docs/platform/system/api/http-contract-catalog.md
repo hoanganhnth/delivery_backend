@@ -5,7 +5,7 @@
 > or JSON Schema. Read [API Contract Guide](README.md) for edge classification,
 > error semantics and compatibility rules.
 
-Current inventory: **240 operations** across **17 controller-owning services** and **221 reachable source schemas**.
+Current inventory: **240 operations** across **17 controller-owning services** and **222 reachable source schemas**.
 
 ## Service index
 
@@ -7348,6 +7348,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 | createdAt | LocalDateTime | not declared required | @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss") |
 | updatedAt | LocalDateTime | not declared required | @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss") |
 | image | String | not declared required | — |
+| version | Long | not declared required | — |
 
 ### `com.delivery.restaurant_service.dto.response.OrderValidationResultResponse`
 
@@ -7490,7 +7491,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.restaurant_service.dto.response.RestaurantResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/dto/response/RestaurantResponse.java:12`](../../../../restaurant-service/src/main/java/com/delivery/restaurant_service/dto/response/RestaurantResponse.java)
+- Source: [`backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/dto/response/RestaurantResponse.java:13`](../../../../restaurant-service/src/main/java/com/delivery/restaurant_service/dto/response/RestaurantResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -7508,6 +7509,9 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 | longitude | Double | not declared required | — |
 | rating | Double | not declared required | — |
 | ratingCount | Integer | not declared required | — |
+| lifecycleStatus | RestaurantStatus | not declared required | — |
+| version | Long | not declared required | — |
+| timeZone | String | not declared required | — |
 
 ### `com.delivery.restaurant_service.dto.response.ServiceabilityDecisionResponse`
 
@@ -7555,12 +7559,13 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 | image | String | not declared required | @Column(name = "image", columnDefinition = "TEXT") |
 | createdAt | LocalDateTime | not declared required | @Column(name = "created_at", updatable = false) |
 | updatedAt | LocalDateTime | not declared required | @Column(name = "updated_at") |
+| version | Long | not declared required | @Version, @Column(nullable = false) |
 
 #### `com.delivery.restaurant_service.entity.MenuItem.Status`
 
 - Kind: `enum`
 - Source: [`backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/entity/MenuItem.java:11`](../../../../restaurant-service/src/main/java/com/delivery/restaurant_service/entity/MenuItem.java)
-- Enum values: `AVAILABLE`, `SOLD_OUT`, `DISCONTINUED`
+- Enum values: `AVAILABLE`, `SOLD_OUT`, `DISCONTINUED`, `ARCHIVED`
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -7570,7 +7575,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 
 - Kind: `enum`
 - Source: [`backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/entity/MenuItem.java:11`](../../../../restaurant-service/src/main/java/com/delivery/restaurant_service/entity/MenuItem.java)
-- Enum values: `AVAILABLE`, `SOLD_OUT`, `DISCONTINUED`
+- Enum values: `AVAILABLE`, `SOLD_OUT`, `DISCONTINUED`, `ARCHIVED`
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -7579,7 +7584,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.restaurant_service.entity.Restaurant`
 
 - Kind: `class`
-- Source: [`backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/entity/Restaurant.java:9`](../../../../restaurant-service/src/main/java/com/delivery/restaurant_service/entity/Restaurant.java)
+- Source: [`backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/entity/Restaurant.java:10`](../../../../restaurant-service/src/main/java/com/delivery/restaurant_service/entity/Restaurant.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -7592,6 +7597,9 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 | updatedAt | LocalDateTime | not declared required | @Column(name = "updated_at") |
 | creatorId | Long | not declared required | @Column(name = "creator_id", nullable = false) |
 | ownerPrincipalId | Long | not declared required | @Column(name = "owner_principal_id") |
+| lifecycleStatus | RestaurantStatus | not declared required | @Enumerated(EnumType.STRING), @Column(name = "lifecycle_status", nullable = false, length = 16) |
+| version | Long | not declared required | @Version, @Column(nullable = false) |
+| timeZone | String | not declared required | @Column(name = "time_zone", nullable = false, length = 64) |
 | openingHour | LocalTime | not declared required | @Column(name = "opening_hour") |
 | closingHour | LocalTime | not declared required | @Column(name = "closing_hour") |
 | defaultPrepTimeMinutes | Integer | not declared required | @Column(name = "default_prep_time_minutes", nullable = false) |
@@ -7625,6 +7633,16 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 | totalItems | long | not declared required | — |
 | totalPages | int | not declared required | — |
 | hasNext | boolean | not declared required | — |
+
+### `com.delivery.restaurant.domain.catalog.RestaurantStatus`
+
+- Kind: `enum`
+- Source: [`backend_delivery/modules/restaurant/restaurant-domain/src/main/java/com/delivery/restaurant/domain/catalog/RestaurantStatus.java:3`](../../../../modules/restaurant/restaurant-domain/src/main/java/com/delivery/restaurant/domain/catalog/RestaurantStatus.java)
+- Enum values: `ACTIVE`, `PAUSED`, `ARCHIVED`
+
+| Field | Java type | Required | Validation/annotations |
+| --- | --- | --- | --- |
+| — | No source-declared fields | — | — |
 
 ### `com.delivery.routing_service.api.Coordinate`
 

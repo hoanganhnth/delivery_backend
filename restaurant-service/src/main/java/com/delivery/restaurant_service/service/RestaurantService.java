@@ -30,6 +30,7 @@ public interface RestaurantService {
     RestaurantResponse getRestaurantById(Long id);
 
     List<RestaurantResponse> getAllRestaurants();
+    List<RestaurantResponse> getAllManagedRestaurants();
 
     List<RestaurantResponse> findByName(String keyword);
     

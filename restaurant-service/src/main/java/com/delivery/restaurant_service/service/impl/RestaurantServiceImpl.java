@@ -1,5 +1,6 @@
 package com.delivery.restaurant_service.service.impl;
 
+import com.delivery.restaurant.domain.catalog.RestaurantStatus;
 import com.delivery.restaurant_service.common.constants.RoleConstants;
 import com.delivery.restaurant_service.dto.request.CreateRestaurantRequest;
 import com.delivery.restaurant_service.dto.request.UpdateRestaurantRequest;
@@ -9,7 +10,7 @@ import com.delivery.restaurant_service.exception.ResourceNotFoundException;
 import com.delivery.restaurant_service.mapper.RestaurantMapper;
 import com.delivery.restaurant_service.repository.RestaurantRepository;
 import com.delivery.restaurant_service.service.RestaurantService;
-import com.delivery.restaurant_service.service.RestaurantCacheService;
+import com.delivery.restaurant_service.service.CatalogCacheSynchronizer;
 import com.delivery.restaurant_service.service.SearchSyncPublisher;
 import com.delivery.restaurant_service.service.ownership.ManagementAccess;
 import com.delivery.restaurant_service.service.ownership.RestaurantOwnershipPolicy;
@@ -33,7 +34,7 @@ public class RestaurantServiceImpl implements RestaurantService {
 
     private final RestaurantRepository restaurantRepository;
     private final RestaurantMapper restaurantMapper;
-    private final RestaurantCacheService restaurantCacheService;
+    private final CatalogCacheSynchronizer cacheSynchronizer;
     private final SearchSyncPublisher searchSyncPublisher;
     private final MeterRegistry meterRegistry;
     private final RestaurantOwnershipPolicy restaurantOwnershipPolicy;
@@ -72,12 +73,7 @@ public class RestaurantServiceImpl implements RestaurantService {
             // Don't fail restaurant creation if balance creation fails
         }
 
-        // 🔥 Cache restaurant data after creation
-        try {
-            restaurantCacheService.cacheRestaurant(saved);
-        } catch (Exception e) {
-            log.warn("⚠️ Failed to cache restaurant after creation: {}", e.getMessage());
-        }
+        cacheSynchronizer.cacheRestaurantAfterCommit(saved);
 
         // 🔥 Publish sync event for search service
         searchSyncPublisher.publishRestaurantChange(saved, "CREATE");
@@ -102,12 +98,7 @@ public class RestaurantServiceImpl implements RestaurantService {
         restaurantMapper.updateEntityFromDto(request, existingRestaurant);
         Restaurant updated = restaurantRepository.save(existingRestaurant);
 
-        // 🔥 Update cache after modification
-        try {
-            restaurantCacheService.cacheRestaurant(updated);
-        } catch (Exception e) {
-            log.warn("⚠️ Failed to update cache after restaurant update: {}", e.getMessage());
-        }
+        cacheSynchronizer.cacheRestaurantAfterCommit(updated);
 
         // 🔥 Publish sync event for search service
         searchSyncPublisher.publishRestaurantChange(updated, "UPDATE");
@@ -129,17 +120,16 @@ public class RestaurantServiceImpl implements RestaurantService {
 
         authorizeWrite(restaurant, ownerPrincipalId, creatorId, role);
 
-        // 🔥 Remove from cache before deletion
-        try {
-            restaurantCacheService.removeRestaurantFromCache(id);
-        } catch (Exception e) {
-            log.warn("⚠️ Failed to remove restaurant from cache: {}", e.getMessage());
+        if (restaurant.getLifecycleStatus() == RestaurantStatus.ARCHIVED) {
+            return;
         }
 
-        // 🔥 Publish sync event for search service
-        searchSyncPublisher.publishRestaurantChange(restaurant, "DELETE");
+        restaurant.setLifecycleStatus(RestaurantStatus.ARCHIVED);
+        Restaurant archived = restaurantRepository.save(restaurant);
 
-        restaurantRepository.deleteById(id);
+        cacheSynchronizer.removeRestaurantAfterCommit(id);
+
+        searchSyncPublisher.publishRestaurantChange(archived, "DELETE");
     }
 
     @Override
@@ -151,8 +141,16 @@ public class RestaurantServiceImpl implements RestaurantService {
 
     @Override
     public List<RestaurantResponse> getAllRestaurants() {
-        List<Restaurant> list = restaurantRepository.findAll(PageRequest.of(0, 100)).getContent();
+        List<Restaurant> list = restaurantRepository.findByLifecycleStatusNot(
+                RestaurantStatus.ARCHIVED, PageRequest.of(0, 100)).getContent();
         return list.stream()
+                .map(restaurantMapper::toResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<RestaurantResponse> getAllManagedRestaurants() {
+        return restaurantRepository.findAll(PageRequest.of(0, 100)).stream()
                 .map(restaurantMapper::toResponse)
                 .collect(Collectors.toList());
     }
@@ -161,8 +159,9 @@ public class RestaurantServiceImpl implements RestaurantService {
     public Page<RestaurantResponse> getAllRestaurantsPage(int page, int size, String keyword) {
         PageRequest request = PageRequest.of(page, size);
         Page<Restaurant> source = keyword == null || keyword.isBlank()
-                ? restaurantRepository.findAll(request)
-                : restaurantRepository.findPageByNameContainingIgnoreCase(keyword.trim(), request);
+                ? restaurantRepository.findByLifecycleStatusNot(RestaurantStatus.ARCHIVED, request)
+                : restaurantRepository.findPageByNameContainingIgnoreCaseAndLifecycleStatusNot(
+                        keyword.trim(), RestaurantStatus.ARCHIVED, request);
         return source.map(restaurantMapper::toResponse);
     }
 
@@ -178,8 +177,9 @@ public class RestaurantServiceImpl implements RestaurantService {
     @Override
     public List<RestaurantResponse> findByName(String keyword) {
 
-        List<Restaurant> restaurants = restaurantRepository.findByNameContainingIgnoreCase(
-                keyword, PageRequest.of(0, 100));
+        List<Restaurant> restaurants = restaurantRepository
+                .findByNameContainingIgnoreCaseAndLifecycleStatusNot(
+                        keyword, RestaurantStatus.ARCHIVED, PageRequest.of(0, 100));
         return restaurants.stream()
                 .map(restaurantMapper::toResponse)
                 .collect(Collectors.toList());

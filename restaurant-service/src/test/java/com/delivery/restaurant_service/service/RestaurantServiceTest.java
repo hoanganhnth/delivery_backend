@@ -4,6 +4,7 @@ import com.delivery.restaurant_service.common.constants.RoleConstants;
 import com.delivery.restaurant_service.dto.request.CreateRestaurantRequest;
 import com.delivery.restaurant_service.dto.response.RestaurantResponse;
 import com.delivery.restaurant_service.entity.Restaurant;
+import com.delivery.restaurant.domain.catalog.RestaurantStatus;
 import com.delivery.restaurant_service.exception.ResourceNotFoundException;
 import com.delivery.restaurant_service.mapper.RestaurantMapper;
 import com.delivery.restaurant_service.repository.RestaurantRepository;
@@ -20,6 +21,7 @@ import org.springframework.security.access.AccessDeniedException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.domain.PageImpl;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -31,7 +33,7 @@ class RestaurantServiceTest {
     @Mock
     private RestaurantRepository restaurantRepository;
     @Mock
-    private RestaurantCacheService restaurantCacheService;
+    private CatalogCacheSynchronizer cacheSynchronizer;
     @Mock
     private SearchSyncPublisher searchSyncPublisher;
     private final RestaurantOwnershipPolicy restaurantOwnershipPolicy = new RestaurantOwnershipPolicy(false);
@@ -46,7 +48,7 @@ class RestaurantServiceTest {
     @BeforeEach
     void setUp() {
         restaurantService = new RestaurantServiceImpl(restaurantRepository, menuItemMapper,
-                restaurantCacheService, searchSyncPublisher, new io.micrometer.core.instrument.simple.SimpleMeterRegistry(),
+                cacheSynchronizer, searchSyncPublisher, new io.micrometer.core.instrument.simple.SimpleMeterRegistry(),
                 restaurantOwnershipPolicy);
         restaurant = new Restaurant();
         restaurant.setId(1L);
@@ -119,7 +121,8 @@ class RestaurantServiceTest {
     void findByName_ShouldReturnMatchingRestaurants() {
         // Given
         List<Restaurant> restaurants = Collections.singletonList(restaurant);
-        when(restaurantRepository.findByNameContainingIgnoreCase(eq("Test"), any())).thenReturn(restaurants);
+        when(restaurantRepository.findByNameContainingIgnoreCaseAndLifecycleStatusNot(
+                eq("Test"), eq(RestaurantStatus.ARCHIVED), any())).thenReturn(restaurants);
         when(menuItemMapper.toResponse(any(Restaurant.class))).thenReturn(restaurantResponse);
         // When
         List<RestaurantResponse> responses = restaurantService.findByName("Test");
@@ -128,12 +131,36 @@ class RestaurantServiceTest {
         assertNotNull(responses);
         assertEquals(1, responses.size());
         assertEquals("Test Restaurant", responses.get(0).getName());
-        verify(restaurantRepository).findByNameContainingIgnoreCase(eq("Test"), any());
+        verify(restaurantRepository).findByNameContainingIgnoreCaseAndLifecycleStatusNot(
+                eq("Test"), eq(RestaurantStatus.ARCHIVED), any());
         verify(menuItemMapper).toResponse(any(Restaurant.class));
     }
 
     @Test
-    void deleteRestaurant_ShouldDeleteSuccessfully_WhenUserIsOwner() {
+    void getAllRestaurants_UsesPublicProjectionThatExcludesArchivedRows() {
+        when(restaurantRepository.findByLifecycleStatusNot(
+                eq(RestaurantStatus.ARCHIVED), any())).thenReturn(new PageImpl<>(List.of(restaurant)));
+        when(menuItemMapper.toResponse(restaurant)).thenReturn(restaurantResponse);
+
+        List<RestaurantResponse> responses = restaurantService.getAllRestaurants();
+
+        assertEquals(List.of(restaurantResponse), responses);
+        verify(restaurantRepository).findByLifecycleStatusNot(
+                eq(RestaurantStatus.ARCHIVED), any());
+    }
+
+    @Test
+    void getAllManagedRestaurants_IncludesArchivedRows() {
+        restaurant.setLifecycleStatus(RestaurantStatus.ARCHIVED);
+        when(restaurantRepository.findAll(any(org.springframework.data.domain.Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(restaurant)));
+        when(menuItemMapper.toResponse(restaurant)).thenReturn(restaurantResponse);
+
+        assertEquals(List.of(restaurantResponse), restaurantService.getAllManagedRestaurants());
+    }
+
+    @Test
+    void deleteRestaurant_ShouldArchiveWithoutPhysicalDeletion_WhenUserIsOwner() {
         // Given
         when(restaurantRepository.findById(1L)).thenReturn(Optional.of(restaurant));
 
@@ -142,7 +169,9 @@ class RestaurantServiceTest {
 
         // Then
         verify(restaurantRepository).findById(1L);
-        verify(restaurantRepository).deleteById(restaurant.getId());
+        assertEquals(RestaurantStatus.ARCHIVED, restaurant.getLifecycleStatus());
+        verify(restaurantRepository).save(restaurant);
+        verify(restaurantRepository, never()).deleteById(anyLong());
     }
 
     @Test
@@ -166,7 +195,9 @@ class RestaurantServiceTest {
 
         restaurantService.deleteRestaurant(1L, 99L, RoleConstants.ADMIN);
 
-        verify(restaurantRepository).deleteById(1L);
+        assertEquals(RestaurantStatus.ARCHIVED, restaurant.getLifecycleStatus());
+        verify(restaurantRepository).save(restaurant);
+        verify(restaurantRepository, never()).deleteById(anyLong());
     }
 
     @Test
@@ -177,5 +208,16 @@ class RestaurantServiceTest {
                 restaurantService.deleteRestaurant(1L, 1L, null));
 
         verify(restaurantRepository, never()).deleteById(anyLong());
+    }
+
+    @Test
+    void deleteRestaurant_IsIdempotentWhenAlreadyArchived() {
+        restaurant.setLifecycleStatus(RestaurantStatus.ARCHIVED);
+        when(restaurantRepository.findById(1L)).thenReturn(Optional.of(restaurant));
+
+        restaurantService.deleteRestaurant(1L, 1L, RoleConstants.OWNER);
+
+        verify(restaurantRepository, never()).save(any());
+        verifyNoInteractions(cacheSynchronizer, searchSyncPublisher);
     }
 }

@@ -35,6 +35,10 @@ class RestaurantFlywayMigrationTest {
             assertThat(indexExists(connection, "idx_restaurant_creator")).isTrue();
             assertThat(indexExists(connection, "idx_menu_restaurant_status")).isTrue();
             assertThat(indexExists(connection, "idx_restaurant_ratings_restaurant_status")).isTrue();
+            assertThat(columnExists(connection, "restaurant", "lifecycle_status")).isTrue();
+            assertThat(columnExists(connection, "restaurant", "version")).isTrue();
+            assertThat(columnExists(connection, "restaurant", "time_zone")).isTrue();
+            assertThat(columnExists(connection, "menu_item", "version")).isTrue();
         }
     }
 
@@ -56,6 +60,14 @@ class RestaurantFlywayMigrationTest {
             assertThat(count(statement, "SELECT count(*) FROM restaurant")).isEqualTo(1);
             assertThat(count(statement, "SELECT count(*) FROM menu_item")).isEqualTo(1);
             assertThat(count(statement, "SELECT count(*) FROM restaurant_ratings")).isEqualTo(1);
+            assertThat(singleString(statement,
+                    "SELECT lifecycle_status FROM restaurant")).isEqualTo("ACTIVE");
+            assertThat(singleLong(statement,
+                    "SELECT version FROM restaurant")).isZero();
+            assertThat(singleString(statement,
+                    "SELECT time_zone FROM restaurant")).isEqualTo("Asia/Ho_Chi_Minh");
+            assertThat(singleLong(statement,
+                    "SELECT version FROM menu_item")).isZero();
         }
     }
 
@@ -190,10 +202,30 @@ class RestaurantFlywayMigrationTest {
         }
     }
 
+    private boolean columnExists(Connection connection, String table, String column) throws Exception {
+        try (ResultSet columns = connection.getMetaData().getColumns(null, null, table, column)) {
+            return columns.next();
+        }
+    }
+
     private long count(Statement statement, String sql) throws Exception {
         try (ResultSet resultSet = statement.executeQuery(sql)) {
             resultSet.next();
             return resultSet.getLong(1);
+        }
+    }
+
+    private long singleLong(Statement statement, String sql) throws Exception {
+        try (ResultSet resultSet = statement.executeQuery(sql)) {
+            assertThat(resultSet.next()).isTrue();
+            return resultSet.getLong(1);
+        }
+    }
+
+    private String singleString(Statement statement, String sql) throws Exception {
+        try (ResultSet resultSet = statement.executeQuery(sql)) {
+            assertThat(resultSet.next()).isTrue();
+            return resultSet.getString(1);
         }
     }
 

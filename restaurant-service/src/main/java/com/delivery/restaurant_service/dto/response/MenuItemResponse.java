@@ -20,6 +20,7 @@ public class MenuItemResponse {
     private LocalDateTime updatedAt;
 
     private String image;
+    private Long version;
 
     // Getters and Setters
     public Long getId() {
@@ -77,5 +78,11 @@ public class MenuItemResponse {
     }
     public void setImage(String image) {
         this.image = image;
+    }
+    public Long getVersion() {
+        return version;
+    }
+    public void setVersion(Long version) {
+        this.version = version;
     }
 }

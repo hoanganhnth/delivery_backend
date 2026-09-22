@@ -283,9 +283,20 @@ Gateway/Discovery/Config/CLI use only layers that have actual responsibility.
   predicate failed, and transport/protocol failures remain fail-closed. The
   full Restaurant reactor passes 159 tests, including an HTTP-to-persistence
   integration test for ADMIN assignment and proof that SHOP_OWNER creation does
-  not call Auth. Lifecycle persistence, optimistic
-  versioning, audit/outbox atomicity and soft-delete aliases remain pending in
-  Slice 3.
+  not call Auth. The remaining lifecycle work is tracked by the increment below.
+- Slice 3's archive regression increment is complete. Flyway V10 adds and
+  backfills Restaurant lifecycle/version/timezone and Menu version. Existing
+  DELETE routes now archive idempotently, never physically delete catalog rows,
+  and Restaurant archive preserves Menu rows and selling state. Public
+  Restaurant projections hide archived rows; public Menu projections require
+  both `AVAILABLE` Menu and a non-archived parent, while detail and management
+  reads preserve history. Responses expose additive lifecycle/version/timezone
+  fields. Redis mutation is registered only after PostgreSQL commit; rollback
+  performs no cache mutation. Search calls remain inside the transaction
+  intentionally because they only write the existing transactional outbox.
+  The full Restaurant reactor passes 170 tests. Lifecycle PATCH, expectedVersion
+  enforcement/error mapping, immutable audit and PostgreSQL conflict/rollback
+  proof remain in Slice 3.
 
 ## Result
 
