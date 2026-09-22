@@ -9,12 +9,12 @@
   "scope": "Every annotated controller mapping, including internal, hidden, dev-only and experimental endpoints. Consult the HTTP inventory for public-edge classification and capability status.",
   "schemaStatus": "Field metadata is extracted from Java declarations and validation annotations. It is a source map, not an inferred OpenAPI/JSON Schema; controller/DTO source remains authoritative for Jackson, inheritance, polymorphism and error behavior.",
   "counts": {
-    "operations": 239,
+    "operations": 240,
     "services": 17,
-    "sourceSchemas": 219,
+    "sourceSchemas": 221,
     "byService": {
       "analytics-service": 4,
-      "auth-service": 19,
+      "auth-service": 20,
       "delivery-service": 21,
       "flashsale-service": 12,
       "livestream-service": 18,
@@ -896,6 +896,51 @@
         "signature": "public ResponseEntity<Map<String, Object>> getJwks()",
         "returnType": "ResponseEntity<Map<String, Object>>",
         "parameters": []
+      }
+    },
+    {
+      "id": "auth-service:PrincipalInternalController.findByPrincipalId:GET:/api/auth/internal/principals/{principalId}",
+      "service": "auth-service",
+      "controller": "PrincipalInternalController",
+      "verbs": [
+        "GET"
+      ],
+      "path": "/api/auth/internal/principals/{principalId}",
+      "handler": "findByPrincipalId",
+      "source": {
+        "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/PrincipalInternalController.java",
+        "line": 31
+      },
+      "java": {
+        "signature": "public ResponseEntity<IdentityPrincipal> findByPrincipalId( @RequestHeader(value = \"Internal-Token\", required = false) String suppliedSecret, @PathVariable String principalId)",
+        "returnType": "ResponseEntity<IdentityPrincipal>",
+        "parameters": [
+          {
+            "name": "suppliedSecret",
+            "type": "String",
+            "annotations": [
+              {
+                "name": "RequestHeader",
+                "arguments": "value = \"Internal-Token\", required = false"
+              }
+            ],
+            "required": false,
+            "binding": "header",
+            "wireName": "Internal-Token"
+          },
+          {
+            "name": "principalId",
+            "type": "String",
+            "annotations": [
+              {
+                "name": "PathVariable"
+              }
+            ],
+            "required": true,
+            "binding": "path",
+            "wireName": "principalId"
+          }
+        ]
       }
     },
     {
@@ -14575,6 +14620,47 @@
         "PENDING_EMAIL_VERIFICATION",
         "ACTIVE",
         "BLOCKED"
+      ]
+    },
+    "com.delivery.identity.contracts.IdentityPrincipal": {
+      "kind": "record",
+      "source": {
+        "file": "backend_delivery/identity-contracts/src/main/java/com/delivery/identity/contracts/IdentityPrincipal.java",
+        "line": 3
+      },
+      "fields": [
+        {
+          "name": "principalId",
+          "type": "Long",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "role",
+          "type": "IdentityRole",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "lifecycleStatus",
+          "type": "IdentityLifecycleStatus",
+          "annotations": [],
+          "required": false
+        }
+      ]
+    },
+    "com.delivery.identity.contracts.IdentityRole": {
+      "kind": "enum",
+      "source": {
+        "file": "backend_delivery/identity-contracts/src/main/java/com/delivery/identity/contracts/IdentityRole.java",
+        "line": 3
+      },
+      "fields": [],
+      "values": [
+        "USER",
+        "ADMIN",
+        "SHIPPER",
+        "SHOP_OWNER"
       ]
     },
     "com.delivery.identity.contracts.SimulationContext": {

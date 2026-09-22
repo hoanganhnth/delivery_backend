@@ -25,8 +25,11 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 // This copy lives under backend_delivery/docs/platform/system/api, while
 // source code and the three client repositories remain siblings of
 // backend_delivery in the workspace root.
-const workspace = path.resolve(here, '../../../../..');
-const backend = path.join(workspace, 'backend_delivery');
+const defaultWorkspace = path.resolve(here, '../../../../..');
+const workspace = path.resolve(process.env.DELIVERY_WORKSPACE_ROOT ?? defaultWorkspace);
+const backend = path.resolve(
+  process.env.DELIVERY_BACKEND_ROOT ?? path.join(workspace, 'backend_delivery'),
+);
 const inventoryPath = path.join(backend, 'docs/http-api-inventory.md');
 const outputPath = path.join(here, 'http-contract.json');
 const catalogPath = path.join(here, 'http-contract-catalog.md');
@@ -49,6 +52,10 @@ const primitiveOrFrameworkTypes = new Set([
 ]);
 
 function relative(file) {
+  const relativeToBackend = path.relative(backend, file);
+  if (!relativeToBackend.startsWith('..') && !path.isAbsolute(relativeToBackend)) {
+    return path.join('backend_delivery', relativeToBackend).split(path.sep).join('/');
+  }
   return path.relative(workspace, file).split(path.sep).join('/');
 }
 
@@ -594,7 +601,10 @@ function markdownCode(value) {
 
 function sourceMarkdownLink(source) {
   if (!source?.file || !source?.line) return '—';
-  const target = path.join(workspace, source.file);
+  const backendPrefix = 'backend_delivery/';
+  const target = source.file.startsWith(backendPrefix)
+    ? path.join(backend, source.file.slice(backendPrefix.length))
+    : path.join(workspace, source.file);
   const relativeTarget = path.relative(here, target).split(path.sep).join('/');
   return `[${markdownCode(`${source.file}:${source.line}`)}](${relativeTarget})`;
 }

@@ -92,6 +92,12 @@ contracts.
   only for itself. `ADMIN` must supply `ownerPrincipalId`; Restaurant verifies
   that target through a typed Auth boundary as an existing, `ACTIVE`
   `SHOP_OWNER` principal.
+- The typed Auth lookup is `GET /api/auth/internal/principals/{principalId}`
+  with `Internal-Token`. It returns the raw `IdentityPrincipal` wire record on
+  200 so consumers do not import Auth's service-local response envelope. A
+  malformed/non-positive ID returns 400, an invalid or absent internal token
+  returns 403 before lookup, and an unknown positive principal returns 404.
+  The endpoint is not routed through the public Gateway.
 - Menu ownership is inherited from its Restaurant. Public catalogue and
   checkout never trust a client-supplied owner or price.
 - Existing executable `restaurant-service`, URLs and artifact path stay stable.
@@ -246,11 +252,20 @@ Gateway/Discovery/Config/CLI use only layers that have actual responsibility.
 - ADR `0002-problem-first-modular-business-architecture.md` makes the problem
   contract and problem-to-test mapping a binding entry gate for every business
   extraction. Technology/module choices follow the approved business model.
+- Slice 2's producer boundary now exposes a typed, internal Auth principal
+  lookup with fail-closed `Internal-Token` authorization and stable 400/403/404
+  semantics. The Auth reactor passes 102 tests and the generated HTTP catalog
+  remains aligned at 240 handlers. Generated source IDs stay canonical as
+  `backend_delivery/...`, while the generator accepts explicit workspace and
+  backend roots so links resolve from an isolated worktree. The shared HTTP
+  capability and Restaurant consumer remain pending, so Slice 2 is not yet
+  complete.
 
 ## Result
 
 Phase 0 is complete. The build can now enforce module boundaries and future
 85/85 core coverage without forcing all existing services into the new parent.
 The Restaurant/Menu problem contract is approved above. Slice 1 is complete and
-adds pure, tested rules without changing runtime behavior. Slice 2 (typed Auth
-principal lookup and platform HTTP boundary) is the next implementation gate.
+adds pure, tested rules without changing runtime behavior. Slice 2 has completed
+the typed Auth producer boundary; the platform HTTP capability and its first
+Restaurant consumer are the next implementation gate.

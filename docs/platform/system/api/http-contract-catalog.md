@@ -5,14 +5,14 @@
 > or JSON Schema. Read [API Contract Guide](README.md) for edge classification,
 > error semantics and compatibility rules.
 
-Current inventory: **239 operations** across **17 controller-owning services** and **219 reachable source schemas**.
+Current inventory: **240 operations** across **17 controller-owning services** and **221 reachable source schemas**.
 
 ## Service index
 
 | Service | Mapped controller operations |
 | --- | --- |
 | analytics-service | 4 |
-| auth-service | 19 |
+| auth-service | 20 |
 | delivery-service | 21 |
 | flashsale-service | 12 |
 | livestream-service | 18 |
@@ -272,6 +272,26 @@ public ResponseEntity<BaseResponse<FirebaseChatTokenResponse>> firebaseChatToken
 
 ```java
 public ResponseEntity<BaseResponse<Void>> forgotPassword( @Valid @RequestBody SecurityEmailRequest request, HttpServletRequest servletRequest)
+```
+
+</details>
+
+### `GET` `/api/auth/internal/principals/{principalId}`
+
+- Handler: `PrincipalInternalController.findByPrincipalId`
+- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/PrincipalInternalController.java:31`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/PrincipalInternalController.java)
+- Java return type: `ResponseEntity<IdentityPrincipal>`
+
+| Binding | Wire name | Java type | Required | Default | Validation/annotations |
+| --- | --- | --- | --- | --- | --- |
+| header | Internal-Token | String | not declared required | — | @RequestHeader(value = "Internal-Token", required = false) |
+| path | principalId | String | declared required | — | @PathVariable |
+
+<details>
+<summary>Java signature for findByPrincipalId</summary>
+
+```java
+public ResponseEntity<IdentityPrincipal> findByPrincipalId( @RequestHeader(value = "Internal-Token", required = false) String suppliedSecret, @PathVariable String principalId)
 ```
 
 </details>
@@ -5727,6 +5747,27 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 - Kind: `enum`
 - Source: [`backend_delivery/identity-contracts/src/main/java/com/delivery/identity/contracts/IdentityLifecycleStatus.java:3`](../../../../identity-contracts/src/main/java/com/delivery/identity/contracts/IdentityLifecycleStatus.java)
 - Enum values: `PENDING_PROFILE`, `PENDING_EMAIL_VERIFICATION`, `ACTIVE`, `BLOCKED`
+
+| Field | Java type | Required | Validation/annotations |
+| --- | --- | --- | --- |
+| — | No source-declared fields | — | — |
+
+### `com.delivery.identity.contracts.IdentityPrincipal`
+
+- Kind: `record`
+- Source: [`backend_delivery/identity-contracts/src/main/java/com/delivery/identity/contracts/IdentityPrincipal.java:3`](../../../../identity-contracts/src/main/java/com/delivery/identity/contracts/IdentityPrincipal.java)
+
+| Field | Java type | Required | Validation/annotations |
+| --- | --- | --- | --- |
+| principalId | Long | not declared required | — |
+| role | IdentityRole | not declared required | — |
+| lifecycleStatus | IdentityLifecycleStatus | not declared required | — |
+
+### `com.delivery.identity.contracts.IdentityRole`
+
+- Kind: `enum`
+- Source: [`backend_delivery/identity-contracts/src/main/java/com/delivery/identity/contracts/IdentityRole.java:3`](../../../../identity-contracts/src/main/java/com/delivery/identity/contracts/IdentityRole.java)
+- Enum values: `USER`, `ADMIN`, `SHIPPER`, `SHOP_OWNER`
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |

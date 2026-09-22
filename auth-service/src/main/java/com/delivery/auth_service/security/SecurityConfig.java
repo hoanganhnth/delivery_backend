@@ -46,6 +46,7 @@ public class SecurityConfig {
                         // internal-secret gate. It cannot rely on an ADMIN
                         // JWT because it mints the temporary actor JWT.
                         .requestMatchers("/api/auth/internal/simulation-actors/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/auth/internal/principals/{principalId}").permitAll()
                         .requestMatchers("/api/auth/admin/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/auth/accounts/*").hasRole("ADMIN")
                         .requestMatchers("/api/auth/**").authenticated()
