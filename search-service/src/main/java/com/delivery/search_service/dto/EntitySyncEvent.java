@@ -1,23 +1,21 @@
 package com.delivery.search_service.dto;
 
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+/**
+ * Source compatibility facade for tests and older local integrations.
+ * Runtime producers/consumers use {@code search-contracts} directly.
+ */
+@Deprecated(forRemoval = false)
+public class EntitySyncEvent extends com.delivery.search.contracts.EntitySyncEvent {
+    public static Builder builder() { return new Builder(); }
 
-import java.util.Map;
-import java.time.LocalDateTime;
-import java.util.UUID;
-
-@Data
-@Builder
-@NoArgsConstructor
-@AllArgsConstructor
-public class EntitySyncEvent {
-    private UUID eventId;
-    private LocalDateTime occurredAt;
-    private String entityType; // "RESTAURANT", "DISH", "SHIPPER"
-    private String action; // "CREATE", "UPDATE", "DELETE"
-    private String entityId;
-    private Map<String, Object> payload;
+    public static final class Builder {
+        private final EntitySyncEvent event = new EntitySyncEvent();
+        public Builder eventId(java.util.UUID value) { event.setEventId(value); return this; }
+        public Builder occurredAt(java.time.LocalDateTime value) { event.setOccurredAt(value); return this; }
+        public Builder entityType(String value) { event.setEntityType(value); return this; }
+        public Builder action(String value) { event.setAction(value); return this; }
+        public Builder entityId(String value) { event.setEntityId(value); return this; }
+        public Builder payload(java.util.Map<String, Object> value) { event.setPayload(value); return this; }
+        public EntitySyncEvent build() { return event; }
+    }
 }

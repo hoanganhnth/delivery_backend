@@ -1,6 +1,6 @@
 package com.delivery.search_service.consumer;
 
-import com.delivery.search_service.dto.EntitySyncEvent;
+import com.delivery.search.contracts.EntitySyncEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import lombok.RequiredArgsConstructor;

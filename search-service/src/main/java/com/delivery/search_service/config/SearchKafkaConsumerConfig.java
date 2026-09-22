@@ -1,6 +1,6 @@
 package com.delivery.search_service.config;
 
-import com.delivery.search_service.dto.EntitySyncEvent;
+import com.delivery.search.contracts.EntitySyncEvent;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.springframework.beans.factory.annotation.Value;
@@ -42,7 +42,7 @@ public class SearchKafkaConsumerConfig {
         properties.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, JsonDeserializer.class);
         properties.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         properties.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
-        properties.put(JsonDeserializer.TRUSTED_PACKAGES, "com.delivery.search_service.dto");
+        properties.put(JsonDeserializer.TRUSTED_PACKAGES, "com.delivery.search.contracts");
         properties.put(JsonDeserializer.USE_TYPE_INFO_HEADERS, false);
         properties.put(JsonDeserializer.VALUE_DEFAULT_TYPE, EntitySyncEvent.class.getName());
         return new DefaultKafkaConsumerFactory<>(properties);

@@ -1,6 +1,6 @@
 package com.delivery.restaurant_service.service;
 
-import com.delivery.restaurant_service.dto.event.EntitySyncEvent;
+import com.delivery.search.contracts.EntitySyncEvent;
 import com.delivery.restaurant_service.entity.MenuItem;
 import com.delivery.restaurant_service.entity.Restaurant;
 import com.delivery.restaurant_service.entity.RestaurantOutboxEvent;
@@ -44,14 +44,13 @@ public class SearchSyncPublisher {
                 payload.put("imageUrl", restaurant.getImage());
             }
 
-            EntitySyncEvent event = EntitySyncEvent.builder()
-                    .eventId(UUID.randomUUID())
-                    .occurredAt(LocalDateTime.now())
-                    .entityType("RESTAURANT")
-                    .action(action)
-                    .entityId(restaurant.getId().toString())
-                    .payload(payload)
-                    .build();
+            EntitySyncEvent event = new EntitySyncEvent();
+            event.setEventId(UUID.randomUUID());
+            event.setOccurredAt(LocalDateTime.now());
+            event.setEntityType("RESTAURANT");
+            event.setAction(action);
+            event.setEntityId(restaurant.getId().toString());
+            event.setPayload(payload);
 
             store(event, "SEARCH_RESTAURANT_" + action);
             log.info("Stored restaurant search sync event: action={}, id={}", action, restaurant.getId());
@@ -76,14 +75,13 @@ public class SearchSyncPublisher {
                 payload.put("imageUrl", dish.getImage());
             }
 
-            EntitySyncEvent event = EntitySyncEvent.builder()
-                    .eventId(UUID.randomUUID())
-                    .occurredAt(LocalDateTime.now())
-                    .entityType("DISH")
-                    .action(action)
-                    .entityId(dish.getId().toString())
-                    .payload(payload)
-                    .build();
+            EntitySyncEvent event = new EntitySyncEvent();
+            event.setEventId(UUID.randomUUID());
+            event.setOccurredAt(LocalDateTime.now());
+            event.setEntityType("DISH");
+            event.setAction(action);
+            event.setEntityId(dish.getId().toString());
+            event.setPayload(payload);
 
             store(event, "SEARCH_DISH_" + action);
             log.info("Stored dish search sync event: action={}, id={}", action, dish.getId());

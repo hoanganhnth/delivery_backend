@@ -1,6 +1,6 @@
 package com.delivery.search_service.consumer;
 
-import com.delivery.search_service.dto.EntitySyncEvent;
+import com.delivery.search.contracts.EntitySyncEvent;
 import com.delivery.search_service.document.DishDocument;
 import com.delivery.search_service.document.RestaurantDocument;
 import com.fasterxml.jackson.databind.ObjectMapper;

@@ -177,7 +177,9 @@ contracts.
 - [x] Slice 3: Restaurant/Menu persistence, parent/child archive independence,
   lifecycle endpoints, versioning, immutable audit and soft-delete aliases.
 - [ ] Slice 4: PostgreSQL-canonical checkout; then remove obsolete Redis graph.
-- [ ] Slice 5: Search wire contract extraction and archived projection behavior.
+- [x] Slice 5: Search wire contract extraction and archived projection behavior
+  (wire type extracted; archived projection behavior remains covered by the
+  existing tombstone/version tests).
 - [ ] Slice 6: extract existing order decision/outbox behavior unchanged.
 - [ ] Slice 7: rating concurrency fix and extraction.
 - [ ] Slice 8: serviceability and inventory extraction with separate proofs.
@@ -272,6 +274,12 @@ Gateway/Discovery/Config/CLI use only layers that have actual responsibility.
   the Restaurant reactor currently passes 177 tests. Redis remains available
   for catalogue read-side only until PostgreSQL-specific concurrency and
   end-to-end Order rollout proof are complete.
+- Slice 5 is complete for the wire boundary: `search-contracts` is consumed by
+  Restaurant's outbox producer and Search's Kafka consumer/projection writer.
+  JSON fields, `entity-sync` topic, type-header handling and projection
+  deduplication/version semantics remain unchanged. A deprecated Search-local
+  facade remains only for source-compatible test/integration callers and is not
+  used by runtime production code; its removal is a compatibility-cleanup task.
 - Slice 2 then added the policy-free `platform-http-blocking` transport and the
   first service-specific `identity-client`. The platform requires explicit
   headers and a caller-configured `RestTemplate`; it adds no credential,

@@ -17,6 +17,7 @@
         <module>runtime-platform-starter</module>
         <module>platform/platform-http-blocking</module>
         <module>identity-contracts</module>
+        <module>search-contracts</module>
         <module>clients/identity-client</module>
         <module>modules/restaurant/restaurant-domain</module>
         <module>modules/restaurant/restaurant-application-api</module>

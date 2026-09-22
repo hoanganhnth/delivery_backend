@@ -1,6 +1,6 @@
 package com.delivery.search_service.consumer;
 
-import com.delivery.search_service.dto.EntitySyncEvent;
+import com.delivery.search.contracts.EntitySyncEvent;
 
 /**
  * Atomically claims the latest projection version for one entity before its
