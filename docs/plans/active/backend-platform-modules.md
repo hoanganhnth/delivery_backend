@@ -2,8 +2,9 @@
 
 ## Status
 
-Active — phase 0 complete; phase 1 problem analysis is the next gate. This is
-not a completed backend migration.
+Active — phase 0 complete; the Restaurant/Menu problem contract is approved and
+phase 1 implementation is in progress. This is not a completed backend
+migration.
 
 ## Outcome and authority
 
@@ -79,6 +80,103 @@ Outbox/inbox schemas, atomicity, ordering and business receipts remain local.
 - [ ] Phase 8: Search, Analytics, Promotion, Flashsale, Livestream migrations.
 - [ ] Phase 9: Simulator/tools, full dependency audit and regression closure.
 
+## Phase 1 approved Restaurant/Menu problem contract
+
+This contract is the authority for the pilot. It separates existing behavior
+that must be preserved from independently authorized bug fixes and additive
+contracts.
+
+### Actors, ownership and compatibility
+
+- `principalId` is the ownership identity. `SHOP_OWNER` creates a Restaurant
+  only for itself. `ADMIN` must supply `ownerPrincipalId`; Restaurant verifies
+  that target through a typed Auth boundary as an existing, `ACTIVE`
+  `SHOP_OWNER` principal.
+- Menu ownership is inherited from its Restaurant. Public catalogue and
+  checkout never trust a client-supplied owner or price.
+- Existing executable `restaurant-service`, URLs and artifact path stay stable.
+  Lifecycle/version/timezone response fields and lifecycle endpoints are
+  additive. Existing DELETE endpoints become archive aliases.
+- Optimistic concurrency is introduced additively: mutation responses expose
+  `version`; PUT/PATCH bodies accept `expectedVersion`; DELETE accepts an
+  optional `expectedVersion` query parameter. Missing versions increment
+  `delivery.catalog.expected_version.missing` while
+  `CATALOG_EXPECTED_VERSION_REQUIRED=false`; stale versions fail with 409
+  `STALE_VERSION`. Required enforcement is deferred until Web sends versions.
+
+### Lifecycle rules
+
+- Restaurant states are `ACTIVE`, `PAUSED`, `ARCHIVED`. New owner-created
+  Restaurants start `ACTIVE`. Restaurant archive does not mutate persisted Menu
+  state. Public catalogue/search/checkout hide `ARCHIVED`; `PAUSED` remains
+  visible but rejects new checkout. Owner/admin management lists include
+  archived rows, and detail-by-ID remains resolvable for history.
+- Menu states are `AVAILABLE`, `SOLD_OUT`, `DISCONTINUED`, `ARCHIVED`. Public
+  catalogue/search/checkout expose only `AVAILABLE` items whose Restaurant is
+  not archived and can accept checkout where required.
+- Owners may pause/archive their Restaurant and change ordinary Menu selling
+  state. Only `ADMIN` may restore a Restaurant from `ARCHIVED` to `PAUSED` or a
+  Menu item from `ARCHIVED` to `DISCONTINUED`. Reapplying the current target
+  state is idempotent.
+- Normal business flows never physically delete Restaurant or Menu rows.
+  Confirm/reject, delivery, settlement, rating and compensation for existing
+  orders remain resolvable after pause/archive. Physical purge policy is TODO.
+- Lifecycle endpoints are `PATCH /api/restaurants/{id}/lifecycle` and
+  `PATCH /api/menu-items/{id}/lifecycle`, with target state and expected version
+  in the request body.
+
+### Operating-hours and checkout rules
+
+- Each Restaurant stores an IANA timezone; existing rows default to
+  `Asia/Ho_Chi_Minh`. Both operating times null means 24/7, exactly one null is
+  invalid, and equal open/close times mean 24/7.
+- Availability uses `[open, close)`: opening is included and closing excluded.
+  `open < close` is a same-day window; `open > close` spans midnight. Domain
+  decisions receive `Clock`/`Instant` and `ZoneId`; they never read JVM local
+  time directly.
+- Checkout authority is PostgreSQL and fails closed for missing, archived,
+  paused, unavailable or invalid records. Existing Restaurant Redis catalogue
+  keys are removed only after DB-backed checkout is proven; Search remains on
+  its existing transactional outbox.
+
+### Integrity, audit and proof boundaries
+
+- Lifecycle mutation, optimistic version check, immutable local audit row and
+  outbox write are one PostgreSQL transaction. Audit stores actor/role/action,
+  aggregate identity, whitelisted before/after state, versions, timestamp and
+  correlation ID; it has no update/delete API. Retention/purge is TODO.
+- Domain unit tests cover every transition, authorization decision, idempotent
+  target, time/null boundary and timezone conversion. Parent/child persistence
+  independence is proved at the application/adapter boundary in Slice 3, where
+  Restaurant archive orchestration and stored Menu state coexist. Adapter tests
+  prove PostgreSQL locking/version conflicts, rollback and audit/outbox
+  atomicity. HTTP tests prove response/error compatibility. Search and client
+  tests prove archived filtering and additive parsing.
+- Coverage 85/85 is required for domain and application modules, but does not
+  prove PostgreSQL concurrency, Kafka recovery or performance.
+
+### Explicitly deferred problems
+
+- Weekly/holiday/multiple operating windows; owner transfer, staff and multiple
+  owners; audit retention and physical purge; required-version enforcement;
+  inventory deadlock/load proof; rating high-contention benchmark; ETA provider
+  runtime proof; Search bulk rebuild; cache/index optimization without
+  before/after measurements.
+
+### Phase 1 implementation sequence
+
+- [x] Slice 1: pure `restaurant-domain` lifecycle and operating-hours rules,
+  with independent 85/85 coverage and no runtime wiring.
+- [ ] Slice 2: typed Auth principal lookup and platform HTTP boundary.
+- [ ] Slice 3: Restaurant/Menu persistence, parent/child archive independence,
+  lifecycle endpoints, versioning, immutable audit and soft-delete aliases.
+- [ ] Slice 4: PostgreSQL-canonical checkout; then remove obsolete Redis graph.
+- [ ] Slice 5: Search wire contract extraction and archived projection behavior.
+- [ ] Slice 6: extract existing order decision/outbox behavior unchanged.
+- [ ] Slice 7: rating concurrency fix and extraction.
+- [ ] Slice 8: serviceability and inventory extraction with separate proofs.
+- [ ] Slice 9: client SDK adoption, compatibility cleanup and canonical docs.
+
 Within each service: lock existing behavior with characterization tests, define
 ports, implement core tests, move one vertical slice, prove adapters/runtime,
 review, commit. Remove transitional facades only when no caller remains.
@@ -137,6 +235,14 @@ Gateway/Discovery/Config/CLI use only layers that have actual responsibility.
   changing public response shapes or runtime defaults. Final logs:
   `/tmp/backend-build-baseline-phase0-final.log` and
   `/tmp/backend-test-context-phase0-final.log`.
+- Slice 1 added the framework-independent `restaurant-domain` module without
+  wiring it into runtime behavior. A RED compile proved the lifecycle,
+  availability and operating-hours APIs did not exist before implementation.
+  The final clean verify ran 18 tests with no failures/errors/skips and measured
+  100% line (90/90) and branch (72/72) coverage. Module-boundary self-test and
+  repository verification passed. Independent re-review found no remaining
+  Critical, Important or Minor findings. Parent/child archive independence is
+  intentionally proved in Slice 3 where persistence orchestration exists.
 - ADR `0002-problem-first-modular-business-architecture.md` makes the problem
   contract and problem-to-test mapping a binding entry gate for every business
   extraction. Technology/module choices follow the approved business model.
@@ -145,5 +251,6 @@ Gateway/Discovery/Config/CLI use only layers that have actual responsibility.
 
 Phase 0 is complete. The build can now enforce module boundaries and future
 85/85 core coverage without forcing all existing services into the new parent.
-The next action is analysis, not extraction: produce and review the Restaurant/
-Menu problem contract and its unit/boundary/integration test matrix.
+The Restaurant/Menu problem contract is approved above. Slice 1 is complete and
+adds pure, tested rules without changing runtime behavior. Slice 2 (typed Auth
+principal lookup and platform HTTP boundary) is the next implementation gate.

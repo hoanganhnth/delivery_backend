@@ -16,6 +16,7 @@
         <module>kafka-operations-tool</module>
         <module>runtime-platform-starter</module>
         <module>identity-contracts</module>
+        <module>modules/restaurant/restaurant-domain</module>
         <module>auth-resource-server-starter</module>
         <module>discovery-server</module>
         <module>config-server</module>

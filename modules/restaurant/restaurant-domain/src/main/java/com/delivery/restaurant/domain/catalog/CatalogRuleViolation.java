@@ -1,0 +1,11 @@
+package com.delivery.restaurant.domain.catalog;
+
+public enum CatalogRuleViolation {
+    ACTOR_ROLE_REQUIRED,
+    ADMIN_REQUIRED,
+    INVALID_LIFECYCLE_TRANSITION,
+    INVALID_OPERATING_HOURS,
+    RESTAURANT_STATUS_REQUIRED,
+    OPERATING_SCHEDULE_REQUIRED,
+    INSTANT_REQUIRED
+}
