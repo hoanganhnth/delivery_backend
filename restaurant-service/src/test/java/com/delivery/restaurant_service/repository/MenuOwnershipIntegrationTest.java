@@ -4,6 +4,11 @@ import com.delivery.restaurant_service.entity.*;
 import com.delivery.restaurant_service.mapper.MenuItemMapper;
 import com.delivery.restaurant_service.service.*;
 import com.delivery.restaurant_service.service.impl.MenuItemServiceImpl;
+import com.delivery.restaurant_service.mapper.RestaurantMapper;
+import com.delivery.restaurant_service.service.impl.CatalogLifecycleService;
+import com.delivery.restaurant.domain.catalog.MenuItemLifecyclePolicy;
+import com.delivery.restaurant.domain.catalog.RestaurantLifecyclePolicy;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import com.delivery.restaurant_service.service.ownership.RestaurantOwnershipPolicy;
 import com.delivery.restaurant_service.dto.request.*;
 import org.junit.jupiter.api.Test;
@@ -22,11 +27,16 @@ class MenuOwnershipIntegrationTest {
     @Autowired MenuItemRepository items;
     @Autowired RestaurantRepository restaurants;
     @Autowired TestEntityManager em;
+    @Autowired CatalogLifecycleAuditRepository audits;
 
     private MenuItemServiceImpl service(boolean enforced) {
         return new MenuItemServiceImpl(items, new MenuItemMapper(), restaurants,
                 mock(CatalogCacheSynchronizer.class), mock(SearchSyncPublisher.class),
-                new RestaurantOwnershipPolicy(enforced));
+                new RestaurantOwnershipPolicy(enforced), new CatalogLifecycleService(
+                        restaurants, items, new RestaurantMapper(), new MenuItemMapper(),
+                        mock(CatalogCacheSynchronizer.class), mock(SearchSyncPublisher.class),
+                        new RestaurantOwnershipPolicy(enforced), new RestaurantLifecyclePolicy(),
+                        new MenuItemLifecyclePolicy(), audits, new SimpleMeterRegistry()));
     }
     private MenuItem seed(Long principal, long legacy, MenuItem.Status status) {
         var restaurant = new Restaurant();

@@ -294,9 +294,11 @@ Gateway/Discovery/Config/CLI use only layers that have actual responsibility.
   fields. Redis mutation is registered only after PostgreSQL commit; rollback
   performs no cache mutation. Search calls remain inside the transaction
   intentionally because they only write the existing transactional outbox.
-  The full Restaurant reactor passes 170 tests. Lifecycle PATCH, expectedVersion
-  enforcement/error mapping, immutable audit and PostgreSQL conflict/rollback
-  proof remain in Slice 3.
+  The full Restaurant reactor passes 170 tests. The next lifecycle increment
+  adds PATCH state transitions, additive expectedVersion handling with
+  `409 STALE_VERSION`, the missing-version metric, V11 audit rows, and shared
+  lifecycle cache/outbox behavior; existing DELETE aliases use the same
+  boundary. PostgreSQL concurrency/rollback proof remains pending.
 
 ## Result
 

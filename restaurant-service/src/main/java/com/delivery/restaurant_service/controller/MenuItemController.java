@@ -4,6 +4,7 @@ import com.delivery.restaurant_service.common.constants.ApiPathConstants;
 import com.delivery.restaurant_service.common.constants.RoleConstants;
 import com.delivery.restaurant_service.dto.request.CreateMenuItemRequest;
 import com.delivery.restaurant_service.dto.request.UpdateMenuItemRequest;
+import com.delivery.restaurant_service.dto.request.MenuItemLifecycleRequest;
 import com.delivery.restaurant_service.dto.response.MenuItemResponse;
 import com.delivery.restaurant_service.payload.BaseResponse;
 import com.delivery.restaurant_service.service.MenuItemService;
@@ -57,6 +58,17 @@ public class MenuItemController {
         requireActor(actor);
         menuItemService.deleteMenuItem(id, actor.getPrincipalId(), actor.getLegacyUserId(), getRoleString(actor));
         return ResponseEntity.ok(new BaseResponse<>(1, null));
+    }
+
+    @PatchMapping("/{id}/lifecycle")
+    public ResponseEntity<BaseResponse<MenuItemResponse>> changeLifecycle(
+            @PathVariable Long id,
+            @Valid @RequestBody MenuItemLifecycleRequest request,
+            @AuthenticationPrincipal AuthenticatedActor actor) {
+        requireActor(actor);
+        MenuItemResponse response = menuItemService.changeLifecycle(
+                id, request, actor.getPrincipalId(), actor.getLegacyUserId(), getRoleString(actor));
+        return ResponseEntity.ok(new BaseResponse<>(1, response));
     }
 
     @GetMapping("/restaurant/{restaurantId}")

@@ -3,6 +3,7 @@ package com.delivery.restaurant_service.service.impl;
 import com.delivery.restaurant_service.common.constants.RoleConstants;
 import com.delivery.restaurant_service.dto.request.CreateMenuItemRequest;
 import com.delivery.restaurant_service.dto.request.UpdateMenuItemRequest;
+import com.delivery.restaurant_service.dto.request.MenuItemLifecycleRequest;
 import com.delivery.restaurant_service.dto.response.MenuItemResponse;
 import com.delivery.restaurant_service.entity.MenuItem;
 import com.delivery.restaurant_service.entity.Restaurant;
@@ -38,6 +39,7 @@ public class MenuItemServiceImpl implements MenuItemService {
     private final CatalogCacheSynchronizer cacheSynchronizer;
     private final SearchSyncPublisher searchSyncPublisher;
     private final RestaurantOwnershipPolicy restaurantOwnershipPolicy;
+    private final CatalogLifecycleService catalogLifecycleService;
 
     @Override
     @Transactional(readOnly = true)
@@ -102,7 +104,7 @@ public class MenuItemServiceImpl implements MenuItemService {
         authorizeWrite(item.getRestaurant(), principalId, legacyUserId, role);
         
         menuItemMapper.updateEntityFromDto(request, item);
-        MenuItem updated = menuItemRepository.save(item);
+        MenuItem updated = menuItemRepository.saveAndFlush(item);
         
         cacheSynchronizer.cacheMenuItemAfterCommit(updated);
         
@@ -121,21 +123,14 @@ public class MenuItemServiceImpl implements MenuItemService {
     @Override
     @Transactional
     public void deleteMenuItem(Long id, Long principalId, Long legacyUserId, String role) {
-        requireManagementActor(principalId, legacyUserId, role);
-        MenuItem item = menuItemRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("MenuItem not found"));
-        authorizeWrite(item.getRestaurant(), principalId, legacyUserId, role);
+        catalogLifecycleService.archiveMenuItem(id, principalId, legacyUserId, role);
+    }
 
-        if (item.getStatus() == MenuItem.Status.ARCHIVED) {
-            return;
-        }
-
-        item.setStatus(MenuItem.Status.ARCHIVED);
-        MenuItem archived = menuItemRepository.save(item);
-
-        cacheSynchronizer.removeMenuItemAfterCommit(id);
-
-        searchSyncPublisher.publishDishChange(archived, "DELETE");
+    @Override
+    public MenuItemResponse changeLifecycle(Long id, MenuItemLifecycleRequest request,
+            Long principalId, Long legacyUserId, String role) {
+        return catalogLifecycleService.changeMenuItemLifecycle(
+                id, request, principalId, legacyUserId, role);
     }
 
     @Override

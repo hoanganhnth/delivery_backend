@@ -13,6 +13,7 @@ import com.delivery.restaurant_service.repository.RestaurantRepository;
 import com.delivery.restaurant_service.service.impl.MenuItemServiceImpl;
 import com.delivery.restaurant_service.service.ownership.ManagementAccess;
 import com.delivery.restaurant_service.service.ownership.RestaurantOwnershipPolicy;
+import com.delivery.restaurant_service.service.impl.CatalogLifecycleService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -44,6 +45,8 @@ class MenuItemServiceTest {
     private CatalogCacheSynchronizer cacheSynchronizer;
     @Mock
     private SearchSyncPublisher searchSyncPublisher;
+    @Mock
+    private CatalogLifecycleService catalogLifecycleService;
     @org.mockito.Spy
     private RestaurantOwnershipPolicy restaurantOwnershipPolicy = new RestaurantOwnershipPolicy(false);
 
@@ -154,61 +157,42 @@ class MenuItemServiceTest {
     @Test
     void deleteMenuItem_ShouldArchiveWithoutPhysicalDeletion_WhenUserIsOwner() {
         // Given
-        when(menuItemRepository.findById(1L)).thenReturn(Optional.of(menuItem));
-
         // When
         menuItemService.deleteMenuItem(1L, 1L, RoleConstants.OWNER);
 
         // Then
-        verify(menuItemRepository).findById(1L);
-        assertEquals(MenuItem.Status.ARCHIVED, menuItem.getStatus());
-        verify(menuItemRepository).save(menuItem);
-        verify(menuItemRepository, never()).delete(any());
+        verify(catalogLifecycleService).archiveMenuItem(1L, 1L, 1L, RoleConstants.OWNER);
     }
 
     @Test
-    void deleteMenuItem_ShouldThrowException_WhenUserNotOwner() {
-        // Given
-        restaurant.setCreatorId(2L); // Different owner
-        when(menuItemRepository.findById(1L)).thenReturn(Optional.of(menuItem));
+    void deleteMenuItem_DelegatesOwnershipAndLifecycleToCatalogBoundary() {
+        menuItemService.deleteMenuItem(1L, 1L, RoleConstants.OWNER);
 
-        // When & Then
-        assertThrows(AccessDeniedException.class, () ->
-                menuItemService.deleteMenuItem(1L, 1L, RoleConstants.OWNER));
-
-        verify(menuItemRepository).findById(1L);
-        verify(menuItemRepository, never()).delete(any());
+        verify(catalogLifecycleService).archiveMenuItem(1L, 1L, 1L, RoleConstants.OWNER);
+        verifyNoInteractions(menuItemRepository);
     }
 
     @Test
     void deleteMenuItem_ShouldAllowAdmin_WhenAdminIsNotOwner() {
         restaurant.setCreatorId(2L);
-        when(menuItemRepository.findById(1L)).thenReturn(Optional.of(menuItem));
-
         menuItemService.deleteMenuItem(1L, 99L, RoleConstants.ADMIN);
 
-        assertEquals(MenuItem.Status.ARCHIVED, menuItem.getStatus());
-        verify(menuItemRepository).save(menuItem);
-        verify(menuItemRepository, never()).delete(any());
+        verify(catalogLifecycleService).archiveMenuItem(1L, 99L, 99L, RoleConstants.ADMIN);
     }
 
     @Test
-    void deleteMenuItem_ShouldRejectMissingRole_EvenWhenIdentityMatchesOwner() {
-        assertThrows(AccessDeniedException.class, () ->
-                menuItemService.deleteMenuItem(1L, 1L, null));
+    void deleteMenuItem_PassesMissingRoleToCatalogBoundary() {
+        menuItemService.deleteMenuItem(1L, 1L, null);
 
-        verify(menuItemRepository, never()).delete(any());
+        verify(catalogLifecycleService).archiveMenuItem(1L, 1L, 1L, null);
+        verifyNoInteractions(menuItemRepository);
     }
 
     @Test
     void deleteMenuItem_IsIdempotentWhenAlreadyArchived() {
-        menuItem.setStatus(MenuItem.Status.ARCHIVED);
-        when(menuItemRepository.findById(1L)).thenReturn(Optional.of(menuItem));
-
         menuItemService.deleteMenuItem(1L, 1L, RoleConstants.OWNER);
 
-        verify(menuItemRepository, never()).save(any());
-        verifyNoInteractions(cacheSynchronizer, searchSyncPublisher);
+        verify(catalogLifecycleService).archiveMenuItem(1L, 1L, 1L, RoleConstants.OWNER);
     }
 
     @Test
@@ -231,7 +215,7 @@ class MenuItemServiceTest {
         expectedResponse.setPrice(BigDecimal.valueOf(29.99));
 
         when(menuItemRepository.findById(1L)).thenReturn(Optional.of(menuItem));
-        when(menuItemRepository.save(any(MenuItem.class))).thenReturn(updatedMenuItem);
+        when(menuItemRepository.saveAndFlush(any(MenuItem.class))).thenReturn(updatedMenuItem);
         when(menuItemMapper.toResponse(any(MenuItem.class))).thenReturn(expectedResponse);
         // When
         MenuItemResponse response = menuItemService.updateMenuItem(1L, updateRequest, 1L, RoleConstants.OWNER);
@@ -241,7 +225,7 @@ class MenuItemServiceTest {
         assertEquals("Updated Pizza", response.getName());
         assertEquals(BigDecimal.valueOf(29.99), response.getPrice());
         verify(menuItemRepository).findById(1L);
-        verify(menuItemRepository).save(any(MenuItem.class));
+        verify(menuItemRepository).saveAndFlush(any(MenuItem.class));
         verify(menuItemMapper).updateEntityFromDto(any(UpdateMenuItemRequest.class), any(MenuItem.class));
     }
 

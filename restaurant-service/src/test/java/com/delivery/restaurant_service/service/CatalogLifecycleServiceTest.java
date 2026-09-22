@@ -1,0 +1,149 @@
+package com.delivery.restaurant_service.service;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import com.delivery.restaurant.domain.catalog.MenuItemLifecyclePolicy;
+import com.delivery.restaurant.domain.catalog.MenuItemStatus;
+import com.delivery.restaurant.domain.catalog.RestaurantLifecyclePolicy;
+import com.delivery.restaurant.domain.catalog.RestaurantStatus;
+import com.delivery.restaurant_service.dto.request.MenuItemLifecycleRequest;
+import com.delivery.restaurant_service.dto.request.RestaurantLifecycleRequest;
+import com.delivery.restaurant_service.dto.response.MenuItemResponse;
+import com.delivery.restaurant_service.dto.response.RestaurantResponse;
+import com.delivery.restaurant_service.entity.MenuItem;
+import com.delivery.restaurant_service.entity.Restaurant;
+import com.delivery.restaurant_service.exception.StaleVersionException;
+import com.delivery.restaurant_service.mapper.MenuItemMapper;
+import com.delivery.restaurant_service.mapper.RestaurantMapper;
+import com.delivery.restaurant_service.repository.MenuItemRepository;
+import com.delivery.restaurant_service.repository.RestaurantRepository;
+import com.delivery.restaurant_service.repository.CatalogLifecycleAuditRepository;
+import com.delivery.restaurant_service.service.impl.CatalogLifecycleService;
+import com.delivery.restaurant_service.service.ownership.RestaurantOwnershipPolicy;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import java.util.Optional;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+@ExtendWith(MockitoExtension.class)
+class CatalogLifecycleServiceTest {
+
+    @Mock RestaurantRepository restaurantRepository;
+    @Mock MenuItemRepository menuItemRepository;
+    @Mock RestaurantMapper restaurantMapper;
+    @Mock MenuItemMapper menuItemMapper;
+    @Mock CatalogCacheSynchronizer cacheSynchronizer;
+    @Mock SearchSyncPublisher searchSyncPublisher;
+    @Mock CatalogLifecycleAuditRepository auditRepository;
+
+    private CatalogLifecycleService service;
+    private Restaurant restaurant;
+    private MenuItem item;
+
+    @BeforeEach
+    void setUp() {
+        service = new CatalogLifecycleService(
+                restaurantRepository, menuItemRepository, restaurantMapper, menuItemMapper,
+                cacheSynchronizer, searchSyncPublisher, new RestaurantOwnershipPolicy(false),
+                new RestaurantLifecyclePolicy(), new MenuItemLifecyclePolicy(), auditRepository,
+                new SimpleMeterRegistry());
+        restaurant = new Restaurant();
+        restaurant.setId(10L);
+        restaurant.setOwnerPrincipalId(7L);
+        restaurant.setLifecycleStatus(RestaurantStatus.ACTIVE);
+        restaurant.setVersion(4L);
+        item = new MenuItem();
+        item.setId(20L);
+        item.setRestaurant(restaurant);
+        item.setStatus(MenuItem.Status.AVAILABLE);
+        item.setVersion(2L);
+    }
+
+    @Test
+    void ownerMayPauseRestaurantAndAuditStoresWhitelistedTransition() {
+        when(restaurantRepository.findById(10L)).thenReturn(Optional.of(restaurant));
+        when(restaurantRepository.saveAndFlush(restaurant)).thenReturn(restaurant);
+        RestaurantResponse response = new RestaurantResponse();
+        when(restaurantMapper.toResponse(restaurant)).thenReturn(response);
+
+        RestaurantResponse result = service.changeRestaurantLifecycle(
+                10L, new RestaurantLifecycleRequest(RestaurantStatus.PAUSED, 4L),
+                7L, 700L, "SHOP_OWNER");
+
+        assertThat(result).isSameAs(response);
+        assertThat(restaurant.getLifecycleStatus()).isEqualTo(RestaurantStatus.PAUSED);
+        verify(auditRepository).save(any());
+        verify(searchSyncPublisher).publishRestaurantChange(restaurant, "UPDATE");
+        verify(cacheSynchronizer).cacheRestaurantAfterCommit(restaurant);
+    }
+
+    @Test
+    void staleRestaurantVersionFailsBeforeAnyMutation() {
+        when(restaurantRepository.findById(10L)).thenReturn(Optional.of(restaurant));
+
+        assertThatThrownBy(() -> service.changeRestaurantLifecycle(
+                10L, new RestaurantLifecycleRequest(RestaurantStatus.PAUSED, 3L),
+                7L, 700L, "SHOP_OWNER"))
+                .isInstanceOf(StaleVersionException.class)
+                .hasMessage("STALE_VERSION");
+
+        assertThat(restaurant.getLifecycleStatus()).isEqualTo(RestaurantStatus.ACTIVE);
+        verify(restaurantRepository, never()).save(any());
+        verifyNoAuditOrSideEffects();
+    }
+
+    @Test
+    void missingExpectedVersionIsCompatibleButIncrementsMetric() {
+        when(restaurantRepository.findById(10L)).thenReturn(Optional.of(restaurant));
+        when(restaurantRepository.saveAndFlush(restaurant)).thenReturn(restaurant);
+        when(restaurantMapper.toResponse(restaurant)).thenReturn(new RestaurantResponse());
+
+        service.changeRestaurantLifecycle(
+                10L, new RestaurantLifecycleRequest(RestaurantStatus.PAUSED, null),
+                7L, 700L, "SHOP_OWNER");
+
+        assertThat(service.missingExpectedVersionCount()).isEqualTo(1.0);
+    }
+
+    @Test
+    void onlyAdminMayRestoreArchivedMenuItem() {
+        item.setStatus(MenuItem.Status.ARCHIVED);
+        when(menuItemRepository.findById(20L)).thenReturn(Optional.of(item));
+
+        assertThatThrownBy(() -> service.changeMenuItemLifecycle(
+                20L, new MenuItemLifecycleRequest(MenuItemStatus.DISCONTINUED, 2L),
+                7L, 700L, "SHOP_OWNER"))
+                .isInstanceOf(IllegalArgumentException.class);
+        verify(menuItemRepository, never()).save(any());
+    }
+
+    @Test
+    void restaurantArchiveKeepsMenuStateIndependentAndUsesDeleteProjection() {
+        when(restaurantRepository.findById(10L)).thenReturn(Optional.of(restaurant));
+        when(restaurantRepository.saveAndFlush(restaurant)).thenReturn(restaurant);
+
+        service.changeRestaurantLifecycle(
+                10L, new RestaurantLifecycleRequest(RestaurantStatus.ARCHIVED, 4L),
+                7L, 700L, "SHOP_OWNER");
+
+        assertThat(restaurant.getLifecycleStatus()).isEqualTo(RestaurantStatus.ARCHIVED);
+        verify(searchSyncPublisher).publishRestaurantChange(restaurant, "DELETE");
+        verify(cacheSynchronizer).removeRestaurantAfterCommit(10L);
+    }
+
+    private void verifyNoAuditOrSideEffects() {
+        verify(auditRepository, never()).save(any());
+        verify(cacheSynchronizer, never()).cacheRestaurantAfterCommit(any());
+        verify(cacheSynchronizer, never()).removeRestaurantAfterCommit(any());
+        verify(searchSyncPublisher, never()).publishRestaurantChange(any(), any());
+    }
+}

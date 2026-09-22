@@ -25,8 +25,9 @@
   `AVAILABLE` khi Restaurant cha chưa archive. Detail Restaurant theo ID và các
   management list vẫn giữ dữ liệu lịch sử.
 - Restaurant response bổ sung `lifecycleStatus`, `version`, `timeZone`; Menu
-  response bổ sung `version`. Đây là field additive; endpoint lifecycle và
-  kiểm tra `expectedVersion` vẫn là TODO của Slice 3.
+  response bổ sung `version`. Đây là field additive. Lifecycle PATCH đã có ở
+  `/api/restaurants/{id}/lifecycle` và `/api/menu-items/{id}/lifecycle`; body
+  nhận `targetStatus` và `expectedVersion` tùy chọn.
 - Client từng dùng public route để quản trị phải chuyển sang management route.
   Không dựa vào ID do client gửi để cấp quyền.
 - Flutter đọc tọa độ `latitude`/`longitude` trước legacy `addressLat/addressLng`;
@@ -63,9 +64,12 @@ Khi Merchant hoặc Admin thực hiện thay đổi trên món ăn (Ví dụ: Đ
 
 - Migration V10 backfill Restaurant cũ thành `ACTIVE`, version `0`, timezone
   `Asia/Ho_Chi_Minh`; Menu cũ có version `0`.
-- Restaurant/Menu dùng optimistic version ở persistence. Contract mutation dựa
-  trên `expectedVersion`, audit bất biến và lifecycle PATCH chưa hoàn tất nên
-  chưa được coi là giải quyết xong concurrency ở API.
+- Restaurant/Menu dùng optimistic version ở persistence. Nếu gửi
+  `expectedVersion` không khớp, API trả `409 STALE_VERSION`; nếu chưa gửi thì
+  vẫn tương thích ngược và tăng metric
+  `delivery.catalog.expected_version.missing`. Lifecycle mutation lưu audit
+  whitelist (actor, role, aggregate, before/after state, versions, timestamp,
+  correlation ID) và search outbox trong cùng transaction PostgreSQL.
 - Physical purge và retention policy chưa có authority, vì vậy normal business
   flow không xóa Restaurant/Menu.
 

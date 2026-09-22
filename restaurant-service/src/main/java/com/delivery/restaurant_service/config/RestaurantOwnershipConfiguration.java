@@ -6,6 +6,8 @@ import com.delivery.platform.http.blocking.RestTemplateBlockingHttpExchange;
 import com.delivery.restaurant.application.DefaultRestaurantOwnerAssignmentUseCase;
 import com.delivery.restaurant.application.api.PrincipalOwnershipDirectory;
 import com.delivery.restaurant.application.api.RestaurantOwnerAssignmentUseCase;
+import com.delivery.restaurant.domain.catalog.MenuItemLifecyclePolicy;
+import com.delivery.restaurant.domain.catalog.RestaurantLifecyclePolicy;
 import com.delivery.restaurant_service.adapter.IdentityPrincipalDirectoryAdapter;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -50,5 +52,15 @@ public class RestaurantOwnershipConfiguration {
     RestaurantOwnerAssignmentUseCase restaurantOwnerAssignmentUseCase(
             PrincipalOwnershipDirectory principalDirectory) {
         return new DefaultRestaurantOwnerAssignmentUseCase(principalDirectory);
+    }
+
+    @Bean
+    RestaurantLifecyclePolicy restaurantLifecyclePolicy() {
+        return new RestaurantLifecyclePolicy();
+    }
+
+    @Bean
+    MenuItemLifecyclePolicy menuItemLifecyclePolicy() {
+        return new MenuItemLifecyclePolicy();
     }
 }

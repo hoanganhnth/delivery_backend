@@ -58,6 +58,12 @@ public class GlobalExceptionHandler {
                 .body(new BaseResponse<>(0, null, ex.getMessage()));
     }
 
+    @ExceptionHandler(StaleVersionException.class)
+    public ResponseEntity<BaseResponse<Object>> handleStaleVersion(StaleVersionException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new BaseResponse<>(0, null, ex.getMessage()));
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<BaseResponse<Object>> handleIllegalArgument(IllegalArgumentException ex) {
         return ResponseEntity.badRequest()

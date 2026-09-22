@@ -4,6 +4,7 @@ import com.delivery.restaurant.domain.catalog.RestaurantStatus;
 import com.delivery.restaurant_service.common.constants.RoleConstants;
 import com.delivery.restaurant_service.dto.request.CreateRestaurantRequest;
 import com.delivery.restaurant_service.dto.request.UpdateRestaurantRequest;
+import com.delivery.restaurant_service.dto.request.RestaurantLifecycleRequest;
 import com.delivery.restaurant_service.dto.response.RestaurantResponse;
 import com.delivery.restaurant_service.entity.Restaurant;
 import com.delivery.restaurant_service.exception.ResourceNotFoundException;
@@ -38,6 +39,7 @@ public class RestaurantServiceImpl implements RestaurantService {
     private final SearchSyncPublisher searchSyncPublisher;
     private final MeterRegistry meterRegistry;
     private final RestaurantOwnershipPolicy restaurantOwnershipPolicy;
+    private final CatalogLifecycleService catalogLifecycleService;
 
     @Override
     @Transactional
@@ -96,7 +98,7 @@ public class RestaurantServiceImpl implements RestaurantService {
         authorizeWrite(existingRestaurant, ownerPrincipalId, creatorId, role);
 
         restaurantMapper.updateEntityFromDto(request, existingRestaurant);
-        Restaurant updated = restaurantRepository.save(existingRestaurant);
+        Restaurant updated = restaurantRepository.saveAndFlush(existingRestaurant);
 
         cacheSynchronizer.cacheRestaurantAfterCommit(updated);
 
@@ -115,21 +117,14 @@ public class RestaurantServiceImpl implements RestaurantService {
     @Override
     @Transactional
     public void deleteRestaurant(Long id, Long ownerPrincipalId, Long creatorId, String role) {
-        Restaurant restaurant = restaurantRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Restaurant not found"));
+        catalogLifecycleService.archiveRestaurant(id, ownerPrincipalId, creatorId, role);
+    }
 
-        authorizeWrite(restaurant, ownerPrincipalId, creatorId, role);
-
-        if (restaurant.getLifecycleStatus() == RestaurantStatus.ARCHIVED) {
-            return;
-        }
-
-        restaurant.setLifecycleStatus(RestaurantStatus.ARCHIVED);
-        Restaurant archived = restaurantRepository.save(restaurant);
-
-        cacheSynchronizer.removeRestaurantAfterCommit(id);
-
-        searchSyncPublisher.publishRestaurantChange(archived, "DELETE");
+    @Override
+    public RestaurantResponse changeLifecycle(Long id, RestaurantLifecycleRequest request,
+            Long ownerPrincipalId, Long creatorId, String role) {
+        return catalogLifecycleService.changeRestaurantLifecycle(
+                id, request, ownerPrincipalId, creatorId, role);
     }
 
     @Override

@@ -2,6 +2,7 @@ package com.delivery.restaurant_service.service;
 
 import com.delivery.restaurant_service.dto.request.CreateMenuItemRequest;
 import com.delivery.restaurant_service.dto.request.UpdateMenuItemRequest;
+import com.delivery.restaurant_service.dto.request.MenuItemLifecycleRequest;
 import com.delivery.restaurant_service.dto.response.MenuItemResponse;
 
 import java.util.List;
@@ -29,6 +30,9 @@ public interface MenuItemService {
     void deleteMenuItem(Long id, Long creatorId, String role);
 
     void deleteMenuItem(Long id, Long principalId, Long legacyUserId, String role);
+
+    MenuItemResponse changeLifecycle(Long id, MenuItemLifecycleRequest request,
+                                     Long principalId, Long legacyUserId, String role);
 
     List<MenuItemResponse> getItemsByRestaurant(Long restaurantId);
 

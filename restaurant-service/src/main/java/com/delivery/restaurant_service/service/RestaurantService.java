@@ -2,6 +2,7 @@ package com.delivery.restaurant_service.service;
 
 import com.delivery.restaurant_service.dto.request.CreateRestaurantRequest;
 import com.delivery.restaurant_service.dto.request.UpdateRestaurantRequest;
+import com.delivery.restaurant_service.dto.request.RestaurantLifecycleRequest;
 import com.delivery.restaurant_service.dto.response.RestaurantResponse;
 
 import java.util.List;
@@ -26,6 +27,9 @@ public interface RestaurantService {
 
     void deleteRestaurant(Long id, Long creatorId, String role);
     void deleteRestaurant(Long id, Long ownerPrincipalId, Long legacyCreatorId, String role);
+
+    RestaurantResponse changeLifecycle(Long id, RestaurantLifecycleRequest request,
+                                       Long ownerPrincipalId, Long legacyCreatorId, String role);
 
     RestaurantResponse getRestaurantById(Long id);
 

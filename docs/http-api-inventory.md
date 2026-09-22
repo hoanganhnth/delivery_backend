@@ -263,6 +263,7 @@ sửa.
 | restaurant-service | MenuItemController | POST | `/api/menu-items` | `create` |
 | restaurant-service | MenuItemController | PUT | `/api/menu-items/{id}` | `update` |
 | restaurant-service | MenuItemController | DELETE | `/api/menu-items/{id}` | `delete` |
+| restaurant-service | MenuItemController | PATCH | `/api/menu-items/{id}/lifecycle` | `changeLifecycle` |
 | restaurant-service | MenuItemController | GET | `/api/menu-items/restaurant/{restaurantId}` | `getByRestaurant` |
 | restaurant-service | MenuItemController | GET | `/api/menu-items/restaurant/{restaurantId}/available` | `getAvailableItems` |
 | restaurant-service | MenuItemController | GET | `/api/menu-items/restaurant/{restaurantId}/page` | `getPage` |
@@ -281,6 +282,7 @@ sửa.
 | restaurant-service | RestaurantController | POST | `/api/restaurants` | `create` |
 | restaurant-service | RestaurantController | PUT | `/api/restaurants/{id}` | `update` |
 | restaurant-service | RestaurantController | DELETE | `/api/restaurants/{id}` | `delete` |
+| restaurant-service | RestaurantController | PATCH | `/api/restaurants/{id}/lifecycle` | `changeLifecycle` |
 | restaurant-service | RestaurantController | GET | `/api/restaurants/{id}` | `getById` |
 | restaurant-service | RestaurantController | GET | `/api/restaurants` | `getAll` |
 | restaurant-service | RestaurantController | GET | `/api/restaurants/search` | `search` |

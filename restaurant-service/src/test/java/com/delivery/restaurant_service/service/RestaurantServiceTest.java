@@ -9,6 +9,7 @@ import com.delivery.restaurant_service.exception.ResourceNotFoundException;
 import com.delivery.restaurant_service.mapper.RestaurantMapper;
 import com.delivery.restaurant_service.repository.RestaurantRepository;
 import com.delivery.restaurant_service.service.impl.RestaurantServiceImpl;
+import com.delivery.restaurant_service.service.impl.CatalogLifecycleService;
 import com.delivery.restaurant_service.service.ownership.RestaurantOwnershipPolicy;
 import com.delivery.restaurant_service.service.ownership.ManagementAccess;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,6 +37,8 @@ class RestaurantServiceTest {
     private CatalogCacheSynchronizer cacheSynchronizer;
     @Mock
     private SearchSyncPublisher searchSyncPublisher;
+    @Mock
+    private CatalogLifecycleService catalogLifecycleService;
     private final RestaurantOwnershipPolicy restaurantOwnershipPolicy = new RestaurantOwnershipPolicy(false);
 
     private RestaurantServiceImpl restaurantService;
@@ -49,7 +52,7 @@ class RestaurantServiceTest {
     void setUp() {
         restaurantService = new RestaurantServiceImpl(restaurantRepository, menuItemMapper,
                 cacheSynchronizer, searchSyncPublisher, new io.micrometer.core.instrument.simple.SimpleMeterRegistry(),
-                restaurantOwnershipPolicy);
+                restaurantOwnershipPolicy, catalogLifecycleService);
         restaurant = new Restaurant();
         restaurant.setId(1L);
         restaurant.setName("Test Restaurant");
@@ -162,62 +165,42 @@ class RestaurantServiceTest {
     @Test
     void deleteRestaurant_ShouldArchiveWithoutPhysicalDeletion_WhenUserIsOwner() {
         // Given
-        when(restaurantRepository.findById(1L)).thenReturn(Optional.of(restaurant));
-
         // When
         restaurantService.deleteRestaurant(1L, 1L, RoleConstants.OWNER);
 
         // Then
-        verify(restaurantRepository).findById(1L);
-        assertEquals(RestaurantStatus.ARCHIVED, restaurant.getLifecycleStatus());
-        verify(restaurantRepository).save(restaurant);
-        verify(restaurantRepository, never()).deleteById(anyLong());
+        verify(catalogLifecycleService).archiveRestaurant(1L, 1L, 1L, RoleConstants.OWNER);
     }
 
     @Test
-    void deleteRestaurant_ShouldThrowException_WhenUserNotOwner() {
-        // Given
-        restaurant.setCreatorId(2L); // Different owner
-        when(restaurantRepository.findById(1L)).thenReturn(Optional.of(restaurant));
+    void deleteRestaurant_DelegatesOwnershipAndLifecycleToCatalogBoundary() {
+        restaurantService.deleteRestaurant(1L, 1L, RoleConstants.OWNER);
 
-        // When & Then
-        assertThrows(AccessDeniedException.class, () ->
-                restaurantService.deleteRestaurant(1L, 1L, RoleConstants.OWNER));
-
-        verify(restaurantRepository).findById(1L);
-        verify(restaurantRepository, never()).delete(any());
+        verify(catalogLifecycleService).archiveRestaurant(1L, 1L, 1L, RoleConstants.OWNER);
+        verifyNoInteractions(restaurantRepository);
     }
 
     @Test
     void deleteRestaurant_ShouldAllowAdmin_WhenAdminIsNotOwner() {
         restaurant.setCreatorId(2L);
-        when(restaurantRepository.findById(1L)).thenReturn(Optional.of(restaurant));
-
         restaurantService.deleteRestaurant(1L, 99L, RoleConstants.ADMIN);
 
-        assertEquals(RestaurantStatus.ARCHIVED, restaurant.getLifecycleStatus());
-        verify(restaurantRepository).save(restaurant);
-        verify(restaurantRepository, never()).deleteById(anyLong());
+        verify(catalogLifecycleService).archiveRestaurant(1L, 99L, 99L, RoleConstants.ADMIN);
     }
 
     @Test
-    void deleteRestaurant_ShouldRejectMissingRole_EvenWhenIdentityMatchesOwner() {
-        when(restaurantRepository.findById(1L)).thenReturn(Optional.of(restaurant));
+    void deleteRestaurant_PassesMissingRoleToCatalogBoundary() {
+        restaurantService.deleteRestaurant(1L, 1L, null);
 
-        assertThrows(AccessDeniedException.class, () ->
-                restaurantService.deleteRestaurant(1L, 1L, null));
-
-        verify(restaurantRepository, never()).deleteById(anyLong());
+        verify(catalogLifecycleService).archiveRestaurant(1L, 1L, 1L, null);
+        verifyNoInteractions(restaurantRepository);
     }
 
     @Test
     void deleteRestaurant_IsIdempotentWhenAlreadyArchived() {
         restaurant.setLifecycleStatus(RestaurantStatus.ARCHIVED);
-        when(restaurantRepository.findById(1L)).thenReturn(Optional.of(restaurant));
-
         restaurantService.deleteRestaurant(1L, 1L, RoleConstants.OWNER);
 
-        verify(restaurantRepository, never()).save(any());
-        verifyNoInteractions(cacheSynchronizer, searchSyncPublisher);
+        verify(catalogLifecycleService).archiveRestaurant(1L, 1L, 1L, RoleConstants.OWNER);
     }
 }

@@ -9,9 +9,9 @@
   "scope": "Every annotated controller mapping, including internal, hidden, dev-only and experimental endpoints. Consult the HTTP inventory for public-edge classification and capability status.",
   "schemaStatus": "Field metadata is extracted from Java declarations and validation annotations. It is a source map, not an inferred OpenAPI/JSON Schema; controller/DTO source remains authoritative for Jackson, inheritance, polymorphism and error behavior.",
   "counts": {
-    "operations": 240,
+    "operations": 242,
     "services": 17,
-    "sourceSchemas": 222,
+    "sourceSchemas": 225,
     "byService": {
       "analytics-service": 4,
       "auth-service": 20,
@@ -21,7 +21,7 @@
       "notification-service": 12,
       "order-service": 10,
       "promotion-service": 21,
-      "restaurant-service": 39,
+      "restaurant-service": 41,
       "routing-service": 3,
       "search-service": 2,
       "settlement-service": 33,
@@ -5503,7 +5503,7 @@
       "handler": "create",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java",
-        "line": 33
+        "line": 34
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<MenuItemResponse>> create( @Valid @RequestBody CreateMenuItemRequest request, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -5553,7 +5553,7 @@
       "handler": "update",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java",
-        "line": 43
+        "line": 44
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<MenuItemResponse>> update( @PathVariable Long id, @Valid @RequestBody UpdateMenuItemRequest request, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -5615,7 +5615,7 @@
       "handler": "delete",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java",
-        "line": 54
+        "line": 55
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<Void>> delete( @PathVariable Long id, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -5648,6 +5648,68 @@
       }
     },
     {
+      "id": "restaurant-service:MenuItemController.changeLifecycle:PATCH:/api/menu-items/{id}/lifecycle",
+      "service": "restaurant-service",
+      "controller": "MenuItemController",
+      "verbs": [
+        "PATCH"
+      ],
+      "path": "/api/menu-items/{id}/lifecycle",
+      "handler": "changeLifecycle",
+      "source": {
+        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java",
+        "line": 64
+      },
+      "java": {
+        "signature": "public ResponseEntity<BaseResponse<MenuItemResponse>> changeLifecycle( @PathVariable Long id, @Valid @RequestBody MenuItemLifecycleRequest request, @AuthenticationPrincipal AuthenticatedActor actor)",
+        "returnType": "ResponseEntity<BaseResponse<MenuItemResponse>>",
+        "parameters": [
+          {
+            "name": "id",
+            "type": "Long",
+            "annotations": [
+              {
+                "name": "PathVariable"
+              }
+            ],
+            "required": true,
+            "binding": "path",
+            "wireName": "id"
+          },
+          {
+            "name": "request",
+            "type": "MenuItemLifecycleRequest",
+            "annotations": [
+              {
+                "name": "Valid"
+              },
+              {
+                "name": "RequestBody"
+              }
+            ],
+            "required": true,
+            "constraints": [
+              {
+                "name": "Valid"
+              }
+            ],
+            "binding": "body"
+          },
+          {
+            "name": "actor",
+            "type": "AuthenticatedActor",
+            "annotations": [
+              {
+                "name": "AuthenticationPrincipal"
+              }
+            ],
+            "required": false,
+            "binding": "principal"
+          }
+        ]
+      }
+    },
+    {
       "id": "restaurant-service:MenuItemController.getByRestaurant:GET:/api/menu-items/restaurant/{restaurantId}",
       "service": "restaurant-service",
       "controller": "MenuItemController",
@@ -5658,7 +5720,7 @@
       "handler": "getByRestaurant",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java",
-        "line": 63
+        "line": 75
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<List<MenuItemResponse>>> getByRestaurant(@PathVariable Long restaurantId)",
@@ -5690,7 +5752,7 @@
       "handler": "getAvailableItems",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java",
-        "line": 69
+        "line": 81
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<List<MenuItemResponse>>> getAvailableItems(@PathVariable Long restaurantId)",
@@ -5722,7 +5784,7 @@
       "handler": "getPage",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java",
-        "line": 75
+        "line": 87
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<PageResponse<MenuItemResponse>>> getPage( @PathVariable Long restaurantId, @RequestParam(defaultValue = \"0\") int page, @RequestParam(defaultValue = \"24\") int size)",
@@ -5782,7 +5844,7 @@
       "handler": "getAvailablePage",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java",
-        "line": 84
+        "line": 96
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<PageResponse<MenuItemResponse>>> getAvailablePage( @PathVariable Long restaurantId, @RequestParam(defaultValue = \"0\") int page, @RequestParam(defaultValue = \"24\") int size)",
@@ -5842,7 +5904,7 @@
       "handler": "getMyMenuItems",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java",
-        "line": 93
+        "line": 105
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<List<MenuItemResponse>>> getMyMenuItems( @AuthenticationPrincipal AuthenticatedActor actor, @RequestParam(required = false) Long restaurantId)",
@@ -5886,7 +5948,7 @@
       "handler": "getMyMenuItemsPage",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java",
-        "line": 108
+        "line": 120
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<PageResponse<MenuItemResponse>>> getMyMenuItemsPage( @AuthenticationPrincipal AuthenticatedActor actor, @RequestParam(required = false) Long restaurantId, @RequestParam(defaultValue = \"0\") int page, @RequestParam(defaultValue = \"24\") int size)",
@@ -6441,7 +6503,7 @@
       "handler": "create",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java",
-        "line": 39
+        "line": 40
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<RestaurantResponse>> create( @Valid @RequestBody CreateRestaurantRequest request, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -6491,7 +6553,7 @@
       "handler": "update",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java",
-        "line": 51
+        "line": 52
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<RestaurantResponse>> update( @PathVariable Long id, @Valid @RequestBody UpdateRestaurantRequest request, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -6553,7 +6615,7 @@
       "handler": "delete",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java",
-        "line": 62
+        "line": 63
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<Void>> delete( @PathVariable Long id, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -6586,6 +6648,68 @@
       }
     },
     {
+      "id": "restaurant-service:RestaurantController.changeLifecycle:PATCH:/api/restaurants/{id}/lifecycle",
+      "service": "restaurant-service",
+      "controller": "RestaurantController",
+      "verbs": [
+        "PATCH"
+      ],
+      "path": "/api/restaurants/{id}/lifecycle",
+      "handler": "changeLifecycle",
+      "source": {
+        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java",
+        "line": 72
+      },
+      "java": {
+        "signature": "public ResponseEntity<BaseResponse<RestaurantResponse>> changeLifecycle( @PathVariable Long id, @Valid @RequestBody RestaurantLifecycleRequest request, @AuthenticationPrincipal AuthenticatedActor actor)",
+        "returnType": "ResponseEntity<BaseResponse<RestaurantResponse>>",
+        "parameters": [
+          {
+            "name": "id",
+            "type": "Long",
+            "annotations": [
+              {
+                "name": "PathVariable"
+              }
+            ],
+            "required": true,
+            "binding": "path",
+            "wireName": "id"
+          },
+          {
+            "name": "request",
+            "type": "RestaurantLifecycleRequest",
+            "annotations": [
+              {
+                "name": "Valid"
+              },
+              {
+                "name": "RequestBody"
+              }
+            ],
+            "required": true,
+            "constraints": [
+              {
+                "name": "Valid"
+              }
+            ],
+            "binding": "body"
+          },
+          {
+            "name": "actor",
+            "type": "AuthenticatedActor",
+            "annotations": [
+              {
+                "name": "AuthenticationPrincipal"
+              }
+            ],
+            "required": false,
+            "binding": "principal"
+          }
+        ]
+      }
+    },
+    {
       "id": "restaurant-service:RestaurantController.getById:GET:/api/restaurants/{id}",
       "service": "restaurant-service",
       "controller": "RestaurantController",
@@ -6596,7 +6720,7 @@
       "handler": "getById",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java",
-        "line": 71
+        "line": 83
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<RestaurantResponse>> getById(@PathVariable Long id)",
@@ -6628,7 +6752,7 @@
       "handler": "getAll",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java",
-        "line": 77
+        "line": 89
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<List<RestaurantResponse>>> getAll()",
@@ -6647,7 +6771,7 @@
       "handler": "search",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java",
-        "line": 83
+        "line": 95
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<List<RestaurantResponse>>> search(@RequestParam String keyword)",
@@ -6679,7 +6803,7 @@
       "handler": "getPage",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java",
-        "line": 89
+        "line": 101
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<PageResponse<RestaurantResponse>>> getPage( @RequestParam(defaultValue = \"0\") int page, @RequestParam(defaultValue = \"24\") int size, @RequestParam(required = false) String keyword)",
@@ -6740,7 +6864,7 @@
       "handler": "getMyRestaurants",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java",
-        "line": 99
+        "line": 111
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<List<RestaurantResponse>>> getMyRestaurants( @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -21285,6 +21409,36 @@
         }
       ]
     },
+    "com.delivery.restaurant_service.dto.request.MenuItemLifecycleRequest": {
+      "kind": "record",
+      "source": {
+        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/dto/request/MenuItemLifecycleRequest.java",
+        "line": 6
+      },
+      "fields": [
+        {
+          "name": "targetStatus",
+          "type": "MenuItemStatus",
+          "annotations": [
+            {
+              "name": "NotNull"
+            }
+          ],
+          "required": true,
+          "constraints": [
+            {
+              "name": "NotNull"
+            }
+          ]
+        },
+        {
+          "name": "expectedVersion",
+          "type": "Long",
+          "annotations": [],
+          "required": false
+        }
+      ]
+    },
     "com.delivery.restaurant_service.dto.request.OrderValidationRequest": {
       "kind": "class",
       "source": {
@@ -21508,6 +21662,36 @@
               "arguments": "max = 500"
             }
           ]
+        }
+      ]
+    },
+    "com.delivery.restaurant_service.dto.request.RestaurantLifecycleRequest": {
+      "kind": "record",
+      "source": {
+        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/dto/request/RestaurantLifecycleRequest.java",
+        "line": 6
+      },
+      "fields": [
+        {
+          "name": "targetStatus",
+          "type": "RestaurantStatus",
+          "annotations": [
+            {
+              "name": "NotNull"
+            }
+          ],
+          "required": true,
+          "constraints": [
+            {
+              "name": "NotNull"
+            }
+          ]
+        },
+        {
+          "name": "expectedVersion",
+          "type": "Long",
+          "annotations": [],
+          "required": false
         }
       ]
     },
@@ -23672,6 +23856,20 @@
           "annotations": [],
           "required": false
         }
+      ]
+    },
+    "com.delivery.restaurant.domain.catalog.MenuItemStatus": {
+      "kind": "enum",
+      "source": {
+        "file": "backend_delivery/modules/restaurant/restaurant-domain/src/main/java/com/delivery/restaurant/domain/catalog/MenuItemStatus.java",
+        "line": 3
+      },
+      "fields": [],
+      "values": [
+        "AVAILABLE",
+        "SOLD_OUT",
+        "DISCONTINUED",
+        "ARCHIVED"
       ]
     },
     "com.delivery.restaurant.domain.catalog.RestaurantStatus": {
