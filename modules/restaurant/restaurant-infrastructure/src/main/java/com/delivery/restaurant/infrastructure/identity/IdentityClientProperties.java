@@ -1,9 +1,7 @@
-package com.delivery.restaurant_service.config;
+package com.delivery.restaurant.infrastructure.identity;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.stereotype.Component;
 
-@Component
 @ConfigurationProperties(prefix = "app.clients.auth")
 public class IdentityClientProperties {
     private String baseUrl = "http://auth-service:8081";

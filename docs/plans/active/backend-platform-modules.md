@@ -288,6 +288,12 @@ Gateway/Discovery/Config/CLI use only layers that have actual responsibility.
   wires it. JPA/Redis/outbox adapters remain in the host until each move has a
   focused regression and runtime proof; the Restaurant pilot is not complete
   until those moves are finished.
+- The identity infrastructure increment is now complete: Auth client
+  properties, timeout/redirect construction, lazy typed client creation and
+  principal-directory wiring are owned by `restaurant-infrastructure`.
+  `restaurant-service` imports that configuration and retains only use-case and
+  domain-policy wiring; the public HTTP and fail-closed ownership behavior is
+  unchanged.
 - Slice 2 then added the policy-free `platform-http-blocking` transport and the
   first service-specific `identity-client`. The platform requires explicit
   headers and a caller-configured `RestTemplate`; it adds no credential,
