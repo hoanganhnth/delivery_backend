@@ -275,6 +275,17 @@ Gateway/Discovery/Config/CLI use only layers that have actual responsibility.
   failures fail closed. The application depends only on a typed port and domain
   facts; mapping from `identity-client` and HTTP error semantics remain adapter
   work before this rule is wired into Restaurant creation.
+- The first Slice 3 vertical path is now wired: `POST /api/restaurants` resolves
+  ownership before entering `RestaurantServiceImpl`'s transaction. SHOP_OWNER
+  creation remains network-free; ADMIN supplies additive `ownerPrincipalId` and
+  uses the lazy typed Auth adapter. Invalid actor assignment maps to 403,
+  invalid/non-active/non-owner targets map to 400 without exposing which Auth
+  predicate failed, and transport/protocol failures remain fail-closed. The
+  full Restaurant reactor passes 159 tests, including an HTTP-to-persistence
+  integration test for ADMIN assignment and proof that SHOP_OWNER creation does
+  not call Auth. Lifecycle persistence, optimistic
+  versioning, audit/outbox atomicity and soft-delete aliases remain pending in
+  Slice 3.
 
 ## Result
 

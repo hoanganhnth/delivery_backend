@@ -10,6 +10,8 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 
 import java.util.stream.Collectors;
+import com.delivery.restaurant.domain.ownership.OwnerAssignmentException;
+import com.delivery.restaurant.domain.ownership.OwnerAssignmentFailure;
 
 
 @ControllerAdvice
@@ -60,6 +62,19 @@ public class GlobalExceptionHandler {
     public ResponseEntity<BaseResponse<Object>> handleIllegalArgument(IllegalArgumentException ex) {
         return ResponseEntity.badRequest()
                 .body(new BaseResponse<>(0, null, ex.getMessage()));
+    }
+
+    @ExceptionHandler(OwnerAssignmentException.class)
+    public ResponseEntity<BaseResponse<Object>> handleOwnerAssignment(OwnerAssignmentException ex) {
+        boolean forbidden = ex.failure() == OwnerAssignmentFailure.ACTOR_NOT_ALLOWED
+                || ex.failure() == OwnerAssignmentFailure.CANNOT_ASSIGN_ANOTHER_OWNER;
+        String message = forbidden
+                ? ex.failure().name()
+                : ex.failure() == OwnerAssignmentFailure.OWNER_REQUIRED
+                        ? "OWNER_PRINCIPAL_REQUIRED"
+                        : "INVALID_OWNER_PRINCIPAL";
+        return ResponseEntity.status(forbidden ? HttpStatus.FORBIDDEN : HttpStatus.BAD_REQUEST)
+                .body(new BaseResponse<>(0, null, message));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

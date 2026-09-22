@@ -6441,7 +6441,7 @@
       "handler": "create",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java",
-        "line": 33
+        "line": 39
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<RestaurantResponse>> create( @Valid @RequestBody CreateRestaurantRequest request, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -6491,7 +6491,7 @@
       "handler": "update",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java",
-        "line": 43
+        "line": 51
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<RestaurantResponse>> update( @PathVariable Long id, @Valid @RequestBody UpdateRestaurantRequest request, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -6553,7 +6553,7 @@
       "handler": "delete",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java",
-        "line": 54
+        "line": 62
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<Void>> delete( @PathVariable Long id, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -6596,7 +6596,7 @@
       "handler": "getById",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java",
-        "line": 63
+        "line": 71
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<RestaurantResponse>> getById(@PathVariable Long id)",
@@ -6628,7 +6628,7 @@
       "handler": "getAll",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java",
-        "line": 69
+        "line": 77
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<List<RestaurantResponse>>> getAll()",
@@ -6647,7 +6647,7 @@
       "handler": "search",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java",
-        "line": 75
+        "line": 83
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<List<RestaurantResponse>>> search(@RequestParam String keyword)",
@@ -6679,7 +6679,7 @@
       "handler": "getPage",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java",
-        "line": 81
+        "line": 89
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<PageResponse<RestaurantResponse>>> getPage( @RequestParam(defaultValue = \"0\") int page, @RequestParam(defaultValue = \"24\") int size, @RequestParam(required = false) String keyword)",
@@ -6740,7 +6740,7 @@
       "handler": "getMyRestaurants",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java",
-        "line": 91
+        "line": 99
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<List<RestaurantResponse>>> getMyRestaurants( @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -20771,9 +20771,24 @@
       "kind": "class",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/dto/request/CreateRestaurantRequest.java",
-        "line": 18
+        "line": 19
       },
       "fields": [
+        {
+          "name": "ownerPrincipalId",
+          "type": "Long",
+          "annotations": [
+            {
+              "name": "Positive"
+            }
+          ],
+          "required": false,
+          "constraints": [
+            {
+              "name": "Positive"
+            }
+          ]
+        },
         {
           "name": "name",
           "type": "String",

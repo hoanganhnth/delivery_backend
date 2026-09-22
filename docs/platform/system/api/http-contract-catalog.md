@@ -2714,7 +2714,7 @@ public ResponseEntity<BaseResponse<PageResponse<MenuItemResponse>>> getPage( @Pa
 ### `GET` `/api/restaurants`
 
 - Handler: `RestaurantController.getAll`
-- Source: [`backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java:69`](../../../../restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java)
+- Source: [`backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java:77`](../../../../restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<RestaurantResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -2733,7 +2733,7 @@ public ResponseEntity<BaseResponse<List<RestaurantResponse>>> getAll()
 ### `POST` `/api/restaurants`
 
 - Handler: `RestaurantController.create`
-- Source: [`backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java:33`](../../../../restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java)
+- Source: [`backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java:39`](../../../../restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java)
 - Java return type: `ResponseEntity<BaseResponse<RestaurantResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -2753,7 +2753,7 @@ public ResponseEntity<BaseResponse<RestaurantResponse>> create( @Valid @RequestB
 ### `DELETE` `/api/restaurants/{id}`
 
 - Handler: `RestaurantController.delete`
-- Source: [`backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java:54`](../../../../restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java)
+- Source: [`backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java:62`](../../../../restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java)
 - Java return type: `ResponseEntity<BaseResponse<Void>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -2773,7 +2773,7 @@ public ResponseEntity<BaseResponse<Void>> delete( @PathVariable Long id, @Authen
 ### `GET` `/api/restaurants/{id}`
 
 - Handler: `RestaurantController.getById`
-- Source: [`backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java:63`](../../../../restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java)
+- Source: [`backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java:71`](../../../../restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java)
 - Java return type: `ResponseEntity<BaseResponse<RestaurantResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -2792,7 +2792,7 @@ public ResponseEntity<BaseResponse<RestaurantResponse>> getById(@PathVariable Lo
 ### `PUT` `/api/restaurants/{id}`
 
 - Handler: `RestaurantController.update`
-- Source: [`backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java:43`](../../../../restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java)
+- Source: [`backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java:51`](../../../../restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java)
 - Java return type: `ResponseEntity<BaseResponse<RestaurantResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -3102,7 +3102,7 @@ public ResponseEntity<BaseResponse<List<RestaurantRatingResponse>>> getMyRatings
 ### `GET` `/api/restaurants/my-restaurants`
 
 - Handler: `RestaurantController.getMyRestaurants`
-- Source: [`backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java:91`](../../../../restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java)
+- Source: [`backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java:99`](../../../../restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<RestaurantResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -3163,7 +3163,7 @@ public ResponseEntity<BaseResponse<String>> rejectOrder( @PathVariable Long orde
 ### `GET` `/api/restaurants/page`
 
 - Handler: `RestaurantController.getPage`
-- Source: [`backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java:81`](../../../../restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java)
+- Source: [`backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java:89`](../../../../restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java)
 - Java return type: `ResponseEntity<BaseResponse<PageResponse<RestaurantResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -3184,7 +3184,7 @@ public ResponseEntity<BaseResponse<PageResponse<RestaurantResponse>>> getPage( @
 ### `GET` `/api/restaurants/search`
 
 - Handler: `RestaurantController.search`
-- Source: [`backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java:75`](../../../../restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java)
+- Source: [`backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java:83`](../../../../restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<RestaurantResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -7099,10 +7099,11 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.restaurant_service.dto.request.CreateRestaurantRequest`
 
 - Kind: `class`
-- Source: [`backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/dto/request/CreateRestaurantRequest.java:18`](../../../../restaurant-service/src/main/java/com/delivery/restaurant_service/dto/request/CreateRestaurantRequest.java)
+- Source: [`backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/dto/request/CreateRestaurantRequest.java:19`](../../../../restaurant-service/src/main/java/com/delivery/restaurant_service/dto/request/CreateRestaurantRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
+| ownerPrincipalId | Long | not declared required | @Positive |
 | name | String | declared required | @NotBlank, @Size(max = 255) |
 | address | String | declared required | @NotBlank(message = "Address must not be blank"), @Size(min = 10, max = 2000, message = "Address must be between 10 and 2000 characters") |
 | phone | String | not declared required | @Size(max = 20) |

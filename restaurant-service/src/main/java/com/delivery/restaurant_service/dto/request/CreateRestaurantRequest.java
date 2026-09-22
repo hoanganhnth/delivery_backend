@@ -12,10 +12,13 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Positive;
 
 @Getter
 @Setter
 public class CreateRestaurantRequest {
+    @Positive
+    private Long ownerPrincipalId;
     @NotBlank
     @Size(max = 255)
     private String name;

@@ -39,6 +39,20 @@ class CatalogMutationValidationTest {
     }
 
     @Test
+    void restaurantCreateRejectsNonPositiveRequestedOwner() {
+        CreateRestaurantRequest request = new CreateRestaurantRequest();
+        request.setName("Restaurant");
+        request.setAddress("123 Valid Street");
+        request.setAddressLat(10.78);
+        request.setAddressLng(106.69);
+        request.setOwnerPrincipalId(0L);
+
+        assertThat(validator.validate(request))
+                .extracting(violation -> violation.getPropertyPath().toString())
+                .contains("ownerPrincipalId");
+    }
+
+    @Test
     void menuCreateRequiresRestaurantNameAndPositiveBoundedPrice() {
         CreateMenuItemRequest request = new CreateMenuItemRequest();
         request.setRestaurantId(0L);
