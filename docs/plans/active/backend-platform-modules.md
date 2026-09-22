@@ -268,6 +268,13 @@ Gateway/Discovery/Config/CLI use only layers that have actual responsibility.
   empty bodies and malformed/mismatched principal payloads. Restaurant's
   `ACTIVE`/`SHOP_OWNER` acceptance rule and fail-closed creation behavior remain
   in Slice 3, where the application boundary can own them rather than the SDK.
+- Slice 3 started with the framework-independent owner-assignment decision.
+  `SHOP_OWNER` may assign only its own principal without an Auth round trip;
+  `ADMIN` must provide an owner that the directory reports as existing, active,
+  and a shop owner. Unsupported actors, missing/invalid targets and directory
+  failures fail closed. The application depends only on a typed port and domain
+  facts; mapping from `identity-client` and HTTP error semantics remain adapter
+  work before this rule is wired into Restaurant creation.
 
 ## Result
 
