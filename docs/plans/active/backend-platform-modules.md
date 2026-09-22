@@ -174,7 +174,7 @@ contracts.
 - [x] Slice 1: pure `restaurant-domain` lifecycle and operating-hours rules,
   with independent 85/85 coverage and no runtime wiring.
 - [x] Slice 2: typed Auth principal lookup and platform HTTP boundary.
-- [ ] Slice 3: Restaurant/Menu persistence, parent/child archive independence,
+- [x] Slice 3: Restaurant/Menu persistence, parent/child archive independence,
   lifecycle endpoints, versioning, immutable audit and soft-delete aliases.
 - [ ] Slice 4: PostgreSQL-canonical checkout; then remove obsolete Redis graph.
 - [ ] Slice 5: Search wire contract extraction and archived projection behavior.
@@ -258,6 +258,13 @@ Gateway/Discovery/Config/CLI use only layers that have actual responsibility.
   remains aligned at 240 handlers. Generated source IDs stay canonical as
   `backend_delivery/...`, while the generator accepts explicit workspace and
   backend roots so links resolve from an isolated worktree.
+- Slice 3's catalog boundary now owns Restaurant/Menu lifecycle authorization,
+  transitions, optimistic version checks, immutable audit and transactional
+  Search outbox writes. DELETE remains a compatibility alias for archive;
+  Redis mutation is registered after commit. The Restaurant reactor passes 175
+  tests with no failures/errors, HTTP inventory maps 242 handlers, and module
+  boundary plus diff gates pass. PostgreSQL-specific version-conflict and
+  rollback proof remain follow-up adapter tests in this slice's hardening list.
 - Slice 2 then added the policy-free `platform-http-blocking` transport and the
   first service-specific `identity-client`. The platform requires explicit
   headers and a caller-configured `RestTemplate`; it adds no credential,
