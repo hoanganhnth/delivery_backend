@@ -95,12 +95,45 @@ class RestaurantCacheServiceImplTest {
                 restaurant, LocalTime.of(7, 59)));
         assertFalse(RestaurantCacheServiceImpl.isWithinOperatingHours(
                 restaurant, LocalTime.of(22, 1)));
+        assertTrue(RestaurantCacheServiceImpl.isWithinOperatingHours(
+                restaurant, LocalTime.of(8, 0)));
+        assertFalse(RestaurantCacheServiceImpl.isWithinOperatingHours(
+                restaurant, LocalTime.of(22, 0)));
+    }
+
+    @Test
+    void overnightWindowIncludesAfterMidnightAndExcludesClosingBoundary() {
+        Map<String, Object> restaurant = Map.of(
+                "openingHour", "18:00",
+                "closingHour", "02:00");
+
+        assertTrue(RestaurantCacheServiceImpl.isWithinOperatingHours(restaurant, LocalTime.of(23, 30)));
+        assertTrue(RestaurantCacheServiceImpl.isWithinOperatingHours(restaurant, LocalTime.of(0, 30)));
+        assertFalse(RestaurantCacheServiceImpl.isWithinOperatingHours(restaurant, LocalTime.of(2, 0)));
+        assertFalse(RestaurantCacheServiceImpl.isWithinOperatingHours(restaurant, LocalTime.of(17, 59)));
+    }
+
+    @Test
+    void equalOpeningAndClosingMeansAlwaysOpen() {
+        Map<String, Object> restaurant = Map.of(
+                "openingHour", "08:00",
+                "closingHour", "08:00");
+
+        assertTrue(RestaurantCacheServiceImpl.isWithinOperatingHours(restaurant, LocalTime.MIDNIGHT));
     }
 
     @Test
     void missingOperatingHourPairKeepsExistingAlwaysOpenPolicy() {
         assertTrue(RestaurantCacheServiceImpl.isWithinOperatingHours(
                 Map.of(), LocalTime.NOON));
+    }
+
+    @Test
+    void partialOperatingHourConfigurationFailsClosed() {
+        assertFalse(RestaurantCacheServiceImpl.isWithinOperatingHours(
+                Map.of("openingHour", "08:00"), LocalTime.NOON));
+        assertFalse(RestaurantCacheServiceImpl.isWithinOperatingHours(
+                Map.of("closingHour", "22:00"), LocalTime.NOON));
     }
 
     @Test

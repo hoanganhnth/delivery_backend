@@ -1,5 +1,7 @@
 package com.delivery.restaurant_service.service.impl;
 
+import com.delivery.restaurant.domain.catalog.OperatingSchedule;
+import com.delivery.restaurant.domain.catalog.RestaurantStatus;
 import com.delivery.restaurant_service.entity.MenuItem;
 import com.delivery.restaurant_service.entity.Restaurant;
 import com.delivery.restaurant_service.repository.MenuItemRepository;
@@ -10,7 +12,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
@@ -195,19 +200,13 @@ public class RestaurantCacheServiceImpl implements RestaurantCacheService {
                 return false;
             }
 
-            // Kiểm tra isAvailable
             Boolean isAvailable = (Boolean) restaurant.get("isAvailable");
+            // Accept legacy cache entries that predate this additive field. A
+            // lifecycle mutation evicts the key, so PAUSED/ARCHIVED rows are
+            // repopulated from PostgreSQL with isAvailable=false.
             if (Boolean.FALSE.equals(isAvailable)) {
                 return false;
             }
-
-            // Kiểm tra isOpen
-            Boolean isOpen = (Boolean) restaurant.get("isOpen");
-            if (Boolean.FALSE.equals(isOpen)) {
-                return false;
-            }
-
-            // Kiểm tra operating hours
             return checkOperatingHours(restaurant);
 
         } catch (Exception e) {
@@ -268,7 +267,10 @@ public class RestaurantCacheServiceImpl implements RestaurantCacheService {
     // Private helper method để check operating hours
     private boolean checkOperatingHours(Map<String, Object> restaurant) {
         try {
-            return isWithinOperatingHours(restaurant, LocalTime.now());
+            String timeZone = String.valueOf(restaurant.getOrDefault("timeZone", "Asia/Ho_Chi_Minh"));
+            return OperatingSchedule.of(parseTime(restaurant.get("openingHour")),
+                    parseTime(restaurant.get("closingHour")), ZoneId.of(timeZone))
+                    .isOpenAt(Instant.now(Clock.systemUTC()));
         } catch (Exception e) {
             log.error("💥 Error checking operating hours: {}", e.getMessage());
             return false;
@@ -279,17 +281,24 @@ public class RestaurantCacheServiceImpl implements RestaurantCacheService {
         Object openingHour = restaurant.get("openingHour");
         Object closingHour = restaurant.get("closingHour");
 
+        if (openingHour == null && closingHour == null) return true;
+        if (openingHour == null || closingHour == null) return false;
         if (openingHour != null && closingHour != null) {
             LocalTime open = LocalTime.parse(openingHour.toString(), DateTimeFormatter.ISO_LOCAL_TIME);
             LocalTime close = LocalTime.parse(closingHour.toString(), DateTimeFormatter.ISO_LOCAL_TIME);
-
-            return now.isAfter(open) && now.isBefore(close);
+            if (open.equals(close)) return true;
+            if (open.isBefore(close)) return !now.isBefore(open) && now.isBefore(close);
+            return !now.isBefore(open) || now.isBefore(close);
         }
 
         // Preserve the existing MVP policy for restaurants that do not configure
         // an operating-hours pair. A separate product decision is required before
         // changing those restaurants to fail closed.
         return true;
+    }
+
+    private static LocalTime parseTime(Object value) {
+        return value == null ? null : LocalTime.parse(value.toString(), DateTimeFormatter.ISO_LOCAL_TIME);
     }
 
     static boolean isAvailableMenuItemStatus(Object status) {
@@ -310,6 +319,12 @@ public class RestaurantCacheServiceImpl implements RestaurantCacheService {
         data.put("closingHour", restaurant.getClosingHour() != null
                 ? restaurant.getClosingHour().toString() : null);
         data.put("defaultPrepTimeMinutes", restaurant.getDefaultPrepTimeMinutes());
+        data.put("timeZone", restaurant.getTimeZone());
+        data.put("lifecycleStatus", restaurant.getLifecycleStatus());
+        boolean active = restaurant.getLifecycleStatus() == null
+                || restaurant.getLifecycleStatus() == RestaurantStatus.ACTIVE;
+        data.put("isAvailable", active);
+        data.put("isOpen", active && checkOperatingHours(data));
         data.put("createdAt", restaurant.getCreatedAt() != null
                 ? restaurant.getCreatedAt().toString() : null);
         data.put("updatedAt", restaurant.getUpdatedAt() != null
