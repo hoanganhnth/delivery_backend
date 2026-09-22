@@ -45,11 +45,19 @@
 
 ## 3. Luồng nghiệp vụ (Business Flow)
 
-### 3.1. Luồng truy xuất và Cache dữ liệu (Read-Through Cache)
-Vì tần suất khách hàng xem danh sách nhà hàng và menu là cực kỳ lớn, `restaurant-service` sử dụng Redis để giảm tải cho Database.
+### 3.1. Luồng truy xuất catalogue và authority của checkout
+Vì tần suất khách hàng xem danh sách nhà hàng và menu là cực kỳ lớn, `restaurant-service` có thể dùng Redis cho read-side catalogue. Redis không phải nguồn quyết định cho checkout.
 1. Khi App gọi API lấy danh sách Menu của nhà hàng A, Service sẽ check Key tương ứng trong Redis trước.
 2. **Cache Hit:** Trả dữ liệu ngay lập tức.
 3. **Cache Miss:** Query PostgreSQL, lưu kết quả vào Redis (có set TTL, ví dụ 1 giờ), sau đó trả về cho App.
+
+Checkout nội bộ `POST /api/restaurants/validate/order` đọc Restaurant/Menu trực tiếp
+từ PostgreSQL trong một transaction `REPEATABLE_READ`. Giá, tên, trạng thái,
+ownership Menu và lifecycle Restaurant đều lấy từ bản ghi canonical; payload
+client và cache stale không được dùng để quyết định. Restaurant `PAUSED`,
+`ARCHIVED`, ngoài giờ, Menu không `AVAILABLE`, Menu không tồn tại hoặc không
+thuộc Restaurant đều fail-closed. Kết quả vẫn giữ response contract hiện tại để
+Order không phải đổi wire format trong bước này.
 
 ### 3.2. Luồng Invalidation (Cập nhật dữ liệu)
 Khi Merchant hoặc Admin thực hiện thay đổi trên món ăn (Ví dụ: Đổi giá, cập nhật trạng thái "Hết hàng"):

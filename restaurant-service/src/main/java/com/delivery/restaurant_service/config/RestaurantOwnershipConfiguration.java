@@ -12,6 +12,7 @@ import com.delivery.restaurant_service.adapter.IdentityPrincipalDirectoryAdapter
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.time.Duration;
+import java.time.Clock;
 import java.util.function.Supplier;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
@@ -62,5 +63,10 @@ public class RestaurantOwnershipConfiguration {
     @Bean
     MenuItemLifecyclePolicy menuItemLifecyclePolicy() {
         return new MenuItemLifecyclePolicy();
+    }
+
+    @Bean
+    Clock catalogClock() {
+        return Clock.systemUTC();
     }
 }

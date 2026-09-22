@@ -265,6 +265,13 @@ Gateway/Discovery/Config/CLI use only layers that have actual responsibility.
   tests with no failures/errors, HTTP inventory maps 242 handlers, and module
   boundary plus diff gates pass. PostgreSQL-specific version-conflict and
   rollback proof remain follow-up adapter tests in this slice's hardening list.
+- Slice 4 is in progress: the internal order-validation path now reads
+  Restaurant/Menu from PostgreSQL under `REPEATABLE_READ`; client price/name and
+  Redis are excluded from the decision. Focused proof covers canonical price,
+  foreign/missing menu rows, paused/archived restaurants and invalid quantity;
+  the Restaurant reactor currently passes 177 tests. Redis remains available
+  for catalogue read-side only until PostgreSQL-specific concurrency and
+  end-to-end Order rollout proof are complete.
 - Slice 2 then added the policy-free `platform-http-blocking` transport and the
   first service-specific `identity-client`. The platform requires explicit
   headers and a caller-configured `RestTemplate`; it adds no credential,

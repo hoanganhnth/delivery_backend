@@ -1,132 +1,164 @@
 package com.delivery.restaurant_service.service;
 
+import com.delivery.restaurant.domain.catalog.RestaurantStatus;
 import com.delivery.restaurant_service.dto.request.OrderValidationRequest;
+import com.delivery.restaurant_service.entity.MenuItem;
+import com.delivery.restaurant_service.entity.Restaurant;
+import com.delivery.restaurant_service.repository.MenuItemRepository;
+import com.delivery.restaurant_service.repository.RestaurantRepository;
 import com.delivery.restaurant_service.service.impl.OrderCacheValidationServiceImpl;
-import org.junit.jupiter.api.Test;
-
-import java.util.HashMap;
+import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
-import java.util.Map;
+import java.util.Optional;
+import org.springframework.beans.factory.ObjectProvider;
+import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class OrderCacheValidationServiceImplTest {
 
+    private final RestaurantRepository restaurants = mock(RestaurantRepository.class);
+    private final MenuItemRepository items = mock(MenuItemRepository.class);
+    private final RestaurantServiceabilityService serviceability = mock(RestaurantServiceabilityService.class);
+    private final MenuItemInventoryReservationService inventory = mock(MenuItemInventoryReservationService.class);
+    private final ObjectProvider<MenuItemInventoryReservationService> inventoryProvider = mock(ObjectProvider.class);
     private final RestaurantCacheService cache = mock(RestaurantCacheService.class);
-    private final OrderCacheValidationServiceImpl service = new OrderCacheValidationServiceImpl(cache);
 
     @Test
-    void missingRestaurantReturnsNullFactsInsteadOfPlaceholders() {
-        OrderValidationRequest request = request(30L);
-        when(cache.getRestaurantFromCache(30L)).thenReturn(null);
+    void checkoutUsesPostgresCatalogAsAuthorityAndIgnoresClientPriceAndName() {
+        Restaurant restaurant = restaurant(RestaurantStatus.ACTIVE);
+        MenuItem item = item(restaurant, "Canonical", "120.50");
+        given(restaurant, item);
 
-        var result = service.validateOrderFromOrderService(request);
+        var result = service().validateOrderFromOrderService(request("Fake", 1.0, 2));
 
-        assertThat(result.getIsValid()).isFalse();
-        assertThat(result.getRestaurantInfo().getRestaurantName()).isNull();
-        assertThat(result.getRestaurantInfo().getOperatingHours()).isNull();
-    }
-
-    @Test
-    void cachedRestaurantWithoutCanonicalNameFailsClosed() {
-        OrderValidationRequest request = request(30L);
-        Map<String, Object> restaurant = new HashMap<>();
-        restaurant.put("address", "123 Street");
-        when(cache.getRestaurantFromCache(30L)).thenReturn(restaurant);
-        when(cache.isRestaurantAvailable(30L)).thenReturn(true);
-
-        var result = service.validateOrderFromOrderService(request);
-
-        assertThat(result.getIsValid()).isFalse();
-        assertThat(result.getRestaurantInfo().getRestaurantName()).isNull();
-        assertThat(result.getRestaurantInfo().getIsAvailable()).isFalse();
-        assertThat(result.getErrors()).extracting("errorCode")
-                .contains("RESTAURANT_NAME_MISSING");
+        assertThat(result.getIsValid()).isTrue();
+        assertThat(result.getCalculatedTotal()).isEqualTo(241.0);
+        assertThat(result.getItemValidations()).singleElement().extracting("menuItemName").isEqualTo("Canonical");
+        verifyNoInteractions(cache);
     }
 
     @Test
-    void discontinuedMenuItemFailsClosedAtInternalOrderValidationBoundary() {
-        Map<String, Object> restaurant = new HashMap<>();
-        restaurant.put("name", "Quán canonical");
-        when(cache.getRestaurantFromCache(30L)).thenReturn(restaurant);
-        when(cache.isRestaurantAvailable(30L)).thenReturn(true);
-        when(cache.getMenuItemFromCache(9L)).thenReturn(Map.of(
-                "restaurantId", 30L,
-                "name", "Món đã ngừng bán",
-                "price", 45000,
-                "status", "DISCONTINUED"));
+    void pausedRestaurantFailsClosedEvenWhenMenuIsAvailable() {
+        Restaurant restaurant = restaurant(RestaurantStatus.PAUSED);
+        MenuItem item = item(restaurant, "Canonical", "120.50");
+        given(restaurant, item);
 
-        OrderValidationRequest request = OrderValidationRequest.builder()
-                .restaurantId(30L)
-                .items(List.of(OrderValidationRequest.OrderItemRequest.builder()
-                        .menuItemId(9L)
-                        .quantity(1)
-                        .build()))
-                .build();
-
-        var result = service.validateOrderFromOrderService(request);
+        var result = service().validateOrderFromOrderService(request("Canonical", 120.5, 1));
 
         assertThat(result.getIsValid()).isFalse();
-        assertThat(result.getItemValidations()).singleElement()
-                .extracting("isAvailable").isEqualTo(false);
-        assertThat(result.getErrors()).extracting("errorCode")
-                .contains("MENU_ITEM_NOT_AVAILABLE");
+        assertThat(result.getErrors()).extracting("errorCode").contains("RESTAURANT_NOT_ACCEPTING_ORDERS");
     }
 
     @Test
-    void menuItemMissingRestaurantIdentityFailsClosed() {
-        stubCanonicalRestaurant();
-        when(cache.getMenuItemFromCache(9L)).thenReturn(Map.of(
-                "name", "Món không rõ owner",
-                "price", 45000,
-                "status", "AVAILABLE"));
+    void archivedRestaurantFailsClosed() {
+        Restaurant restaurant = restaurant(RestaurantStatus.ARCHIVED);
+        MenuItem item = item(restaurant, "Canonical", "120.50");
+        given(restaurant, item);
 
-        var result = service.validateOrderFromOrderService(requestWithItem(9L));
+        var result = service().validateOrderFromOrderService(request("Canonical", 120.5, 1));
 
         assertThat(result.getIsValid()).isFalse();
-        assertThat(result.getErrors()).extracting("errorCode")
-                .contains("MENU_ITEM_NOT_AVAILABLE");
+        assertThat(result.getErrors()).extracting("errorCode").contains("RESTAURANT_NOT_ACCEPTING_ORDERS");
     }
 
     @Test
-    void menuItemWithNonPositiveCanonicalPriceFailsClosed() {
-        stubCanonicalRestaurant();
-        when(cache.getMenuItemFromCache(9L)).thenReturn(Map.of(
-                "restaurantId", 30L,
-                "name", "Món giá lỗi",
-                "price", 0,
-                "status", "AVAILABLE"));
+    void missingMenuRowFailsClosedInsteadOfTrustingCache() {
+        Restaurant restaurant = restaurant(RestaurantStatus.ACTIVE);
+        when(restaurants.findById(30L)).thenReturn(Optional.of(restaurant));
+        when(items.findAllById(List.of(9L))).thenReturn(List.of());
 
-        var result = service.validateOrderFromOrderService(requestWithItem(9L));
+        var result = service().validateOrderFromOrderService(request("Canonical", 120.5, 1));
 
         assertThat(result.getIsValid()).isFalse();
-        assertThat(result.getItemValidations()).singleElement()
-                .extracting("priceMatches").isEqualTo(false);
-        assertThat(result.getErrors()).extracting("errorCode")
-                .contains("MENU_ITEM_NOT_AVAILABLE");
+        assertThat(result.getErrors()).extracting("errorCode").contains("MENU_ITEM_NOT_AVAILABLE");
+        verifyNoInteractions(cache);
     }
 
-    private void stubCanonicalRestaurant() {
-        when(cache.getRestaurantFromCache(30L)).thenReturn(Map.of("name", "Quán canonical"));
-        when(cache.isRestaurantAvailable(30L)).thenReturn(true);
+    @Test
+    void foreignMenuItemFailsClosed() {
+        Restaurant restaurant = restaurant(RestaurantStatus.ACTIVE);
+        Restaurant other = restaurant(RestaurantStatus.ACTIVE);
+        other.setId(31L);
+        MenuItem item = item(other, "Foreign", "120.50");
+        given(restaurant, item);
+
+        var result = service().validateOrderFromOrderService(request("Foreign", 120.5, 1));
+
+        assertThat(result.getIsValid()).isFalse();
+        assertThat(result.getErrors()).extracting("errorCode").contains("MENU_ITEM_NOT_AVAILABLE");
     }
 
-    private OrderValidationRequest requestWithItem(Long menuItemId) {
-        return OrderValidationRequest.builder()
-                .restaurantId(30L)
-                .items(List.of(OrderValidationRequest.OrderItemRequest.builder()
-                        .menuItemId(menuItemId)
-                        .quantity(1)
-                        .build()))
-                .build();
+    @Test
+    void nonPositiveCanonicalPriceFailsClosed() {
+        Restaurant restaurant = restaurant(RestaurantStatus.ACTIVE);
+        MenuItem item = item(restaurant, "Broken", "0");
+        given(restaurant, item);
+
+        var result = service().validateOrderFromOrderService(request("Broken", 0.0, 1));
+
+        assertThat(result.getIsValid()).isFalse();
+        assertThat(result.getErrors()).extracting("errorCode").contains("MENU_ITEM_NOT_AVAILABLE");
     }
 
-    private OrderValidationRequest request(Long restaurantId) {
-        return OrderValidationRequest.builder()
-                .restaurantId(restaurantId)
-                .items(List.of())
-                .build();
+    @Test
+    void invalidQuantityFailsClosedAndDoesNotCallInventory() {
+        Restaurant restaurant = restaurant(RestaurantStatus.ACTIVE);
+        MenuItem item = item(restaurant, "Canonical", "120.50");
+        given(restaurant, item);
+
+        var result = service().validateOrderFromOrderService(request("Canonical", 120.5, 0));
+
+        assertThat(result.getIsValid()).isFalse();
+        assertThat(result.getErrors()).extracting("errorCode").contains("MENU_ITEM_NOT_AVAILABLE");
+    }
+
+    private OrderCacheValidationServiceImpl service() {
+        when(serviceability.evaluate(anyLong(), any(), any())).thenReturn(ServiceabilityDecision.disabled());
+        when(inventoryProvider.getIfAvailable()).thenReturn(inventory);
+        when(inventory.availability(anyLong(), anyLong(), anyInt()))
+                .thenReturn(new MenuItemInventoryReservationService.InventoryAvailability(true, null));
+        return new OrderCacheValidationServiceImpl(restaurants, items, serviceability,
+                inventoryProvider, Clock.fixed(Instant.parse("2026-01-01T05:00:00Z"), ZoneOffset.UTC));
+    }
+
+    private void given(Restaurant restaurant, MenuItem item) {
+        when(restaurants.findById(30L)).thenReturn(Optional.of(restaurant));
+        when(items.findAllById(List.of(9L))).thenReturn(List.of(item));
+    }
+
+    private OrderValidationRequest request(String name, Double price, int quantity) {
+        return OrderValidationRequest.builder().restaurantId(30L).items(List.of(
+                OrderValidationRequest.OrderItemRequest.builder().menuItemId(9L)
+                        .menuItemName(name).price(price).quantity(quantity).build())).build();
+    }
+
+    private Restaurant restaurant(RestaurantStatus status) {
+        Restaurant restaurant = new Restaurant();
+        restaurant.setId(30L);
+        restaurant.setName("Canonical Restaurant");
+        restaurant.setCreatorId(1L);
+        restaurant.setLifecycleStatus(status);
+        restaurant.setTimeZone("UTC");
+        return restaurant;
+    }
+
+    private MenuItem item(Restaurant restaurant, String name, String price) {
+        MenuItem item = new MenuItem();
+        item.setId(9L);
+        item.setRestaurant(restaurant);
+        item.setName(name);
+        item.setPrice(new BigDecimal(price));
+        item.setStatus(MenuItem.Status.AVAILABLE);
+        return item;
     }
 }
