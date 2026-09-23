@@ -209,6 +209,11 @@ Gateway/Discovery/Config/CLI use only layers that have actual responsibility.
 
 ## Execution record
 
+- 2026-09-23: moved `CatalogLifecycleAudit` and its Spring Data repository
+  into the infrastructure module. A first clean build exposed and then fixed
+  the module-local Lombok dependency. Final `clean verify` passes. Lifecycle
+  orchestration and DTO mapping remain in the host pending application ports.
+
 - 2026-09-23: moved Restaurant/Menu JPA entities and repositories into
   `restaurant-infrastructure`, retaining Java packages for existing scanning
   and callers. Queries, mappings, locks and schema are unchanged. This is a

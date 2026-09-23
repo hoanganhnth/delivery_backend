@@ -1,4 +1,5 @@
 package com.delivery.restaurant_service.entity;
+// Package retained during migration to preserve JPA scanning and existing callers.
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
