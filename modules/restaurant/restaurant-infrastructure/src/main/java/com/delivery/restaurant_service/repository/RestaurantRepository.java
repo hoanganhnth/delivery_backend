@@ -1,4 +1,5 @@
 package com.delivery.restaurant_service.repository;
+// Package retained during migration to preserve JPA scanning and existing callers.
 
 import com.delivery.restaurant_service.entity.Restaurant;
 import org.springframework.data.domain.Page;

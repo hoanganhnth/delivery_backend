@@ -209,6 +209,17 @@ Gateway/Discovery/Config/CLI use only layers that have actual responsibility.
 
 ## Execution record
 
+- 2026-09-23: moved Restaurant/Menu JPA entities and repositories into
+  `restaurant-infrastructure`, retaining Java packages for existing scanning
+  and callers. Queries, mappings, locks and schema are unchanged. This is a
+  physical persistence extraction, not completion of application ports: host
+  services still call these repositories, and DTO mappers remain in the host.
+  `mvn -B -pl :restaurant-service -am clean verify` passes, including 180 host
+  tests and independent domain/application coverage gates. Domain coverage is
+  98/109 lines and 74/74 branches; application is 26/26 lines and 18/18 branches
+  for the currently extracted owner-assignment use case only. PostgreSQL race
+  proof and remaining use-case extraction stay pending.
+
 - Worktree was created from commit `52be51c`; the original checkout remains
   untouched. Build foundation was committed separately as `04dd84c`.
 - The first baseline exposed stale identity-overload tests in Notification,
