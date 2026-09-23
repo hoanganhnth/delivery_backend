@@ -314,6 +314,15 @@ Gateway/Discovery/Config/CLI use only layers that have actual responsibility.
   extraction. `mvn -B -pl :restaurant-service -am clean verify` passes with 180
   Restaurant tests; module-boundary verification and the 242-handler HTTP
   inventory pass.
+- The lifecycle decision increment now exposes
+  `CatalogLifecycleDecisionUseCase` from `restaurant-application-api`, with a
+  framework-free implementation and tests in `restaurant-application`.
+  Restaurant's runtime lifecycle service delegates transition and restore
+  authorization to that use case while retaining the existing host transaction,
+  persistence, mapper and side-effect behavior. Application verification passes
+  with 6 tests and the 85/85 JaCoCo gate. Full lifecycle orchestration through
+  persistence ports, DTO-free application results, PostgreSQL conflict/rollback
+  proof and remaining catalog use cases are still TODO.
 - The identity infrastructure increment is now complete: Auth client
   properties, timeout/redirect construction, lazy typed client creation and
   principal-directory wiring are owned by `restaurant-infrastructure`.
