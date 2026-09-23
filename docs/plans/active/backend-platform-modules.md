@@ -323,6 +323,15 @@ Gateway/Discovery/Config/CLI use only layers that have actual responsibility.
   with 6 tests and the 85/85 JaCoCo gate. Full lifecycle orchestration through
   persistence ports, DTO-free application results, PostgreSQL conflict/rollback
   proof and remaining catalog use cases are still TODO.
+- The ownership decision increment moves Restaurant management access into the
+  framework-free application layer. It covers ADMIN direct access, principal
+  owner access, the explicitly temporary legacy creator fallback, enforcement
+  cut-over, missing principals and unsupported roles. The host policy is now a
+  thin Spring/configuration adapter that maps domain denial to the existing 403
+  response and retains the legacy-fallback metric. Core verification passes its
+  85/85 gates; host characterization tests cover Restaurant, Menu and lifecycle
+  callers. PostgreSQL transaction and conflict proof remains a separate adapter
+  task rather than an application-coverage claim.
 - The identity infrastructure increment is now complete: Auth client
   properties, timeout/redirect construction, lazy typed client creation and
   principal-directory wiring are owned by `restaurant-infrastructure`.

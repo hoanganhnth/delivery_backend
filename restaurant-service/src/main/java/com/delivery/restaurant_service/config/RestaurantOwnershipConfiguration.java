@@ -1,10 +1,12 @@
 package com.delivery.restaurant_service.config;
 
 import com.delivery.restaurant.application.DefaultCatalogLifecycleDecisionUseCase;
+import com.delivery.restaurant.application.DefaultRestaurantManagementAccessUseCase;
 import com.delivery.restaurant.application.DefaultRestaurantOwnerAssignmentUseCase;
 import com.delivery.restaurant.application.api.CatalogLifecycleDecisionUseCase;
 import com.delivery.restaurant.application.api.PrincipalOwnershipDirectory;
 import com.delivery.restaurant.application.api.RestaurantOwnerAssignmentUseCase;
+import com.delivery.restaurant.application.api.RestaurantManagementAccessUseCase;
 import com.delivery.restaurant.domain.catalog.MenuItemLifecyclePolicy;
 import com.delivery.restaurant.domain.catalog.RestaurantLifecyclePolicy;
 import java.time.Clock;
@@ -38,6 +40,11 @@ public class RestaurantOwnershipConfiguration {
             RestaurantLifecyclePolicy restaurantPolicy,
             MenuItemLifecyclePolicy menuItemPolicy) {
         return new DefaultCatalogLifecycleDecisionUseCase(restaurantPolicy, menuItemPolicy);
+    }
+
+    @Bean
+    RestaurantManagementAccessUseCase restaurantManagementAccessUseCase() {
+        return new DefaultRestaurantManagementAccessUseCase();
     }
 
     @Bean
