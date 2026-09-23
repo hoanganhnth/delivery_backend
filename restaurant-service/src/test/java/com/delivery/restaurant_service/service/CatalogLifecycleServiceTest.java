@@ -18,6 +18,7 @@ import com.delivery.restaurant_service.dto.response.MenuItemResponse;
 import com.delivery.restaurant_service.dto.response.RestaurantResponse;
 import com.delivery.restaurant_service.entity.MenuItem;
 import com.delivery.restaurant_service.entity.Restaurant;
+import com.delivery.restaurant_service.entity.CatalogLifecycleAudit;
 import com.delivery.restaurant_service.exception.StaleVersionException;
 import com.delivery.restaurant_service.mapper.MenuItemMapper;
 import com.delivery.restaurant_service.mapper.RestaurantMapper;
@@ -32,6 +33,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
@@ -138,6 +140,81 @@ class CatalogLifecycleServiceTest {
         assertThat(restaurant.getLifecycleStatus()).isEqualTo(RestaurantStatus.ARCHIVED);
         verify(searchSyncPublisher).publishRestaurantChange(restaurant, "DELETE");
         verify(cacheSynchronizer).removeRestaurantAfterCommit(10L);
+    }
+
+    @Test
+    void idempotentTargetReturnsCurrentStateWithoutWritingAuditOrSideEffects() {
+        restaurant.setLifecycleStatus(RestaurantStatus.PAUSED);
+        when(restaurantRepository.findById(10L)).thenReturn(Optional.of(restaurant));
+        RestaurantResponse response = new RestaurantResponse();
+        when(restaurantMapper.toResponse(restaurant)).thenReturn(response);
+
+        assertThat(service.changeRestaurantLifecycle(
+                10L, new RestaurantLifecycleRequest(RestaurantStatus.PAUSED, 4L),
+                7L, 700L, "SHOP_OWNER")).isSameAs(response);
+
+        verify(restaurantRepository, never()).saveAndFlush(any());
+        verifyNoAuditOrSideEffects();
+    }
+
+    @Test
+    void foreignOwnerCannotChangeLifecycleOrCreateSideEffects() {
+        when(restaurantRepository.findById(10L)).thenReturn(Optional.of(restaurant));
+
+        assertThatThrownBy(() -> service.changeRestaurantLifecycle(
+                10L, new RestaurantLifecycleRequest(RestaurantStatus.PAUSED, 4L),
+                8L, 700L, "SHOP_OWNER"))
+                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
+
+        assertThat(restaurant.getLifecycleStatus()).isEqualTo(RestaurantStatus.ACTIVE);
+        verify(restaurantRepository, never()).saveAndFlush(any());
+        verifyNoAuditOrSideEffects();
+    }
+
+    @Test
+    void auditCapturesOnlyWhitelistedRestaurantTransitionFacts() {
+        when(restaurantRepository.findById(10L)).thenReturn(Optional.of(restaurant));
+        when(restaurantRepository.saveAndFlush(restaurant)).thenAnswer(invocation -> {
+            restaurant.setVersion(5L);
+            return restaurant;
+        });
+
+        service.changeRestaurantLifecycle(
+                10L, new RestaurantLifecycleRequest(RestaurantStatus.PAUSED, 4L),
+                7L, 700L, "SHOP_OWNER");
+
+        ArgumentCaptor<CatalogLifecycleAudit> audit = ArgumentCaptor.forClass(CatalogLifecycleAudit.class);
+        verify(auditRepository).save(audit.capture());
+        assertThat(audit.getValue()).satisfies(record -> {
+            assertThat(record.getAggregateType()).isEqualTo("RESTAURANT");
+            assertThat(record.getAggregateId()).isEqualTo(10L);
+            assertThat(record.getActorPrincipalId()).isEqualTo(7L);
+            assertThat(record.getActorRole()).isEqualTo("SHOP_OWNER");
+            assertThat(record.getBeforeStatus()).isEqualTo("ACTIVE");
+            assertThat(record.getAfterStatus()).isEqualTo("PAUSED");
+            assertThat(record.getBeforeVersion()).isEqualTo(4L);
+            assertThat(record.getAfterVersion()).isEqualTo(5L);
+            assertThat(record.getCorrelationId()).isNotBlank();
+            assertThat(record.getOccurredAt()).isNotNull();
+        });
+    }
+
+    @Test
+    void menuArchiveWritesAuditAndDeleteProjection() {
+        when(menuItemRepository.findById(20L)).thenReturn(Optional.of(item));
+        when(menuItemRepository.saveAndFlush(item)).thenReturn(item);
+
+        service.changeMenuItemLifecycle(
+                20L, new MenuItemLifecycleRequest(MenuItemStatus.ARCHIVED, 2L),
+                7L, 700L, "SHOP_OWNER");
+
+        ArgumentCaptor<CatalogLifecycleAudit> audit = ArgumentCaptor.forClass(CatalogLifecycleAudit.class);
+        verify(auditRepository).save(audit.capture());
+        assertThat(audit.getValue().getAggregateType()).isEqualTo("MENU_ITEM");
+        assertThat(audit.getValue().getBeforeStatus()).isEqualTo("AVAILABLE");
+        assertThat(audit.getValue().getAfterStatus()).isEqualTo("ARCHIVED");
+        verify(cacheSynchronizer).removeMenuItemAfterCommit(20L);
+        verify(searchSyncPublisher).publishDishChange(item, "DELETE");
     }
 
     private void verifyNoAuditOrSideEffects() {
