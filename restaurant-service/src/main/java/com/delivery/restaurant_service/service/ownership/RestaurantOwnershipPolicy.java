@@ -7,6 +7,7 @@ import com.delivery.restaurant.domain.ownership.RestaurantManagementFacts;
 import com.delivery.restaurant_service.common.constants.RoleConstants;
 import com.delivery.restaurant_service.entity.Restaurant;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Component;
 
@@ -20,6 +21,7 @@ public class RestaurantOwnershipPolicy {
     private final boolean principalOwnershipEnforced;
     private final RestaurantManagementAccessUseCase managementAccessUseCase;
 
+    @Autowired
     public RestaurantOwnershipPolicy(
             @Value("${app.identity.principal-ownership.enforced:false}") boolean principalOwnershipEnforced,
             RestaurantManagementAccessUseCase managementAccessUseCase) {
