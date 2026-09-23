@@ -304,6 +304,16 @@ Gateway/Discovery/Config/CLI use only layers that have actual responsibility.
   wires it. JPA/Redis/outbox adapters remain in the host until each move has a
   focused regression and runtime proof; the Restaurant pilot is not complete
   until those moves are finished.
+- The infrastructure hardening increment then moved the remaining Restaurant
+  persistence entities/repositories, Redis catalogue adapters, Search/outbox
+  relay adapters and the Java Flyway core migration into
+  `restaurant-infrastructure`. The module declares its own JPA, Redis, Kafka,
+  Jackson and Flyway dependencies. SQL migration resources and lifecycle
+  orchestration/DTO mapping still remain in the executable host, so this is a
+  completed physical adapter move but not yet a completed application-boundary
+  extraction. `mvn -B -pl :restaurant-service -am clean verify` passes with 180
+  Restaurant tests; module-boundary verification and the 242-handler HTTP
+  inventory pass.
 - The identity infrastructure increment is now complete: Auth client
   properties, timeout/redirect construction, lazy typed client creation and
   principal-directory wiring are owned by `restaurant-infrastructure`.
