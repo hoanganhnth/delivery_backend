@@ -1,4 +1,5 @@
 package com.delivery.restaurant_service.repository;
+// Package retained during the infrastructure migration to preserve existing callers.
 
 import com.delivery.restaurant_service.entity.RestaurantServiceabilityZone;
 import org.springframework.data.jpa.repository.JpaRepository;

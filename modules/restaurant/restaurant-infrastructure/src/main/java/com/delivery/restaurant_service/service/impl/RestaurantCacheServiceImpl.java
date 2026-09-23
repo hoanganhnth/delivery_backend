@@ -1,4 +1,5 @@
 package com.delivery.restaurant_service.service.impl;
+// Package retained during the infrastructure migration to preserve existing callers.
 
 import com.delivery.restaurant.domain.catalog.OperatingSchedule;
 import com.delivery.restaurant.domain.catalog.RestaurantStatus;

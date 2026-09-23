@@ -1,4 +1,5 @@
 package com.delivery.restaurant_service.config;
+// Package retained during the infrastructure migration to preserve existing callers.
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

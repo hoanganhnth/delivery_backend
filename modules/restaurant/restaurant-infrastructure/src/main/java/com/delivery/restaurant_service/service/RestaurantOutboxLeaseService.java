@@ -1,4 +1,5 @@
 package com.delivery.restaurant_service.service;
+// Package retained during the infrastructure migration to preserve existing callers.
 
 import com.delivery.observability.SafeLog;
 import com.delivery.restaurant_service.entity.RestaurantOutboxEvent;

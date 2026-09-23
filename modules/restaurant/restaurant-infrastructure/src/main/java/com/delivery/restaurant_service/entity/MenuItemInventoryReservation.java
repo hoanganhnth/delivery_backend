@@ -1,4 +1,5 @@
 package com.delivery.restaurant_service.entity;
+// Package retained during the infrastructure migration to preserve existing callers.
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;

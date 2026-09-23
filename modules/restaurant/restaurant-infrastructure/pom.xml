@@ -16,6 +16,13 @@
     <description>Restaurant adapters for external identity and persistence boundaries.</description>
     <dependencies>
         <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-data-jpa</artifactId></dependency>
+        <dependency><groupId>com.delivery</groupId><artifactId>search-contracts</artifactId><version>${project.version}</version></dependency>
+        <dependency><groupId>com.delivery</groupId><artifactId>observability-starter</artifactId><version>${project.version}</version></dependency>
+        <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-data-redis</artifactId></dependency>
+        <dependency><groupId>org.springframework.kafka</groupId><artifactId>spring-kafka</artifactId></dependency>
+        <dependency><groupId>org.flywaydb</groupId><artifactId>flyway-core</artifactId></dependency>
+        <dependency><groupId>org.flywaydb</groupId><artifactId>flyway-database-postgresql</artifactId><scope>runtime</scope></dependency>
+        <dependency><groupId>com.fasterxml.jackson.core</groupId><artifactId>jackson-databind</artifactId></dependency>
         <dependency><groupId>com.delivery</groupId><artifactId>restaurant-application-api</artifactId><version>${project.version}</version></dependency>
         <dependency><groupId>com.delivery</groupId><artifactId>restaurant-domain</artifactId><version>${project.version}</version></dependency>
         <dependency><groupId>com.delivery</groupId><artifactId>identity-client</artifactId><version>${project.version}</version></dependency>

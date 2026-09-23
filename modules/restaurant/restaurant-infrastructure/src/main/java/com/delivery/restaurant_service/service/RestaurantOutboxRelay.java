@@ -1,4 +1,5 @@
 package com.delivery.restaurant_service.service;
+// Package retained during the infrastructure migration to preserve existing callers.
 
 import com.delivery.restaurant_service.entity.RestaurantOutboxEvent;
 import com.delivery.restaurant_service.repository.RestaurantOutboxEventRepository;
