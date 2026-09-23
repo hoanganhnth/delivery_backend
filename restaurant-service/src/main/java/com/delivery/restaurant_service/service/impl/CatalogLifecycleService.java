@@ -1,6 +1,8 @@
 package com.delivery.restaurant_service.service.impl;
 
 import com.delivery.observability.CorrelationContext;
+import com.delivery.restaurant.application.DefaultCatalogLifecycleDecisionUseCase;
+import com.delivery.restaurant.application.api.CatalogLifecycleDecisionUseCase;
 import com.delivery.restaurant.domain.catalog.CatalogActorRole;
 import com.delivery.restaurant.domain.catalog.CatalogDomainException;
 import com.delivery.restaurant.domain.catalog.MenuItemLifecyclePolicy;
@@ -28,13 +30,12 @@ import com.delivery.restaurant_service.service.ownership.RestaurantOwnershipPoli
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.persistence.OptimisticLockException;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-@RequiredArgsConstructor
 public class CatalogLifecycleService {
     private final RestaurantRepository restaurantRepository;
     private final MenuItemRepository menuItemRepository;
@@ -43,10 +44,52 @@ public class CatalogLifecycleService {
     private final CatalogCacheSynchronizer cacheSynchronizer;
     private final SearchSyncPublisher searchSyncPublisher;
     private final RestaurantOwnershipPolicy ownershipPolicy;
-    private final RestaurantLifecyclePolicy restaurantPolicy;
-    private final MenuItemLifecyclePolicy menuItemPolicy;
+    private final CatalogLifecycleDecisionUseCase lifecycleDecisionUseCase;
     private final CatalogLifecycleAuditRepository auditRepository;
     private final MeterRegistry meterRegistry;
+
+    @Autowired
+    public CatalogLifecycleService(
+            RestaurantRepository restaurantRepository,
+            MenuItemRepository menuItemRepository,
+            RestaurantMapper restaurantMapper,
+            MenuItemMapper menuItemMapper,
+            CatalogCacheSynchronizer cacheSynchronizer,
+            SearchSyncPublisher searchSyncPublisher,
+            RestaurantOwnershipPolicy ownershipPolicy,
+            CatalogLifecycleDecisionUseCase lifecycleDecisionUseCase,
+            CatalogLifecycleAuditRepository auditRepository,
+            MeterRegistry meterRegistry) {
+        this.restaurantRepository = restaurantRepository;
+        this.menuItemRepository = menuItemRepository;
+        this.restaurantMapper = restaurantMapper;
+        this.menuItemMapper = menuItemMapper;
+        this.cacheSynchronizer = cacheSynchronizer;
+        this.searchSyncPublisher = searchSyncPublisher;
+        this.ownershipPolicy = ownershipPolicy;
+        this.lifecycleDecisionUseCase = lifecycleDecisionUseCase;
+        this.auditRepository = auditRepository;
+        this.meterRegistry = meterRegistry;
+    }
+
+    /** Transitional constructor retained for host unit tests during application wiring migration. */
+    public CatalogLifecycleService(
+            RestaurantRepository restaurantRepository,
+            MenuItemRepository menuItemRepository,
+            RestaurantMapper restaurantMapper,
+            MenuItemMapper menuItemMapper,
+            CatalogCacheSynchronizer cacheSynchronizer,
+            SearchSyncPublisher searchSyncPublisher,
+            RestaurantOwnershipPolicy ownershipPolicy,
+            RestaurantLifecyclePolicy restaurantPolicy,
+            MenuItemLifecyclePolicy menuItemPolicy,
+            CatalogLifecycleAuditRepository auditRepository,
+            MeterRegistry meterRegistry) {
+        this(restaurantRepository, menuItemRepository, restaurantMapper, menuItemMapper,
+                cacheSynchronizer, searchSyncPublisher, ownershipPolicy,
+                new DefaultCatalogLifecycleDecisionUseCase(restaurantPolicy, menuItemPolicy),
+                auditRepository, meterRegistry);
+    }
 
     @Transactional
     public RestaurantResponse changeRestaurantLifecycle(Long id, RestaurantLifecycleRequest request,
@@ -124,7 +167,7 @@ public class CatalogLifecycleService {
 
     private RestaurantStatus transitionRestaurant(RestaurantStatus before, RestaurantStatus target, String role) {
         try {
-            return restaurantPolicy.transition(before, target, actorRole(role));
+            return lifecycleDecisionUseCase.decideRestaurant(before, target, actorRole(role));
         } catch (CatalogDomainException ex) {
             throw new IllegalArgumentException(ex.getMessage(), ex);
         }
@@ -132,7 +175,7 @@ public class CatalogLifecycleService {
 
     private MenuItemStatus transitionMenuItem(MenuItemStatus before, MenuItemStatus target, String role) {
         try {
-            return menuItemPolicy.transition(before, target, actorRole(role));
+            return lifecycleDecisionUseCase.decideMenuItem(before, target, actorRole(role));
         } catch (CatalogDomainException ex) {
             throw new IllegalArgumentException(ex.getMessage(), ex);
         }

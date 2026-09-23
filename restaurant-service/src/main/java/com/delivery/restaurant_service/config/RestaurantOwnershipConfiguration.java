@@ -1,6 +1,8 @@
 package com.delivery.restaurant_service.config;
 
+import com.delivery.restaurant.application.DefaultCatalogLifecycleDecisionUseCase;
 import com.delivery.restaurant.application.DefaultRestaurantOwnerAssignmentUseCase;
+import com.delivery.restaurant.application.api.CatalogLifecycleDecisionUseCase;
 import com.delivery.restaurant.application.api.PrincipalOwnershipDirectory;
 import com.delivery.restaurant.application.api.RestaurantOwnerAssignmentUseCase;
 import com.delivery.restaurant.domain.catalog.MenuItemLifecyclePolicy;
@@ -29,6 +31,13 @@ public class RestaurantOwnershipConfiguration {
     @Bean
     MenuItemLifecyclePolicy menuItemLifecyclePolicy() {
         return new MenuItemLifecyclePolicy();
+    }
+
+    @Bean
+    CatalogLifecycleDecisionUseCase catalogLifecycleDecisionUseCase(
+            RestaurantLifecyclePolicy restaurantPolicy,
+            MenuItemLifecyclePolicy menuItemPolicy) {
+        return new DefaultCatalogLifecycleDecisionUseCase(restaurantPolicy, menuItemPolicy);
     }
 
     @Bean
