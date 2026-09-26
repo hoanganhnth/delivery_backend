@@ -9,6 +9,7 @@ import jakarta.validation.Validator;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.time.LocalTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -36,6 +37,32 @@ class CatalogMutationValidationTest {
         assertThat(validator.validate(request))
                 .extracting(violation -> violation.getPropertyPath().toString())
                 .contains("addressLat", "addressLng");
+    }
+
+    @Test
+    void restaurantCreateRejectsEitherHalfOfOperatingHoursPair() {
+        CreateRestaurantRequest request = validRestaurantRequest();
+        request.setOpeningHour(LocalTime.of(18, 0));
+
+        assertThat(validator.validate(request))
+                .extracting(violation -> violation.getPropertyPath().toString())
+                .contains("operatingHoursPairValid");
+
+        request.setOpeningHour(null);
+        request.setClosingHour(LocalTime.of(2, 0));
+        assertThat(validator.validate(request))
+                .extracting(violation -> violation.getPropertyPath().toString())
+                .contains("operatingHoursPairValid");
+    }
+
+    @Test
+    void restaurantCreateAllowsAlwaysOpenOrCompleteOperatingHoursPair() {
+        CreateRestaurantRequest request = validRestaurantRequest();
+        assertThat(validator.validate(request)).isEmpty();
+
+        request.setOpeningHour(LocalTime.of(18, 0));
+        request.setClosingHour(LocalTime.of(2, 0));
+        assertThat(validator.validate(request)).isEmpty();
     }
 
     @Test
@@ -96,5 +123,14 @@ class CatalogMutationValidationTest {
         assertThat(validator.validate(request))
                 .extracting(violation -> violation.getPropertyPath().toString())
                 .contains("name", "restaurantId", "price");
+    }
+
+    private CreateRestaurantRequest validRestaurantRequest() {
+        CreateRestaurantRequest request = new CreateRestaurantRequest();
+        request.setName("Valid Restaurant");
+        request.setAddress("123 Valid Street");
+        request.setAddressLat(10.78);
+        request.setAddressLng(106.69);
+        return request;
     }
 }

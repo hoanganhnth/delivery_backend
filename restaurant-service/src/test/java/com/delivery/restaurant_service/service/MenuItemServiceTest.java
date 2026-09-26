@@ -138,6 +138,21 @@ class MenuItemServiceTest {
     }
 
     @Test
+    void createMenuItem_AllowsAdminToManageRestaurantOwnedByAnotherPrincipal() {
+        restaurant.setOwnerPrincipalId(99L);
+        when(restaurantRepository.findById(1L)).thenReturn(Optional.of(restaurant));
+        when(menuItemMapper.toEntity(createRequest)).thenReturn(menuItem);
+        when(menuItemRepository.save(menuItem)).thenReturn(menuItem);
+        when(menuItemMapper.toResponse(menuItem)).thenReturn(menuItemResponse);
+
+        assertSame(menuItemResponse, menuItemService.createMenuItem(
+                createRequest, 7L, 7L, RoleConstants.ADMIN));
+
+        verify(restaurantOwnershipPolicy).assertCanManage(restaurant, 7L, 7L, RoleConstants.ADMIN);
+        assertSame(restaurant, menuItem.getRestaurant());
+    }
+
+    @Test
     void getItemsByRestaurant_ShouldReturnList_WhenRestaurantExists() {
         // Given
         List<MenuItem> menuItems = Collections.singletonList(menuItem);
@@ -227,6 +242,77 @@ class MenuItemServiceTest {
         verify(menuItemRepository).findById(1L);
         verify(menuItemRepository).saveAndFlush(any(MenuItem.class));
         verify(menuItemMapper).updateEntityFromDto(any(UpdateMenuItemRequest.class), any(MenuItem.class));
+    }
+
+    @Test
+    void updateMenuItem_ShouldReturnNotFoundWithoutMutation() {
+        when(menuItemRepository.findById(404L)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () -> menuItemService.updateMenuItem(
+                404L, new UpdateMenuItemRequest(), 1L, RoleConstants.OWNER));
+
+        verify(menuItemRepository, never()).saveAndFlush(any());
+        verifyNoInteractions(menuItemMapper, cacheSynchronizer, searchSyncPublisher);
+    }
+
+    @Test
+    void updateMenuItem_ShouldRejectForeignOwnerWithoutMutation() {
+        restaurant.setOwnerPrincipalId(99L);
+        when(menuItemRepository.findById(1L)).thenReturn(Optional.of(menuItem));
+
+        assertThrows(AccessDeniedException.class, () -> menuItemService.updateMenuItem(
+                1L, new UpdateMenuItemRequest(), 7L, 7L, RoleConstants.OWNER));
+
+        verify(menuItemRepository, never()).saveAndFlush(any());
+        verifyNoInteractions(menuItemMapper, cacheSynchronizer, searchSyncPublisher);
+    }
+
+    @Test
+    void updateMenuItem_ShouldAllowAdminAcrossOwnershipBoundary() {
+        restaurant.setOwnerPrincipalId(99L);
+        when(menuItemRepository.findById(1L)).thenReturn(Optional.of(menuItem));
+        when(menuItemRepository.saveAndFlush(menuItem)).thenReturn(menuItem);
+        when(menuItemMapper.toResponse(menuItem)).thenReturn(menuItemResponse);
+
+        MenuItemResponse result = menuItemService.updateMenuItem(
+                1L, new UpdateMenuItemRequest(), 7L, 7L, RoleConstants.ADMIN);
+
+        assertSame(menuItemResponse, result);
+        verify(menuItemMapper).updateEntityFromDto(any(UpdateMenuItemRequest.class), eq(menuItem));
+        verify(menuItemRepository).saveAndFlush(menuItem);
+    }
+
+    @Test
+    void getManagedItemsPage_ShouldRejectInvalidPaginationBeforeRepositoryAccess() {
+        assertThrows(IllegalArgumentException.class, () -> menuItemService.getManagedItemsPage(
+                null, 1L, 1L, RoleConstants.OWNER, 0, 101));
+
+        verifyNoInteractions(menuItemRepository, restaurantRepository, menuItemMapper);
+    }
+
+    @Test
+    void getManagedItemsByRestaurant_ShouldRejectForeignOwnerBeforeReadingMenu() {
+        restaurant.setOwnerPrincipalId(99L);
+        when(restaurantRepository.findById(1L)).thenReturn(Optional.of(restaurant));
+
+        assertThrows(AccessDeniedException.class, () -> menuItemService.getManagedItemsByRestaurant(
+                1L, 7L, 7L, RoleConstants.OWNER));
+
+        verifyNoInteractions(menuItemRepository, menuItemMapper);
+    }
+
+    @Test
+    void getManagedItemsByRestaurant_ShouldAllowAdminToReadArchivedMenuItem() {
+        restaurant.setOwnerPrincipalId(99L);
+        menuItem.setStatus(MenuItem.Status.ARCHIVED);
+        when(restaurantRepository.findById(1L)).thenReturn(Optional.of(restaurant));
+        when(menuItemRepository.findByRestaurantId(eq(1L), any())).thenReturn(List.of(menuItem));
+        when(menuItemMapper.toResponse(menuItem)).thenReturn(menuItemResponse);
+
+        assertEquals(List.of(menuItemResponse), menuItemService.getManagedItemsByRestaurant(
+                1L, 7L, 7L, RoleConstants.ADMIN));
+
+        verify(menuItemRepository).findByRestaurantId(eq(1L), any());
     }
 
     @Test

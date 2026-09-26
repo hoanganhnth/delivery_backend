@@ -17,6 +17,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.core.MethodParameter;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -247,6 +249,79 @@ class MenuItemControllerTest {
                 .andExpect(status().isBadRequest());
 
         verifyNoInteractions(menuItemService);
+    }
+
+    @Test
+    void update_InvalidPayloadReturnsBadRequestBeforeServiceCall() throws Exception {
+        UpdateMenuItemRequest request = new UpdateMenuItemRequest();
+        request.setName(" ");
+
+        mockMvc.perform(put("/api/menu-items/{id}", 1L)
+                        .header(HttpHeaderConstants.X_USER_ID, "1")
+                        .header(HttpHeaderConstants.X_ROLE, RoleConstants.OWNER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(menuItemService);
+    }
+
+    @Test
+    void page_InvalidPaginationReturnsBadRequestBeforeServiceCall() throws Exception {
+        assertThatThrownBy(() -> menuItemController.getPage(1L, -1, 101))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Invalid page or size");
+
+        verifyNoInteractions(menuItemService);
+    }
+
+    @Test
+    void managementPage_RejectsUnauthenticatedActorBeforeServiceCall() throws Exception {
+        assertThatThrownBy(() -> menuItemController.getMyMenuItemsPage(null, null, 0, 24))
+                .isInstanceOf(AccessDeniedException.class);
+
+        verifyNoInteractions(menuItemService);
+    }
+
+    @Test
+    void publicPagePreservesPaginationEnvelopeAndOnlyRequestsAvailableItems() throws Exception {
+        MenuItemResponse item = createMenuItemResponse(9L, "Pho", BigDecimal.valueOf(45000));
+        when(menuItemService.getItemsByRestaurantPage(4L, 1, 1, true))
+                .thenReturn(new PageImpl<>(List.of(item), PageRequest.of(1, 1), 2));
+
+        mockMvc.perform(get("/api/menu-items/restaurant/{restaurantId}/page", 4L)
+                        .param("page", "1")
+                        .param("size", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items.length()").value(1))
+                .andExpect(jsonPath("$.data.items[0].id").value(9))
+                .andExpect(jsonPath("$.data.page").value(1))
+                .andExpect(jsonPath("$.data.size").value(1))
+                .andExpect(jsonPath("$.data.totalItems").value(2))
+                .andExpect(jsonPath("$.data.totalPages").value(2))
+                .andExpect(jsonPath("$.data.hasNext").value(false));
+
+        verify(menuItemService).getItemsByRestaurantPage(4L, 1, 1, true);
+    }
+
+    @Test
+    void managementPagePassesAuthenticatedOwnerIdentityAndRequestedPage() throws Exception {
+        when(menuItemService.getManagedItemsPage(4L, 1L, 1L, RoleConstants.OWNER, 2, 5))
+                .thenReturn(new PageImpl<>(List.of(), PageRequest.of(2, 5), 11));
+
+        mockMvc.perform(get("/api/menu-items/my-menu-items/page")
+                        .header(HttpHeaderConstants.X_USER_ID, "1")
+                        .header(HttpHeaderConstants.X_ROLE, RoleConstants.OWNER)
+                        .param("restaurantId", "4")
+                        .param("page", "2")
+                        .param("size", "5"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.page").value(2))
+                .andExpect(jsonPath("$.data.size").value(5))
+                .andExpect(jsonPath("$.data.totalItems").value(11))
+                .andExpect(jsonPath("$.data.totalPages").value(3));
+
+        verify(menuItemService).getManagedItemsPage(4L, 1L, 1L, RoleConstants.OWNER, 2, 5);
     }
 
     private MenuItemResponse createMenuItemResponse(Long id, String name, BigDecimal price) {

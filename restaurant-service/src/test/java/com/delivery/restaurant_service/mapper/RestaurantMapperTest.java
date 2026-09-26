@@ -8,6 +8,11 @@ import com.delivery.restaurant_service.entity.MenuItem;
 import com.delivery.restaurant.domain.catalog.RestaurantStatus;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalTime;
+import java.time.ZoneOffset;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 class RestaurantMapperTest {
@@ -46,6 +51,41 @@ class RestaurantMapperTest {
         MenuItem item = new MenuItem();
         item.setVersion(3L);
         assertThat(new MenuItemMapper().toResponse(item).getVersion()).isEqualTo(3L);
+    }
+
+    @Test
+    void responseAvailabilityUsesRestaurantTimezoneAndSupportsOvernightHours() {
+        Restaurant restaurant = new Restaurant();
+        restaurant.setOpeningHour(LocalTime.of(18, 0));
+        restaurant.setClosingHour(LocalTime.of(2, 0));
+        restaurant.setTimeZone("Asia/Ho_Chi_Minh");
+        RestaurantMapper mapper = new RestaurantMapper(Clock.fixed(
+                Instant.parse("2026-09-26T17:30:00Z"), ZoneOffset.UTC));
+
+        assertThat(mapper.toResponse(restaurant).isOpen()).isTrue();
+    }
+
+    @Test
+    void responseAvailabilityExcludesClosingBoundaryInRestaurantTimezone() {
+        Restaurant restaurant = new Restaurant();
+        restaurant.setOpeningHour(LocalTime.of(18, 0));
+        restaurant.setClosingHour(LocalTime.of(2, 0));
+        restaurant.setTimeZone("Asia/Ho_Chi_Minh");
+        RestaurantMapper mapper = new RestaurantMapper(Clock.fixed(
+                Instant.parse("2026-09-26T19:00:00Z"), ZoneOffset.UTC));
+
+        assertThat(mapper.toResponse(restaurant).isOpen()).isFalse();
+    }
+
+    @Test
+    void responseAvailabilityFailsClosedForIncompleteStoredSchedule() {
+        Restaurant restaurant = new Restaurant();
+        restaurant.setOpeningHour(LocalTime.of(18, 0));
+        restaurant.setTimeZone("Asia/Ho_Chi_Minh");
+        RestaurantMapper mapper = new RestaurantMapper(Clock.fixed(
+                Instant.parse("2026-09-26T17:30:00Z"), ZoneOffset.UTC));
+
+        assertThat(mapper.toResponse(restaurant).isOpen()).isFalse();
     }
 
     @Test

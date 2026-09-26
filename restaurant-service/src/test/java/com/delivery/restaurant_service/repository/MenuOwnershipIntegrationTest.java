@@ -51,14 +51,17 @@ class MenuOwnershipIntegrationTest {
         var own = seed(101L, 7, MenuItem.Status.SOLD_OUT);
         seed(202L, 7, MenuItem.Status.AVAILABLE);
         var legacy = seed(null, 7, MenuItem.Status.DISCONTINUED);
+        var archived = seed(101L, 8, MenuItem.Status.ARCHIVED);
         var result = service(false).getManagedItemsPage(null, 101L, 7L, "SHOP_OWNER", 0, 100);
-        assertEquals(java.util.Set.of(own.getId(), legacy.getId()),
+        assertEquals(java.util.Set.of(own.getId(), legacy.getId(), archived.getId()),
                 result.map(r -> r.getId()).stream().collect(java.util.stream.Collectors.toSet()));
-        assertEquals(2, result.getTotalElements());
+        assertEquals(3, result.getTotalElements());
         var enforced = service(true).getManagedItemsPage(null, 101L, 7L, "SHOP_OWNER", 0, 1);
-        assertEquals(1, enforced.getTotalElements());
-        assertEquals(own.getId(), enforced.getContent().get(0).getId());
-        assertEquals(3, service(true).getManagedItemsPage(null, 999L, null, "ADMIN", 0, 100).getTotalElements());
+        assertEquals(2, enforced.getTotalElements());
+        assertEquals(1, enforced.getContent().size());
+        assertTrue(java.util.Set.of(own.getId(), archived.getId())
+                .contains(enforced.getContent().get(0).getId()));
+        assertEquals(4, service(true).getManagedItemsPage(null, 999L, null, "ADMIN", 0, 100).getTotalElements());
     }
     @Test void foreignReadCreateUpdateDeleteAreRejectedWithoutChangingData() {
         var foreign = seed(202L, 7, MenuItem.Status.AVAILABLE);

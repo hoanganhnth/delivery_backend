@@ -169,6 +169,55 @@ contracts.
   runtime proof; Search bulk rebuild; cache/index optimization without
   before/after measurements.
 
+### Current Restaurant/Menu use-case test proof (2026-09-26)
+
+Tests now describe behavior at the HTTP, host/use-case, and persistence-query
+boundaries. This closes the characterization gate for the core catalog paths;
+it does not mean every behavior is already implemented in the new application
+module.
+
+| Business use case | Actors and exception cases exercised | Executable proof | State |
+| --- | --- | --- | --- |
+| Create Restaurant | SHOP_OWNER self; ADMIN assigning an active SHOP_OWNER; missing/unsupported actor; invalid fields; missing owner/Auth failure; incomplete opening-hours pair | `DefaultRestaurantOwnerAssignmentUseCaseTest`, `RestaurantControllerTest`, `RestaurantControllerIntegrationTest`, `RestaurantServiceTest`, `CatalogMutationValidationTest` | Verified in unit, MockMvc and H2 integration tests |
+| Update Restaurant | Owner, ADMIN, foreign owner, missing row; partial update preserving the other hour; resulting incomplete schedule rejected before mutation | `RestaurantServiceTest`, `RestaurantControllerIntegrationTest`, `CatalogMutationValidationTest` | Verified in unit and H2 integration tests |
+| Read Restaurant | Missing ID; archived detail remains resolvable; public list/search/page hide archived; management can still see archived; public pagination envelope | `RestaurantServiceTest`, `RestaurantControllerTest`, `CatalogArchiveIntegrationTest` | Verified in unit, MockMvc and H2 query tests |
+| Create Menu item | Owner access; ADMIN cross-owner access; foreign owner and missing Restaurant rejected; `principalId` wins over matching legacy ID | `MenuItemServiceTest`, `MenuOwnershipIntegrationTest` | Verified in unit and H2 integration tests |
+| Update Menu item | Owner, ADMIN, foreign owner, missing item; request cannot reassign the parent Restaurant; invalid field validation | `MenuItemServiceTest`, `MenuItemMapperTest`, `MenuOwnershipIntegrationTest`, `MenuItemControllerTest` | Verified in unit and H2 integration tests |
+| Read Menu | Public reads return only AVAILABLE items under non-archived Restaurants; management reads include unavailable/history rows and enforce owner/Admin scope; pagination bounds and envelope | `MenuItemServiceTest`, `MenuItemControllerTest`, `MenuCatalogBoundaryTest`, `CatalogArchiveIntegrationTest`, `MenuOwnershipIntegrationTest` | Verified in unit, MockMvc and H2 query tests |
+| Archive and restore | Idempotency, stale version, owner/Admin role matrix, immutable audit facts, parent archive preserving Menu status/rows | `CatalogLifecycleServiceTest`, `CatalogArchiveIntegrationTest`, `CatalogLifecycleDecisionUseCaseTest` | Verified in unit and H2 persistence tests |
+| Checkout validation | PostgreSQL-canonical name/price/status/parent lifecycle, missing/foreign items and invalid operating schedule fail closed | `OrderValidationPersistenceIntegrationTest`, `OrderCacheValidationServiceImplTest`, domain `OperatingScheduleTest` | Verified on H2; PostgreSQL runtime proof remains TODO |
+| Cache/Search side effects | Cache work runs after commit; rollback skips cache; Search mutation persists an outbox record instead of publishing directly | `CatalogCacheSynchronizerTest`, `SearchSyncPublisherTest`, `CatalogLifecycleServiceTest` | Unit proof exists; real PostgreSQL atomicity proof remains TODO |
+
+The latest full Restaurant reactor run reports 226 tests with no failures,
+errors, or skips. `restaurant-domain` and `restaurant-application` pass their
+independent JaCoCo 85% line and branch gates: domain is 124/124 lines and 77/78
+branches; application is 47/47 lines and 36/40 branches. These percentages
+cover only the currently extracted core classes; CRUD workflows still run in
+the executable host and are characterized there.
+
+Remaining proof and extraction work:
+
+- Move Restaurant create/update/read and Menu create/update/read orchestration
+  behind framework-free `restaurant-application-api` use cases and ports, with
+  unit tests in `restaurant-application`; then retain the host tests as adapter
+  and HTTP contract tests.
+- Prove optimistic write conflicts, transaction rollback with no audit/outbox
+  residue, and audit/outbox atomicity against PostgreSQL. H2 coverage is not
+  PostgreSQL concurrency evidence.
+- Inventory legacy rows where only one operating time is set. Reads now report
+  `isOpen=false` for an invalid stored schedule, and new create/update flows
+  reject incomplete schedules. A repair policy and safe database constraint
+  need production-data evidence before migration.
+- `UpdateRestaurantRequest` still treats null as “not supplied”, so it cannot
+  explicitly clear both hours to restore 24/7. Define an additive clear/reset
+  contract before implementing that operation.
+- General Restaurant/Menu PUT and DELETE do not yet accept the optional
+  `expectedVersion` promised by the approved additive contract. Missing-version
+  metrics/version enforcement remain deferred until clients are migrated.
+- Search projection state for archived parents and SOLD_OUT/DISCONTINUED items
+  needs a focused consumer/projection test; the current wire extraction and
+  outbox version/tombstone tests are not that proof.
+
 ### Phase 1 implementation sequence
 
 - [x] Slice 1: pure `restaurant-domain` lifecycle and operating-hours rules,
@@ -176,6 +225,15 @@ contracts.
 - [x] Slice 2: typed Auth principal lookup and platform HTTP boundary.
 - [x] Slice 3: Restaurant/Menu persistence, parent/child archive independence,
   lifecycle endpoints, versioning, immutable audit and soft-delete aliases.
+- [x] Slice 3 test contract: characterize core Restaurant/Menu create, update,
+  read, ownership, validation, pagination, lifecycle and public visibility
+  across host, HTTP and H2 persistence tests.
+- [ ] Slice 3A: move Restaurant creation orchestration behind application API
+  and ports; keep owner assignment and persistence effects covered independently.
+- [ ] Slice 3B: move Restaurant update, public reads and management reads behind
+  application use cases; preserve DTO and pagination adapters in the host.
+- [ ] Slice 3C: move Menu create/update/public/management read use cases behind
+  application ports; preserve inherited ownership and immutable parent ID.
 - [ ] Slice 4: PostgreSQL-canonical checkout; then remove obsolete Redis graph.
 - [x] Slice 5: Search wire contract extraction and archived projection behavior
   (wire type extracted; archived projection behavior remains covered by the
@@ -193,6 +251,38 @@ ports, implement core tests, move one vertical slice, prove adapters/runtime,
 review, commit. Remove transitional facades only when no caller remains.
 Gateway/Discovery/Config/CLI use only layers that have actual responsibility.
 
+### Task 1 — Extract Restaurant creation use case
+
+Move the `POST /api/restaurants` creation workflow through the framework-free
+Restaurant application module while preserving the existing host endpoint,
+response, validation errors, owner assignment, persistence defaults, and
+read-side effects.
+
+- Add `CreateRestaurantCommand`, `CreateRestaurantResult`, and the
+  `CreateRestaurantUseCase` plus `RestaurantCreationPort` contracts in
+  `restaurant-application-api`. Keep these contracts free of Spring, JPA,
+  `Restaurant` entities, and service HTTP DTOs.
+- Implement the use case in `restaurant-application`. Reuse
+  `RestaurantOwnerAssignmentUseCase` for ADMIN/SHOP_OWNER owner resolution;
+  validate the final operating-hours pair through the domain schedule; call the
+  persistence port only after actor/owner/schedule decisions succeed.
+- Implement the persistence port in `restaurant-infrastructure`. The adapter
+  owns the database transaction, persists creator/owner and existing defaults,
+  writes Search outbox in that transaction, and schedules cache work after
+  commit. It returns a framework-free result sufficient for the host to retain
+  the current response shape without an extra database read.
+- Keep `RestaurantController` and `RestaurantService` as HTTP/service-host
+  adapters. They map `AuthenticatedActor` and request DTOs to the command and
+  map the result to `RestaurantResponse`; they do not resolve owner policy or
+  persist an entity themselves.
+- Unit-test SHOP_OWNER self-ownership, ADMIN active SHOP_OWNER assignment,
+  unsupported/missing actor, missing/invalid/inactive/non-owner target,
+  directory failure, incomplete hours, and successful result mapping. Rejected
+  cases must not call the persistence port. Keep H2 integration proof for
+  controller-to-database compatibility and Search outbox/cache behavior.
+- No endpoint, payload, status/error mapping, schema, lifecycle, owner identity,
+  transaction, cache, Search event, or default behavior changes are in scope.
+
 ## Validation and recovery
 
 - Baseline: `mvn -B clean test`; failures predating edits are recorded, not skipped.
@@ -208,6 +298,27 @@ Gateway/Discovery/Config/CLI use only layers that have actual responsibility.
   unchanged. Keep existing runnable service while incrementally extracting.
 
 ## Execution record
+
+- 2026-09-26: added use-case characterization for Restaurant/Menu CRUD and
+  ownership, archived/history reads, pagination envelopes, public projection
+  filters, Menu parent immutability, ADMIN access, incomplete operating-hours
+  validation and legacy identity rows. The matrix above records what each test
+  proves. A clean run also replaced an invalid IDE-generated
+  `IdentityPrincipalClient` class in `target/`; this was a stale build artifact,
+  not a source or contract failure.
+- The same test pass found and fixed two contract mismatches: restaurant
+  response `open` now uses the restaurant IANA timezone and shared domain
+  schedule rules (including overnight windows); create/update reject a resulting
+  one-sided operating-hours pair before persistence, and incomplete legacy
+  schedules read as closed. Partial update of one hour remains allowed when the
+  merged stored pair is valid. `UpdateMenuItemRequest.restaurantId` remains
+  ignored so a menu item cannot be moved across Restaurant ownership.
+- Final `mvn -B -pl :restaurant-service -am clean verify` passes with 226 tests,
+  no failures/errors/skips, successful packaging, and independent 85/85
+  restaurant-domain and restaurant-application JaCoCo checks. The module
+  boundary verifier passes and HTTP inventory reports 242 handlers. These are
+  unit, MockMvc and H2 proofs; PostgreSQL concurrency/atomicity and CRUD
+  application-module extraction remain open.
 
 - 2026-09-23: moved `CatalogLifecycleAudit` and its Spring Data repository
   into the infrastructure module. A first clean build exposed and then fixed
@@ -387,6 +498,7 @@ Phase 0 is complete. The build can now enforce module boundaries and future
 The Restaurant/Menu problem contract is approved above. Slice 1 is complete and
 adds pure, tested rules without changing runtime behavior. Slice 2 is complete:
 the typed Auth producer, policy-free blocking transport and typed identity SDK
-are independently tested. Slice 3 is the next implementation gate and will put
-owner acceptance, persistence, lifecycle, audit and outbox decisions in the
-Restaurant application boundary.
+are independently tested. Slice 3 has extracted owner assignment, ownership
+and lifecycle decisions plus Restaurant infrastructure adapters. Create,
+update, read and transactional orchestration for the rest of Restaurant/Menu
+still remain in the service host, so phase 1 remains active.

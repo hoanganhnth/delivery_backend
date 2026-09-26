@@ -4,11 +4,24 @@ import com.delivery.restaurant_service.dto.request.CreateRestaurantRequest;
 import com.delivery.restaurant_service.dto.request.UpdateRestaurantRequest;
 import com.delivery.restaurant_service.dto.response.RestaurantResponse;
 import com.delivery.restaurant_service.entity.Restaurant;
+import com.delivery.restaurant.domain.catalog.OperatingSchedule;
 import org.springframework.stereotype.Component;
 
-import java.time.LocalTime;
+import java.time.Clock;
+import java.time.ZoneId;
+
 @Component
 public class RestaurantMapper {
+    private final Clock clock;
+
+    public RestaurantMapper() {
+        this(Clock.systemUTC());
+    }
+
+    RestaurantMapper(Clock clock) {
+        this.clock = clock;
+    }
+
     public Restaurant toEntity(CreateRestaurantRequest request) {
         if (request == null) {
             return null;
@@ -68,15 +81,16 @@ public class RestaurantMapper {
         response.setLifecycleStatus(restaurant.getLifecycleStatus());
         response.setVersion(restaurant.getVersion());
         response.setTimeZone(restaurant.getTimeZone());
-        response.setOpen(isRestaurantOpen(restaurant.getOpeningHour(), restaurant.getClosingHour()));
+        response.setOpen(isRestaurantOpen(restaurant));
         return response;
     }
 
-    public boolean isRestaurantOpen(LocalTime opening, LocalTime closing) {
-        if (opening == null || closing == null) {
-            return true;
+    private boolean isRestaurantOpen(Restaurant restaurant) {
+        try {
+            return OperatingSchedule.of(restaurant.getOpeningHour(), restaurant.getClosingHour(),
+                    ZoneId.of(restaurant.getTimeZone())).isOpenAt(clock.instant());
+        } catch (RuntimeException invalidSchedule) {
+            return false;
         }
-        LocalTime now = LocalTime.now();
-        return now.isAfter(opening) && now.isBefore(closing);
     }
 }

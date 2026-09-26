@@ -1,6 +1,7 @@
 package com.delivery.restaurant_service.service.impl;
 
 import com.delivery.restaurant.domain.catalog.RestaurantStatus;
+import com.delivery.restaurant.domain.catalog.OperatingSchedule;
 import com.delivery.restaurant_service.common.constants.RoleConstants;
 import com.delivery.restaurant_service.dto.request.CreateRestaurantRequest;
 import com.delivery.restaurant_service.dto.request.UpdateRestaurantRequest;
@@ -26,6 +27,8 @@ import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 
 import java.util.List;
+import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.stream.Collectors;
 
 @Service
@@ -62,6 +65,7 @@ public class RestaurantServiceImpl implements RestaurantService {
         }
 
         Restaurant restaurant = restaurantMapper.toEntity(request);
+        validateOperatingHours(restaurant.getOpeningHour(), restaurant.getClosingHour(), restaurant.getTimeZone());
         restaurant.setCreatorId(creatorId);
         restaurant.setOwnerPrincipalId(ownerPrincipalId);
 
@@ -96,6 +100,12 @@ public class RestaurantServiceImpl implements RestaurantService {
         Restaurant existingRestaurant = restaurantRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Restaurant not found"));
         authorizeWrite(existingRestaurant, ownerPrincipalId, creatorId, role);
+
+        LocalTime openingHour = request.getOpeningHour() != null
+                ? request.getOpeningHour() : existingRestaurant.getOpeningHour();
+        LocalTime closingHour = request.getClosingHour() != null
+                ? request.getClosingHour() : existingRestaurant.getClosingHour();
+        validateOperatingHours(openingHour, closingHour, existingRestaurant.getTimeZone());
 
         restaurantMapper.updateEntityFromDto(request, existingRestaurant);
         Restaurant updated = restaurantRepository.saveAndFlush(existingRestaurant);
@@ -167,6 +177,10 @@ public class RestaurantServiceImpl implements RestaurantService {
             identityLegacyFallback("owner_manage");
             if (ownerPrincipalId != null) restaurant.setOwnerPrincipalId(ownerPrincipalId);
         }
+    }
+
+    private void validateOperatingHours(LocalTime openingHour, LocalTime closingHour, String timeZone) {
+        OperatingSchedule.of(openingHour, closingHour, ZoneId.of(timeZone));
     }
 
     @Override

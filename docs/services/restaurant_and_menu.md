@@ -35,6 +35,21 @@
 - Unit/integration H2 và MockMvc có bằng chứng; chưa thay thế kiểm chứng live
   PostgreSQL/JWKS/Gateway/BFF trước release.
 
+### Quy tắc use case cơ bản đã khóa bằng test
+
+- Khi tạo nhà hàng, `openingHour` và `closingHour` phải cùng có hoặc cùng
+  vắng mặt. Khi cập nhật một phía, service ghép giá trị mới với giá trị đang
+  lưu rồi kiểm tra cặp cuối; nếu chỉ còn một giờ thì trả 400 và không lưu.
+- `RestaurantResponse.open` dùng `timeZone` của nhà hàng và lịch `[open, close)`;
+  hỗ trợ ca qua đêm. Dữ liệu lịch cũ có cặp giờ lỗi được báo `open=false` để
+  không làm hỏng cả danh sách và luôn bị checkout từ chối.
+- `UpdateMenuItemRequest.restaurantId` không chuyển món sang nhà hàng khác.
+  Quyền quản lý món luôn kế thừa từ nhà hàng đang sở hữu món.
+- Test khóa các trường hợp tạo/cập nhật, ADMIN và SHOP_OWNER, owner khác,
+  tài nguyên thiếu, public/management visibility, archive parent/child và
+  pagination. Ma trận bằng chứng và các phần chưa có proof PostgreSQL được
+  theo dõi trong `docs/plans/active/backend-platform-modules.md`.
+
 | Mã UC | Tên Use Case | Nền tảng | Trạng thái |
 |-------|--------------|----------|------------|
 | UC-2.1 | Xem danh sách nhà hàng (Featured, Nearby) | Customer App | ✅ Done |

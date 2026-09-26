@@ -2,6 +2,7 @@ package com.delivery.restaurant_service.service;
 
 import com.delivery.restaurant_service.common.constants.RoleConstants;
 import com.delivery.restaurant_service.dto.request.CreateRestaurantRequest;
+import com.delivery.restaurant_service.dto.request.UpdateRestaurantRequest;
 import com.delivery.restaurant_service.dto.response.RestaurantResponse;
 import com.delivery.restaurant_service.entity.Restaurant;
 import com.delivery.restaurant.domain.catalog.RestaurantStatus;
@@ -22,7 +23,9 @@ import org.springframework.security.access.AccessDeniedException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.time.LocalTime;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -89,6 +92,22 @@ class RestaurantServiceTest {
     }
 
     @Test
+    void createRestaurant_StoresPrincipalAndLegacyCreatorWithoutChangingResponseContract() {
+        when(menuItemMapper.toEntity(createRequest)).thenReturn(restaurant);
+        when(restaurantRepository.save(restaurant)).thenReturn(restaurant);
+        when(menuItemMapper.toResponse(restaurant)).thenReturn(restaurantResponse);
+
+        RestaurantResponse result = restaurantService.createRestaurant(
+                createRequest, 70L, 7L, RoleConstants.OWNER);
+
+        assertSame(restaurantResponse, result);
+        assertEquals(70L, restaurant.getOwnerPrincipalId());
+        assertEquals(7L, restaurant.getCreatorId());
+        verify(cacheSynchronizer).cacheRestaurantAfterCommit(restaurant);
+        verify(searchSyncPublisher).publishRestaurantChange(restaurant, "CREATE");
+    }
+
+    @Test
     void getRestaurantById_ShouldReturnRestaurant_WhenExists() {
 
 
@@ -118,6 +137,144 @@ class RestaurantServiceTest {
                 restaurantService.getRestaurantById(1L));
 
         verify(restaurantRepository).findById(1L);
+    }
+
+    @Test
+    void getRestaurantById_ResolvesArchivedRestaurantForHistory() {
+        restaurant.setLifecycleStatus(RestaurantStatus.ARCHIVED);
+        when(restaurantRepository.findById(1L)).thenReturn(Optional.of(restaurant));
+        when(menuItemMapper.toResponse(restaurant)).thenReturn(restaurantResponse);
+
+        assertSame(restaurantResponse, restaurantService.getRestaurantById(1L));
+
+        verify(restaurantRepository).findById(1L);
+    }
+
+    @Test
+    void createRestaurant_ShouldRejectUnauthenticatedActorBeforeMapping() {
+        assertThrows(AccessDeniedException.class, () ->
+                restaurantService.createRestaurant(createRequest, null, RoleConstants.OWNER));
+
+        verifyNoInteractions(restaurantRepository, menuItemMapper, cacheSynchronizer, searchSyncPublisher);
+    }
+
+    @Test
+    void createRestaurant_ShouldRejectUnsupportedRoleBeforePersistence() {
+        assertThrows(AccessDeniedException.class, () ->
+                restaurantService.createRestaurant(createRequest, 7L, RoleConstants.CUSTOMER));
+
+        verifyNoInteractions(restaurantRepository, menuItemMapper, cacheSynchronizer, searchSyncPublisher);
+    }
+
+    @Test
+    void createRestaurant_RejectsPartialOperatingHoursBeforePersistence() {
+        createRequest.setOpeningHour(LocalTime.of(18, 0));
+        restaurant.setOpeningHour(LocalTime.of(18, 0));
+        when(menuItemMapper.toEntity(createRequest)).thenReturn(restaurant);
+
+        assertThrows(IllegalArgumentException.class, () -> restaurantService.createRestaurant(
+                createRequest, 1L, 1L, RoleConstants.OWNER));
+
+        verify(restaurantRepository, never()).save(any());
+        verifyNoInteractions(cacheSynchronizer, searchSyncPublisher);
+    }
+
+    @Test
+    void updateRestaurant_ShouldReturnNotFoundWithoutMutation() {
+        when(restaurantRepository.findById(404L)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () -> restaurantService.updateRestaurant(
+                404L, new UpdateRestaurantRequest(), 7L, 7L, RoleConstants.OWNER));
+
+        verify(restaurantRepository, never()).saveAndFlush(any());
+        verifyNoInteractions(menuItemMapper, cacheSynchronizer, searchSyncPublisher);
+    }
+
+    @Test
+    void updateRestaurant_ShouldRejectForeignOwnerBeforeMappingOrPersistence() {
+        restaurant.setOwnerPrincipalId(99L);
+        when(restaurantRepository.findById(1L)).thenReturn(Optional.of(restaurant));
+
+        assertThrows(AccessDeniedException.class, () -> restaurantService.updateRestaurant(
+                1L, new UpdateRestaurantRequest(), 7L, 7L, RoleConstants.OWNER));
+
+        verify(restaurantRepository, never()).saveAndFlush(any());
+        verifyNoInteractions(menuItemMapper, cacheSynchronizer, searchSyncPublisher);
+    }
+
+    @Test
+    void updateRestaurant_RejectsPartialScheduleBeforeMutatingRestaurant() {
+        restaurant.setOwnerPrincipalId(1L);
+        when(restaurantRepository.findById(1L)).thenReturn(Optional.of(restaurant));
+        UpdateRestaurantRequest request = new UpdateRestaurantRequest();
+        request.setOpeningHour(LocalTime.of(18, 0));
+
+        assertThrows(IllegalArgumentException.class, () -> restaurantService.updateRestaurant(
+                1L, request, 1L, 1L, RoleConstants.OWNER));
+
+        assertNull(restaurant.getOpeningHour());
+        assertNull(restaurant.getClosingHour());
+        verify(menuItemMapper, never()).updateEntityFromDto(any(), any());
+        verify(restaurantRepository, never()).saveAndFlush(any());
+        verifyNoInteractions(cacheSynchronizer, searchSyncPublisher);
+    }
+
+    @Test
+    void updateRestaurantAllowsChangingOneHourWhenStoredPairRemainsComplete() {
+        restaurant.setOwnerPrincipalId(1L);
+        restaurant.setOpeningHour(LocalTime.of(9, 0));
+        restaurant.setClosingHour(LocalTime.of(18, 0));
+        when(restaurantRepository.findById(1L)).thenReturn(Optional.of(restaurant));
+        when(restaurantRepository.saveAndFlush(restaurant)).thenReturn(restaurant);
+        when(menuItemMapper.toResponse(restaurant)).thenReturn(restaurantResponse);
+        UpdateRestaurantRequest request = new UpdateRestaurantRequest();
+        request.setOpeningHour(LocalTime.of(10, 0));
+        doAnswer(invocation -> {
+            new com.delivery.restaurant_service.mapper.RestaurantMapper().updateEntityFromDto(
+                    invocation.getArgument(0), invocation.getArgument(1));
+            return null;
+        }).when(menuItemMapper).updateEntityFromDto(any(), any());
+
+        restaurantService.updateRestaurant(1L, request, 1L, 1L, RoleConstants.OWNER);
+
+        assertEquals(LocalTime.of(10, 0), restaurant.getOpeningHour());
+        assertEquals(LocalTime.of(18, 0), restaurant.getClosingHour());
+        verify(menuItemMapper).updateEntityFromDto(request, restaurant);
+        verify(restaurantRepository).saveAndFlush(restaurant);
+    }
+
+    @Test
+    void updateRestaurant_ShouldAllowAdminAcrossOwnershipBoundary() {
+        restaurant.setOwnerPrincipalId(99L);
+        when(restaurantRepository.findById(1L)).thenReturn(Optional.of(restaurant));
+        when(restaurantRepository.saveAndFlush(restaurant)).thenReturn(restaurant);
+        when(menuItemMapper.toResponse(restaurant)).thenReturn(restaurantResponse);
+
+        RestaurantResponse result = restaurantService.updateRestaurant(
+                1L, new UpdateRestaurantRequest(), 7L, 7L, RoleConstants.ADMIN);
+
+        assertSame(restaurantResponse, result);
+        verify(menuItemMapper).updateEntityFromDto(any(UpdateRestaurantRequest.class), eq(restaurant));
+        verify(restaurantRepository).saveAndFlush(restaurant);
+    }
+
+    @Test
+    void updateRestaurant_UpdatesMutableFieldsAndSchedulesReadSideEffects() {
+        restaurant.setOwnerPrincipalId(7L);
+        UpdateRestaurantRequest request = new UpdateRestaurantRequest();
+        request.setName("Renamed Restaurant");
+        when(restaurantRepository.findById(1L)).thenReturn(Optional.of(restaurant));
+        when(restaurantRepository.saveAndFlush(restaurant)).thenReturn(restaurant);
+        when(menuItemMapper.toResponse(restaurant)).thenReturn(restaurantResponse);
+
+        RestaurantResponse result = restaurantService.updateRestaurant(
+                1L, request, 7L, 700L, RoleConstants.OWNER);
+
+        assertSame(restaurantResponse, result);
+        verify(menuItemMapper).updateEntityFromDto(request, restaurant);
+        verify(cacheSynchronizer).cacheRestaurantAfterCommit(restaurant);
+        verify(searchSyncPublisher).publishRestaurantChange(restaurant, "UPDATE");
+        assertEquals(7L, restaurant.getOwnerPrincipalId());
     }
 
     @Test
@@ -160,6 +317,34 @@ class RestaurantServiceTest {
         when(menuItemMapper.toResponse(restaurant)).thenReturn(restaurantResponse);
 
         assertEquals(List.of(restaurantResponse), restaurantService.getAllManagedRestaurants());
+    }
+
+    @Test
+    void getAllRestaurantsPage_UsesPublicArchivedFilterAndKeyword() {
+        when(restaurantRepository.findPageByNameContainingIgnoreCaseAndLifecycleStatusNot(
+                eq("pizza"), eq(RestaurantStatus.ARCHIVED), any(PageRequest.class)))
+                .thenReturn(new PageImpl<>(List.of(restaurant)));
+        when(menuItemMapper.toResponse(restaurant)).thenReturn(restaurantResponse);
+
+        var page = restaurantService.getAllRestaurantsPage(1, 20, "  pizza  ");
+
+        assertEquals(1, page.getTotalElements());
+        verify(restaurantRepository).findPageByNameContainingIgnoreCaseAndLifecycleStatusNot(
+                eq("pizza"), eq(RestaurantStatus.ARCHIVED), eq(PageRequest.of(1, 20)));
+    }
+
+    @Test
+    void getAllRestaurantsPage_UsesPublicArchivedFilterWithoutKeyword() {
+        when(restaurantRepository.findByLifecycleStatusNot(
+                eq(RestaurantStatus.ARCHIVED), any(PageRequest.class)))
+                .thenReturn(new PageImpl<>(List.of(restaurant)));
+        when(menuItemMapper.toResponse(restaurant)).thenReturn(restaurantResponse);
+
+        var page = restaurantService.getAllRestaurantsPage(0, 24, "  ");
+
+        assertEquals(1, page.getTotalElements());
+        verify(restaurantRepository).findByLifecycleStatusNot(
+                eq(RestaurantStatus.ARCHIVED), eq(PageRequest.of(0, 24)));
     }
 
     @Test

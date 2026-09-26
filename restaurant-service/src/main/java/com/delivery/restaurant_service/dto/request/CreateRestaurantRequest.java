@@ -13,6 +13,8 @@ import jakarta.validation.constraints.Size;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.AssertTrue;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 @Getter
 @Setter
@@ -43,5 +45,11 @@ public class CreateRestaurantRequest {
     private Double addressLng; 
     @Size(max = 4000)
     private String description;
+
+    @AssertTrue(message = "Opening and closing times must both be present or both be absent")
+    @JsonIgnore
+    public boolean isOperatingHoursPairValid() {
+        return (openingHour == null) == (closingHour == null);
+    }
 
 }

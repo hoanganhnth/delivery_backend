@@ -6,6 +6,8 @@ import com.delivery.restaurant_service.common.constants.ApiPathConstants;
 import com.delivery.restaurant_service.common.constants.HttpHeaderConstants;
 import com.delivery.restaurant_service.common.constants.RoleConstants;
 import com.delivery.restaurant_service.dto.request.CreateRestaurantRequest;
+import com.delivery.restaurant_service.dto.request.UpdateRestaurantRequest;
+import com.delivery.restaurant_service.entity.Restaurant;
 import com.delivery.restaurant_service.repository.RestaurantRepository;
 import com.delivery.identity.client.IdentityPrincipalClient;
 import com.delivery.identity.contracts.IdentityLifecycleStatus;
@@ -26,6 +28,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.time.LocalTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -117,6 +120,48 @@ class RestaurantControllerIntegrationTest {
 		long restaurantId = objectMapper.readTree(response).get("data").get("id").asLong();
 		assertThat(restaurantRepository.findById(restaurantId).orElseThrow().getOwnerPrincipalId())
 				.isEqualTo(42L);
+	}
+
+	@Test
+	void createRejectsIncompleteOperatingHoursWithoutPersistingRestaurant() throws Exception {
+		long before = restaurantRepository.count();
+		CreateRestaurantRequest request = new CreateRestaurantRequest();
+		request.setName("Incomplete Schedule Restaurant");
+		request.setAddress("123 Valid Street");
+		request.setAddressLat(10.78);
+		request.setAddressLng(106.69);
+		request.setOpeningHour(LocalTime.of(18, 0));
+
+		mockMvc.perform(post(ApiPathConstants.RESTAURANTS)
+					.with(testActor(1L, RoleConstants.OWNER))
+					.contentType(MediaType.APPLICATION_JSON)
+					.content(objectMapper.writeValueAsString(request)))
+				.andExpect(status().isBadRequest());
+
+		assertThat(restaurantRepository.count()).isEqualTo(before);
+		verifyNoInteractions(identityPrincipalClient);
+	}
+
+	@Test
+	void updateRejectsResultingIncompleteScheduleAndPreservesStoredRestaurant() throws Exception {
+		Restaurant restaurant = new Restaurant();
+		restaurant.setName("Always Open Restaurant");
+		restaurant.setAddress("123 Valid Street");
+		restaurant.setCreatorId(1L);
+		restaurant.setOwnerPrincipalId(1L);
+		restaurant = restaurantRepository.saveAndFlush(restaurant);
+		UpdateRestaurantRequest request = new UpdateRestaurantRequest();
+		request.setOpeningHour(LocalTime.of(18, 0));
+
+		mockMvc.perform(put(ApiPathConstants.RESTAURANTS + "/{id}", restaurant.getId())
+					.with(testActor(1L, RoleConstants.OWNER))
+					.contentType(MediaType.APPLICATION_JSON)
+					.content(objectMapper.writeValueAsString(request)))
+				.andExpect(status().isBadRequest());
+
+		Restaurant persisted = restaurantRepository.findById(restaurant.getId()).orElseThrow();
+		assertThat(persisted.getOpeningHour()).isNull();
+		assertThat(persisted.getClosingHour()).isNull();
 	}
 
 	@Test
