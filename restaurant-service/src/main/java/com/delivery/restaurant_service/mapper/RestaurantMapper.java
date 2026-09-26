@@ -5,6 +5,7 @@ import com.delivery.restaurant_service.dto.request.UpdateRestaurantRequest;
 import com.delivery.restaurant_service.dto.response.RestaurantResponse;
 import com.delivery.restaurant_service.entity.Restaurant;
 import com.delivery.restaurant.domain.catalog.OperatingSchedule;
+import com.delivery.restaurant.application.api.CreateRestaurantResult;
 import org.springframework.stereotype.Component;
 
 import java.time.Clock;
@@ -86,9 +87,35 @@ public class RestaurantMapper {
     }
 
     private boolean isRestaurantOpen(Restaurant restaurant) {
+        return isRestaurantOpen(restaurant.getOpeningHour(), restaurant.getClosingHour(), restaurant.getTimeZone());
+    }
+
+    public RestaurantResponse toResponse(CreateRestaurantResult result) {
+        RestaurantResponse response = new RestaurantResponse();
+        response.setId(result.id());
+        response.setName(result.name());
+        response.setAddress(result.address());
+        response.setPhone(result.phone());
+        response.setOpeningHour(result.openingHour());
+        response.setClosingHour(result.closingHour());
+        response.setDefaultPrepTimeMinutes(result.defaultPrepTimeMinutes());
+        response.setImage(result.image());
+        response.setDescription(result.description());
+        response.setLatitude(result.latitude());
+        response.setLongitude(result.longitude());
+        response.setRating(result.rating());
+        response.setRatingCount(result.ratingCount());
+        response.setLifecycleStatus(result.lifecycleStatus());
+        response.setVersion(result.version());
+        response.setTimeZone(result.timeZone());
+        response.setOpen(isRestaurantOpen(result.openingHour(), result.closingHour(), result.timeZone()));
+        return response;
+    }
+
+    private boolean isRestaurantOpen(java.time.LocalTime openingHour, java.time.LocalTime closingHour,
+            String timeZone) {
         try {
-            return OperatingSchedule.of(restaurant.getOpeningHour(), restaurant.getClosingHour(),
-                    ZoneId.of(restaurant.getTimeZone())).isOpenAt(clock.instant());
+            return OperatingSchedule.of(openingHour, closingHour, ZoneId.of(timeZone)).isOpenAt(clock.instant());
         } catch (RuntimeException invalidSchedule) {
             return false;
         }

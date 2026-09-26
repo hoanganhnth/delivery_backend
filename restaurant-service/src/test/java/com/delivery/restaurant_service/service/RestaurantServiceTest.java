@@ -6,6 +6,13 @@ import com.delivery.restaurant_service.dto.request.UpdateRestaurantRequest;
 import com.delivery.restaurant_service.dto.response.RestaurantResponse;
 import com.delivery.restaurant_service.entity.Restaurant;
 import com.delivery.restaurant.domain.catalog.RestaurantStatus;
+import com.delivery.restaurant.application.DefaultCreateRestaurantUseCase;
+import com.delivery.restaurant.application.DefaultRestaurantOwnerAssignmentUseCase;
+import com.delivery.restaurant.application.api.CreateRestaurantCommand;
+import com.delivery.restaurant.application.api.CreateRestaurantResult;
+import com.delivery.restaurant.application.api.PrincipalOwnershipDirectory;
+import com.delivery.restaurant.application.api.RestaurantCreationPort;
+import com.delivery.restaurant.domain.ownership.OwnerAssignmentException;
 import com.delivery.restaurant_service.exception.ResourceNotFoundException;
 import com.delivery.restaurant_service.mapper.RestaurantMapper;
 import com.delivery.restaurant_service.repository.RestaurantRepository;
@@ -42,6 +49,10 @@ class RestaurantServiceTest {
     private SearchSyncPublisher searchSyncPublisher;
     @Mock
     private CatalogLifecycleService catalogLifecycleService;
+    @Mock
+    private RestaurantCreationPort creationPort;
+    @Mock
+    private PrincipalOwnershipDirectory directory;
     private final RestaurantOwnershipPolicy restaurantOwnershipPolicy = new RestaurantOwnershipPolicy(false);
 
     private RestaurantServiceImpl restaurantService;
@@ -55,7 +66,8 @@ class RestaurantServiceTest {
     void setUp() {
         restaurantService = new RestaurantServiceImpl(restaurantRepository, menuItemMapper,
                 cacheSynchronizer, searchSyncPublisher, new io.micrometer.core.instrument.simple.SimpleMeterRegistry(),
-                restaurantOwnershipPolicy, catalogLifecycleService);
+                restaurantOwnershipPolicy, catalogLifecycleService,
+                new DefaultCreateRestaurantUseCase(new DefaultRestaurantOwnerAssignmentUseCase(directory), creationPort));
         restaurant = new Restaurant();
         restaurant.setId(1L);
         restaurant.setName("Test Restaurant");
@@ -77,9 +89,9 @@ class RestaurantServiceTest {
         // Given
 
 
-        when(restaurantRepository.save(any(Restaurant.class))).thenReturn(restaurant);
-        when(menuItemMapper.toEntity(any(CreateRestaurantRequest.class))).thenReturn(restaurant);
-        when(menuItemMapper.toResponse(any(Restaurant.class))).thenReturn(restaurantResponse);
+        CreateRestaurantResult saved = creationResult();
+        when(creationPort.create(any(), eq(1L))).thenReturn(saved);
+        when(menuItemMapper.toResponse(saved)).thenReturn(restaurantResponse);
         // When
         RestaurantResponse response = restaurantService.createRestaurant(createRequest, 1L, RoleConstants.OWNER);
 
@@ -87,24 +99,27 @@ class RestaurantServiceTest {
         assertNotNull(response);
         assertEquals("Test Restaurant", response.getName());
         assertEquals("123 Test Street", response.getAddress());
-        verify(restaurantRepository).save(any(Restaurant.class));
-        verify(menuItemMapper).toEntity(any(CreateRestaurantRequest.class));
+        verify(creationPort).create(any(CreateRestaurantCommand.class), eq(1L));
+        verifyNoInteractions(restaurantRepository, cacheSynchronizer, searchSyncPublisher, directory);
     }
 
     @Test
     void createRestaurant_StoresPrincipalAndLegacyCreatorWithoutChangingResponseContract() {
-        when(menuItemMapper.toEntity(createRequest)).thenReturn(restaurant);
-        when(restaurantRepository.save(restaurant)).thenReturn(restaurant);
-        when(menuItemMapper.toResponse(restaurant)).thenReturn(restaurantResponse);
+        CreateRestaurantResult saved = creationResult();
+        when(creationPort.create(any(), eq(70L))).thenReturn(saved);
+        when(menuItemMapper.toResponse(saved)).thenReturn(restaurantResponse);
 
         RestaurantResponse result = restaurantService.createRestaurant(
                 createRequest, 70L, 7L, RoleConstants.OWNER);
 
         assertSame(restaurantResponse, result);
-        assertEquals(70L, restaurant.getOwnerPrincipalId());
-        assertEquals(7L, restaurant.getCreatorId());
-        verify(cacheSynchronizer).cacheRestaurantAfterCommit(restaurant);
-        verify(searchSyncPublisher).publishRestaurantChange(restaurant, "CREATE");
+        var command = org.mockito.ArgumentCaptor.forClass(CreateRestaurantCommand.class);
+        verify(creationPort).create(command.capture(), eq(70L));
+        assertEquals(70L, command.getValue().actorPrincipalId());
+        assertEquals(7L, command.getValue().creatorId());
+        assertEquals(createRequest.getName(), command.getValue().name());
+        assertEquals(createRequest.getAddress(), command.getValue().address());
+        verifyNoInteractions(restaurantRepository, cacheSynchronizer, searchSyncPublisher, directory);
     }
 
     @Test
@@ -152,31 +167,35 @@ class RestaurantServiceTest {
 
     @Test
     void createRestaurant_ShouldRejectUnauthenticatedActorBeforeMapping() {
-        assertThrows(AccessDeniedException.class, () ->
+        assertThrows(OwnerAssignmentException.class, () ->
                 restaurantService.createRestaurant(createRequest, null, RoleConstants.OWNER));
 
-        verifyNoInteractions(restaurantRepository, menuItemMapper, cacheSynchronizer, searchSyncPublisher);
+        verifyNoInteractions(creationPort, directory, restaurantRepository, menuItemMapper, cacheSynchronizer, searchSyncPublisher);
     }
 
     @Test
     void createRestaurant_ShouldRejectUnsupportedRoleBeforePersistence() {
-        assertThrows(AccessDeniedException.class, () ->
+        assertThrows(OwnerAssignmentException.class, () ->
                 restaurantService.createRestaurant(createRequest, 7L, RoleConstants.CUSTOMER));
 
-        verifyNoInteractions(restaurantRepository, menuItemMapper, cacheSynchronizer, searchSyncPublisher);
+        verifyNoInteractions(creationPort, directory, restaurantRepository, menuItemMapper, cacheSynchronizer, searchSyncPublisher);
     }
 
     @Test
     void createRestaurant_RejectsPartialOperatingHoursBeforePersistence() {
         createRequest.setOpeningHour(LocalTime.of(18, 0));
-        restaurant.setOpeningHour(LocalTime.of(18, 0));
-        when(menuItemMapper.toEntity(createRequest)).thenReturn(restaurant);
 
         assertThrows(IllegalArgumentException.class, () -> restaurantService.createRestaurant(
                 createRequest, 1L, 1L, RoleConstants.OWNER));
 
         verify(restaurantRepository, never()).save(any());
-        verifyNoInteractions(cacheSynchronizer, searchSyncPublisher);
+        verifyNoInteractions(creationPort, directory, cacheSynchronizer, searchSyncPublisher);
+    }
+
+    private CreateRestaurantResult creationResult() {
+        return new CreateRestaurantResult(1L, "Test Restaurant", "123 Test Street", null,
+                null, null, 30, null, null, null, null, 0.0, 0,
+                RestaurantStatus.ACTIVE, 0L, "Asia/Ho_Chi_Minh");
     }
 
     @Test

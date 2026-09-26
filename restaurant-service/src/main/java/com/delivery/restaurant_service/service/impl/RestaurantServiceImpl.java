@@ -2,6 +2,9 @@ package com.delivery.restaurant_service.service.impl;
 
 import com.delivery.restaurant.domain.catalog.RestaurantStatus;
 import com.delivery.restaurant.domain.catalog.OperatingSchedule;
+import com.delivery.restaurant.application.api.CreateRestaurantCommand;
+import com.delivery.restaurant.application.api.CreateRestaurantUseCase;
+import com.delivery.restaurant.domain.ownership.RestaurantActorRole;
 import com.delivery.restaurant_service.common.constants.RoleConstants;
 import com.delivery.restaurant_service.dto.request.CreateRestaurantRequest;
 import com.delivery.restaurant_service.dto.request.UpdateRestaurantRequest;
@@ -18,7 +21,6 @@ import com.delivery.restaurant_service.service.ownership.ManagementAccess;
 import com.delivery.restaurant_service.service.ownership.RestaurantOwnershipPolicy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Page;
@@ -43,9 +45,9 @@ public class RestaurantServiceImpl implements RestaurantService {
     private final MeterRegistry meterRegistry;
     private final RestaurantOwnershipPolicy restaurantOwnershipPolicy;
     private final CatalogLifecycleService catalogLifecycleService;
+    private final CreateRestaurantUseCase createRestaurantUseCase;
 
     @Override
-    @Transactional
     public RestaurantResponse createRestaurant(CreateRestaurantRequest request,
             Long creatorId,
             String role) {
@@ -53,38 +55,19 @@ public class RestaurantServiceImpl implements RestaurantService {
     }
 
     @Override
-    @Transactional
     public RestaurantResponse createRestaurant(CreateRestaurantRequest request,
-            Long ownerPrincipalId, Long creatorId, String role) {
+            Long actorPrincipalId, Long creatorId, String role) {
+        var command = new CreateRestaurantCommand(actorPrincipalId, creatorId, actorRole(role),
+                request.getOwnerPrincipalId(), request.getName(), request.getAddress(), request.getPhone(),
+                request.getOpeningHour(), request.getClosingHour(), request.getDefaultPrepTimeMinutes(),
+                request.getImage(), request.getAddressLat(), request.getAddressLng(), request.getDescription());
+        return restaurantMapper.toResponse(createRestaurantUseCase.create(command));
+    }
 
-        if (role == null || !RoleConstants.ALLOWED_CREATORS.contains(role.toUpperCase())) {
-            throw new AccessDeniedException("Only ADMIN or OWNER can create restaurants");
-        }
-        if (creatorId == null) {
-            throw new AccessDeniedException("You must be authenticated to create a restaurant");
-        }
-
-        Restaurant restaurant = restaurantMapper.toEntity(request);
-        validateOperatingHours(restaurant.getOpeningHour(), restaurant.getClosingHour(), restaurant.getTimeZone());
-        restaurant.setCreatorId(creatorId);
-        restaurant.setOwnerPrincipalId(ownerPrincipalId);
-
-        Restaurant saved = restaurantRepository.save(restaurant);
-
-        // ✅ Create initial balance for restaurant
-        try {
-            log.info("✅ Created initial balance for restaurant: {} (ID: {})", saved.getName(), saved.getId());
-        } catch (Exception e) {
-            log.warn("⚠️ Failed to create initial balance for restaurant: {}", e.getMessage());
-            // Don't fail restaurant creation if balance creation fails
-        }
-
-        cacheSynchronizer.cacheRestaurantAfterCommit(saved);
-
-        // 🔥 Publish sync event for search service
-        searchSyncPublisher.publishRestaurantChange(saved, "CREATE");
-
-        return restaurantMapper.toResponse(saved);
+    private RestaurantActorRole actorRole(String role) {
+        if (RoleConstants.ADMIN.equalsIgnoreCase(role)) return RestaurantActorRole.ADMIN;
+        if (RoleConstants.OWNER.equalsIgnoreCase(role)) return RestaurantActorRole.SHOP_OWNER;
+        return RestaurantActorRole.OTHER;
     }
 
     @Override

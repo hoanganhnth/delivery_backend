@@ -14,7 +14,7 @@ public interface RestaurantService {
                                         Long creatorId,
                                         String role);
     RestaurantResponse createRestaurant(CreateRestaurantRequest restaurant,
-                                        Long ownerPrincipalId,
+                                        Long actorPrincipalId,
                                         Long legacyCreatorId,
                                         String role);
 

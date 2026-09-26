@@ -7,8 +7,6 @@ import com.delivery.restaurant_service.dto.request.CreateRestaurantRequest;
 import com.delivery.restaurant_service.dto.request.UpdateRestaurantRequest;
 import com.delivery.restaurant_service.dto.response.RestaurantResponse;
 import com.delivery.restaurant_service.service.RestaurantService;
-import com.delivery.restaurant.application.api.RestaurantOwnerAssignmentUseCase;
-import com.delivery.restaurant.domain.ownership.RestaurantActorRole;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -47,9 +45,6 @@ class RestaurantControllerTest {
 
     @Mock
     private RestaurantService restaurantService;
-
-    @Mock
-    private RestaurantOwnerAssignmentUseCase ownerAssignmentUseCase;
 
     @InjectMocks
     private RestaurantController restaurantController;
@@ -100,8 +95,6 @@ class RestaurantControllerTest {
         response.setAddress("123 Main Street");
         response.setPhone("0123456789");
 
-        when(ownerAssignmentUseCase.resolveOwnerPrincipalId(1L, RestaurantActorRole.SHOP_OWNER, null))
-                .thenReturn(1L);
         when(restaurantService.createRestaurant(any(CreateRestaurantRequest.class), anyLong(), anyLong(), anyString()))
                 .thenReturn(response);
 
@@ -119,12 +112,10 @@ class RestaurantControllerTest {
                 .andExpect(jsonPath("$.data.phone").value("0123456789"));
 
         verify(restaurantService).createRestaurant(any(CreateRestaurantRequest.class), eq(1L), eq(1L), eq(RoleConstants.OWNER));
-        verify(ownerAssignmentUseCase)
-                .resolveOwnerPrincipalId(1L, RestaurantActorRole.SHOP_OWNER, null);
     }
 
     @Test
-    void adminCreateResolvesRequestedOwnerBeforePersistence() throws Exception {
+    void adminCreatePassesActorAndRequestedOwnerToHostAdapter() throws Exception {
         CreateRestaurantRequest request = new CreateRestaurantRequest();
         request.setName("Admin Created Restaurant");
         request.setAddress("123 Main Street");
@@ -133,9 +124,7 @@ class RestaurantControllerTest {
         request.setOwnerPrincipalId(42L);
         RestaurantResponse response = new RestaurantResponse();
         response.setId(2L);
-        when(ownerAssignmentUseCase.resolveOwnerPrincipalId(1L, RestaurantActorRole.ADMIN, 42L))
-                .thenReturn(42L);
-        when(restaurantService.createRestaurant(any(), eq(42L), eq(1L), eq(RoleConstants.ADMIN)))
+        when(restaurantService.createRestaurant(any(), eq(1L), eq(1L), eq(RoleConstants.ADMIN)))
                 .thenReturn(response);
 
         mockMvc.perform(post("/api/restaurants")
@@ -145,9 +134,9 @@ class RestaurantControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk());
 
-        verify(ownerAssignmentUseCase)
-                .resolveOwnerPrincipalId(1L, RestaurantActorRole.ADMIN, 42L);
-        verify(restaurantService).createRestaurant(any(), eq(42L), eq(1L), eq(RoleConstants.ADMIN));
+        verify(restaurantService).createRestaurant(
+                argThat(input -> Long.valueOf(42L).equals(input.getOwnerPrincipalId())),
+                eq(1L), eq(1L), eq(RoleConstants.ADMIN));
     }
 
     @Test
@@ -388,7 +377,7 @@ class RestaurantControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest());
 
-        verifyNoInteractions(ownerAssignmentUseCase, restaurantService);
+        verifyNoInteractions(restaurantService);
     }
 
     @Test
@@ -403,7 +392,7 @@ class RestaurantControllerTest {
                                 """))
                 .andExpect(status().isBadRequest());
 
-        verifyNoInteractions(ownerAssignmentUseCase, restaurantService);
+        verifyNoInteractions(restaurantService);
     }
 
     @Test

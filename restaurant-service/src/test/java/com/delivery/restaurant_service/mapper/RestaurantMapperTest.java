@@ -6,6 +6,7 @@ import com.delivery.restaurant_service.dto.request.UpdateRestaurantRequest;
 import com.delivery.restaurant_service.entity.Restaurant;
 import com.delivery.restaurant_service.entity.MenuItem;
 import com.delivery.restaurant.domain.catalog.RestaurantStatus;
+import com.delivery.restaurant.application.api.CreateRestaurantResult;
 import org.junit.jupiter.api.Test;
 
 import java.time.Clock;
@@ -16,6 +17,23 @@ import java.time.ZoneOffset;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class RestaurantMapperTest {
+
+    @Test
+    void creationSnapshotMapsEveryResponseFieldAndUsesTheSameScheduleRules() {
+        RestaurantMapper mapper = new RestaurantMapper(Clock.fixed(
+                Instant.parse("2026-09-26T17:30:00Z"), ZoneOffset.UTC));
+        var result = new CreateRestaurantResult(91L, "Bếp MVP", "123 Main Street", "0123456789",
+                LocalTime.of(18, 0), LocalTime.of(2, 0), 45, "create.jpg", "Description",
+                10.78, 106.69, 0.0, 0, RestaurantStatus.ACTIVE, 0L, "Asia/Ho_Chi_Minh");
+
+        var response = mapper.toResponse(result);
+
+        assertThat(response).usingRecursiveComparison().ignoringFields("open").isEqualTo(result);
+        assertThat(response.isOpen()).isTrue();
+        var closingBoundary = new RestaurantMapper(Clock.fixed(
+                Instant.parse("2026-09-26T19:00:00Z"), ZoneOffset.UTC));
+        assertThat(closingBoundary.toResponse(result).isOpen()).isFalse();
+    }
 
     @Test
     void restaurantImageIsPreservedOnCreateAndUpdate() {

@@ -9,8 +9,6 @@ import com.delivery.restaurant_service.dto.response.RestaurantResponse;
 import com.delivery.restaurant_service.payload.BaseResponse;
 import com.delivery.restaurant_service.service.RestaurantService;
 import com.delivery.auth.resourceserver.security.AuthenticatedActor;
-import com.delivery.restaurant.application.api.RestaurantOwnerAssignmentUseCase;
-import com.delivery.restaurant.domain.ownership.RestaurantActorRole;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -27,13 +25,9 @@ import com.delivery.restaurant_service.payload.PageResponse;
 public class RestaurantController {
 
     private final RestaurantService restaurantService;
-    private final RestaurantOwnerAssignmentUseCase ownerAssignmentUseCase;
 
-    public RestaurantController(
-            RestaurantService restaurantService,
-            RestaurantOwnerAssignmentUseCase ownerAssignmentUseCase) {
+    public RestaurantController(RestaurantService restaurantService) {
         this.restaurantService = restaurantService;
-        this.ownerAssignmentUseCase = ownerAssignmentUseCase;
     }
 
     @PostMapping
@@ -41,10 +35,8 @@ public class RestaurantController {
             @Valid @RequestBody CreateRestaurantRequest request,
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireActor(actor);
-        long ownerPrincipalId = ownerAssignmentUseCase.resolveOwnerPrincipalId(
-                actor.getPrincipalId(), actorRole(actor), request.getOwnerPrincipalId());
         RestaurantResponse response = restaurantService.createRestaurant(
-                request, ownerPrincipalId, actor.getLegacyUserId(), getRoleString(actor));
+                request, actor.getPrincipalId(), actor.getLegacyUserId(), getRoleString(actor));
         return ResponseEntity.ok(new BaseResponse<>(1, response));
     }
 
@@ -138,9 +130,4 @@ public class RestaurantController {
         return RoleConstants.CUSTOMER;
     }
 
-    private RestaurantActorRole actorRole(AuthenticatedActor actor) {
-        if (actor.isAdmin()) return RestaurantActorRole.ADMIN;
-        if (actor.isShopOwner()) return RestaurantActorRole.SHOP_OWNER;
-        return RestaurantActorRole.OTHER;
-    }
 }

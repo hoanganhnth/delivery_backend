@@ -178,7 +178,7 @@ module.
 
 | Business use case | Actors and exception cases exercised | Executable proof | State |
 | --- | --- | --- | --- |
-| Create Restaurant | SHOP_OWNER self; ADMIN assigning an active SHOP_OWNER; missing/unsupported actor; invalid fields; missing owner/Auth failure; incomplete opening-hours pair | `DefaultRestaurantOwnerAssignmentUseCaseTest`, `RestaurantControllerTest`, `RestaurantControllerIntegrationTest`, `RestaurantServiceTest`, `CatalogMutationValidationTest` | Verified in unit, MockMvc and H2 integration tests |
+| Create Restaurant | SHOP_OWNER self; ADMIN assigning an active SHOP_OWNER; missing/unsupported actor; invalid fields; missing owner/Auth failure; incomplete opening-hours pair; transactional Search outbox and after-commit cache | `DefaultCreateRestaurantUseCaseTest`, `DefaultRestaurantOwnerAssignmentUseCaseTest`, `RestaurantControllerTest`, `RestaurantControllerIntegrationTest`, `RestaurantCreationIntegrationTest`, `RestaurantServiceTest`, `CatalogMutationValidationTest` | Extracted through application/port; verified in unit, MockMvc and H2 integration tests |
 | Update Restaurant | Owner, ADMIN, foreign owner, missing row; partial update preserving the other hour; resulting incomplete schedule rejected before mutation | `RestaurantServiceTest`, `RestaurantControllerIntegrationTest`, `CatalogMutationValidationTest` | Verified in unit and H2 integration tests |
 | Read Restaurant | Missing ID; archived detail remains resolvable; public list/search/page hide archived; management can still see archived; public pagination envelope | `RestaurantServiceTest`, `RestaurantControllerTest`, `CatalogArchiveIntegrationTest` | Verified in unit, MockMvc and H2 query tests |
 | Create Menu item | Owner access; ADMIN cross-owner access; foreign owner and missing Restaurant rejected; `principalId` wins over matching legacy ID | `MenuItemServiceTest`, `MenuOwnershipIntegrationTest` | Verified in unit and H2 integration tests |
@@ -188,16 +188,17 @@ module.
 | Checkout validation | PostgreSQL-canonical name/price/status/parent lifecycle, missing/foreign items and invalid operating schedule fail closed | `OrderValidationPersistenceIntegrationTest`, `OrderCacheValidationServiceImplTest`, domain `OperatingScheduleTest` | Verified on H2; PostgreSQL runtime proof remains TODO |
 | Cache/Search side effects | Cache work runs after commit; rollback skips cache; Search mutation persists an outbox record instead of publishing directly | `CatalogCacheSynchronizerTest`, `SearchSyncPublisherTest`, `CatalogLifecycleServiceTest` | Unit proof exists; real PostgreSQL atomicity proof remains TODO |
 
-The latest full Restaurant reactor run reports 226 tests with no failures,
-errors, or skips. `restaurant-domain` and `restaurant-application` pass their
+The latest full Restaurant reactor run reports 318 tests (237 in the host) with
+no failures, errors, or skips. `restaurant-domain` and `restaurant-application` pass their
 independent JaCoCo 85% line and branch gates: domain is 124/124 lines and 77/78
-branches; application is 47/47 lines and 36/40 branches. These percentages
-cover only the currently extracted core classes; CRUD workflows still run in
-the executable host and are characterized there.
+branches; application is 57/57 lines and 40/44 branches. These percentages
+cover only the currently extracted core classes. Restaurant creation now runs
+through the application use case and infrastructure persistence port; remaining
+CRUD workflows still run in the executable host and are characterized there.
 
 Remaining proof and extraction work:
 
-- Move Restaurant create/update/read and Menu create/update/read orchestration
+- Move Restaurant update/read and Menu create/update/read orchestration
   behind framework-free `restaurant-application-api` use cases and ports, with
   unit tests in `restaurant-application`; then retain the host tests as adapter
   and HTTP contract tests.
@@ -228,7 +229,7 @@ Remaining proof and extraction work:
 - [x] Slice 3 test contract: characterize core Restaurant/Menu create, update,
   read, ownership, validation, pagination, lifecycle and public visibility
   across host, HTTP and H2 persistence tests.
-- [ ] Slice 3A: move Restaurant creation orchestration behind application API
+- [x] Slice 3A: move Restaurant creation orchestration behind application API
   and ports; keep owner assignment and persistence effects covered independently.
 - [ ] Slice 3B: move Restaurant update, public reads and management reads behind
   application use cases; preserve DTO and pagination adapters in the host.
@@ -266,6 +267,24 @@ Gateway/Discovery/Config/CLI use only layers that have actual responsibility.
   unchanged. Keep existing runnable service while incrementally extracting.
 
 ## Execution record
+
+- 2026-09-26, Task 1 / Slice 3A: added framework-free immutable creation
+  command/result records, use-case and persistence-port contracts, and an
+  application implementation reusing the existing owner-assignment use case.
+  The host maps actor/request/result only; the infrastructure adapter owns the
+  creation transaction, existing entity defaults, log-only initial balance,
+  Search outbox write and after-commit cache scheduling. No schema, HTTP DTO,
+  endpoint, error-handler or event-payload changes. New unit tests prove all
+  actor/owner/schedule rejections avoid persistence. New H2 HTTP integration
+  tests prove identity/default/response compatibility, owner lookup outside
+  the transaction, outbox rollback and commit/rollback cache behavior. Focused
+  proof passes 78 tests; full Restaurant `clean verify` passes 318 tests,
+  including 237 host tests, packaging and both 85/85 core gates. Module-boundary
+  self-test and 242-handler HTTP inventory pass. The boundary verifier change
+  only permits empty-body records in application-api, with negative fixtures
+  for handwritten behavior and framework imports; dependency rules and coverage
+  thresholds are unchanged. PostgreSQL concurrency/atomicity and real Redis/Kafka
+  runtime evidence remain deferred; H2 results do not claim those guarantees.
 
 - 2026-09-26: added use-case characterization for Restaurant/Menu CRUD and
   ownership, archived/history reads, pagination envelopes, public projection

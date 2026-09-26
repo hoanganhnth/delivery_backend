@@ -3,6 +3,9 @@ package com.delivery.restaurant_service.config;
 import com.delivery.restaurant.application.DefaultCatalogLifecycleDecisionUseCase;
 import com.delivery.restaurant.application.DefaultRestaurantManagementAccessUseCase;
 import com.delivery.restaurant.application.DefaultRestaurantOwnerAssignmentUseCase;
+import com.delivery.restaurant.application.DefaultCreateRestaurantUseCase;
+import com.delivery.restaurant.application.api.CreateRestaurantUseCase;
+import com.delivery.restaurant.application.api.RestaurantCreationPort;
 import com.delivery.restaurant.application.api.CatalogLifecycleDecisionUseCase;
 import com.delivery.restaurant.application.api.PrincipalOwnershipDirectory;
 import com.delivery.restaurant.application.api.RestaurantOwnerAssignmentUseCase;
@@ -18,6 +21,12 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 @Import(IdentityInfrastructureConfiguration.class)
 public class RestaurantOwnershipConfiguration {
+
+    @Bean
+    CreateRestaurantUseCase createRestaurantUseCase(
+            RestaurantOwnerAssignmentUseCase ownerAssignment, RestaurantCreationPort creationPort) {
+        return new DefaultCreateRestaurantUseCase(ownerAssignment, creationPort);
+    }
 
     @Bean
     RestaurantOwnerAssignmentUseCase restaurantOwnerAssignmentUseCase(
