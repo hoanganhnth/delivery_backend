@@ -521,3 +521,105 @@ read-side effects.
   controller-to-database compatibility and Search outbox/cache behavior.
 - No endpoint, payload, status/error mapping, schema, lifecycle, owner identity,
   transaction, cache, Search event, or default behavior changes are in scope.
+
+### Task 2 — Extract Restaurant update and read use cases
+
+Move `PUT /api/restaurants/{id}`, public detail/list/search/page and
+`GET /api/restaurants/my-restaurants` through framework-free application
+contracts. Preserve every current HTTP, ownership, visibility, transaction and
+side-effect rule. This task implements Slice 3B only; Menu remains Task 3C.
+
+**Authoritative behavior to preserve**
+
+- Update requires a trusted principal and legacy ID. `ADMIN` may update any
+  Restaurant. `SHOP_OWNER` must match `ownerPrincipalId`; while principal
+  ownership enforcement is disabled, an unmigrated row may fall back to its
+  matching legacy `creatorId`, claim the current principal on successful save,
+  and increment the `owner_manage` fallback metric.
+- Update is a nullable patch. Merge a supplied operating-hour endpoint with the
+  stored other endpoint, validate the resulting pair in the stored IANA
+  timezone before mutation, call `saveAndFlush`, write the existing Search
+  UPDATE outbox in the same transaction, and register cache work after commit.
+  A rejected decision or failed outbox write must not leave a committed update.
+- Detail remains public and resolves archived Restaurants for history. Missing
+  detail preserves the current 404/status-0 HTTP contract.
+- Public list, search and page exclude `ARCHIVED`. List and unpaged search keep
+  the existing 100-row cap. Unpaged search keeps the caller keyword unchanged;
+  paged search trims a nonblank keyword. No ordering policy is added.
+- Public page keeps controller validation (`page >= 0`, `1 <= size <= 100`) and
+  the existing `items/page/size/totalItems/totalPages/hasNext` envelope.
+- Management reads require `ADMIN` or `SHOP_OWNER`. ADMIN sees the first 100
+  rows including archived. SHOP_OWNER sees owned rows including archived;
+  enforcement-off additionally includes unmigrated rows matching legacy
+  creator and increments `owner_list` once per such row. Enforcement-on excludes
+  those legacy-only rows; it does not invent a new exception.
+- Response projection remains a host concern and retains all current fields,
+  including timezone-aware `open`; invalid legacy schedules fail closed with
+  `open=false`.
+
+**Framework-free interfaces and dependency direction**
+
+- Add immutable JDK/domain-only update commands, stored facts, mutation plan,
+  Restaurant snapshot, page slice and management query/result types under
+  `modules/restaurant/restaurant-application-api`. They must not import Spring,
+  JPA, Spring Data `Page`, host DTOs, Micrometer, Redis or Search classes.
+- Add `UpdateRestaurantUseCase`, Restaurant read/management use-case contracts,
+  a read port and a transaction-scoped update port. The update port must execute
+  load → application decision callback → entity mutation → `saveAndFlush` →
+  Search outbox inside one adapter transaction; this keeps decisions testable in
+  `restaurant-application` without putting Spring transactions there.
+- Implement update authorization, legacy claim decision, merged-hours
+  validation and mutation planning in `restaurant-application`. Implement read
+  orchestration and management actor/role validation there. Persistence query,
+  fallback-count collection and transaction mechanics stay in
+  `restaurant-infrastructure`; HTTP DTO/Page mapping and metric emission stay in
+  the executable host.
+- `getRestaurantsByCreatorId` has no characterized production caller. Leave it
+  unchanged during Task 2; removal or semantic change requires separate
+  authority.
+
+**TDD and execution steps**
+
+- [ ] RED: add application unit tests for direct-owner and ADMIN update success,
+  every mutable field, partial-hour merge, legacy claim, missing row, foreign
+  owner, missing/unsupported actor, enforcement-on legacy exclusion, incomplete
+  merged schedule and port failure. Rejected decisions must not produce a
+  mutation plan or write.
+- [ ] RED: add application unit tests for active/paused/archived detail, missing
+  detail, public archived exclusion, search hit/no-hit/blank input, paged
+  keyword/no-keyword metadata, ADMIN all-row management, owner principal rows,
+  unmigrated fallback rows and enforcement-on exclusion.
+- [ ] Run focused application tests and observe failure because the new
+  contracts/implementations do not exist. Do not weaken the 85% line and branch
+  gates.
+- [ ] GREEN: add the minimal application API and implementations, then make the
+  focused application tests pass with no Spring context.
+- [ ] RED/GREEN adapter: implement JPA read and transactional update adapters;
+  retain repository/H2 tests for case-insensitive search, empty results,
+  archived visibility, detail history, pagination, principal precedence and
+  legacy rows. Add extracted-path H2 proof for update persistence, outbox
+  rollback and cache commit/rollback behavior, explicitly labelled as non-
+  PostgreSQL evidence.
+- [ ] RED/GREEN host: change `RestaurantServiceImpl` into command/result and
+  page/DTO mapping only for the extracted paths. Preserve controller routes,
+  validation, actor propagation, response envelopes, error statuses and
+  timezone-aware `open` mapping in MockMvc/host tests.
+- [ ] Run focused proof:
+  `mvn -B -pl :restaurant-application -am -Dtest=DefaultRestaurantUpdateUseCaseTest,DefaultRestaurantReadUseCaseTest -Dsurefire.failIfNoSpecifiedTests=false test`;
+  then the relevant Restaurant host/HTTP/repository tests. Run
+  `python3 scripts/verify-module-boundaries.py --self-test` and
+  `python3 scripts/verify-module-boundaries.py`.
+- [ ] Run full proof: `mvn -B -pl :restaurant-service -am clean verify`,
+  `bash scripts/verify-http-api-inventory.sh`, and `git diff --check`. Record
+  test totals and fresh application line/branch coverage here.
+- [ ] Obtain an independent diff review. Fix Important-or-higher findings,
+  rerun affected proof, commit Task 2 atomically, and only then mark Slice 3B
+  complete.
+
+**Not proof in Task 2**
+
+- H2 does not prove PostgreSQL locking, optimistic conflict or production
+  audit/outbox atomicity. Add the real-PostgreSQL suite during Slice 3 hardening.
+- Do not add clear/reset-hours semantics, general PUT/DELETE `expectedVersion`,
+  sorting, a physical purge, or a new management error. Those require their own
+  authorized contract.
