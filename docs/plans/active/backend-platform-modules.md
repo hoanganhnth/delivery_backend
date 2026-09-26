@@ -251,38 +251,6 @@ ports, implement core tests, move one vertical slice, prove adapters/runtime,
 review, commit. Remove transitional facades only when no caller remains.
 Gateway/Discovery/Config/CLI use only layers that have actual responsibility.
 
-### Task 1 — Extract Restaurant creation use case
-
-Move the `POST /api/restaurants` creation workflow through the framework-free
-Restaurant application module while preserving the existing host endpoint,
-response, validation errors, owner assignment, persistence defaults, and
-read-side effects.
-
-- Add `CreateRestaurantCommand`, `CreateRestaurantResult`, and the
-  `CreateRestaurantUseCase` plus `RestaurantCreationPort` contracts in
-  `restaurant-application-api`. Keep these contracts free of Spring, JPA,
-  `Restaurant` entities, and service HTTP DTOs.
-- Implement the use case in `restaurant-application`. Reuse
-  `RestaurantOwnerAssignmentUseCase` for ADMIN/SHOP_OWNER owner resolution;
-  validate the final operating-hours pair through the domain schedule; call the
-  persistence port only after actor/owner/schedule decisions succeed.
-- Implement the persistence port in `restaurant-infrastructure`. The adapter
-  owns the database transaction, persists creator/owner and existing defaults,
-  writes Search outbox in that transaction, and schedules cache work after
-  commit. It returns a framework-free result sufficient for the host to retain
-  the current response shape without an extra database read.
-- Keep `RestaurantController` and `RestaurantService` as HTTP/service-host
-  adapters. They map `AuthenticatedActor` and request DTOs to the command and
-  map the result to `RestaurantResponse`; they do not resolve owner policy or
-  persist an entity themselves.
-- Unit-test SHOP_OWNER self-ownership, ADMIN active SHOP_OWNER assignment,
-  unsupported/missing actor, missing/invalid/inactive/non-owner target,
-  directory failure, incomplete hours, and successful result mapping. Rejected
-  cases must not call the persistence port. Keep H2 integration proof for
-  controller-to-database compatibility and Search outbox/cache behavior.
-- No endpoint, payload, status/error mapping, schema, lifecycle, owner identity,
-  transaction, cache, Search event, or default behavior changes are in scope.
-
 ## Validation and recovery
 
 - Baseline: `mvn -B clean test`; failures predating edits are recorded, not skipped.
@@ -502,3 +470,35 @@ are independently tested. Slice 3 has extracted owner assignment, ownership
 and lifecycle decisions plus Restaurant infrastructure adapters. Create,
 update, read and transactional orchestration for the rest of Restaurant/Menu
 still remain in the service host, so phase 1 remains active.
+
+### Task 1 — Extract Restaurant creation use case
+
+Move the `POST /api/restaurants` creation workflow through the framework-free
+Restaurant application module while preserving the existing host endpoint,
+response, validation errors, owner assignment, persistence defaults, and
+read-side effects.
+
+- Add `CreateRestaurantCommand`, `CreateRestaurantResult`, and the
+  `CreateRestaurantUseCase` plus `RestaurantCreationPort` contracts in
+  `restaurant-application-api`. Keep these contracts free of Spring, JPA,
+  `Restaurant` entities, and service HTTP DTOs.
+- Implement the use case in `restaurant-application`. Reuse
+  `RestaurantOwnerAssignmentUseCase` for ADMIN/SHOP_OWNER owner resolution;
+  validate the final operating-hours pair through the domain schedule; call the
+  persistence port only after actor/owner/schedule decisions succeed.
+- Implement the persistence port in `restaurant-infrastructure`. The adapter
+  owns the database transaction, persists creator/owner and existing defaults,
+  writes Search outbox in that transaction, and schedules cache work after
+  commit. It returns a framework-free result sufficient for the host to retain
+  the current response shape without an extra database read.
+- Keep `RestaurantController` and `RestaurantService` as HTTP/service-host
+  adapters. They map `AuthenticatedActor` and request DTOs to the command and
+  map the result to `RestaurantResponse`; they do not resolve owner policy or
+  persist an entity themselves.
+- Unit-test SHOP_OWNER self-ownership, ADMIN active SHOP_OWNER assignment,
+  unsupported/missing actor, missing/invalid/inactive/non-owner target,
+  directory failure, incomplete hours, and successful result mapping. Rejected
+  cases must not call the persistence port. Keep H2 integration proof for
+  controller-to-database compatibility and Search outbox/cache behavior.
+- No endpoint, payload, status/error mapping, schema, lifecycle, owner identity,
+  transaction, cache, Search event, or default behavior changes are in scope.
