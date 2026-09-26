@@ -101,14 +101,13 @@ def verify_core_module(pom_path: Path) -> list[str]:
                 text,
                 re.DOTALL,
             )
-            # Commands/results may be records, but no handwritten body is allowed.
-            data_record = (
-                declaration is not None
-                and declaration.group(1) == "record"
-                and re.fullmatch(
-                    r"public\s+record\s+\w+\s*\([^{}]*\)\s*\{\s*\}\s*",
-                    text[declaration.start():], re.DOTALL,
-                )
+            # Match the whole compilation unit: only package/import statements
+            # and comments may precede an empty-body record, never another type.
+            data_record = re.fullmatch(
+                r"\s*(?:(?:(?:package|import)\s+(?:static\s+)?[\w.]+(?:\.\*)?\s*;"
+                r"|//[^\r\n]*(?:\r?\n|$)|/\*(?:[^*]|\*(?!/))*\*/)\s*)*"
+                r"public\s+record\s+\w+\s*\([^{}]*\)\s*\{\s*\}\s*",
+                text, re.DOTALL,
             )
             interface = declaration is not None and declaration.group(1) == "interface"
             if not (interface or data_record) or method_body:
@@ -228,19 +227,29 @@ def self_test() -> None:
         assert any("cannot depend on order-domain" in error for error in errors), errors
         assert any("behavior-free interfaces" in error for error in errors), errors
 
-        api_source.write_text("public record CreateCommand(String name) {}", encoding="utf-8")
-        errors = verify_core_module(api / "pom.xml")
-        assert not any("behavior-free" in error for error in errors), errors
+        for source in (
+            "public record CreateCommand(String name) {}",
+            "/* Data-only contract. */\npackage com.delivery.restaurant.application.api;\n"
+            "import java.lang.String;\nimport java.util.*;\n"
+            "import static java.util.Collections.emptyList;\n"
+            "// Creation input.\npublic record CreateCommand(String name) {}",
+        ):
+            api_source.write_text(source, encoding="utf-8")
+            errors = verify_core_module(api / "pom.xml")
+            assert not any("behavior-free" in error for error in errors), errors
         for source in (
             'public record CreateCommand(String name) { public CreateCommand { name = name.trim(); } }',
             'public record CreateCommand(String name) { public String name() { return name.trim(); } }',
             'public record CreateCommand(String name) { static String normalize(String n) { return n.trim(); } }',
             'public class CreateCommand { public String name; }',
             'public class Behavior { public int execute() { return 1; } } public record CreateCommand(String name) {}',
+            'class Behavior { public int execute() { return 1; } } public record CreateRestaurantCommand(String name) {}',
+            '/* Before. */ class Behavior { public int execute() { return 1; } } /* After. */ public record CreateCommand(String name) {}',
+            'public record CreateCommand(String name) {} class Behavior { public int execute() { return 1; } }',
         ):
             api_source.write_text(source, encoding="utf-8")
             errors = verify_core_module(api / "pom.xml")
-            assert any("behavior-free" in error for error in errors), errors
+            assert any("behavior-free" in error for error in errors), (source, errors)
 
         api_source.write_text(
             "import org.springframework.context.ApplicationContext;\n"
