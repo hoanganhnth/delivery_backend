@@ -777,6 +777,31 @@ the full dependency reactor; `routing-contracts` reported 4 tests and
 `git diff --check` passes. No SDK or external routing consumer was migrated in
 this task; those remain part of the later Phase 2 client-adoption work.
 
+### Task 5 — Implement typed routing client (2026-09-27)
+
+The new `clients/routing-client` module inherits `delivery-build-parent`,
+publishes `com.delivery:routing-client:1.0.0-SNAPSHOT`, and exposes the typed
+`RoutingClient` route, matrix, and ETA-window methods over the standalone
+`routing-contracts` records. `HttpRoutingClient` builds only the documented
+`/internal/routing/v1/{route,matrix,eta-window}` POST paths, sends the explicit
+target `Internal-Token`, validates its absolute HTTP(S) base URI, and maps
+invalid request, unauthorized, forbidden, not-found, server/unavailable,
+transport, and decode failures to `RoutingClientException`. It does not add
+retry, timeout, caching, fallback, or business decisions; callers retain those
+policies. Because `platform-http-blocking` currently exposes GET only, this
+module uses the allowed Spring Web transport seam (`RoutingHttpExchange` and
+`RestClientRoutingHttpExchange`) without changing the platform transport or
+importing routing-service internals.
+
+Focused proof: `mvn -B -pl :routing-client -am test` passed with 6 routing-client
+tests and 4 routing-contracts tests, zero failures/errors/skips. The matching
+`mvn -B -pl :routing-client -am verify` passed with the routing-client JaCoCo
+check and packaged `routing-client-1.0.0-SNAPSHOT.jar`. Tests cover all three
+typed endpoints, exact paths/credential, 200, 400, 401, 403, 404, 500,
+network, decode, empty-body, and invalid-configuration/request cases.
+`git diff --check` passes. Order and Match consumer adoption remains a later
+bounded task.
+
 **Task 3C host wiring follow-up (2026-09-27)**
 
 The executable host migration is now complete. `MenuItemServiceImpl` maps host

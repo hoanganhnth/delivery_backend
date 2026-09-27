@@ -20,6 +20,7 @@
         <module>search-contracts</module>
         <module>routing-contracts</module>
         <module>clients/identity-client</module>
+        <module>clients/routing-client</module>
         <module>modules/restaurant/restaurant-domain</module>
         <module>modules/restaurant/restaurant-application-api</module>
         <module>modules/restaurant/restaurant-application</module>
