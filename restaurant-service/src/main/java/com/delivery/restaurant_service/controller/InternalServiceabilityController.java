@@ -1,9 +1,9 @@
 package com.delivery.restaurant_service.controller;
 
+import com.delivery.restaurant.application.api.RestaurantServiceabilityUseCase;
+import com.delivery.restaurant.application.api.ServiceabilityDecision;
 import com.delivery.restaurant_service.dto.response.ServiceabilityDecisionResponse;
 import com.delivery.restaurant_service.payload.BaseResponse;
-import com.delivery.restaurant_service.service.RestaurantServiceabilityService;
-import com.delivery.restaurant_service.service.ServiceabilityDecision;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -21,7 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class InternalServiceabilityController {
 
-    private final RestaurantServiceabilityService serviceabilityService;
+    private final RestaurantServiceabilityUseCase serviceabilityService;
 
     @Value("${app.internal.secret:}")
     private String internalSecret;

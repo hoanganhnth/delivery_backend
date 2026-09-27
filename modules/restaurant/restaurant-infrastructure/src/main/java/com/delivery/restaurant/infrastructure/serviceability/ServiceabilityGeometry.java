@@ -1,8 +1,7 @@
-package com.delivery.restaurant_service.service;
+package com.delivery.restaurant.infrastructure.serviceability;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;

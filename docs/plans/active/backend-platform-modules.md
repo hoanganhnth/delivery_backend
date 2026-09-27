@@ -246,7 +246,7 @@ Remaining proof and extraction work:
   adapters now live outside the executable host.
 - [ ] Slice 6: extract existing order decision/outbox behavior unchanged.
 - [x] Slice 7: rating concurrency fix and extraction.
-- [ ] Slice 8: serviceability and inventory extraction with separate proofs.
+- [x] Slice 8: serviceability and inventory extraction with separate proofs.
 - [ ] Slice 9: client SDK adoption, compatibility cleanup and canonical docs.
 
 Within each service: lock existing behavior with characterization tests, define
@@ -284,6 +284,20 @@ Gateway/Discovery/Config/CLI use only layers that have actual responsibility.
   passes 220 tests with 0 failures, 0 errors and 0 skips. The proof is unit
   and H2/application-context coverage; a PostgreSQL high-contention benchmark
   remains deferred as documented above.
+
+- 2026-09-27, Slice 8: extracted serviceability and inventory behind
+  framework-free `restaurant-application-api` ports/results. The serviceability
+  adapter now owns zone authorization, polygon validation/evaluation and JPA
+  transactions in `restaurant-infrastructure`; the inventory adapter now owns
+  reservation locking/state transitions, optimistic inventory updates, expiry,
+  and replay-safe order-event receipt processing there as well. HTTP controllers,
+  the checkout validation host adapter, Kafka listener and expiry scheduler keep
+  their existing routes, headers, feature flags and retry/ACK behavior while
+  mapping to the new ports. Focused serviceability, geometry, reservation,
+  replay, checkout and H2 persistence tests pass 22/22 with no failures,
+  errors or skips; clean reactor test compilation and module-boundary verification
+  also pass. PostgreSQL contention/atomicity and live Kafka/Redis runtime proof
+  remain outside this structural extraction.
 
 - 2026-09-26, Task 1 / Slice 3A: added framework-free immutable creation
   command/result records, use-case and persistence-port contracts, and an

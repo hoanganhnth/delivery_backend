@@ -1,20 +1,20 @@
-package com.delivery.restaurant_service.service;
+package com.delivery.restaurant.infrastructure.inventory;
 
+import com.delivery.restaurant.application.api.MenuItemInventoryUseCase;
 import com.delivery.restaurant_service.entity.MenuItemInventoryOrderReceipt;
 import com.delivery.restaurant_service.repository.MenuItemInventoryOrderReceiptRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.Objects;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Replay-safe Kafka boundary for the inventory ledger. The receipt is written
@@ -28,7 +28,7 @@ public class MenuItemInventoryOrderEventProcessor {
     private static final String COMMIT = "COMMIT";
     private static final String RELEASE = "RELEASE";
 
-    private final MenuItemInventoryReservationService reservationService;
+    private final MenuItemInventoryUseCase reservationService;
     private final MenuItemInventoryOrderReceiptRepository receiptRepository;
     private final ObjectMapper objectMapper;
     private final String dataSourceUrl;
@@ -37,7 +37,7 @@ public class MenuItemInventoryOrderEventProcessor {
     private final String refundEligibleTopic;
 
     public MenuItemInventoryOrderEventProcessor(
-            MenuItemInventoryReservationService reservationService,
+            MenuItemInventoryUseCase reservationService,
             MenuItemInventoryOrderReceiptRepository receiptRepository,
             ObjectMapper objectMapper,
             @Value("${spring.datasource.url:}") String dataSourceUrl,
@@ -77,7 +77,7 @@ public class MenuItemInventoryOrderEventProcessor {
     }
 
     private int insertIfAbsent(UUID eventId, String sourceTopic, String action, long orderId,
-                               UUID reservationId, String fingerprint) {
+            UUID reservationId, String fingerprint) {
         if (dataSourceUrl != null && dataSourceUrl.startsWith("jdbc:h2:")) {
             return receiptRepository.insertIfAbsentH2(eventId, sourceTopic, action, orderId,
                     reservationId, fingerprint);
@@ -140,7 +140,7 @@ public class MenuItemInventoryOrderEventProcessor {
     }
 
     private void requireExactReplay(MenuItemInventoryOrderReceipt receipt, String sourceTopic,
-                                    String action, long orderId, UUID reservationId, String fingerprint) {
+            String action, long orderId, UUID reservationId, String fingerprint) {
         if (!receipt.getSourceTopic().equals(sourceTopic)
                 || !receipt.getAction().equals(action)
                 || !receipt.getOrderId().equals(orderId)

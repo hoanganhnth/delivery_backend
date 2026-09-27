@@ -36,13 +36,15 @@ import com.delivery.restaurant.infrastructure.decision.RestaurantDecisionInfrast
 import com.delivery.restaurant.infrastructure.identity.IdentityInfrastructureConfiguration;
 import com.delivery.restaurant.infrastructure.client.OrderInfrastructureConfiguration;
 import com.delivery.restaurant.infrastructure.rating.RestaurantRatingInfrastructureConfiguration;
+import com.delivery.restaurant.infrastructure.serviceability.RestaurantServiceabilityInfrastructureConfiguration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
 @Import({IdentityInfrastructureConfiguration.class, OrderInfrastructureConfiguration.class,
-        RestaurantDecisionInfrastructureConfiguration.class, RestaurantRatingInfrastructureConfiguration.class})
+        RestaurantDecisionInfrastructureConfiguration.class, RestaurantRatingInfrastructureConfiguration.class,
+        RestaurantServiceabilityInfrastructureConfiguration.class})
 public class RestaurantOwnershipConfiguration {
 
     @Bean

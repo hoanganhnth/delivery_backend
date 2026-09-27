@@ -1,6 +1,6 @@
 package com.delivery.restaurant_service.listener;
 
-import com.delivery.restaurant_service.service.MenuItemInventoryOrderEventProcessor;
+import com.delivery.restaurant.infrastructure.inventory.MenuItemInventoryOrderEventProcessor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.annotation.KafkaListener;

@@ -1,27 +1,23 @@
-package com.delivery.restaurant_service.service;
+package com.delivery.restaurant.infrastructure.inventory;
 
-import com.delivery.restaurant_service.common.constants.RoleConstants;
-import com.delivery.restaurant_service.dto.request.InventoryReservationRequest;
-import com.delivery.restaurant_service.dto.request.UpdateMenuItemInventoryRequest;
-import com.delivery.restaurant_service.dto.response.InventoryReservationResponse;
-import com.delivery.restaurant_service.dto.response.MenuItemInventoryResponse;
+import com.delivery.restaurant.application.api.InventoryAvailability;
+import com.delivery.restaurant.application.api.InventoryReservationCommand;
+import com.delivery.restaurant.application.api.InventoryReservationLineCommand;
+import com.delivery.restaurant.application.api.InventoryReservationLineResult;
+import com.delivery.restaurant.application.api.InventoryReservationResult;
+import com.delivery.restaurant.application.api.MenuItemInventoryResult;
+import com.delivery.restaurant.application.api.MenuItemInventoryUseCase;
+import com.delivery.restaurant.application.api.UpdateMenuItemInventoryCommand;
+import com.delivery.restaurant.domain.ownership.RestaurantActorRole;
 import com.delivery.restaurant_service.entity.MenuItem;
 import com.delivery.restaurant_service.entity.MenuItemInventory;
 import com.delivery.restaurant_service.entity.MenuItemInventoryReservation;
 import com.delivery.restaurant_service.entity.MenuItemInventoryReservationLine;
-import com.delivery.restaurant_service.exception.ResourceNotFoundException;
 import com.delivery.restaurant_service.repository.MenuItemInventoryRepository;
 import com.delivery.restaurant_service.repository.MenuItemInventoryReservationRepository;
 import com.delivery.restaurant_service.repository.MenuItemRepository;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.access.AccessDeniedException;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,6 +26,11 @@ import java.util.TreeMap;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Transactional menu inventory authority. Every write locks menu and inventory
@@ -39,7 +40,7 @@ import java.util.stream.Collectors;
  */
 @Service
 @ConditionalOnProperty(name = "app.restaurant.inventory-enabled", havingValue = "true")
-public class MenuItemInventoryReservationService {
+public class MenuItemInventoryReservationService implements MenuItemInventoryUseCase {
 
     private static final int MAX_LINE_QUANTITY = 99;
 
@@ -60,22 +61,22 @@ public class MenuItemInventoryReservationService {
                 || reservationTtl.isZero() ? Duration.ofMinutes(15) : reservationTtl;
     }
 
+    @Override
     @Transactional
-    public InventoryReservationResponse reserve(InventoryReservationRequest request) {
-        validateReservationIdentity(request);
-        Map<Long, Integer> requested = normalizeLines(request.getItems());
+    public InventoryReservationResult reserve(InventoryReservationCommand command) {
+        validateReservationIdentity(command);
+        Map<Long, Integer> requested = normalizeLines(command.items());
 
-        MenuItemInventoryReservation existing = reservationRepository.findById(request.getReservationId())
+        MenuItemInventoryReservation existing = reservationRepository.findById(command.reservationId())
                 .orElse(null);
-        MenuItemInventoryReservation existingForOrder = reservationRepository.findByOrderId(request.getOrderId())
+        MenuItemInventoryReservation existingForOrder = reservationRepository.findByOrderId(command.orderId())
                 .orElse(null);
         if (existing != null || existingForOrder != null) {
             if (existing != null && existingForOrder != null
                     && !existing.getReservationId().equals(existingForOrder.getReservationId())) {
                 throw new IllegalArgumentException("Order already has a different inventory reservation");
             }
-            return InventoryReservationResponse.from(
-                    replay(existing != null ? existing : existingForOrder, request, requested));
+            return toResult(replay(existing != null ? existing : existingForOrder, command, requested));
         }
 
         List<Long> itemIds = List.copyOf(requested.keySet());
@@ -95,7 +96,7 @@ public class MenuItemInventoryReservationService {
         for (Long itemId : itemIds) {
             MenuItem item = itemsById.get(itemId);
             if (item == null || item.getRestaurant() == null
-                    || !request.getRestaurantId().equals(item.getRestaurant().getId())) {
+                    || !command.restaurantId().equals(item.getRestaurant().getId())) {
                 throw new IllegalArgumentException("Menu item belongs to another restaurant");
             }
             if (item.getStatus() != MenuItem.Status.AVAILABLE) {
@@ -112,11 +113,11 @@ public class MenuItemInventoryReservationService {
 
         LocalDateTime now = LocalDateTime.now();
         MenuItemInventoryReservation reservation = MenuItemInventoryReservation.builder()
-                .reservationId(request.getReservationId())
-                .orderId(request.getOrderId())
-                .userId(request.getUserId())
-                .userPrincipalId(request.getUserPrincipalId())
-                .restaurantId(request.getRestaurantId())
+                .reservationId(command.reservationId())
+                .orderId(command.orderId())
+                .userId(command.userId())
+                .userPrincipalId(command.userPrincipalId())
+                .restaurantId(command.restaurantId())
                 .state(MenuItemInventoryReservation.State.RESERVED)
                 .expiresAt(now.plus(reservationTtl))
                 .createdAt(now)
@@ -135,18 +136,19 @@ public class MenuItemInventoryReservationService {
         }
 
         reservationRepository.saveAndFlush(reservation);
-        return InventoryReservationResponse.from(reservation);
+        return toResult(reservation);
     }
 
+    @Override
     @Transactional
-    public InventoryReservationResponse commit(UUID reservationId, Long orderId) {
+    public InventoryReservationResult commit(UUID reservationId, Long orderId) {
         MenuItemInventoryReservation reservation = locked(reservationId, orderId);
         if (reservation.getState() != MenuItemInventoryReservation.State.RESERVED) {
-            return InventoryReservationResponse.from(reservation);
+            return toResult(reservation);
         }
         if (!LocalDateTime.now().isBefore(reservation.getExpiresAt())) {
             releaseCapacity(reservation, MenuItemInventoryReservation.State.EXPIRED);
-            return InventoryReservationResponse.from(reservation);
+            return toResult(reservation);
         }
 
         Map<Long, MenuItemInventory> inventoryById = lockedInventory(reservation);
@@ -164,20 +166,22 @@ public class MenuItemInventoryReservationService {
             inventory.setRevision(Math.addExact(inventory.getRevision(), 1L));
         }
         reservation.setState(MenuItemInventoryReservation.State.COMMITTED);
-        return InventoryReservationResponse.from(reservation);
+        return toResult(reservation);
     }
 
+    @Override
     @Transactional
-    public InventoryReservationResponse release(UUID reservationId, Long orderId) {
+    public InventoryReservationResult release(UUID reservationId, Long orderId) {
         MenuItemInventoryReservation reservation = locked(reservationId, orderId);
         if (reservation.getState() == MenuItemInventoryReservation.State.RESERVED) {
             releaseCapacity(reservation, MenuItemInventoryReservation.State.RELEASED);
         } else if (reservation.getState() == MenuItemInventoryReservation.State.COMMITTED) {
             restoreCommittedCapacity(reservation);
         }
-        return InventoryReservationResponse.from(reservation);
+        return toResult(reservation);
     }
 
+    @Override
     @Transactional
     public int expireReservations() {
         LocalDateTime now = LocalDateTime.now();
@@ -197,12 +201,14 @@ public class MenuItemInventoryReservationService {
         return expired;
     }
 
+    @Override
     @Transactional(readOnly = true)
-    public MenuItemInventoryResponse getInventory(Long menuItemId) {
+    public MenuItemInventoryResult getInventory(Long menuItemId) {
         requirePositive(menuItemId, "menuItemId");
         return inventoryRepository.findById(menuItemId)
-                .map(com.delivery.restaurant_service.dto.response.MenuItemInventoryResponse::from)
-                .orElseThrow(() -> new ResourceNotFoundException("Inventory is not configured for menu item"));
+                .map(MenuItemInventoryReservationService::toResult)
+                .orElseThrow(() -> new InventoryResourceNotFoundException(
+                        "Inventory is not configured for menu item"));
     }
 
     /**
@@ -210,11 +216,12 @@ public class MenuItemInventoryReservationService {
      * re-locks the same rows before writing, so a stale preview can never grant
      * capacity that is no longer present.
      */
+    @Override
     @Transactional(readOnly = true)
     public InventoryAvailability availability(Long restaurantId, Long menuItemId, Integer quantity) {
         if (restaurantId == null || restaurantId <= 0 || menuItemId == null || menuItemId <= 0
                 || quantity == null || quantity <= 0 || quantity > MAX_LINE_QUANTITY) {
-            return InventoryAvailability.unavailable(0);
+            return new InventoryAvailability(false, 0);
         }
         MenuItem item = menuItemRepository.findById(menuItemId).orElse(null);
         MenuItemInventory inventory = inventoryRepository.findById(menuItemId).orElse(null);
@@ -224,71 +231,71 @@ public class MenuItemInventoryReservationService {
                 || inventory == null || inventory.getOnHandQuantity() == null
                 || inventory.getReservedQuantity() == null
                 || inventory.getOnHandQuantity() < inventory.getReservedQuantity()) {
-            return InventoryAvailability.unavailable(0);
+            return new InventoryAvailability(false, 0);
         }
         int available = inventory.availableQuantity();
         return new InventoryAvailability(available >= quantity, available);
     }
 
+    @Override
     @Transactional
-    public MenuItemInventoryResponse updateInventory(Long menuItemId,
-                                                       UpdateMenuItemInventoryRequest request,
-                                                       Long actorId, String role) {
+    public MenuItemInventoryResult updateInventory(Long menuItemId,
+            UpdateMenuItemInventoryCommand command) {
         requirePositive(menuItemId, "menuItemId");
-        if (request == null || request.getOnHandQuantity() == null || request.getOnHandQuantity() < 0) {
+        if (command == null || command.onHandQuantity() == null || command.onHandQuantity() < 0) {
             throw new IllegalArgumentException("onHandQuantity must be zero or positive");
         }
-        if (!RoleConstants.ADMIN.equals(role) && !RoleConstants.OWNER.equals(role)) {
+        if (command.actorRole() != RestaurantActorRole.ADMIN
+                && command.actorRole() != RestaurantActorRole.SHOP_OWNER) {
             throw new AccessDeniedException("Only ADMIN or SHOP_OWNER may update inventory");
         }
-        if (actorId == null || actorId <= 0) {
+        if (command.actorId() == null || command.actorId() <= 0) {
             throw new AccessDeniedException("Authenticated actor is required");
         }
 
         MenuItem item = menuItemRepository.findByIdForUpdate(menuItemId)
-                .orElseThrow(() -> new ResourceNotFoundException("Menu item not found"));
-        if (RoleConstants.OWNER.equals(role)
-                && (item.getRestaurant() == null || !actorId.equals(item.getRestaurant().getCreatorId()))) {
+                .orElseThrow(() -> new InventoryResourceNotFoundException("Menu item not found"));
+        if (command.actorRole() == RestaurantActorRole.SHOP_OWNER
+                && (item.getRestaurant() == null || !command.actorId().equals(item.getRestaurant().getCreatorId()))) {
             throw new AccessDeniedException("Actor does not own this menu item");
         }
 
         MenuItemInventory inventory = inventoryRepository.findByMenuItemIdForUpdate(menuItemId).orElse(null);
         if (inventory == null) {
-            if (request.getExpectedRevision() != null) {
+            if (command.expectedRevision() != null) {
                 throw new IllegalArgumentException("Inventory revision does not exist");
             }
             inventory = new MenuItemInventory();
             inventory.setMenuItemId(menuItemId);
-            inventory.setOnHandQuantity(request.getOnHandQuantity());
+            inventory.setOnHandQuantity(command.onHandQuantity());
             inventory.setReservedQuantity(0);
             inventory.setRevision(0L);
-            return MenuItemInventoryResponse.from(inventoryRepository.saveAndFlush(inventory));
+            return toResult(inventoryRepository.saveAndFlush(inventory));
         }
-        if (request.getExpectedRevision() == null
-                || !request.getExpectedRevision().equals(inventory.getRevision())) {
+        if (command.expectedRevision() == null
+                || !command.expectedRevision().equals(inventory.getRevision())) {
             throw new IllegalArgumentException("Inventory revision is stale; reload before updating");
         }
-        if (request.getOnHandQuantity() < inventory.getReservedQuantity()) {
+        if (command.onHandQuantity() < inventory.getReservedQuantity()) {
             throw new IllegalArgumentException("onHandQuantity cannot be below reserved quantity");
         }
-        inventory.setOnHandQuantity(request.getOnHandQuantity());
+        inventory.setOnHandQuantity(command.onHandQuantity());
         inventory.setRevision(Math.addExact(inventory.getRevision(), 1L));
-        return MenuItemInventoryResponse.from(inventoryRepository.saveAndFlush(inventory));
+        return toResult(inventoryRepository.saveAndFlush(inventory));
     }
 
     private MenuItemInventoryReservation replay(MenuItemInventoryReservation reservation,
-                                                InventoryReservationRequest request,
-                                                Map<Long, Integer> requested) {
+            InventoryReservationCommand command, Map<Long, Integer> requested) {
         Map<Long, Integer> existing = reservation.getLines().stream().collect(Collectors.toMap(
                 MenuItemInventoryReservationLine::getMenuItemId,
                 MenuItemInventoryReservationLine::getQuantity,
                 (left, right) -> { throw new IllegalStateException("Duplicate stored inventory line"); },
                 TreeMap::new));
-        if (!reservation.getReservationId().equals(request.getReservationId())
-                || !reservation.getOrderId().equals(request.getOrderId())
-                || !Objects.equals(reservation.getUserId(), request.getUserId())
-                || !Objects.equals(reservation.getUserPrincipalId(), request.getUserPrincipalId())
-                || !reservation.getRestaurantId().equals(request.getRestaurantId())
+        if (!reservation.getReservationId().equals(command.reservationId())
+                || !reservation.getOrderId().equals(command.orderId())
+                || !Objects.equals(reservation.getUserId(), command.userId())
+                || !Objects.equals(reservation.getUserPrincipalId(), command.userPrincipalId())
+                || !reservation.getRestaurantId().equals(command.restaurantId())
                 || !existing.equals(requested)) {
             throw new IllegalArgumentException("Inventory reservation replay payload does not match");
         }
@@ -322,7 +329,7 @@ public class MenuItemInventoryReservationService {
     }
 
     private void releaseCapacity(MenuItemInventoryReservation reservation,
-                                  MenuItemInventoryReservation.State terminal) {
+            MenuItemInventoryReservation.State terminal) {
         Map<Long, MenuItemInventory> inventoryById = lockedInventory(reservation);
         for (MenuItemInventoryReservationLine line : reservation.getLines()) {
             MenuItemInventory inventory = requireInventory(inventoryById, line.getMenuItemId());
@@ -354,28 +361,28 @@ public class MenuItemInventoryReservationService {
         return inventory;
     }
 
-    private Map<Long, Integer> normalizeLines(List<InventoryReservationRequest.Line> lines) {
+    private Map<Long, Integer> normalizeLines(List<InventoryReservationLineCommand> lines) {
         if (lines == null || lines.isEmpty()) {
             throw new IllegalArgumentException("At least one inventory line is required");
         }
         TreeMap<Long, Integer> normalized = new TreeMap<>();
-        for (InventoryReservationRequest.Line line : lines) {
-            if (line == null || line.getMenuItemId() == null || line.getMenuItemId() <= 0
-                    || line.getQuantity() == null || line.getQuantity() <= 0
-                    || line.getQuantity() > MAX_LINE_QUANTITY) {
+        for (InventoryReservationLineCommand line : lines) {
+            if (line == null || line.menuItemId() == null || line.menuItemId() <= 0
+                    || line.quantity() == null || line.quantity() <= 0
+                    || line.quantity() > MAX_LINE_QUANTITY) {
                 throw new IllegalArgumentException("Inventory line has an invalid item or quantity");
             }
-            if (normalized.put(line.getMenuItemId(), line.getQuantity()) != null) {
+            if (normalized.put(line.menuItemId(), line.quantity()) != null) {
                 throw new IllegalArgumentException("Duplicate menu item in inventory reservation");
             }
         }
         return normalized;
     }
 
-    private void validateReservationIdentity(InventoryReservationRequest request) {
-        if (request == null || request.getReservationId() == null
-                || request.getOrderId() == null || request.getOrderId() <= 0
-                || request.getRestaurantId() == null || request.getRestaurantId() <= 0) {
+    private void validateReservationIdentity(InventoryReservationCommand command) {
+        if (command == null || command.reservationId() == null
+                || command.orderId() == null || command.orderId() <= 0
+                || command.restaurantId() == null || command.restaurantId() <= 0) {
             throw new IllegalArgumentException("Invalid inventory reservation identity");
         }
     }
@@ -384,9 +391,16 @@ public class MenuItemInventoryReservationService {
         if (value == null || value <= 0) throw new IllegalArgumentException(field + " must be positive");
     }
 
-    public record InventoryAvailability(boolean hasEnoughStock, Integer availableQuantity) {
-        static InventoryAvailability unavailable(int availableQuantity) {
-            return new InventoryAvailability(false, availableQuantity);
-        }
+    private static InventoryReservationResult toResult(MenuItemInventoryReservation reservation) {
+        return new InventoryReservationResult(reservation.getReservationId(), reservation.getOrderId(),
+                reservation.getRestaurantId(), reservation.getState().name(), reservation.getExpiresAt(),
+                reservation.getLines().stream()
+                        .map(line -> new InventoryReservationLineResult(line.getMenuItemId(), line.getQuantity()))
+                        .toList());
+    }
+
+    private static MenuItemInventoryResult toResult(MenuItemInventory inventory) {
+        return new MenuItemInventoryResult(inventory.getMenuItemId(), inventory.getOnHandQuantity(),
+                inventory.getReservedQuantity(), inventory.availableQuantity(), inventory.getRevision());
     }
 }

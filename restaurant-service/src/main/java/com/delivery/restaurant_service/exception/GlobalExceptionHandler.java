@@ -2,6 +2,9 @@ package com.delivery.restaurant_service.exception;
 
 import com.delivery.restaurant.infrastructure.decision.RestaurantDecisionConflictException;
 import com.delivery.restaurant.infrastructure.rating.RestaurantRatingConflictException;
+import com.delivery.restaurant.infrastructure.inventory.InventoryResourceNotFoundException;
+import com.delivery.restaurant.infrastructure.serviceability.ServiceabilityResourceNotFoundException;
+import com.delivery.restaurant.infrastructure.serviceability.ServiceabilityZoneConflictException;
 import com.delivery.restaurant_service.payload.BaseResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -23,6 +26,12 @@ public class GlobalExceptionHandler {
     // Lỗi không tìm thấy
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<BaseResponse<Object>> handleNotFound(ResourceNotFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new BaseResponse<>(0, null, ex.getMessage()));
+    }
+
+    @ExceptionHandler({ServiceabilityResourceNotFoundException.class, InventoryResourceNotFoundException.class})
+    public ResponseEntity<BaseResponse<Object>> handleInfrastructureNotFound(RuntimeException ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(new BaseResponse<>(0, null, ex.getMessage()));
     }

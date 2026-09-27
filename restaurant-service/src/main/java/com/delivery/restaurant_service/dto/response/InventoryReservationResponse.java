@@ -1,6 +1,6 @@
 package com.delivery.restaurant_service.dto.response;
 
-import com.delivery.restaurant_service.entity.MenuItemInventoryReservation;
+import com.delivery.restaurant.application.api.InventoryReservationResult;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -14,15 +14,15 @@ public record InventoryReservationResponse(
         LocalDateTime expiresAt,
         List<Line> items) {
 
-    public static InventoryReservationResponse from(MenuItemInventoryReservation reservation) {
+    public static InventoryReservationResponse from(InventoryReservationResult reservation) {
         return new InventoryReservationResponse(
-                reservation.getReservationId(),
-                reservation.getOrderId(),
-                reservation.getRestaurantId(),
-                reservation.getState().name(),
-                reservation.getExpiresAt(),
-                reservation.getLines().stream()
-                        .map(line -> new Line(line.getMenuItemId(), line.getQuantity()))
+                reservation.reservationId(),
+                reservation.orderId(),
+                reservation.restaurantId(),
+                reservation.state(),
+                reservation.expiresAt(),
+                reservation.items().stream()
+                        .map(line -> new Line(line.menuItemId(), line.quantity()))
                         .toList());
     }
 
