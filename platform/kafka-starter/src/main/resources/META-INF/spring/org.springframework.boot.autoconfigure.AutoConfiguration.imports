@@ -1,0 +1,2 @@
+com.delivery.platform.kafka.CommonKafkaProducerConfig
+com.delivery.platform.kafka.CommonKafkaConsumerConfig
