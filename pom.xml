@@ -12,6 +12,7 @@
     <modules>
         <module>platform/delivery-platform-bom</module>
         <module>platform/delivery-build-parent</module>
+        <module>platform/event-test-support</module>
         <module>observability-starter</module>
         <module>kafka-operations-tool</module>
         <module>runtime-platform-starter</module>
