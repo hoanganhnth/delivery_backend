@@ -1,6 +1,10 @@
 package com.delivery.restaurant_service.config;
 
 import com.delivery.restaurant.application.DefaultCatalogLifecycleDecisionUseCase;
+import com.delivery.restaurant.application.DefaultCreateMenuItemUseCase;
+import com.delivery.restaurant.application.DefaultMenuItemManagementReadUseCase;
+import com.delivery.restaurant.application.DefaultMenuItemReadUseCase;
+import com.delivery.restaurant.application.DefaultUpdateMenuItemUseCase;
 import com.delivery.restaurant.application.DefaultRestaurantManagementAccessUseCase;
 import com.delivery.restaurant.application.DefaultRestaurantOwnerAssignmentUseCase;
 import com.delivery.restaurant.application.DefaultCreateRestaurantUseCase;
@@ -8,6 +12,13 @@ import com.delivery.restaurant.application.DefaultRestaurantManagementReadUseCas
 import com.delivery.restaurant.application.DefaultRestaurantReadUseCase;
 import com.delivery.restaurant.application.DefaultRestaurantUpdateUseCase;
 import com.delivery.restaurant.application.api.CreateRestaurantUseCase;
+import com.delivery.restaurant.application.api.CreateMenuItemUseCase;
+import com.delivery.restaurant.application.api.MenuItemCreationPort;
+import com.delivery.restaurant.application.api.MenuItemManagementReadUseCase;
+import com.delivery.restaurant.application.api.MenuItemReadPort;
+import com.delivery.restaurant.application.api.MenuItemReadUseCase;
+import com.delivery.restaurant.application.api.MenuItemUpdatePort;
+import com.delivery.restaurant.application.api.UpdateMenuItemUseCase;
 import com.delivery.restaurant.application.api.RestaurantCreationPort;
 import com.delivery.restaurant.application.api.CatalogLifecycleDecisionUseCase;
 import com.delivery.restaurant.application.api.PrincipalOwnershipDirectory;
@@ -79,6 +90,30 @@ public class RestaurantOwnershipConfiguration {
     @Bean
     RestaurantManagementReadUseCase restaurantManagementReadUseCase(RestaurantReadPort readPort) {
         return new DefaultRestaurantManagementReadUseCase(readPort);
+    }
+
+    @Bean
+    CreateMenuItemUseCase createMenuItemUseCase(
+            MenuItemCreationPort creationPort,
+            RestaurantManagementAccessUseCase managementAccessUseCase) {
+        return new DefaultCreateMenuItemUseCase(creationPort, managementAccessUseCase);
+    }
+
+    @Bean
+    UpdateMenuItemUseCase updateMenuItemUseCase(
+            MenuItemUpdatePort updatePort,
+            RestaurantManagementAccessUseCase managementAccessUseCase) {
+        return new DefaultUpdateMenuItemUseCase(updatePort, managementAccessUseCase);
+    }
+
+    @Bean
+    MenuItemReadUseCase menuItemReadUseCase(MenuItemReadPort readPort) {
+        return new DefaultMenuItemReadUseCase(readPort);
+    }
+
+    @Bean
+    MenuItemManagementReadUseCase menuItemManagementReadUseCase(MenuItemReadPort readPort) {
+        return new DefaultMenuItemManagementReadUseCase(readPort);
     }
 
     @Bean

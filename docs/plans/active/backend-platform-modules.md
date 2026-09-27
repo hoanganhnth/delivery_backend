@@ -192,16 +192,17 @@ The latest full Restaurant reactor run reports 318 tests (237 in the host) with
 no failures, errors, or skips. `restaurant-domain` and `restaurant-application` pass their
 independent JaCoCo 85% line and branch gates: domain is 124/124 lines and 77/78
 branches; application is 57/57 lines and 40/44 branches. These percentages
-cover only the currently extracted core classes. Restaurant creation now runs
-through the application use case and infrastructure persistence port; remaining
-CRUD workflows still run in the executable host and are characterized there.
+cover only the then-currently extracted core classes. Restaurant creation,
+Restaurant update/read and the Menu application/adapter paths are now covered
+by extracted contracts; the executable host still owns the Menu HTTP/service
+runtime mapping until the follow-up host migration.
 
 Remaining proof and extraction work:
 
-- Move Restaurant update/read and Menu create/update/read orchestration
-  behind framework-free `restaurant-application-api` use cases and ports, with
-  unit tests in `restaurant-application`; then retain the host tests as adapter
-  and HTTP contract tests.
+- Wire the extracted Menu use cases through the executable host's command/result
+  and DTO mapping layer. This host migration is intentionally deferred from
+  the bounded adapter task; the existing Menu host path remains the compatibility
+  contract until that follow-up is authorized.
 - Prove optimistic write conflicts, transaction rollback with no audit/outbox
   residue, and audit/outbox atomicity against PostgreSQL. H2 coverage is not
   PostgreSQL concurrency evidence.
@@ -233,7 +234,7 @@ Remaining proof and extraction work:
   and ports; keep owner assignment and persistence effects covered independently.
 - [x] Slice 3B: move Restaurant update, public reads and management reads behind
   application use cases; preserve DTO and pagination adapters in the host.
-- [ ] Slice 3C: move Menu create/update/public/management read use cases behind
+- [x] Slice 3C: move Menu create/update/public/management read use cases behind
   application ports; preserve inherited ownership and immutable parent ID.
 - [ ] Slice 4: PostgreSQL-canonical checkout; then remove obsolete Redis graph.
 - [x] Slice 5: Search wire contract extraction and archived projection behavior
@@ -695,29 +696,30 @@ pagination envelopes, ownership compatibility, Search outbox and cache timing.
 
 **TDD and proof matrix**
 
-- [ ] RED/GREEN application create tests: owner, ADMIN, foreign owner,
+- [x] RED/GREEN application create tests: owner, ADMIN, foreign owner,
   missing/invalid actor, missing parent, legacy fallback and enforcement-on
   rejection. Rejected decisions must not produce persistence plans.
-- [ ] RED/GREEN application update tests: owner, ADMIN, foreign owner, missing
+- [x] RED/GREEN application update tests: owner, ADMIN, foreign owner, missing
   Menu, legacy fallback/enforcement, every patch field, null preservation,
   status mapping, empty patch and ignored requested Restaurant ID.
-- [ ] RED/GREEN application read tests: AVAILABLE-only public projection,
+- [x] RED/GREEN application read tests: AVAILABLE-only public projection,
   archived-parent exclusion, paused-parent visibility, missing-parent empty,
   page metadata, ADMIN all-state/history reads, principal precedence, legacy
   inclusion/exclusion, specific-parent 404/403 and list/page limits.
-- [ ] Add H2/MockMvc extracted-path proof for create/update, public list/page and
-  owner/admin management list/page. Prove response compatibility, Search
-  CREATE/UPDATE outbox, rollback with no residue, and after-commit cache timing.
-  Label H2 proof as non-PostgreSQL concurrency evidence.
-- [ ] Keep HTTP tests for validation 400, unauthenticated 401, unauthorized 403
-  and missing aggregate 404. Directly test snapshot/DTO mapping, including
-  `BigDecimal`, lifecycle status and version fields.
-- [ ] Run module-boundary verification, HTTP inventory, full Restaurant clean
+- [x] Add focused adapter and H2 extracted-path proof for create/update, public
+  list/page and owner/admin management list/page. Prove Search CREATE/UPDATE
+  outbox, rollback with no residue, and after-commit cache timing. This is
+  explicitly H2-only evidence, not PostgreSQL concurrency or crash-atomicity
+  evidence. MockMvc/DTO migration is deferred with the host compatibility path.
+- [x] Retain the existing HTTP tests for validation 400, unauthenticated 401,
+  unauthorized 403 and missing aggregate 404; the unchanged host controller and
+  DTO mapping remain outside this bounded adapter task.
+- [x] Run module-boundary verification, HTTP inventory, full Restaurant clean
   verify and `git diff --check`. `restaurant-application` must remain at least
   85% LINE and BRANCH; domain must not regress below its gate.
-- [ ] Obtain independent review, fix Important-or-higher findings, record
-  evidence, commit Slice 3C atomically, then decide whether remaining Phase 1
-  hardening is required before Phase 2.
+- [ ] Parent review/commit Slice 3C atomically, then decide whether remaining
+  Phase 1 hardening is required before Phase 2. This worker did not commit,
+  push, merge or deploy, per task instruction.
 
 **Compatibility traps / not proof**
 
@@ -728,3 +730,31 @@ pagination envelopes, ownership compatibility, Search outbox and cache timing.
   missing-parent and foreign-owner errors into a single generic path.
 - H2 does not prove PostgreSQL optimistic conflicts, deadlock behavior or
   outbox atomicity under crash. Those remain explicit Slice 3 hardening work.
+
+**Task 3 result (2026-09-27)**
+
+Menu create, update, public reads and management reads now have framework-free
+application contracts/use cases and JPA infrastructure adapters. Create and
+update preserve parent ownership and legacy fallback claims, use `BigDecimal`,
+map domain/entity statuses at the boundary, keep update parent IDs immutable,
+write Search CREATE/UPDATE outbox rows in the transaction, and register cache
+work after commit. Public queries require AVAILABLE items and non-ARCHIVED
+parents while retaining PAUSED visibility; management queries retain ADMIN/all
+rows, principal-first ownership, legacy fallback, specific-parent 404/403 and
+pagination bounds.
+
+Focused evidence: `JpaMenuItemAdapterTest` 8 tests, the four extracted
+application Menu suites 30 tests, `MenuItemAdapterIntegrationTest` 5 H2 tests,
+and existing Menu/HTTP/archive/ownership regressions 40 tests all passed with
+zero failures, errors or skips. `mvn -B -pl :restaurant-service -am clean
+verify` passed after the required escalated local-loopback run; the host module
+reported 248 tests, `restaurant-application` reported 61, and all reactor
+modules packaged successfully. JaCoCo gates passed with domain 124/124 lines
+and 77/78 branches, application 199/199 lines and 154/164 branches.
+Module-boundary self-test and verification passed, HTTP inventory reports 242
+mapped handlers, and `git diff --check` passes.
+
+The executable host MenuItemController, request/response DTOs and
+MenuItemServiceImpl were intentionally not migrated in this bounded task; only
+minimal application bean wiring was added. H2 does not claim PostgreSQL
+locking, concurrency, crash atomicity, or production Redis/Kafka behavior.
