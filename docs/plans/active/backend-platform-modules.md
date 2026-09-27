@@ -758,3 +758,24 @@ The executable host MenuItemController, request/response DTOs and
 MenuItemServiceImpl were intentionally not migrated in this bounded task; only
 minimal application bean wiring was added. H2 does not claim PostgreSQL
 locking, concurrency, crash atomicity, or production Redis/Kafka behavior.
+
+**Task 3C host wiring follow-up (2026-09-27)**
+
+The executable host migration is now complete. `MenuItemServiceImpl` maps host
+requests to `CreateMenuItemCommand` and `UpdateMenuItemCommand`, delegates
+create/update/public reads/management reads to the four extracted use cases,
+maps `ManagementAccessException` to the existing `AccessDeniedException`, and
+preserves `ResourceNotFoundException` plus pagination validation semantics.
+`MenuItemMapper` maps snapshots, create/update results and page slices to the
+existing host DTO/Page shapes. Lifecycle delegation and unrestricted legacy
+service methods remain unchanged for compatibility. The existing
+`RestaurantOwnershipConfiguration` already exposed all four required use-case
+beans, so no bean contract change was needed.
+
+Focused host proof passed: 21 tests (MenuItemServiceTest 14,
+MenuItemMapperTest 3, MenuOwnershipIntegrationTest 4), and the broader Menu
+HTTP/adapter/archive proof passed 32 tests (0 failures/errors/skips). The clean
+Restaurant reactor verify then passed with zero failures/errors/skips: 245 host
+tests, 61 restaurant-application tests, 25 restaurant-domain tests and 10
+restaurant-infrastructure tests; all reactor modules packaged and the
+application/domain coverage gates remained green.

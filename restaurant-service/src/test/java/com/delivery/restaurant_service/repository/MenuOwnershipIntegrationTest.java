@@ -1,5 +1,11 @@
 package com.delivery.restaurant_service.repository;
 
+import com.delivery.restaurant.application.DefaultCreateMenuItemUseCase;
+import com.delivery.restaurant.application.DefaultMenuItemManagementReadUseCase;
+import com.delivery.restaurant.application.DefaultMenuItemReadUseCase;
+import com.delivery.restaurant.application.DefaultRestaurantManagementAccessUseCase;
+import com.delivery.restaurant.application.DefaultUpdateMenuItemUseCase;
+import com.delivery.restaurant.application.api.RestaurantManagementAccessUseCase;
 import com.delivery.restaurant_service.entity.*;
 import com.delivery.restaurant_service.mapper.MenuItemMapper;
 import com.delivery.restaurant_service.service.*;
@@ -11,6 +17,9 @@ import com.delivery.restaurant.domain.catalog.RestaurantLifecyclePolicy;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import com.delivery.restaurant_service.service.ownership.RestaurantOwnershipPolicy;
 import com.delivery.restaurant_service.dto.request.*;
+import com.delivery.restaurant_service.service.JpaMenuItemCreationAdapter;
+import com.delivery.restaurant_service.service.JpaMenuItemReadAdapter;
+import com.delivery.restaurant_service.service.JpaMenuItemUpdateAdapter;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
@@ -30,13 +39,24 @@ class MenuOwnershipIntegrationTest {
     @Autowired CatalogLifecycleAuditRepository audits;
 
     private MenuItemServiceImpl service(boolean enforced) {
-        return new MenuItemServiceImpl(items, new MenuItemMapper(), restaurants,
-                mock(CatalogCacheSynchronizer.class), mock(SearchSyncPublisher.class),
+        RestaurantManagementAccessUseCase accessUseCase = new DefaultRestaurantManagementAccessUseCase();
+        var cache = mock(CatalogCacheSynchronizer.class);
+        var search = mock(SearchSyncPublisher.class);
+        var create = new DefaultCreateMenuItemUseCase(
+                new JpaMenuItemCreationAdapter(items, restaurants, cache, search), accessUseCase);
+        var update = new DefaultUpdateMenuItemUseCase(
+                new JpaMenuItemUpdateAdapter(items, cache, search), accessUseCase);
+        var reads = new DefaultMenuItemReadUseCase(
+                new JpaMenuItemReadAdapter(items, restaurants, accessUseCase));
+        var managementReads = new DefaultMenuItemManagementReadUseCase(
+                new JpaMenuItemReadAdapter(items, restaurants, accessUseCase));
+        return new MenuItemServiceImpl(items, new MenuItemMapper(),
                 new RestaurantOwnershipPolicy(enforced), new CatalogLifecycleService(
                         restaurants, items, new RestaurantMapper(), new MenuItemMapper(),
                         mock(CatalogCacheSynchronizer.class), mock(SearchSyncPublisher.class),
                         new RestaurantOwnershipPolicy(enforced), new RestaurantLifecyclePolicy(),
-                        new MenuItemLifecyclePolicy(), audits, new SimpleMeterRegistry()));
+                        new MenuItemLifecyclePolicy(), audits, new SimpleMeterRegistry()),
+                create, update, reads, managementReads);
     }
     private MenuItem seed(Long principal, long legacy, MenuItem.Status status) {
         var restaurant = new Restaurant();
