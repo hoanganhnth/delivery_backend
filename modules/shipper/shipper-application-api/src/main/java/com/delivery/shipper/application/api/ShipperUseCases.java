@@ -11,6 +11,7 @@ public final class ShipperUseCases {
     public interface ReadPage { ShipperResults.SelfPage execute(ShipperCommands.Actor actor, PageRequest request); }
     public interface SetOnlineStatus { ShipperSnapshot execute(ShipperCommands.SetOnlineStatus command); }
     public interface RateSelf { ShipperResults.RatingResult execute(ShipperCommands.SelfRating command); }
+    public interface ReadSelfRatings { java.util.List<ShipperResults.RatingItem> execute(ShipperCommands.Actor actor); }
     public interface TrackingOffline { void execute(ShipperCommands.TrackingOffline command); }
     public interface ProjectIdentityStatus { ShipperResults.IdentityStatusResult execute(ShipperCommands.IdentityStatusProjection command); }
 }
