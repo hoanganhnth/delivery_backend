@@ -1,9 +1,7 @@
-package com.delivery.restaurant_service.config;
+package com.delivery.restaurant.infrastructure.client;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.stereotype.Component;
 
-@Component
 @ConfigurationProperties(prefix = "app.resilience.order")
 public class OrderCallResilienceProperties {
     private long timeoutMs = 2000;

@@ -5,7 +5,6 @@ import com.delivery.restaurant_service.dto.request.RestaurantRatingRequest;
 import com.delivery.restaurant_service.dto.response.RestaurantRatingResponse;
 import com.delivery.restaurant_service.payload.BaseResponse;
 import com.delivery.restaurant_service.service.RestaurantRatingService;
-import com.delivery.restaurant_service.client.OrderEligibilityClient;
 import com.delivery.auth.resourceserver.security.AuthenticatedActor;
 
 import lombok.RequiredArgsConstructor;
@@ -25,7 +24,6 @@ import com.delivery.restaurant_service.payload.PageResponse;
 public class RestaurantRatingController {
 
     private final RestaurantRatingService ratingService;
-    private final OrderEligibilityClient orderEligibilityClient;
 
     @PostMapping("/{restaurantId}/ratings")
     public ResponseEntity<BaseResponse<RestaurantRatingResponse>> submitRating(
@@ -33,7 +31,6 @@ public class RestaurantRatingController {
             @AuthenticationPrincipal AuthenticatedActor actor,
             @Valid @RequestBody RestaurantRatingRequest request) {
         requireCustomerRole(actor);
-        orderEligibilityClient.requireDeliveredOrder(request.getOrderId(), actor.getUserId(), restaurantId);
         RestaurantRatingResponse response = ratingService.submitRating(restaurantId, actor.getUserId(), request);
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Đánh giá nhà hàng thành công"));
     }

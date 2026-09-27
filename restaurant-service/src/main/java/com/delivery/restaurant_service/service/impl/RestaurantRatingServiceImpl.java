@@ -1,5 +1,6 @@
 package com.delivery.restaurant_service.service.impl;
 
+import com.delivery.restaurant.infrastructure.client.OrderEligibilityPort;
 import com.delivery.restaurant_service.dto.request.RestaurantRatingRequest;
 import com.delivery.restaurant_service.dto.response.RestaurantRatingResponse;
 import com.delivery.restaurant_service.entity.Restaurant;
@@ -24,10 +25,12 @@ public class RestaurantRatingServiceImpl implements RestaurantRatingService {
 
     private final RestaurantRatingRepository ratingRepository;
     private final RestaurantRepository restaurantRepository;
+    private final OrderEligibilityPort orderEligibilityPort;
 
     @Override
     @Transactional
     public RestaurantRatingResponse submitRating(Long restaurantId, Long customerId, RestaurantRatingRequest request) {
+        orderEligibilityPort.requireDeliveredOrder(request.getOrderId(), customerId, restaurantId);
         Restaurant restaurant = restaurantRepository.findByIdForUpdate(restaurantId)
                 .orElseThrow(() -> new IllegalArgumentException("Restaurant not found with ID: " + restaurantId));
 

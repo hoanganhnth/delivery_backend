@@ -1,27 +1,24 @@
-package com.delivery.restaurant_service.client;
+package com.delivery.restaurant.infrastructure.client;
 
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
-import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
-import com.delivery.restaurant_service.config.RestaurantOrderCircuitBreaker;
 
-@Component
-public class OrderDecisionEligibilityClient {
+/** HTTP adapter for Order's delivered-order rating eligibility endpoint. */
+public class OrderEligibilityClient implements OrderEligibilityPort {
 
     private final RestTemplate restTemplate;
     private final String orderServiceUrl;
     private final String internalSecret;
     private final RestaurantOrderCircuitBreaker circuitBreaker;
 
-    public OrderDecisionEligibilityClient(
+    public OrderEligibilityClient(
             RestTemplate restTemplate,
-            @Value("${order.service.url}") String orderServiceUrl,
-            @Value("${app.internal.secret:}") String internalSecret,
+            String orderServiceUrl,
+            String internalSecret,
             RestaurantOrderCircuitBreaker circuitBreaker) {
         this.restTemplate = restTemplate;
         this.orderServiceUrl = orderServiceUrl;
@@ -29,16 +26,18 @@ public class OrderDecisionEligibilityClient {
         this.circuitBreaker = circuitBreaker;
     }
 
-    public void requirePendingOrderForRestaurant(Long orderId, Long restaurantId) {
-        if (orderId == null || restaurantId == null) {
-            throw new IllegalArgumentException("orderId and restaurantId are required");
+    @Override
+    public void requireDeliveredOrder(Long orderId, Long userId, Long restaurantId) {
+        if (orderId == null || userId == null || restaurantId == null) {
+            throw new IllegalArgumentException("Order, user and restaurant are required for rating");
         }
         if (internalSecret == null || internalSecret.isBlank()) {
-            throw new IllegalStateException("INTERNAL_SECRET is required for order decision validation");
+            throw new IllegalStateException("INTERNAL_SECRET is required for order eligibility validation");
         }
 
         String url = UriComponentsBuilder.fromUriString(orderServiceUrl)
-                .path("/api/orders/internal/{orderId}/restaurant-decision-eligibility")
+                .path("/api/orders/internal/{orderId}/rating-eligibility")
+                .queryParam("userId", userId)
                 .queryParam("restaurantId", restaurantId)
                 .buildAndExpand(orderId)
                 .toUriString();
@@ -51,7 +50,7 @@ public class OrderDecisionEligibilityClient {
                 new ParameterizedTypeReference<InternalBaseResponse<Boolean>>() {
                 }).getBody());
         if (response == null || response.status() != 1 || !Boolean.TRUE.equals(response.data())) {
-            throw new IllegalArgumentException("Order is not pending for this restaurant");
+            throw new IllegalArgumentException("Only the customer of a delivered order may rate this restaurant");
         }
     }
 }

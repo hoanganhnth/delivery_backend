@@ -1,4 +1,4 @@
-package com.delivery.restaurant_service.config;
+package com.delivery.restaurant.infrastructure.client;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;

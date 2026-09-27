@@ -9,8 +9,8 @@ import static org.mockito.Mockito.verify;
 import org.junit.jupiter.api.Test;
 
 import com.delivery.auth.resourceserver.security.AuthenticatedActor;
+import com.delivery.restaurant.infrastructure.client.OrderEligibilityPort;
 import com.delivery.restaurant_service.service.RestaurantRatingService;
-import com.delivery.restaurant_service.client.OrderEligibilityClient;
 import com.delivery.restaurant_service.dto.request.RestaurantRatingRequest;
 import org.springframework.security.access.AccessDeniedException;
 
@@ -19,8 +19,7 @@ import java.util.Set;
 class RestaurantRatingControllerAuthorizationTest {
 
     private final RestaurantRatingService service = mock(RestaurantRatingService.class);
-    private final OrderEligibilityClient eligibilityClient = mock(OrderEligibilityClient.class);
-    private final RestaurantRatingController controller = new RestaurantRatingController(service, eligibilityClient);
+    private final RestaurantRatingController controller = new RestaurantRatingController(service);
 
     @Test
     void ratingListRejectsMissingAdminRole() {
@@ -41,7 +40,7 @@ class RestaurantRatingControllerAuthorizationTest {
     }
 
     @Test
-    void ratingUsesGatewayCustomerIdentityForDeliveredOrderCheck() {
+    void ratingUsesGatewayCustomerIdentityForDeliveredOrderSubmission() {
         RestaurantRatingRequest request = new RestaurantRatingRequest();
         request.setOrderId(101L);
         request.setRating(5);
@@ -49,7 +48,6 @@ class RestaurantRatingControllerAuthorizationTest {
 
         controller.submitRating(7L, userActor, request);
 
-        verify(eligibilityClient).requireDeliveredOrder(101L, 21L, 7L);
         verify(service).submitRating(7L, 21L, request);
     }
 
@@ -66,7 +64,6 @@ class RestaurantRatingControllerAuthorizationTest {
         assertThatThrownBy(() -> controller.getMyRatings(shopActor))
                 .isInstanceOf(AccessDeniedException.class);
 
-        verify(eligibilityClient, never()).requireDeliveredOrder(101L, 21L, 7L);
         verify(service, never()).getMyRatings(21L);
     }
 }

@@ -1,4 +1,4 @@
-package com.delivery.restaurant_service.client;
+package com.delivery.restaurant.infrastructure.client;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -10,8 +10,6 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestTemplate;
-import com.delivery.restaurant_service.config.OrderCallResilienceProperties;
-import com.delivery.restaurant_service.config.RestaurantOrderCircuitBreaker;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;

@@ -1,9 +1,7 @@
-package com.delivery.restaurant_service.config;
+package com.delivery.restaurant.infrastructure.client;
 
 import java.time.Duration;
 import java.util.function.Supplier;
-
-import org.springframework.stereotype.Component;
 
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
@@ -11,7 +9,6 @@ import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
 import io.micrometer.core.instrument.MeterRegistry;
 
 /** Isolates rating and decision validation calls to Order. */
-@Component
 public class RestaurantOrderCircuitBreaker {
     private final CircuitBreaker circuitBreaker;
 
@@ -33,5 +30,6 @@ public class RestaurantOrderCircuitBreaker {
         try { return circuitBreaker.executeSupplier(supplier); }
         catch (CallNotPermittedException exception) { throw new IllegalStateException("Order service circuit is open", exception); }
     }
+
     CircuitBreaker circuitBreaker() { return circuitBreaker; }
 }

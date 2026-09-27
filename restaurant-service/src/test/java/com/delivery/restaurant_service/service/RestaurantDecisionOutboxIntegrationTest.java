@@ -1,6 +1,6 @@
 package com.delivery.restaurant_service.service;
 
-import com.delivery.restaurant_service.client.OrderDecisionEligibilityClient;
+import com.delivery.restaurant.infrastructure.client.OrderDecisionEligibilityPort;
 import com.delivery.restaurant_service.exception.RestaurantDecisionConflictException;
 import com.delivery.restaurant_service.repository.RestaurantOrderDecisionRepository;
 import com.delivery.restaurant_service.repository.RestaurantOutboxEventRepository;
@@ -36,7 +36,7 @@ class RestaurantDecisionOutboxIntegrationTest {
     @Autowired RestaurantOrderDecisionRepository decisionRepository;
     @Autowired RestaurantOutboxEventRepository outboxRepository;
     @Autowired TransactionTemplate transactionTemplate;
-    @MockBean OrderDecisionEligibilityClient orderEligibilityClient;
+    @MockBean OrderDecisionEligibilityPort orderEligibilityPort;
 
     @BeforeEach
     void clean() {
@@ -116,7 +116,7 @@ class RestaurantDecisionOutboxIntegrationTest {
     @Test
     void ineligibleOrderIsRejectedBeforeAnythingIsStored() {
         doThrow(new IllegalArgumentException("wrong restaurant"))
-                .when(orderEligibilityClient).requirePendingOrderForRestaurant(303L, 9L);
+                .when(orderEligibilityPort).requirePendingOrderForRestaurant(303L, 9L);
 
         assertThatThrownBy(() -> publisher.publishConfirmed(303L, 9L, 90L, 20, null))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -137,7 +137,7 @@ class RestaurantDecisionOutboxIntegrationTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("rejectionReason");
 
-        verifyNoInteractions(orderEligibilityClient);
+        verifyNoInteractions(orderEligibilityPort);
         assertThat(decisionRepository.count()).isZero();
         assertThat(outboxRepository.count()).isZero();
     }

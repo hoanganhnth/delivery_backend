@@ -1,6 +1,6 @@
 package com.delivery.restaurant_service.service;
 
-import com.delivery.restaurant_service.client.OrderDecisionEligibilityClient;
+import com.delivery.restaurant.infrastructure.client.OrderDecisionEligibilityPort;
 import com.delivery.restaurant_service.entity.RestaurantOrderDecision;
 import com.delivery.restaurant_service.entity.RestaurantOutboxEvent;
 import com.delivery.restaurant_service.exception.RestaurantDecisionConflictException;
@@ -39,7 +39,7 @@ public class RestaurantOrderEventPublisher {
     private final RestaurantOutboxEventRepository outboxRepository;
     private final Tracer tracer;
     private final ObjectMapper objectMapper;
-    private final OrderDecisionEligibilityClient orderEligibilityClient;
+    private final OrderDecisionEligibilityPort orderEligibilityPort;
     private final RestaurantDecisionLock decisionLock;
 
     public static final String CONFIRMED_TOPIC = "restaurant.order-confirmed";
@@ -104,7 +104,7 @@ public class RestaurantOrderEventPublisher {
                     "Order " + orderId + " already has decision " + stored.getDecision());
         }
 
-        orderEligibilityClient.requirePendingOrderForRestaurant(orderId, restaurantId);
+        orderEligibilityPort.requirePendingOrderForRestaurant(orderId, restaurantId);
 
         LocalDateTime now = LocalDateTime.now();
         RestaurantOrderDecision stored = new RestaurantOrderDecision();
