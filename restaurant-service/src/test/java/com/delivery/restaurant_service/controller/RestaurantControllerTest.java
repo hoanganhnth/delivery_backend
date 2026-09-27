@@ -288,12 +288,12 @@ class RestaurantControllerTest {
     @Test
     void adminManagementListIncludesArchivedRestaurants() {
         AuthenticatedActor adminActor = new AuthenticatedActor(
-                7L, "admin@example.com", Set.of(RoleConstants.ADMIN));
-        when(restaurantService.getAllManagedRestaurants()).thenReturn(List.of());
+                901L, 7L, "admin@example.com", Set.of(RoleConstants.ADMIN));
+        when(restaurantService.getAllManagedRestaurants(901L, 7L)).thenReturn(List.of());
 
         restaurantController.getMyRestaurants(adminActor);
 
-        verify(restaurantService).getAllManagedRestaurants();
+        verify(restaurantService).getAllManagedRestaurants(901L, 7L);
         verify(restaurantService, org.mockito.Mockito.never()).getAllRestaurants();
     }
 
@@ -306,7 +306,7 @@ class RestaurantControllerTest {
         restaurantController.getMyRestaurants(owner);
 
         verify(restaurantService).getRestaurantsByOwnerPrincipalId(101L, 7L);
-        verify(restaurantService, org.mockito.Mockito.never()).getAllManagedRestaurants();
+        verify(restaurantService, org.mockito.Mockito.never()).getAllManagedRestaurants(anyLong(), anyLong());
         verify(restaurantService, org.mockito.Mockito.never()).getAllRestaurants();
     }
 

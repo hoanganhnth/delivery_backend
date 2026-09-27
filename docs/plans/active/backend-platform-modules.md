@@ -231,7 +231,7 @@ Remaining proof and extraction work:
   across host, HTTP and H2 persistence tests.
 - [x] Slice 3A: move Restaurant creation orchestration behind application API
   and ports; keep owner assignment and persistence effects covered independently.
-- [ ] Slice 3B: move Restaurant update, public reads and management reads behind
+- [x] Slice 3B: move Restaurant update, public reads and management reads behind
   application use cases; preserve DTO and pagination adapters in the host.
 - [ ] Slice 3C: move Menu create/update/public/management read use cases behind
   application ports; preserve inherited ownership and immutable parent ID.
@@ -580,39 +580,39 @@ side-effect rule. This task implements Slice 3B only; Menu remains Task 3C.
 
 **TDD and execution steps**
 
-- [ ] RED: add application unit tests for direct-owner and ADMIN update success,
+- [x] RED: add application unit tests for direct-owner and ADMIN update success,
   every mutable field, partial-hour merge, legacy claim, missing row, foreign
   owner, missing/unsupported actor, enforcement-on legacy exclusion, incomplete
   merged schedule and port failure. Rejected decisions must not produce a
   mutation plan or write.
-- [ ] RED: add application unit tests for active/paused/archived detail, missing
+- [x] RED: add application unit tests for active/paused/archived detail, missing
   detail, public archived exclusion, search hit/no-hit/blank input, paged
   keyword/no-keyword metadata, ADMIN all-row management, owner principal rows,
   unmigrated fallback rows and enforcement-on exclusion.
-- [ ] Run focused application tests and observe failure because the new
+- [x] Run focused application tests and observe failure because the new
   contracts/implementations do not exist. Do not weaken the 85% line and branch
   gates.
-- [ ] GREEN: add the minimal application API and implementations, then make the
+- [x] GREEN: add the minimal application API and implementations, then make the
   focused application tests pass with no Spring context.
-- [ ] RED/GREEN adapter: implement JPA read and transactional update adapters;
+- [x] RED/GREEN adapter: implement JPA read and transactional update adapters;
   retain repository/H2 tests for case-insensitive search, empty results,
   archived visibility, detail history, pagination, principal precedence and
   legacy rows. Add extracted-path H2 proof for update persistence, outbox
   rollback and cache commit/rollback behavior, explicitly labelled as non-
   PostgreSQL evidence.
-- [ ] RED/GREEN host: change `RestaurantServiceImpl` into command/result and
+- [x] RED/GREEN host: change `RestaurantServiceImpl` into command/result and
   page/DTO mapping only for the extracted paths. Preserve controller routes,
   validation, actor propagation, response envelopes, error statuses and
   timezone-aware `open` mapping in MockMvc/host tests.
-- [ ] Run focused proof:
+- [x] Run focused proof:
   `mvn -B -pl :restaurant-application -am -Dtest=DefaultRestaurantUpdateUseCaseTest,DefaultRestaurantReadUseCaseTest -Dsurefire.failIfNoSpecifiedTests=false test`;
   then the relevant Restaurant host/HTTP/repository tests. Run
   `python3 scripts/verify-module-boundaries.py --self-test` and
   `python3 scripts/verify-module-boundaries.py`.
-- [ ] Run full proof: `mvn -B -pl :restaurant-service -am clean verify`,
+- [x] Run full proof: `mvn -B -pl :restaurant-service -am clean verify`,
   `bash scripts/verify-http-api-inventory.sh`, and `git diff --check`. Record
   test totals and fresh application line/branch coverage here.
-- [ ] Obtain an independent diff review. Fix Important-or-higher findings,
+- [x] Obtain an independent diff review. Fix Important-or-higher findings,
   rerun affected proof, commit Task 2 atomically, and only then mark Slice 3B
   complete.
 
@@ -623,3 +623,108 @@ side-effect rule. This task implements Slice 3B only; Menu remains Task 3C.
 - Do not add clear/reset-hours semantics, general PUT/DELETE `expectedVersion`,
   sorting, a physical purge, or a new management error. Those require their own
   authorized contract.
+
+**Task 2 result (2026-09-27)**
+
+Restaurant update, public reads and management reads now cross framework-free
+application contracts and JPA infrastructure adapters. Host mapping preserves
+HTTP DTOs, page envelopes, actor propagation and legacy fallback metrics.
+Added H2/MockMvc proof for extracted update/read paths, including archived
+history, public filtering, management ownership, rollback/outbox/cache timing,
+mapper projection and lifecycle regression coverage. Focused extracted proof:
+54 tests, zero failures/errors; clean Restaurant reactor verify: 233 host tests,
+zero failures/errors/skips, packaging passed. Application coverage remains above
+the 85% line/branch gate. Boundary verifier, HTTP inventory and diff check pass.
+PostgreSQL locking/atomicity remains deferred as explicitly documented.
+
+### Task 3 — Extract Menu create, update and read use cases
+
+Move Menu create/update, public list/page and owner/admin management list/page
+through framework-free application contracts. Keep lifecycle/archive,
+inventory and physical purge outside this task. Preserve all routes, DTOs,
+pagination envelopes, ownership compatibility, Search outbox and cache timing.
+
+**Authoritative behavior to preserve**
+
+- Create/update require a trusted positive principal and an `ADMIN` or
+  `SHOP_OWNER` actor. Menu ownership is inherited from its Restaurant. ADMIN
+  may operate across owners; SHOP_OWNER must own the parent. With principal
+  enforcement disabled, an unmigrated Restaurant may match its legacy
+  `creatorId`; a successful write claims the current principal. Missing parent
+  on create and missing Menu on update remain 404; foreign ownership remains
+  403.
+- Create persists an `AVAILABLE` Menu item and emits the existing Search
+  `CREATE` outbox. Update is a nullable patch over name, description,
+  `BigDecimal` price, status and image, uses `saveAndFlush`, and emits Search
+  `UPDATE`. A request `restaurantId` on update stays ignored: a Menu item cannot
+  be re-parented. Null remains “not supplied”; no clear-value contract is added.
+- Database mutation and Search outbox remain one transaction. Cache work is
+  registered only after commit. A rejected decision or outbox failure leaves no
+  committed Menu mutation; rollback never triggers cache work.
+- Public list/page return only `AVAILABLE` items whose Restaurant is not
+  `ARCHIVED`; `PAUSED` parents remain visible. Missing Restaurant yields an
+  empty result. Existing `/restaurant/{id}` and `/available` aliases stay
+  compatible. Public pagination keeps controller bounds and the current
+  envelope.
+- Management reads require ADMIN or SHOP_OWNER and include all Menu states and
+  archived parents. A supplied Restaurant ID is resolved and authorized (404
+  versus 403 stays distinct). Without one, ADMIN sees all rows while an owner
+  sees principal-owned rows plus enforcement-off legacy rows. List cap remains
+  100; page default remains 24 and maximum 100.
+- DELETE remains the soft-archive alias through `CatalogLifecycleService`.
+  Lifecycle transitions, optimistic-version expansion, inventory reservation,
+  Search projection rebuild and physical purge are separate problems.
+
+**Module boundaries**
+
+- Add immutable JDK/domain-only Menu command, stored-facts, mutation-plan,
+  snapshot, page-slice and management-query/result records plus
+  create/update/read/management use-case and port interfaces to
+  `restaurant-application-api`. Use `BigDecimal`; never expose JPA entities,
+  Spring `Page`, HTTP DTOs, Micrometer, Redis or Search types.
+- Implement actor validation, inherited-ownership decisions, legacy-claim
+  decisions, nullable merge and parent immutability in `restaurant-application`,
+  reusing `RestaurantManagementAccessUseCase` rather than duplicating policy.
+- Implement transaction-scoped create/update and JPA read adapters in
+  `restaurant-infrastructure`. Adapters load parent facts, invoke the
+  application decision, mutate/flush, write the existing outbox and schedule
+  after-commit cache. Do not change lock strategy in this structural slice.
+- Keep `MenuItemController`, request/response DTOs and Spring page mapping in
+  the executable host. `MenuItemServiceImpl` becomes command/result mapping for
+  extracted paths; lifecycle delegation stays where it is.
+
+**TDD and proof matrix**
+
+- [ ] RED/GREEN application create tests: owner, ADMIN, foreign owner,
+  missing/invalid actor, missing parent, legacy fallback and enforcement-on
+  rejection. Rejected decisions must not produce persistence plans.
+- [ ] RED/GREEN application update tests: owner, ADMIN, foreign owner, missing
+  Menu, legacy fallback/enforcement, every patch field, null preservation,
+  status mapping, empty patch and ignored requested Restaurant ID.
+- [ ] RED/GREEN application read tests: AVAILABLE-only public projection,
+  archived-parent exclusion, paused-parent visibility, missing-parent empty,
+  page metadata, ADMIN all-state/history reads, principal precedence, legacy
+  inclusion/exclusion, specific-parent 404/403 and list/page limits.
+- [ ] Add H2/MockMvc extracted-path proof for create/update, public list/page and
+  owner/admin management list/page. Prove response compatibility, Search
+  CREATE/UPDATE outbox, rollback with no residue, and after-commit cache timing.
+  Label H2 proof as non-PostgreSQL concurrency evidence.
+- [ ] Keep HTTP tests for validation 400, unauthenticated 401, unauthorized 403
+  and missing aggregate 404. Directly test snapshot/DTO mapping, including
+  `BigDecimal`, lifecycle status and version fields.
+- [ ] Run module-boundary verification, HTTP inventory, full Restaurant clean
+  verify and `git diff --check`. `restaurant-application` must remain at least
+  85% LINE and BRANCH; domain must not regress below its gate.
+- [ ] Obtain independent review, fix Important-or-higher findings, record
+  evidence, commit Slice 3C atomically, then decide whether remaining Phase 1
+  hardening is required before Phase 2.
+
+**Compatibility traps / not proof**
+
+- Entity `MenuItem.Status` and domain `MenuItemStatus` remain boundary-mapped.
+  Do not silently reject `ARCHIVED` in the existing update DTO during this
+  extraction even though the dedicated lifecycle endpoint is preferred.
+- Do not collapse public and management query policy, list and page limits, or
+  missing-parent and foreign-owner errors into a single generic path.
+- H2 does not prove PostgreSQL optimistic conflicts, deadlock behavior or
+  outbox atomicity under crash. Those remain explicit Slice 3 hardening work.

@@ -6,6 +6,7 @@ import com.delivery.restaurant_service.dto.response.RestaurantResponse;
 import com.delivery.restaurant_service.entity.Restaurant;
 import com.delivery.restaurant.domain.catalog.OperatingSchedule;
 import com.delivery.restaurant.application.api.CreateRestaurantResult;
+import com.delivery.restaurant.application.api.RestaurantSnapshot;
 import org.springframework.stereotype.Component;
 
 import java.time.Clock;
@@ -109,6 +110,31 @@ public class RestaurantMapper {
         response.setVersion(result.version());
         response.setTimeZone(result.timeZone());
         response.setOpen(isRestaurantOpen(result.openingHour(), result.closingHour(), result.timeZone()));
+        return response;
+    }
+
+    public RestaurantResponse toResponse(RestaurantSnapshot snapshot) {
+        if (snapshot == null) {
+            return null;
+        }
+        RestaurantResponse response = new RestaurantResponse();
+        response.setId(snapshot.id());
+        response.setName(snapshot.name());
+        response.setAddress(snapshot.address());
+        response.setPhone(snapshot.phone());
+        response.setOpeningHour(snapshot.openingHour());
+        response.setClosingHour(snapshot.closingHour());
+        response.setDefaultPrepTimeMinutes(snapshot.defaultPrepTimeMinutes());
+        response.setImage(snapshot.image());
+        response.setDescription(snapshot.description());
+        response.setLatitude(snapshot.latitude());
+        response.setLongitude(snapshot.longitude());
+        response.setRating(snapshot.rating());
+        response.setRatingCount(snapshot.ratingCount());
+        response.setLifecycleStatus(snapshot.lifecycleStatus());
+        response.setVersion(snapshot.version());
+        response.setTimeZone(snapshot.timeZone());
+        response.setOpen(isRestaurantOpen(snapshot.openingHour(), snapshot.closingHour(), snapshot.timeZone()));
         return response;
     }
 

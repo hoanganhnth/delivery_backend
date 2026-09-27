@@ -4,12 +4,20 @@ import com.delivery.restaurant.application.DefaultCatalogLifecycleDecisionUseCas
 import com.delivery.restaurant.application.DefaultRestaurantManagementAccessUseCase;
 import com.delivery.restaurant.application.DefaultRestaurantOwnerAssignmentUseCase;
 import com.delivery.restaurant.application.DefaultCreateRestaurantUseCase;
+import com.delivery.restaurant.application.DefaultRestaurantManagementReadUseCase;
+import com.delivery.restaurant.application.DefaultRestaurantReadUseCase;
+import com.delivery.restaurant.application.DefaultRestaurantUpdateUseCase;
 import com.delivery.restaurant.application.api.CreateRestaurantUseCase;
 import com.delivery.restaurant.application.api.RestaurantCreationPort;
 import com.delivery.restaurant.application.api.CatalogLifecycleDecisionUseCase;
 import com.delivery.restaurant.application.api.PrincipalOwnershipDirectory;
 import com.delivery.restaurant.application.api.RestaurantOwnerAssignmentUseCase;
 import com.delivery.restaurant.application.api.RestaurantManagementAccessUseCase;
+import com.delivery.restaurant.application.api.RestaurantManagementReadUseCase;
+import com.delivery.restaurant.application.api.RestaurantReadPort;
+import com.delivery.restaurant.application.api.RestaurantReadUseCase;
+import com.delivery.restaurant.application.api.RestaurantUpdatePort;
+import com.delivery.restaurant.application.api.UpdateRestaurantUseCase;
 import com.delivery.restaurant.domain.catalog.MenuItemLifecyclePolicy;
 import com.delivery.restaurant.domain.catalog.RestaurantLifecyclePolicy;
 import java.time.Clock;
@@ -54,6 +62,23 @@ public class RestaurantOwnershipConfiguration {
     @Bean
     RestaurantManagementAccessUseCase restaurantManagementAccessUseCase() {
         return new DefaultRestaurantManagementAccessUseCase();
+    }
+
+    @Bean
+    UpdateRestaurantUseCase updateRestaurantUseCase(
+            RestaurantUpdatePort updatePort,
+            RestaurantManagementAccessUseCase managementAccessUseCase) {
+        return new DefaultRestaurantUpdateUseCase(updatePort, managementAccessUseCase);
+    }
+
+    @Bean
+    RestaurantReadUseCase restaurantReadUseCase(RestaurantReadPort readPort) {
+        return new DefaultRestaurantReadUseCase(readPort);
+    }
+
+    @Bean
+    RestaurantManagementReadUseCase restaurantManagementReadUseCase(RestaurantReadPort readPort) {
+        return new DefaultRestaurantManagementReadUseCase(readPort);
     }
 
     @Bean
