@@ -27,6 +27,8 @@ import com.delivery.auth_service.service.TokenService;
 import com.delivery.auth_service.service.IdentityRegistrationService;
 import com.delivery.auth_service.service.RegistrationAdmissionPolicy;
 import com.delivery.auth_service.service.FirebaseChatTokenService;
+import com.delivery.auth_service.application.port.in.AuthUseCase;
+import com.delivery.auth_service.application.port.in.JwksUseCase;
 import org.springframework.web.client.RestTemplate;
 
 import com.delivery.auth.resourceserver.security.DeliveryJwtAuthenticationConverter;
@@ -45,6 +47,12 @@ class AuthEndpointSecurityTest {
 
     @MockitoBean
     private AuthService authService;
+
+    @MockitoBean
+    private AuthUseCase authUseCase;
+
+    @MockitoBean
+    private JwksUseCase jwksUseCase;
 
     @MockitoBean
     private TokenService tokenService;
@@ -69,7 +77,7 @@ class AuthEndpointSecurityTest {
 
     @Test
     void socialLoginIsPublic() throws Exception {
-        when(authService.socialLogin(org.mockito.ArgumentMatchers.any()))
+        when(authUseCase.socialLogin(org.mockito.ArgumentMatchers.any()))
                 .thenReturn(new AuthResponse("access", "refresh", 1L, "user@example.com", "USER"));
 
         mockMvc.perform(post("/api/auth/social-login")
@@ -97,12 +105,12 @@ class AuthEndpointSecurityTest {
         account.setEmail("user@example.com");
         account.setRole(AuthAccount.Role.USER);
         account.setIsActive(true);
-        when(authService.register(org.mockito.ArgumentMatchers.any())).thenReturn(account);
-        when(tokenService.generateProvisioningToken(11L, "user@example.com", "USER"))
+        when(authUseCase.register(org.mockito.ArgumentMatchers.any())).thenReturn(account);
+        when(authUseCase.generateProvisioningToken(account))
                 .thenReturn("signed-handoff");
-        when(identityRegistrationService.issue(account)).thenReturn(
+        when(authUseCase.issueRegistration(account)).thenReturn(
                 new IdentityRegistrationService.IssuedHandle("opaque-handle", java.time.LocalDateTime.now().plusMinutes(15)));
-        when(registrationAdmissionPolicy.admits("user@example.com")).thenReturn(true);
+        when(authUseCase.admitsRegistration("user@example.com")).thenReturn(true);
 
         mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -123,7 +131,7 @@ class AuthEndpointSecurityTest {
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
                         .jsonPath("$.data.registrationHandle").value("opaque-handle"));
 
-        verify(accountSecurityService).requestEmailVerification(
+        verify(authUseCase).requestEmailVerification(
                 org.mockito.ArgumentMatchers.eq("user@example.com"),
                 org.mockito.ArgumentMatchers.nullable(String.class));
     }
@@ -179,7 +187,7 @@ class AuthEndpointSecurityTest {
 
     @Test
     void jwksIsPublicReadOnlyAndUsesStandardCacheHeader() throws Exception {
-        when(tokenService.getJwks()).thenReturn(java.util.Map.of("keys", java.util.List.of(
+        when(jwksUseCase.getJwks()).thenReturn(java.util.Map.of("keys", java.util.List.of(
                 java.util.Map.of("kty", "RSA", "alg", "RS256", "use", "sig",
                         "kid", "auth-key-1", "n", "modulus", "e", "AQAB"))));
 
@@ -202,7 +210,7 @@ class AuthEndpointSecurityTest {
                         .with(user("user@example.com").roles("USER")))
                 .andExpect(status().isOk());
 
-        verify(authService).revokeDeviceSession("user@example.com", "phone-1");
+        verify(authUseCase).revokeDeviceSession("user@example.com", "phone-1");
     }
 
     @Test
