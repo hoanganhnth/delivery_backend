@@ -35,13 +35,14 @@ import java.time.Clock;
 import com.delivery.restaurant.infrastructure.decision.RestaurantDecisionInfrastructureConfiguration;
 import com.delivery.restaurant.infrastructure.identity.IdentityInfrastructureConfiguration;
 import com.delivery.restaurant.infrastructure.client.OrderInfrastructureConfiguration;
+import com.delivery.restaurant.infrastructure.rating.RestaurantRatingInfrastructureConfiguration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
 @Import({IdentityInfrastructureConfiguration.class, OrderInfrastructureConfiguration.class,
-        RestaurantDecisionInfrastructureConfiguration.class})
+        RestaurantDecisionInfrastructureConfiguration.class, RestaurantRatingInfrastructureConfiguration.class})
 public class RestaurantOwnershipConfiguration {
 
     @Bean

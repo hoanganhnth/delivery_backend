@@ -2,6 +2,7 @@ package com.delivery.restaurant_service.repository;
 // Package retained during the infrastructure migration to preserve existing callers.
 
 import com.delivery.restaurant_service.entity.RestaurantRating;
+import com.delivery.restaurant.infrastructure.rating.RestaurantRatingAggregate;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -21,12 +22,11 @@ public interface RestaurantRatingRepository extends JpaRepository<RestaurantRati
     List<RestaurantRating> findByCustomerId(Long customerId, Pageable pageable);
     Page<RestaurantRating> findPageByCustomerId(Long customerId, Pageable pageable);
 
-    long countByRestaurantIdAndStatus(
-            Long restaurantId, com.delivery.restaurant_service.entity.RatingStatus status);
-
-    @Query("select coalesce(avg(r.rating), 0) from RestaurantRating r " +
+    @Query("select new com.delivery.restaurant.infrastructure.rating.RestaurantRatingAggregate(" +
+            "count(r), coalesce(avg(r.rating), 0.0)) " +
+            "from RestaurantRating r " +
             "where r.restaurantId = :restaurantId and r.status = :status")
-    Double averageRatingByRestaurantAndStatus(
+    RestaurantRatingAggregate aggregateByRestaurantAndStatus(
             @Param("restaurantId") Long restaurantId,
             @Param("status") com.delivery.restaurant_service.entity.RatingStatus status);
     

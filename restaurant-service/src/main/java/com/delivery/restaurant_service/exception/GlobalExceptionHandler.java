@@ -1,6 +1,7 @@
 package com.delivery.restaurant_service.exception;
 
 import com.delivery.restaurant.infrastructure.decision.RestaurantDecisionConflictException;
+import com.delivery.restaurant.infrastructure.rating.RestaurantRatingConflictException;
 import com.delivery.restaurant_service.payload.BaseResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;

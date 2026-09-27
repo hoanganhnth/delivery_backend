@@ -245,7 +245,7 @@ Remaining proof and extraction work:
   cache and outbox work remains; the identity and Order internal-client
   adapters now live outside the executable host.
 - [ ] Slice 6: extract existing order decision/outbox behavior unchanged.
-- [ ] Slice 7: rating concurrency fix and extraction.
+- [x] Slice 7: rating concurrency fix and extraction.
 - [ ] Slice 8: serviceability and inventory extraction with separate proofs.
 - [ ] Slice 9: client SDK adoption, compatibility cleanup and canonical docs.
 
@@ -269,6 +269,21 @@ Gateway/Discovery/Config/CLI use only layers that have actual responsibility.
   unchanged. Keep existing runnable service while incrementally extracting.
 
 ## Execution record
+
+- 2026-09-27, Slice 7: extracted the rating use-case contract into
+  `restaurant-application-api` and moved `RestaurantRatingServiceImpl` plus
+  its concurrency adapter into `restaurant-infrastructure`. Rating submission
+  and moderation now serialize per restaurant with a transaction-scoped
+  PostgreSQL advisory lock, keep the unique `order_id` constraint as the final
+  duplicate guard, flush rating mutations before aggregate reads, and update
+  the Restaurant summary from one database-computed count/average projection.
+  The host controller remains the HTTP/DTO adapter and maps to the extracted
+  result types; endpoint payloads and authorization behavior are unchanged.
+  Infrastructure rating regressions pass 5/5, host rating authorization and
+  exception regressions pass 7/7, and the restaurant-focused reactor run
+  passes 220 tests with 0 failures, 0 errors and 0 skips. The proof is unit
+  and H2/application-context coverage; a PostgreSQL high-contention benchmark
+  remains deferred as documented above.
 
 - 2026-09-26, Task 1 / Slice 3A: added framework-free immutable creation
   command/result records, use-case and persistence-port contracts, and an

@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import com.delivery.restaurant.domain.ownership.OwnerAssignmentException;
 import com.delivery.restaurant.domain.ownership.OwnerAssignmentFailure;
+import com.delivery.restaurant.infrastructure.rating.RestaurantRatingConflictException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

@@ -4,7 +4,10 @@ import com.delivery.restaurant_service.common.constants.RoleConstants;
 import com.delivery.restaurant_service.dto.request.RestaurantRatingRequest;
 import com.delivery.restaurant_service.dto.response.RestaurantRatingResponse;
 import com.delivery.restaurant_service.payload.BaseResponse;
-import com.delivery.restaurant_service.service.RestaurantRatingService;
+import com.delivery.restaurant.application.api.RestaurantRatingPage;
+import com.delivery.restaurant.application.api.RestaurantRatingResult;
+import com.delivery.restaurant.application.api.RestaurantRatingUseCase;
+import com.delivery.restaurant.application.api.SubmitRestaurantRatingCommand;
 import com.delivery.auth.resourceserver.security.AuthenticatedActor;
 
 import lombok.RequiredArgsConstructor;
@@ -23,7 +26,7 @@ import com.delivery.restaurant_service.payload.PageResponse;
 @RequiredArgsConstructor
 public class RestaurantRatingController {
 
-    private final RestaurantRatingService ratingService;
+    private final RestaurantRatingUseCase ratingService;
 
     @PostMapping("/{restaurantId}/ratings")
     public ResponseEntity<BaseResponse<RestaurantRatingResponse>> submitRating(
@@ -31,13 +34,17 @@ public class RestaurantRatingController {
             @AuthenticationPrincipal AuthenticatedActor actor,
             @Valid @RequestBody RestaurantRatingRequest request) {
         requireCustomerRole(actor);
-        RestaurantRatingResponse response = ratingService.submitRating(restaurantId, actor.getUserId(), request);
+        RestaurantRatingResponse response = toResponse(ratingService.submitRating(
+                new SubmitRestaurantRatingCommand(
+                        restaurantId, actor.getUserId(), request.getOrderId(), request.getRating(), request.getComment())));
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Đánh giá nhà hàng thành công"));
     }
 
     @GetMapping("/{restaurantId}/ratings")
     public ResponseEntity<BaseResponse<List<RestaurantRatingResponse>>> getRestaurantRatings(@PathVariable Long restaurantId) {
-        List<RestaurantRatingResponse> responses = ratingService.getRestaurantRatings(restaurantId);
+        List<RestaurantRatingResponse> responses = ratingService.getRestaurantRatings(restaurantId).stream()
+                .map(RestaurantRatingController::toResponse)
+                .toList();
         return ResponseEntity.ok(new BaseResponse<>(1, responses));
     }
 
@@ -46,7 +53,7 @@ public class RestaurantRatingController {
             @PathVariable Long restaurantId, @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         validatePage(page, size);
-        return ResponseEntity.ok(new BaseResponse<>(1, PageResponse.from(
+        return ResponseEntity.ok(new BaseResponse<>(1, toPageResponse(
                 ratingService.getRestaurantRatingsPage(restaurantId, page, size))));
     }
 
@@ -54,7 +61,9 @@ public class RestaurantRatingController {
     public ResponseEntity<BaseResponse<List<RestaurantRatingResponse>>> getMyRatings(
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireCustomerRole(actor);
-        List<RestaurantRatingResponse> responses = ratingService.getMyRatings(actor.getUserId());
+        List<RestaurantRatingResponse> responses = ratingService.getMyRatings(actor.getUserId()).stream()
+                .map(RestaurantRatingController::toResponse)
+                .toList();
         return ResponseEntity.ok(new BaseResponse<>(1, responses));
     }
 
@@ -65,7 +74,9 @@ public class RestaurantRatingController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(new BaseResponse<>(0, null, "Chỉ ADMIN được xem tất cả đánh giá"));
         }
-        List<RestaurantRatingResponse> responses = ratingService.getAllRatings();
+        List<RestaurantRatingResponse> responses = ratingService.getAllRatings().stream()
+                .map(RestaurantRatingController::toResponse)
+                .toList();
         return ResponseEntity.ok(new BaseResponse<>(1, responses));
     }
 
@@ -76,7 +87,7 @@ public class RestaurantRatingController {
         if (actor == null || !actor.isAdmin()) return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(new BaseResponse<>(0, null, "Chỉ ADMIN được xem tất cả đánh giá"));
         validatePage(page, size);
-        return ResponseEntity.ok(new BaseResponse<>(1, PageResponse.from(ratingService.getAllRatingsPage(page, size))));
+        return ResponseEntity.ok(new BaseResponse<>(1, toPageResponse(ratingService.getAllRatingsPage(page, size))));
     }
 
     private void validatePage(int page, int size) {
@@ -92,7 +103,7 @@ public class RestaurantRatingController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(new BaseResponse<>(0, null, "Chỉ ADMIN được duyệt đánh giá"));
         }
-        RestaurantRatingResponse response = ratingService.updateRatingStatus(id, status);
+        RestaurantRatingResponse response = toResponse(ratingService.updateRatingStatus(id, status));
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Cập nhật trạng thái đánh giá thành công"));
     }
 
@@ -100,5 +111,23 @@ public class RestaurantRatingController {
         if (actor == null || !actor.isUser()) {
             throw new AccessDeniedException("Only USER can access customer ratings");
         }
+    }
+
+    private static RestaurantRatingResponse toResponse(RestaurantRatingResult result) {
+        RestaurantRatingResponse response = new RestaurantRatingResponse();
+        response.setId(result.id());
+        response.setRestaurantId(result.restaurantId());
+        response.setCustomerId(result.customerId());
+        response.setOrderId(result.orderId());
+        response.setRating(result.rating());
+        response.setComment(result.comment());
+        response.setStatus(result.status());
+        response.setCreatedAt(result.createdAt());
+        return response;
+    }
+
+    private static PageResponse<RestaurantRatingResponse> toPageResponse(RestaurantRatingPage page) {
+        return new PageResponse<>(page.items().stream().map(RestaurantRatingController::toResponse).toList(),
+                page.page(), page.size(), page.totalItems(), page.totalPages(), page.hasNext());
     }
 }
