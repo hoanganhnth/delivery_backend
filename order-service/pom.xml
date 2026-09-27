@@ -42,6 +42,8 @@
 	</dependencyManagement>
 	<dependencies>
 		<dependency><groupId>com.delivery</groupId><artifactId>identity-contracts</artifactId><version>1.0.0-SNAPSHOT</version></dependency>
+		<dependency><groupId>com.delivery</groupId><artifactId>kafka-starter</artifactId></dependency>
+		<dependency><groupId>com.delivery</groupId><artifactId>order-contracts</artifactId><version>1.0.0-SNAPSHOT</version></dependency>
 		<dependency><groupId>com.delivery</groupId><artifactId>routing-client</artifactId></dependency>
 		<dependency><groupId>com.delivery</groupId><artifactId>runtime-platform-starter</artifactId><version>1.0.0-SNAPSHOT</version></dependency>
 		<dependency><groupId>com.delivery</groupId><artifactId>observability-starter</artifactId><version>1.0.0-SNAPSHOT</version></dependency>

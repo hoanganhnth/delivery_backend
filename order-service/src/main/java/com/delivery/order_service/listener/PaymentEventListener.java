@@ -1,8 +1,8 @@
 package com.delivery.order_service.listener;
 
 import com.delivery.order_service.common.constants.KafkaTopicConstants;
-import com.delivery.order_service.dto.event.PaymentEvent;
 import com.delivery.order_service.service.OrderEventService;
+import com.delivery.order.contracts.PaymentEvent;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.KafkaHeaders;
@@ -39,16 +39,16 @@ public class PaymentEventListener {
             Acknowledgment acknowledgment) {
 
         log.info("📥 Received PaymentCompletedEvent: orderId={}, paymentId={}, amount={}",
-                event.getOrderId(), event.getPaymentId(), event.getAmount());
+                event.orderId(), event.paymentId(), event.amount());
 
         try {
-            orderEventService.handlePaymentCompleted(event);
+            orderEventService.handlePaymentCompleted(toLocalEvent(event));
             acknowledgment.acknowledge();
-            log.info("✅ Successfully processed PaymentCompletedEvent for order: {}", event.getOrderId());
+            log.info("✅ Successfully processed PaymentCompletedEvent for order: {}", event.orderId());
 
         } catch (Exception e) {
             log.error("💥 Failed to process PaymentCompletedEvent for order {}: {}", 
-                    event.getOrderId(), e.getMessage(), e);
+                    event.orderId(), e.getMessage(), e);
             throw e;
         }
     }
@@ -65,17 +65,23 @@ public class PaymentEventListener {
             Acknowledgment acknowledgment) {
 
         log.info("📥 Received PaymentFailedEvent: orderId={}, paymentId={}, reason={}",
-                event.getOrderId(), event.getPaymentId(), event.getFailureReason());
+                event.orderId(), event.paymentId(), event.failureReason());
 
         try {
-            orderEventService.handlePaymentFailed(event);
+            orderEventService.handlePaymentFailed(toLocalEvent(event));
             acknowledgment.acknowledge();
-            log.info("✅ Successfully processed PaymentFailedEvent for order: {}", event.getOrderId());
+            log.info("✅ Successfully processed PaymentFailedEvent for order: {}", event.orderId());
 
         } catch (Exception e) {
             log.error("💥 Failed to process PaymentFailedEvent for order {}: {}", 
-                    event.getOrderId(), e.getMessage(), e);
+                    event.orderId(), e.getMessage(), e);
             throw e;
         }
+    }
+
+    private com.delivery.order_service.dto.event.PaymentEvent toLocalEvent(PaymentEvent event) {
+        return new com.delivery.order_service.dto.event.PaymentEvent(
+                event.paymentId(), event.orderId(), event.userId(), event.status(), event.amount(),
+                event.paymentMethod(), event.transactionId(), event.processedAt(), event.failureReason());
     }
 }

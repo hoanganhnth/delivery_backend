@@ -2,6 +2,8 @@ package com.delivery.order_service.service;
 
 import com.delivery.order_service.entity.OutboxEvent;
 import com.delivery.order_service.repository.OutboxEventRepository;
+import com.delivery.order.contracts.OrderCreatedEvent;
+import com.delivery.order_service.dto.event.OrderCancelledEvent;
 import com.delivery.observability.OutboxTraceContext;
 import com.delivery.observability.SafeLog;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -148,7 +150,7 @@ public class OrderOutboxRelay {
         try {
             JsonNode payload = objectMapper.readTree(event.getPayload());
             ProducerRecord<String, Object> record = new ProducerRecord<>(
-                    event.getTopic(), event.getEventKey(), payload);
+                    event.getTopic(), event.getEventKey(), typedPayload(event, payload));
             record.headers().add("eventId", bytes(event.getEventId().toString()));
             record.headers().add("eventType", bytes(event.getEventType()));
             record.headers().add("aggregateId", bytes(event.getAggregateId()));
@@ -189,7 +191,7 @@ public class OrderOutboxRelay {
         try {
             JsonNode payload = objectMapper.readTree(event.getPayload());
             ProducerRecord<String, Object> record = new ProducerRecord<>(
-                    event.getTopic(), event.getEventKey(), payload);
+                    event.getTopic(), event.getEventKey(), typedPayload(event, payload));
             record.headers().add("eventId", bytes(event.getEventId().toString()));
             record.headers().add("eventType", bytes(event.getEventType()));
             record.headers().add("aggregateId", bytes(event.getAggregateId()));
@@ -226,6 +228,23 @@ public class OrderOutboxRelay {
 
     private byte[] bytes(String value) {
         return (value == null ? "" : value).getBytes(StandardCharsets.UTF_8);
+    }
+
+    /**
+     * The outbox stores JSON so that enqueueing remains transactional. Rehydrate
+     * published business events before handing them to the shared KafkaTemplate;
+     * this lets JsonSerializer emit the order-contracts type header consumed by
+     * platform/kafka-starter without changing the stored payload or topic/key.
+     */
+    private Object typedPayload(OutboxEvent event, JsonNode payload) {
+        if ("ORDER_CREATED".equals(event.getEventType())) {
+            return objectMapper.convertValue(payload, OrderCreatedEvent.class);
+        }
+        if ("ORDER_CANCELLED".equals(event.getEventType())
+                || "REFUND_ELIGIBLE".equals(event.getEventType())) {
+            return objectMapper.convertValue(payload, OrderCancelledEvent.class);
+        }
+        return payload;
     }
 
     private String abbreviate(String message) {
