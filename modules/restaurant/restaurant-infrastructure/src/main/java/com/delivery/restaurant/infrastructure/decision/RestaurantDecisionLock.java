@@ -1,4 +1,4 @@
-package com.delivery.restaurant_service.service;
+package com.delivery.restaurant.infrastructure.decision;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;

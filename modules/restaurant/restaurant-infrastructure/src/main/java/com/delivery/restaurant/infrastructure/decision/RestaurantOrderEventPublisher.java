@@ -1,9 +1,8 @@
-package com.delivery.restaurant_service.service;
+package com.delivery.restaurant.infrastructure.decision;
 
 import com.delivery.restaurant.infrastructure.client.OrderDecisionEligibilityPort;
 import com.delivery.restaurant_service.entity.RestaurantOrderDecision;
 import com.delivery.restaurant_service.entity.RestaurantOutboxEvent;
-import com.delivery.restaurant_service.exception.RestaurantDecisionConflictException;
 import com.delivery.restaurant_service.repository.RestaurantOrderDecisionRepository;
 import com.delivery.restaurant_service.repository.RestaurantOutboxEventRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;

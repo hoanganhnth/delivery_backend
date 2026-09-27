@@ -1,9 +1,9 @@
 package com.delivery.restaurant_service.controller;
 
 import com.delivery.auth.resourceserver.security.AuthenticatedActor;
+import com.delivery.restaurant.infrastructure.decision.RestaurantOrderEventPublisher;
 import com.delivery.restaurant_service.common.constants.RoleConstants;
 import com.delivery.restaurant_service.repository.RestaurantRepository;
-import com.delivery.restaurant_service.service.RestaurantOrderEventPublisher;
 import com.delivery.restaurant_service.dto.request.ConfirmRestaurantOrderRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
