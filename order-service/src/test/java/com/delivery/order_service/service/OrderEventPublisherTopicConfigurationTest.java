@@ -1,7 +1,7 @@
 package com.delivery.order_service.service;
 
 import com.delivery.order_service.dto.event.OrderCancelledEvent;
-import com.delivery.order_service.dto.event.OrderCreatedEvent;
+import com.delivery.order.contracts.OrderCreatedEvent;
 import com.delivery.order_service.entity.Order;
 import com.delivery.order_service.entity.OrderItem;
 import com.delivery.order_service.entity.OrderStatus;
@@ -71,9 +71,9 @@ class OrderEventPublisherTopicConfigurationTest {
         verify(outboxService).enqueue(eq("ORDER_CANCELLED"), eq("970001"),
                 eq("order.cancelled"), eq("970001"), payload.capture());
         assertThat(payload.getAllValues().get(0)).isInstanceOfSatisfying(OrderCreatedEvent.class, event -> {
-            assertThat(event.getVoucherReservationId()).isEqualTo(voucherId);
-            assertThat(event.getFlashSaleReservationId()).isNull();
-            assertThat(event.getItems()).singleElement().satisfies(line -> {
+            assertThat(event.voucherReservationId()).isEqualTo(voucherId);
+            assertThat(event.flashSaleReservationId()).isNull();
+            assertThat(event.items()).singleElement().satisfies(line -> {
                 assertThat(line.get("orderItemId")).isEqualTo(970010L);
                 assertThat(line.get("menuItemId")).isEqualTo(97001L);
                 assertThat(line.get("quantity")).isEqualTo(2);
@@ -110,9 +110,9 @@ class OrderEventPublisherTopicConfigurationTest {
         verify(outboxService).enqueue(eq("ORDER_CREATED"), eq("970001"),
                 eq("order.created"), eq("970001"), payload.capture());
         assertThat(payload.getValue()).isInstanceOfSatisfying(OrderCreatedEvent.class, event -> {
-            assertThat(event.getSimulationContext().runId()).isEqualTo(runId);
-            assertThat(event.getSimulationContext().cohortId()).isEqualTo(cohortId);
-            assertThat(event.getSimulationContext().bindingVersion()).isEqualTo(4L);
+            assertThat(event.simulationContext().runId()).isEqualTo(runId);
+            assertThat(event.simulationContext().cohortId()).isEqualTo(cohortId);
+            assertThat(event.simulationContext().bindingVersion()).isEqualTo(4L);
         });
     }
 

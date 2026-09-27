@@ -1,7 +1,7 @@
 package com.delivery.order_service.listener;
 
-import com.delivery.order_service.dto.event.RestaurantEvent;
 import com.delivery.order_service.service.OrderEventService;
+import com.delivery.order.contracts.RestaurantEvent;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.annotation.RetryableTopic;
@@ -49,17 +49,17 @@ public class RestaurantEventListener {
             Acknowledgment acknowledgment) {
 
         log.info("📥 Received RestaurantConfirmedEvent: orderId={}, restaurantId={}, estimatedTime={}",
-                event.getOrderId(), event.getRestaurantId(), event.getEstimatedPrepTime());
+                event.orderId(), event.restaurantId(), event.estimatedPrepTime());
 
         try {
             requireEventId(event);
-            orderEventService.handleRestaurantConfirmed(event);
+            orderEventService.handleRestaurantConfirmed(toLocalEvent(event));
             acknowledgment.acknowledge();
-            log.info("✅ Successfully processed RestaurantConfirmedEvent for order: {}", event.getOrderId());
+            log.info("✅ Successfully processed RestaurantConfirmedEvent for order: {}", event.orderId());
 
         } catch (Exception e) {
             log.error("💥 Failed to process RestaurantConfirmedEvent for order {}: {}", 
-                    event.getOrderId(), e.getMessage(), e);
+                    event.orderId(), e.getMessage(), e);
             throw e;
         }
     }
@@ -76,24 +76,30 @@ public class RestaurantEventListener {
             Acknowledgment acknowledgment) {
 
         log.info("📥 Received RestaurantRejectedEvent: orderId={}, restaurantId={}, reason={}",
-                event.getOrderId(), event.getRestaurantId(), event.getRejectionReason());
+                event.orderId(), event.restaurantId(), event.rejectionReason());
 
         try {
             requireEventId(event);
-            orderEventService.handleRestaurantRejected(event);
+            orderEventService.handleRestaurantRejected(toLocalEvent(event));
             acknowledgment.acknowledge();
-            log.info("✅ Successfully processed RestaurantRejectedEvent for order: {}", event.getOrderId());
+            log.info("✅ Successfully processed RestaurantRejectedEvent for order: {}", event.orderId());
 
         } catch (Exception e) {
             log.error("💥 Failed to process RestaurantRejectedEvent for order {}: {}", 
-                    event.getOrderId(), e.getMessage(), e);
+                    event.orderId(), e.getMessage(), e);
             throw e;
         }
     }
 
     private void requireEventId(RestaurantEvent event) {
-        if (event == null || event.getEventId() == null) {
+        if (event == null || event.eventId() == null) {
             throw new IllegalArgumentException("restaurant decision eventId is required");
         }
+    }
+
+    private com.delivery.order_service.dto.event.RestaurantEvent toLocalEvent(RestaurantEvent event) {
+        return new com.delivery.order_service.dto.event.RestaurantEvent(
+                event.eventId(), event.restaurantId(), event.actorUserId(), event.orderId(), event.status(),
+                event.action(), event.estimatedPrepTime(), event.rejectionReason(), event.processedAt(), event.notes());
     }
 }

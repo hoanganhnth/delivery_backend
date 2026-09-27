@@ -1,7 +1,7 @@
 package com.delivery.order_service.service;
 
-import com.delivery.order_service.dto.event.OrderCreatedEvent;
 import com.delivery.order_service.dto.event.OrderCancelledEvent;
+import com.delivery.order.contracts.OrderCreatedEvent;
 import com.delivery.order_service.entity.Order;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -151,60 +151,48 @@ public class OrderEventPublisher {
      * Map Order entity to OrderCreatedEvent
      */
     private OrderCreatedEvent mapOrderToEvent(Order order) {
-        OrderCreatedEvent event = new OrderCreatedEvent();
-        
-        // Order basic info
-        event.setOrderId(order.getId());
-        event.setUserId(order.getUserId());
-        event.setUserPrincipalId(order.getUserPrincipalId());
-        event.setRestaurantId(order.getRestaurantId());
-        event.setStatus(order.getStatus().name());
-        
-        // Financial info
-        event.setSubtotalPrice(order.getSubtotalPrice());
-        event.setDiscountAmount(order.getDiscountAmount());
-        event.setShippingFee(order.getShippingFee());
-        event.setTotalPrice(order.getTotalPrice());
-        event.setPaymentMethod(order.getPaymentMethod());
-        
-        // Delivery location info
-        event.setDeliveryAddress(order.getDeliveryAddress());
-        event.setDeliveryLat(order.getDeliveryLat());
-        event.setDeliveryLng(order.getDeliveryLng());
-        
-        // Pickup location info
-        event.setPickupLat(order.getPickupLat());
-        event.setPickupLng(order.getPickupLng());
-        
-        // Restaurant info
-        event.setRestaurantName(order.getRestaurantName());
-        event.setRestaurantAddress(order.getRestaurantAddress());
-        event.setRestaurantPhone(order.getRestaurantPhone());
-        
-        // Customer info
-        event.setCustomerName(order.getCustomerName());
-        event.setCustomerPhone(order.getCustomerPhone());
-        event.setNotes(order.getNotes());
-        
-        // Timestamps
-        event.setCreatedAt(order.getCreatedAt());
-        event.setCreatorId(order.getCreatorId());
-        event.setCreatorPrincipalId(order.getCreatorPrincipalId());
-        event.setVoucherReservationId(order.getVoucherReservationId());
-        event.setPromotionReservationId(order.getPromotionReservationId());
-        event.setFlashSaleReservationId(order.getFlashSaleReservationId());
-        event.setInventoryReservationId(order.getInventoryReservationId());
-        event.setItems(snapshotItems(order));
-        event.setItemDiscount(order.getItemDiscount());
-        event.setShippingDiscount(order.getShippingDiscount());
-        event.setCustomerShippingFee(order.getCustomerShippingFee());
-        event.setGrossShippingFee(order.getGrossShippingFee());
-        event.setPlatformSubsidy(order.getPlatformSubsidy());
-        event.setShopDiscount(order.getShopDiscount());
-        event.setAppliedVouchers(parseBreakdown(order.getPromotionBreakdown()));
-        event.setSimulationContext(order.getSimulationContext());
-        
-        return event;
+        return new OrderCreatedEvent(
+                2,
+                null,
+                order.getId(),
+                order.getUserId(),
+                order.getUserPrincipalId(),
+                order.getRestaurantId(),
+                order.getStatus().name(),
+                order.getSubtotalPrice(),
+                order.getDiscountAmount(),
+                order.getShippingFee(),
+                order.getTotalPrice(),
+                order.getItemDiscount(),
+                order.getShippingDiscount(),
+                order.getCustomerShippingFee(),
+                order.getGrossShippingFee(),
+                order.getPlatformSubsidy(),
+                order.getShopDiscount(),
+                order.getPaymentMethod(),
+                order.getDeliveryAddress(),
+                order.getDeliveryLat(),
+                order.getDeliveryLng(),
+                order.getPickupLat(),
+                order.getPickupLng(),
+                order.getRestaurantName(),
+                order.getRestaurantAddress(),
+                order.getRestaurantPhone(),
+                order.getCustomerName(),
+                order.getCustomerPhone(),
+                order.getNotes(),
+                order.getCreatedAt(),
+                order.getCreatorId(),
+                order.getCreatorPrincipalId(),
+                order.getVoucherReservationId(),
+                order.getPromotionReservationId(),
+                order.getFlashSaleReservationId(),
+                order.getInventoryReservationId(),
+                snapshotItems(order),
+                parseBreakdown(order.getPromotionBreakdown()),
+                order.getSimulationContext(),
+                ORDER_CREATED_EVENT,
+                order.getCreatedAt() != null ? order.getCreatedAt() : LocalDateTime.now());
     }
 
     /**

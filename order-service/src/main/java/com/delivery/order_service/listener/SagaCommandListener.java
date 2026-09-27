@@ -1,8 +1,8 @@
 package com.delivery.order_service.listener;
 
-import com.delivery.order_service.dto.event.DeliveryStatusUpdatedEvent;
-import com.delivery.order_service.dto.event.ShipperEvent;
 import com.delivery.order_service.dto.event.ShipperNotFoundEvent;
+import com.delivery.order.contracts.DeliveryStatusUpdatedEvent;
+import com.delivery.order.contracts.ShipperEvent;
 import com.delivery.order_service.service.SagaOrderCommandProcessor;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -82,7 +82,7 @@ public class SagaCommandListener {
                 // ===== Delivery status updates =====
                 case "FINDING_SHIPPER", "WAIT_SHIPPER_CONFIRM",
                         "PICKED_UP", "DELIVERING", "DELIVERED", "CANCELLED" -> {
-                    DeliveryStatusUpdatedEvent deliveryEvent = deliveryStatusEvent(
+                    com.delivery.order_service.dto.event.DeliveryStatusUpdatedEvent deliveryEvent = deliveryStatusEvent(
                             originalJson, orderId, sagaStatus);
                     applied = orderStatusSequence == 0
                             ? commandProcessor.applyDeliveryStatus(commandEventId, orderId, sagaStatus,
@@ -95,12 +95,12 @@ public class SagaCommandListener {
                 case "SHIPPER_ASSIGNED" -> {
                     ShipperEvent shipperEvent = parseOriginalEvent(originalEvent, ShipperEvent.class);
                     if (shipperEvent != null) {
-                        shipperEvent.setOrderId(orderId);
+                        com.delivery.order_service.dto.event.ShipperEvent localShipperEvent = toLocalEvent(shipperEvent, orderId);
                         applied = orderStatusSequence == 0
                                 ? commandProcessor.applyShipperAccepted(commandEventId, orderId, sagaStatus,
-                                        message, shipperEvent)
+                                        message, localShipperEvent)
                                 : commandProcessor.applyShipperAccepted(commandEventId, orderId, sagaStatus,
-                                        message, orderStatusSequence, shipperEvent);
+                                        message, orderStatusSequence, localShipperEvent);
                     } else {
                         throw new IllegalArgumentException(
                                 "SHIPPER_ASSIGNED command requires an originalEvent");
@@ -108,7 +108,7 @@ public class SagaCommandListener {
                 }
 
                 case "SHIPPER_FOUND" -> {
-                    DeliveryStatusUpdatedEvent deliveryEvent = deliveryStatusEvent(
+                    com.delivery.order_service.dto.event.DeliveryStatusUpdatedEvent deliveryEvent = deliveryStatusEvent(
                             originalJson, orderId, "WAIT_SHIPPER_CONFIRM");
                     applied = orderStatusSequence == 0
                             ? commandProcessor.applyDeliveryStatus(commandEventId, orderId, sagaStatus,
@@ -186,23 +186,42 @@ public class SagaCommandListener {
         }
     }
 
-    private DeliveryStatusUpdatedEvent deliveryStatusEvent(
+    private com.delivery.order_service.dto.event.DeliveryStatusUpdatedEvent deliveryStatusEvent(
             JsonNode originalEvent, Long orderId, String status) {
-        DeliveryStatusUpdatedEvent event = new DeliveryStatusUpdatedEvent();
-        event.setOrderId(orderId);
-        event.setDeliveryId(optionalPositiveLong(originalEvent, "deliveryId"));
-        event.setShipperId(optionalPositiveLong(originalEvent, "shipperId"));
-        event.setNotes(optionalText(originalEvent, "notes"));
-        event.setStatus(status);
+        DeliveryStatusUpdatedEvent event = new DeliveryStatusUpdatedEvent(
+                optionalPositiveLong(originalEvent, "deliveryId"), orderId,
+                optionalPositiveLong(originalEvent, "shipperId"), status, null, status, null,
+                null, null, null, optionalText(originalEvent, "notes"), null, null, null, null);
         JsonNode context = originalEvent.get("simulationContext");
         if (context != null && !context.isNull()) {
             try {
-                event.setSimulationContext(objectMapper.treeToValue(context, SimulationContext.class));
+                event = new DeliveryStatusUpdatedEvent(
+                        event.deliveryId(), event.orderId(), event.shipperId(), event.status(),
+                        event.previousStatus(), event.newStatus(), event.oldStatus(), event.updatedAt(),
+                        event.timestamp(), event.eventType(), event.notes(), event.currentLat(),
+                        event.currentLng(), event.estimatedDeliveryTime(),
+                        objectMapper.treeToValue(context, SimulationContext.class));
             } catch (com.fasterxml.jackson.core.JsonProcessingException ex) {
                 throw new IllegalArgumentException("simulationContext must match the canonical contract", ex);
             }
         }
-        return event;
+        return toLocalEvent(event);
+    }
+
+    private com.delivery.order_service.dto.event.DeliveryStatusUpdatedEvent toLocalEvent(
+            DeliveryStatusUpdatedEvent event) {
+        return new com.delivery.order_service.dto.event.DeliveryStatusUpdatedEvent(
+                event.deliveryId(), event.orderId(), event.shipperId(), event.status(), event.previousStatus(),
+                event.newStatus(), event.oldStatus(), event.updatedAt(), event.timestamp(), event.eventType(),
+                event.notes(), event.currentLat(), event.currentLng(), event.estimatedDeliveryTime(),
+                event.simulationContext());
+    }
+
+    private com.delivery.order_service.dto.event.ShipperEvent toLocalEvent(ShipperEvent event, Long orderId) {
+        return new com.delivery.order_service.dto.event.ShipperEvent(
+                event.shipperId(), event.deliveryId(), orderId, event.action(), event.notes(), event.rejectReason(),
+                event.responseTime(), event.estimatedPickupTime(), event.currentLat(), event.currentLng(),
+                event.simulationContext());
     }
 
     private Long optionalPositiveLong(JsonNode source, String field) {
