@@ -759,6 +759,24 @@ MenuItemServiceImpl were intentionally not migrated in this bounded task; only
 minimal application bean wiring was added. H2 does not claim PostgreSQL
 locking, concurrency, crash atomicity, or production Redis/Kafka behavior.
 
+### Task 4 — Extract routing wire contracts (2026-09-27)
+
+The routing wire types now live in the standalone `routing-contracts` module,
+which inherits `delivery-build-parent` and publishes the seven existing
+request/response records under `com.delivery.routing.contracts`. Explicit
+Jackson property names/order and ISO-8601 `Instant` formatting preserve the
+existing JSON field names and HTTP wire shape. `routing-service` consumes the
+contract module directly; its routes, service behavior, and existing fallback/
+ETA semantics are unchanged. The old service-local API records were removed so
+there is one source of truth for the routing wire contract.
+
+Focused proof: `mvn -B -pl :routing-contracts -am test` passed with 4 tests,
+zero failures/errors/skips. `mvn -B -pl :routing-service -am test` passed with
+the full dependency reactor; `routing-contracts` reported 4 tests and
+`routing-service` reported 2 tests, all with zero failures/errors/skips.
+`git diff --check` passes. No SDK or external routing consumer was migrated in
+this task; those remain part of the later Phase 2 client-adoption work.
+
 **Task 3C host wiring follow-up (2026-09-27)**
 
 The executable host migration is now complete. `MenuItemServiceImpl` maps host

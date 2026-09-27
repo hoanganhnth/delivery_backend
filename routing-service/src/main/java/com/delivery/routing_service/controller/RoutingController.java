@@ -1,11 +1,11 @@
 package com.delivery.routing_service.controller;
 
-import com.delivery.routing_service.api.MatrixRequest;
-import com.delivery.routing_service.api.MatrixResponse;
-import com.delivery.routing_service.api.RouteRequest;
-import com.delivery.routing_service.api.RouteResponse;
-import com.delivery.routing_service.api.EtaWindowRequest;
-import com.delivery.routing_service.api.EtaWindowResponse;
+import com.delivery.routing.contracts.EtaWindowRequest;
+import com.delivery.routing.contracts.EtaWindowResponse;
+import com.delivery.routing.contracts.MatrixRequest;
+import com.delivery.routing.contracts.MatrixResponse;
+import com.delivery.routing.contracts.RouteRequest;
+import com.delivery.routing.contracts.RouteResponse;
 import com.delivery.routing_service.config.RoutingProperties;
 import com.delivery.routing_service.service.RoutingService;
 import lombok.RequiredArgsConstructor;

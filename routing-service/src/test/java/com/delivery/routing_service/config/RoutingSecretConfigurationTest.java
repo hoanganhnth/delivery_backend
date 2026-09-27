@@ -3,8 +3,8 @@ package com.delivery.routing_service.config;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.delivery.routing_service.RoutingServiceApplication;
-import com.delivery.routing_service.api.Coordinate;
-import com.delivery.routing_service.api.MatrixRequest;
+import com.delivery.routing.contracts.Coordinate;
+import com.delivery.routing.contracts.MatrixRequest;
 import com.delivery.routing_service.controller.RoutingController;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;

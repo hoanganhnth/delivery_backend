@@ -1,7 +1,7 @@
 package com.delivery.routing_service.service;
 
-import com.delivery.routing_service.api.Coordinate;
-import com.delivery.routing_service.api.EtaWindowRequest;
+import com.delivery.routing.contracts.Coordinate;
+import com.delivery.routing.contracts.EtaWindowRequest;
 import com.delivery.routing_service.config.RoutingProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
