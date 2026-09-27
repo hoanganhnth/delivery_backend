@@ -1,51 +1,48 @@
 package com.delivery.user_service.controller;
 
-import org.junit.jupiter.api.Test;
-
-import com.delivery.auth.resourceserver.security.AuthenticatedActor;
-import com.delivery.user_service.dto.UserAddressRequest;
-import com.delivery.user_service.dto.UserAddressResponse;
-import com.delivery.user_service.service.UserAddressService;
-import com.delivery.user_service.service.UserService;
-import com.delivery.user_service.dto.UserResponse;
-
-import java.util.Set;
-
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
+
+import com.delivery.auth.resourceserver.security.AuthenticatedActor;
+import com.delivery.user.application.api.UserAddressResult;
+import com.delivery.user.application.api.UserAddressUseCase;
+import com.delivery.user.application.api.UserProfileReadUseCase;
+import com.delivery.user.application.api.UserProfileResult;
+import com.delivery.user_service.dto.UserAddressRequest;
+import java.util.Set;
+import org.junit.jupiter.api.Test;
 
 class UserAddressControllerAuthorizationTest {
 
-    private final UserAddressService addressService = mock(UserAddressService.class);
-    private final UserService userService = mock(UserService.class);
-    private final UserAddressController controller = new UserAddressController(addressService, userService);
+    private final UserAddressUseCase userAddressUseCase = mock(UserAddressUseCase.class);
+    private final UserProfileReadUseCase userProfileReadUseCase = mock(UserProfileReadUseCase.class);
+    private final UserAddressController controller = new UserAddressController(
+            userAddressUseCase, userProfileReadUseCase);
 
-    private void profile(Long principalId, Long profileId) {
-        when(userService.getUserByPrincipalId(principalId))
-                .thenReturn(UserResponse.builder().id(profileId).principalId(principalId).build());
+    private void configureProfile(Long principalId, Long profileId) {
+        when(userProfileReadUseCase.byPrincipalId(principalId)).thenReturn(profile(profileId, principalId));
     }
 
     @Test
     void cannotListAnotherUsersAddresses() {
         AuthenticatedActor actor = new AuthenticatedActor(11L, "user@example.com", Set.of("USER"));
-        profile(11L, 11L);
+        configureProfile(11L, 11L);
         var response = controller.getUserAddresses(22L, actor);
 
         assertThat(response.getStatusCode().value()).isEqualTo(403);
-        verify(addressService, never()).getAllAddressesByUser(22L);
+        verify(userAddressUseCase, never()).byUserId(22L);
     }
 
     @Test
     void cannotReadAddressOwnedByAnotherUser() {
-        when(addressService.getAddressById(7L))
-                .thenReturn(UserAddressResponse.builder().id(7L).userId(22L).build());
+        when(userAddressUseCase.byId(7L)).thenReturn(address(7L, 22L));
         AuthenticatedActor actor = new AuthenticatedActor(11L, "user@example.com", Set.of("USER"));
-        profile(11L, 11L);
+        configureProfile(11L, 11L);
 
         var response = controller.getAddress(7L, actor);
 
@@ -56,16 +53,16 @@ class UserAddressControllerAuthorizationTest {
     @Test
     void ownerCanUpdateOwnAddress() {
         UserAddressRequest request = new UserAddressRequest();
-        UserAddressResponse address = UserAddressResponse.builder().id(7L).userId(11L).build();
-        when(addressService.getAddressById(7L)).thenReturn(address);
-        when(addressService.updateAddress(eq(7L), eq(request), any())).thenReturn(address);
+        UserAddressResult address = address(7L, 11L);
+        when(userAddressUseCase.byId(7L)).thenReturn(address);
+        when(userAddressUseCase.update(any())).thenReturn(address);
         AuthenticatedActor actor = new AuthenticatedActor(11L, "user@example.com", Set.of("USER"));
-        profile(11L, 11L);
+        configureProfile(11L, 11L);
 
         var response = controller.updateAddress(7L, request, actor);
 
         assertThat(response.getStatusCode().is2xxSuccessful()).isTrue();
-        verify(addressService).updateAddress(eq(7L), eq(request), any());
+        verify(userAddressUseCase).update(any());
     }
 
     @Test
@@ -74,18 +71,29 @@ class UserAddressControllerAuthorizationTest {
         var response = controller.getUserAddresses(11L, actor);
 
         assertThat(response.getStatusCode().value()).isEqualTo(403);
-        verify(addressService, never()).getAllAddressesByUser(11L);
+        verify(userAddressUseCase, never()).byUserId(11L);
     }
 
     @Test
     void adminCanDeleteAddress() {
-        when(addressService.getAddressById(7L))
-                .thenReturn(UserAddressResponse.builder().id(7L).userId(22L).build());
+        when(userAddressUseCase.byId(7L)).thenReturn(address(7L, 22L));
         AuthenticatedActor actor = new AuthenticatedActor(1L, "admin@example.com", Set.of("ADMIN"));
 
         var response = controller.deleteAddress(7L, actor);
 
         assertThat(response.getStatusCode().is2xxSuccessful()).isTrue();
-        verify(addressService).deleteAddress(eq(7L), any());
+        verify(userAddressUseCase).delete(eq(7L));
+    }
+
+    private UserProfileResult profile(Long id, Long principalId) {
+        return new UserProfileResult(
+                id, principalId, principalId, "ACTIVE", 0L, "user@example.com", "USER",
+                "Customer", null, null, null, null, true, false, null, null, null, null, null);
+    }
+
+    private UserAddressResult address(Long id, Long userId) {
+        return new UserAddressResult(
+                id, userId, "Home", "Customer", "0900000000", "Address", "Ward",
+                "District", "City", null, null, null, false, null, null);
     }
 }

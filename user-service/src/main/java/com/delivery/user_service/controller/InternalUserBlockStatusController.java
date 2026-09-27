@@ -2,7 +2,8 @@ package com.delivery.user_service.controller;
 
 import com.delivery.user_service.dto.UserBlockStatusRequest;
 import com.delivery.user_service.payload.BaseResponse;
-import com.delivery.user_service.service.UserService;
+import com.delivery.user.application.api.UpdateUserBlockStatusCommand;
+import com.delivery.user.application.api.UserBlockStatusUseCase;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 import org.springframework.beans.factory.annotation.Value;
@@ -19,13 +20,13 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/internal/users")
 public class InternalUserBlockStatusController {
 
-    private final UserService userService;
+    private final UserBlockStatusUseCase userBlockStatusUseCase;
     private final String internalSecret;
 
     public InternalUserBlockStatusController(
-            UserService userService,
+            UserBlockStatusUseCase userBlockStatusUseCase,
             @Value("${app.internal.secret:}") String internalSecret) {
-        this.userService = userService;
+        this.userBlockStatusUseCase = userBlockStatusUseCase;
         this.internalSecret = internalSecret;
     }
 
@@ -43,11 +44,8 @@ public class InternalUserBlockStatusController {
                     .body(new BaseResponse<>(0, null, "Block reason is required"));
         }
 
-        if (request.blocked()) {
-            userService.blockUser(userId, request.adminId(), request.reason());
-        } else {
-            userService.unblockUser(userId, request.adminId());
-        }
+        userBlockStatusUseCase.update(new UpdateUserBlockStatusCommand(
+                userId, request.adminId(), request.blocked(), request.reason()));
         return ResponseEntity.ok(new BaseResponse<>(1, null, "User block status synchronized"));
     }
 
