@@ -1,10 +1,10 @@
 package com.delivery.match_service.service;
 
 import com.delivery.match_service.entity.DispatchPoolItem;
-import org.springframework.beans.factory.annotation.Qualifier;
+import com.delivery.routing.contracts.Coordinate;
+import com.delivery.routing.contracts.RouteRequest;
+import com.delivery.routing.contracts.RouteResponse;
 import org.springframework.stereotype.Service;
-import org.springframework.web.reactive.function.client.WebClient;
-import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -16,13 +16,13 @@ import java.util.concurrent.ConcurrentHashMap;
 /** Calls routing-service for bounded ETA ranking and falls back to geodesic locally. */
 @Service
 public class RoutingClient {
-    private final WebClient webClient;
+    private final com.delivery.routing.client.RoutingClient routingClient;
     private final Map<String, CachedLeg> legCache = new ConcurrentHashMap<>();
     private static final long LEG_CACHE_TTL_NANOS = Duration.ofSeconds(5).toNanos();
     private static final int MAX_CACHED_LEGS = 4096;
 
-    public RoutingClient(@Qualifier("routingServiceWebClient") WebClient webClient) {
-        this.webClient = webClient;
+    public RoutingClient(com.delivery.routing.client.RoutingClient routingClient) {
+        this.routingClient = routingClient;
     }
 
     public long estimateRouteSeconds(double originLat, double originLng, List<DispatchPoolItem> items) {
@@ -95,16 +95,12 @@ public class RoutingClient {
         }
         long duration = -1;
         try {
-            RoutingRouteResponse response = webClient.post()
-                    .uri("/internal/routing/v1/route")
-                    .bodyValue(new RoutingRouteRequest("driving-traffic",
-                            new Coordinate(originLat, originLng),
-                            new Coordinate(destinationLat, destinationLng), false))
-                    .retrieve()
-                    .bodyToMono(RoutingRouteResponse.class)
-                    .timeout(Duration.ofMillis(500))
-                    .onErrorResume(error -> Mono.empty())
-                    .block();
+            RouteResponse response = routingClient.getRoute(new RouteRequest(
+                    "driving-traffic",
+                    new Coordinate(originLat, originLng),
+                    new Coordinate(destinationLat, destinationLng),
+                    null,
+                    false));
             if (response != null && response.durationSeconds() >= 0) {
                 duration = response.durationSeconds();
             }
@@ -126,16 +122,6 @@ public class RoutingClient {
         return Math.max(1, Math.round(km / 0.35 * 3600.0));
     }
 
-    private record Coordinate(double lat, double lng) { }
-    private record RoutingRouteRequest(String profile, Coordinate origin, Coordinate destination,
-                                       java.time.Instant departureAt, boolean includeGeometry) {
-        private RoutingRouteRequest(String profile, Coordinate origin, Coordinate destination,
-                                    boolean includeGeometry) {
-            this(profile, origin, destination, null, includeGeometry);
-        }
-    }
-    private record RoutingRouteResponse(long durationSeconds, long distanceMeters,
-                                        String geometry, String source) { }
     private record LegResult(long durationSeconds) { }
     private record CachedLeg(long durationSeconds, long createdAtNanos) { }
 
