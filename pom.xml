@@ -31,6 +31,10 @@
         <module>modules/restaurant/restaurant-infrastructure</module>
         <module>modules/user/user-domain</module>
         <module>modules/user/user-application-api</module>
+        <module>modules/user/user-application</module>
+        <module>modules/user/user-infrastructure</module>
+        <module>modules/auth/auth-domain</module>
+        <module>modules/auth/auth-application-api</module>
         <module>auth-resource-server-starter</module>
         <module>discovery-server</module>
         <module>config-server</module>
