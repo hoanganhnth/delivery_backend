@@ -15,17 +15,16 @@ class MenuCatalogBoundaryTest {
     }
     @Test void publicPageUsesAvailableItems() {
         var service = mock(MenuItemService.class);
-        when(service.getItemsByRestaurantPage(anyLong(), anyInt(), anyInt(), anyBoolean()))
+        when(service.getAvailableItemsPage(anyLong(), anyInt(), anyInt()))
                 .thenReturn(Page.empty());
         new MenuItemController(service).getPage(1L, 0, 24);
-        verify(service).getItemsByRestaurantPage(1L, 0, 24, true);
+        verify(service).getAvailableItemsPage(1L, 0, 24);
     }
     @Test void ownerListMustNotUseLegacyOnlyQuery() {
         var service = mock(MenuItemService.class);
         when(service.getManagedItemsPage(null, 101L, 7L, "SHOP_OWNER", 0, 100)).thenReturn(Page.empty());
         new MenuItemController(service).getMyMenuItems(
                 new AuthenticatedActor(101L, 7L, "owner@test", Set.of("SHOP_OWNER")));
-        verify(service, never()).getMenuItemsByCreatorId(any());
         verify(service).getManagedItemsPage(null, 101L, 7L, "SHOP_OWNER", 0, 100);
     }
 }

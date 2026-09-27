@@ -1,6 +1,7 @@
 package com.delivery.restaurant_service.repository;
 
 import com.delivery.restaurant.application.DefaultCreateMenuItemUseCase;
+import com.delivery.restaurant.application.DefaultCatalogLifecycleDecisionUseCase;
 import com.delivery.restaurant.application.DefaultMenuItemManagementReadUseCase;
 import com.delivery.restaurant.application.DefaultMenuItemReadUseCase;
 import com.delivery.restaurant.application.DefaultRestaurantManagementAccessUseCase;
@@ -49,12 +50,13 @@ class MenuOwnershipIntegrationTest {
                 new JpaMenuItemReadAdapter(items, restaurants, accessUseCase));
         var managementReads = new DefaultMenuItemManagementReadUseCase(
                 new JpaMenuItemReadAdapter(items, restaurants, accessUseCase));
-        return new MenuItemServiceImpl(items, new MenuItemMapper(),
-                new RestaurantOwnershipPolicy(enforced), new CatalogLifecycleService(
+        return new MenuItemServiceImpl(new MenuItemMapper(),
+                new RestaurantOwnershipPolicy(enforced, accessUseCase), new CatalogLifecycleService(
                         restaurants, items, new RestaurantMapper(), new MenuItemMapper(),
                         mock(SearchSyncPublisher.class),
-                        new RestaurantOwnershipPolicy(enforced), new RestaurantLifecyclePolicy(),
-                        new MenuItemLifecyclePolicy(), audits, new SimpleMeterRegistry()),
+                        new RestaurantOwnershipPolicy(enforced, accessUseCase),
+                        new DefaultCatalogLifecycleDecisionUseCase(new RestaurantLifecyclePolicy(),
+                                new MenuItemLifecyclePolicy()), audits, new SimpleMeterRegistry()),
                 create, update, reads, managementReads);
     }
     private MenuItem seed(Long principal, long legacy, MenuItem.Status status) {

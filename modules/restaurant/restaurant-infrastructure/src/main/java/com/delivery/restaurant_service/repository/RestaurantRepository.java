@@ -35,11 +35,6 @@ public interface RestaurantRepository extends JpaRepository<Restaurant, Long> {
 
     Page<Restaurant> findByLifecycleStatusNot(RestaurantStatus lifecycleStatus, Pageable pageable);
 
-    /**
-     * Tìm danh sách nhà hàng được tạo bởi một người dùng cụ thể (theo creatorId).
-     */
-    Page<Restaurant> findByCreatorId(Long creatorId, Pageable pageable);
-
     Page<Restaurant> findByOwnerPrincipalId(Long ownerPrincipalId, Pageable pageable);
 
     @org.springframework.data.jpa.repository.Query("select r from Restaurant r where r.ownerPrincipalId = :principalId "

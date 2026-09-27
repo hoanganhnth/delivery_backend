@@ -8,6 +8,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.test.util.ReflectionTestUtils;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -24,17 +25,17 @@ class InternalRestaurantControllerAuthorizationTest {
 
     @BeforeEach
     void setUp() {
-        controller = new InternalRestaurantController(restaurantRepository);
+        controller = new InternalRestaurantController(restaurantRepository, new SimpleMeterRegistry());
         ReflectionTestUtils.setField(controller, "internalSecret", "test-secret");
     }
 
     @Test
     void missingOrWrongCredentialIsRejectedBeforeRepositoryAccess() {
         assertEquals(HttpStatus.FORBIDDEN,
-                controller.isOwnedBy(7L, 11L, null).getStatusCode());
-        assertEquals(0, controller.isOwnedBy(7L, 11L, null).getBody().getStatus());
+                controller.isOwnedBy(7L, 11L, null, null).getStatusCode());
+        assertEquals(0, controller.isOwnedBy(7L, 11L, null, null).getBody().getStatus());
         assertEquals(HttpStatus.FORBIDDEN,
-                controller.isOwnedBy(7L, 11L, "wrong").getStatusCode());
+                controller.isOwnedBy(7L, 11L, null, "wrong").getStatusCode());
         verifyNoInteractions(restaurantRepository);
     }
 
@@ -42,7 +43,7 @@ class InternalRestaurantControllerAuthorizationTest {
     void matchingCredentialReturnsRepositoryOwnership() {
         when(restaurantRepository.existsByIdAndCreatorId(7L, 11L)).thenReturn(true);
 
-        var response = controller.isOwnedBy(7L, 11L, "test-secret");
+        var response = controller.isOwnedBy(7L, 11L, null, "test-secret");
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals(1, response.getBody().getStatus());

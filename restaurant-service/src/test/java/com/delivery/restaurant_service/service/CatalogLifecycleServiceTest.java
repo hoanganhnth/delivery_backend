@@ -8,10 +8,10 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.delivery.restaurant.domain.catalog.MenuItemLifecyclePolicy;
 import com.delivery.restaurant.domain.catalog.MenuItemStatus;
-import com.delivery.restaurant.domain.catalog.RestaurantLifecyclePolicy;
 import com.delivery.restaurant.domain.catalog.RestaurantStatus;
+import com.delivery.restaurant.application.DefaultCatalogLifecycleDecisionUseCase;
+import com.delivery.restaurant.application.DefaultRestaurantManagementAccessUseCase;
 import com.delivery.restaurant_service.dto.request.MenuItemLifecycleRequest;
 import com.delivery.restaurant_service.dto.request.RestaurantLifecycleRequest;
 import com.delivery.restaurant_service.dto.response.MenuItemResponse;
@@ -54,8 +54,12 @@ class CatalogLifecycleServiceTest {
     void setUp() {
         service = new CatalogLifecycleService(
                 restaurantRepository, menuItemRepository, restaurantMapper, menuItemMapper,
-                searchSyncPublisher, new RestaurantOwnershipPolicy(false),
-                new RestaurantLifecyclePolicy(), new MenuItemLifecyclePolicy(), auditRepository,
+                searchSyncPublisher, new RestaurantOwnershipPolicy(false,
+                        new DefaultRestaurantManagementAccessUseCase()),
+                new DefaultCatalogLifecycleDecisionUseCase(
+                        new com.delivery.restaurant.domain.catalog.RestaurantLifecyclePolicy(),
+                        new com.delivery.restaurant.domain.catalog.MenuItemLifecyclePolicy()),
+                auditRepository,
                 new SimpleMeterRegistry());
         restaurant = new Restaurant();
         restaurant.setId(10L);

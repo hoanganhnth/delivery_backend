@@ -17,10 +17,8 @@ import com.delivery.restaurant_service.dto.request.CreateRestaurantRequest;
 import com.delivery.restaurant_service.dto.request.RestaurantLifecycleRequest;
 import com.delivery.restaurant_service.dto.request.UpdateRestaurantRequest;
 import com.delivery.restaurant_service.dto.response.RestaurantResponse;
-import com.delivery.restaurant_service.entity.Restaurant;
 import com.delivery.restaurant_service.exception.ResourceNotFoundException;
 import com.delivery.restaurant_service.mapper.RestaurantMapper;
-import com.delivery.restaurant_service.repository.RestaurantRepository;
 import com.delivery.restaurant_service.service.RestaurantService;
 import com.delivery.restaurant_service.service.ownership.RestaurantOwnershipPolicy;
 import io.micrometer.core.instrument.Counter;
@@ -40,8 +38,6 @@ import org.springframework.stereotype.Service;
 @Slf4j
 public class RestaurantServiceImpl implements RestaurantService {
 
-    // Kept for the characterized creator-id compatibility query.
-    private final RestaurantRepository restaurantRepository;
     private final RestaurantMapper restaurantMapper;
     private final MeterRegistry meterRegistry;
     private final RestaurantOwnershipPolicy restaurantOwnershipPolicy;
@@ -53,24 +49,12 @@ public class RestaurantServiceImpl implements RestaurantService {
 
     @Override
     public RestaurantResponse createRestaurant(CreateRestaurantRequest request,
-            Long creatorId, String role) {
-        return createRestaurant(request, creatorId, creatorId, role);
-    }
-
-    @Override
-    public RestaurantResponse createRestaurant(CreateRestaurantRequest request,
             Long actorPrincipalId, Long creatorId, String role) {
         var command = new CreateRestaurantCommand(actorPrincipalId, creatorId, actorRole(role),
                 request.getOwnerPrincipalId(), request.getName(), request.getAddress(), request.getPhone(),
                 request.getOpeningHour(), request.getClosingHour(), request.getDefaultPrepTimeMinutes(),
                 request.getImage(), request.getAddressLat(), request.getAddressLng(), request.getDescription());
         return restaurantMapper.toResponse(createRestaurantUseCase.create(command));
-    }
-
-    @Override
-    public RestaurantResponse updateRestaurant(Long id, UpdateRestaurantRequest request,
-            Long creatorId, String role) {
-        return updateRestaurant(id, request, creatorId, creatorId, role);
     }
 
     @Override
@@ -93,11 +77,6 @@ public class RestaurantServiceImpl implements RestaurantService {
             identityLegacyFallback("owner_manage");
         }
         return restaurantMapper.toResponse(result.snapshot());
-    }
-
-    @Override
-    public void deleteRestaurant(Long id, Long creatorId, String role) {
-        deleteRestaurant(id, creatorId, creatorId, role);
     }
 
     @Override
@@ -142,15 +121,6 @@ public class RestaurantServiceImpl implements RestaurantService {
     @Override
     public List<RestaurantResponse> findByName(String keyword) {
         return restaurantReadUseCase.searchPublic(keyword).stream()
-                .map(restaurantMapper::toResponse)
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    public List<RestaurantResponse> getRestaurantsByCreatorId(Long creatorId) {
-        List<Restaurant> restaurants = restaurantRepository.findByCreatorId(
-                creatorId, PageRequest.of(0, 100)).getContent();
-        return restaurants.stream()
                 .map(restaurantMapper::toResponse)
                 .collect(Collectors.toList());
     }

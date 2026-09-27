@@ -5,9 +5,7 @@ import com.delivery.restaurant.application.DefaultCatalogLifecycleDecisionUseCas
 import com.delivery.restaurant.application.api.CatalogLifecycleDecisionUseCase;
 import com.delivery.restaurant.domain.catalog.CatalogActorRole;
 import com.delivery.restaurant.domain.catalog.CatalogDomainException;
-import com.delivery.restaurant.domain.catalog.MenuItemLifecyclePolicy;
 import com.delivery.restaurant.domain.catalog.MenuItemStatus;
-import com.delivery.restaurant.domain.catalog.RestaurantLifecyclePolicy;
 import com.delivery.restaurant.domain.catalog.RestaurantStatus;
 import com.delivery.restaurant_service.common.constants.RoleConstants;
 import com.delivery.restaurant_service.dto.request.MenuItemLifecycleRequest;
@@ -66,24 +64,6 @@ public class CatalogLifecycleService {
         this.lifecycleDecisionUseCase = lifecycleDecisionUseCase;
         this.auditRepository = auditRepository;
         this.meterRegistry = meterRegistry;
-    }
-
-    /** Transitional constructor retained for host unit tests during application wiring migration. */
-    public CatalogLifecycleService(
-            RestaurantRepository restaurantRepository,
-            MenuItemRepository menuItemRepository,
-            RestaurantMapper restaurantMapper,
-            MenuItemMapper menuItemMapper,
-            SearchSyncPublisher searchSyncPublisher,
-            RestaurantOwnershipPolicy ownershipPolicy,
-            RestaurantLifecyclePolicy restaurantPolicy,
-            MenuItemLifecyclePolicy menuItemPolicy,
-            CatalogLifecycleAuditRepository auditRepository,
-            MeterRegistry meterRegistry) {
-        this(restaurantRepository, menuItemRepository, restaurantMapper, menuItemMapper,
-                searchSyncPublisher, ownershipPolicy,
-                new DefaultCatalogLifecycleDecisionUseCase(restaurantPolicy, menuItemPolicy),
-                auditRepository, meterRegistry);
     }
 
     @Transactional

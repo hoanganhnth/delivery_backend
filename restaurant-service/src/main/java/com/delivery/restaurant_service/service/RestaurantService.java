@@ -11,21 +11,13 @@ import org.springframework.data.domain.Page;
 public interface RestaurantService {
 
     RestaurantResponse createRestaurant(CreateRestaurantRequest restaurant,
-                                        Long creatorId,
-                                        String role);
-    RestaurantResponse createRestaurant(CreateRestaurantRequest restaurant,
                                         Long actorPrincipalId,
                                         Long legacyCreatorId,
                                         String role);
 
-    RestaurantResponse updateRestaurant(Long id,
-                                        UpdateRestaurantRequest restaurant,
-                                        Long creatorId,
-                                        String role);
     RestaurantResponse updateRestaurant(Long id, UpdateRestaurantRequest restaurant,
                                         Long ownerPrincipalId, Long legacyCreatorId, String role);
 
-    void deleteRestaurant(Long id, Long creatorId, String role);
     void deleteRestaurant(Long id, Long ownerPrincipalId, Long legacyCreatorId, String role);
 
     RestaurantResponse changeLifecycle(Long id, RestaurantLifecycleRequest request,
@@ -38,7 +30,6 @@ public interface RestaurantService {
 
     List<RestaurantResponse> findByName(String keyword);
     
-    List<RestaurantResponse> getRestaurantsByCreatorId(Long creatorId);
     List<RestaurantResponse> getRestaurantsByOwnerPrincipalId(Long ownerPrincipalId, Long legacyCreatorId);
     Page<RestaurantResponse> getAllRestaurantsPage(int page, int size, String keyword);
 }
