@@ -28,6 +28,19 @@ public final class WebSession {
         this.encryptionKeyVersion = encryptionKeyVersion; this.principalId = principalId; this.email = email; this.role = role;
         this.csrfHash = csrfHash; this.generation = generation; this.expiresAt = expiresAt; this.createdAt = createdAt; this.updatedAt = createdAt;
     }
+
+    /** Rehydrates state owned by the persistence adapter without exposing ORM concerns to the domain. */
+    public static WebSession rehydrate(String sessionHash, String accessTokenCipher, String refreshTokenCipher,
+            String encryptionKeyVersion, long principalId, String email, String role, String csrfHash,
+            long generation, Instant expiresAt, Instant createdAt, Instant revokedAt,
+            Instant refreshClaimedUntil, Instant updatedAt) {
+        WebSession session = new WebSession(sessionHash, accessTokenCipher, refreshTokenCipher, encryptionKeyVersion,
+                principalId, email, role, csrfHash, generation, expiresAt, createdAt);
+        session.revokedAt = revokedAt;
+        session.refreshClaimedUntil = refreshClaimedUntil;
+        session.updatedAt = updatedAt == null ? createdAt : updatedAt;
+        return session;
+    }
     public String sessionHash() { return sessionHash; }
     public String accessTokenCipher() { return accessTokenCipher; }
     public String refreshTokenCipher() { return refreshTokenCipher; }
@@ -39,6 +52,7 @@ public final class WebSession {
     public long generation() { return generation; }
     public Instant expiresAt() { return expiresAt; }
     public Instant createdAt() { return createdAt; }
+    public Instant updatedAt() { return updatedAt; }
     public Instant revokedAt() { return revokedAt; }
     public Instant refreshClaimedUntil() { return refreshClaimedUntil; }
     public boolean isActive(Instant now) { return revokedAt == null && expiresAt.isAfter(now); }
