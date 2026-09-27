@@ -848,3 +848,40 @@ The complete order-service reactor then passed 161 tests with zero
 failures/errors and three expected Docker/Testcontainers skips. No routing
 retry or ETA fallback was added; the existing caller-owned policy remains
 intact.
+
+### Task 7 — Adopt routing-client in Match dispatch routing (2026-09-27)
+
+`match-service` now imports the BOM-managed `routing-client` dependency and
+wires a lazy platform `com.delivery.routing.client.RoutingClient` bean from
+`routing.service.url` and `app.internal.secret`. Its HTTP request factory keeps
+the Match caller deadline at 500 ms. The local Match `RoutingClient` remains
+the policy owner: it sends typed `RouteRequest` values with
+`com.delivery.routing.contracts.Coordinate`, reads `RouteResponse`, and keeps
+the existing 5-second leg cache, geodesic fallback on any routing failure,
+permutation ranking, and saturating duration addition. The private duplicate
+wire records and legacy routing WebClient bean were removed.
+
+Focused proof: `mvn -B -pl :match-service -am
+-Dtest='RoutingClientTest,RoutingClientConfigTest,MatchServiceApplicationTests'
+-Dsurefire.failIfNoSpecifiedTests=false test` passed with 5 match-service
+tests and zero failures/errors/skips. The narrower routing policy selection
+passed 4 tests with zero failures/errors/skips. `git diff --check` passes, and
+scans found no private routing wire records or legacy routing WebClient bean
+references. A complete match-service reactor test run reached 105 tests with
+zero failures, one error and 17 skips; the sole error was the existing
+`MatchReadinessDependencyTest` unable to bind its embedded Tomcat server in
+the restricted sandbox (`java.net.SocketException: Operation not permitted`),
+not a routing-client or application-context error.
+
+### Task 8 — Extract order and delivery event contracts (2026-09-27)
+
+Added the immutable `delivery-contracts` and `order-contracts` modules under
+`com.delivery`, inheriting `delivery-build-parent` at version
+`1.0.0-SNAPSHOT`. Each module contains only Java records for the shared
+delivery/order lifecycle wire types and Jackson round-trip tests for every
+record. The records preserve the union of fields found in the existing
+service-local event DTOs; no service implementation or platform BOM was
+changed.
+
+Validation: focused Maven tests for both modules passed with zero failures and
+zero errors. `git diff --check` passed.

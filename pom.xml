@@ -19,6 +19,8 @@
         <module>identity-contracts</module>
         <module>search-contracts</module>
         <module>routing-contracts</module>
+        <module>delivery-contracts</module>
+        <module>order-contracts</module>
         <module>clients/identity-client</module>
         <module>clients/routing-client</module>
         <module>modules/restaurant/restaurant-domain</module>

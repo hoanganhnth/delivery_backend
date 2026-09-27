@@ -21,16 +21,13 @@ public class WebClientConfig {
     public WebClientConfig(SettlementCallResilienceProperties resilienceProperties) {
         this.resilienceProperties = resilienceProperties;
     }
-    
+
     @Value("${settlement.service.url}")
     private String settlementServiceUrl;
 
     @Value("${app.internal.secret:}")
     private String internalSecret;
 
-    @Value("${routing.service.url:http://routing-service:8094}")
-    private String routingServiceUrl;
-    
     @Bean
     @LoadBalanced
     @Qualifier("settlementServiceWebClientBuilder")
@@ -50,12 +47,4 @@ public class WebClientConfig {
                 .build();
     }
 
-    @Bean
-    @Qualifier("routingServiceWebClient")
-    public WebClient routingServiceWebClient() {
-        return WebClient.builder()
-                .baseUrl(routingServiceUrl)
-                .defaultHeader("Internal-Token", internalSecret)
-                .build();
-    }
 }
