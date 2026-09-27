@@ -45,7 +45,7 @@ public class DeliveryEventListener {
                     multiplierExpression = "${app.kafka.retry.multiplier:2.0}",
                     maxDelayExpression = "${app.kafka.retry.max-delay-ms:10000}"),
             exclude = {IllegalArgumentException.class, NotificationConflictException.class},
-            kafkaTemplate = "retryKafkaTemplate",
+            kafkaTemplate = "commonKafkaTemplate",
             autoCreateTopics = "${app.kafka.retry.auto-create-topics:false}",
             // delivery.status-updated is shared with Saga; notifications need
             // their own retry group and destinations.

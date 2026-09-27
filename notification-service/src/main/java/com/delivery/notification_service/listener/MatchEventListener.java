@@ -1,8 +1,8 @@
 package com.delivery.notification_service.listener;
 
-import com.delivery.notification_service.dto.event.ShipperFoundEvent;
 import com.delivery.notification_service.exception.NotificationConflictException;
 import com.delivery.notification_service.service.NotificationService;
+import com.delivery.delivery.contracts.ShipperFoundEvent;
 import com.delivery.identity.contracts.SimulationContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -11,25 +11,19 @@ import org.springframework.retry.annotation.Backoff;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.messaging.handler.annotation.Header;
-import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Component;
 
 /**
- * ✅ Match Event Listener để nhận events từ Match Service theo Backend Instructions
- * Simplified: Chỉ listen ShipperFoundEvent duy nhất cho dễ quản lý
+ * Consumes the shared immutable persisted-shipper-offer contract.
  */
 @Slf4j
 @Component
 public class MatchEventListener {
 
     private final NotificationService notificationService;
-    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
 
     public MatchEventListener(NotificationService notificationService) {
         this.notificationService = notificationService;
-        this.objectMapper = new com.fasterxml.jackson.databind.ObjectMapper()
-                .registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule())
-                .configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     }
 
     /**
@@ -41,74 +35,72 @@ public class MatchEventListener {
                     multiplierExpression = "${app.kafka.retry.multiplier:2.0}",
                     maxDelayExpression = "${app.kafka.retry.max-delay-ms:10000}"),
             exclude = {IllegalArgumentException.class, NotificationConflictException.class},
-            kafkaTemplate = "retryKafkaTemplate",
+            kafkaTemplate = "commonKafkaTemplate",
             autoCreateTopics = "${app.kafka.retry.auto-create-topics:false}",
             retryTopicSuffix = "-retry-notification",
             dltTopicSuffix = ".notification.DLT")
     @KafkaListener(topics = "${app.kafka.topics.shipper-offered:delivery.shipper-offered}")
     public void handleShipperFoundEvent(
-            String message,
+            ShipperFoundEvent event,
             @Header(KafkaHeaders.RECEIVED_TOPIC) String topic,
             @Header(KafkaHeaders.RECEIVED_PARTITION) Integer partition,
             @Header(KafkaHeaders.RECEIVED_TIMESTAMP) Long timestamp,
             Acknowledgment acknowledgment) {
 
         try {
-            ShipperFoundEvent event = objectMapper.readValue(message, ShipperFoundEvent.class);
-
-            if (event.getAvailableShippers() == null || event.getAvailableShippers().size() != 1) {
+            if (event == null || event.availableShippers() == null || event.availableShippers().size() != 1) {
                 throw new IllegalArgumentException("Invalid single-shipper offer for delivery: "
-                        + event.getDeliveryId());
+                        + (event == null ? null : event.deliveryId()));
             }
-            if (event.getEventId() == null || event.getEventId().isBlank()) {
+            if (event.eventId() == null) {
                 throw new IllegalArgumentException("Persisted shipper offer is missing eventId");
             }
-            if (event.getDeliveryId() == null || event.getDeliveryId() <= 0
-                    || event.getOrderId() == null || event.getOrderId() <= 0) {
+            if (event.deliveryId() == null || event.deliveryId() <= 0
+                    || event.orderId() == null || event.orderId() <= 0) {
                 throw new IllegalArgumentException("Persisted shipper offer requires positive delivery/order IDs");
             }
-            if (!hasText(event.getRestaurantName()) || !hasText(event.getPickupAddress())
-                    || !hasText(event.getDeliveryAddress())) {
+            if (!hasText(event.restaurantName()) || !hasText(event.pickupAddress())
+                    || !hasText(event.deliveryAddress())) {
                 throw new IllegalArgumentException(
                         "Persisted shipper offer requires canonical restaurant and address text");
             }
-            ShipperFoundEvent.ShipperMatchResult selected = event.getAvailableShippers().get(0);
-            if (selected.getShipperId() == null || selected.getShipperId() <= 0
-                    || selected.getDistanceKm() == null || !Double.isFinite(selected.getDistanceKm())
-                    || selected.getDistanceKm() < 0) {
+            ShipperFoundEvent.ShipperMatchResult selected = event.availableShippers().get(0);
+            if (selected.shipperId() == null || selected.shipperId() <= 0
+                    || selected.distanceKm() == null || !Double.isFinite(selected.distanceKm())
+                    || selected.distanceKm() < 0) {
                 throw new IllegalArgumentException("Persisted shipper offer has invalid shipper/distance identity");
             }
 
-            SimulationContext context = SimulationContext.orReal(event.getSimulationContext());
+            SimulationContext context = SimulationContext.orReal(event.simulationContext());
             context.requireValid();
             if (context.isSimulation()) {
                 log.info("Skipping external shipper notification for simulation run {} delivery {}",
-                        context.runId(), event.getDeliveryId());
+                        context.runId(), event.deliveryId());
                 acknowledgment.acknowledge();
                 return;
             }
 
             log.info("📥 Received persisted shipper offer from topic '{}': deliveryId={}, orderId={}",
-                    topic, event.getDeliveryId(), event.getOrderId());
+                    topic, event.deliveryId(), event.orderId());
 
             // The persisted-offer contract contains exactly one shipper.
-            for (ShipperFoundEvent.ShipperMatchResult shipper : event.getAvailableShippers()) {
+            for (ShipperFoundEvent.ShipperMatchResult shipper : event.availableShippers()) {
                 notificationService.sendShipperMatchFoundNotification(
-                            shipper.getShipperId(),
-                            event.getOrderId(),
-                            event.getRestaurantName(),
-                            event.getPickupAddress(),
-                            event.getDeliveryAddress(),
-                            shipper.getDistanceKm(),
-                            event.getEventId()
+                            shipper.shipperId(),
+                            event.orderId(),
+                            event.restaurantName(),
+                            event.pickupAddress(),
+                            event.deliveryAddress(),
+                            shipper.distanceKm(),
+                            event.eventId().toString()
                     );
 
                 log.info("✅ Sent notification to shipper: {} for order: {} (distance: {}km)",
-                        shipper.getShipperId(), event.getOrderId(), shipper.getDistanceKm());
+                        shipper.shipperId(), event.orderId(), shipper.distanceKm());
             }
 
             log.info("✅ Successfully processed ShipperFoundEvent for delivery: {} - notified {} shippers", 
-                    event.getDeliveryId(), event.getAvailableShippers().size());
+                    event.deliveryId(), event.availableShippers().size());
 
             acknowledgment.acknowledge();
 

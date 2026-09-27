@@ -46,7 +46,7 @@ class KafkaListenerTopicConfigurationTest {
         assertThat(retry.autoCreateTopics()).isEqualTo("${app.kafka.retry.auto-create-topics:false}");
         assertThat(retry.exclude()).containsExactly(
                 IllegalArgumentException.class, NotificationConflictException.class);
-        assertThat(retry.kafkaTemplate()).isEqualTo("retryKafkaTemplate");
+        assertThat(retry.kafkaTemplate()).isEqualTo("commonKafkaTemplate");
         assertThat(retry.retryTopicSuffix()).isEqualTo("-retry-notification");
         assertThat(retry.dltTopicSuffix()).isEqualTo(".notification.DLT");
     }
