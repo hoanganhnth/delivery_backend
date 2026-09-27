@@ -7,6 +7,10 @@ import com.delivery.order_service.dto.response.CheckoutPreviewResponse.PriceChan
 import com.delivery.order_service.exception.OrderDependencyUnavailableException;
 import com.delivery.order_service.exception.ValidationException;
 import com.delivery.order_service.config.OrderRestaurantCircuitBreaker;
+import com.delivery.routing.client.RoutingClient;
+import com.delivery.routing.contracts.Coordinate;
+import com.delivery.routing.contracts.EtaWindowRequest;
+import com.delivery.routing.contracts.EtaWindowResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
@@ -32,6 +36,7 @@ public class CheckoutPreviewService {
     private final String internalSecret;
     private final OrderRestaurantCircuitBreaker restaurantCircuitBreaker;
     private final VoucherCheckoutCapability voucherCheckoutCapability;
+    private final RoutingClient routingClient;
     @Autowired(required = false)
     private CheckoutReservationClient reservationClient;
     @Autowired(required = false)
@@ -40,7 +45,6 @@ public class CheckoutPreviewService {
     @Value("${app.order.flashsale-checkout-enabled:false}") private boolean flashSaleCheckoutEnabled;
     @Value("${app.order.serviceability-enforcement-enabled:false}") private boolean serviceabilityEnforcementEnabled;
     @Value("${app.order.eta-window-enabled:false}") private boolean etaWindowEnabled;
-    @Value("${routing.service.url:http://routing-service}") private String routingServiceUrl;
 
     @Autowired
     public CheckoutPreviewService(WebClient webClient,
@@ -48,13 +52,15 @@ public class CheckoutPreviewService {
                                   @Value("${restaurant.service.url}") String restaurantServiceUrl,
                                   @Value("${app.internal.secret:}") String internalSecret,
                                   OrderRestaurantCircuitBreaker restaurantCircuitBreaker,
-                                  VoucherCheckoutCapability voucherCheckoutCapability) {
+                                  VoucherCheckoutCapability voucherCheckoutCapability,
+                                  RoutingClient routingClient) {
         this.webClient = webClient;
         this.shippingFeeService = shippingFeeService;
         this.restaurantServiceUrl = restaurantServiceUrl;
         this.internalSecret = internalSecret;
         this.restaurantCircuitBreaker = restaurantCircuitBreaker;
         this.voucherCheckoutCapability = voucherCheckoutCapability;
+        this.routingClient = routingClient;
     }
 
     /** Source-compatible constructor for focused legacy tests/callers. */
@@ -64,7 +70,29 @@ public class CheckoutPreviewService {
                                   String internalSecret,
                                   OrderRestaurantCircuitBreaker restaurantCircuitBreaker) {
         this(webClient, shippingFeeService, restaurantServiceUrl, internalSecret,
-                restaurantCircuitBreaker, new VoucherCheckoutCapability(false, ""));
+                restaurantCircuitBreaker, new VoucherCheckoutCapability(false, ""), null);
+    }
+
+    /** Source-compatible constructor for focused tests that exercise ETA fetching. */
+    public CheckoutPreviewService(WebClient webClient,
+                                  ShippingFeeCalculationService shippingFeeService,
+                                  String restaurantServiceUrl,
+                                  String internalSecret,
+                                  OrderRestaurantCircuitBreaker restaurantCircuitBreaker,
+                                  RoutingClient routingClient) {
+        this(webClient, shippingFeeService, restaurantServiceUrl, internalSecret,
+                restaurantCircuitBreaker, new VoucherCheckoutCapability(false, ""), routingClient);
+    }
+
+    /** Source-compatible constructor for tests that enable voucher capability explicitly. */
+    public CheckoutPreviewService(WebClient webClient,
+                                  ShippingFeeCalculationService shippingFeeService,
+                                  String restaurantServiceUrl,
+                                  String internalSecret,
+                                  OrderRestaurantCircuitBreaker restaurantCircuitBreaker,
+                                  VoucherCheckoutCapability voucherCheckoutCapability) {
+        this(webClient, shippingFeeService, restaurantServiceUrl, internalSecret,
+                restaurantCircuitBreaker, voucherCheckoutCapability, null);
     }
 
     /**
@@ -329,7 +357,6 @@ public class CheckoutPreviewService {
         return reservationClient.quoteVoucher(userId, principalId, voucherId, restaurantId, subtotal, shippingFee);
     }
 
-    @SuppressWarnings("unchecked")
     private EtaWindow fetchEtaWindow(double pickupLat, double pickupLng,
                                      double deliveryLat, double deliveryLng,
                                      int prepMinutes) {
@@ -338,22 +365,15 @@ public class CheckoutPreviewService {
                     "Order/routing internal credential chưa được cấu hình", null, 30);
         }
         try {
-            Map<String, Object> response = webClient.post()
-                    .uri(routingServiceUrl + "/internal/routing/v1/eta-window")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .header("Internal-Token", internalSecret)
-                    .bodyValue(Map.of(
-                            "origin", Map.of("lat", pickupLat, "lng", pickupLng),
-                            "destination", Map.of("lat", deliveryLat, "lng", deliveryLng),
-                            "prepMinutes", prepMinutes))
-                    .retrieve()
-                    .bodyToMono(Map.class)
-                    .block();
+            EtaWindowResponse response = routingClient.getEtaWindow(new EtaWindowRequest(
+                    new Coordinate(pickupLat, pickupLng),
+                    new Coordinate(deliveryLat, deliveryLng),
+                    prepMinutes));
             if (response == null) throw new IllegalStateException("empty ETA response");
-            Integer min = getIntegerValue(response.get("minMinutes"));
-            Integer max = getIntegerValue(response.get("maxMinutes"));
-            String source = getStringValue(response.get("source"));
-            if (min == null || max == null || min < 1 || max < min || source == null || source.isBlank()) {
+            int min = response.minMinutes();
+            int max = response.maxMinutes();
+            String source = response.source();
+            if (min < 1 || max < min || source == null || source.isBlank()) {
                 throw new IllegalStateException("invalid ETA response");
             }
             return new EtaWindow(min, max, source);

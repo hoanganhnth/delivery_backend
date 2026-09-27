@@ -822,3 +822,29 @@ Restaurant reactor verify then passed with zero failures/errors/skips: 245 host
 tests, 61 restaurant-application tests, 25 restaurant-domain tests and 10
 restaurant-infrastructure tests; all reactor modules packaged and the
 application/domain coverage gates remained green.
+
+### Task 6 — Adopt routing-client in Order checkout preview (2026-09-27)
+
+`order-service` now imports the BOM-managed `routing-client` dependency and
+wires a lazy `HttpRoutingClient` bean from `routing.service.url` and
+`app.internal.secret`. The bean keeps the existing Order HTTP connect/read
+timeouts and leaves retry/fallback decisions in `CheckoutPreviewService`.
+`CheckoutPreviewService` now sends typed `EtaWindowRequest` coordinates and
+prep minutes through `RoutingClient.getEtaWindow`, validates the typed response,
+and preserves the existing feature-flag-off response shape plus the
+`routing-service` `OrderDependencyUnavailableException` with a 30-second
+`Retry-After` policy on failures. Restaurant validation remains on its existing
+WebClient boundary.
+
+Focused proof: `mvn -B -pl :order-service -am
+-Dtest=CheckoutPreviewMvpPolicyTest -Dsurefire.failIfNoSpecifiedTests=false
+test` passed with 16 tests, zero failures/errors/skips. The checkout-focused
+suite (`-Dtest='*Checkout*Test'`) passed with 34 tests, zero
+failures/errors/skips. `OrderServiceApplicationTests` passed with 1 test and
+zero failures/errors/skips, proving the lazy routing bean does not change the
+default-off application startup. The dependency reactor resolved
+`com.delivery:routing-client:1.0.0-SNAPSHOT` through `delivery-platform-bom`.
+The complete order-service reactor then passed 161 tests with zero
+failures/errors and three expected Docker/Testcontainers skips. No routing
+retry or ETA fallback was added; the existing caller-owned policy remains
+intact.

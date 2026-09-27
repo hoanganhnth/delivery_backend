@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -11,7 +12,6 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
@@ -21,9 +21,16 @@ import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import com.delivery.order_service.dto.request.CheckoutPreviewRequest;
+import com.delivery.order_service.exception.OrderDependencyUnavailableException;
 import com.delivery.order_service.exception.ValidationException;
 import com.delivery.order_service.config.OrderRestaurantCircuitBreaker;
 import com.delivery.order_service.config.RestaurantCallResilienceProperties;
+import com.delivery.routing.client.RoutingClient;
+import com.delivery.routing.client.RoutingClientException;
+import com.delivery.routing.client.RoutingClientFailure;
+import com.delivery.routing.contracts.Coordinate;
+import com.delivery.routing.contracts.EtaWindowRequest;
+import com.delivery.routing.contracts.EtaWindowResponse;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 import reactor.core.publisher.Mono;
@@ -331,48 +338,67 @@ class CheckoutPreviewMvpPolicyTest {
     }
 
     @Test
-    void enabledEtaWindowUsesDrivingContractAndPrepEstimate() {
+    void enabledEtaWindowUsesTypedRoutingClientAndPrepEstimate() {
         ShippingFeeCalculationService shippingFeeService = mock(ShippingFeeCalculationService.class);
         when(shippingFeeService.calculateShippingFee(
                 10.76, 106.66, 10.78, 106.68, new BigDecimal("100000")))
                 .thenReturn(new BigDecimal("15000"));
-        AtomicInteger calls = new AtomicInteger();
-        WebClient webClient = WebClient.builder().exchangeFunction(request -> {
-            assertThat(request.headers().getFirst("Internal-Token")).isEqualTo("test-secret");
-            if (calls.getAndIncrement() == 0) {
-                assertThat(request.method()).isEqualTo(HttpMethod.POST);
-                assertThat(request.url().toString()).endsWith("/api/restaurants/validate/order");
-                return Mono.just(ClientResponse.create(HttpStatus.OK)
-                        .header("Content-Type", "application/json")
-                        .body("""
-                                {"status":1,"data":{"restaurantInfo":{
-                                  "restaurantName":"Quán A","latitude":10.76,"longitude":106.66,
-                                  "isAvailable":true,"serviceabilityEnabled":true,"serviceable":true,
-                                  "serviceabilityZoneId":9,"serviceabilityZoneRevision":2,
-                                  "defaultPrepTimeMinutes":15},
-                                  "itemValidations":[{"menuItemId":5,"menuItemName":"Cơm",
-                                  "actualPrice":50000,"isAvailable":true,"hasEnoughStock":true}]}}
-                                """)
-                        .build());
-            }
-            assertThat(request.url().toString()).endsWith("/internal/routing/v1/eta-window");
-            return Mono.just(ClientResponse.create(HttpStatus.OK)
-                    .header("Content-Type", "application/json")
-                    .body("{\"minMinutes\":27,\"maxMinutes\":37,\"source\":\"MAPBOX_DIRECTIONS\"}")
-                    .build());
-        }).build();
+        RoutingClient routingClient = mock(RoutingClient.class);
+        when(routingClient.getEtaWindow(new EtaWindowRequest(
+                new Coordinate(10.76, 106.66), new Coordinate(10.78, 106.68), 15)))
+                .thenReturn(new EtaWindowResponse(27, 37, "MAPBOX_DIRECTIONS"));
+        WebClient webClient = internalValidationWebClient("""
+                {"status":1,"data":{"restaurantInfo":{
+                  "restaurantName":"Quán A","latitude":10.76,"longitude":106.66,
+                  "isAvailable":true,"serviceabilityEnabled":true,"serviceable":true,
+                  "serviceabilityZoneId":9,"serviceabilityZoneRevision":2,
+                  "defaultPrepTimeMinutes":15},
+                  "itemValidations":[{"menuItemId":5,"menuItemName":"Cơm",
+                  "actualPrice":50000,"isAvailable":true,"hasEnoughStock":true}]}}
+                """);
         CheckoutPreviewService service = new CheckoutPreviewService(
                 webClient, shippingFeeService, "http://restaurant-service:8083",
-                "test-secret", circuitBreaker());
+                "test-secret", circuitBreaker(), routingClient);
         ReflectionTestUtils.setField(service, "etaWindowEnabled", true);
-        ReflectionTestUtils.setField(service, "routingServiceUrl", "http://routing-service:8094");
 
         var preview = service.calculatePreview(validRequest(), 21L);
 
+        verify(routingClient).getEtaWindow(new EtaWindowRequest(
+                new Coordinate(10.76, 106.66), new Coordinate(10.78, 106.68), 15));
         assertThat(preview.getEtaMinMinutes()).isEqualTo(27);
         assertThat(preview.getEtaMaxMinutes()).isEqualTo(37);
         assertThat(preview.getEtaSource()).isEqualTo("MAPBOX_DIRECTIONS");
         assertThat(preview.getServiceabilityZoneId()).isNull();
+    }
+
+    @Test
+    void routingFailureRemainsRetryableWithoutAnEtaFallback() {
+        ShippingFeeCalculationService shippingFeeService = mock(ShippingFeeCalculationService.class);
+        when(shippingFeeService.calculateShippingFee(
+                10.76, 106.66, 10.78, 106.68, new BigDecimal("100000")))
+                .thenReturn(new BigDecimal("15000"));
+        RoutingClient routingClient = mock(RoutingClient.class);
+        when(routingClient.getEtaWindow(org.mockito.ArgumentMatchers.any(EtaWindowRequest.class)))
+                .thenThrow(new RoutingClientException(
+                        RoutingClientFailure.UNAVAILABLE, "Routing service is unavailable", null, null));
+        CheckoutPreviewService service = new CheckoutPreviewService(
+                internalValidationWebClient("""
+                        {"status":1,"data":{"restaurantInfo":{
+                          "restaurantName":"Quán A","latitude":10.76,"longitude":106.66,
+                          "isAvailable":true,"defaultPrepTimeMinutes":15},
+                          "itemValidations":[{"menuItemId":5,"menuItemName":"Cơm",
+                          "actualPrice":50000,"isAvailable":true,"hasEnoughStock":true}]}}
+                        """),
+                shippingFeeService, "http://restaurant-service:8083", "test-secret", circuitBreaker(), routingClient);
+        ReflectionTestUtils.setField(service, "etaWindowEnabled", true);
+
+        OrderDependencyUnavailableException failure = assertThrows(
+                OrderDependencyUnavailableException.class,
+                () -> service.calculatePreview(validRequest(), 21L));
+
+        assertThat(failure.getDependency()).isEqualTo("routing-service");
+        assertThat(failure.getRetryAfterSeconds()).isEqualTo(30);
+        verify(routingClient).getEtaWindow(org.mockito.ArgumentMatchers.any(EtaWindowRequest.class));
     }
 
     @Test
