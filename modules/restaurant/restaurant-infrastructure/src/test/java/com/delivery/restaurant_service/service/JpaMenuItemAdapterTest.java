@@ -44,7 +44,6 @@ class JpaMenuItemAdapterTest {
 
     @Mock MenuItemRepository menuItems;
     @Mock RestaurantRepository restaurants;
-    @Mock CatalogCacheSynchronizer cache;
     @Mock SearchSyncPublisher search;
     @Mock RestaurantManagementAccessUseCase access;
 
@@ -69,7 +68,7 @@ class JpaMenuItemAdapterTest {
     }
 
     @Test
-    void createLoadsParentAppliesPlanWritesCreateOutboxAndRegistersCache() {
+    void createLoadsParentAppliesPlanAndWritesCreateOutbox() {
         when(restaurants.findById(42L)).thenReturn(Optional.of(restaurant));
         when(menuItems.save(any(MenuItem.class))).thenAnswer(invocation -> {
             MenuItem saved = invocation.getArgument(0);
@@ -79,7 +78,7 @@ class JpaMenuItemAdapterTest {
         });
 
         MenuItemCreateResultHolder result = new MenuItemCreateResultHolder();
-        var adapter = new JpaMenuItemCreationAdapter(menuItems, restaurants, cache, search);
+        var adapter = new JpaMenuItemCreationAdapter(menuItems, restaurants, search);
         var created = adapter.create(createCommand(), facts -> {
             assertThat(facts.ownerPrincipalId()).isEqualTo(7L);
             assertThat(facts.creatorId()).isEqualTo(700L);
@@ -96,7 +95,6 @@ class JpaMenuItemAdapterTest {
         assertThat(saved.getValue().getRestaurant()).isSameAs(restaurant);
         assertThat(saved.getValue().getStatus()).isEqualTo(MenuItem.Status.AVAILABLE);
         verify(search).publishDishChange(saved.getValue(), "CREATE");
-        verify(cache).cacheMenuItemAfterCommit(saved.getValue());
     }
 
     @Test
@@ -110,7 +108,7 @@ class JpaMenuItemAdapterTest {
             return saved;
         });
 
-        var adapter = new JpaMenuItemCreationAdapter(menuItems, restaurants, cache, search);
+        var adapter = new JpaMenuItemCreationAdapter(menuItems, restaurants, search);
         var created = adapter.create(createCommand(), facts -> new MenuItemMutationPlan(
                 null, 42L, 7L, "Pho", "Classic", new BigDecimal("55000.00"),
                 MenuItemStatus.AVAILABLE, "pho.png"));
@@ -123,19 +121,19 @@ class JpaMenuItemAdapterTest {
     void createMissingParentReturnsEmptyWithoutMutationOrSideEffects() {
         when(restaurants.findById(404L)).thenReturn(Optional.empty());
 
-        var adapter = new JpaMenuItemCreationAdapter(menuItems, restaurants, cache, search);
+        var adapter = new JpaMenuItemCreationAdapter(menuItems, restaurants, search);
         assertThat(adapter.create(createCommand(404L), facts -> {
             throw new AssertionError("decision must not run");
         })).isEmpty();
 
-        verifyNoInteractions(menuItems, cache, search);
+        verifyNoInteractions(menuItems, search);
     }
 
     @Test
     void updateLocksItemMergesPlanFlushesWithoutReparentingAndWritesUpdateOutbox() {
         when(menuItems.findById(9L)).thenReturn(Optional.of(item));
         when(menuItems.saveAndFlush(item)).thenReturn(item);
-        var adapter = new JpaMenuItemUpdateAdapter(menuItems, cache, search);
+        var adapter = new JpaMenuItemUpdateAdapter(menuItems, search);
         Optional<com.delivery.restaurant.application.api.MenuItemUpdateResult> updated = adapter.update(
                 new UpdateMenuItemCommand(9L, 7L, 700L, RestaurantActorRole.SHOP_OWNER,
                         true, "New", "Updated", new BigDecimal("65000.00"),
@@ -154,13 +152,12 @@ class JpaMenuItemAdapterTest {
         assertThat(item.getName()).isEqualTo("New");
         verify(menuItems).saveAndFlush(item);
         verify(search).publishDishChange(item, "UPDATE");
-        verify(cache).cacheMenuItemAfterCommit(item);
     }
 
     @Test
     void updateMissingItemReturnsEmptyWithoutDecisionOrMutation() {
         when(menuItems.findById(404L)).thenReturn(Optional.empty());
-        var adapter = new JpaMenuItemUpdateAdapter(menuItems, cache, search);
+        var adapter = new JpaMenuItemUpdateAdapter(menuItems, search);
 
         assertThat(adapter.update(
                 new UpdateMenuItemCommand(404L, 7L, 700L, RestaurantActorRole.SHOP_OWNER,
@@ -168,7 +165,7 @@ class JpaMenuItemAdapterTest {
                     throw new AssertionError("decision must not run");
                 })).isEmpty();
         verify(menuItems, never()).saveAndFlush(any());
-        verifyNoInteractions(cache, search);
+        verifyNoInteractions(search);
     }
 
     @Test

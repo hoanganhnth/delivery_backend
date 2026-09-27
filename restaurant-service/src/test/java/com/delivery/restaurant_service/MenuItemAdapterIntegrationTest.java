@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -28,7 +27,6 @@ import com.delivery.restaurant_service.entity.Restaurant;
 import com.delivery.restaurant_service.repository.MenuItemRepository;
 import com.delivery.restaurant_service.repository.RestaurantOutboxEventRepository;
 import com.delivery.restaurant_service.repository.RestaurantRepository;
-import com.delivery.restaurant_service.service.RestaurantCacheService;
 import com.delivery.restaurant_service.service.SearchSyncPublisher;
 import java.math.BigDecimal;
 import java.util.List;
@@ -58,27 +56,18 @@ class MenuItemAdapterIntegrationTest {
     @Autowired RestaurantRepository restaurants;
     @Autowired RestaurantOutboxEventRepository outbox;
     @MockitoBean IdentityPrincipalClient identity;
-    @MockitoBean RestaurantCacheService cache;
     @MockitoSpyBean SearchSyncPublisher search;
 
     @AfterEach
     void cleanDatabase() {
-        clearInvocations(cache);
         outbox.deleteAll();
         menuItems.deleteAll();
         restaurants.deleteAll();
     }
 
     @Test
-    void createPersistsAvailableItemAndSearchCreateOutboxWithAfterCommitCache() {
+    void createPersistsAvailableItemAndSearchCreateOutbox() {
         Restaurant restaurant = saveRestaurant(7L, 700L, RestaurantStatus.ACTIVE);
-        doAnswer(invocation -> {
-            MenuItem cached = invocation.getArgument(0);
-            assertThat(menuItems.findById(cached.getId())).isPresent();
-            assertThat(outbox.findAll()).extracting("eventType")
-                    .containsExactly("SEARCH_DISH_CREATE");
-            return null;
-        }).when(cache).cacheMenuItem(any());
 
         var result = createMenuItem.create(new CreateMenuItemCommand(
                 restaurant.getId(), 7L, 700L, RestaurantActorRole.SHOP_OWNER, true,
@@ -93,22 +82,12 @@ class MenuItemAdapterIntegrationTest {
                 .isEqualTo(7L);
         assertThat(outbox.findAll()).extracting("eventType")
                 .containsExactly("SEARCH_DISH_CREATE");
-        verify(cache).cacheMenuItem(any());
     }
 
     @Test
-    void updatePreservesParentAndWritesUpdateOutboxAndCacheAfterCommit() {
+    void updatePreservesParentAndWritesUpdateOutbox() {
         Restaurant restaurant = saveRestaurant(null, 700L, RestaurantStatus.PAUSED);
         MenuItem item = saveMenuItem(restaurant, "Old", MenuItem.Status.AVAILABLE);
-        clearInvocations(cache);
-        doAnswer(invocation -> {
-            MenuItem cached = invocation.getArgument(0);
-            assertThat(menuItems.findById(cached.getId()).orElseThrow().getName())
-                    .isEqualTo("Updated");
-            assertThat(outbox.findAll()).extracting("eventType")
-                    .containsExactly("SEARCH_DISH_UPDATE");
-            return null;
-        }).when(cache).cacheMenuItem(any());
 
         var result = updateMenuItem.update(new UpdateMenuItemCommand(
                 item.getId(), 101L, 700L, RestaurantActorRole.SHOP_OWNER, false,
@@ -127,7 +106,6 @@ class MenuItemAdapterIntegrationTest {
                 .isEqualTo(101L);
         assertThat(outbox.findAll()).extracting("eventType")
                 .containsExactly("SEARCH_DISH_UPDATE");
-        verify(cache).cacheMenuItem(any());
     }
 
     @Test
@@ -184,10 +162,9 @@ class MenuItemAdapterIntegrationTest {
     }
 
     @Test
-    void searchFailureRollsBackMenuUpdateOutboxAndSkipsAfterCommitCache() {
+    void searchFailureRollsBackMenuUpdateAndOutbox() {
         Restaurant restaurant = saveRestaurant(7L, 700L, RestaurantStatus.ACTIVE);
         MenuItem item = saveMenuItem(restaurant, "Original", MenuItem.Status.AVAILABLE);
-        clearInvocations(cache);
         doAnswer(invocation -> {
             invocation.callRealMethod();
             throw new IllegalStateException("Injected menu update outbox failure");
@@ -202,7 +179,6 @@ class MenuItemAdapterIntegrationTest {
         assertThat(menuItems.findById(item.getId()).orElseThrow().getName())
                 .isEqualTo("Original");
         assertThat(outbox.count()).isZero();
-        verifyNoInteractions(cache);
     }
 
     private Restaurant saveRestaurant(Long ownerPrincipalId, Long creatorId, RestaurantStatus status) {

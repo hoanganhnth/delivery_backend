@@ -16,7 +16,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Slf4j
 public class JpaRestaurantCreationAdapter implements RestaurantCreationPort {
     private final RestaurantRepository restaurantRepository;
-    private final CatalogCacheSynchronizer cacheSynchronizer;
     private final SearchSyncPublisher searchSyncPublisher;
 
     @Override
@@ -45,7 +44,6 @@ public class JpaRestaurantCreationAdapter implements RestaurantCreationPort {
         } catch (Exception e) {
             log.warn("⚠️ Failed to create initial balance for restaurant: {}", e.getMessage());
         }
-        cacheSynchronizer.cacheRestaurantAfterCommit(saved);
         searchSyncPublisher.publishRestaurantChange(saved, "CREATE");
         return new CreateRestaurantResult(saved.getId(), saved.getName(), saved.getAddress(), saved.getPhone(),
                 saved.getOpeningHour(), saved.getClosingHour(), saved.getDefaultPrepTimeMinutes(),

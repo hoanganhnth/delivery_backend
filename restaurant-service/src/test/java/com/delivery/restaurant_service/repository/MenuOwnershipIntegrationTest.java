@@ -40,12 +40,11 @@ class MenuOwnershipIntegrationTest {
 
     private MenuItemServiceImpl service(boolean enforced) {
         RestaurantManagementAccessUseCase accessUseCase = new DefaultRestaurantManagementAccessUseCase();
-        var cache = mock(CatalogCacheSynchronizer.class);
         var search = mock(SearchSyncPublisher.class);
         var create = new DefaultCreateMenuItemUseCase(
-                new JpaMenuItemCreationAdapter(items, restaurants, cache, search), accessUseCase);
+                new JpaMenuItemCreationAdapter(items, restaurants, search), accessUseCase);
         var update = new DefaultUpdateMenuItemUseCase(
-                new JpaMenuItemUpdateAdapter(items, cache, search), accessUseCase);
+                new JpaMenuItemUpdateAdapter(items, search), accessUseCase);
         var reads = new DefaultMenuItemReadUseCase(
                 new JpaMenuItemReadAdapter(items, restaurants, accessUseCase));
         var managementReads = new DefaultMenuItemManagementReadUseCase(
@@ -53,7 +52,7 @@ class MenuOwnershipIntegrationTest {
         return new MenuItemServiceImpl(items, new MenuItemMapper(),
                 new RestaurantOwnershipPolicy(enforced), new CatalogLifecycleService(
                         restaurants, items, new RestaurantMapper(), new MenuItemMapper(),
-                        mock(CatalogCacheSynchronizer.class), mock(SearchSyncPublisher.class),
+                        mock(SearchSyncPublisher.class),
                         new RestaurantOwnershipPolicy(enforced), new RestaurantLifecyclePolicy(),
                         new MenuItemLifecyclePolicy(), audits, new SimpleMeterRegistry()),
                 create, update, reads, managementReads);

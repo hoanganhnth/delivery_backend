@@ -10,7 +10,6 @@ import com.delivery.restaurant.application.api.RestaurantCreationPort;
 import com.delivery.restaurant_service.entity.Restaurant;
 import com.delivery.restaurant_service.repository.RestaurantOutboxEventRepository;
 import com.delivery.restaurant_service.repository.RestaurantRepository;
-import com.delivery.restaurant_service.service.RestaurantCacheService;
 import com.delivery.restaurant_service.service.SearchSyncPublisher;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -61,7 +60,6 @@ class RestaurantCreationIntegrationTest {
     @Autowired RestaurantCreationPort creationPort;
     @Autowired PlatformTransactionManager transactions;
     @MockitoBean IdentityPrincipalClient identity;
-    @MockitoBean RestaurantCacheService cache;
     @MockitoSpyBean SearchSyncPublisher search;
 
     @AfterEach
@@ -71,14 +69,8 @@ class RestaurantCreationIntegrationTest {
     }
 
     @Test
-    void shopOwnerCreationCommitsAllFieldsDefaultsAndSearchOutboxBeforeCaching() throws Exception {
+    void shopOwnerCreationCommitsAllFieldsDefaultsAndSearchOutbox() throws Exception {
         assertThat(AopUtils.isAopProxy(creationPort)).isTrue();
-        doAnswer(invocation -> {
-            Restaurant cached = invocation.getArgument(0);
-            assertThat(restaurants.findById(cached.getId())).isPresent();
-            assertThat(outbox.count()).isEqualTo(1);
-            return null;
-        }).when(cache).cacheRestaurant(any());
 
         JsonNode data = create("SHOP_OWNER", null, 200);
 
@@ -112,7 +104,6 @@ class RestaurantCreationIntegrationTest {
         assertThat(payload.get("payload").get("name").asText()).isEqualTo(saved.getName());
         assertThat(payload.get("payload").get("description").asText()).isEqualTo(saved.getDescription());
         assertThat(payload.get("payload").get("imageUrl").asText()).isEqualTo(saved.getImage());
-        verify(cache).cacheRestaurant(any());
         verifyNoInteractions(identity);
     }
 
@@ -130,22 +121,7 @@ class RestaurantCreationIntegrationTest {
     }
 
     @Test
-    void cacheIsDeferredUntilOuterTransactionCommits() {
-        new TransactionTemplate(transactions).executeWithoutResult(transaction -> {
-            try {
-                create("SHOP_OWNER", null, 200);
-            } catch (Exception exception) {
-                throw new AssertionError(exception);
-            }
-            assertThat(restaurants.count()).isEqualTo(1);
-            assertThat(outbox.count()).isEqualTo(1);
-            verifyNoInteractions(cache);
-        });
-        verify(cache).cacheRestaurant(any());
-    }
-
-    @Test
-    void rollbackDiscardsRestaurantOutboxAndScheduledCacheWork() {
+    void rollbackDiscardsRestaurantOutbox() {
         new TransactionTemplate(transactions).executeWithoutResult(transaction -> {
             try {
                 create("SHOP_OWNER", null, 200);
@@ -159,7 +135,7 @@ class RestaurantCreationIntegrationTest {
     }
 
     @Test
-    void failureAfterSearchOutboxWriteRollsBackBothRowsAndNeverCaches() throws Exception {
+    void failureAfterSearchOutboxWriteRollsBackBothRows() throws Exception {
         doAnswer(invocation -> {
             assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isTrue();
             invocation.callRealMethod();
@@ -170,14 +146,6 @@ class RestaurantCreationIntegrationTest {
 
         create("SHOP_OWNER", null, 500);
         assertNoCreation();
-    }
-
-    @Test
-    void cacheFailureAfterCommitDoesNotChangeSuccessfulCreation() throws Exception {
-        doThrow(new IllegalStateException("redis unavailable")).when(cache).cacheRestaurant(any());
-        create("SHOP_OWNER", null, 200);
-        assertThat(restaurants.count()).isEqualTo(1);
-        assertThat(outbox.count()).isEqualTo(1);
     }
 
     @ParameterizedTest
@@ -203,7 +171,6 @@ class RestaurantCreationIntegrationTest {
     private void assertNoCreation() {
         assertThat(restaurants.count()).isZero();
         assertThat(outbox.count()).isZero();
-        verifyNoInteractions(cache);
     }
 
     private JsonNode create(String role, Long owner, int expectedStatus) throws Exception {

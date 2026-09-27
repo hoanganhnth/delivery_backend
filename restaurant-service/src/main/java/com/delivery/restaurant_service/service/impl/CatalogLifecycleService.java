@@ -24,7 +24,6 @@ import com.delivery.restaurant_service.mapper.RestaurantMapper;
 import com.delivery.restaurant_service.repository.CatalogLifecycleAuditRepository;
 import com.delivery.restaurant_service.repository.MenuItemRepository;
 import com.delivery.restaurant_service.repository.RestaurantRepository;
-import com.delivery.restaurant_service.service.CatalogCacheSynchronizer;
 import com.delivery.restaurant_service.service.SearchSyncPublisher;
 import com.delivery.restaurant_service.service.ownership.RestaurantOwnershipPolicy;
 import io.micrometer.core.instrument.Counter;
@@ -41,7 +40,6 @@ public class CatalogLifecycleService {
     private final MenuItemRepository menuItemRepository;
     private final RestaurantMapper restaurantMapper;
     private final MenuItemMapper menuItemMapper;
-    private final CatalogCacheSynchronizer cacheSynchronizer;
     private final SearchSyncPublisher searchSyncPublisher;
     private final RestaurantOwnershipPolicy ownershipPolicy;
     private final CatalogLifecycleDecisionUseCase lifecycleDecisionUseCase;
@@ -54,7 +52,6 @@ public class CatalogLifecycleService {
             MenuItemRepository menuItemRepository,
             RestaurantMapper restaurantMapper,
             MenuItemMapper menuItemMapper,
-            CatalogCacheSynchronizer cacheSynchronizer,
             SearchSyncPublisher searchSyncPublisher,
             RestaurantOwnershipPolicy ownershipPolicy,
             CatalogLifecycleDecisionUseCase lifecycleDecisionUseCase,
@@ -64,7 +61,6 @@ public class CatalogLifecycleService {
         this.menuItemRepository = menuItemRepository;
         this.restaurantMapper = restaurantMapper;
         this.menuItemMapper = menuItemMapper;
-        this.cacheSynchronizer = cacheSynchronizer;
         this.searchSyncPublisher = searchSyncPublisher;
         this.ownershipPolicy = ownershipPolicy;
         this.lifecycleDecisionUseCase = lifecycleDecisionUseCase;
@@ -78,7 +74,6 @@ public class CatalogLifecycleService {
             MenuItemRepository menuItemRepository,
             RestaurantMapper restaurantMapper,
             MenuItemMapper menuItemMapper,
-            CatalogCacheSynchronizer cacheSynchronizer,
             SearchSyncPublisher searchSyncPublisher,
             RestaurantOwnershipPolicy ownershipPolicy,
             RestaurantLifecyclePolicy restaurantPolicy,
@@ -86,7 +81,7 @@ public class CatalogLifecycleService {
             CatalogLifecycleAuditRepository auditRepository,
             MeterRegistry meterRegistry) {
         this(restaurantRepository, menuItemRepository, restaurantMapper, menuItemMapper,
-                cacheSynchronizer, searchSyncPublisher, ownershipPolicy,
+                searchSyncPublisher, ownershipPolicy,
                 new DefaultCatalogLifecycleDecisionUseCase(restaurantPolicy, menuItemPolicy),
                 auditRepository, meterRegistry);
     }
@@ -108,10 +103,8 @@ public class CatalogLifecycleService {
             recordAudit("RESTAURANT", id, action(before, after), principalId, role,
                     before.name(), after.name(), beforeVersion, versionOrZero(saved.getVersion()));
             if (after == RestaurantStatus.ARCHIVED) {
-                cacheSynchronizer.removeRestaurantAfterCommit(id);
                 searchSyncPublisher.publishRestaurantChange(saved, "DELETE");
             } else {
-                cacheSynchronizer.cacheRestaurantAfterCommit(saved);
                 searchSyncPublisher.publishRestaurantChange(saved, "UPDATE");
             }
             return restaurantMapper.toResponse(saved);
@@ -137,10 +130,8 @@ public class CatalogLifecycleService {
             recordAudit("MENU_ITEM", id, action(before, after), principalId, role,
                     before.name(), after.name(), beforeVersion, versionOrZero(saved.getVersion()));
             if (after == MenuItemStatus.ARCHIVED) {
-                cacheSynchronizer.removeMenuItemAfterCommit(id);
                 searchSyncPublisher.publishDishChange(saved, "DELETE");
             } else {
-                cacheSynchronizer.cacheMenuItemAfterCommit(saved);
                 searchSyncPublisher.publishDishChange(saved, "UPDATE");
             }
             return menuItemMapper.toResponse(saved);

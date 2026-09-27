@@ -31,7 +31,6 @@ class OrderCacheValidationServiceImplTest {
     private final RestaurantServiceabilityService serviceability = mock(RestaurantServiceabilityService.class);
     private final MenuItemInventoryReservationService inventory = mock(MenuItemInventoryReservationService.class);
     private final ObjectProvider<MenuItemInventoryReservationService> inventoryProvider = mock(ObjectProvider.class);
-    private final RestaurantCacheService cache = mock(RestaurantCacheService.class);
 
     @Test
     void checkoutUsesPostgresCatalogAsAuthorityAndIgnoresClientPriceAndName() {
@@ -44,7 +43,6 @@ class OrderCacheValidationServiceImplTest {
         assertThat(result.getIsValid()).isTrue();
         assertThat(result.getCalculatedTotal()).isEqualTo(241.0);
         assertThat(result.getItemValidations()).singleElement().extracting("menuItemName").isEqualTo("Canonical");
-        verifyNoInteractions(cache);
     }
 
     @Test
@@ -81,7 +79,6 @@ class OrderCacheValidationServiceImplTest {
 
         assertThat(result.getIsValid()).isFalse();
         assertThat(result.getErrors()).extracting("errorCode").contains("MENU_ITEM_NOT_AVAILABLE");
-        verifyNoInteractions(cache);
     }
 
     @Test
