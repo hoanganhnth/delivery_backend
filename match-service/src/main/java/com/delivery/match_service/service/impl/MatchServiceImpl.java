@@ -4,6 +4,9 @@ import com.delivery.match_service.dto.request.FindNearbyShippersRequest;
 import com.delivery.match_service.dto.response.NearbyShipperResponse;
 import com.delivery.match_service.repository.MatchRedisGeoRepository;
 import com.delivery.match_service.service.MatchService;
+import com.delivery.match.application.api.FindNearbyShippersPort.FindNearbyShippersQuery;
+import com.delivery.match.application.api.FindNearbyShippersPort.FindNearbyShippersResult;
+import com.delivery.match.application.api.FindNearbyShippersPort.NearbyShipper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
@@ -26,6 +29,17 @@ public class MatchServiceImpl implements MatchService {
 
     public MatchServiceImpl(MatchRedisGeoRepository matchRedisGeoRepository) {
         this.matchRedisGeoRepository = matchRedisGeoRepository;
+    }
+
+    @Override
+    public FindNearbyShippersResult findNearbyShippers(FindNearbyShippersQuery query) {
+        List<MatchRedisGeoRepository.NearbyShipperResult> results = matchRedisGeoRepository.findNearbyShippers(
+                query.latitude(), query.longitude(), query.radiusKm(), query.maxShippers());
+        return new FindNearbyShippersResult(results.stream()
+                .map(result -> new NearbyShipper(result.shipperId, result.latitude, result.longitude,
+                        result.distanceKm, true, matchRedisGeoRepository.completedDeliveries(result.shipperId,
+                                SimulationContext.real())))
+                .toList());
     }
 
     /**

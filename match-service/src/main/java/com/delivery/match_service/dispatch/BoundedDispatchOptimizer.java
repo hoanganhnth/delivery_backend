@@ -1,5 +1,8 @@
 package com.delivery.match_service.dispatch;
 
+import com.delivery.match.domain.dispatch.DispatchBundleCandidate;
+import com.delivery.match.application.api.DispatchMatchingPort;
+
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -19,10 +22,11 @@ import java.util.UUID;
  * a deterministic disjointness repair over order IDs. This keeps the hot path
  * bounded while preserving the important invariants.
  */
-public final class BoundedDispatchOptimizer {
+public final class BoundedDispatchOptimizer implements DispatchMatchingPort {
 
     private static final long COVERAGE_BONUS = 1_000_000L;
 
+    @Override
     public List<DispatchBundleCandidate> optimize(
             List<DispatchBundleCandidate> candidates,
             int maxAssignments) {

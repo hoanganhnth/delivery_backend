@@ -7,12 +7,16 @@ import reactor.core.publisher.Mono;
 import java.util.List;
 import java.util.UUID;
 import com.delivery.identity.contracts.SimulationContext;
+import com.delivery.match.application.api.FindNearbyShippersPort.FindNearbyShippersQuery;
+import com.delivery.match.application.api.FindNearbyShippersPort.FindNearbyShippersResult;
 
 /**
  * ✅ Interface cho Match Service với Non-blocking approach
  * Theo Backend Instructions: Service interface pattern
  */
 public interface MatchService {
+
+    FindNearbyShippersResult findNearbyShippers(FindNearbyShippersQuery query);
 
     /**
      * Tìm các shipper gần nhất từ Tracking Service (Non-blocking)

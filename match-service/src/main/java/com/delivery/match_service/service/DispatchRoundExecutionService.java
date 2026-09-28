@@ -1,7 +1,7 @@
 package com.delivery.match_service.service;
 
-import com.delivery.match_service.dispatch.BoundedDispatchOptimizer;
-import com.delivery.match_service.dispatch.DispatchBundleCandidate;
+import com.delivery.match.application.api.DispatchMatchingPort;
+import com.delivery.match.domain.dispatch.DispatchBundleCandidate;
 import com.delivery.match_service.dto.event.ShipperFoundEvent;
 import com.delivery.match_service.entity.DispatchPoolItem;
 import com.delivery.match_service.entity.DispatchRound;
@@ -45,7 +45,7 @@ public class DispatchRoundExecutionService {
     private final ObjectMapper objectMapper;
     private final RoutingClient routingClient;
     private final Clock clock = Clock.systemDefaultZone();
-    private final BoundedDispatchOptimizer optimizer = new BoundedDispatchOptimizer();
+    private final DispatchMatchingPort optimizer;
 
     @Transactional
     public void executeDueRounds() {

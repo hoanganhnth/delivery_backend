@@ -1,5 +1,7 @@
 package com.delivery.match_service.dispatch;
 
+import com.delivery.match.domain.dispatch.DispatchBundleCandidate;
+
 import org.junit.jupiter.api.Test;
 
 import java.util.List;

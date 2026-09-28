@@ -1,9 +1,10 @@
-package com.delivery.match_service.dispatch;
+package com.delivery.match.domain.dispatch;
 
-import java.util.List;
 import java.util.HashSet;
+import java.util.List;
 import java.util.UUID;
 
+/** Immutable candidate for assigning one shipper a bounded delivery bundle. */
 public record DispatchBundleCandidate(
         UUID bundleId,
         Long shipperId,
@@ -13,7 +14,6 @@ public record DispatchBundleCandidate(
         long incrementalEtaSeconds,
         long scoreMicros) {
 
-    /** Compatibility constructor for callers that do not care about route order. */
     public DispatchBundleCandidate(UUID bundleId, Long shipperId, List<UUID> poolItemIds,
                                    long routeSeconds, long incrementalEtaSeconds, long scoreMicros) {
         this(bundleId, shipperId, poolItemIds, poolItemIds,
