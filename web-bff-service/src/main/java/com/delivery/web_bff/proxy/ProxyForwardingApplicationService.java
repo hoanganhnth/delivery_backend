@@ -22,8 +22,11 @@ public final class ProxyForwardingApplicationService implements UseCases.ProxyFo
     @Override
     public Ports.ForwardedResponse execute(UseCases.ProxyRequest request) {
         if (request == null || !policy.execute(request.method(), request.path()))
-            throw new ApiProxyRejectedException("API path or method is not allowed");
-        boolean mutation = request.method() != Ports.HttpVerb.GET;
+            throw new UseCases.ApiProxyRejectedException("API path or method is not allowed");
+        boolean mutation = switch (request.method()) {
+            case POST, PUT, PATCH, DELETE -> true;
+            case GET, HEAD, OPTIONS -> false;
+        };
         String bearer = access.execute(request.rawSessionId(), request.csrfToken(), mutation);
         Map<String, List<String>> safe = request.headers() == null ? Map.of() : request.headers().entrySet().stream()
                 .filter(e -> REQUEST_HEADERS.contains(e.getKey()))
@@ -32,7 +35,4 @@ public final class ProxyForwardingApplicationService implements UseCases.ProxyFo
                 request.body() == null ? new byte[0] : request.body(), bearer);
     }
 
-    public static final class ApiProxyRejectedException extends RuntimeException {
-        public ApiProxyRejectedException(String message) { super(message); }
-    }
 }

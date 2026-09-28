@@ -9,7 +9,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-@Service
 public class WebSessionRefreshService {
     private static final Duration CLAIM_LEASE = Duration.ofSeconds(30);
     private final WebSessionRepository sessions;

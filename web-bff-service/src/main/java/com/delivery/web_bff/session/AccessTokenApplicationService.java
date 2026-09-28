@@ -24,8 +24,5 @@ public final class AccessTokenApplicationService implements UseCases.AccessToken
         return tokens.reveal(session.accessTokenCipher());
     }
 
-    private SessionRejectedException rejected(String message) { return new SessionRejectedException(message); }
-    public static final class SessionRejectedException extends RuntimeException {
-        public SessionRejectedException(String message) { super(message); }
-    }
+    private UseCases.SessionRejectedException rejected(String message) { return new UseCases.SessionRejectedException(message); }
 }

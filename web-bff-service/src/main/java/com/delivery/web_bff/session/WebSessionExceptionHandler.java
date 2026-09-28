@@ -1,7 +1,6 @@
 package com.delivery.web_bff.session;
 
-import com.delivery.web_bff.auth.AuthGateway;
-import com.delivery.web_bff.proxy.ApiProxyService;
+import com.delivery.web_bff.application.api.UseCases;
 import java.util.Map;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -9,27 +8,26 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice
 public class WebSessionExceptionHandler {
-    @ExceptionHandler(AuthGateway.AuthenticationRejectedException.class)
-    ResponseEntity<Map<String, Object>> authenticationRejected(
-            AuthGateway.AuthenticationRejectedException exception) {
+    @ExceptionHandler(UseCases.AuthenticationRejectedException.class)
+    ResponseEntity<Map<String, Object>> authenticationRejected(UseCases.AuthenticationRejectedException exception) {
         return ResponseEntity.status(401).body(Map.of("error", Map.of(
                 "code", "AUTHENTICATION_REJECTED", "message", exception.getMessage())));
     }
 
-    @ExceptionHandler(WebSessionService.SessionRejectedException.class)
-    ResponseEntity<Map<String, Object>> rejected(WebSessionService.SessionRejectedException exception) {
+    @ExceptionHandler(UseCases.SessionRejectedException.class)
+    ResponseEntity<Map<String, Object>> rejected(UseCases.SessionRejectedException exception) {
         return ResponseEntity.status(401).body(Map.of("error", Map.of(
                 "code", "SESSION_REJECTED", "message", exception.getMessage())));
     }
 
-    @ExceptionHandler(ApiProxyService.ApiProxyRejectedException.class)
-    ResponseEntity<Map<String, Object>> proxyRejected(ApiProxyService.ApiProxyRejectedException exception) {
+    @ExceptionHandler(UseCases.ApiProxyRejectedException.class)
+    ResponseEntity<Map<String, Object>> proxyRejected(UseCases.ApiProxyRejectedException exception) {
         return ResponseEntity.status(404).body(Map.of("error", Map.of(
                 "code", "BFF_ROUTE_NOT_ALLOWED", "message", exception.getMessage())));
     }
 
-    @ExceptionHandler(WebSessionRefreshService.RefreshRejectedException.class)
-    ResponseEntity<Map<String, Object>> refreshBusy(WebSessionRefreshService.RefreshRejectedException exception) {
+    @ExceptionHandler(UseCases.RefreshInProgressException.class)
+    ResponseEntity<Map<String, Object>> refreshBusy(UseCases.RefreshInProgressException exception) {
         return ResponseEntity.status(409).body(Map.of("error", Map.of(
                 "code", "REFRESH_IN_PROGRESS", "message", exception.getMessage())));
     }

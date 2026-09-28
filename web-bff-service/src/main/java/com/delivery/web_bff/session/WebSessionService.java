@@ -9,7 +9,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 
-@Service
 public class WebSessionService {
     private final WebSessionRepository sessions;
     private final SessionFactory factory;

@@ -20,11 +20,11 @@ public final class LoginApplicationService implements UseCases.Login {
 
     @Override
     public SessionMaterial execute(Ports.LoginCommand command) {
-        if (command == null) throw new IllegalArgumentException("Login command is required");
+        if (command == null) throw new UseCases.SessionRejectedException("Login command is required");
         Ports.AuthenticatedTokens tokens = authentication.login(command);
         if (command.role() != null && !command.role().isBlank()
                 && !command.role().equals(tokens.role())) {
-            throw new SessionRejectedException("Authenticated role does not match the requested portal");
+            throw new UseCases.SessionRejectedException("Authenticated role does not match the requested portal");
         }
         SessionMaterial material = sessions.create(tokens.accessToken(), tokens.refreshToken(),
                 tokens.principalId(), tokens.email(), tokens.role(), clock.now());
@@ -32,7 +32,4 @@ public final class LoginApplicationService implements UseCases.Login {
         return material;
     }
 
-    public static final class SessionRejectedException extends RuntimeException {
-        public SessionRejectedException(String message) { super(message); }
-    }
 }

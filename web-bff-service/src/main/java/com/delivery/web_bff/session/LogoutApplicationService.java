@@ -35,8 +35,5 @@ public final class LogoutApplicationService implements UseCases.Logout {
         return session;
     }
 
-    private SessionRejectedException rejected(String message) { return new SessionRejectedException(message); }
-    public static final class SessionRejectedException extends RuntimeException {
-        public SessionRejectedException(String message) { super(message); }
-    }
+    private UseCases.SessionRejectedException rejected(String message) { return new UseCases.SessionRejectedException(message); }
 }

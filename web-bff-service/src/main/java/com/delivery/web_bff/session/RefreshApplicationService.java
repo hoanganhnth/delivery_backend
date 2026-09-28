@@ -26,7 +26,7 @@ public final class RefreshApplicationService implements UseCases.Refresh {
         if (!session.verifiesCsrf(csrfToken)) throw rejected("CSRF token is invalid");
         long generation = session.generation();
         if (!sessions.claimRefresh(hash, generation, time.now, time.now.plus(CLAIM_LEASE)))
-            throw new RefreshInProgressException("Another refresh is already in progress");
+            throw new UseCases.RefreshInProgressException("Another refresh is already in progress");
         Ports.AuthenticatedTokens replacement;
         try { replacement = authentication.refresh(tokens.reveal(session.refreshTokenCipher())); }
         catch (RuntimeException unknownOutcome) {
@@ -45,8 +45,6 @@ public final class RefreshApplicationService implements UseCases.Refresh {
         return UseCases.SessionView.from(current);
     }
 
-    private SessionRejectedException rejected(String message) { return new SessionRejectedException(message); }
+    private UseCases.SessionRejectedException rejected(String message) { return new UseCases.SessionRejectedException(message); }
     private record InstantPair(java.time.Instant now) { }
-    public static class SessionRejectedException extends RuntimeException { public SessionRejectedException(String m) { super(m); } }
-    public static class RefreshInProgressException extends RuntimeException { public RefreshInProgressException(String m) { super(m); } }
 }
