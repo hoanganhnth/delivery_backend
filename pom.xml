@@ -35,6 +35,7 @@
         <module>modules/shipper/shipper-domain</module>
         <module>modules/shipper/shipper-application-api</module>
         <module>modules/shipper/shipper-application</module>
+        <module>modules/shipper/shipper-infrastructure</module>
         <module>auth-resource-server-starter</module>
         <module>discovery-server</module>
         <module>config-server</module>
