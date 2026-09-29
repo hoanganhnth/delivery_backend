@@ -1,0 +1,17 @@
+package com.delivery.user.application.api;
+
+/** Framework-free input for creating a delivery address. */
+public record CreateUserAddressCommand(
+        Long userId,
+        String label,
+        String recipientName,
+        String phoneNumber,
+        String addressLine,
+        String ward,
+        String district,
+        String city,
+        String postalCode,
+        Double latitude,
+        Double longitude,
+        Boolean isDefault) {
+}
