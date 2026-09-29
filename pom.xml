@@ -45,6 +45,13 @@
         <module>modules/auth/auth-application-api</module>
         <module>modules/auth/auth-application</module>
         <module>modules/auth/auth-infrastructure</module>
+        <module>modules/web-bff/web-bff-domain</module>
+        <module>modules/web-bff/web-bff-application-api</module>
+        <module>modules/web-bff/web-bff-infrastructure</module>
+        <module>modules/shipper/shipper-domain</module>
+        <module>modules/shipper/shipper-application-api</module>
+        <module>modules/shipper/shipper-application</module>
+        <module>modules/shipper/shipper-infrastructure</module>
         <module>auth-resource-server-starter</module>
         <module>discovery-server</module>
         <module>config-server</module>
