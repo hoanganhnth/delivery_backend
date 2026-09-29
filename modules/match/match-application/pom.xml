@@ -14,6 +14,10 @@
     <version>1.0.0-SNAPSHOT</version>
     <name>match-application</name>
     <description>Framework-independent match application use cases.</description>
+    <properties>
+        <delivery.coverage.line.minimum>0.85</delivery.coverage.line.minimum>
+        <delivery.coverage.branch.minimum>0.85</delivery.coverage.branch.minimum>
+    </properties>
     <dependencies>
         <dependency>
             <groupId>com.delivery</groupId>

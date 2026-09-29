@@ -2,8 +2,7 @@ package com.delivery.shipper.application.api;
 
 import com.delivery.shipper.domain.identity.ShipperRole;
 
-public final class ShipperCommands {
-    private ShipperCommands() { }
+public interface ShipperCommands {
     public record Actor(long principalId, Long legacyUserId, ShipperRole role) { }
     public record CreateProfile(Actor actor, String fullName, String vehicleType, String licenseNumber, String idCard,
                                 String phone, String licensePlate) { }

@@ -5,8 +5,7 @@ import com.delivery.shipper.domain.read.PageRequest;
 import java.util.Optional;
 import java.util.List;
 
-public final class ShipperPorts {
-    private ShipperPorts() { }
+public interface ShipperPorts {
     public interface ProfileStore {
         ShipperSnapshot insert(ShipperCommands.CreateProfile command);
         Optional<ShipperSnapshot> findByPrincipalId(long principalId);

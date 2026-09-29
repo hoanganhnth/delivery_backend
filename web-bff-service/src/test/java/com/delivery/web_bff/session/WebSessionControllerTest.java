@@ -6,6 +6,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import com.delivery.web_bff.application.api.Ports;
+import com.delivery.web_bff.domain.session.AuthenticationRejectedException;
 import com.delivery.web_bff.application.api.UseCases;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
@@ -69,7 +70,7 @@ class WebSessionControllerTest {
     @Test
     void rejectedCredentialsReturnStableUnauthorizedEnvelope() throws Exception {
         when(login.execute(any(Ports.LoginCommand.class)))
-                .thenThrow(new UseCases.AuthenticationRejectedException("Invalid email or password"));
+                .thenThrow(new AuthenticationRejectedException("Invalid email or password"));
 
         mvc.perform(post("/bff/session/login")
                 .header("Origin", "https://localhost:5173")

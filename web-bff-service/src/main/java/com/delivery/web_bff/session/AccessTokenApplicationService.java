@@ -3,6 +3,7 @@ package com.delivery.web_bff.session;
 import com.delivery.web_bff.application.api.Ports;
 import com.delivery.web_bff.application.api.UseCases;
 import com.delivery.web_bff.domain.session.Security;
+import com.delivery.web_bff.domain.session.SessionRejectedException;
 import com.delivery.web_bff.domain.session.WebSession;
 
 /** Resolves the server-held bearer token and applies CSRF to mutations. */
@@ -24,5 +25,5 @@ public final class AccessTokenApplicationService implements UseCases.AccessToken
         return tokens.reveal(session.accessTokenCipher());
     }
 
-    private UseCases.SessionRejectedException rejected(String message) { return new UseCases.SessionRejectedException(message); }
+    private SessionRejectedException rejected(String message) { return new SessionRejectedException(message); }
 }

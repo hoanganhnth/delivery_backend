@@ -4,6 +4,8 @@ import com.delivery.web_bff.application.api.Ports;
 import com.delivery.web_bff.application.api.UseCases;
 import com.delivery.web_bff.domain.session.Security;
 import com.delivery.web_bff.domain.session.WebSession;
+import com.delivery.web_bff.domain.session.RefreshInProgressException;
+import com.delivery.web_bff.domain.session.SessionRejectedException;
 import java.time.Duration;
 
 /** Owns the refresh claim lease and generation/principal safety checks. */
@@ -26,7 +28,7 @@ public final class RefreshApplicationService implements UseCases.Refresh {
         if (!session.verifiesCsrf(csrfToken)) throw rejected("CSRF token is invalid");
         long generation = session.generation();
         if (!sessions.claimRefresh(hash, generation, time.now, time.now.plus(CLAIM_LEASE)))
-            throw new UseCases.RefreshInProgressException("Another refresh is already in progress");
+            throw new RefreshInProgressException("Another refresh is already in progress");
         Ports.AuthenticatedTokens replacement;
         try { replacement = authentication.refresh(tokens.reveal(session.refreshTokenCipher())); }
         catch (RuntimeException unknownOutcome) {
@@ -42,9 +44,9 @@ public final class RefreshApplicationService implements UseCases.Refresh {
         current.rotate(tokens.protect(replacement.accessToken()), tokens.protect(replacement.refreshToken()),
                 tokens.keyVersion(), clock.now());
         sessions.save(current);
-        return UseCases.SessionView.from(current);
+        return new UseCases.SessionView(current.principalId(), current.email(), current.role(), current.generation());
     }
 
-    private UseCases.SessionRejectedException rejected(String message) { return new UseCases.SessionRejectedException(message); }
+    private SessionRejectedException rejected(String message) { return new SessionRejectedException(message); }
     private record InstantPair(java.time.Instant now) { }
 }

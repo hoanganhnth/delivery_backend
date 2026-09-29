@@ -3,6 +3,7 @@ package com.delivery.web_bff.session;
 import com.delivery.web_bff.application.api.Ports;
 import com.delivery.web_bff.application.api.UseCases;
 import com.delivery.web_bff.domain.session.Security;
+import com.delivery.web_bff.domain.session.SessionRejectedException;
 import com.delivery.web_bff.domain.session.WebSession;
 
 /** Revokes locally before attempting upstream logout; local state is authoritative. */
@@ -35,5 +36,5 @@ public final class LogoutApplicationService implements UseCases.Logout {
         return session;
     }
 
-    private UseCases.SessionRejectedException rejected(String message) { return new UseCases.SessionRejectedException(message); }
+    private SessionRejectedException rejected(String message) { return new SessionRejectedException(message); }
 }

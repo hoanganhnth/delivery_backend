@@ -15,9 +15,8 @@
     <name>delivery-domain</name>
     <description>Framework-independent delivery lifecycle and batch value objects.</description>
     <properties>
-        <!-- Most of this module is intentionally declarative lifecycle/value data. -->
-        <delivery.coverage.line.minimum>0.0</delivery.coverage.line.minimum>
-        <delivery.coverage.branch.minimum>0.0</delivery.coverage.branch.minimum>
+        <delivery.coverage.line.minimum>0.85</delivery.coverage.line.minimum>
+        <delivery.coverage.branch.minimum>0.85</delivery.coverage.branch.minimum>
     </properties>
     <dependencies>
         <dependency>

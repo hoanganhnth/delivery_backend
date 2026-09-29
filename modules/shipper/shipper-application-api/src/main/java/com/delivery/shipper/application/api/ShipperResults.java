@@ -2,8 +2,7 @@ package com.delivery.shipper.application.api;
 
 import com.delivery.shipper.domain.read.PageSlice;
 
-public final class ShipperResults {
-    private ShipperResults() { }
+public interface ShipperResults {
     public record CreateProfileResult(ShipperSnapshot profile) { }
     public record RatingResult(long shipperId, double average, long count) { }
     public record RatingItem(long shipperId, long customerId, long orderId, int score, String comment) { }

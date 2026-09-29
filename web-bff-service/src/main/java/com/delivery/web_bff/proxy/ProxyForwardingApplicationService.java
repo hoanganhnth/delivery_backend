@@ -2,6 +2,7 @@ package com.delivery.web_bff.proxy;
 
 import com.delivery.web_bff.application.api.Ports;
 import com.delivery.web_bff.application.api.UseCases;
+import com.delivery.web_bff.domain.session.ApiProxyRejectedException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -22,7 +23,7 @@ public final class ProxyForwardingApplicationService implements UseCases.ProxyFo
     @Override
     public Ports.ForwardedResponse execute(UseCases.ProxyRequest request) {
         if (request == null || !policy.execute(request.method(), request.path()))
-            throw new UseCases.ApiProxyRejectedException("API path or method is not allowed");
+            throw new ApiProxyRejectedException("API path or method is not allowed");
         boolean mutation = switch (request.method()) {
             case POST, PUT, PATCH, DELETE -> true;
             case GET, HEAD, OPTIONS -> false;

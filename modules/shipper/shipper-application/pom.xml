@@ -8,6 +8,10 @@
     </parent>
     <groupId>com.delivery</groupId><artifactId>shipper-application</artifactId><version>1.0.0-SNAPSHOT</version>
     <name>shipper-application</name>
+    <properties>
+        <delivery.coverage.line.minimum>0.85</delivery.coverage.line.minimum>
+        <delivery.coverage.branch.minimum>0.85</delivery.coverage.branch.minimum>
+    </properties>
     <dependencies>
         <dependency><groupId>com.delivery</groupId><artifactId>shipper-application-api</artifactId><version>${project.version}</version></dependency>
         <dependency><groupId>org.junit.jupiter</groupId><artifactId>junit-jupiter</artifactId><version>5.12.2</version><scope>test</scope></dependency>

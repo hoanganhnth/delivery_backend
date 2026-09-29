@@ -2,8 +2,7 @@ package com.delivery.shipper.application.api;
 
 import com.delivery.shipper.domain.read.PageRequest;
 
-public final class ShipperUseCases {
-    private ShipperUseCases() { }
+public interface ShipperUseCases {
     public interface CreateProfile { ShipperResults.CreateProfileResult execute(ShipperCommands.CreateProfile command); }
     public interface UpdateProfile { ShipperSnapshot execute(ShipperCommands.UpdateProfile command); }
     public interface ReadSelf { ShipperSnapshot execute(ShipperCommands.Actor actor); }

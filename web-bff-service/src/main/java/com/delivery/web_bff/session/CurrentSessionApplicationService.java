@@ -17,6 +17,7 @@ public final class CurrentSessionApplicationService implements UseCases.CurrentS
     @Override
     public Optional<UseCases.SessionView> execute(String rawSessionId) {
         if (rawSessionId == null || rawSessionId.isBlank()) return Optional.empty();
-        return sessions.active(Security.hash(rawSessionId), clock.now()).map(UseCases.SessionView::from);
+        return sessions.active(Security.hash(rawSessionId), clock.now())
+                .map(session -> new UseCases.SessionView(session.principalId(), session.email(), session.role(), session.generation()));
     }
 }

@@ -5,8 +5,7 @@ import java.time.Instant;
 import java.util.Optional;
 
 /** Dependency inversion boundary; adapters own HTTP, ORM and framework details. */
-public final class Ports {
-    private Ports() { }
+public interface Ports {
     public interface Authentication {
         AuthenticatedTokens login(LoginCommand command);
         AuthenticatedTokens refresh(String refreshToken);

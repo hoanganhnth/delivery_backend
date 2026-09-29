@@ -9,5 +9,9 @@
     <artifactId>web-bff-domain</artifactId>
     <name>web-bff-domain</name>
     <description>Framework-independent web BFF session and security invariants.</description>
+    <properties>
+        <delivery.coverage.line.minimum>0.85</delivery.coverage.line.minimum>
+        <delivery.coverage.branch.minimum>0.85</delivery.coverage.branch.minimum>
+    </properties>
     <dependencies><dependency><groupId>org.junit.jupiter</groupId><artifactId>junit-jupiter</artifactId><scope>test</scope></dependency></dependencies>
 </project>
