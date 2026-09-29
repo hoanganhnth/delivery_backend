@@ -21,6 +21,9 @@ import com.delivery.delivery_service.service.DeliveryBatchLifecycleService;
 import com.delivery.delivery_service.service.DeliveryProofOfDeliveryService;
 import com.delivery.delivery_service.service.DeliveryExceptionService;
 import com.delivery.auth.resourceserver.security.AuthenticatedActor;
+import com.delivery.delivery.application.api.DeliveryCommandPort;
+import com.delivery.delivery.application.api.DeliveryQueryPort;
+import com.delivery.delivery_service.adapter.LegacyDeliveryPorts;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -28,6 +31,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 
 import java.util.List;
 import java.util.UUID;
@@ -36,30 +40,28 @@ import java.util.UUID;
 @RequestMapping(ApiPathConstants.DELIVERIES)
 public class DeliveryController {
 
-    private final DeliveryService deliveryService;
-    private final DeliveryBatchAcceptanceService batchAcceptanceService;
-    private final DeliveryBatchLifecycleService batchLifecycleService;
-    private final com.delivery.delivery_service.service.ShipperIdentityResolver shipperIdentityResolver;
-    private final com.delivery.delivery_service.service.DeliveryBatchSnapshotService batchSnapshotService;
-    private final DeliveryProofOfDeliveryService proofOfDeliveryService;
-    private final DeliveryExceptionService deliveryExceptionService;
+    private final DeliveryCommandPort commandPort;
+    private final DeliveryQueryPort queryPort;
     private final boolean legacyCompatibility;
 
     @Autowired
+    public DeliveryController(@Qualifier("deliveryCommandPort") DeliveryCommandPort commandPort,
+            @Qualifier("deliveryQueryPort") DeliveryQueryPort queryPort) {
+        this.commandPort = commandPort;
+        this.queryPort = queryPort;
+        this.legacyCompatibility = false;
+    }
+
     public DeliveryController(DeliveryService deliveryService, DeliveryBatchAcceptanceService batchAcceptanceService,
                               DeliveryBatchLifecycleService batchLifecycleService,
                               com.delivery.delivery_service.service.ShipperIdentityResolver shipperIdentityResolver,
                               com.delivery.delivery_service.service.DeliveryBatchSnapshotService batchSnapshotService,
                               DeliveryProofOfDeliveryService proofOfDeliveryService,
                               DeliveryExceptionService deliveryExceptionService) {
-        this.deliveryService = deliveryService;
-        this.batchAcceptanceService = batchAcceptanceService;
-        this.batchLifecycleService = batchLifecycleService;
-        this.shipperIdentityResolver = shipperIdentityResolver;
-        this.batchSnapshotService = batchSnapshotService;
-        this.proofOfDeliveryService = proofOfDeliveryService;
-        this.deliveryExceptionService = deliveryExceptionService;
-        this.legacyCompatibility = false;
+        this(new LegacyDeliveryPorts(deliveryService, batchAcceptanceService, batchLifecycleService,
+                shipperIdentityResolver, batchSnapshotService, proofOfDeliveryService, deliveryExceptionService),
+                new LegacyDeliveryPorts(deliveryService, batchAcceptanceService, batchLifecycleService,
+                        shipperIdentityResolver, batchSnapshotService, proofOfDeliveryService, deliveryExceptionService));
     }
 
     /** Compatibility constructor for batch controller fixtures. */
@@ -67,25 +69,26 @@ public class DeliveryController {
                               DeliveryBatchLifecycleService batchLifecycleService,
                               com.delivery.delivery_service.service.ShipperIdentityResolver shipperIdentityResolver,
                               com.delivery.delivery_service.service.DeliveryBatchSnapshotService batchSnapshotService) {
-        this(deliveryService, batchAcceptanceService, batchLifecycleService, shipperIdentityResolver,
-                batchSnapshotService, null, null);
+        this(new LegacyDeliveryPorts(deliveryService, batchAcceptanceService, batchLifecycleService,
+                        shipperIdentityResolver, batchSnapshotService, null, null),
+                new LegacyDeliveryPorts(deliveryService, batchAcceptanceService, batchLifecycleService,
+                        shipperIdentityResolver, batchSnapshotService, null, null));
     }
 
     /** Compatibility constructor for existing controller fixtures. */
     public DeliveryController(DeliveryService deliveryService, DeliveryBatchAcceptanceService batchAcceptanceService,
                               DeliveryBatchLifecycleService batchLifecycleService) {
-        this(deliveryService, batchAcceptanceService, batchLifecycleService, null, null, null, null);
+        this(new LegacyDeliveryPorts(deliveryService, batchAcceptanceService, batchLifecycleService,
+                        null, null, null, null),
+                new LegacyDeliveryPorts(deliveryService, batchAcceptanceService, batchLifecycleService,
+                        null, null, null, null));
     }
 
     /** Compatibility constructor for legacy controller authorization tests. */
     public DeliveryController(DeliveryService deliveryService) {
-        this.deliveryService = deliveryService;
-        this.batchAcceptanceService = null;
-        this.batchLifecycleService = null;
-        this.shipperIdentityResolver = null;
-        this.batchSnapshotService = null;
-        this.proofOfDeliveryService = null;
-        this.deliveryExceptionService = null;
+        LegacyDeliveryPorts ports = new LegacyDeliveryPorts(deliveryService, null, null, null, null, null, null);
+        this.commandPort = ports;
+        this.queryPort = ports;
         this.legacyCompatibility = true;
     }
 
@@ -94,12 +97,9 @@ public class DeliveryController {
             @Valid @RequestBody AcceptBatchRequest request,
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireActor(actor);
-        if (batchAcceptanceService == null) {
-            throw new IllegalStateException("Batch acceptance support is unavailable");
-        }
-        DeliveryResponse response = shipperIdentityResolver == null
-                ? batchAcceptanceService.accept(request, actor.getPrincipalId(), getRoleString(actor))
-                : batchAcceptanceService.accept(request, actor.getPrincipalId(), actor.getLegacyUserId(), getRoleString(actor));
+        DeliveryCommandPort.Actor a = actorOf(actor);
+        DeliveryResponse response = (DeliveryResponse) commandPort.acceptBatch(new DeliveryCommandPort.AcceptBatchCommand(
+                request.getBatchId(), request.getNotes(), request.getCurrentLat(), request.getCurrentLng(), a));
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Nhận batch thành công"));
     }
 
@@ -108,14 +108,7 @@ public class DeliveryController {
             @Valid @RequestBody RejectBatchRequest request,
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireActor(actor);
-        if (batchLifecycleService == null) throw new IllegalStateException("Batch lifecycle support is unavailable");
-        // The lifecycle service uses the same locked retirement path for explicit rejection.
-        if (shipperIdentityResolver == null) {
-            batchLifecycleService.reject(request.getBatchId(), actor.getPrincipalId(), getRoleString(actor), request.getReason());
-        } else {
-            batchLifecycleService.reject(request.getBatchId(), actor.getPrincipalId(), actor.getLegacyUserId(),
-                    getRoleString(actor), request.getReason());
-        }
+        commandPort.rejectBatch(new DeliveryCommandPort.RejectBatchCommand(request.getBatchId(), request.getReason(), actorOf(actor)));
         return ResponseEntity.ok(new BaseResponse<>(1, null, "Đã từ chối batch"));
     }
 
@@ -124,9 +117,9 @@ public class DeliveryController {
             @Valid @RequestBody AcceptDeliveryRequest request,
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireActor(actor);
-        DeliveryResponse response = deliveryService.acceptDelivery(
-                request, actor.getPrincipalId(), actor.getLegacyUserId(), getRoleString(actor),
-                actor.getSimulationContext());
+        DeliveryResponse response = (DeliveryResponse) commandPort.acceptDelivery(new DeliveryCommandPort.AcceptDeliveryCommand(
+                request.getOrderId(), request.getAction(), request.getNotes(), request.getRejectReason(),
+                request.getEstimatedPickupTime(), request.getCurrentLat(), request.getCurrentLng(), actorOf(actor)));
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Nhận đơn hàng thành công"));
     }
 
@@ -135,9 +128,8 @@ public class DeliveryController {
             @Valid @RequestBody CancelDeliveryAssignmentRequest request,
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireActor(actor);
-        DeliveryResponse response = deliveryService.cancelAssignedDelivery(
-                request.getOrderId(), actor.getPrincipalId(), actor.getLegacyUserId(), getRoleString(actor),
-                request.getReason(), actor.getSimulationContext());
+        DeliveryResponse response = (DeliveryResponse) commandPort.cancelAssignment(new DeliveryCommandPort.CancelAssignmentCommand(
+                request.getOrderId(), request.getReason(), actorOf(actor)));
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Đã huỷ đơn, đang tìm shipper mới"));
     }
 
@@ -145,9 +137,7 @@ public class DeliveryController {
     public ResponseEntity<BaseResponse<DeliveryOfferResponse>> getCurrentOffer(
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireActor(actor);
-        DeliveryOfferResponse response = legacyCompatibility
-                ? deliveryService.getCurrentOffer(actor.getPrincipalId(), getRoleString(actor))
-                : deliveryService.getCurrentOffer(actor.getPrincipalId(), actor.getLegacyUserId(), getRoleString(actor));
+        DeliveryOfferResponse response = (DeliveryOfferResponse) queryPort.currentOffer(actorOf(actor));
         return ResponseEntity.ok(new BaseResponse<>(1, response,
                 response == null ? "Không có offer đang hoạt động" : "Lấy offer hiện tại thành công"));
     }
@@ -156,10 +146,7 @@ public class DeliveryController {
     public ResponseEntity<BaseResponse<com.delivery.delivery_service.dto.response.DeliveryBatchOfferResponse>> getCurrentBatchOffer(
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireActor(actor);
-        var response = batchAcceptanceService == null ? null
-                : shipperIdentityResolver == null
-                ? batchAcceptanceService.currentOffer(actor.getPrincipalId(), getRoleString(actor))
-                : batchAcceptanceService.currentOffer(actor.getPrincipalId(), actor.getLegacyUserId(), getRoleString(actor));
+        var response = (com.delivery.delivery_service.dto.response.DeliveryBatchOfferResponse) queryPort.currentBatchOffer(actorOf(actor));
         return ResponseEntity.ok(new BaseResponse<>(1, response,
                 response == null ? "Không có batch offer đang hoạt động" : "Lấy batch offer thành công"));
     }
@@ -170,11 +157,8 @@ public class DeliveryController {
             @PathVariable UUID batchId,
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireActor(actor);
-        if (batchSnapshotService == null) {
-            throw new IllegalStateException("Batch snapshot support is unavailable");
-        }
-        var response = batchSnapshotService.getSnapshot(batchId, actor.getPrincipalId(), actor.getLegacyUserId(),
-                getRoleString(actor));
+        var response = (com.delivery.delivery_service.dto.response.DeliveryBatchSnapshotResponse) queryPort.batchSnapshot(
+                new DeliveryQueryPort.BatchSnapshotQuery(batchId, actorOf(actor)));
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Lấy snapshot batch thành công"));
     }
 
@@ -184,9 +168,9 @@ public class DeliveryController {
             @Valid @RequestBody CreateProofUploadIntentRequest request,
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireActor(actor);
-        requireProofService();
-        ProofUploadIntentResponse response = proofOfDeliveryService.createUploadIntent(deliveryId, request,
-                actor.getPrincipalId(), actor.getLegacyUserId(), getRoleString(actor));
+        ProofUploadIntentResponse response = (ProofUploadIntentResponse) commandPort.createProofUploadIntent(
+                new DeliveryCommandPort.CreateProofUploadIntentCommand(deliveryId, request.getContentType(),
+                        request.getContentLengthBytes(), actorOf(actor)));
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Đã tạo URL tải bằng chứng riêng tư"));
     }
 
@@ -196,9 +180,8 @@ public class DeliveryController {
             @PathVariable UUID proofId,
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireActor(actor);
-        requireProofService();
-        ProofOfDeliveryResponse response = proofOfDeliveryService.confirmUpload(deliveryId, proofId,
-                actor.getPrincipalId(), actor.getLegacyUserId(), getRoleString(actor));
+        ProofOfDeliveryResponse response = (ProofOfDeliveryResponse) commandPort.confirmProofUpload(
+                new DeliveryCommandPort.ConfirmProofUploadCommand(deliveryId, proofId, actorOf(actor)));
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Đã xác nhận bằng chứng giao hàng"));
     }
 
@@ -208,9 +191,8 @@ public class DeliveryController {
             @PathVariable UUID proofId,
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireActor(actor);
-        requireProofService();
-        ProofAccessResponse response = proofOfDeliveryService.createReadAccess(deliveryId, proofId,
-                actor.getPrincipalId(), actor.getLegacyUserId(), getRoleString(actor));
+        ProofAccessResponse response = (ProofAccessResponse) queryPort.proofAccess(
+                new DeliveryQueryPort.ProofAccessQuery(deliveryId, proofId, actorOf(actor)));
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Đã tạo URL xem bằng chứng riêng tư"));
     }
 
@@ -220,9 +202,8 @@ public class DeliveryController {
             @Valid @RequestBody ReportDeliveryFailureRequest request,
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireActor(actor);
-        requireExceptionService();
-        DeliveryExceptionResponse response = deliveryExceptionService.reportFailure(deliveryId, request.getReason(),
-                actor.getPrincipalId(), actor.getLegacyUserId(), getRoleString(actor));
+        DeliveryExceptionResponse response = (DeliveryExceptionResponse) commandPort.reportFailure(
+                new DeliveryCommandPort.ReportFailureCommand(deliveryId, request.getReason(), actorOf(actor)));
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Đã ghi nhận sự cố giao hàng"));
     }
 
@@ -231,9 +212,8 @@ public class DeliveryController {
             @PathVariable Long deliveryId,
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireActor(actor);
-        requireExceptionService();
-        DeliveryExceptionResponse response = deliveryExceptionService.useRetry(deliveryId,
-                actor.getPrincipalId(), actor.getLegacyUserId(), getRoleString(actor));
+        DeliveryExceptionResponse response = (DeliveryExceptionResponse) commandPort.useRetry(
+                new DeliveryCommandPort.ExceptionCommand(deliveryId, actorOf(actor)));
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Đã dùng lượt giao lại"));
     }
 
@@ -242,9 +222,8 @@ public class DeliveryController {
             @PathVariable Long deliveryId,
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireActor(actor);
-        requireExceptionService();
-        DeliveryExceptionResponse response = deliveryExceptionService.confirmReturn(deliveryId,
-                actor.getPrincipalId(), actor.getLegacyUserId(), getRoleString(actor));
+        DeliveryExceptionResponse response = (DeliveryExceptionResponse) commandPort.confirmReturn(
+                new DeliveryCommandPort.ExceptionCommand(deliveryId, actorOf(actor)));
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Nhà hàng đã xác nhận hoàn hàng"));
     }
 
@@ -253,9 +232,8 @@ public class DeliveryController {
             @PathVariable Long deliveryId,
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireActor(actor);
-        requireExceptionService();
-        DeliveryExceptionResponse response = deliveryExceptionService.getException(deliveryId,
-                actor.getPrincipalId(), actor.getLegacyUserId(), getRoleString(actor));
+        DeliveryExceptionResponse response = (DeliveryExceptionResponse) queryPort.exception(
+                new DeliveryQueryPort.ExceptionQuery(deliveryId, actorOf(actor)));
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Lấy sự cố giao hàng thành công"));
     }
 
@@ -264,8 +242,7 @@ public class DeliveryController {
             @PathVariable Long id,
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireActor(actor);
-        DeliveryResponse response = deliveryService.getDeliveryById(
-                id, actor.getPrincipalId(), actor.getLegacyUserId(), getRoleString(actor));
+        DeliveryResponse response = (DeliveryResponse) queryPort.deliveryById(new DeliveryQueryPort.DeliveryQuery(id, actorOf(actor)));
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Lấy thông tin delivery thành công"));
     }
 
@@ -275,9 +252,8 @@ public class DeliveryController {
             @RequestParam DeliveryStatus status,
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireActor(actor);
-        DeliveryResponse response = deliveryService.updateDeliveryStatus(
-                id, status, actor.getPrincipalId(), actor.getLegacyUserId(), getRoleString(actor),
-                actor.getSimulationContext());
+        DeliveryResponse response = (DeliveryResponse) commandPort.updateStatus(new DeliveryCommandPort.UpdateStatusCommand(
+                id, status.name(), actorOf(actor)));
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Cập nhật trạng thái delivery thành công"));
     }
 
@@ -286,8 +262,8 @@ public class DeliveryController {
             @PathVariable Long shipperId,
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireActor(actor);
-        List<DeliveryResponse> response = deliveryService.getDeliveriesByShipper(
-                shipperId, actor.getPrincipalId(), actor.getLegacyUserId(), getRoleString(actor));
+        @SuppressWarnings("unchecked") List<DeliveryResponse> response = (List<DeliveryResponse>) queryPort.deliveriesByShipper(
+                new DeliveryQueryPort.ShipperDeliveriesQuery(shipperId, actorOf(actor)));
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Lấy danh sách delivery của shipper thành công"));
     }
 
@@ -296,8 +272,8 @@ public class DeliveryController {
             @PathVariable Long shipperId,
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireActor(actor);
-        List<DeliveryResponse> response = deliveryService.getActiveDeliveriesByShipper(
-                shipperId, actor.getPrincipalId(), actor.getLegacyUserId(), getRoleString(actor));
+        @SuppressWarnings("unchecked") List<DeliveryResponse> response = (List<DeliveryResponse>) queryPort.activeDeliveriesByShipper(
+                new DeliveryQueryPort.ShipperDeliveriesQuery(shipperId, actorOf(actor)));
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Lấy danh sách delivery đang hoạt động thành công"));
     }
 
@@ -306,8 +282,7 @@ public class DeliveryController {
             @PathVariable Long orderId,
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireActor(actor);
-        DeliveryResponse response = deliveryService.getDeliveryByOrderId(
-                orderId, actor.getPrincipalId(), actor.getLegacyUserId(), getRoleString(actor));
+        DeliveryResponse response = (DeliveryResponse) queryPort.deliveryByOrder(new DeliveryQueryPort.DeliveryQuery(orderId, actorOf(actor)));
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Lấy thông tin delivery theo order thành công"));
     }
 
@@ -317,16 +292,9 @@ public class DeliveryController {
         }
     }
 
-    private void requireProofService() {
-        if (proofOfDeliveryService == null) {
-            throw new IllegalStateException("Proof-of-delivery support is unavailable");
-        }
-    }
-
-    private void requireExceptionService() {
-        if (deliveryExceptionService == null) {
-            throw new IllegalStateException("Delivery exception support is unavailable");
-        }
+    private DeliveryCommandPort.Actor actorOf(AuthenticatedActor actor) {
+        return new DeliveryCommandPort.Actor(actor.getPrincipalId(), actor.getLegacyUserId(),
+                getRoleString(actor), actor.getSimulationContext());
     }
 
     private String getRoleString(AuthenticatedActor actor) {
