@@ -41,6 +41,10 @@
         <module>modules/settlement/settlement-application-api</module>
         <module>modules/settlement/settlement-application</module>
         <module>modules/settlement/settlement-infrastructure</module>
+        <module>modules/auth/auth-domain</module>
+        <module>modules/auth/auth-application-api</module>
+        <module>modules/auth/auth-application</module>
+        <module>modules/auth/auth-infrastructure</module>
         <module>auth-resource-server-starter</module>
         <module>discovery-server</module>
         <module>config-server</module>
