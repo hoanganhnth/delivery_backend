@@ -16,6 +16,7 @@ import java.util.Map;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 import com.delivery.identity.contracts.SimulationContext;
+import com.delivery.delivery.contracts.DeliveryStatusUpdatedEvent;
 
 /**
  * ✅ Event Publisher — Transactional Outbox Pattern
@@ -69,12 +70,19 @@ public class DeliveryEventPublisher {
 
     public void publishDeliveryStatusUpdated(Long deliveryId, Long orderId, Long userId, Long userPrincipalId, Long shipperId,
                                              String status, String previousStatus, SimulationContext context) {
+        if (deliveryId == null || deliveryId <= 0 || orderId == null || orderId <= 0
+                || userId == null || userId <= 0 || status == null || status.isBlank()
+                || previousStatus == null || previousStatus.isBlank()) {
+            throw new IllegalArgumentException("delivery status event identity and statuses are required");
+        }
         log.info("📦 [Kafka] Sending delivery status update: {} -> {} for delivery: {}, order: {}",
                 previousStatus, status, deliveryId, orderId);
 
-        DeliveryStatusUpdateEvent statusEvent = new DeliveryStatusUpdateEvent(
-                deliveryId, orderId, userId, userPrincipalId, shipperId, status, previousStatus, context
-        );
+        DeliveryStatusUpdatedEvent statusEvent = new DeliveryStatusUpdatedEvent(
+                UUID.nameUUIDFromBytes(("delivery.status-updated:" + deliveryId + ":" + orderId + ":"
+                        + status + ":" + previousStatus).getBytes(StandardCharsets.UTF_8)),
+                "DELIVERY_STATUS_UPDATED", LocalDateTime.now(), deliveryId, orderId, userId,
+                userPrincipalId, shipperId, status, previousStatus, null, context);
 
         save(deliveryId, "DELIVERY_STATUS_UPDATED", deliveryStatusUpdatedTopic, statusEvent);
     }
@@ -83,43 +91,6 @@ public class DeliveryEventPublisher {
     public void publishDeliveryStatusUpdated(Long deliveryId, Long orderId, Long userId, Long shipperId,
                                              String status, String previousStatus) {
         publishDeliveryStatusUpdated(deliveryId, orderId, userId, null, shipperId, status, previousStatus);
-    }
-
-    /**
-     * Inner class for delivery status update events
-     */
-    public static class DeliveryStatusUpdateEvent {
-        public final Long deliveryId;
-        public final Long orderId;
-        public final Long userId;
-        public final Long userPrincipalId;
-        public final Long shipperId;
-        public final String status;
-        public final String newStatus;
-        public final String oldStatus;
-        public final SimulationContext simulationContext;
-        public final String eventType = "DELIVERY_STATUS_UPDATED";
-        public final LocalDateTime timestamp = LocalDateTime.now();
-
-        public DeliveryStatusUpdateEvent(Long deliveryId, Long orderId, Long userId, Long userPrincipalId, Long shipperId,
-                                         String newStatus, String oldStatus) {
-            this(deliveryId, orderId, userId, userPrincipalId, shipperId, newStatus, oldStatus,
-                    SimulationContext.real());
-        }
-
-        public DeliveryStatusUpdateEvent(Long deliveryId, Long orderId, Long userId, Long userPrincipalId, Long shipperId,
-                                         String newStatus, String oldStatus, SimulationContext context) {
-            this.deliveryId = deliveryId;
-            this.orderId = orderId;
-            this.userId = userId;
-            this.userPrincipalId = userPrincipalId;
-            this.shipperId = shipperId;
-            this.status = newStatus;
-            this.newStatus = newStatus;
-            this.oldStatus = oldStatus;
-            this.simulationContext = SimulationContext.orReal(context);
-            this.simulationContext.requireValid();
-        }
     }
 
     /**
