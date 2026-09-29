@@ -84,6 +84,38 @@ class DefaultSagaIngressServiceTest {
         assertThat(matching.findCommands).isEmpty();
     }
 
+    @Test
+    void rejectsNullAndNegativeFeesAndMissingPersistenceIdentity() {
+        assertThatThrownBy(() -> service.createDelivery(null)).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> service.createDelivery(new SagaIngressPort.CreateDeliveryCommand(null, 7L, 5L, BigDecimal.ZERO)))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.createDelivery(new SagaIngressPort.CreateDeliveryCommand(9L, 7L, 5L, null)))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.createDelivery(new SagaIngressPort.CreateDeliveryCommand(9L, 7L, 5L, new BigDecimal("-1"))))
+                .isInstanceOf(IllegalArgumentException.class);
+        storage.returnNull = true;
+        assertThatThrownBy(() -> service.createDelivery(new SagaIngressPort.CreateDeliveryCommand(9L, 7L, 5L, BigDecimal.ZERO)))
+                .isInstanceOf(IllegalStateException.class);
+        storage.returnNull = false; storage.returnWithoutId = true;
+        assertThatThrownBy(() -> service.createDelivery(new SagaIngressPort.CreateDeliveryCommand(9L, 7L, 5L, BigDecimal.ZERO)))
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void rejectsInvalidCancellationAndNullConstructionDependencies() {
+        storage.rows.put(41L, snapshot(DeliveryStatus.DELIVERED));
+        assertThatThrownBy(() -> service.cancel(new SagaIngressPort.CancelDeliveryCommand(41L, 9L, "x", "c")))
+                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> service.updateStatus(new SagaIngressPort.UpdateDeliveryStatusCommand(null, DeliveryStatus.PICKED_UP, "c")))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new DefaultSagaIngressService(null, matching, () -> NOW))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new DefaultSagaIngressService(storage, null, () -> NOW))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new DefaultSagaIngressService(storage, matching, null))
+                .isInstanceOf(NullPointerException.class);
+    }
+
     private DeliveryStoragePort.DeliverySnapshot snapshot(DeliveryStatus status) {
         return new DeliveryStoragePort.DeliverySnapshot(41L, 9L, 7L, 5L, null, status,
                 BigDecimal.ZERO, NOW);
@@ -93,6 +125,8 @@ class DefaultSagaIngressServiceTest {
         private final Map<Long, DeliverySnapshot> rows = new HashMap<>();
         private final List<DeliverySnapshot> saved = new ArrayList<>();
         private long nextId = 1L;
+        private boolean returnNull;
+        private boolean returnWithoutId;
 
         @Override
         public Optional<DeliverySnapshot> findById(Long deliveryId) {
@@ -101,10 +135,12 @@ class DefaultSagaIngressServiceTest {
 
         @Override
         public DeliverySnapshot save(DeliverySnapshot delivery) {
+            if (returnNull) return null;
             DeliverySnapshot persisted = delivery.deliveryId() == null
-                    ? new DeliverySnapshot(nextId, delivery.orderId(), delivery.userId(), delivery.restaurantId(),
+                    ? new DeliverySnapshot(returnWithoutId ? null : nextId, delivery.orderId(), delivery.userId(), delivery.restaurantId(),
                     delivery.shipperId(), delivery.status(), delivery.shippingFee(), delivery.updatedAt())
                     : delivery;
+            if (persisted.deliveryId() == null) return persisted;
             nextId = persisted.deliveryId() + 1;
             rows.put(persisted.deliveryId(), persisted);
             saved.add(persisted);
