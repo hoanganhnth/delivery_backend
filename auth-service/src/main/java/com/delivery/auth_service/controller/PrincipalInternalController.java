@@ -1,7 +1,7 @@
 package com.delivery.auth_service.controller;
 
 import com.delivery.auth_service.exception.AccessDeniedException;
-import com.delivery.auth_service.service.PrincipalLookupService;
+import com.delivery.auth_service.application.port.in.PrincipalLookupUseCase;
 import com.delivery.identity.contracts.IdentityPrincipal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -17,13 +17,13 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/auth/internal/principals")
 public class PrincipalInternalController {
 
-    private final PrincipalLookupService principalLookupService;
+    private final PrincipalLookupUseCase principalLookupUseCase;
     private final String internalSecret;
 
     public PrincipalInternalController(
-            PrincipalLookupService principalLookupService,
+            PrincipalLookupUseCase principalLookupUseCase,
             @Value("${app.internal.secret:}") String internalSecret) {
-        this.principalLookupService = principalLookupService;
+        this.principalLookupUseCase = principalLookupUseCase;
         this.internalSecret = internalSecret == null ? "" : internalSecret;
     }
 
@@ -32,7 +32,7 @@ public class PrincipalInternalController {
             @RequestHeader(value = "Internal-Token", required = false) String suppliedSecret,
             @PathVariable String principalId) {
         authorize(suppliedSecret);
-        return principalLookupService.findByPrincipalId(parsePrincipalId(principalId))
+        return principalLookupUseCase.findByPrincipalId(parsePrincipalId(principalId))
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }

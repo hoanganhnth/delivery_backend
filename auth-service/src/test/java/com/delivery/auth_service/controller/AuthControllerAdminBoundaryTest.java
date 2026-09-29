@@ -3,7 +3,7 @@ package com.delivery.auth_service.controller;
 import com.delivery.auth_service.dto.AuthAccountDto;
 import com.delivery.auth_service.dto.BlockAccountRequest;
 import com.delivery.auth_service.entity.AuthAccount;
-import com.delivery.auth_service.service.AuthService;
+import com.delivery.auth_service.application.port.in.AuthUseCase;
 import com.delivery.auth.resourceserver.security.AuthenticatedActor;
 import com.delivery.auth.resourceserver.security.AuthenticatedActorAuthenticationToken;
 import org.junit.jupiter.api.AfterEach;
@@ -24,8 +24,8 @@ import static org.mockito.Mockito.when;
 
 class AuthControllerAdminBoundaryTest {
 
-    private final AuthService authService = mock(AuthService.class);
-    private final AuthController controller = new AuthController(authService);
+    private final AuthUseCase authUseCase = mock(AuthUseCase.class);
+    private final AuthController controller = new AuthController(authUseCase);
 
     @AfterEach
     void tearDown() {
@@ -39,20 +39,20 @@ class AuthControllerAdminBoundaryTest {
         var forbidden = controller.getAccountById(7L);
 
         assertThat(forbidden.getStatusCode().value()).isEqualTo(403);
-        verify(authService, never()).getAccountByIdDto(7L);
+        verify(authUseCase, never()).accountById(7L);
     }
 
     @Test
     void accountReadAcceptsAdminRole() {
         setSecurityContext("admin@example.com", "ROLE_ADMIN", 1L);
         AuthAccountDto account = new AuthAccountDto(7L, "admin@example.com", "ADMIN");
-        when(authService.getAccountByIdDto(7L)).thenReturn(account);
+        when(authUseCase.accountById(7L)).thenReturn(account);
 
         var response = controller.getAccountById(7L);
 
         assertThat(response.getStatusCode().is2xxSuccessful()).isTrue();
         assertThat(response.getBody().getData()).isEqualTo(account);
-        verify(authService).getAccountByIdDto(7L);
+        verify(authUseCase).accountById(7L);
     }
 
     @Test
@@ -62,7 +62,7 @@ class AuthControllerAdminBoundaryTest {
         var response = controller.getSessions();
 
         assertThat(response.getStatusCode().value()).isEqualTo(401);
-        verify(authService, never()).getActiveSessions(org.mockito.ArgumentMatchers.anyString());
+        verify(authUseCase, never()).activeSessions(org.mockito.ArgumentMatchers.anyString());
     }
 
     @Test
@@ -77,7 +77,7 @@ class AuthControllerAdminBoundaryTest {
 
         assertThat(forbidden.getStatusCode().value()).isEqualTo(403);
         assertThat(invalid.getStatusCode().value()).isEqualTo(400);
-        verify(authService, never()).blockAccount(7L, 1L, tooLong.getReason());
+        verify(authUseCase, never()).blockAccount(7L, 1L, tooLong.getReason());
     }
 
     @Test
@@ -89,11 +89,11 @@ class AuthControllerAdminBoundaryTest {
 
         assertThat(block.getStatusCode().value()).isEqualTo(403);
         assertThat(unblock.getStatusCode().value()).isEqualTo(403);
-        verify(authService, never()).blockAccount(
+        verify(authUseCase, never()).blockAccount(
                 org.mockito.ArgumentMatchers.anyLong(),
                 org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any());
-        verify(authService, never()).unblockAccount(
+        verify(authUseCase, never()).unblockAccount(
                 org.mockito.ArgumentMatchers.anyLong(),
                 org.mockito.ArgumentMatchers.any());
     }

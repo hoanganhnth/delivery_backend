@@ -8,7 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.delivery.auth.resourceserver.security.DeliveryJwtAuthenticationConverter;
 import com.delivery.auth_service.security.SecurityConfig;
-import com.delivery.auth_service.service.PrincipalLookupService;
+import com.delivery.auth_service.application.port.in.PrincipalLookupUseCase;
 import com.delivery.identity.contracts.IdentityLifecycleStatus;
 import com.delivery.identity.contracts.IdentityPrincipal;
 import com.delivery.identity.contracts.IdentityRole;
@@ -34,7 +34,7 @@ class PrincipalInternalControllerTest {
     private MockMvc mockMvc;
 
     @MockitoBean
-    private PrincipalLookupService principalLookupService;
+    private PrincipalLookupUseCase principalLookupUseCase;
 
     @MockitoBean
     private JwtDecoder jwtDecoder;
@@ -44,7 +44,7 @@ class PrincipalInternalControllerTest {
 
     @Test
     void validInternalTokenReturnsTypedPrincipalWithoutJwt() throws Exception {
-        when(principalLookupService.findByPrincipalId(42L)).thenReturn(Optional.of(
+        when(principalLookupUseCase.findByPrincipalId(42L)).thenReturn(Optional.of(
                 new IdentityPrincipal(42L, IdentityRole.SHOP_OWNER, IdentityLifecycleStatus.ACTIVE)));
 
         mockMvc.perform(get("/api/auth/internal/principals/42")
@@ -57,7 +57,7 @@ class PrincipalInternalControllerTest {
 
     @Test
     void missingPrincipalReturnsNotFoundAfterAuthorization() throws Exception {
-        when(principalLookupService.findByPrincipalId(404L)).thenReturn(Optional.empty());
+        when(principalLookupUseCase.findByPrincipalId(404L)).thenReturn(Optional.empty());
 
         mockMvc.perform(get("/api/auth/internal/principals/404")
                         .header("Internal-Token", "service-secret"))
@@ -71,7 +71,7 @@ class PrincipalInternalControllerTest {
         mockMvc.perform(get("/api/auth/internal/principals/42")
                         .header("Internal-Token", "wrong-secret"))
                 .andExpect(status().isForbidden());
-        verifyNoInteractions(principalLookupService);
+        verifyNoInteractions(principalLookupUseCase);
     }
 
     @Test
@@ -81,12 +81,12 @@ class PrincipalInternalControllerTest {
                             .header("Internal-Token", "service-secret"))
                     .andExpect(status().isBadRequest());
         }
-        verifyNoInteractions(principalLookupService);
+        verifyNoInteractions(principalLookupUseCase);
     }
 
     @Test
     void blankConfiguredSecretFailsClosedBeforeLookup() {
-        PrincipalLookupService lookup = org.mockito.Mockito.mock(PrincipalLookupService.class);
+        PrincipalLookupUseCase lookup = org.mockito.Mockito.mock(PrincipalLookupUseCase.class);
         PrincipalInternalController controller = new PrincipalInternalController(lookup, " ");
 
         org.assertj.core.api.Assertions.assertThatThrownBy(

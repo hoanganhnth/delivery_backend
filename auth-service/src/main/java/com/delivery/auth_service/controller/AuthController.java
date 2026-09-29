@@ -31,11 +31,7 @@ import com.delivery.auth_service.dto.SecurityEmailRequest;
 import com.delivery.auth_service.dto.SecurityTokenRequest;
 import com.delivery.auth_service.dto.ResetPasswordRequest;
 import com.delivery.auth_service.payload.BaseResponse;
-import com.delivery.auth_service.service.AuthService;
-import com.delivery.auth_service.service.AccountSecurityService;
-import com.delivery.auth_service.service.TokenService;
-import com.delivery.auth_service.service.IdentityRegistrationService;
-import com.delivery.auth_service.service.RegistrationAdmissionPolicy;
+import com.delivery.auth_service.application.port.in.AuthUseCase;
 import com.delivery.auth_service.service.FirebaseChatTokenService;
 import com.delivery.auth_service.dto.RegistrationStatusResponse;
 
@@ -46,28 +42,11 @@ import jakarta.servlet.http.HttpServletRequest;
 @RequestMapping("/api/auth")
 public class AuthController {
 
-    private final AuthService authService;
-    private final AccountSecurityService accountSecurityService;
-    private final TokenService tokenService;
-    private final IdentityRegistrationService identityRegistrationService;
-    private final RegistrationAdmissionPolicy registrationAdmissionPolicy;
-    private final FirebaseChatTokenService firebaseChatTokenService;
-
-    public AuthController(AuthService authService) {
-        this(authService, null, null, null, null, null);
-    }
+    private final AuthUseCase authUseCase;
 
     @Autowired
-    public AuthController(AuthService authService, AccountSecurityService accountSecurityService, TokenService tokenService,
-            IdentityRegistrationService identityRegistrationService,
-            RegistrationAdmissionPolicy registrationAdmissionPolicy,
-            FirebaseChatTokenService firebaseChatTokenService) {
-        this.authService = authService;
-        this.accountSecurityService = accountSecurityService;
-        this.tokenService = tokenService;
-        this.identityRegistrationService = identityRegistrationService;
-        this.registrationAdmissionPolicy = registrationAdmissionPolicy;
-        this.firebaseChatTokenService = firebaseChatTokenService;
+    public AuthController(AuthUseCase authUseCase) {
+        this.authUseCase = authUseCase;
     }
 
     @PostMapping("/register")
@@ -78,15 +57,14 @@ public class AuthController {
         // not create an identity until the paired profile outbox/consumer path
         // is enabled; otherwise a Wave-1 deployment would manufacture accounts
         // that cannot complete onboarding or log in.
-        if (registrationAdmissionPolicy == null || !registrationAdmissionPolicy.admits(request.getEmail())) {
+        if (!authUseCase.admitsRegistration(request.getEmail())) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
                     "Registration is temporarily unavailable while onboarding is being deployed");
         }
-        var account = authService.register(request);
-        String provisioningToken = tokenService.generateProvisioningToken(
-                account.getId(), account.getEmail(), account.getRole().name());
-        var handle = identityRegistrationService.issue(account);
-        accountSecurityService.requestEmailVerification(account.getEmail(), clientIp(servletRequest));
+        var account = authUseCase.register(request);
+        String provisioningToken = authUseCase.generateProvisioningToken(account);
+        var handle = authUseCase.issueRegistration(account);
+        authUseCase.requestEmailVerification(account.getEmail(), clientIp(servletRequest));
         AuthRegisterResponse registration = new AuthRegisterResponse(
                 account.getId(),
                 account.getEmail(),
@@ -99,7 +77,7 @@ public class AuthController {
 
     @GetMapping("/registrations/{handle}")
     public ResponseEntity<BaseResponse<RegistrationStatusResponse>> registrationStatus(@PathVariable String handle) {
-        RegistrationStatusResponse status = identityRegistrationService.status(handle);
+        RegistrationStatusResponse status = authUseCase.registrationStatus(handle);
         return ResponseEntity.ok().header("Cache-Control", "no-store")
                 .header("Retry-After", status.status().name().startsWith("PENDING") ? "3" : "0")
                 .body(BaseResponse.success(status));
@@ -109,7 +87,7 @@ public class AuthController {
     public ResponseEntity<BaseResponse<Void>> forgotPassword(
             @Valid @RequestBody SecurityEmailRequest request,
             HttpServletRequest servletRequest) {
-        accountSecurityService.requestPasswordReset(request.getEmail(), clientIp(servletRequest));
+        authUseCase.requestPasswordReset(request.getEmail(), clientIp(servletRequest));
         return ResponseEntity.status(HttpStatus.ACCEPTED)
                 .body(BaseResponse.success(null, securityRequestMessage()));
     }
@@ -118,7 +96,7 @@ public class AuthController {
     public ResponseEntity<BaseResponse<Void>> resetPassword(
             @Valid @RequestBody ResetPasswordRequest request,
             HttpServletRequest servletRequest) {
-        accountSecurityService.resetPassword(
+        authUseCase.resetPassword(
                 request.getToken(), request.getNewPassword(), clientIp(servletRequest));
         return ResponseEntity.ok(BaseResponse.success(null, "Password changed successfully"));
     }
@@ -127,7 +105,7 @@ public class AuthController {
     public ResponseEntity<BaseResponse<Void>> requestEmailVerification(
             @Valid @RequestBody SecurityEmailRequest request,
             HttpServletRequest servletRequest) {
-        accountSecurityService.requestEmailVerification(request.getEmail(), clientIp(servletRequest));
+        authUseCase.requestEmailVerification(request.getEmail(), clientIp(servletRequest));
         return ResponseEntity.status(HttpStatus.ACCEPTED)
                 .body(BaseResponse.success(null, securityRequestMessage()));
     }
@@ -136,27 +114,27 @@ public class AuthController {
     public ResponseEntity<BaseResponse<Void>> confirmEmailVerification(
             @Valid @RequestBody SecurityTokenRequest request,
             HttpServletRequest servletRequest) {
-        accountSecurityService.verifyEmail(request.getToken(), clientIp(servletRequest));
+        authUseCase.verifyEmail(request.getToken(), clientIp(servletRequest));
         return ResponseEntity.ok(BaseResponse.success(null, "Email verified successfully"));
     }
 
     @PostMapping("/login")
     public ResponseEntity<BaseResponse<AuthResponse>> login(@Valid @RequestBody LoginRequest request) {
-        AuthResponse authResponse = authService.login(request);
+        AuthResponse authResponse = authUseCase.login(request);
         BaseResponse<AuthResponse> response = BaseResponse.success(authResponse, "Login successful");
         return ResponseEntity.ok(response);
     }
 
     @PostMapping("/social-login")
     public ResponseEntity<BaseResponse<AuthResponse>> socialLogin(@Valid @RequestBody SocialLoginRequest request) {
-        AuthResponse authResponse = authService.socialLogin(request);
+        AuthResponse authResponse = authUseCase.socialLogin(request);
         BaseResponse<AuthResponse> response = BaseResponse.success(authResponse, "Social login successful");
         return ResponseEntity.ok(response);
     }
 
     @PostMapping("/refresh-token")
     public ResponseEntity<BaseResponse<AuthResponse>> refreshToken(@Valid @RequestBody RefreshTokenRequest request) {
-        AuthResponse authResponse = authService.refreshToken(request);
+        AuthResponse authResponse = authUseCase.refreshToken(request);
         BaseResponse<AuthResponse> response = BaseResponse.success(authResponse, "Token refreshed");
         return ResponseEntity.ok(response);
     }
@@ -164,8 +142,7 @@ public class AuthController {
     @PostMapping("/firebase/chat-token")
     public ResponseEntity<BaseResponse<FirebaseChatTokenResponse>> firebaseChatToken(
         Authentication authentication) {
-        if (firebaseChatTokenService == null
-                || authentication == null
+        if (authentication == null
                 || !(authentication.getPrincipal() instanceof com.delivery.auth.resourceserver.security.AuthenticatedActor actor)
                 || (!actor.isUser() && !actor.isAdmin())) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
@@ -174,7 +151,7 @@ public class AuthController {
 
         try {
             return ResponseEntity.ok(BaseResponse.success(
-                    firebaseChatTokenService.issue(actor),
+                    authUseCase.issueFirebaseChatToken(actor),
                     "Firebase chat token created"));
         } catch (FirebaseChatTokenService.FirebaseChatUnavailableException exception) {
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
@@ -184,7 +161,7 @@ public class AuthController {
 
     @PostMapping("/logout")
     public ResponseEntity<BaseResponse<Void>> logout(@Valid @RequestBody RefreshTokenRequest request) {
-        authService.logout(request.getRefreshToken());
+        authUseCase.logout(request.getRefreshToken());
         BaseResponse<Void> response = BaseResponse.success(null, "Logout successful");
         return ResponseEntity.ok(response);
     }
@@ -198,7 +175,7 @@ public class AuthController {
         }
 
         String email = authentication.getName();
-        List<SessionInfoResponse> sessions = authService.getActiveSessions(email);
+        List<SessionInfoResponse> sessions = authUseCase.activeSessions(email);
         return ResponseEntity.ok(BaseResponse.success(sessions));
     }
 
@@ -210,7 +187,7 @@ public class AuthController {
                     .body(BaseResponse.failure("Unauthorized"));
         }
 
-        authService.revokeDeviceSession(authentication.getName(), deviceId);
+        authUseCase.revokeDeviceSession(authentication.getName(), deviceId);
         return ResponseEntity.ok(BaseResponse.success(null, "Device session revoked"));
     }
 
@@ -221,7 +198,7 @@ public class AuthController {
                     .body(BaseResponse.failure("Only ADMIN can access this endpoint"));
         }
 
-        AuthAccountDto dto = authService.getAccountByIdDto(id);
+        AuthAccountDto dto = authUseCase.accountById(id);
         return ResponseEntity.ok(BaseResponse.success(dto));
     }
 
@@ -253,7 +230,7 @@ public class AuthController {
 
         String reason = (request != null && request.getReason() != null) ? request.getReason() : "Blocked by admin";
 
-        authService.blockAccount(id, adminId, reason);
+        authUseCase.blockAccount(id, adminId, reason);
         return ResponseEntity.ok(BaseResponse.success(null, "Account blocked successfully"));
     }
 
@@ -274,7 +251,7 @@ public class AuthController {
                     .body(BaseResponse.failure("Admin ID is required"));
         }
 
-        authService.unblockAccount(id, adminId);
+        authUseCase.unblockAccount(id, adminId);
         return ResponseEntity.ok(BaseResponse.success(null, "Account unblocked successfully"));
     }
 
@@ -297,7 +274,7 @@ public class AuthController {
             if (authentication.getPrincipal() instanceof com.delivery.auth.resourceserver.security.AuthenticatedActor actor) {
                 if (actor.getPrincipalId() != null) return actor.getPrincipalId();
                 if (actor.getEmail() != null && !actor.getEmail().isBlank()) {
-                    var account = authService.getAccountByEmail(actor.getEmail());
+                    var account = authUseCase.accountByEmail(actor.getEmail());
                     if (account.isPresent()) return account.get().getId();
                 }
             }
@@ -309,7 +286,7 @@ public class AuthController {
                 }
                 String email = jwt.getClaimAsString("email");
                 if (email != null && !email.isBlank()) {
-                    var account = authService.getAccountByEmail(email);
+                    var account = authUseCase.accountByEmail(email);
                     if (account.isPresent()) return account.get().getId();
                 }
             }
@@ -317,7 +294,7 @@ public class AuthController {
                 if (authentication.getName().matches("\\d+")) {
                     return Long.parseLong(authentication.getName());
                 }
-                var account = authService.getAccountByEmail(authentication.getName());
+                var account = authUseCase.accountByEmail(authentication.getName());
                 if (account.isPresent()) return account.get().getId();
             }
         }

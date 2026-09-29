@@ -1,5 +1,7 @@
 package com.delivery.auth_service.entity;
 
+import com.delivery.auth_service.entity.AuthAccount;
+
 import java.time.LocalDateTime;
 
 import com.fasterxml.jackson.annotation.JsonCreator;

@@ -5,10 +5,16 @@ import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.delivery.auth.resourceserver.security.AuthenticatedActor;
+import com.delivery.user.application.api.UpdateUserBlockStatusCommand;
+import com.delivery.user.application.api.UpdateProfileCommand;
+import com.delivery.user.application.api.UserBlockStatusUseCase;
+import com.delivery.user.application.api.UserProfileReadUseCase;
+import com.delivery.user.application.api.UserProfileResult;
+import com.delivery.user.application.api.UserProfileUseCase;
+import com.delivery.user.application.api.UserRegistrationUseCase;
 import com.delivery.user_service.dto.UserRequest;
 import com.delivery.user_service.dto.UserResponse;
 import com.delivery.user_service.dto.BlockUserRequest;
-import com.delivery.user_service.service.UserService;
 
 import java.util.Set;
 
@@ -20,8 +26,12 @@ import static org.mockito.Mockito.when;
 
 class UserControllerInternalAuthorizationTest {
 
-    private final UserService userService = mock(UserService.class);
-    private final UserController controller = new UserController(userService);
+    private final UserProfileUseCase userProfileUseCase = mock(UserProfileUseCase.class);
+    private final UserProfileReadUseCase userProfileReadUseCase = mock(UserProfileReadUseCase.class);
+    private final UserBlockStatusUseCase userBlockStatusUseCase = mock(UserBlockStatusUseCase.class);
+    private final UserRegistrationUseCase userRegistrationUseCase = mock(UserRegistrationUseCase.class);
+    private final UserController controller = new UserController(
+            userProfileUseCase, userProfileReadUseCase, userBlockStatusUseCase, userRegistrationUseCase);
 
     @BeforeEach
     void configureSecret() {
@@ -35,19 +45,20 @@ class UserControllerInternalAuthorizationTest {
         var response = controller.createUser(request, null);
 
         assertThat(response.getStatusCode().value()).isEqualTo(403);
-        verify(userService, never()).createUser(request);
+        verify(userProfileUseCase, never()).create(org.mockito.ArgumentMatchers.any());
     }
 
     @Test
     void createUserAcceptsConfiguredServiceCredential() {
         UserRequest request = new UserRequest();
         UserResponse created = UserResponse.builder().id(7L).build();
-        when(userService.createUser(request)).thenReturn(created);
+        when(userProfileUseCase.create(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(profileResult(created));
 
         var response = controller.createUser(request, "service-secret");
 
         assertThat(response.getStatusCode().is2xxSuccessful()).isTrue();
-        verify(userService).createUser(request);
+        verify(userProfileUseCase).create(org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -55,22 +66,22 @@ class UserControllerInternalAuthorizationTest {
         var response = controller.getUserByAuthId(9L, "wrong");
 
         assertThat(response.getStatusCode().value()).isEqualTo(403);
-        verify(userService, never()).getUserByAuthId(9L);
+        verify(userProfileReadUseCase, never()).byAuthId(9L);
     }
 
     @Test
     void currentProfileUpdateUsesTheGatewayIdentity() {
         UserRequest request = UserRequest.builder().authId(999L).email("ignored@example.com").build();
         UserResponse updated = UserResponse.builder().id(7L).build();
-        when(userService.getUserByPrincipalId(7L)).thenReturn(UserResponse.builder().id(7L).build());
-        when(userService.updateUser(7L, request)).thenReturn(updated);
+        when(userProfileReadUseCase.byPrincipalId(7L)).thenReturn(profileResult(UserResponse.builder().id(7L).build()));
+        when(userProfileUseCase.update(org.mockito.ArgumentMatchers.any())).thenReturn(profileResult(updated));
         AuthenticatedActor actor = new AuthenticatedActor(7L, "user@example.com", Set.of("USER"));
 
         var response = controller.updateCurrentUser(request, actor);
 
         assertThat(response.getStatusCode().is2xxSuccessful()).isTrue();
-        verify(userService).updateUser(7L, request);
-        verify(userService, never()).updateUser(999L, request);
+        verify(userProfileUseCase).update(new UpdateProfileCommand(7L, null, null, null, null, null));
+        verify(userProfileUseCase, never()).update(new UpdateProfileCommand(999L, null, null, null, null, null));
     }
 
     @Test
@@ -80,9 +91,8 @@ class UserControllerInternalAuthorizationTest {
 
         assertThat(missingActor.getStatusCode().value()).isEqualTo(403);
         assertThat(missingUserActor.getStatusCode().value()).isEqualTo(403);
-        verify(userService, never()).getUserById(7L);
-        verify(userService, never()).updateUser(org.mockito.ArgumentMatchers.anyLong(),
-                org.mockito.ArgumentMatchers.any());
+        verify(userProfileReadUseCase, never()).byPrincipalId(7L);
+        verify(userProfileUseCase, never()).update(org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -98,7 +108,7 @@ class UserControllerInternalAuthorizationTest {
 
         assertThat(forbidden.getStatusCode().value()).isEqualTo(403);
         assertThat(invalid.getStatusCode().value()).isEqualTo(400);
-        verify(userService, never()).blockUser(7L, 1L, tooLong.getReason());
+        verify(userBlockStatusUseCase, never()).update(org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -113,8 +123,7 @@ class UserControllerInternalAuthorizationTest {
 
         assertThat(blocked.getStatusCode().value()).isEqualTo(403);
         assertThat(unblocked.getStatusCode().value()).isEqualTo(403);
-        verify(userService, never()).blockUser(7L, 1L, request.getReason());
-        verify(userService, never()).unblockUser(7L, 1L);
+        verify(userBlockStatusUseCase, never()).update(org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -129,7 +138,17 @@ class UserControllerInternalAuthorizationTest {
 
         assertThat(blocked.getStatusCode().is2xxSuccessful()).isTrue();
         assertThat(unblocked.getStatusCode().is2xxSuccessful()).isTrue();
-        verify(userService).blockUser(7L, 1L, request.getReason());
-        verify(userService).unblockUser(7L, 1L);
+        verify(userBlockStatusUseCase).update(
+                new UpdateUserBlockStatusCommand(7L, 1L, true, request.getReason()));
+        verify(userBlockStatusUseCase).update(
+                new UpdateUserBlockStatusCommand(7L, 1L, false, null));
+    }
+
+    private UserProfileResult profileResult(UserResponse response) {
+        return new UserProfileResult(
+                response.getId(), response.getAuthId(), response.getPrincipalId(), "ACTIVE", 0L,
+                response.getEmail(), response.getRole(), response.getFullName(), response.getPhone(),
+                response.getDob(), response.getAvatarUrl(), response.getAddress(), true, false,
+                null, null, null, response.getCreatedAt(), response.getUpdatedAt());
     }
 }

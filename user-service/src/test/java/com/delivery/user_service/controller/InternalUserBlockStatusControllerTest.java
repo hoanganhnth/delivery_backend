@@ -1,7 +1,8 @@
 package com.delivery.user_service.controller;
 
 import com.delivery.user_service.dto.UserBlockStatusRequest;
-import com.delivery.user_service.service.UserService;
+import com.delivery.user.application.api.UpdateUserBlockStatusCommand;
+import com.delivery.user.application.api.UserBlockStatusUseCase;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -11,9 +12,9 @@ import static org.mockito.Mockito.verify;
 
 class InternalUserBlockStatusControllerTest {
 
-    private final UserService userService = mock(UserService.class);
+    private final UserBlockStatusUseCase userBlockStatusUseCase = mock(UserBlockStatusUseCase.class);
     private final InternalUserBlockStatusController controller =
-            new InternalUserBlockStatusController(userService, "service-secret");
+            new InternalUserBlockStatusController(userBlockStatusUseCase, "service-secret");
 
     @Test
     void synchronizesBlockAndUnblockUsingOnlyTheInternalContract() {
@@ -24,8 +25,10 @@ class InternalUserBlockStatusControllerTest {
 
         assertThat(blocked.getStatusCode().is2xxSuccessful()).isTrue();
         assertThat(unblocked.getStatusCode().is2xxSuccessful()).isTrue();
-        verify(userService).blockUser(7L, 1L, "fraud review");
-        verify(userService).unblockUser(7L, 1L);
+        verify(userBlockStatusUseCase).update(
+                new UpdateUserBlockStatusCommand(7L, 1L, true, "fraud review"));
+        verify(userBlockStatusUseCase).update(
+                new UpdateUserBlockStatusCommand(7L, 1L, false, null));
     }
 
     @Test
@@ -37,6 +40,7 @@ class InternalUserBlockStatusControllerTest {
 
         assertThat(forbidden.getStatusCode().value()).isEqualTo(403);
         assertThat(invalid.getStatusCode().value()).isEqualTo(400);
-        verify(userService, never()).blockUser(7L, 1L, "fraud review");
+        verify(userBlockStatusUseCase, never()).update(
+                new UpdateUserBlockStatusCommand(7L, 1L, true, "fraud review"));
     }
 }

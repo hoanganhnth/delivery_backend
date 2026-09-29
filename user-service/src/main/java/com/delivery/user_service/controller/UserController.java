@@ -16,14 +16,22 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.delivery.auth.resourceserver.security.AuthenticatedActor;
+import com.delivery.user.application.api.CreateUserCommand;
+import com.delivery.user.application.api.RegisterUserCommand;
+import com.delivery.user.application.api.UpdateProfileCommand;
+import com.delivery.user.application.api.UpdateUserBlockStatusCommand;
+import com.delivery.user.application.api.UserBlockStatusUseCase;
+import com.delivery.user.application.api.UserProfileReadUseCase;
+import com.delivery.user.application.api.UserProfileResult;
+import com.delivery.user.application.api.UserProfileUseCase;
+import com.delivery.user.application.api.UserRegistrationUseCase;
+import com.delivery.user.application.api.UserStatisticsResult;
 import com.delivery.user_service.dto.BlockUserRequest;
 import com.delivery.user_service.dto.UserRegistrationRequest;
 import com.delivery.user_service.dto.UserRequest;
 import com.delivery.user_service.dto.UserResponse;
 import com.delivery.user_service.dto.UserStatisticsResponse;
 import com.delivery.user_service.payload.BaseResponse;
-import com.delivery.user_service.service.UserRegistrationService;
-import com.delivery.user_service.service.UserService;
 
 import jakarta.validation.Valid;
 
@@ -31,20 +39,24 @@ import jakarta.validation.Valid;
 @RequestMapping("/api/users")
 public class UserController {
 
-    private final UserService userService;
-    private final UserRegistrationService userRegistrationService;
+    private final UserProfileUseCase userProfileUseCase;
+    private final UserProfileReadUseCase userProfileReadUseCase;
+    private final UserBlockStatusUseCase userBlockStatusUseCase;
+    private final UserRegistrationUseCase userRegistrationUseCase;
 
     @Value("${app.internal.secret:}")
     private String internalSecret;
 
-    public UserController(UserService userService) {
-        this(userService, null);
-    }
-
     @Autowired
-    public UserController(UserService userService, UserRegistrationService userRegistrationService) {
-        this.userService = userService;
-        this.userRegistrationService = userRegistrationService;
+    public UserController(
+            UserProfileUseCase userProfileUseCase,
+            UserProfileReadUseCase userProfileReadUseCase,
+            UserBlockStatusUseCase userBlockStatusUseCase,
+            UserRegistrationUseCase userRegistrationUseCase) {
+        this.userProfileUseCase = userProfileUseCase;
+        this.userProfileReadUseCase = userProfileReadUseCase;
+        this.userBlockStatusUseCase = userBlockStatusUseCase;
+        this.userRegistrationUseCase = userRegistrationUseCase;
     }
 
     @PostMapping
@@ -56,14 +68,29 @@ public class UserController {
                     .body(new BaseResponse<>(0, null, "Internal service token is required"));
         }
 
-        UserResponse user = userService.createUser(request);
+        UserResponse user = toResponse(userProfileUseCase.create(new CreateUserCommand(
+                request.getAuthId(),
+                request.getPrincipalId(),
+                request.getEmail(),
+                request.getRole(),
+                request.getFullName(),
+                request.getPhone(),
+                request.getDob(),
+                request.getAvatarUrl(),
+                request.getAddress())));
         return ResponseEntity.ok(new BaseResponse<>(1, user));
     }
 
     @PostMapping("/registrations")
     public ResponseEntity<BaseResponse<UserResponse>> registerUser(
             @Valid @RequestBody UserRegistrationRequest request) {
-        UserResponse user = userRegistrationService.register(request);
+        UserResponse user = toResponse(userRegistrationUseCase.register(new RegisterUserCommand(
+                request.getProvisioningToken(),
+                request.getFullName(),
+                request.getPhone(),
+                request.getDob(),
+                request.getAvatarUrl(),
+                request.getAddress())));
         return ResponseEntity.ok(new BaseResponse<>(
                 1, user, "User profile registered; identity linkage is processing"));
     }
@@ -77,7 +104,7 @@ public class UserController {
                     .body(new BaseResponse<>(0, null, "Internal service token is required"));
         }
 
-        UserResponse user = userService.getUserByAuthId(authId);
+        UserResponse user = toResponse(userProfileReadUseCase.byAuthId(authId));
         return ResponseEntity.ok(new BaseResponse<>(1, user));
     }
 
@@ -87,7 +114,7 @@ public class UserController {
         if (actor == null || actor.getPrincipalId() == null) {
             return forbiddenUserAccess();
         }
-        UserResponse user = userService.getUserByPrincipalId(actor.getPrincipalId());
+        UserResponse user = toResponse(userProfileReadUseCase.byPrincipalId(actor.getPrincipalId()));
         return ResponseEntity.ok(new BaseResponse<>(1, user));
     }
 
@@ -98,8 +125,14 @@ public class UserController {
         if (actor == null || actor.getPrincipalId() == null) {
             return forbiddenUserAccess();
         }
-        UserResponse current = userService.getUserByPrincipalId(actor.getPrincipalId());
-        UserResponse user = userService.updateUser(current.getId(), request);
+        UserProfileResult current = userProfileReadUseCase.byPrincipalId(actor.getPrincipalId());
+        UserResponse user = toResponse(userProfileUseCase.update(new UpdateProfileCommand(
+                current.id(),
+                request.getFullName(),
+                request.getPhone(),
+                request.getDob(),
+                request.getAvatarUrl(),
+                request.getAddress())));
         return ResponseEntity.ok(new BaseResponse<>(1, user));
     }
 
@@ -127,7 +160,7 @@ public class UserController {
                     .body(new BaseResponse<>(0, null, "Only ADMIN can access this endpoint"));
         }
 
-        UserStatisticsResponse statistics = userService.getUserStatistics();
+        UserStatisticsResponse statistics = toStatistics(userProfileReadUseCase.statistics());
         return ResponseEntity.ok(new BaseResponse<>(1, statistics));
     }
 
@@ -143,7 +176,9 @@ public class UserController {
                     .body(new BaseResponse<>(0, null, "Only ADMIN can access this endpoint"));
         }
 
-        List<UserResponse> users = userService.getAllUsers();
+        List<UserResponse> users = userProfileReadUseCase.all().stream()
+                .map(this::toResponse)
+                .toList();
         return ResponseEntity.ok(new BaseResponse<>(1, users));
     }
 
@@ -185,7 +220,8 @@ public class UserController {
                     .body(new BaseResponse<>(0, null, "Block reason must not exceed 500 characters"));
         }
 
-        userService.blockUser(userId, adminId, request.getReason());
+        userBlockStatusUseCase.update(new UpdateUserBlockStatusCommand(
+                userId, adminId, true, request.getReason()));
         return ResponseEntity.ok(new BaseResponse<>(1, null, "User blocked successfully"));
     }
 
@@ -218,7 +254,37 @@ public class UserController {
                     .body(new BaseResponse<>(0, null, "Admin ID is required"));
         }
 
-        userService.unblockUser(userId, adminId);
+        userBlockStatusUseCase.update(new UpdateUserBlockStatusCommand(
+                userId, adminId, false, null));
         return ResponseEntity.ok(new BaseResponse<>(1, null, "User unblocked successfully"));
+    }
+
+    private UserResponse toResponse(UserProfileResult result) {
+        return UserResponse.builder()
+                .id(result.id())
+                .authId(result.authId())
+                .principalId(result.principalId())
+                .email(result.email())
+                .role(result.role())
+                .fullName(result.fullName())
+                .phone(result.phone())
+                .dob(result.dob())
+                .avatarUrl(result.avatarUrl())
+                .address(result.address())
+                .createdAt(result.createdAt())
+                .updatedAt(result.updatedAt())
+                .build();
+    }
+
+    private UserStatisticsResponse toStatistics(UserStatisticsResult result) {
+        return UserStatisticsResponse.builder()
+                .totalUsers(result.totalUsers())
+                .userCount(result.userCount())
+                .adminCount(result.adminCount())
+                .shipperCount(result.shipperCount())
+                .shopOwnerCount(result.shopOwnerCount())
+                .activeUsers(result.activeUsers())
+                .blockedUsers(result.blockedUsers())
+                .build();
     }
 }
