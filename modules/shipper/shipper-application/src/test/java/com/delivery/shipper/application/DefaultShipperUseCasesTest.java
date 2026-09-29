@@ -49,21 +49,106 @@ class DefaultShipperUseCasesTest {
                 new ShipperCommands.Actor(8, null, ShipperRole.SHIPPER), 3, 100, 5, null)));
     }
 
+    @Test void readsAdminPagesAndSelfRatings() {
+        Fakes f = new Fakes();
+        var profiles = f.profileCases();
+        assertEquals(PROFILE, profiles.execute(OWNER));
+        assertEquals(PROFILE, profiles.execute(new ShipperCommands.Actor(1, null, ShipperRole.ADMIN), 3));
+        assertEquals(1, profiles.execute(new ShipperCommands.Actor(1, null, ShipperRole.ADMIN), new PageRequest(0, 10, null, null)).page().totalItems());
+        var ratings = new DefaultShipperRatingUseCases(f, f);
+        assertEquals(0, ratings.execute(OWNER).size());
+        f.principalExisting = false;
+        assertThrows(IllegalArgumentException.class, () -> profiles.execute(OWNER));
+        assertThrows(IllegalArgumentException.class, () -> ratings.execute(OWNER));
+    }
+
+    @Test void coversStatusProjectionAndOnlineTransitions() {
+        Fakes f = new Fakes();
+        var profiles = f.profileCases();
+        assertEquals(PROFILE, profiles.execute(new ShipperCommands.SetOnlineStatus(OWNER, true)));
+        profiles.execute(new ShipperCommands.TrackingOffline(3, 10));
+        assertThrows(IllegalArgumentException.class, () -> profiles.execute(new ShipperCommands.TrackingOffline(0, 10)));
+        assertEquals(1, profiles.execute(new ShipperCommands.IdentityStatusProjection(7, "ACTIVE", 1)).version());
+        f.receiptProcessed = true;
+        assertFalse(profiles.execute(new ShipperCommands.IdentityStatusProjection(7, "ACTIVE", 1)).applied());
+        assertThrows(IllegalArgumentException.class, () -> profiles.execute(new ShipperCommands.IdentityStatusProjection(0, "ACTIVE", 1)));
+        assertThrows(IllegalArgumentException.class, () -> profiles.execute(new ShipperCommands.IdentityStatusProjection(7, " ", 1)));
+    }
+
+    @Test void rejectsInvalidProfileAndRatingCommands() {
+        Fakes f = new Fakes();
+        var profiles = f.profileCases();
+        assertThrows(IllegalArgumentException.class, () -> profiles.execute((ShipperCommands.CreateProfile) null));
+        assertThrows(IllegalArgumentException.class, () -> profiles.execute(new ShipperCommands.CreateProfile(
+                OWNER, "", "BIKE", "L", "I", null, null)));
+        assertThrows(IllegalArgumentException.class, () -> profiles.execute(new ShipperCommands.CreateProfile(
+                new ShipperCommands.Actor(0, null, ShipperRole.SHIPPER), "A", "BIKE", "L", "I", null, null)));
+        f.cardTaken = true;
+        assertThrows(IllegalArgumentException.class, () -> profiles.execute(new ShipperCommands.CreateProfile(
+                OWNER, "A", "BIKE", "L", "I", null, null)));
+        assertThrows(IllegalArgumentException.class, () -> profiles.execute(new ShipperCommands.UpdateProfile(OWNER, 0, "A", "BIKE", "L", "I", null, null)));
+        assertThrows(IllegalArgumentException.class, () -> profiles.execute(new ShipperCommands.UpdateProfile(
+                new ShipperCommands.Actor(1, null, ShipperRole.ADMIN), 3, "A", "BIKE", "L", "I", null, null)));
+        var ratings = new DefaultShipperRatingUseCases(f, f);
+        assertThrows(IllegalArgumentException.class, () -> ratings.execute((ShipperCommands.SelfRating) null));
+        assertThrows(IllegalArgumentException.class, () -> ratings.execute(new ShipperCommands.SelfRating(OWNER, 0, 99, 5, null)));
+        assertThrows(IllegalArgumentException.class, () -> ratings.execute(new ShipperCommands.SelfRating(OWNER, 3, 0, 5, null)));
+        assertThrows(IllegalArgumentException.class, () -> ratings.execute(new ShipperCommands.SelfRating(OWNER, 3, 99, 0, null)));
+        assertThrows(IllegalArgumentException.class, () -> ratings.execute(new ShipperCommands.SelfRating(OWNER, 3, 99, 5, "x".repeat(2001))));
+        assertThrows(IllegalArgumentException.class, () -> ratings.execute(new ShipperCommands.Actor(1, null, ShipperRole.ADMIN)));
+    }
+
+    @Test void coversRemainingAuthorizationAndProviderBranches() {
+        Fakes f = new Fakes();
+        var profiles = f.profileCases();
+        assertThrows(IllegalArgumentException.class, () -> profiles.execute(new ShipperCommands.CreateProfile(
+                OWNER, "A", "BIKE", "L", "I", null, null)));
+        f.principalExisting = false;
+        assertEquals(PROFILE, profiles.execute(new ShipperCommands.UpdateProfile(OWNER, 3, "A", "BIKE", null, null, null, null)));
+        assertThrows(IllegalArgumentException.class, () -> profiles.execute(new ShipperCommands.Actor(1, null, ShipperRole.ADMIN), 99));
+        assertThrows(NullPointerException.class, () -> profiles.execute(new ShipperCommands.Actor(1, null, ShipperRole.ADMIN), (PageRequest) null));
+        f.principalExisting = false;
+        assertThrows(IllegalArgumentException.class, () -> profiles.execute(new ShipperCommands.SetOnlineStatus(OWNER, true)));
+        assertThrows(IllegalArgumentException.class, () -> profiles.execute(new ShipperCommands.IdentityStatusProjection(7, "ACTIVE", 0)));
+        assertThrows(IllegalArgumentException.class, () -> profiles.execute(new ShipperCommands.IdentityStatusProjection(7, null, 1)));
+        assertThrows(IllegalArgumentException.class, () -> profiles.execute(new ShipperCommands.Actor(7, 0L, ShipperRole.SHIPPER)));
+        assertThrows(NullPointerException.class, () -> profiles.execute((ShipperCommands.TrackingOffline) null));
+        var ratings = new DefaultShipperRatingUseCases(f, f);
+        f.principalExisting = false;
+        f.profileMissing = true;
+        assertThrows(IllegalArgumentException.class, () -> ratings.execute(new ShipperCommands.SelfRating(OWNER, 3, 99, 5, null)));
+        f.profileMissing = false;
+        f.principalExisting = true;
+        f.ratingDuplicate = false;
+        assertThrows(IllegalArgumentException.class, () -> ratings.execute(new ShipperCommands.SelfRating(OWNER, 3, 99, 6, null)));
+        assertEquals(4.3, ratings.execute(new ShipperCommands.SelfRating(OWNER, 3, 99, 5, null)).average());
+        assertThrows(IllegalArgumentException.class, () -> ratings.execute(new ShipperCommands.SelfRating(
+                new ShipperCommands.Actor(8, null, ShipperRole.SHIPPER), 3, 99, 5, null)));
+
+        f.licenseTaken = true;
+        assertThrows(IllegalArgumentException.class, () -> profiles.execute(new ShipperCommands.UpdateProfile(
+                OWNER, 3, "A", "BIKE", "L", "I", null, null)));
+        f.licenseTaken = false;
+        f.cardTaken = true;
+        assertThrows(IllegalArgumentException.class, () -> profiles.execute(new ShipperCommands.UpdateProfile(
+                OWNER, 3, "A", "BIKE", "L", "I", null, null)));
+    }
+
     static final class Fakes implements ShipperPorts.ProfileStore, ShipperPorts.TrackingAvailability,
             ShipperPorts.IdentityStatusStore, ShipperPorts.IdentityReceiptStore, ShipperPorts.RatingStore {
-        boolean licenseTaken, trackingFails, ratingDuplicate, principalExisting = true; List<String> order = new ArrayList<>();
+        boolean licenseTaken, cardTaken, trackingFails, ratingDuplicate, receiptProcessed, profileMissing, principalExisting = true; List<String> order = new ArrayList<>();
         DefaultShipperProfileUseCases profileCases() { return new DefaultShipperProfileUseCases(this, this, this, this); }
         public ShipperSnapshot insert(ShipperCommands.CreateProfile c) { return PROFILE; }
         public Optional<ShipperSnapshot> findByPrincipalId(long id) { return id == 7 && principalExisting ? Optional.of(PROFILE) : Optional.empty(); }
-        public Optional<ShipperSnapshot> findById(long id) { return id == 3 ? Optional.of(PROFILE) : Optional.empty(); }
+        public Optional<ShipperSnapshot> findById(long id) { return id == 3 && !profileMissing ? Optional.of(PROFILE) : Optional.empty(); }
         public ShipperSnapshot update(ShipperCommands.UpdateProfile c) { order.add("update"); return PROFILE; }
         public ShipperSnapshot updateOnline(long id, boolean online) { order.add("update"); return PROFILE; }
         public ShipperResults.SelfPage page(PageRequest r) { return new ShipperResults.SelfPage(new PageSlice<>(List.of(PROFILE), r, 1)); }
         public boolean existsByLicenseNumber(String value, Long excluded) { return licenseTaken; }
-        public boolean existsByIdCard(String value, Long excluded) { return false; }
+        public boolean existsByIdCard(String value, Long excluded) { return cardTaken; }
         public void markOffline(long id, long at) { order.add("tracking"); if (trackingFails) throw new IllegalStateException("tracking"); }
         public ShipperResults.IdentityStatusResult apply(ShipperCommands.IdentityStatusProjection c) { return new ShipperResults.IdentityStatusResult(c.principalId(), c.status(), c.version(), true); }
-        public boolean alreadyProcessed(ShipperCommands.IdentityStatusProjection c) { return false; }
+        public boolean alreadyProcessed(ShipperCommands.IdentityStatusProjection c) { return receiptProcessed; }
         public void record(ShipperCommands.IdentityStatusProjection c) { }
         public ShipperResults.RatingResult add(ShipperCommands.SelfRating c) { return new ShipperResults.RatingResult(3, 4.25, 3); }
         public List<ShipperResults.RatingItem> findByShipperId(long id, PageRequest r) { return List.of(); }
