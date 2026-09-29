@@ -9,6 +9,7 @@ import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.boot.web.client.RestTemplateCustomizer;
 import org.springframework.boot.web.reactive.function.client.WebClientCustomizer;
 import org.springframework.context.annotation.Bean;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.core.env.Environment;
 import io.micrometer.observation.ObservationRegistry;
 import org.springframework.scheduling.support.ScheduledTaskObservationContext;
@@ -19,6 +20,7 @@ import org.springframework.web.reactive.function.client.ClientRequest;
 import org.springframework.web.reactive.function.client.ExchangeFilterFunction;
 
 @AutoConfiguration
+@EnableConfigurationProperties(Phase8RolloutProperties.class)
 public class ObservabilityAutoConfiguration {
     @Bean
     static BeanPostProcessor scheduledObservationSuppressor() {
