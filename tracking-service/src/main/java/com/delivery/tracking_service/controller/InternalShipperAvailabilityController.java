@@ -2,7 +2,9 @@ package com.delivery.tracking_service.controller;
 
 import com.delivery.tracking_service.payload.BaseResponse;
 import com.delivery.tracking_service.service.ShipperLocationService;
+import com.delivery.tracking.application.api.TrackingPort;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -19,14 +21,26 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/tracking/internal/shippers")
 public class InternalShipperAvailabilityController {
 
-    private final ShipperLocationService shipperLocationService;
+    private final TrackingPort tracking;
     private final String internalSecret;
 
+    @Autowired
     public InternalShipperAvailabilityController(
-            ShipperLocationService shipperLocationService,
+            TrackingPort tracking,
             @Value("${app.internal.secret:}") String internalSecret) {
-        this.shipperLocationService = shipperLocationService;
+        this.tracking = tracking;
         this.internalSecret = internalSecret;
+    }
+
+    /** Compatibility constructor retained for direct adapter tests. */
+    public InternalShipperAvailabilityController(ShipperLocationService legacy, String internalSecret) {
+        this(new TrackingPort() {
+            @Override public com.delivery.tracking.domain.LocationSnapshot updateLocation(
+                    com.delivery.tracking.application.api.UpdateLocationCommand command) { throw new UnsupportedOperationException(); }
+            @Override public com.delivery.tracking.domain.LocationSnapshot markOffline(long shipperId) {
+                legacy.markShipperOffline(shipperId); return null;
+            }
+        }, internalSecret);
     }
 
     @PostMapping("/{shipperId}/offline")
@@ -42,7 +56,7 @@ public class InternalShipperAvailabilityController {
                     .body(new BaseResponse<>(0, null, "shipperId must be positive"));
         }
 
-        shipperLocationService.markShipperOffline(shipperId);
+        tracking.markOffline(shipperId);
         return ResponseEntity.ok(new BaseResponse<>(1, null, "Shipper marked offline"));
     }
 

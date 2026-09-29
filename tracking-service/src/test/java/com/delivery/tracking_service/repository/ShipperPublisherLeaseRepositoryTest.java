@@ -1,6 +1,6 @@
 package com.delivery.tracking_service.repository;
 
-import com.delivery.tracking_service.websocket.PublisherLease;
+import com.delivery.tracking.domain.PublisherLease;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;

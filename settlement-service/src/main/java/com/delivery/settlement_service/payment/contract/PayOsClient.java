@@ -1,5 +1,9 @@
 package com.delivery.settlement_service.payment.contract;
 
+import com.delivery.settlement.domain.payment.PaymentOperationRequest;
+import com.delivery.settlement.domain.payment.PayoutRequest;
+import com.delivery.settlement.domain.payment.ProviderOperationResult;
+
 /**
  * Narrow seam for a future PayOS HTTP/signature client. This interface has no
  * Spring annotation and no network implementation in the MVP; tests may use

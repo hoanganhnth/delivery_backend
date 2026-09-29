@@ -3,7 +3,7 @@ package com.delivery.tracking_service.service;
 import com.delivery.tracking_service.dto.response.ShipperLocationResponse;
 import com.delivery.tracking_service.repository.ShipperPublisherLeaseRepository;
 import com.delivery.tracking_service.repository.ShipperPublisherLeaseRepository.ExpiryClaim;
-import com.delivery.tracking_service.websocket.PublisherLease;
+import com.delivery.tracking.domain.PublisherLease;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;

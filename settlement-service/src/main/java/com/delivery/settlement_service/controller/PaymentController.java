@@ -2,12 +2,12 @@ package com.delivery.settlement_service.controller;
 
 import com.delivery.settlement_service.dto.request.CreatePaymentRequest;
 import com.delivery.settlement_service.dto.response.PaymentOrderResponse;
-import com.delivery.settlement_service.payment.PaymentProviderRegistry;
 import com.delivery.settlement_service.payload.BaseResponse;
-import com.delivery.settlement_service.service.PaymentService;
+import com.delivery.settlement.application.api.PaymentWorkflowCommand;
+import com.delivery.settlement.application.api.PaymentWorkflowPort;
+import com.delivery.settlement.application.api.PaymentWorkflowResult;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.ResponseEntity;
@@ -19,13 +19,15 @@ import java.util.Set;
 
 @RestController
 @RequestMapping("/api/settlement/payments")
-@RequiredArgsConstructor
 @Slf4j
 @ConditionalOnProperty(name = "app.payment.processing-enabled", havingValue = "true")
 public class PaymentController {
 
-    private final PaymentService paymentService;
-    private final PaymentProviderRegistry providerRegistry;
+    private final PaymentWorkflowPort paymentWorkflow;
+
+    public PaymentController(PaymentWorkflowPort paymentWorkflow) {
+        this.paymentWorkflow = paymentWorkflow;
+    }
 
     // ═══════════════════════════════════════════════════════════════
     // CREATE PAYMENT
@@ -45,7 +47,9 @@ public class PaymentController {
             request.setIpAddress(getClientIp(httpRequest));
         }
 
-        PaymentOrderResponse response = paymentService.createPayment(request);
+        PaymentOrderResponse response = toResponse(paymentWorkflow.create(new PaymentWorkflowCommand(
+                request.getEntityId(), request.getOrderId(), request.getEntityType(), request.getAmount(),
+                request.getProvider(), request.getPurpose(), request.getReturnUrl(), request.getIpAddress())));
         return ResponseEntity.ok(BaseResponse.success(response, "Payment created"));
     }
 
@@ -61,7 +65,7 @@ public class PaymentController {
             @RequestParam Map<String, String> params) {
 
         log.info("📨 VNPay callback received: {}", params.get("vnp_TxnRef"));
-        PaymentOrderResponse response = paymentService.handleCallback("VNPAY", params);
+        PaymentOrderResponse response = toResponse(paymentWorkflow.callback("VNPAY", params));
         String message = "SUCCESS".equals(response.getStatus())
                 ? "Thanh toán thành công"
                 : "Thanh toán thất bại";
@@ -82,7 +86,7 @@ public class PaymentController {
 
         Map<String, String> ipnResponse = new HashMap<>();
         try {
-            paymentService.handleCallback("VNPAY", params);
+            paymentWorkflow.callback("VNPAY", params);
             ipnResponse.put("RspCode", "00");
             ipnResponse.put("Message", "Confirm Success");
         } catch (SecurityException e) {
@@ -107,7 +111,7 @@ public class PaymentController {
     public ResponseEntity<BaseResponse<PaymentOrderResponse>> getPaymentStatus(
             @PathVariable Long paymentId) {
 
-        PaymentOrderResponse response = paymentService.getPaymentStatus(paymentId);
+        PaymentOrderResponse response = toResponse(paymentWorkflow.byId(paymentId));
         return ResponseEntity.ok(BaseResponse.success(response));
     }
 
@@ -118,7 +122,7 @@ public class PaymentController {
     public ResponseEntity<BaseResponse<PaymentOrderResponse>> getPaymentByRef(
             @PathVariable String paymentRef) {
 
-        PaymentOrderResponse response = paymentService.getPaymentByRef(paymentRef);
+        PaymentOrderResponse response = toResponse(paymentWorkflow.byReference(paymentRef));
         return ResponseEntity.ok(BaseResponse.success(response));
     }
 
@@ -127,7 +131,7 @@ public class PaymentController {
      */
     @GetMapping("/internal/providers")
     public ResponseEntity<BaseResponse<Set<String>>> getAvailableProviders() {
-        Set<String> providers = providerRegistry.getAvailableProviders();
+        Set<String> providers = paymentWorkflow.availableProviders();
         return ResponseEntity.ok(BaseResponse.success(providers, "Available providers"));
     }
 
@@ -148,5 +152,14 @@ public class PaymentController {
             ip = ip.split(",")[0].trim();
         }
         return ip != null ? ip : "127.0.0.1";
+    }
+
+    private PaymentOrderResponse toResponse(PaymentWorkflowResult value) {
+        return PaymentOrderResponse.builder().id(value.id()).paymentRef(value.paymentReference())
+                .entityId(value.entityId()).entityType(value.entityType()).provider(value.provider())
+                .amount(value.amount()).currency(value.currency()).purpose(value.purpose()).status(value.status())
+                .paymentUrl(value.paymentUrl()).providerTransactionId(value.providerTransactionId())
+                .settlementTransactionId(value.settlementTransactionId()).createdAt(value.createdAt())
+                .expiredAt(value.expiredAt()).build();
     }
 }

@@ -2,7 +2,7 @@ package com.delivery.tracking_service.service;
 
 import com.delivery.tracking_service.repository.ShipperPublisherLeaseRepository;
 import com.delivery.tracking_service.repository.ShipperPublisherLeaseRepository.ExpiryClaim;
-import com.delivery.tracking_service.websocket.PublisherLease;
+import com.delivery.tracking.domain.PublisherLease;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
