@@ -52,6 +52,9 @@ public class ElasticsearchSyncConsumer {
             canonical.put("entityId", event.getEntityId());
             canonical.put("entityType", event.getEntityType().toUpperCase(java.util.Locale.ROOT));
             canonical.put("occurredAt", event.getOccurredAt().toString());
+            canonical.put("aggregateVersion", event.getAggregateVersion());
+            canonical.put("deletedAt", event.getDeletedAt());
+            canonical.put("deletionReason", event.getDeletionReason());
             canonical.put("payload", event.getPayload());
             byte[] json = objectMapper.writer()
                     .with(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS)
@@ -83,6 +86,13 @@ public class ElasticsearchSyncConsumer {
         }
         if (!"DELETE".equalsIgnoreCase(event.getAction()) && event.getPayload() == null) {
             throw new IllegalArgumentException("payload is required for create/update");
+        }
+        if (event.getAggregateVersion() != null && event.getAggregateVersion() < 1) {
+            throw new IllegalArgumentException("aggregateVersion must be positive");
+        }
+        if ("DELETE".equalsIgnoreCase(event.getAction()) && event.getDeletedAt() != null
+                && event.getDeletedAt().isAfter(event.getOccurredAt())) {
+            throw new IllegalArgumentException("deletedAt cannot be after occurredAt");
         }
     }
 
