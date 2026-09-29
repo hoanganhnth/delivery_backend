@@ -3,6 +3,7 @@ package com.delivery.routing_service.config;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.delivery.routing_service.RoutingServiceApplication;
+import com.delivery.routing.infrastructure.config.RoutingProperties;
 import com.delivery.routing.contracts.Coordinate;
 import com.delivery.routing.contracts.MatrixRequest;
 import com.delivery.routing_service.controller.RoutingController;

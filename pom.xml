@@ -9,7 +9,7 @@
     <version>1.0.0</version>
     <packaging>pom</packaging>
 
-        <modules>
+    <modules>
         <module>platform/delivery-platform-bom</module>
         <module>platform/delivery-build-parent</module>
         <module>platform/kafka-starter</module>
@@ -29,30 +29,18 @@
         <module>modules/restaurant/restaurant-application-api</module>
         <module>modules/restaurant/restaurant-application</module>
         <module>modules/restaurant/restaurant-infrastructure</module>
-        <module>modules/delivery/delivery-domain</module>
-        <module>modules/delivery/delivery-application-api</module>
-        <module>modules/delivery/delivery-application</module>
-        <module>modules/delivery/delivery-infrastructure</module>
-        <module>modules/match/match-domain</module>
-        <module>modules/match/match-application-api</module>
-        <module>modules/match/match-application</module>
-        <module>modules/match/match-infrastructure</module>
-        <module>modules/user/user-domain</module>
-        <module>modules/user/user-application-api</module>
-        <module>modules/user/user-application</module>
-        <module>modules/user/user-infrastructure</module>
-        <module>modules/auth/auth-domain</module>
-        <module>modules/auth/auth-application-api</module>
-        <module>modules/auth/auth-application</module>
-        <module>modules/auth/auth-infrastructure</module>
-        <module>modules/web-bff/web-bff-domain</module>
-        <module>modules/web-bff/web-bff-application-api</module>
-        <module>modules/web-bff/web-bff-application</module>
-        <module>modules/web-bff/web-bff-infrastructure</module>
-        <module>modules/shipper/shipper-domain</module>
-        <module>modules/shipper/shipper-application-api</module>
-        <module>modules/shipper/shipper-application</module>
-        <module>modules/shipper/shipper-infrastructure</module>
+        <module>modules/routing/routing-domain</module>
+        <module>modules/routing/routing-application-api</module>
+        <module>modules/routing/routing-application</module>
+        <module>modules/routing/routing-infrastructure</module>
+        <module>modules/tracking/tracking-domain</module>
+        <module>modules/tracking/tracking-application-api</module>
+        <module>modules/tracking/tracking-application</module>
+        <module>modules/tracking/tracking-infrastructure</module>
+        <module>modules/settlement/settlement-domain</module>
+        <module>modules/settlement/settlement-application-api</module>
+        <module>modules/settlement/settlement-application</module>
+        <module>modules/settlement/settlement-infrastructure</module>
         <module>auth-resource-server-starter</module>
         <module>discovery-server</module>
         <module>config-server</module>

@@ -1,5 +1,7 @@
 package com.delivery.tracking_service.websocket;
 
+import com.delivery.tracking.domain.PublisherLease;
+
 import com.delivery.tracking_service.repository.RedisGeoRepository;
 import com.delivery.tracking_service.service.DeliveryTrackingAccessClient;
 import com.delivery.tracking_service.service.ShipperLocationEventPublisher;

@@ -27,6 +27,21 @@
         </dependency>
         <dependency>
             <groupId>com.delivery</groupId>
+            <artifactId>routing-application-api</artifactId>
+            <version>1.0.0-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>com.delivery</groupId>
+            <artifactId>routing-application</artifactId>
+            <version>1.0.0-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>com.delivery</groupId>
+            <artifactId>routing-infrastructure</artifactId>
+            <version>1.0.0-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>com.delivery</groupId>
             <artifactId>runtime-platform-starter</artifactId>
             <version>1.0.0-SNAPSHOT</version>
         </dependency>

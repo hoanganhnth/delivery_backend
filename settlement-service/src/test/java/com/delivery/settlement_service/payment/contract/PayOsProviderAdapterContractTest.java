@@ -1,6 +1,12 @@
 package com.delivery.settlement_service.payment.contract;
 
-import com.delivery.settlement_service.entity.EntityType;
+import com.delivery.settlement.domain.EntityType;
+import com.delivery.settlement.domain.payment.MoneyAmount;
+import com.delivery.settlement.domain.payment.PaymentOperation;
+import com.delivery.settlement.domain.payment.PaymentOperationRequest;
+import com.delivery.settlement.domain.payment.PayoutRequest;
+import com.delivery.settlement.domain.payment.ProviderOperationResult;
+import com.delivery.settlement.domain.payment.ProviderOperationStatus;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;

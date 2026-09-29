@@ -1,6 +1,6 @@
 package com.delivery.tracking_service.repository;
 
-import com.delivery.tracking_service.websocket.PublisherLease;
+import com.delivery.tracking.domain.PublisherLease;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;

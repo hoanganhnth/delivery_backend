@@ -1,5 +1,11 @@
 package com.delivery.settlement_service.payment.contract;
 
+import com.delivery.settlement.application.api.PaymentProviderPort;
+import com.delivery.settlement.application.api.PayoutProviderPort;
+import com.delivery.settlement.domain.payment.PaymentOperation;
+import com.delivery.settlement.domain.payment.PaymentOperationRequest;
+import com.delivery.settlement.domain.payment.PayoutRequest;
+import com.delivery.settlement.domain.payment.ProviderOperationResult;
 import java.util.Objects;
 
 /**
