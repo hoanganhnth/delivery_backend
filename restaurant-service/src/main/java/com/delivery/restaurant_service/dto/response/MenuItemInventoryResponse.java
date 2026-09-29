@@ -1,6 +1,6 @@
 package com.delivery.restaurant_service.dto.response;
 
-import com.delivery.restaurant_service.entity.MenuItemInventory;
+import com.delivery.restaurant.application.api.MenuItemInventoryResult;
 
 public record MenuItemInventoryResponse(
         Long menuItemId,
@@ -9,12 +9,12 @@ public record MenuItemInventoryResponse(
         Integer availableQuantity,
         Long revision) {
 
-    public static MenuItemInventoryResponse from(MenuItemInventory inventory) {
+    public static MenuItemInventoryResponse from(MenuItemInventoryResult inventory) {
         return new MenuItemInventoryResponse(
-                inventory.getMenuItemId(),
-                inventory.getOnHandQuantity(),
-                inventory.getReservedQuantity(),
+                inventory.menuItemId(),
+                inventory.onHandQuantity(),
+                inventory.reservedQuantity(),
                 inventory.availableQuantity(),
-                inventory.getRevision());
+                inventory.revision());
     }
 }

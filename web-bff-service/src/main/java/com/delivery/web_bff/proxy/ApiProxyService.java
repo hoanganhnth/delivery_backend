@@ -9,7 +9,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
-@Service
 public class ApiProxyService {
     private static final List<String> REQUEST_HEADERS = List.of(
             HttpHeaders.ACCEPT, HttpHeaders.CONTENT_TYPE, "Idempotency-Key", HttpHeaders.IF_MATCH,

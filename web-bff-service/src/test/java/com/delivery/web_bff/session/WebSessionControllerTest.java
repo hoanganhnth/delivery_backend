@@ -2,11 +2,12 @@ package com.delivery.web_bff.session;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import com.delivery.web_bff.auth.AuthGateway;
+import com.delivery.web_bff.application.api.Ports;
+import com.delivery.web_bff.domain.session.AuthenticationRejectedException;
+import com.delivery.web_bff.application.api.UseCases;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.time.Duration;
@@ -26,24 +27,27 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 
 class WebSessionControllerTest {
-    private final WebSessionService sessions = mock(WebSessionService.class);
-    private final WebSessionRefreshService refreshes = mock(WebSessionRefreshService.class);
-    private final TokenVault vault = new TokenVault("v1",
+    private final UseCases.Login login = mock(UseCases.Login.class);
+    private final UseCases.CurrentSession current = mock(UseCases.CurrentSession.class);
+    private final UseCases.Refresh refresh = mock(UseCases.Refresh.class);
+    private final UseCases.Logout logout = mock(UseCases.Logout.class);
+    private final com.delivery.web_bff.infrastructure.session.TokenVault vault = new com.delivery.web_bff.infrastructure.session.TokenVault("v1",
             "0123456789abcdef0123456789abcdef".getBytes(StandardCharsets.UTF_8), new SecureRandom());
-    private final SessionFactory factory = new SessionFactory(vault, new SecureRandom(), Duration.ofDays(7));
+    private final com.delivery.web_bff.domain.session.SessionFactory factory = new com.delivery.web_bff.domain.session.SessionFactory(
+            vault, size -> { byte[] bytes = new byte[size]; new SecureRandom().nextBytes(bytes); return bytes; }, Duration.ofDays(7));
     private MockMvc mvc;
 
     @BeforeEach
     void setUp() {
-        mvc = MockMvcBuilders.standaloneSetup(new WebSessionController(sessions, refreshes, 604800))
+        mvc = MockMvcBuilders.standaloneSetup(new WebSessionController(login, current, refresh, logout, 604800))
                 .setControllerAdvice(new WebSessionExceptionHandler()).build();
     }
 
     @Test
     void loginSetsHttpOnlySessionAndReadableCsrfCookiesWithoutBearerTokens() throws Exception {
-        SessionMaterial material = factory.create("access-secret", "refresh-secret", 42L,
+        com.delivery.web_bff.domain.session.SessionMaterial material = factory.create("access-secret", "refresh-secret", 42L,
                 "user@example.com", "USER", Instant.EPOCH);
-        when(sessions.login("user@example.com", "password", "USER", "Browser")).thenReturn(material);
+        when(login.execute(any(Ports.LoginCommand.class))).thenReturn(material);
 
         var result = mvc.perform(post("/bff/session/login")
                 .header("Origin", "https://localhost:5173")
@@ -65,8 +69,8 @@ class WebSessionControllerTest {
 
     @Test
     void rejectedCredentialsReturnStableUnauthorizedEnvelope() throws Exception {
-        when(sessions.login("user@example.com", "wrong-password", "USER", "Browser"))
-                .thenThrow(new AuthGateway.AuthenticationRejectedException());
+        when(login.execute(any(Ports.LoginCommand.class)))
+                .thenThrow(new AuthenticationRejectedException("Invalid email or password"));
 
         mvc.perform(post("/bff/session/login")
                 .header("Origin", "https://localhost:5173")
@@ -80,7 +84,7 @@ class WebSessionControllerTest {
 
     @Test
     void anonymousSessionDoesNotRequireOrExposeAnySecret() throws Exception {
-        when(sessions.findActive(null)).thenReturn(Optional.empty());
+        when(current.execute(null)).thenReturn(Optional.empty());
 
         mvc.perform(get("/bff/session"))
                 .andExpect(status().isOk())
@@ -91,7 +95,7 @@ class WebSessionControllerTest {
 
     @Test
     void logoutRequiresCsrfAtServiceBoundaryWithoutClobberingANewerTabLogin() throws Exception {
-        doNothing().when(sessions).logout("session", "csrf");
+        org.mockito.Mockito.doNothing().when(logout).execute("session", "csrf");
 
         var result = mvc.perform(post("/bff/session/logout")
                 .cookie(new jakarta.servlet.http.Cookie(WebSessionController.COOKIE, "session"))
@@ -101,7 +105,7 @@ class WebSessionControllerTest {
                 .andExpect(header().string("Cache-Control", "no-store"))
                 .andReturn();
 
-        verify(sessions).logout("session", "csrf");
+        verify(logout).execute("session", "csrf");
         assertThat(result.getResponse().getHeaders("Set-Cookie")).isEmpty();
     }
 }

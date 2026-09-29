@@ -14,13 +14,12 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-/** Keeps load, application decision, update, Search outbox and cache registration coherent. */
+/** Keeps load, application decision, update and Search outbox in one transaction. */
 @Component
 @RequiredArgsConstructor
 public class JpaRestaurantUpdateAdapter implements RestaurantUpdatePort {
 
     private final RestaurantRepository restaurantRepository;
-    private final CatalogCacheSynchronizer cacheSynchronizer;
     private final SearchSyncPublisher searchSyncPublisher;
 
     @Override
@@ -40,8 +39,6 @@ public class JpaRestaurantUpdateAdapter implements RestaurantUpdatePort {
 
         // The outbox write is mandatory and participates in this transaction.
         searchSyncPublisher.publishRestaurantChange(saved, "UPDATE");
-        // Registration is intentionally after the transaction-owned writes.
-        cacheSynchronizer.cacheRestaurantAfterCommit(saved);
         return Optional.of(new RestaurantUpdateResult(
                 JpaRestaurantReadAdapter.snapshot(saved),
                 storedFacts.ownerPrincipalId() == null && plan.ownerPrincipalId() != null));

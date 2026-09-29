@@ -14,7 +14,6 @@ import com.delivery.restaurant.application.api.RestaurantUpdatePort;
 import com.delivery.restaurant_service.entity.Restaurant;
 import com.delivery.restaurant_service.repository.RestaurantOutboxEventRepository;
 import com.delivery.restaurant_service.repository.RestaurantRepository;
-import com.delivery.restaurant_service.service.RestaurantCacheService;
 import com.delivery.restaurant_service.service.SearchSyncPublisher;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
@@ -58,7 +57,6 @@ class RestaurantUpdateIntegrationTest {
     @Autowired RestaurantUpdatePort updatePort;
     @Autowired MeterRegistry meterRegistry;
     @MockitoBean IdentityPrincipalClient identity;
-    @MockitoBean RestaurantCacheService cache;
     @MockitoSpyBean SearchSyncPublisher search;
 
     @AfterEach
@@ -68,18 +66,10 @@ class RestaurantUpdateIntegrationTest {
     }
 
     @Test
-    void updateLoadsDecidesFlushesOutboxAndCachesAfterCommit() throws Exception {
+    void updateLoadsDecidesFlushesAndWritesOutbox() throws Exception {
         assertThat(AopUtils.isAopProxy(updatePort)).isTrue();
         Restaurant restaurant = restaurant(101L, 7L);
         restaurant = restaurants.saveAndFlush(restaurant);
-        doAnswer(invocation -> {
-            Restaurant cached = invocation.getArgument(0);
-            assertThat(restaurants.findById(cached.getId()).orElseThrow().getName())
-                    .isEqualTo("Updated Restaurant");
-            assertThat(outbox.count()).isEqualTo(1);
-            return null;
-        }).when(cache).cacheRestaurant(any());
-
         mvc.perform(put("/api/restaurants/{id}", restaurant.getId())
                         .with(actor(101L, 7L, "SHOP_OWNER"))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -94,7 +84,6 @@ class RestaurantUpdateIntegrationTest {
         assertThat(saved.getOwnerPrincipalId()).isEqualTo(101L);
         assertThat(outbox.count()).isEqualTo(1);
         assertThat(outbox.findAll().get(0).getEventType()).isEqualTo("SEARCH_RESTAURANT_UPDATE");
-        verify(cache).cacheRestaurant(any());
         verifyNoInteractions(identity);
     }
 
@@ -151,7 +140,6 @@ class RestaurantUpdateIntegrationTest {
         assertThat(saved.getVersion()).isEqualTo(restaurant.getVersion() + 1);
         assertThat(outbox.count()).isEqualTo(1);
         assertThat(outbox.findAll().get(0).getEventType()).isEqualTo("SEARCH_RESTAURANT_UPDATE");
-        verify(cache).cacheRestaurant(any());
         verifyNoInteractions(identity);
     }
 
@@ -168,7 +156,6 @@ class RestaurantUpdateIntegrationTest {
         assertThat(restaurants.findById(restaurant.getId()).orElseThrow())
                 .usingRecursiveComparison().isEqualTo(restaurant);
         assertThat(outbox.count()).isZero();
-        verifyNoInteractions(cache);
     }
 
     @Test
@@ -183,7 +170,6 @@ class RestaurantUpdateIntegrationTest {
 
         assertThat(restaurants.count()).isZero();
         assertThat(outbox.count()).isZero();
-        verifyNoInteractions(cache);
     }
 
     @Test
@@ -206,7 +192,6 @@ class RestaurantUpdateIntegrationTest {
         assertThat(saved.getClosingHour()).isNull();
         assertThat(saved).usingRecursiveComparison().isEqualTo(restaurant);
         assertThat(outbox.count()).isZero();
-        verifyNoInteractions(cache);
     }
 
     @Test
@@ -227,26 +212,7 @@ class RestaurantUpdateIntegrationTest {
     }
 
     @Test
-    void cacheFailureAfterCommitKeepsSuccessfulUpdateAndOutbox() throws Exception {
-        Restaurant restaurant = restaurants.saveAndFlush(restaurant(101L, 7L));
-        org.mockito.Mockito.doThrow(new IllegalStateException("redis unavailable"))
-                .when(cache).cacheRestaurant(any());
-
-        mvc.perform(put("/api/restaurants/{id}", restaurant.getId())
-                        .with(actor(101L, 7L, "SHOP_OWNER"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"Committed Update\"}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.name").value("Committed Update"));
-
-        assertThat(restaurants.findById(restaurant.getId()).orElseThrow().getName())
-                .isEqualTo("Committed Update");
-        assertThat(outbox.count()).isEqualTo(1);
-        verify(cache).cacheRestaurant(any());
-    }
-
-    @Test
-    void searchFailureRollsBackUpdateOutboxAndAfterCommitCache() throws Exception {
+    void searchFailureRollsBackUpdateAndOutbox() throws Exception {
         Restaurant restaurant = restaurants.saveAndFlush(restaurant(101L, 7L));
         doAnswer(invocation -> {
             invocation.callRealMethod();
@@ -264,7 +230,6 @@ class RestaurantUpdateIntegrationTest {
                 .isEqualTo("Restaurant");
         assertThat(outbox).isNotNull();
         assertThat(outbox.count()).isZero();
-        verifyNoInteractions(cache);
     }
 
     private Restaurant restaurant(Long ownerPrincipalId, Long creatorId) {

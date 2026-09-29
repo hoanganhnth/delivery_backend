@@ -31,10 +31,6 @@ public interface MenuItemRepository extends JpaRepository<MenuItem, Long> {
     @Query("select item from MenuItem item where item.id in :ids order by item.id")
     List<MenuItem> findAllByIdForUpdate(@Param("ids") Collection<Long> ids);
 
-    /**
-     * Tìm tất cả các món ăn thuộc một nhà hàng cụ thể.
-     */
-    List<MenuItem> findByRestaurantId(Long restaurantId, Pageable pageable);
     Page<MenuItem> findPageByRestaurantId(Long restaurantId, Pageable pageable);
 
     /**
@@ -47,9 +43,4 @@ public interface MenuItemRepository extends JpaRepository<MenuItem, Long> {
     Page<MenuItem> findPageByRestaurantIdAndStatusAndRestaurantLifecycleStatusNot(
             Long restaurantId, MenuItem.Status status, RestaurantStatus lifecycleStatus, Pageable pageable);
     
-    /**
-     * Tìm tất cả các món ăn thuộc các nhà hàng được tạo bởi creator cụ thể.
-     */
-    List<MenuItem> findByRestaurantCreatorId(Long creatorId, Pageable pageable);
-    Page<MenuItem> findPageByRestaurantCreatorId(Long creatorId, Pageable pageable);
 }

@@ -1,5 +1,8 @@
 package com.delivery.web_bff.session;
 
+import com.delivery.web_bff.application.api.Ports;
+import com.delivery.web_bff.application.api.UseCases;
+import com.delivery.web_bff.domain.session.SessionMaterial;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
@@ -14,7 +17,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.beans.factory.annotation.Value;
 
 @RestController
 @RequestMapping("/bff/session")
@@ -22,14 +24,17 @@ public class WebSessionController {
     public static final String COOKIE = "__Host-delivery-session";
     public static final String CSRF_COOKIE = "XSRF-TOKEN";
     private final long sessionMaxAgeSeconds;
-    private final WebSessionService sessions;
-    private final WebSessionRefreshService refreshes;
+    private final UseCases.Login login;
+    private final UseCases.CurrentSession current;
+    private final UseCases.Refresh refresh;
+    private final UseCases.Logout logout;
 
-    public WebSessionController(WebSessionService sessions,
-            WebSessionRefreshService refreshes,
-            @Value("${web-bff.session-max-age-seconds}") long sessionMaxAgeSeconds) {
-        this.sessions = sessions;
-        this.refreshes = refreshes;
+    public WebSessionController(UseCases.Login login, UseCases.CurrentSession current,
+            UseCases.Refresh refresh, UseCases.Logout logout, long sessionMaxAgeSeconds) {
+        this.login = login;
+        this.current = current;
+        this.refresh = refresh;
+        this.logout = logout;
         if (sessionMaxAgeSeconds <= 0) throw new IllegalArgumentException("BFF session max age must be positive");
         this.sessionMaxAgeSeconds = sessionMaxAgeSeconds;
     }
@@ -40,13 +45,14 @@ public class WebSessionController {
             @RequestHeader(name = "X-CSRF-Token", required = false) String csrf,
             HttpServletResponse response) {
         preventCaching(response);
-        return SessionView.authenticated(refreshes.refresh(rawSessionId, csrf), null);
+        return SessionView.authenticated(refresh.execute(rawSessionId, csrf), null);
     }
 
     @PostMapping("/login")
     public ResponseEntity<SessionView> login(@Valid @RequestBody LoginRequest request, HttpServletResponse response) {
         preventCaching(response);
-        SessionMaterial material = sessions.login(request.email(), request.password(), request.role(), request.deviceName());
+        SessionMaterial material = login.execute(new Ports.LoginCommand(request.email(), request.password(), request.role(),
+                request.deviceName(), "web-bff-" + java.util.UUID.randomUUID()));
         response.addHeader(HttpHeaders.SET_COOKIE, sessionCookie(material.rawSessionId(), sessionMaxAgeSeconds).toString());
         response.addHeader(HttpHeaders.SET_COOKIE, csrfCookie(material.rawCsrfToken(), sessionMaxAgeSeconds).toString());
         return ResponseEntity.ok(SessionView.authenticated(material.session(), material.rawCsrfToken()));
@@ -56,7 +62,7 @@ public class WebSessionController {
     public SessionView current(@CookieValue(name = COOKIE, required = false) String rawSessionId,
             HttpServletResponse response) {
         preventCaching(response);
-        return sessions.findActive(rawSessionId)
+        return current.execute(rawSessionId)
                 .map(session -> SessionView.authenticated(session, null))
                 .orElseGet(SessionView::anonymous);
     }
@@ -67,7 +73,7 @@ public class WebSessionController {
             @RequestHeader(name = "X-CSRF-Token", required = false) String csrf,
             HttpServletResponse response) {
         preventCaching(response);
-        sessions.logout(rawSessionId, csrf);
+        logout.execute(rawSessionId, csrf);
         // Do not emit an expiring Set-Cookie here: a slow logout response could
         // otherwise erase a newer login completed in another tab. Server-side
         // revocation is authoritative and the next login rotates both cookies.
@@ -97,9 +103,18 @@ public class WebSessionController {
 
     public record SessionView(boolean authenticated, Long principalId, String email, String role,
             long sessionVersion, String csrfToken) {
-        static SessionView authenticated(WebSession session, String csrf) {
-            return new SessionView(true, session.getPrincipalId(), session.getEmail(), session.getRole(),
-                    session.getGeneration(), csrf);
+        static SessionView authenticated(UseCases.SessionView session, String csrf) {
+            return new SessionView(true, session.principalId(), session.email(), session.role(),
+                    session.generation(), csrf);
+        }
+        static SessionView authenticated(SessionMaterial material, String csrf) {
+            var session = material.session();
+            return new SessionView(true, session.principalId(), session.email(), session.role(),
+                    session.generation(), csrf);
+        }
+        static SessionView authenticated(com.delivery.web_bff.domain.session.WebSession session, String csrf) {
+            return new SessionView(true, session.principalId(), session.email(), session.role(),
+                    session.generation(), csrf);
         }
         static SessionView anonymous() { return new SessionView(false, null, null, null, 0, null); }
     }

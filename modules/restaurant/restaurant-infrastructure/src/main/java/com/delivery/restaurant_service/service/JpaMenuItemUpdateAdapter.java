@@ -13,13 +13,12 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-/** Keeps Menu load, application decision, mutation, outbox and cache timing in one transaction. */
+/** Keeps Menu load, application decision, mutation and outbox in one transaction. */
 @Component
 @RequiredArgsConstructor
 public class JpaMenuItemUpdateAdapter implements MenuItemUpdatePort {
 
     private final MenuItemRepository menuItemRepository;
-    private final CatalogCacheSynchronizer cacheSynchronizer;
     private final SearchSyncPublisher searchSyncPublisher;
 
     @Override
@@ -38,7 +37,6 @@ public class JpaMenuItemUpdateAdapter implements MenuItemUpdatePort {
         MenuItem saved = menuItemRepository.saveAndFlush(item);
 
         searchSyncPublisher.publishDishChange(saved, "UPDATE");
-        cacheSynchronizer.cacheMenuItemAfterCommit(saved);
         return Optional.of(new MenuItemUpdateResult(
                 JpaMenuItemCreationAdapter.snapshot(saved),
                 storedFacts.restaurantOwnerPrincipalId() == null

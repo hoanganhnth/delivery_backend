@@ -4,12 +4,18 @@ import com.delivery.auth.resourceserver.security.AuthenticatedActor;
 import com.delivery.auth.resourceserver.security.AuthenticatedActorAuthenticationToken;
 import com.delivery.shipper_service.dto.request.CreateShipperRequest;
 import com.delivery.shipper_service.dto.response.ShipperResponse;
-import com.delivery.shipper_service.service.ShipperService;
+import com.delivery.shipper_service.mapper.ShipperMapper;
+import com.delivery.shipper.application.api.ShipperUseCases;
+import com.delivery.shipper.application.api.ShipperCommands;
+import com.delivery.shipper.application.api.ShipperResults;
+import com.delivery.shipper.application.api.ShipperSnapshot;
+import com.delivery.shipper.domain.identity.IdentityRef;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -31,13 +37,18 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(ShipperController.class)
+@Import(ShipperMapper.class)
 public class ShipperControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
 
-    @MockitoBean
-    private ShipperService shipperService;
+    @MockitoBean private ShipperUseCases.CreateProfile createProfile;
+    @MockitoBean private ShipperUseCases.UpdateProfile updateProfile;
+    @MockitoBean private ShipperUseCases.ReadSelf readSelf;
+    @MockitoBean private ShipperUseCases.ReadById readById;
+    @MockitoBean private ShipperUseCases.ReadPage readPage;
+    @MockitoBean private ShipperUseCases.SetOnlineStatus setOnlineStatus;
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -67,19 +78,9 @@ public class ShipperControllerTest {
         request.setIdCard("123456789");
         request.setPhone("0901234567");
 
-        ShipperResponse response = new ShipperResponse();
-        response.setId(1L);
-        response.setUserId(1L);
-        response.setVehicleType("MOTORBIKE");
-        response.setLicenseNumber("B1-123456");
-        response.setIdCard("123456789");
-        response.setIsOnline(false);
-        response.setRating(BigDecimal.valueOf(5.0));
-        response.setCompletedDeliveries(0);
-
-        when(shipperService.createShipper(
-                any(CreateShipperRequest.class), anyLong(), anyLong(), anyString()))
-                .thenReturn(response);
+        var identity = new IdentityRef(1L, 1L);
+        var snapshot = new ShipperSnapshot(1L, identity, "Test Shipper", "MOTORBIKE", "B1-123456", "123456789", "0901234567", null, false, 0, 5.0, 0, "ACTIVE", 1L);
+        when(createProfile.execute(any())).thenReturn(new ShipperResults.CreateProfileResult(snapshot));
 
         mockMvc.perform(post("/api/shippers")
                 .with(testActor(1L, "SHIPPER"))
@@ -94,13 +95,10 @@ public class ShipperControllerTest {
 
     @Test
     public void testGetShipperById() throws Exception {
-        ShipperResponse response = new ShipperResponse();
-        response.setId(1L);
-        response.setUserId(1L);
-        response.setVehicleType("MOTORBIKE");
-        response.setIsOnline(true);
-
-        when(shipperService.getShipperById(1L)).thenReturn(response);
+        var identity = new IdentityRef(1L, 1L);
+        var snapshot = new ShipperSnapshot(1L, identity, "Test Shipper", "MOTORBIKE", "B1-123456", "123456789", "0901234567", null, true, 0, 5.0, 0, "ACTIVE", 1L);
+        
+        when(readById.execute(any(), anyLong())).thenReturn(snapshot);
 
         mockMvc.perform(get("/api/shippers/1")
                 .with(testActor(1L, "ADMIN")))
@@ -119,6 +117,6 @@ public class ShipperControllerTest {
                 .content("{\"isOnline\":false}"))
                 .andExpect(status().isBadRequest());
 
-        verifyNoInteractions(shipperService);
+        verifyNoInteractions(updateProfile);
     }
 }

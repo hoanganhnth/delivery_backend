@@ -14,6 +14,10 @@
     <version>1.0.0-SNAPSHOT</version>
     <name>match-application</name>
     <description>Framework-independent match application use cases.</description>
+    <properties>
+        <delivery.coverage.line.minimum>0.85</delivery.coverage.line.minimum>
+        <delivery.coverage.branch.minimum>0.85</delivery.coverage.branch.minimum>
+    </properties>
     <dependencies>
         <dependency>
             <groupId>com.delivery</groupId>
@@ -28,6 +32,11 @@
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>

@@ -6,12 +6,12 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.delivery.restaurant.application.DefaultCreateRestaurantUseCase;
+import com.delivery.restaurant.application.DefaultRestaurantManagementAccessUseCase;
 import com.delivery.restaurant.application.DefaultRestaurantOwnerAssignmentUseCase;
 import com.delivery.restaurant.application.api.CreateRestaurantCommand;
 import com.delivery.restaurant.application.api.CreateRestaurantResult;
@@ -31,10 +31,8 @@ import com.delivery.restaurant_service.common.constants.RoleConstants;
 import com.delivery.restaurant_service.dto.request.CreateRestaurantRequest;
 import com.delivery.restaurant_service.dto.request.UpdateRestaurantRequest;
 import com.delivery.restaurant_service.dto.response.RestaurantResponse;
-import com.delivery.restaurant_service.entity.Restaurant;
 import com.delivery.restaurant_service.exception.ResourceNotFoundException;
 import com.delivery.restaurant_service.mapper.RestaurantMapper;
-import com.delivery.restaurant_service.repository.RestaurantRepository;
 import com.delivery.restaurant_service.service.impl.CatalogLifecycleService;
 import com.delivery.restaurant_service.service.impl.RestaurantServiceImpl;
 import com.delivery.restaurant_service.service.ownership.RestaurantOwnershipPolicy;
@@ -47,15 +45,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.security.access.AccessDeniedException;
 
 @ExtendWith(MockitoExtension.class)
 class RestaurantServiceTest {
 
-    @Mock
-    private RestaurantRepository restaurantRepository;
     @Mock
     private RestaurantMapper restaurantMapper;
     @Mock
@@ -72,28 +66,21 @@ class RestaurantServiceTest {
     private RestaurantManagementReadUseCase restaurantManagementReadUseCase;
 
     private final RestaurantOwnershipPolicy restaurantOwnershipPolicy =
-            new RestaurantOwnershipPolicy(false);
+            new RestaurantOwnershipPolicy(false, new DefaultRestaurantManagementAccessUseCase());
     private RestaurantServiceImpl restaurantService;
     private io.micrometer.core.instrument.simple.SimpleMeterRegistry meterRegistry;
-    private Restaurant restaurant;
     private CreateRestaurantRequest createRequest;
     private RestaurantResponse restaurantResponse;
 
     @BeforeEach
     void setUp() {
         meterRegistry = new io.micrometer.core.instrument.simple.SimpleMeterRegistry();
-        restaurantService = new RestaurantServiceImpl(restaurantRepository, restaurantMapper,
+        restaurantService = new RestaurantServiceImpl(restaurantMapper,
                 meterRegistry,
                 restaurantOwnershipPolicy, catalogLifecycleService,
                 new DefaultCreateRestaurantUseCase(
                         new DefaultRestaurantOwnerAssignmentUseCase(directory), creationPort),
                 updateRestaurantUseCase, restaurantReadUseCase, restaurantManagementReadUseCase);
-        restaurant = new Restaurant();
-        restaurant.setId(1L);
-        restaurant.setName("Test Restaurant");
-        restaurant.setAddress("123 Test Street");
-        restaurant.setCreatorId(1L);
-
         createRequest = new CreateRestaurantRequest();
         createRequest.setName("Test Restaurant");
         createRequest.setAddress("123 Test Street");
@@ -111,12 +98,12 @@ class RestaurantServiceTest {
         when(restaurantMapper.toResponse(saved)).thenReturn(restaurantResponse);
 
         RestaurantResponse response = restaurantService.createRestaurant(
-                createRequest, 1L, RoleConstants.OWNER);
+                createRequest, 1L, 1L, RoleConstants.OWNER);
 
         assertNotNull(response);
         assertEquals("Test Restaurant", response.getName());
         verify(creationPort).create(any(CreateRestaurantCommand.class), eq(1L));
-        verifyNoInteractions(restaurantRepository, directory, updateRestaurantUseCase,
+        verifyNoInteractions(directory, updateRestaurantUseCase,
                 restaurantReadUseCase, restaurantManagementReadUseCase);
     }
 
@@ -138,7 +125,7 @@ class RestaurantServiceTest {
     @Test
     void createRestaurantRejectsInvalidActorOrScheduleBeforePersistence() {
         assertThrows(RuntimeException.class, () -> restaurantService.createRestaurant(
-                createRequest, null, RoleConstants.OWNER));
+                createRequest, null, null, RoleConstants.OWNER));
         createRequest.setOpeningHour(LocalTime.of(18, 0));
         assertThrows(IllegalArgumentException.class, () -> restaurantService.createRestaurant(
                 createRequest, 1L, 1L, RoleConstants.OWNER));
@@ -176,7 +163,7 @@ class RestaurantServiceTest {
         assertEquals("Renamed Restaurant", command.getValue().name());
         assertEquals(7L, command.getValue().actorPrincipalId());
         assertEquals(700L, command.getValue().legacyUserId());
-        verify(restaurantRepository, never()).saveAndFlush(any());
+        verifyNoInteractions(directory);
     }
 
     @Test
@@ -190,7 +177,7 @@ class RestaurantServiceTest {
                         com.delivery.restaurant.domain.ownership.ManagementAccessFailure.ACTOR_DOES_NOT_OWN_RESTAURANT));
         assertThrows(AccessDeniedException.class, () -> restaurantService.updateRestaurant(
                 1L, new UpdateRestaurantRequest(), 7L, 7L, RoleConstants.OWNER));
-        verify(restaurantRepository, never()).saveAndFlush(any());
+        verifyNoInteractions(directory);
     }
 
     @Test
@@ -251,47 +238,31 @@ class RestaurantServiceTest {
     }
 
     @Test
-    void creatorIdCompatibilityQueryRemainsUnchanged() {
-        when(restaurantRepository.findByCreatorId(7L, PageRequest.of(0, 100)))
-                .thenReturn(new PageImpl<>(List.of(restaurant)));
-        when(restaurantMapper.toResponse(restaurant)).thenReturn(restaurantResponse);
-
-        assertEquals(List.of(restaurantResponse), restaurantService.getRestaurantsByCreatorId(7L));
-        verify(restaurantRepository).findByCreatorId(7L, PageRequest.of(0, 100));
-    }
-
-    @Test
     void deleteStillDelegatesToArchiveLifecycleBoundary() {
-        restaurantService.deleteRestaurant(1L, 1L, RoleConstants.OWNER);
+        restaurantService.deleteRestaurant(1L, 1L, 1L, RoleConstants.OWNER);
         verify(catalogLifecycleService).archiveRestaurant(1L, 1L, 1L, RoleConstants.OWNER);
-        verify(restaurantRepository, never()).delete(any());
     }
 
     @Test
     void deleteRestaurant_ShouldAllowAdmin_WhenAdminIsNotOwner() {
-        restaurant.setCreatorId(2L);
-        restaurantService.deleteRestaurant(1L, 99L, RoleConstants.ADMIN);
+        restaurantService.deleteRestaurant(1L, 99L, 99L, RoleConstants.ADMIN);
 
         verify(catalogLifecycleService).archiveRestaurant(1L, 99L, 99L, RoleConstants.ADMIN);
-        verifyNoInteractions(restaurantRepository);
     }
 
     @Test
     void deleteRestaurant_PassesMissingRoleToCatalogBoundary() {
-        restaurantService.deleteRestaurant(1L, 1L, null);
+        restaurantService.deleteRestaurant(1L, 1L, 1L, null);
 
         verify(catalogLifecycleService).archiveRestaurant(1L, 1L, 1L, null);
-        verifyNoInteractions(restaurantRepository);
     }
 
     @Test
     void deleteRestaurant_IsIdempotentWhenAlreadyArchived() {
-        restaurant.setLifecycleStatus(RestaurantStatus.ARCHIVED);
-        restaurantService.deleteRestaurant(1L, 1L, RoleConstants.OWNER);
+        restaurantService.deleteRestaurant(1L, 1L, 1L, RoleConstants.OWNER);
 
         verify(catalogLifecycleService)
                 .archiveRestaurant(1L, 1L, 1L, RoleConstants.OWNER);
-        verifyNoInteractions(restaurantRepository);
     }
 
     private CreateRestaurantResult creationResult() {

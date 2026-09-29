@@ -10,9 +10,9 @@ import com.delivery.restaurant.domain.catalog.RestaurantStatus;
 import com.delivery.restaurant_service.dto.request.OrderValidationRequest;
 import com.delivery.restaurant_service.entity.MenuItem;
 import com.delivery.restaurant_service.entity.Restaurant;
-import com.delivery.restaurant_service.service.MenuItemInventoryReservationService;
-import com.delivery.restaurant_service.service.RestaurantServiceabilityService;
-import com.delivery.restaurant_service.service.ServiceabilityDecision;
+import com.delivery.restaurant.application.api.MenuItemInventoryUseCase;
+import com.delivery.restaurant.application.api.RestaurantServiceabilityUseCase;
+import com.delivery.restaurant.application.api.ServiceabilityDecision;
 import com.delivery.restaurant_service.service.impl.OrderCacheValidationServiceImpl;
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -65,10 +65,11 @@ class OrderValidationPersistenceIntegrationTest {
     }
 
     private OrderCacheValidationServiceImpl validator() {
-        RestaurantServiceabilityService serviceability = mock(RestaurantServiceabilityService.class);
-        when(serviceability.evaluate(anyLong(), any(), any())).thenReturn(ServiceabilityDecision.disabled());
+        RestaurantServiceabilityUseCase serviceability = mock(RestaurantServiceabilityUseCase.class);
+        when(serviceability.evaluate(anyLong(), any(), any()))
+                .thenReturn(new ServiceabilityDecision(false, false, null, null, "CAPABILITY_DISABLED"));
         @SuppressWarnings("unchecked")
-        ObjectProvider<MenuItemInventoryReservationService> inventory = mock(ObjectProvider.class);
+        ObjectProvider<MenuItemInventoryUseCase> inventory = mock(ObjectProvider.class);
         when(inventory.getIfAvailable()).thenReturn(null);
         return new OrderCacheValidationServiceImpl(restaurants, menuItems, serviceability, inventory,
                 Clock.fixed(Instant.parse("2026-01-01T05:00:00Z"), ZoneOffset.UTC));

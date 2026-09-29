@@ -1,6 +1,7 @@
 package com.delivery.notification_service.listener;
 
-import com.delivery.notification_service.dto.event.DeliveryEvent;
+import com.delivery.delivery.contracts.DeliveryStatusUpdatedEvent;
+import com.delivery.identity.contracts.SimulationContext;
 import com.delivery.notification_service.exception.NotificationConflictException;
 import com.delivery.notification_service.service.NotificationService;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -27,7 +28,7 @@ public class DeliveryEventListener {
 
     private static final Set<String> CANONICAL_STATUSES = Set.of(
             "PENDING", "FINDING_SHIPPER", "WAIT_SHIPPER_CONFIRM", "SHIPPER_NOT_FOUND",
-            "ASSIGNED", "PICKED_UP", "DELIVERING", "DELIVERED", "CANCELLED");
+            "ASSIGNED", "PICKED_UP", "DELIVERING", "DELIVERED", "RETURNING", "RETURNED", "CANCELLED");
 
     private final NotificationService notificationService;
     private final ObjectMapper objectMapper;
@@ -60,30 +61,31 @@ public class DeliveryEventListener {
             Acknowledgment acknowledgment) {
 
         try {
-            DeliveryEvent event = objectMapper.readValue(message, DeliveryEvent.class);
-            if (event.getEventId() == null || event.getDeliveryId() == null || event.getDeliveryId() <= 0
-                    || event.getOrderId() == null || event.getOrderId() <= 0
-                    || event.getUserId() == null || event.getUserId() <= 0
-                    || event.getStatus() == null || !CANONICAL_STATUSES.contains(event.getStatus())) {
-                throw new IllegalArgumentException(
+            DeliveryStatusUpdatedEvent event = objectMapper.readValue(message, DeliveryStatusUpdatedEvent.class);
+            if (event.eventId() == null || event.deliveryId() == null || event.deliveryId() <= 0
+                    || event.orderId() == null || event.orderId() <= 0
+                    || event.userId() == null || event.userId() <= 0
+                    || event.status() == null || !CANONICAL_STATUSES.contains(event.status())) {
+                    throw new IllegalArgumentException(
                         "stable eventId, positive delivery/order/user IDs and status are required");
             }
+            SimulationContext.orReal(event.simulationContext()).requireValid();
 
             log.info("📥 Received DeliveryStatusUpdatedEvent from topic '{}': deliveryId={}, orderId={}, userId={}, status={}",
-                    topic, event.getDeliveryId(), event.getOrderId(), event.getUserId(), event.getStatus());
+                    topic, event.deliveryId(), event.orderId(), event.userId(), event.status());
 
             // Validate required fields
             // Send delivery status notification to customer
             notificationService.sendDeliveryStatusNotification(
-                    event.getEventId(),
-                    event.getUserId(),
-                    event.getUserPrincipalId(),
-                    event.getDeliveryId(),
-                    event.getStatus(),
-                    hasText(event.getShipperName()) ? event.getShipperName() : null
+                    event.eventId(),
+                    event.userId(),
+                    event.userPrincipalId(),
+                    event.deliveryId(),
+                    event.status(),
+                    hasText(event.shipperName()) ? event.shipperName() : null
             );
 
-            log.info("✅ Successfully processed DeliveryStatusUpdatedEvent for delivery: {}", event.getDeliveryId());
+            log.info("✅ Successfully processed DeliveryStatusUpdatedEvent for delivery: {}", event.deliveryId());
             acknowledgment.acknowledge();
 
         } catch (IllegalArgumentException | NotificationConflictException poison) {

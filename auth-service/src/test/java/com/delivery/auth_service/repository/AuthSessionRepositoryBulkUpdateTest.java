@@ -1,5 +1,7 @@
 package com.delivery.auth_service.repository;
 
+import com.delivery.auth_service.repository.AuthAccountRepository;
+
 import com.delivery.auth_service.entity.AuthAccount;
 import com.delivery.auth_service.entity.AuthSession;
 import com.delivery.auth_service.config.UserServiceConfig;

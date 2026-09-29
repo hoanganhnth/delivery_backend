@@ -1,10 +1,12 @@
 package com.delivery.restaurant_service.controller;
 
 import com.delivery.auth.resourceserver.security.AuthenticatedActor;
+import com.delivery.restaurant.application.api.MenuItemInventoryUseCase;
+import com.delivery.restaurant.application.api.UpdateMenuItemInventoryCommand;
+import com.delivery.restaurant.domain.ownership.RestaurantActorRole;
 import com.delivery.restaurant_service.dto.request.UpdateMenuItemInventoryRequest;
 import com.delivery.restaurant_service.dto.response.MenuItemInventoryResponse;
 import com.delivery.restaurant_service.payload.BaseResponse;
-import com.delivery.restaurant_service.service.MenuItemInventoryReservationService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,12 +25,12 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/menu-items/{menuItemId}/inventory")
 public class MenuItemInventoryController {
 
-    private final ObjectProvider<MenuItemInventoryReservationService> serviceProvider;
+    private final ObjectProvider<MenuItemInventoryUseCase> serviceProvider;
 
     @Value("${app.restaurant.inventory-enabled:false}")
     private boolean inventoryEnabled;
 
-    public MenuItemInventoryController(ObjectProvider<MenuItemInventoryReservationService> serviceProvider) {
+    public MenuItemInventoryController(ObjectProvider<MenuItemInventoryUseCase> serviceProvider) {
         this.serviceProvider = serviceProvider;
     }
 
@@ -37,8 +39,9 @@ public class MenuItemInventoryController {
             @PathVariable Long menuItemId,
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireAdminOrOwner(actor);
-        MenuItemInventoryReservationService service = availableService();
-        return ResponseEntity.ok(new BaseResponse<>(1, service.getInventory(menuItemId)));
+        MenuItemInventoryUseCase service = availableService();
+        return ResponseEntity.ok(new BaseResponse<>(1,
+                MenuItemInventoryResponse.from(service.getInventory(menuItemId))));
     }
 
     @PutMapping
@@ -47,9 +50,12 @@ public class MenuItemInventoryController {
             @Valid @RequestBody UpdateMenuItemInventoryRequest request,
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireAdminOrOwner(actor);
-        String role = actor.isAdmin() ? "ADMIN" : "SHOP_OWNER";
-        return ResponseEntity.ok(new BaseResponse<>(1,
-                availableService().updateInventory(menuItemId, request, actor.getUserId(), role)));
+        RestaurantActorRole role = actor.isAdmin()
+                ? RestaurantActorRole.ADMIN : RestaurantActorRole.SHOP_OWNER;
+        return ResponseEntity.ok(new BaseResponse<>(1, MenuItemInventoryResponse.from(
+                availableService().updateInventory(menuItemId,
+                        new UpdateMenuItemInventoryCommand(request.getOnHandQuantity(),
+                                request.getExpectedRevision(), actor.getUserId(), role)))));
     }
 
     private void requireAdminOrOwner(AuthenticatedActor actor) {
@@ -59,12 +65,12 @@ public class MenuItemInventoryController {
         }
     }
 
-    private MenuItemInventoryReservationService availableService() {
+    private MenuItemInventoryUseCase availableService() {
         if (!inventoryEnabled) {
             throw new org.springframework.web.server.ResponseStatusException(
                     HttpStatus.SERVICE_UNAVAILABLE, "Inventory capability is disabled");
         }
-        MenuItemInventoryReservationService service = serviceProvider.getIfAvailable();
+        MenuItemInventoryUseCase service = serviceProvider.getIfAvailable();
         if (service == null) {
             throw new org.springframework.web.server.ResponseStatusException(
                     HttpStatus.SERVICE_UNAVAILABLE, "Inventory capability is unavailable");

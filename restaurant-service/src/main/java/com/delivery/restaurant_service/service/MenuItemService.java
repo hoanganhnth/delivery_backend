@@ -14,38 +14,19 @@ public interface MenuItemService {
 
 
     MenuItemResponse createMenuItem(CreateMenuItemRequest request,
-                                    Long creatorId,
-                                    String role);
-
-    MenuItemResponse createMenuItem(CreateMenuItemRequest request,
                                     Long principalId,
                                     Long legacyUserId,
                                     String role);
 
-    MenuItemResponse updateMenuItem(Long id, UpdateMenuItemRequest request, Long creatorId, String role);
-
     MenuItemResponse updateMenuItem(Long id, UpdateMenuItemRequest request,
                                     Long principalId, Long legacyUserId, String role);
-
-    void deleteMenuItem(Long id, Long creatorId, String role);
 
     void deleteMenuItem(Long id, Long principalId, Long legacyUserId, String role);
 
     MenuItemResponse changeLifecycle(Long id, MenuItemLifecycleRequest request,
                                      Long principalId, Long legacyUserId, String role);
 
-    List<MenuItemResponse> getItemsByRestaurant(Long restaurantId);
-
     List<MenuItemResponse> getAvailableItems(Long restaurantId);
 
-    List<MenuItemResponse> getManagedItemsByRestaurant(Long restaurantId,
-                                                        Long principalId,
-                                                        Long legacyUserId,
-                                                        String role);
-    
-    List<MenuItemResponse> getMenuItemsByCreatorId(Long creatorId);
-    List<MenuItemResponse> getAllItems();
-    Page<MenuItemResponse> getItemsByRestaurantPage(Long restaurantId, int page, int size, boolean available);
-    Page<MenuItemResponse> getMenuItemsByCreatorPage(Long creatorId, int page, int size);
-    Page<MenuItemResponse> getAllItemsPage(int page, int size);
+    Page<MenuItemResponse> getAvailableItemsPage(Long restaurantId, int page, int size);
 }

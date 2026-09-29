@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.*;
 
 /**
  * Controller cho Order Validation sử dụng OrderValidationRequest format
- * Tích hợp với OrderCacheValidationService để validate từ Redis cache
+ * Tích hợp với OrderCacheValidationService để validate từ PostgreSQL-canonical data
  */
 @RestController
 @RequestMapping(ApiPathConstants.RESTAURANTS + "/validate")

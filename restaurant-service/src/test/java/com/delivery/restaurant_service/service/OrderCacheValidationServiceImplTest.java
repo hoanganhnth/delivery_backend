@@ -1,5 +1,9 @@
 package com.delivery.restaurant_service.service;
 
+import com.delivery.restaurant.application.api.InventoryAvailability;
+import com.delivery.restaurant.application.api.MenuItemInventoryUseCase;
+import com.delivery.restaurant.application.api.RestaurantServiceabilityUseCase;
+import com.delivery.restaurant.application.api.ServiceabilityDecision;
 import com.delivery.restaurant.domain.catalog.RestaurantStatus;
 import com.delivery.restaurant_service.dto.request.OrderValidationRequest;
 import com.delivery.restaurant_service.entity.MenuItem;
@@ -28,10 +32,9 @@ class OrderCacheValidationServiceImplTest {
 
     private final RestaurantRepository restaurants = mock(RestaurantRepository.class);
     private final MenuItemRepository items = mock(MenuItemRepository.class);
-    private final RestaurantServiceabilityService serviceability = mock(RestaurantServiceabilityService.class);
-    private final MenuItemInventoryReservationService inventory = mock(MenuItemInventoryReservationService.class);
-    private final ObjectProvider<MenuItemInventoryReservationService> inventoryProvider = mock(ObjectProvider.class);
-    private final RestaurantCacheService cache = mock(RestaurantCacheService.class);
+    private final RestaurantServiceabilityUseCase serviceability = mock(RestaurantServiceabilityUseCase.class);
+    private final MenuItemInventoryUseCase inventory = mock(MenuItemInventoryUseCase.class);
+    private final ObjectProvider<MenuItemInventoryUseCase> inventoryProvider = mock(ObjectProvider.class);
 
     @Test
     void checkoutUsesPostgresCatalogAsAuthorityAndIgnoresClientPriceAndName() {
@@ -44,7 +47,6 @@ class OrderCacheValidationServiceImplTest {
         assertThat(result.getIsValid()).isTrue();
         assertThat(result.getCalculatedTotal()).isEqualTo(241.0);
         assertThat(result.getItemValidations()).singleElement().extracting("menuItemName").isEqualTo("Canonical");
-        verifyNoInteractions(cache);
     }
 
     @Test
@@ -81,7 +83,6 @@ class OrderCacheValidationServiceImplTest {
 
         assertThat(result.getIsValid()).isFalse();
         assertThat(result.getErrors()).extracting("errorCode").contains("MENU_ITEM_NOT_AVAILABLE");
-        verifyNoInteractions(cache);
     }
 
     @Test
@@ -123,10 +124,11 @@ class OrderCacheValidationServiceImplTest {
     }
 
     private OrderCacheValidationServiceImpl service() {
-        when(serviceability.evaluate(anyLong(), any(), any())).thenReturn(ServiceabilityDecision.disabled());
+        when(serviceability.evaluate(anyLong(), any(), any()))
+                .thenReturn(new ServiceabilityDecision(false, false, null, null, "CAPABILITY_DISABLED"));
         when(inventoryProvider.getIfAvailable()).thenReturn(inventory);
         when(inventory.availability(anyLong(), anyLong(), anyInt()))
-                .thenReturn(new MenuItemInventoryReservationService.InventoryAvailability(true, null));
+                .thenReturn(new InventoryAvailability(true, null));
         return new OrderCacheValidationServiceImpl(restaurants, items, serviceability,
                 inventoryProvider, Clock.fixed(Instant.parse("2026-01-01T05:00:00Z"), ZoneOffset.UTC));
     }

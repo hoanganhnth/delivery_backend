@@ -1,8 +1,10 @@
 package com.delivery.user_service.service;
 
 import com.delivery.user_service.dto.UserRegistrationRequest;
-import com.delivery.user_service.dto.UserRequest;
 import com.delivery.user_service.dto.UserResponse;
+import com.delivery.user.application.api.CreateUserCommand;
+import com.delivery.user.application.api.UserProfileResult;
+import com.delivery.user.application.api.UserProfileUseCase;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -13,8 +15,8 @@ import static org.mockito.Mockito.when;
 
 class UserRegistrationServiceTest {
     private final ProvisioningTokenVerifier verifier = mock(ProvisioningTokenVerifier.class);
-    private final UserService users = mock(UserService.class);
-    private final UserRegistrationService service = new UserRegistrationService(verifier, users);
+    private final UserProfileUseCase userProfileUseCase = mock(UserProfileUseCase.class);
+    private final UserRegistrationService service = new UserRegistrationService(verifier, userProfileUseCase);
 
     @Test
     void derivesImmutableIdentityFromSignedHandoffAndWritesProfileOutbox() {
@@ -22,20 +24,21 @@ class UserRegistrationServiceTest {
         request.setProvisioningToken("signed-handoff");
         request.setFullName("Customer Test");
         when(verifier.verify("signed-handoff")).thenReturn(identity());
-        when(users.createUser(org.mockito.ArgumentMatchers.any()))
-                .thenReturn(UserResponse.builder()
-                        .id(7L).authId(11L).principalId(11L).email("user@example.com")
-                        .role("USER").fullName("Customer Test").build());
+        when(userProfileUseCase.create(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(new UserProfileResult(
+                        7L, 11L, 11L, "ACTIVE", 0L, "user@example.com", "USER",
+                        "Customer Test", null, null, null, null, true, false,
+                        null, null, null, null, null));
 
         UserResponse result = service.register(request);
 
-        ArgumentCaptor<UserRequest> trusted = ArgumentCaptor.forClass(UserRequest.class);
-        verify(users).createUser(trusted.capture());
-        assertThat(trusted.getValue().getAuthId()).isEqualTo(11L);
-        assertThat(trusted.getValue().getPrincipalId()).isEqualTo(11L);
-        assertThat(trusted.getValue().getEmail()).isEqualTo("user@example.com");
-        assertThat(trusted.getValue().getRole()).isEqualTo("USER");
-        assertThat(trusted.getValue().getFullName()).isEqualTo("Customer Test");
+        ArgumentCaptor<CreateUserCommand> trusted = ArgumentCaptor.forClass(CreateUserCommand.class);
+        verify(userProfileUseCase).create(trusted.capture());
+        assertThat(trusted.getValue().authId()).isEqualTo(11L);
+        assertThat(trusted.getValue().principalId()).isEqualTo(11L);
+        assertThat(trusted.getValue().email()).isEqualTo("user@example.com");
+        assertThat(trusted.getValue().role()).isEqualTo("USER");
+        assertThat(trusted.getValue().fullName()).isEqualTo("Customer Test");
         assertThat(result.getId()).isEqualTo(7L);
     }
 

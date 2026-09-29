@@ -5,7 +5,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 
-@Component
 public class HttpAuthGateway implements AuthGateway {
     private final RestClient client;
 

@@ -29,12 +29,6 @@ public class RestaurantOwnershipPolicy {
         this.managementAccessUseCase = managementAccessUseCase;
     }
 
-    /** Test-only transitional constructor; production must use the application decision. */
-    public RestaurantOwnershipPolicy(boolean principalOwnershipEnforced) {
-        this(principalOwnershipEnforced,
-                new com.delivery.restaurant.application.DefaultRestaurantManagementAccessUseCase());
-    }
-
     public ManagementAccess assertCanManage(Restaurant restaurant, Long principalId,
                                              Long legacyUserId, String role) {
         try {

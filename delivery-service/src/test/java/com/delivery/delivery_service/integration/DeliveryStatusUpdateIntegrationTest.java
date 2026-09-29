@@ -2,6 +2,7 @@ package com.delivery.delivery_service.integration;
 
 import com.delivery.delivery_service.service.DeliveryEventPublisher;
 import com.delivery.delivery_service.service.OutboxService;
+import com.delivery.delivery.contracts.DeliveryStatusUpdatedEvent;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -71,18 +72,16 @@ class DeliveryStatusUpdateIntegrationTest {
         assertEquals(deliveryId.toString(), keyCaptor.getValue());
 
         // Verify event
-        DeliveryEventPublisher.DeliveryStatusUpdateEvent event = 
-            (DeliveryEventPublisher.DeliveryStatusUpdateEvent) eventCaptor.getValue();
+        DeliveryStatusUpdatedEvent event = (DeliveryStatusUpdatedEvent) eventCaptor.getValue();
         
-        assertEquals(deliveryId, event.deliveryId);
-        assertEquals(orderId, event.orderId); // ✅ Verify orderId is included
-        assertEquals(userId, event.userId);
-        assertEquals(shipperId, event.shipperId);
-        assertEquals(newStatus, event.status);
-        assertEquals(newStatus, event.newStatus);
-        assertEquals(oldStatus, event.oldStatus);
-        assertEquals("DELIVERY_STATUS_UPDATED", event.eventType);
-        assertNotNull(event.timestamp);
+        assertEquals(deliveryId, event.deliveryId());
+        assertEquals(orderId, event.orderId()); // ✅ Verify orderId is included
+        assertEquals(userId, event.userId());
+        assertEquals(shipperId, event.shipperId());
+        assertEquals(newStatus, event.status());
+        assertEquals(oldStatus, event.previousStatus());
+        assertEquals("DELIVERY_STATUS_UPDATED", event.eventType());
+        assertNotNull(event.eventTimestamp());
     }
 
     @Test
@@ -102,20 +101,19 @@ class DeliveryStatusUpdateIntegrationTest {
         verify(outboxService).saveEvent(anyString(), anyString(), anyString(),
                 anyString(), anyString(), eventCaptor.capture());
 
-        DeliveryEventPublisher.DeliveryStatusUpdateEvent event = 
-            (DeliveryEventPublisher.DeliveryStatusUpdateEvent) eventCaptor.getValue();
+        DeliveryStatusUpdatedEvent event = (DeliveryStatusUpdatedEvent) eventCaptor.getValue();
 
         // ✅ Verify all required fields for Order Service
-        assertNotNull(event.deliveryId, "deliveryId is required");
-        assertNotNull(event.orderId, "orderId is required for order status update");
-        assertNotNull(event.userId, "userId is required for customer notification");
-        assertNotNull(event.newStatus, "newStatus is required");
-        assertNotNull(event.oldStatus, "oldStatus is required");
-        assertNotNull(event.eventType, "eventType is required");
-        assertNotNull(event.timestamp, "timestamp is required");
+        assertNotNull(event.deliveryId(), "deliveryId is required");
+        assertNotNull(event.orderId(), "orderId is required for order status update");
+        assertNotNull(event.userId(), "userId is required for customer notification");
+        assertNotNull(event.status(), "status is required");
+        assertNotNull(event.previousStatus(), "previousStatus is required");
+        assertNotNull(event.eventType(), "eventType is required");
+        assertNotNull(event.eventTimestamp(), "eventTimestamp is required");
 
         // ✅ Verify event type
-        assertEquals("DELIVERY_STATUS_UPDATED", event.eventType);
+        assertEquals("DELIVERY_STATUS_UPDATED", event.eventType());
     }
 
     @Test

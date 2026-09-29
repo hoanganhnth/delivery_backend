@@ -1,6 +1,7 @@
 package com.delivery.restaurant_service.repository;
 
 import com.delivery.restaurant.application.DefaultCreateMenuItemUseCase;
+import com.delivery.restaurant.application.DefaultCatalogLifecycleDecisionUseCase;
 import com.delivery.restaurant.application.DefaultMenuItemManagementReadUseCase;
 import com.delivery.restaurant.application.DefaultMenuItemReadUseCase;
 import com.delivery.restaurant.application.DefaultRestaurantManagementAccessUseCase;
@@ -40,22 +41,22 @@ class MenuOwnershipIntegrationTest {
 
     private MenuItemServiceImpl service(boolean enforced) {
         RestaurantManagementAccessUseCase accessUseCase = new DefaultRestaurantManagementAccessUseCase();
-        var cache = mock(CatalogCacheSynchronizer.class);
         var search = mock(SearchSyncPublisher.class);
         var create = new DefaultCreateMenuItemUseCase(
-                new JpaMenuItemCreationAdapter(items, restaurants, cache, search), accessUseCase);
+                new JpaMenuItemCreationAdapter(items, restaurants, search), accessUseCase);
         var update = new DefaultUpdateMenuItemUseCase(
-                new JpaMenuItemUpdateAdapter(items, cache, search), accessUseCase);
+                new JpaMenuItemUpdateAdapter(items, search), accessUseCase);
         var reads = new DefaultMenuItemReadUseCase(
                 new JpaMenuItemReadAdapter(items, restaurants, accessUseCase));
         var managementReads = new DefaultMenuItemManagementReadUseCase(
                 new JpaMenuItemReadAdapter(items, restaurants, accessUseCase));
-        return new MenuItemServiceImpl(items, new MenuItemMapper(),
-                new RestaurantOwnershipPolicy(enforced), new CatalogLifecycleService(
+        return new MenuItemServiceImpl(new MenuItemMapper(),
+                new RestaurantOwnershipPolicy(enforced, accessUseCase), new CatalogLifecycleService(
                         restaurants, items, new RestaurantMapper(), new MenuItemMapper(),
-                        mock(CatalogCacheSynchronizer.class), mock(SearchSyncPublisher.class),
-                        new RestaurantOwnershipPolicy(enforced), new RestaurantLifecyclePolicy(),
-                        new MenuItemLifecyclePolicy(), audits, new SimpleMeterRegistry()),
+                        mock(SearchSyncPublisher.class),
+                        new RestaurantOwnershipPolicy(enforced, accessUseCase),
+                        new DefaultCatalogLifecycleDecisionUseCase(new RestaurantLifecyclePolicy(),
+                                new MenuItemLifecyclePolicy()), audits, new SimpleMeterRegistry()),
                 create, update, reads, managementReads);
     }
     private MenuItem seed(Long principal, long legacy, MenuItem.Status status) {

@@ -286,7 +286,7 @@ class MenuItemControllerTest {
     @Test
     void publicPagePreservesPaginationEnvelopeAndOnlyRequestsAvailableItems() throws Exception {
         MenuItemResponse item = createMenuItemResponse(9L, "Pho", BigDecimal.valueOf(45000));
-        when(menuItemService.getItemsByRestaurantPage(4L, 1, 1, true))
+        when(menuItemService.getAvailableItemsPage(4L, 1, 1))
                 .thenReturn(new PageImpl<>(List.of(item), PageRequest.of(1, 1), 2));
 
         mockMvc.perform(get("/api/menu-items/restaurant/{restaurantId}/page", 4L)
@@ -301,7 +301,7 @@ class MenuItemControllerTest {
                 .andExpect(jsonPath("$.data.totalPages").value(2))
                 .andExpect(jsonPath("$.data.hasNext").value(false));
 
-        verify(menuItemService).getItemsByRestaurantPage(4L, 1, 1, true);
+        verify(menuItemService).getAvailableItemsPage(4L, 1, 1);
     }
 
     @Test
