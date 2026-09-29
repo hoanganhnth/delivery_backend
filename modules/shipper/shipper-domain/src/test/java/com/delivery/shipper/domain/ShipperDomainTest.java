@@ -31,8 +31,8 @@ class ShipperDomainTest {
         assertTrue(OnlineTransition.decide(OnlineStatus.OFFLINE, OnlineStatus.ONLINE).changed());
     }
     @Test void paginationIsBounded() {
-        assertThrows(IllegalArgumentException.class, () -> new PageRequest(0, 101));
-        assertThrows(IllegalArgumentException.class, () -> new PageRequest(-1, 10));
+        assertThrows(IllegalArgumentException.class, () -> new PageRequest(0, 101, null, null));
+        assertThrows(IllegalArgumentException.class, () -> new PageRequest(-1, 10, null, null));
     }
     @Test void identityVersionsAreMonotonicAndIdempotent() {
         IdentityStatusProjection p = new IdentityStatusProjection(7, "ACTIVE", 2);

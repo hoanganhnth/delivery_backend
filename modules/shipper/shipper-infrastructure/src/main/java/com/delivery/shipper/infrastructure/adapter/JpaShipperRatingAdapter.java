@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 @Component
-public final class JpaShipperRatingAdapter implements ShipperPorts.RatingStore {
+public class JpaShipperRatingAdapter implements ShipperPorts.RatingStore {
     private final ShipperRatingRepository repository;
     public JpaShipperRatingAdapter(ShipperRatingRepository repository) { this.repository = repository; }
     @Override @Transactional public ShipperResults.RatingResult add(ShipperCommands.SelfRating c) {

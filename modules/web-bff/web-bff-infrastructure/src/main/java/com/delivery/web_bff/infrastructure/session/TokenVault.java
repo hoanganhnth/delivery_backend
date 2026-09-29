@@ -11,7 +11,7 @@ import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
 /** AES-256-GCM adapter; ciphertexts are versioned and authenticated with the key version as AAD. */
-public final class TokenVault implements TokenProtection {
+public final class TokenVault implements TokenProtection, com.delivery.web_bff.application.api.Ports.TokenProtection {
     private static final int NONCE_BYTES = 12;
     private final String version;
     private final byte[] key;

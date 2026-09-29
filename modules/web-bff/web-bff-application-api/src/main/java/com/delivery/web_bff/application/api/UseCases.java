@@ -13,6 +13,18 @@ public final class UseCases {
     public interface AccessTokenResolution { String execute(String rawSessionId, String csrfToken, boolean mutation); }
     public interface ApiPolicyEvaluation { boolean execute(Ports.HttpVerb method, String path); }
     public interface ProxyForwarding { Ports.ForwardedResponse execute(ProxyRequest request); }
+    public static class SessionRejectedException extends RuntimeException {
+        public SessionRejectedException(String message) { super(message); }
+    }
+    public static class AuthenticationRejectedException extends RuntimeException {
+        public AuthenticationRejectedException(String message) { super(message); }
+    }
+    public static class RefreshInProgressException extends RuntimeException {
+        public RefreshInProgressException(String message) { super(message); }
+    }
+    public static class ApiProxyRejectedException extends RuntimeException {
+        public ApiProxyRejectedException(String message) { super(message); }
+    }
     public record SessionView(long principalId, String email, String role, long generation) {
         public static SessionView from(WebSession s) { return new SessionView(s.principalId(), s.email(), s.role(), s.generation()); }
     }

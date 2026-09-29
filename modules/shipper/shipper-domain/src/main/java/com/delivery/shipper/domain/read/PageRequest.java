@@ -1,6 +1,6 @@
 package com.delivery.shipper.domain.read;
 
-public record PageRequest(int page, int size) {
+public record PageRequest(int page, int size, Boolean isOnline, String keyword) {
     public static final int MAX_SIZE = 100;
     public PageRequest {
         if (page < 0) throw new IllegalArgumentException("page must not be negative");

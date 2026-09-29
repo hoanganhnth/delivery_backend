@@ -18,7 +18,7 @@ public interface ShipperRepository extends JpaRepository<Shipper, Long> {
             + "and not exists (select 1 from shipper_identity_outbox_events e "
             + "where e.event_type = 'shipper.identity.upserted' and e.aggregate_id = s.id) order by s.id", nativeQuery = true)
     List<Shipper> findIdentityOutboxMissing(Pageable pageable);
-    List<Shipper> findByIsOnline(Boolean isOnline, Pageable pageable);
+    Page<Shipper> findByIsOnline(Boolean isOnline, Pageable pageable);
     boolean existsByLicenseNumber(String licenseNumber);
     boolean existsByIdCard(String idCard);
 }

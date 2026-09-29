@@ -41,7 +41,7 @@ public final class DefaultShipperRatingUseCases implements ShipperUseCases.RateS
         requireActor(actor);
         long shipperId = profiles.findByPrincipalId(actor.principalId())
                 .orElseThrow(() -> new IllegalArgumentException("shipper profile not found")).id();
-        return ratings.findByShipperId(shipperId, new PageRequest(0, PageRequest.MAX_SIZE));
+        return ratings.findByShipperId(shipperId, new PageRequest(0, PageRequest.MAX_SIZE, null, null));
     }
 
     private static void requireActor(ShipperCommands.Actor actor) {

@@ -4,6 +4,8 @@ import jakarta.validation.constraints.Size;
 import jakarta.validation.constraints.Null;
 
 public class UpdateShipperRequest {
+    @Size(max = 100)
+    private String fullName;
     @Size(max = 50)
     private String vehicleType;
     @Size(max = 50)
@@ -40,6 +42,9 @@ public class UpdateShipperRequest {
     }
 
     // Getters and Setters
+    public String getFullName() { return fullName; }
+    public void setFullName(String fullName) { this.fullName = fullName; }
+
     public String getVehicleType() {
         return vehicleType;
     }

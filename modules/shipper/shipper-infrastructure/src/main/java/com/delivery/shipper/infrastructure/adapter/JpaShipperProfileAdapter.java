@@ -17,7 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /** Persistence adapter; JPA types never cross the application port. */
 @Component
-public final class JpaShipperProfileAdapter implements ShipperPorts.ProfileStore, ShipperPorts.IdentityStatusStore {
+public class JpaShipperProfileAdapter implements ShipperPorts.ProfileStore, ShipperPorts.IdentityStatusStore {
     private final ShipperRepository repository;
 
     public JpaShipperProfileAdapter(ShipperRepository repository) { this.repository = repository; }
@@ -43,7 +43,13 @@ public final class JpaShipperProfileAdapter implements ShipperPorts.ProfileStore
         Shipper e = repository.findById(id).orElseThrow(); e.setIsOnline(online); return snapshot(repository.save(e));
     }
     @Override public ShipperResults.SelfPage page(PageRequest request) {
-        var page = repository.findByPrincipalIdIsNotNull(org.springframework.data.domain.PageRequest.of(request.page(), request.size()));
+        org.springframework.data.domain.Page<Shipper> page;
+        var pageable = org.springframework.data.domain.PageRequest.of(request.page(), request.size());
+        if (request.isOnline() != null) {
+            page = repository.findByIsOnline(request.isOnline(), pageable);
+        } else {
+            page = repository.findByPrincipalIdIsNotNull(pageable);
+        }
         return new ShipperResults.SelfPage(new PageSlice<>(page.getContent().stream().map(this::snapshot).toList(), request, page.getTotalElements()));
     }
     @Override public boolean existsByLicenseNumber(String value, Long excluded) { return repository.existsByLicenseNumber(value); }

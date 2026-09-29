@@ -18,7 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /** Gated, synchronous Kafka relay for the shipper identity outbox. */
 @Component
-public final class ShipperIdentityOutboxRelay implements ShipperPorts.IdentityOutboxRelay {
+public class ShipperIdentityOutboxRelay implements ShipperPorts.IdentityOutboxRelay {
     private final ShipperIdentityOutboxEventRepository events; private final KafkaTemplate<String, String> kafka;
     private final ShipperIdentityOutboxService outbox; private final boolean enabled;
     private final Counter published; private final Counter failed;

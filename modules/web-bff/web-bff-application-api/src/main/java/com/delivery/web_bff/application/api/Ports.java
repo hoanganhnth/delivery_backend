@@ -19,7 +19,7 @@ public final class Ports {
         boolean claimRefresh(String sessionHash, long generation, Instant now, Instant leaseUntil);
     }
     public interface Clock { Instant now(); }
-    public interface TokenProtection { String keyVersion(); String protect(String plaintext); String reveal(String ciphertext); }
+    public interface TokenProtection extends com.delivery.web_bff.domain.session.TokenProtection { }
     public interface Randomness { byte[] bytes(int size); }
     public interface ApiPolicy { boolean allows(HttpVerb method, String path); }
     public interface ProxyForwarding {
@@ -28,6 +28,6 @@ public final class Ports {
     }
     public record AuthenticatedTokens(String accessToken, String refreshToken, long principalId, String email, String role) { }
     public record LoginCommand(String email, String password, String role, String deviceName, String deviceId) { }
-    public enum HttpVerb { GET, POST, PUT, PATCH, DELETE }
+    public enum HttpVerb { GET, HEAD, OPTIONS, POST, PUT, PATCH, DELETE }
     public record ForwardedResponse(int status, java.util.Map<String, java.util.List<String>> headers, byte[] body) { }
 }
