@@ -22,7 +22,6 @@ public class JpaMenuItemCreationAdapter implements MenuItemCreationPort {
 
     private final MenuItemRepository menuItemRepository;
     private final RestaurantRepository restaurantRepository;
-    private final CatalogCacheSynchronizer cacheSynchronizer;
     private final SearchSyncPublisher searchSyncPublisher;
 
     @Override
@@ -45,7 +44,6 @@ public class JpaMenuItemCreationAdapter implements MenuItemCreationPort {
         MenuItem saved = menuItemRepository.save(item);
 
         searchSyncPublisher.publishDishChange(saved, "CREATE");
-        cacheSynchronizer.cacheMenuItemAfterCommit(saved);
         return Optional.of(new MenuItemCreateResult(snapshot(saved), claimedLegacyOwnership));
     }
 

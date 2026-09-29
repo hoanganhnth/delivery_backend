@@ -32,13 +32,19 @@ import com.delivery.restaurant.application.api.UpdateRestaurantUseCase;
 import com.delivery.restaurant.domain.catalog.MenuItemLifecyclePolicy;
 import com.delivery.restaurant.domain.catalog.RestaurantLifecyclePolicy;
 import java.time.Clock;
+import com.delivery.restaurant.infrastructure.decision.RestaurantDecisionInfrastructureConfiguration;
 import com.delivery.restaurant.infrastructure.identity.IdentityInfrastructureConfiguration;
+import com.delivery.restaurant.infrastructure.client.OrderInfrastructureConfiguration;
+import com.delivery.restaurant.infrastructure.rating.RestaurantRatingInfrastructureConfiguration;
+import com.delivery.restaurant.infrastructure.serviceability.RestaurantServiceabilityInfrastructureConfiguration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
-@Import(IdentityInfrastructureConfiguration.class)
+@Import({IdentityInfrastructureConfiguration.class, OrderInfrastructureConfiguration.class,
+        RestaurantDecisionInfrastructureConfiguration.class, RestaurantRatingInfrastructureConfiguration.class,
+        RestaurantServiceabilityInfrastructureConfiguration.class})
 public class RestaurantOwnershipConfiguration {
 
     @Bean

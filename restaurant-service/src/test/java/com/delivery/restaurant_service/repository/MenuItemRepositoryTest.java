@@ -59,30 +59,6 @@ class MenuItemRepositoryTest {
     }
 
     @Test
-    void findByRestaurantId_ShouldReturnAllMenuItems_WhenRestaurantExists() {
-        // When
-        List<MenuItem> menuItems = menuItemRepository.findByRestaurantId(
-                restaurant.getId(), PageRequest.of(0, 100));
-
-        // Then
-        assertNotNull(menuItems);
-        assertEquals(2, menuItems.size());
-        assertTrue(menuItems.stream().anyMatch(item -> item.getName().equals("Available Pizza")));
-        assertTrue(menuItems.stream().anyMatch(item -> item.getName().equals("Unavailable Burger")));
-    }
-
-    @Test
-    void findByRestaurantId_ShouldReturnEmptyList_WhenRestaurantNotExists() {
-        // When
-        List<MenuItem> menuItems = menuItemRepository.findByRestaurantId(
-                999L, PageRequest.of(0, 100));
-
-        // Then
-        assertNotNull(menuItems);
-        assertTrue(menuItems.isEmpty());
-    }
-
-    @Test
     void findByRestaurantIdAndAvailableTrue_ShouldReturnOnlyAvailableItems() {
         // When
         List<MenuItem> availableItems = menuItemRepository.findByRestaurantIdAndStatus(

@@ -1,6 +1,8 @@
 package com.delivery.restaurant_service.service;
 
-import com.delivery.restaurant_service.dto.request.InventoryReservationRequest;
+import com.delivery.restaurant.application.api.InventoryReservationCommand;
+import com.delivery.restaurant.application.api.InventoryReservationLineCommand;
+import com.delivery.restaurant.infrastructure.inventory.MenuItemInventoryReservationService;
 import com.delivery.restaurant_service.entity.MenuItem;
 import com.delivery.restaurant_service.entity.MenuItemInventory;
 import com.delivery.restaurant_service.entity.MenuItemInventoryReservation;
@@ -123,16 +125,9 @@ class MenuItemInventoryReservationServiceTest {
                 .hasMessageContaining("not configured");
     }
 
-    private InventoryReservationRequest request(UUID reservationId, int quantity) {
-        return InventoryReservationRequest.builder()
-                .reservationId(reservationId)
-                .orderId(101L)
-                .userId(21L)
-                .userPrincipalId(2021L)
-                .restaurantId(7L)
-                .items(List.of(InventoryReservationRequest.Line.builder()
-                        .menuItemId(11L).quantity(quantity).build()))
-                .build();
+    private InventoryReservationCommand request(UUID reservationId, int quantity) {
+        return new InventoryReservationCommand(reservationId, 101L, 21L, 2021L, 7L,
+                List.of(new InventoryReservationLineCommand(11L, quantity)));
     }
 
     private MenuItemInventoryReservation reservationRepositoryArgument() {

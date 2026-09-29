@@ -8,10 +8,10 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.delivery.restaurant.domain.catalog.MenuItemLifecyclePolicy;
 import com.delivery.restaurant.domain.catalog.MenuItemStatus;
-import com.delivery.restaurant.domain.catalog.RestaurantLifecyclePolicy;
 import com.delivery.restaurant.domain.catalog.RestaurantStatus;
+import com.delivery.restaurant.application.DefaultCatalogLifecycleDecisionUseCase;
+import com.delivery.restaurant.application.DefaultRestaurantManagementAccessUseCase;
 import com.delivery.restaurant_service.dto.request.MenuItemLifecycleRequest;
 import com.delivery.restaurant_service.dto.request.RestaurantLifecycleRequest;
 import com.delivery.restaurant_service.dto.response.MenuItemResponse;
@@ -43,7 +43,6 @@ class CatalogLifecycleServiceTest {
     @Mock MenuItemRepository menuItemRepository;
     @Mock RestaurantMapper restaurantMapper;
     @Mock MenuItemMapper menuItemMapper;
-    @Mock CatalogCacheSynchronizer cacheSynchronizer;
     @Mock SearchSyncPublisher searchSyncPublisher;
     @Mock CatalogLifecycleAuditRepository auditRepository;
 
@@ -55,8 +54,12 @@ class CatalogLifecycleServiceTest {
     void setUp() {
         service = new CatalogLifecycleService(
                 restaurantRepository, menuItemRepository, restaurantMapper, menuItemMapper,
-                cacheSynchronizer, searchSyncPublisher, new RestaurantOwnershipPolicy(false),
-                new RestaurantLifecyclePolicy(), new MenuItemLifecyclePolicy(), auditRepository,
+                searchSyncPublisher, new RestaurantOwnershipPolicy(false,
+                        new DefaultRestaurantManagementAccessUseCase()),
+                new DefaultCatalogLifecycleDecisionUseCase(
+                        new com.delivery.restaurant.domain.catalog.RestaurantLifecyclePolicy(),
+                        new com.delivery.restaurant.domain.catalog.MenuItemLifecyclePolicy()),
+                auditRepository,
                 new SimpleMeterRegistry());
         restaurant = new Restaurant();
         restaurant.setId(10L);
@@ -85,7 +88,6 @@ class CatalogLifecycleServiceTest {
         assertThat(restaurant.getLifecycleStatus()).isEqualTo(RestaurantStatus.PAUSED);
         verify(auditRepository).save(any());
         verify(searchSyncPublisher).publishRestaurantChange(restaurant, "UPDATE");
-        verify(cacheSynchronizer).cacheRestaurantAfterCommit(restaurant);
     }
 
     @Test
@@ -139,7 +141,6 @@ class CatalogLifecycleServiceTest {
 
         assertThat(restaurant.getLifecycleStatus()).isEqualTo(RestaurantStatus.ARCHIVED);
         verify(searchSyncPublisher).publishRestaurantChange(restaurant, "DELETE");
-        verify(cacheSynchronizer).removeRestaurantAfterCommit(10L);
     }
 
     @Test
@@ -213,14 +214,11 @@ class CatalogLifecycleServiceTest {
         assertThat(audit.getValue().getAggregateType()).isEqualTo("MENU_ITEM");
         assertThat(audit.getValue().getBeforeStatus()).isEqualTo("AVAILABLE");
         assertThat(audit.getValue().getAfterStatus()).isEqualTo("ARCHIVED");
-        verify(cacheSynchronizer).removeMenuItemAfterCommit(20L);
         verify(searchSyncPublisher).publishDishChange(item, "DELETE");
     }
 
     private void verifyNoAuditOrSideEffects() {
         verify(auditRepository, never()).save(any());
-        verify(cacheSynchronizer, never()).cacheRestaurantAfterCommit(any());
-        verify(cacheSynchronizer, never()).removeRestaurantAfterCommit(any());
         verify(searchSyncPublisher, never()).publishRestaurantChange(any(), any());
     }
 }

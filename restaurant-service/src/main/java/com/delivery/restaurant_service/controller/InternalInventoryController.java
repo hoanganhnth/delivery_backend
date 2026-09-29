@@ -1,9 +1,11 @@
 package com.delivery.restaurant_service.controller;
 
+import com.delivery.restaurant.application.api.InventoryReservationCommand;
+import com.delivery.restaurant.application.api.InventoryReservationLineCommand;
+import com.delivery.restaurant.application.api.MenuItemInventoryUseCase;
 import com.delivery.restaurant_service.dto.request.InventoryReservationRequest;
 import com.delivery.restaurant_service.dto.response.InventoryReservationResponse;
 import com.delivery.restaurant_service.payload.BaseResponse;
-import com.delivery.restaurant_service.service.MenuItemInventoryReservationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.ObjectProvider;
@@ -26,7 +28,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class InternalInventoryController {
 
-    private final ObjectProvider<MenuItemInventoryReservationService> serviceProvider;
+    private final ObjectProvider<MenuItemInventoryUseCase> serviceProvider;
 
     @Value("${app.internal.secret:}")
     private String internalSecret;
@@ -42,7 +44,8 @@ public class InternalInventoryController {
         if (denied != null) return denied;
         if (request == null) return bad("Invalid inventory reservation request");
         try {
-            return ResponseEntity.ok(new BaseResponse<>(1, service().reserve(request), "Inventory reserved"));
+            return ResponseEntity.ok(new BaseResponse<>(1, InventoryReservationResponse.from(
+                    service().reserve(toCommand(request))), "Inventory reserved"));
         } catch (IllegalArgumentException invalid) {
             return bad(invalid.getMessage());
         }
@@ -57,7 +60,8 @@ public class InternalInventoryController {
         if (denied != null) return denied;
         try {
             return ResponseEntity.ok(new BaseResponse<>(1,
-                    service().commit(reservationId, orderId), "Inventory committed"));
+                    InventoryReservationResponse.from(service().commit(reservationId, orderId)),
+                    "Inventory committed"));
         } catch (IllegalArgumentException invalid) {
             return bad(invalid.getMessage());
         }
@@ -72,14 +76,15 @@ public class InternalInventoryController {
         if (denied != null) return denied;
         try {
             return ResponseEntity.ok(new BaseResponse<>(1,
-                    service().release(reservationId, orderId), "Inventory released"));
+                    InventoryReservationResponse.from(service().release(reservationId, orderId)),
+                    "Inventory released"));
         } catch (IllegalArgumentException invalid) {
             return bad(invalid.getMessage());
         }
     }
 
-    private MenuItemInventoryReservationService service() {
-        MenuItemInventoryReservationService service = serviceProvider.getIfAvailable();
+    private MenuItemInventoryUseCase service() {
+        MenuItemInventoryUseCase service = serviceProvider.getIfAvailable();
         if (service == null) throw new IllegalStateException("Inventory reservation is unavailable");
         return service;
     }
@@ -99,5 +104,13 @@ public class InternalInventoryController {
     private ResponseEntity<BaseResponse<InventoryReservationResponse>> bad(String message) {
         return ResponseEntity.badRequest().body(new BaseResponse<>(0, null,
                 message == null || message.isBlank() ? "Invalid inventory request" : message));
+    }
+
+    private InventoryReservationCommand toCommand(InventoryReservationRequest request) {
+        return new InventoryReservationCommand(request.getReservationId(), request.getOrderId(),
+                request.getUserId(), request.getUserPrincipalId(), request.getRestaurantId(),
+                request.getItems() == null ? java.util.List.of() : request.getItems().stream()
+                        .map(line -> new InventoryReservationLineCommand(line.getMenuItemId(), line.getQuantity()))
+                        .toList());
     }
 }

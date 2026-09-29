@@ -89,7 +89,7 @@ public class MenuItemController {
             @RequestParam(defaultValue = "24") int size) {
         validatePage(page, size);
         return ResponseEntity.ok(new BaseResponse<>(1, PageResponse.from(
-                menuItemService.getItemsByRestaurantPage(restaurantId, page, size, true))));
+                menuItemService.getAvailableItemsPage(restaurantId, page, size))));
     }
 
     @GetMapping("/restaurant/{restaurantId}/available/page")
@@ -98,7 +98,7 @@ public class MenuItemController {
             @RequestParam(defaultValue = "24") int size) {
         validatePage(page, size);
         return ResponseEntity.ok(new BaseResponse<>(1, PageResponse.from(
-                menuItemService.getItemsByRestaurantPage(restaurantId, page, size, true))));
+                menuItemService.getAvailableItemsPage(restaurantId, page, size))));
     }
     
     @GetMapping("/my-menu-items")

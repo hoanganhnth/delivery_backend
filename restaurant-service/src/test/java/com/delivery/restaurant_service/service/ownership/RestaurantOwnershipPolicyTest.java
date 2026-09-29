@@ -1,5 +1,6 @@
 package com.delivery.restaurant_service.service.ownership;
 
+import com.delivery.restaurant.application.DefaultRestaurantManagementAccessUseCase;
 import com.delivery.restaurant_service.common.constants.RoleConstants;
 import com.delivery.restaurant_service.entity.Restaurant;
 import org.junit.jupiter.api.Test;
@@ -13,7 +14,8 @@ class RestaurantOwnershipPolicyTest {
     @Test
     void roleWithoutPrincipalIsNotAnAuthenticatedManager() {
         for (String role : java.util.List.of(RoleConstants.ADMIN, RoleConstants.OWNER)) {
-            assertThrows(AccessDeniedException.class, () -> new RestaurantOwnershipPolicy(false)
+            assertThrows(AccessDeniedException.class, () -> new RestaurantOwnershipPolicy(false,
+                    new DefaultRestaurantManagementAccessUseCase())
                     .assertCanManage(restaurant(7L, null), null, 7L, role));
         }
     }
@@ -21,7 +23,8 @@ class RestaurantOwnershipPolicyTest {
     @Test
     void principalOwnedRestaurantRejectsDifferentPrincipalEvenWhenLegacyIdMatches() {
         Restaurant restaurant = restaurant(101L, 7L);
-        RestaurantOwnershipPolicy policy = new RestaurantOwnershipPolicy(false);
+        RestaurantOwnershipPolicy policy = new RestaurantOwnershipPolicy(false,
+                new DefaultRestaurantManagementAccessUseCase());
 
         assertThrows(AccessDeniedException.class, () -> policy.assertCanManage(
                 restaurant, 99L, 101L, RoleConstants.OWNER));
@@ -30,7 +33,8 @@ class RestaurantOwnershipPolicyTest {
     @Test
     void principalOwnerCanManageWithoutUsingLegacyFallback() {
         Restaurant restaurant = restaurant(101L, 7L);
-        RestaurantOwnershipPolicy policy = new RestaurantOwnershipPolicy(false);
+        RestaurantOwnershipPolicy policy = new RestaurantOwnershipPolicy(false,
+                new DefaultRestaurantManagementAccessUseCase());
 
         ManagementAccess access = policy.assertCanManage(
                 restaurant, 7L, 999L, RoleConstants.OWNER);
@@ -41,7 +45,8 @@ class RestaurantOwnershipPolicyTest {
     @Test
     void unmigratedRestaurantAllowsMatchingLegacyOwnerOnlyWhenEnforcementIsDisabled() {
         Restaurant restaurant = restaurant(101L, null);
-        RestaurantOwnershipPolicy policy = new RestaurantOwnershipPolicy(false);
+        RestaurantOwnershipPolicy policy = new RestaurantOwnershipPolicy(false,
+                new DefaultRestaurantManagementAccessUseCase());
 
         ManagementAccess access = policy.assertCanManage(
                 restaurant, 7L, 101L, RoleConstants.OWNER);
@@ -52,7 +57,8 @@ class RestaurantOwnershipPolicyTest {
     @Test
     void unmigratedRestaurantRejectsLegacyOwnerWhenEnforcementIsEnabled() {
         Restaurant restaurant = restaurant(101L, null);
-        RestaurantOwnershipPolicy policy = new RestaurantOwnershipPolicy(true);
+        RestaurantOwnershipPolicy policy = new RestaurantOwnershipPolicy(true,
+                new DefaultRestaurantManagementAccessUseCase());
 
         assertThrows(AccessDeniedException.class, () -> policy.assertCanManage(
                 restaurant, 7L, 101L, RoleConstants.OWNER));
@@ -61,7 +67,8 @@ class RestaurantOwnershipPolicyTest {
     @Test
     void adminCanManageAnyRestaurantWithoutLegacyFallback() {
         Restaurant restaurant = restaurant(101L, 7L);
-        RestaurantOwnershipPolicy policy = new RestaurantOwnershipPolicy(true);
+        RestaurantOwnershipPolicy policy = new RestaurantOwnershipPolicy(true,
+                new DefaultRestaurantManagementAccessUseCase());
 
         ManagementAccess access = policy.assertCanManage(
                 restaurant, 99L, 999L, RoleConstants.ADMIN);

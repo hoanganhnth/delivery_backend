@@ -8,10 +8,10 @@ import com.delivery.restaurant_service.entity.MenuItem;
 import com.delivery.restaurant_service.entity.Restaurant;
 import com.delivery.restaurant_service.repository.MenuItemRepository;
 import com.delivery.restaurant_service.repository.RestaurantRepository;
-import com.delivery.restaurant_service.service.MenuItemInventoryReservationService;
+import com.delivery.restaurant.application.api.MenuItemInventoryUseCase;
+import com.delivery.restaurant.application.api.RestaurantServiceabilityUseCase;
+import com.delivery.restaurant.application.api.ServiceabilityDecision;
 import com.delivery.restaurant_service.service.OrderCacheValidationService;
-import com.delivery.restaurant_service.service.RestaurantServiceabilityService;
-import com.delivery.restaurant_service.service.ServiceabilityDecision;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
@@ -31,13 +31,13 @@ public class OrderCacheValidationServiceImpl implements OrderCacheValidationServ
 
     private final RestaurantRepository restaurantRepository;
     private final MenuItemRepository menuItemRepository;
-    private final RestaurantServiceabilityService serviceabilityService;
-    private final ObjectProvider<MenuItemInventoryReservationService> inventoryServiceProvider;
+    private final RestaurantServiceabilityUseCase serviceabilityService;
+    private final ObjectProvider<MenuItemInventoryUseCase> inventoryServiceProvider;
     private final Clock clock;
 
     public OrderCacheValidationServiceImpl(RestaurantRepository restaurantRepository,
-            MenuItemRepository menuItemRepository, RestaurantServiceabilityService serviceabilityService,
-            ObjectProvider<MenuItemInventoryReservationService> inventoryServiceProvider, Clock clock) {
+            MenuItemRepository menuItemRepository, RestaurantServiceabilityUseCase serviceabilityService,
+            ObjectProvider<MenuItemInventoryUseCase> inventoryServiceProvider, Clock clock) {
         this.restaurantRepository = restaurantRepository;
         this.menuItemRepository = menuItemRepository;
         this.serviceabilityService = serviceabilityService;
@@ -122,7 +122,7 @@ public class OrderCacheValidationServiceImpl implements OrderCacheValidationServ
         boolean available = canonicalDataValid && quantity > 0 && item.getStatus() == MenuItem.Status.AVAILABLE;
         Integer stock = null;
         boolean enough = quantity > 0;
-        MenuItemInventoryReservationService inventory = inventoryServiceProvider.getIfAvailable();
+        MenuItemInventoryUseCase inventory = inventoryServiceProvider.getIfAvailable();
         if (available && inventory != null) {
             var inventoryAvailability = inventory.availability(restaurant.getId(), item.getId(), quantity);
             stock = inventoryAvailability.availableQuantity();

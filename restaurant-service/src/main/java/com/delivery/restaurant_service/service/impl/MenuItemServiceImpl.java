@@ -19,26 +19,19 @@ import com.delivery.restaurant_service.dto.response.MenuItemResponse;
 import com.delivery.restaurant_service.entity.MenuItem;
 import com.delivery.restaurant_service.exception.ResourceNotFoundException;
 import com.delivery.restaurant_service.mapper.MenuItemMapper;
-import com.delivery.restaurant_service.repository.MenuItemRepository;
 import com.delivery.restaurant_service.service.MenuItemService;
 import com.delivery.restaurant_service.service.ownership.RestaurantOwnershipPolicy;
 import java.util.List;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
-@Slf4j
 public class MenuItemServiceImpl implements MenuItemService {
 
-    // These repository queries remain only for legacy service methods that have no
-    // current HTTP caller or equivalent application contract.
-    private final MenuItemRepository menuItemRepository;
     private final MenuItemMapper menuItemMapper;
     private final RestaurantOwnershipPolicy restaurantOwnershipPolicy;
     private final CatalogLifecycleService catalogLifecycleService;
@@ -63,11 +56,6 @@ public class MenuItemServiceImpl implements MenuItemService {
     }
 
     @Override
-    public MenuItemResponse createMenuItem(CreateMenuItemRequest request, Long creatorId, String role) {
-        return createMenuItem(request, creatorId, creatorId, role);
-    }
-
-    @Override
     public MenuItemResponse createMenuItem(CreateMenuItemRequest request, Long principalId,
             Long legacyUserId, String role) {
         CreateMenuItemCommand command = new CreateMenuItemCommand(
@@ -81,12 +69,6 @@ public class MenuItemServiceImpl implements MenuItemService {
         } catch (ManagementAccessException ex) {
             throw accessDenied();
         }
-    }
-
-    @Override
-    public MenuItemResponse updateMenuItem(Long id, UpdateMenuItemRequest request,
-            Long creatorId, String role) {
-        return updateMenuItem(id, request, creatorId, creatorId, role);
     }
 
     @Override
@@ -106,11 +88,6 @@ public class MenuItemServiceImpl implements MenuItemService {
     }
 
     @Override
-    public void deleteMenuItem(Long id, Long creatorId, String role) {
-        deleteMenuItem(id, creatorId, creatorId, role);
-    }
-
-    @Override
     public void deleteMenuItem(Long id, Long principalId, Long legacyUserId, String role) {
         catalogLifecycleService.archiveMenuItem(id, principalId, legacyUserId, role);
     }
@@ -122,17 +99,6 @@ public class MenuItemServiceImpl implements MenuItemService {
                 id, request, principalId, legacyUserId, role);
     }
 
-    /**
-     * Retained for the pre-application service API; current public HTTP reads use
-     * {@link #getAvailableItems(Long)} and the application public-read boundary.
-     */
-    @Override
-    public List<MenuItemResponse> getItemsByRestaurant(Long restaurantId) {
-        return menuItemRepository.findByRestaurantId(restaurantId, PageRequest.of(0, 100)).stream()
-                .map(menuItemMapper::toResponse)
-                .collect(Collectors.toList());
-    }
-
     @Override
     public List<MenuItemResponse> getAvailableItems(Long restaurantId) {
         return menuItemReadUseCase.listPublic(restaurantId).stream()
@@ -141,49 +107,8 @@ public class MenuItemServiceImpl implements MenuItemService {
     }
 
     @Override
-    public List<MenuItemResponse> getManagedItemsByRestaurant(Long restaurantId, Long principalId,
-            Long legacyUserId, String role) {
-        return getManagedItemsPage(restaurantId, principalId, legacyUserId, role, 0, 100).getContent();
-    }
-
-    /** Retained for compatibility with non-HTTP legacy callers. */
-    @Override
-    public List<MenuItemResponse> getMenuItemsByCreatorId(Long creatorId) {
-        return menuItemRepository.findByRestaurantCreatorId(creatorId, PageRequest.of(0, 100)).stream()
-                .map(menuItemMapper::toResponse)
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    public Page<MenuItemResponse> getItemsByRestaurantPage(Long restaurantId, int page, int size,
-            boolean available) {
-        if (available) {
-            return menuItemMapper.toPage(menuItemReadUseCase.pagePublic(restaurantId, page, size));
-        }
-        return menuItemRepository.findPageByRestaurantId(restaurantId, PageRequest.of(page, size))
-                .map(menuItemMapper::toResponse);
-    }
-
-    /** Retained for compatibility with non-HTTP legacy callers. */
-    @Override
-    public Page<MenuItemResponse> getMenuItemsByCreatorPage(Long creatorId, int page, int size) {
-        return menuItemRepository.findPageByRestaurantCreatorId(creatorId, PageRequest.of(page, size))
-                .map(menuItemMapper::toResponse);
-    }
-
-    /** Retained for compatibility with non-HTTP legacy callers. */
-    @Override
-    public List<MenuItemResponse> getAllItems() {
-        return menuItemRepository.findAll(PageRequest.of(0, 100)).stream()
-                .map(menuItemMapper::toResponse)
-                .collect(Collectors.toList());
-    }
-
-    /** Retained for compatibility with non-HTTP legacy callers. */
-    @Override
-    public Page<MenuItemResponse> getAllItemsPage(int page, int size) {
-        return menuItemRepository.findAll(PageRequest.of(page, size))
-                .map(menuItemMapper::toResponse);
+    public Page<MenuItemResponse> getAvailableItemsPage(Long restaurantId, int page, int size) {
+        return menuItemMapper.toPage(menuItemReadUseCase.pagePublic(restaurantId, page, size));
     }
 
     private RestaurantActorRole actorRole(String role) {

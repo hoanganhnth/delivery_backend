@@ -1,12 +1,15 @@
 package com.delivery.restaurant_service.controller;
 
 import com.delivery.auth.resourceserver.security.AuthenticatedActor;
-import com.delivery.restaurant_service.common.constants.RoleConstants;
+import com.delivery.restaurant.application.api.CreateServiceabilityZoneCommand;
+import com.delivery.restaurant.application.api.RestaurantServiceabilityUseCase;
+import com.delivery.restaurant.application.api.ServiceabilityZoneResult;
+import com.delivery.restaurant.application.api.UpdateServiceabilityZoneCommand;
+import com.delivery.restaurant.domain.ownership.RestaurantActorRole;
 import com.delivery.restaurant_service.dto.request.CreateServiceabilityZoneRequest;
 import com.delivery.restaurant_service.dto.request.UpdateServiceabilityZoneRequest;
 import com.delivery.restaurant_service.dto.response.ServiceabilityZoneResponse;
 import com.delivery.restaurant_service.payload.BaseResponse;
-import com.delivery.restaurant_service.service.RestaurantServiceabilityService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -28,7 +31,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class RestaurantServiceabilityController {
 
-    private final RestaurantServiceabilityService serviceabilityService;
+    private final RestaurantServiceabilityUseCase serviceabilityService;
 
     @GetMapping
     public ResponseEntity<BaseResponse<List<ServiceabilityZoneResponse>>> list(
@@ -36,7 +39,8 @@ public class RestaurantServiceabilityController {
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireActor(actor);
         return ResponseEntity.ok(new BaseResponse<>(1, serviceabilityService.list(
-                restaurantId, actor.getPrincipalId(), actor.getLegacyUserId(), role(actor))));
+                restaurantId, actor.getPrincipalId(), actor.getLegacyUserId(), actorRole(actor)).stream()
+                .map(RestaurantServiceabilityController::toResponse).toList()));
     }
 
     @PostMapping
@@ -45,8 +49,10 @@ public class RestaurantServiceabilityController {
             @Valid @RequestBody CreateServiceabilityZoneRequest request,
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireActor(actor);
-        return ResponseEntity.ok(new BaseResponse<>(1, serviceabilityService.create(
-                restaurantId, request, actor.getPrincipalId(), actor.getLegacyUserId(), role(actor))));
+        return ResponseEntity.ok(new BaseResponse<>(1, toResponse(serviceabilityService.create(
+                restaurantId, new CreateServiceabilityZoneCommand(request.getName(), request.getPolygonGeoJson(),
+                        request.getPriority(), request.getActive()), actor.getPrincipalId(), actor.getLegacyUserId(),
+                actorRole(actor)))));
     }
 
     @PutMapping("/{zoneId}")
@@ -56,8 +62,10 @@ public class RestaurantServiceabilityController {
             @Valid @RequestBody UpdateServiceabilityZoneRequest request,
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireActor(actor);
-        return ResponseEntity.ok(new BaseResponse<>(1, serviceabilityService.update(
-                restaurantId, zoneId, request, actor.getPrincipalId(), actor.getLegacyUserId(), role(actor))));
+        return ResponseEntity.ok(new BaseResponse<>(1, toResponse(serviceabilityService.update(
+                restaurantId, zoneId, new UpdateServiceabilityZoneCommand(request.getRevision(), request.getName(),
+                        request.getPolygonGeoJson(), request.getPriority(), request.getActive()),
+                actor.getPrincipalId(), actor.getLegacyUserId(), actorRole(actor)))));
     }
 
     @DeleteMapping("/{zoneId}")
@@ -67,7 +75,7 @@ public class RestaurantServiceabilityController {
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireActor(actor);
         serviceabilityService.delete(restaurantId, zoneId,
-                actor.getPrincipalId(), actor.getLegacyUserId(), role(actor));
+                actor.getPrincipalId(), actor.getLegacyUserId(), actorRole(actor));
         return ResponseEntity.ok(new BaseResponse<>(1, null));
     }
 
@@ -77,9 +85,23 @@ public class RestaurantServiceabilityController {
         }
     }
 
-    private String role(AuthenticatedActor actor) {
-        if (actor.isAdmin()) return RoleConstants.ADMIN;
-        if (actor.isShopOwner()) return RoleConstants.OWNER;
-        return RoleConstants.CUSTOMER;
+    private RestaurantActorRole actorRole(AuthenticatedActor actor) {
+        if (actor.isAdmin()) return RestaurantActorRole.ADMIN;
+        if (actor.isShopOwner()) return RestaurantActorRole.SHOP_OWNER;
+        return RestaurantActorRole.OTHER;
+    }
+
+    private static ServiceabilityZoneResponse toResponse(ServiceabilityZoneResult result) {
+        ServiceabilityZoneResponse response = new ServiceabilityZoneResponse();
+        response.setId(result.id());
+        response.setRestaurantId(result.restaurantId());
+        response.setName(result.name());
+        response.setPolygonGeoJson(result.polygonGeoJson());
+        response.setPriority(result.priority());
+        response.setActive(result.active());
+        response.setRevision(result.revision());
+        response.setCreatedAt(result.createdAt());
+        response.setUpdatedAt(result.updatedAt());
+        return response;
     }
 }

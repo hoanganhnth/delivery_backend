@@ -32,7 +32,6 @@ import com.delivery.restaurant_service.dto.request.UpdateMenuItemRequest;
 import com.delivery.restaurant_service.dto.response.MenuItemResponse;
 import com.delivery.restaurant_service.exception.ResourceNotFoundException;
 import com.delivery.restaurant_service.mapper.MenuItemMapper;
-import com.delivery.restaurant_service.repository.MenuItemRepository;
 import com.delivery.restaurant_service.service.impl.CatalogLifecycleService;
 import com.delivery.restaurant_service.service.impl.MenuItemServiceImpl;
 import com.delivery.restaurant_service.service.ownership.RestaurantOwnershipPolicy;
@@ -55,8 +54,6 @@ import org.springframework.security.access.AccessDeniedException;
 @ExtendWith(MockitoExtension.class)
 class MenuItemServiceTest {
 
-    @Mock
-    private MenuItemRepository menuItemRepository;
     @Mock
     private MenuItemMapper menuItemMapper;
     @Mock
@@ -118,7 +115,6 @@ class MenuItemServiceTest {
         assertEquals(RestaurantActorRole.SHOP_OWNER, command.getValue().actorRole());
         assertEquals("Pizza", command.getValue().name());
         verify(menuItemMapper).toResponse(result);
-        verifyNoInteractions(menuItemRepository);
     }
 
     @Test
@@ -126,10 +122,10 @@ class MenuItemServiceTest {
         when(createMenuItemUseCase.create(any(CreateMenuItemCommand.class))).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class, () -> menuItemService.createMenuItem(
-                createRequest, 1L, RoleConstants.OWNER));
+                createRequest, 1L, 1L, RoleConstants.OWNER));
 
         verify(createMenuItemUseCase).create(any(CreateMenuItemCommand.class));
-        verifyNoInteractions(menuItemRepository, menuItemMapper);
+        verifyNoInteractions(menuItemMapper);
     }
 
     @Test
@@ -140,7 +136,7 @@ class MenuItemServiceTest {
         assertThrows(AccessDeniedException.class, () -> menuItemService.createMenuItem(
                 createRequest, 1L, 2L, RoleConstants.OWNER));
 
-        verifyNoInteractions(menuItemRepository, menuItemMapper);
+        verifyNoInteractions(menuItemMapper);
     }
 
     @Test
@@ -180,7 +176,6 @@ class MenuItemServiceTest {
         assertEquals("Updated Pizza", command.getValue().name());
         assertEquals(MenuItemStatus.SOLD_OUT, command.getValue().status());
         assertEquals(999L, command.getValue().requestedRestaurantId());
-        verifyNoInteractions(menuItemRepository);
     }
 
     @Test
@@ -188,10 +183,10 @@ class MenuItemServiceTest {
         when(updateMenuItemUseCase.update(any(UpdateMenuItemCommand.class))).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class, () -> menuItemService.updateMenuItem(
-                404L, new UpdateMenuItemRequest(), 1L, RoleConstants.OWNER));
+                404L, new UpdateMenuItemRequest(), 1L, 1L, RoleConstants.OWNER));
 
         verify(updateMenuItemUseCase).update(any(UpdateMenuItemCommand.class));
-        verifyNoInteractions(menuItemRepository, menuItemMapper);
+        verifyNoInteractions(menuItemMapper);
     }
 
     @Test
@@ -202,7 +197,7 @@ class MenuItemServiceTest {
         assertThrows(AccessDeniedException.class, () -> menuItemService.updateMenuItem(
                 1L, new UpdateMenuItemRequest(), 7L, 7L, RoleConstants.OWNER));
 
-        verifyNoInteractions(menuItemRepository, menuItemMapper);
+        verifyNoInteractions(menuItemMapper);
     }
 
     @Test
@@ -214,7 +209,6 @@ class MenuItemServiceTest {
 
         verify(menuItemReadUseCase).listPublic(1L);
         verify(menuItemMapper).toResponse(snapshot);
-        verifyNoInteractions(menuItemRepository);
     }
 
     @Test
@@ -224,11 +218,10 @@ class MenuItemServiceTest {
         when(menuItemReadUseCase.pagePublic(1L, 1, 24)).thenReturn(source);
         when(menuItemMapper.toPage(source)).thenReturn(expected);
 
-        assertSame(expected, menuItemService.getItemsByRestaurantPage(1L, 1, 24, true));
+        assertSame(expected, menuItemService.getAvailableItemsPage(1L, 1, 24));
 
         verify(menuItemReadUseCase).pagePublic(1L, 1, 24);
         verify(menuItemMapper).toPage(source);
-        verifyNoInteractions(menuItemRepository);
     }
 
     @Test
@@ -244,7 +237,7 @@ class MenuItemServiceTest {
         assertEquals(404L, query.getValue().restaurantId());
         assertEquals(1L, query.getValue().principalId());
         assertEquals(24, query.getValue().size());
-        verifyNoInteractions(menuItemRepository, menuItemMapper);
+        verifyNoInteractions(menuItemMapper);
     }
 
     @Test
@@ -255,7 +248,7 @@ class MenuItemServiceTest {
         assertThrows(AccessDeniedException.class, () -> menuItemService.getManagedItemsPage(
                 1L, 7L, 7L, RoleConstants.OWNER, 0, 24));
 
-        verifyNoInteractions(menuItemRepository, menuItemMapper);
+        verifyNoInteractions(menuItemMapper);
     }
 
     @Test
@@ -267,30 +260,15 @@ class MenuItemServiceTest {
                 null, 1L, 1L, RoleConstants.OWNER, 0, 101));
 
         verify(menuItemManagementReadUseCase).read(any(MenuItemManagementQuery.class));
-        verifyNoInteractions(menuItemRepository, menuItemMapper);
-    }
-
-    @Test
-    void managedItemsByRestaurantUsesManagementReadBoundary() {
-        MenuItemPageSlice source = new MenuItemPageSlice(List.of(snapshot), 0, 100, 1, 1, false);
-        Page<MenuItemResponse> expected = new PageImpl<>(List.of(menuItemResponse), PageRequest.of(0, 100), 1);
-        when(menuItemManagementReadUseCase.read(any(MenuItemManagementQuery.class)))
-                .thenReturn(Optional.of(source));
-        when(menuItemMapper.toPage(source)).thenReturn(expected);
-
-        assertEquals(List.of(menuItemResponse), menuItemService.getManagedItemsByRestaurant(
-                1L, 1L, 1L, RoleConstants.OWNER));
-
-        verify(menuItemManagementReadUseCase).read(any(MenuItemManagementQuery.class));
-        verify(menuItemMapper).toPage(source);
+        verifyNoInteractions(menuItemMapper);
     }
 
     @Test
     void deleteStillDelegatesToLifecycleBoundary() {
-        menuItemService.deleteMenuItem(1L, 1L, RoleConstants.OWNER);
+        menuItemService.deleteMenuItem(1L, 1L, 1L, RoleConstants.OWNER);
 
         verify(catalogLifecycleService).archiveMenuItem(1L, 1L, 1L, RoleConstants.OWNER);
-        verifyNoInteractions(menuItemRepository, createMenuItemUseCase, updateMenuItemUseCase,
+        verifyNoInteractions(createMenuItemUseCase, updateMenuItemUseCase,
                 menuItemReadUseCase, menuItemManagementReadUseCase);
     }
 }

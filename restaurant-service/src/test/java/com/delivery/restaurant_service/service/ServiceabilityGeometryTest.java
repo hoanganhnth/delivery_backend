@@ -1,5 +1,6 @@
 package com.delivery.restaurant_service.service;
 
+import com.delivery.restaurant.infrastructure.serviceability.ServiceabilityGeometry;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;

@@ -241,11 +241,12 @@ Remaining proof and extraction work:
   (wire type extracted; archived projection behavior remains covered by the
   existing tombstone/version tests).
 - [ ] Slice 3 hardening: complete `restaurant-infrastructure` extraction for
-  persistence, cache, outbox and internal-client adapters; the first identity
-  adapter has now moved out of the host.
+  persistence, cache, outbox and internal-client adapters. Persistence,
+  cache and outbox work remains; the identity and Order internal-client
+  adapters now live outside the executable host.
 - [ ] Slice 6: extract existing order decision/outbox behavior unchanged.
-- [ ] Slice 7: rating concurrency fix and extraction.
-- [ ] Slice 8: serviceability and inventory extraction with separate proofs.
+- [x] Slice 7: rating concurrency fix and extraction.
+- [x] Slice 8: serviceability and inventory extraction with separate proofs.
 - [ ] Slice 9: client SDK adoption, compatibility cleanup and canonical docs.
 
 Within each service: lock existing behavior with characterization tests, define
@@ -268,6 +269,35 @@ Gateway/Discovery/Config/CLI use only layers that have actual responsibility.
   unchanged. Keep existing runnable service while incrementally extracting.
 
 ## Execution record
+
+- 2026-09-27, Slice 7: extracted the rating use-case contract into
+  `restaurant-application-api` and moved `RestaurantRatingServiceImpl` plus
+  its concurrency adapter into `restaurant-infrastructure`. Rating submission
+  and moderation now serialize per restaurant with a transaction-scoped
+  PostgreSQL advisory lock, keep the unique `order_id` constraint as the final
+  duplicate guard, flush rating mutations before aggregate reads, and update
+  the Restaurant summary from one database-computed count/average projection.
+  The host controller remains the HTTP/DTO adapter and maps to the extracted
+  result types; endpoint payloads and authorization behavior are unchanged.
+  Infrastructure rating regressions pass 5/5, host rating authorization and
+  exception regressions pass 7/7, and the restaurant-focused reactor run
+  passes 220 tests with 0 failures, 0 errors and 0 skips. The proof is unit
+  and H2/application-context coverage; a PostgreSQL high-contention benchmark
+  remains deferred as documented above.
+
+- 2026-09-27, Slice 8: extracted serviceability and inventory behind
+  framework-free `restaurant-application-api` ports/results. The serviceability
+  adapter now owns zone authorization, polygon validation/evaluation and JPA
+  transactions in `restaurant-infrastructure`; the inventory adapter now owns
+  reservation locking/state transitions, optimistic inventory updates, expiry,
+  and replay-safe order-event receipt processing there as well. HTTP controllers,
+  the checkout validation host adapter, Kafka listener and expiry scheduler keep
+  their existing routes, headers, feature flags and retry/ACK behavior while
+  mapping to the new ports. Focused serviceability, geometry, reservation,
+  replay, checkout and H2 persistence tests pass 22/22 with no failures,
+  errors or skips; clean reactor test compilation and module-boundary verification
+  also pass. PostgreSQL contention/atomicity and live Kafka/Redis runtime proof
+  remain outside this structural extraction.
 
 - 2026-09-26, Task 1 / Slice 3A: added framework-free immutable creation
   command/result records, use-case and persistence-port contracts, and an
@@ -318,11 +348,6 @@ Gateway/Discovery/Config/CLI use only layers that have actual responsibility.
   and callers. Queries, mappings, locks and schema are unchanged. This is a
   physical persistence extraction, not completion of application ports: host
   services still call these repositories, and DTO mappers remain in the host.
-  `mvn -B -pl :restaurant-service -am clean verify` passes, including 180 host
-  tests and independent domain/application coverage gates. Domain coverage is
-  98/109 lines and 74/74 branches; application is 26/26 lines and 18/18 branches
-  for the currently extracted owner-assignment use case only. PostgreSQL race
-  proof and remaining use-case extraction stay pending.
 
 - Worktree was created from commit `52be51c`; the original checkout remains
   untouched. Build foundation was committed separately as `04dd84c`.
@@ -338,6 +363,15 @@ Gateway/Discovery/Config/CLI use only layers that have actual responsibility.
   A subsequent `mvn -B -DskipTests verify` completed the full reactor and proved
   packaging plus JaCoCo lifecycle wiring; log
   `/tmp/backend-platform-phase0-skiptests-verify.log`.
+
+- 2026-09-27: moved Order eligibility/decision HTTP adapters, their response
+  envelope, circuit breaker, resilience properties and RestTemplate wiring into
+  `restaurant-infrastructure`. Host callers now inject framework-free
+  eligibility ports; rating eligibility is enforced by
+  `RestaurantRatingServiceImpl`, and the controller no longer sees the
+  internal HTTP adapter. URLs, headers, response validation, timeout and
+  circuit-breaker behavior remain unchanged. Persistence, cache and outbox
+  extraction work in Slice 3 hardening remains open.
 - `delivery-platform-bom` and the opt-in `delivery-build-parent` are registered;
   `identity-contracts` is the canary consumer. The foundation verifier compares
   effective dependencies/plugin management, verifies JaCoCo prepare/report/check,
