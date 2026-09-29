@@ -2,7 +2,7 @@ package com.delivery.delivery_service.config;
 
 import com.delivery.delivery.application.api.DeliveryCommandPort;
 import com.delivery.delivery.application.api.DeliveryQueryPort;
-import com.delivery.delivery_service.adapter.LegacyDeliveryPorts;
+import com.delivery.delivery_service.adapter.DeliveryApplicationPorts;
 import com.delivery.delivery_service.service.DeliveryBatchAcceptanceService;
 import com.delivery.delivery_service.service.DeliveryBatchLifecycleService;
 import com.delivery.delivery_service.service.DeliveryBatchSnapshotService;
@@ -21,7 +21,7 @@ public class DeliveryApplicationPortConfiguration {
             DeliveryBatchLifecycleService lifecycle, ShipperIdentityResolver identities,
             DeliveryBatchSnapshotService snapshots, DeliveryProofOfDeliveryService proofs,
             DeliveryExceptionService exceptions) {
-        return new LegacyDeliveryPorts(delivery, batches, lifecycle, identities, snapshots, proofs, exceptions);
+        return new DeliveryApplicationPorts(delivery, batches, lifecycle, identities, snapshots, proofs, exceptions);
     }
 
     @Bean
@@ -29,6 +29,6 @@ public class DeliveryApplicationPortConfiguration {
             DeliveryBatchLifecycleService lifecycle, ShipperIdentityResolver identities,
             DeliveryBatchSnapshotService snapshots, DeliveryProofOfDeliveryService proofs,
             DeliveryExceptionService exceptions) {
-        return new LegacyDeliveryPorts(delivery, batches, lifecycle, identities, snapshots, proofs, exceptions);
+        return new DeliveryApplicationPorts(delivery, batches, lifecycle, identities, snapshots, proofs, exceptions);
     }
 }

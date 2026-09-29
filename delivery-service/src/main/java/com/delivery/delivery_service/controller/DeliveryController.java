@@ -23,7 +23,7 @@ import com.delivery.delivery_service.service.DeliveryExceptionService;
 import com.delivery.auth.resourceserver.security.AuthenticatedActor;
 import com.delivery.delivery.application.api.DeliveryCommandPort;
 import com.delivery.delivery.application.api.DeliveryQueryPort;
-import com.delivery.delivery_service.adapter.LegacyDeliveryPorts;
+import com.delivery.delivery_service.adapter.DeliveryApplicationPorts;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -42,14 +42,12 @@ public class DeliveryController {
 
     private final DeliveryCommandPort commandPort;
     private final DeliveryQueryPort queryPort;
-    private final boolean legacyCompatibility;
 
     @Autowired
     public DeliveryController(@Qualifier("deliveryCommandPort") DeliveryCommandPort commandPort,
             @Qualifier("deliveryQueryPort") DeliveryQueryPort queryPort) {
         this.commandPort = commandPort;
         this.queryPort = queryPort;
-        this.legacyCompatibility = false;
     }
 
     public DeliveryController(DeliveryService deliveryService, DeliveryBatchAcceptanceService batchAcceptanceService,
@@ -58,9 +56,9 @@ public class DeliveryController {
                               com.delivery.delivery_service.service.DeliveryBatchSnapshotService batchSnapshotService,
                               DeliveryProofOfDeliveryService proofOfDeliveryService,
                               DeliveryExceptionService deliveryExceptionService) {
-        this(new LegacyDeliveryPorts(deliveryService, batchAcceptanceService, batchLifecycleService,
+        this(new DeliveryApplicationPorts(deliveryService, batchAcceptanceService, batchLifecycleService,
                 shipperIdentityResolver, batchSnapshotService, proofOfDeliveryService, deliveryExceptionService),
-                new LegacyDeliveryPorts(deliveryService, batchAcceptanceService, batchLifecycleService,
+                new DeliveryApplicationPorts(deliveryService, batchAcceptanceService, batchLifecycleService,
                         shipperIdentityResolver, batchSnapshotService, proofOfDeliveryService, deliveryExceptionService));
     }
 
@@ -69,27 +67,26 @@ public class DeliveryController {
                               DeliveryBatchLifecycleService batchLifecycleService,
                               com.delivery.delivery_service.service.ShipperIdentityResolver shipperIdentityResolver,
                               com.delivery.delivery_service.service.DeliveryBatchSnapshotService batchSnapshotService) {
-        this(new LegacyDeliveryPorts(deliveryService, batchAcceptanceService, batchLifecycleService,
+        this(new DeliveryApplicationPorts(deliveryService, batchAcceptanceService, batchLifecycleService,
                         shipperIdentityResolver, batchSnapshotService, null, null),
-                new LegacyDeliveryPorts(deliveryService, batchAcceptanceService, batchLifecycleService,
+                new DeliveryApplicationPorts(deliveryService, batchAcceptanceService, batchLifecycleService,
                         shipperIdentityResolver, batchSnapshotService, null, null));
     }
 
     /** Compatibility constructor for existing controller fixtures. */
     public DeliveryController(DeliveryService deliveryService, DeliveryBatchAcceptanceService batchAcceptanceService,
                               DeliveryBatchLifecycleService batchLifecycleService) {
-        this(new LegacyDeliveryPorts(deliveryService, batchAcceptanceService, batchLifecycleService,
+        this(new DeliveryApplicationPorts(deliveryService, batchAcceptanceService, batchLifecycleService,
                         null, null, null, null),
-                new LegacyDeliveryPorts(deliveryService, batchAcceptanceService, batchLifecycleService,
+                        new DeliveryApplicationPorts(deliveryService, batchAcceptanceService, batchLifecycleService,
                         null, null, null, null));
     }
 
     /** Compatibility constructor for legacy controller authorization tests. */
     public DeliveryController(DeliveryService deliveryService) {
-        LegacyDeliveryPorts ports = new LegacyDeliveryPorts(deliveryService, null, null, null, null, null, null);
+        DeliveryApplicationPorts ports = new DeliveryApplicationPorts(deliveryService, null, null, null, null, null, null);
         this.commandPort = ports;
         this.queryPort = ports;
-        this.legacyCompatibility = true;
     }
 
     @PostMapping("/batch/accept")

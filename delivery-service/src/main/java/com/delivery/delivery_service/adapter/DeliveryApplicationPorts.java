@@ -17,8 +17,8 @@ import com.delivery.delivery_service.service.DeliveryService;
 import com.delivery.delivery_service.service.ShipperIdentityResolver;
 import com.delivery.identity.contracts.SimulationContext;
 
-/** Transitional adapter: keeps the existing service implementations behind the application ports. */
-public final class LegacyDeliveryPorts implements DeliveryCommandPort, DeliveryQueryPort {
+/** Application-facing facade that composes the delivery service use cases behind stable ports. */
+public final class DeliveryApplicationPorts implements DeliveryCommandPort, DeliveryQueryPort {
     private final DeliveryService delivery;
     private final DeliveryBatchAcceptanceService batches;
     private final DeliveryBatchLifecycleService lifecycle;
@@ -27,7 +27,7 @@ public final class LegacyDeliveryPorts implements DeliveryCommandPort, DeliveryQ
     private final DeliveryProofOfDeliveryService proofs;
     private final DeliveryExceptionService exceptions;
 
-    public LegacyDeliveryPorts(DeliveryService delivery, DeliveryBatchAcceptanceService batches,
+    public DeliveryApplicationPorts(DeliveryService delivery, DeliveryBatchAcceptanceService batches,
             DeliveryBatchLifecycleService lifecycle, ShipperIdentityResolver identities,
             DeliveryBatchSnapshotService snapshots, DeliveryProofOfDeliveryService proofs,
             DeliveryExceptionService exceptions) {

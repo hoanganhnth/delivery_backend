@@ -29,5 +29,4 @@ The refactored core modules have explicit JaCoCo gates at 0.85 line and 0.85 bra
 
 ## Known follow-up
 
-Delivery host compatibility currently uses `LegacyDeliveryPorts` while existing service implementations are migrated incrementally. The controller depends on application ports, and the legacy services are only composed in the host adapter/configuration. This keeps the boundary enforceable without changing the running Phase 7 worktree.
-
+Delivery host wiring now uses `DeliveryApplicationPorts` behind the application ports. The controller depends only on the application API, while the host facade composes the existing service implementations without exposing legacy adapter naming at the boundary.
