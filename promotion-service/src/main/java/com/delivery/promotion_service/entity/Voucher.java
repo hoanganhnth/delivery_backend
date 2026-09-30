@@ -104,6 +104,15 @@ public class Voucher {
     @Builder.Default
     private Boolean active = true;
 
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
+
+    @Column(name = "deleted_by_principal_id")
+    private Long deletedByPrincipalId;
+
+    @Column(name = "deletion_reason", length = 255)
+    private String deletionReason;
+
     @Column(updatable = false)
     private LocalDateTime createdAt;
 

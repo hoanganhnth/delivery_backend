@@ -930,10 +930,18 @@ public class PromotionService {
 
     @Transactional
     public void deleteVoucher(Long id) {
+        deleteVoucher(id, null, "deleted_by_request");
+    }
+
+    @Transactional
+    public void deleteVoucher(Long id, Long actorPrincipalId, String reason) {
         validatePositiveId(id, "voucherId");
         Voucher voucher = voucherRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> new IllegalArgumentException("Voucher not found"));
         voucher.setActive(false);
+        voucher.setDeletedAt(LocalDateTime.now());
+        voucher.setDeletedByPrincipalId(actorPrincipalId);
+        voucher.setDeletionReason(reason == null || reason.isBlank() ? "deleted_by_request" : reason.trim());
         voucherRepository.save(voucher);
     }
 

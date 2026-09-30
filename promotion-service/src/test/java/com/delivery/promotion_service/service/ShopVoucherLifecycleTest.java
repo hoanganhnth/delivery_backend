@@ -69,6 +69,19 @@ class ShopVoucherLifecycleTest {
         verify(vouchers, never()).findById(9L);
     }
 
+    @Test void deletionRecordsTombstoneMetadataWithoutHardDeletingVoucher() {
+        var current = Voucher.builder().id(9L).usedQuantity(1).active(true).build();
+        when(vouchers.findByIdForUpdate(9L)).thenReturn(Optional.of(current));
+
+        service.deleteVoucher(9L, 151L, "merchant_retired");
+
+        assertFalse(current.getActive());
+        assertNotNull(current.getDeletedAt());
+        assertEquals(151L, current.getDeletedByPrincipalId());
+        assertEquals("merchant_retired", current.getDeletionReason());
+        verify(vouchers).save(current);
+    }
+
     private CreateVoucherRequest request() {
         var request = new CreateVoucherRequest();
         request.setCode("SHOP10"); request.setName("Shop discount");
