@@ -370,12 +370,13 @@ public class EventProcessingService {
             throw new IllegalArgumentException("Analytics raw payload is required");
         }
         String fingerprint = fingerprint(rawPayload);
+        Long aggregateVersion = aggregateVersion(rawPayload);
         AnalyticsEvent existing = eventRepo.findByDeduplicationKey(key).orElse(null);
         if (existing == null) {
             if (isPostgres()) {
                 int inserted = eventRepo.insertIfAbsentPostgres(key, type, orderId, userId,
                         restaurantId, restaurantName, amount, orderStatus, paymentMethod,
-                        rawPayload, fingerprint);
+                        rawPayload, fingerprint, aggregateVersion);
                 if (inserted == 1) return true;
                 existing = eventRepo.findByDeduplicationKey(key).orElseThrow(() ->
                         new IllegalStateException("analytics receipt conflict resolved without a committed row"));
@@ -385,12 +386,12 @@ public class EventProcessingService {
                         .orderId(orderId).userId(userId).restaurantId(restaurantId)
                         .restaurantName(restaurantName).amount(amount).orderStatus(orderStatus)
                         .paymentMethod(paymentMethod).rawPayload(rawPayload)
-                        .payloadFingerprint(fingerprint).build());
+                        .payloadFingerprint(fingerprint).aggregateVersion(aggregateVersion).build());
                 return true;
             }
         }
         requireExactReplay(existing, type, orderId, userId, restaurantId,
-                restaurantName, amount, orderStatus, paymentMethod, rawPayload, fingerprint);
+                restaurantName, amount, orderStatus, paymentMethod, rawPayload, fingerprint, aggregateVersion);
         log.info("Skipping exact analytics replay {}", key);
         return false;
     }
@@ -398,7 +399,7 @@ public class EventProcessingService {
     private void requireExactReplay(AnalyticsEvent existing, String type, Long orderId, Long userId,
                                     Long restaurantId, String restaurantName, BigDecimal amount,
                                     String orderStatus, String paymentMethod, String rawPayload,
-                                    String fingerprint) {
+                                    String fingerprint, Long aggregateVersion) {
         boolean payloadMatches = existing.getPayloadFingerprint() != null
                 ? existing.getPayloadFingerprint().equals(fingerprint)
                 : Objects.equals(existing.getRawPayload(), rawPayload);
@@ -410,6 +411,7 @@ public class EventProcessingService {
                 || !sameAmount(existing.getAmount(), amount)
                 || !Objects.equals(existing.getOrderStatus(), orderStatus)
                 || !Objects.equals(existing.getPaymentMethod(), paymentMethod)
+                || !Objects.equals(existing.getAggregateVersion(), aggregateVersion)
                 || !payloadMatches) {
             throw new IllegalArgumentException(
                     "analytics deduplication key replay has contradictory identity or payload");
@@ -431,6 +433,15 @@ public class EventProcessingService {
         } catch (NoSuchAlgorithmException impossible) {
             throw new IllegalStateException("SHA-256 is unavailable", impossible);
         }
+    }
+
+    private Long aggregateVersion(String rawPayload) {
+        JsonNode value = readJson(rawPayload).get("aggregateVersion");
+        if (value == null || value.isNull() || value.asText().isBlank()) return null;
+        if (!value.canConvertToLong() || value.asLong() <= 0) {
+            throw new IllegalArgumentException("analytics aggregateVersion must be positive");
+        }
+        return value.asLong();
     }
 
     static String resolveDeduplicationKey(String eventType, Long orderId, String rawPayload) {

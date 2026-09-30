@@ -26,11 +26,11 @@ public interface AnalyticsEventRepository extends JpaRepository<AnalyticsEvent, 
             INSERT INTO analytics_events (
                 deduplication_key, event_type, event_time, order_id, user_id,
                 restaurant_id, restaurant_name, amount, order_status,
-                payment_method, raw_payload, payload_fingerprint
+                payment_method, raw_payload, payload_fingerprint, aggregate_version
             ) VALUES (
                 :deduplicationKey, :eventType, CURRENT_TIMESTAMP, :orderId, :userId,
                 :restaurantId, :restaurantName, :amount, :orderStatus,
-                :paymentMethod, :rawPayload, :payloadFingerprint
+                :paymentMethod, :rawPayload, :payloadFingerprint, :aggregateVersion
             ) ON CONFLICT (deduplication_key) DO NOTHING
             """, nativeQuery = true)
     int insertIfAbsentPostgres(
@@ -44,7 +44,8 @@ public interface AnalyticsEventRepository extends JpaRepository<AnalyticsEvent, 
             @Param("orderStatus") String orderStatus,
             @Param("paymentMethod") String paymentMethod,
             @Param("rawPayload") String rawPayload,
-            @Param("payloadFingerprint") String payloadFingerprint);
+            @Param("payloadFingerprint") String payloadFingerprint,
+            @Param("aggregateVersion") Long aggregateVersion);
 
     /**
      * Lấy tất cả events trong khoảng thời gian (cho Scheduled Job re-computation)
