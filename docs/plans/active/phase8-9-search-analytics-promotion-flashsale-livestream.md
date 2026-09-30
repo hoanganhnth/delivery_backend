@@ -72,9 +72,9 @@
 - Create: `search-service/src/test/java/com/delivery/search_service/consumer/SearchProjectionReplayIntegrationTest.java`
 
 - [ ] Write failing tests for delete tombstones, duplicate tombstones, stale update-after-delete, checkpoint restart, and replay from a chosen offset.
-- [ ] Add projection metadata (`aggregateVersion`, `deletedAt`) and reject stale events before writing Elasticsearch.
+- [x] Add projection metadata (`aggregateVersion`, `deletedAt`) and reject stale events before writing Elasticsearch.
 - [ ] Implement idempotent delete-by-aggregate-ID and checkpoint advancement only after successful application.
-- [ ] Add a replay command/runbook that can rebuild a projection without re-enabling deleted documents.
+- [x] Add a replay command/runbook that can rebuild a projection without re-enabling deleted documents.
 - [ ] Verify search API excludes deleted documents and returns the existing unavailable response when Elasticsearch is unhealthy.
 - [ ] Commit: `refactor: make search projection tombstone-safe`.
 
@@ -90,7 +90,7 @@
 - Create: `analytics-service/src/test/java/com/delivery/analytics_service/service/AnalyticsReconciliationTest.java`
 
 - [ ] Write tests for duplicate event IDs, out-of-order versions, malformed payload quarantine, and replay after a source entity is soft-deleted.
-- [ ] Add a durable event fingerprint/version constraint and a quarantine path that does not block unrelated events.
+- [x] Add a durable event fingerprint/version constraint and a quarantine path that does not block unrelated events.
 - [ ] Ensure daily projections are derived from accepted events and can be reconciled against raw events.
 - [ ] Add reconciliation metrics and a bounded repair command; repair must be idempotent.
 - [ ] Verify dashboard queries never expose deleted source entities unless explicitly requested for audit.
@@ -126,7 +126,7 @@
 
 - [ ] Write concurrent tests proving stock cannot become negative, duplicate idempotency keys do not reserve twice, and expired reservations release exactly once.
 - [ ] Choose and document one contention strategy per stock path: atomic SQL update or Redis Lua fence; do not mix strategies in one operation.
-- [ ] Add campaign/item soft delete and prevent deleted items from being quoted or reserved.
+- [x] Add campaign/item soft delete and prevent deleted items from being quoted or reserved.
 - [ ] Emit reservation and stock-adjustment events with sequence/version fields.
 - [ ] Run a bounded load test before enabling production traffic and record p95 latency, conflict rate, and lock wait time.
 - [ ] Commit: `feat: make flash sale reservations contention-safe`.
@@ -140,11 +140,11 @@
 - Create: `livestream-service/src/test/java/com/delivery/livestream_service/checkout/LivestreamOrderContextContractTest.java`
 - Create: `livestream-service/src/test/java/com/delivery/livestream_service/checkout/LivestreamCheckoutRetryTest.java`
 
-- [ ] Define a versioned order-context DTO containing stream ID, pinned product ID, seller/restaurant ID, price snapshot ID, actor, and correlation ID.
+- [x] Define a versioned order-context DTO containing stream ID, pinned product ID, seller/restaurant ID, price snapshot ID, actor, and correlation ID.
 - [ ] Validate product authority and soft-deleted product behavior before checkout handoff.
-- [ ] Make checkout handoff idempotent by livestream event/order key; retries must return the original result.
+- [x] Make checkout handoff idempotent by livestream event/order key; retries must return the original result.
 - [ ] Keep livestream presentation and moderation policy inside livestream-service; only stable checkout contracts cross service boundaries.
-- [ ] Commit: `feat: stabilize livestream checkout order context`.
+- [x] Commit: `feat: stabilize livestream checkout order context`.
 
 ## Task 8: Phase 8 integration and staged rollout
 
@@ -170,11 +170,11 @@
 - Create: `simulator-service/src/test/java/com/delivery/simulator/service/Phase8ScenarioTest.java`
 - Create: `docs/runbooks/simulator-scenarios-phase8-9.md`
 
-- [ ] Add deterministic scenarios for duplicate Kafka delivery, consumer restart, search replay, voucher contention, flash-sale stock contention, livestream checkout retry, and soft-delete recovery.
+- [x] Add deterministic scenarios for duplicate Kafka delivery, consumer restart, search replay, voucher contention, flash-sale stock contention, livestream checkout retry, and soft-delete recovery.
 - [ ] Persist scenario seed, actor lease, decision trace, and recovery result so a failed run is reproducible.
 - [ ] Add fault injection for provider timeout, Kafka pause, Redis outage, DB deadlock, and stale event delivery.
-- [ ] Verify simulator runs do not write to production databases or publish to production topics.
-- [ ] Commit: `feat: add deterministic phase 8 simulator scenarios`.
+- [x] Verify simulator runs do not write to production databases or publish to production topics.
+- [x] Commit: `feat: add deterministic phase 8 simulator scenarios`.
 
 ## Task 10: Regression closure and dependency audit
 
