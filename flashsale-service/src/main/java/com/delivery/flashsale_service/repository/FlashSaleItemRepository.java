@@ -14,11 +14,15 @@ import org.springframework.data.jpa.repository.Lock;
 public interface FlashSaleItemRepository extends JpaRepository<FlashSaleItem, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select item from FlashSaleItem item join fetch item.campaign "
-            + "where item.id in :ids order by item.id")
+            + "where item.id in :ids and item.deletedAt is null order by item.id")
     List<FlashSaleItem> findAllByIdForUpdate(@Param("ids") Collection<Long> ids);
+    @Query("select item from FlashSaleItem item where item.campaign.id = :campaignId and item.deletedAt is null")
     List<FlashSaleItem> findByCampaignId(Long campaignId, Pageable pageable);
+    @Query("select item from FlashSaleItem item where item.campaign.id = :campaignId "
+            + "and item.status = :status and item.deletedAt is null")
     List<FlashSaleItem> findByCampaignIdAndStatus(
-            Long campaignId, FlashSaleItem.ItemStatus status, Pageable pageable);
+            @Param("campaignId") Long campaignId,
+            @Param("status") FlashSaleItem.ItemStatus status, Pageable pageable);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("update FlashSaleItem item set item.soldQuantity = 0 "

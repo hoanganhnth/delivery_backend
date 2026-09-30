@@ -187,6 +187,8 @@ public class FlashSaleStockService {
     }
 
     private void validateAvailable(FlashSaleItem item, Long restaurantId, int quantity, LocalTime now) {
+        if (item.getDeletedAt() != null)
+            throw new IllegalArgumentException("Flash sale item is deleted");
         if (!item.getRestaurantId().equals(restaurantId))
             throw new IllegalArgumentException("Flash sale item belongs to another restaurant");
         if (item.getStatus() != FlashSaleItem.ItemStatus.APPROVED)

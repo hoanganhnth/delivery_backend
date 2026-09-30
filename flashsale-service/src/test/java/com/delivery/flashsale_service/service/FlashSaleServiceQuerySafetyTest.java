@@ -17,12 +17,15 @@ import com.delivery.flashsale_service.dto.RegisterItemRequest;
 import com.delivery.flashsale_service.dto.CreateCampaignRequest;
 import com.delivery.flashsale_service.entity.FlashSaleCampaign;
 import com.delivery.flashsale_service.entity.FlashSaleItem;
+import com.delivery.flashsale_service.dto.FlashSaleQuoteRequest;
+import com.delivery.flashsale_service.dto.ReserveItemRequest;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.mock;
 
 @ExtendWith(MockitoExtension.class)
 class FlashSaleServiceQuerySafetyTest {
@@ -94,5 +97,28 @@ class FlashSaleServiceQuerySafetyTest {
         assertThrows(IllegalArgumentException.class, () -> service.createCampaign(request, 9L));
 
         verifyNoInteractions(campaignRepository, itemRepository, mapper);
+    }
+
+    @Test
+    void deletedItemCannotBeQuotedOrReserved() {
+        var stockItems = mock(FlashSaleItemRepository.class);
+        var stock = new FlashSaleStockService(stockItems, mock(com.delivery.flashsale_service.repository.FlashSaleReservationRepository.class),
+                mock(FlashSaleOutboxService.class), mock(io.micrometer.core.instrument.MeterRegistry.class));
+        FlashSaleCampaign campaign = FlashSaleCampaign.builder()
+                .status(FlashSaleCampaign.CampaignStatus.ACTIVE)
+                .startTime(LocalTime.now().minusMinutes(1)).endTime(LocalTime.now().plusMinutes(1)).build();
+        FlashSaleItem deleted = FlashSaleItem.builder().id(3L).campaign(campaign).restaurantId(2L)
+                .menuItemId(4L).originalPrice(new BigDecimal("100"))
+                .flashSalePrice(new BigDecimal("50")).stockQuantity(10).soldQuantity(0)
+                .status(FlashSaleItem.ItemStatus.APPROVED)
+                .deletedAt(java.time.LocalDateTime.now()).build();
+        when(stockItems.findAllById(java.util.Set.of(3L))).thenReturn(List.of(deleted));
+        FlashSaleQuoteRequest request = new FlashSaleQuoteRequest();
+        request.setRestaurantId(2L);
+        ReserveItemRequest line = new ReserveItemRequest();
+        line.setFlashSaleItemId(3L); line.setQuantity(1);
+        request.setItems(List.of(line));
+
+        assertThrows(IllegalArgumentException.class, () -> stock.quote(request));
     }
 }
