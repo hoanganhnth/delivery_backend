@@ -20,9 +20,9 @@ import java.time.ZoneOffset;
 import java.util.Locale;
 
 /**
- * Writes projection documents with Elasticsearch external_gte versioning. The
- * version is the producer's occurredAt, so an older Kafka partition can never
- * overwrite a newer projection even after both checkpoint claims succeeded.
+ * Writes projection documents with Elasticsearch external_gte versioning.
+ * Versioned producers fence writes with their aggregate version; legacy
+ * producers retain occurredAt-derived ordering until they are migrated.
  */
 @Component
 @RequiredArgsConstructor
@@ -39,14 +39,7 @@ public class ElasticsearchSearchProjectionWriter implements SearchProjectionWrit
             case "DISH" -> "dish";
             default -> throw new IllegalArgumentException("Unsupported entity type: " + event.getEntityType());
         };
-        long version;
-        try {
-            version = Math.addExact(
-                    Math.multiplyExact(event.getOccurredAt().toEpochSecond(ZoneOffset.UTC), 1_000_000_000L),
-                    event.getOccurredAt().getNano());
-        } catch (ArithmeticException exception) {
-            throw new IllegalArgumentException("entity-sync occurredAt cannot be represented as a version", exception);
-        }
+        long version = projectionVersion(event);
         if (version <= 0) {
             throw new IllegalArgumentException("entity-sync occurredAt must be after the Unix epoch");
         }
@@ -78,6 +71,19 @@ public class ElasticsearchSearchProjectionWriter implements SearchProjectionWrit
             throw new IllegalStateException("Elasticsearch projection write failed", exception);
         } catch (IOException exception) {
             throw new IllegalStateException("Elasticsearch projection is unavailable", exception);
+        }
+    }
+
+    private long projectionVersion(EntitySyncEvent event) {
+        if (event.getAggregateVersion() != null) {
+            return event.getAggregateVersion();
+        }
+        try {
+            return Math.addExact(
+                    Math.multiplyExact(event.getOccurredAt().toEpochSecond(ZoneOffset.UTC), 1_000_000_000L),
+                    event.getOccurredAt().getNano());
+        } catch (ArithmeticException exception) {
+            throw new IllegalArgumentException("entity-sync occurredAt cannot be represented as a version", exception);
         }
     }
 
