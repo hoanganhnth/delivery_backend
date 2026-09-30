@@ -141,7 +141,7 @@
 - Create: `livestream-service/src/test/java/com/delivery/livestream_service/checkout/LivestreamCheckoutRetryTest.java`
 
 - [x] Define a versioned order-context DTO containing stream ID, pinned product ID, seller/restaurant ID, price snapshot ID, actor, and correlation ID.
-- [ ] Validate product authority and soft-deleted product behavior before checkout handoff.
+- [x] Validate product authority and soft-deleted product behavior before checkout handoff.
 - [x] Make checkout handoff idempotent by livestream event/order key; retries must return the original result.
 - [ ] Keep livestream presentation and moderation policy inside livestream-service; only stable checkout contracts cross service boundaries.
 - [x] Commit: `feat: stabilize livestream checkout order context`.
