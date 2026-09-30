@@ -90,7 +90,7 @@
 - Create: `analytics-service/src/test/java/com/delivery/analytics_service/service/AnalyticsReconciliationTest.java`
 
 - [ ] Write tests for duplicate event IDs, out-of-order versions, malformed payload quarantine, and replay after a source entity is soft-deleted.
-- [x] Add a durable event fingerprint/version constraint and a quarantine path that does not block unrelated events.
+- [ ] Add a durable event fingerprint/version constraint and a quarantine path that does not block unrelated events.
 - [ ] Ensure daily projections are derived from accepted events and can be reconciled against raw events.
 - [ ] Add reconciliation metrics and a bounded repair command; repair must be idempotent.
 - [ ] Verify dashboard queries never expose deleted source entities unless explicitly requested for audit.
@@ -126,7 +126,7 @@
 
 - [ ] Write concurrent tests proving stock cannot become negative, duplicate idempotency keys do not reserve twice, and expired reservations release exactly once.
 - [ ] Choose and document one contention strategy per stock path: atomic SQL update or Redis Lua fence; do not mix strategies in one operation.
-- [x] Add campaign/item soft delete and prevent deleted items from being quoted or reserved.
+- [ ] Add campaign/item soft delete and prevent deleted items from being quoted or reserved.
 - [ ] Emit reservation and stock-adjustment events with sequence/version fields.
 - [ ] Run a bounded load test before enabling production traffic and record p95 latency, conflict rate, and lock wait time.
 - [ ] Commit: `feat: make flash sale reservations contention-safe`.
@@ -141,8 +141,8 @@
 - Create: `livestream-service/src/test/java/com/delivery/livestream_service/checkout/LivestreamCheckoutRetryTest.java`
 
 - [x] Define a versioned order-context DTO containing stream ID, pinned product ID, seller/restaurant ID, price snapshot ID, actor, and correlation ID.
-- [x] Validate product authority and soft-deleted product behavior before checkout handoff.
-- [x] Make checkout handoff idempotent by livestream event/order key; retries must return the original result.
+- [ ] Validate product authority and soft-deleted product behavior before checkout handoff.
+- [ ] Make checkout handoff idempotent by livestream event/order key; retries must return the original result.
 - [ ] Keep livestream presentation and moderation policy inside livestream-service; only stable checkout contracts cross service boundaries.
 - [x] Commit: `feat: stabilize livestream checkout order context`.
 
@@ -170,11 +170,42 @@
 - Create: `simulator-service/src/test/java/com/delivery/simulator/service/Phase8ScenarioTest.java`
 - Create: `docs/runbooks/simulator-scenarios-phase8-9.md`
 
-- [x] Add deterministic scenarios for duplicate Kafka delivery, consumer restart, search replay, voucher contention, flash-sale stock contention, livestream checkout retry, and soft-delete recovery.
+- [ ] Add deterministic scenarios for duplicate Kafka delivery, consumer restart, search replay, voucher contention, flash-sale stock contention, livestream checkout retry, and soft-delete recovery.
 - [ ] Persist scenario seed, actor lease, decision trace, and recovery result so a failed run is reproducible.
 - [ ] Add fault injection for provider timeout, Kafka pause, Redis outage, DB deadlock, and stale event delivery.
-- [x] Verify simulator runs do not write to production databases or publish to production topics.
+- [ ] Verify simulator runs do not write to production databases or publish to production topics.
 - [x] Commit: `feat: add deterministic phase 8 simulator scenarios`.
+
+## Coverage and maintainability execution checkpoint (2026-09-30)
+
+Evidence: [measured baseline](../../reviews/phase8-coverage-baseline.md).
+This checkpoint implements the approved coverage-closure design while keeping
+the execution history in this existing plan.
+
+- [x] Run full reactor verify and verify 20 existing core coverage gates.
+- [x] Instrument all six Phase 8 services without lowering thresholds.
+- [x] Add a JSON coverage reporter with tests for missing reports, exact gate
+  comparisons, absent branch opportunities, and weakened configured gates.
+- [x] Reproduce checkout null-request failure and fix validation ordering;
+  run all six instrumented service suites.
+- [x] Correct previously checked items that had only partial implementation:
+  analytics quarantine, campaign soft-delete, checkout authority and durable
+  idempotency, executable simulator scenarios and production isolation.
+- [ ] Implement durable Livestream receipts and test concurrent conflicting
+  payloads, restart replay, immutable price context, and authority failure.
+- [ ] Close FlashSaleStockService availability and state-transition test gaps;
+  execute PostgreSQL concurrency tests.
+- [ ] Characterize PromotionService behavior, then extract lifecycle,
+  eligibility and reservation orchestration preserving transaction boundaries.
+- [ ] Cover Search checkpoint and Analytics event/projection failure paths.
+- [ ] Connect Simulator scenarios to execution and test destination guards
+  before side effects; separate runner, fault injection, and journal.
+- [ ] Repeat coverage measurement after each changed service suite; set service
+  business-logic gates from explicit scope and reviewed exclusions.
+- [ ] Finish Docker-backed integration evidence and final review before merge.
+
+Validation commands and exact baseline counts are recorded in the linked review.
+No new merge, deployment or performance claim is made by this checkpoint.
 
 ## Task 10: Regression closure and dependency audit
 

@@ -69,6 +69,7 @@ public class LivestreamCheckoutQuoteService {
                 || idempotencyKey == null || idempotencyKey.isBlank()) {
             throw new IllegalArgumentException("Livestream checkout context requires actor, correlation and idempotency key");
         }
+        validate(request);
         String fingerprint = requestFingerprint(request, actorPrincipalId);
         List<LivestreamOrderContext> existing = handoffResults.get(idempotencyKey);
         if (existing != null) {
@@ -77,7 +78,6 @@ public class LivestreamCheckoutQuoteService {
             }
             return existing;
         }
-        validate(request);
         var room = rooms.findById(request.getLivestreamId()).orElseThrow(() ->
                 new LivestreamNotFoundException("Không tìm thấy livestream với ID: " + request.getLivestreamId()));
         if (room.getStatus() != LivestreamStatus.LIVE) {
