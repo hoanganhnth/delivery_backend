@@ -72,6 +72,7 @@ public class LivestreamProductService {
         // Find or create product
         LivestreamProduct product = productRepository
                 .findByLivestreamIdAndProductId(livestreamId, request.getProductId())
+                .or(() -> productRepository.findByLivestreamIdAndProductIdIncludingDeleted(livestreamId, request.getProductId()))
                 .orElseGet(() -> {
                     LivestreamProduct newProduct = new LivestreamProduct();
                     newProduct.setLivestreamId(livestreamId);
@@ -90,6 +91,9 @@ public class LivestreamProductService {
         product.setRestaurantId(livestream.getRestaurantId());
         product.setRestaurantName(canonical.restaurantName());
         product.setIsPinned(true);
+        product.setDeletedAt(null);
+        product.setDeletedByPrincipalId(null);
+        product.setDeletionReason(null);
         product.setPinnedAt(LocalDateTime.now());
         product = productRepository.save(product);
 
@@ -159,7 +163,11 @@ public class LivestreamProductService {
                 .orElseThrow(() -> new LivestreamProductNotFoundException(
                         "Không tìm thấy sản phẩm trong livestream"));
 
-        productRepository.delete(product);
+        product.setIsPinned(false);
+        product.setDeletedAt(LocalDateTime.now());
+        product.setDeletedByPrincipalId(sellerId);
+        product.setDeletionReason("LIVESTREAM_PRODUCT_REMOVED");
+        productRepository.save(product);
         log.info("Product removed successfully: livestream={}, product={}", livestreamId, productId);
     }
     @Transactional(readOnly = true)
