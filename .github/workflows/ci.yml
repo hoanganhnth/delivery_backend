@@ -26,12 +26,25 @@ jobs:
         run: |
           bash scripts/verify-build-foundation.sh
           python3 scripts/verify-module-boundaries.py --self-test
+          python3 -B scripts/test-module-boundaries.py
+          python3 -B scripts/verify-phase8-9-regression.py
+          python3 -B scripts/test-report-phase8-coverage.py
+          python3 -B scripts/test-phase8-integration-evidence.py
+          python3 -B scripts/test-runtime-dependency-boundaries.py
       - name: Verify toolchain and dependency baseline
         run: ./scripts/verify-build-baseline.sh
       - name: Verify no-runtime test context isolation
         run: ./scripts/verify-test-context-isolation.sh
       - name: Build and test
         run: mvn -B clean verify
+      - name: Verify Phase 8 coverage and required integration evidence
+        run: |
+          python3 -B scripts/report-phase8-coverage.py
+          python3 -B scripts/verify-phase8-integration-evidence.py
+      - name: Verify resolved runtime dependency boundaries
+        run: |
+          mvn -B org.apache.maven.plugins:maven-dependency-plugin:3.8.1:tree -Dscope=runtime -DoutputType=tgf -DoutputFile=target/phase8-runtime-dependencies.tgf
+          python3 -B scripts/verify-runtime-dependency-boundaries.py
       - name: Verify HTTP and public-boundary contracts
         run: |
           ./scripts/verify-http-api-inventory.sh

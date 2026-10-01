@@ -186,6 +186,23 @@ subtotal and `OrderItem.price`; other products keep restaurant-owned catalog
 prices. Livestream pricing cannot be combined with Flash Sale. Client-supplied
 item prices remain ignored.
 
+### Internal checkout context receipt
+
+Order obtains the immutable product context through
+`POST /api/livestreams/internal/order-context`. It carries the same scoped
+request as the quote endpoint plus `Internal-Token`, `X-Actor-Principal-Id`,
+`X-Correlation-Id`, and `Idempotency-Key`. The route is internal-only and is
+not routed through Gateway.
+
+Livestream persists one receipt per `(actor principal ID, idempotency key)`.
+The receipt stores a SHA-256 request fingerprint and the complete versioned
+context, including the pinned-product and price-snapshot IDs and the accepted
+`priceAtLive`. A matching retry returns that original snapshot after a restart,
+even if a pin changes later. Reusing the key with a different stream,
+restaurant, product sequence, or actor fails closed. Receipt retention and any
+purge remain the separately authorized policy described by the soft-delete and
+tombstone contract.
+
 ### Admin list
 
 `GET /api/livestreams/admin?page=0&size=20` is ADMIN-only and returns the

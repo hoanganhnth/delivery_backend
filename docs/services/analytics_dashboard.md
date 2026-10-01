@@ -25,8 +25,23 @@ Thay vì dùng lệnh `GROUP BY` liên tục trên bảng Orders gây nghẽn Da
 
 ### 3.2. Cân bằng dữ liệu (Reconciliation Job)
 Trong hệ thống Event-Driven phân tán, event có thể bị mất mạng, lỗi server hoặc xử lý sai lệch.
-- Một Cron Job (`StatsReconciliationJob`) sẽ chạy mỗi đêm lúc 2:00 AM để quét lại toàn bộ dữ liệu gốc trong Database của Order Service của ngày hôm trước.
-- Thuật toán sẽ tính tổng chính xác 100% và ghi đè lại kết quả vào bảng thống kê, đảm bảo tính vẹn toàn dữ liệu (Data Integrity).
+- `StatsReconciliationJob` chạy lúc 00:05, đọc raw events đã lưu trong
+  `analytics_events` của ngày hôm trước theo từng trang 500 dòng, sắp xếp theo ID.
+- Job ghi đè `daily_order_stats` cho platform và các nhà hàng có event; chạy lại
+  không cộng dồn và không sửa raw events. Cả đường scheduled và lời gọi trực
+  tiếp dùng transaction: lỗi ghi một projection rollback toàn bộ lần chạy và
+  được truyền ra ngoài, không báo thành công giả.
+- Những scope đã có thống kê trong ngày nhưng không có order event được nhận
+  được reset về 0, giữ nguyên ID và raw receipts; ngày rỗng không tạo scope mới.
+- Hiện job chỉ phục hồi order counters/revenue theo thời điểm receipt
+  `event_time`; chưa rebuild payment/item projections. PostgreSQL concurrency/recovery drill vẫn cần
+  bằng chứng riêng trước release.
+
+Order/Payment listeners chặn JSON không phải object, ID thiếu hoặc không phải
+số nguyên dương trong miền `long`, và payment amount không hữu hạn/không phải
+số trước khi gọi projection hoặc ACK. Lỗi payload là `IllegalArgumentException`
+(đi DLT theo cấu hình hiện có); lỗi storage vẫn retry và không ACK. Các ID tùy
+chọn vắng mặt giữ `null`, không bị ép thành `0`.
 
 ### 3.3. Per-item projection (T7, default-off)
 
@@ -37,7 +52,13 @@ event by stable `eventId`/payload fingerprint first, then upserts
 
 The projection deliberately keeps `ordered_*` and `cancelled_*` counters
 separate. A duplicate event is a no-op, a contradictory event ID is rejected,
-and a malformed line rolls back the item update. Legacy events without an
+and the complete immutable item snapshot is validated before any item row is
+written. A malformed line rolls back the receipt and order aggregates in the
+same transaction. Correcting a rejected payload allows retry with the
+same event ID because the failed receipt was rolled back. Raw payloads must
+be JSON objects; aggregate versions, menu-item IDs and quantities must be
+positive integers that fit a Java long. Fractional values are rejected rather
+than truncated. Legacy events without an
 `items` field remain compatible but contribute no per-item row. PostgreSQL
 concurrent upsert and broker replay rehearsal are still release evidence; the
 analytics capability remains `ANALYTICS_PROCESSING_ENABLED=false`.

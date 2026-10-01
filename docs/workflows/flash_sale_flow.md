@@ -2,7 +2,8 @@
 
 ## Runtime status
 
-The durable implementation is rollout-ready but disabled by default.
+The durable implementation is disabled by default. Rollout requires the
+integration and recovery evidence tracked in the active Phase 8–9 plan.
 
 - `FLASHSALE_CHECKOUT_ENABLED=false`
 - `FLASHSALE_OUTBOX_RELAY_ENABLED=false`
@@ -25,6 +26,8 @@ item registration remains hidden until its separate rollout is approved.
   It never submits a flash price.
 - Order verifies the returned `flashSaleItemId`, menu item, quantity, and price,
   then snapshots that server price. Voucher and flash sale do not stack.
+- Admin approval rejects a soft-deleted item with the existing item-not-found
+  response and preserves its status and deletion audit metadata.
 
 ## Durable atomic lifecycle
 
@@ -33,6 +36,9 @@ Every requested item row is locked in sorted order; ownership, approval,
 campaign window, and remaining stock for every line are validated before any
 counter changes. The cart then updates counters, persists reservation lines,
 and enqueues the deterministic outbox event in one transaction.
+Quote and reserve use the same side-effect-free availability policy. Campaign
+start/end times are inclusive; outside the window or with insufficient remaining
+stock, the policy rejects the item before stock mutation.
 
 ```text
 RESERVED -> COMMITTED | RELEASED | EXPIRED
@@ -45,6 +51,11 @@ from Order while retaining legacy `userId` for compatibility.
 Exact replay returns the stored line fingerprint and terminal state. A changed
 line, quantity, restaurant, user, order, or reservation identity fails closed.
 `order.created` commits; `order.cancelled` releases; a 15-minute sweep expires.
+If `order.created` arrives after expiry, Flash Sale rejects the commit without
+acknowledging a successful transition or restoring stock inline. The expiry
+sweep remains responsible for moving `RESERVED -> EXPIRED` and returning stock.
+`order.created` also fails closed when a reservation is already `RELEASED` or
+`EXPIRED`; an exact replay of `COMMITTED` stays idempotent.
 Each consumed Order event also claims a durable
 `flash_sale_order_reservation_receipts` receipt carrying source topic,
 `COMMIT`/`RELEASE` action, order/reservation identity and SHA-256 raw payload.
@@ -74,6 +85,11 @@ sequenceDiagram
 
 ## Proof
 
+- Docker-independent Spring/H2 transaction tests inject an outbox write failure
+  into reserve, commit and release. Persisted stock/reservation state rolls back;
+  the subsequent retry produces one successful transition and its outbox event.
+  These tests use generated schema and do not replace PostgreSQL migration,
+  contention or Kafka replay evidence below.
 - PostgreSQL 16 last-stock race: exactly one checkout succeeds.
 - Multi-item request with an exhausted second line changes no counter and
   creates no reservation/outbox row.

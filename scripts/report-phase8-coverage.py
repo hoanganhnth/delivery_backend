@@ -34,6 +34,50 @@ def percentage(counter):
     return None if total == 0 else round(100 * counter["covered"] / total, 2)
 
 
+def read_scope_counters(path):
+    """Partition package counters for reporting only; never exclude from bundle gates.
+
+    Package counters avoid double counting lines shared by nested classes.
+    Unknown packages stay in business scope rather than silently disappearing.
+    """
+    scopes = {name: {"packages": [], "counters": {
+        kind: {"covered": 0, "missed": 0} for kind in ("LINE", "BRANCH")}}
+        for name in ("business", "model_contracts", "framework_wiring", "migrations")}
+    packages = ET.parse(path).getroot().findall("package")
+    if not packages:
+        raise ValueError(f"Missing package coverage evidence: {path}")
+    for package in packages:
+        name = package.get("name", "")
+        segments = set(name.split("/"))
+        if name == "db/migration" or name.startswith("db/migration/"):
+            scope = "migrations"
+        elif segments & {"dto", "entity", "enums", "exception", "contracts"}:
+            scope = "model_contracts"
+        elif segments & {"config", "configuration", "security"}:
+            scope = "framework_wiring"
+        else:
+            scope = "business"
+        scopes[scope]["packages"].append(name)
+        for counter in package.findall("counter"):
+            kind = counter.get("type")
+            if kind not in scopes[scope]["counters"]:
+                continue
+            for key in ("covered", "missed"):
+                value = int(counter.attrib[key])
+                if value < 0:
+                    raise ValueError(f"Negative package counter: {path}")
+                scopes[scope]["counters"][kind][key] += value
+    bundle = read_counters(path)
+    for kind in bundle:
+        for key in bundle[kind]:
+            if sum(scope["counters"][kind][key] for scope in scopes.values()) != bundle[kind][key]:
+                raise ValueError(f"Package partition does not match bundle {kind} {key}: {path}")
+    for scope in scopes.values():
+        scope["packages"].sort()
+        scope["percent"] = {key: percentage(value) for key, value in scope["counters"].items()}
+    return scopes
+
+
 def meets_gate(counter, threshold):
     total = sum(counter.values())
     return total == 0 or Decimal(counter["covered"]) >= Decimal(threshold) * total
@@ -64,6 +108,8 @@ def collect(root):
                         errors.append(f"{name}: missing or weakened {kind} gate")
                     elif not meets_gate(counters[kind], threshold):
                         errors.append(f"{name}: {kind} below configured gate {threshold}")
+            else:
+                row["reporting_scopes"] = read_scope_counters(path)
             rows.append(row)
         except (OSError, ET.ParseError, ValueError, ArithmeticError) as error:
             errors.append(f"{name}: {error}")
@@ -80,7 +126,8 @@ def main():
                               capture_output=True, text=True, check=True).stdout.strip()
     print(json.dumps({"inspected_commit": revision,
                       "note": "Coverage belongs to the last verify run; rerun after source changes. "
-                              "Percentages are bundle-wide. Null means no branch opportunities.",
+                              "Top-level percentages are bundle-wide; service reporting scopes partition "
+                              "all packages without exclusions or new thresholds. Null means no branch opportunities.",
                       "modules": rows, "errors": errors}, indent=2))
     return 1 if errors else 0
 

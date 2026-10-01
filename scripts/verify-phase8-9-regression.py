@@ -5,6 +5,7 @@ This intentionally reports only production Java sources. Test cleanup and
 migration assertions may use DELETE/deleteAll without being business paths.
 """
 from pathlib import Path
+import importlib.util
 import re
 import sys
 
@@ -22,6 +23,12 @@ REQUIRED = (
 
 def main() -> int:
     errors = []
+    spec = importlib.util.spec_from_file_location(
+        "module_boundaries", ROOT / "scripts/verify-module-boundaries.py"
+    )
+    boundaries = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(boundaries)
+    errors.extend(boundaries.verify(ROOT))
     for relative in REQUIRED:
         if not (ROOT / relative).exists():
             errors.append(f"missing required artifact: {relative}")
@@ -40,7 +47,7 @@ def main() -> int:
         return 1
     print("Phase 8/9 regression audit PASSED")
     print(f"Checked domains: {', '.join(DOMAINS)}")
-    print("Checked production Java sources for hard-delete calls and required artifacts.")
+    print("Checked module boundaries, declared service dependencies, hard-delete calls and required artifacts.")
     return 0
 
 if __name__ == "__main__":

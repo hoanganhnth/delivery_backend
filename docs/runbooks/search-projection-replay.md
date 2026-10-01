@@ -21,8 +21,9 @@ soft-deleted.
    `search-service` group to run a rebuild.
 2. Set that group to the approved starting offsets for `entity-sync` (normally
    earliest for a complete rebuild) and start one Search replay worker.
-3. Watch `delivery.search.tombstones.applied`,
-   `delivery.search.stale_events.rejected`, and replay-failure metrics. Stop
+3. Watch Micrometer `delivery.tombstones{service="search-service",action="applied"}`,
+   `delivery.events{service="search-service",outcome="stale_rejected"}`, and
+   `delivery.projections{service="search-service",outcome="replay_failure"}`. Stop
    the worker if replay failures increase or Elasticsearch becomes unhealthy.
 4. Compare document counts and a sampled set of active IDs with the source
    records. For deleted source entities, verify Elasticsearch returns `404`.
@@ -31,6 +32,15 @@ soft-deleted.
    audit/recovery.
 
 ## Safety properties
+
+Telemetry answers three operational questions: are delete applications reaching
+the projection, are stale events being fenced, and are projection writes failing
+and being retried? Counters measure consumer attempts, not unique business events.
+A failed write increments only the failure counter; a successful exact replay
+may increment applied again because reapplication is required to recover a crash
+after the checkpoint claim. Labels never contain event IDs, payloads or URLs.
+The production consumer uses the application's shared MeterRegistry; metric
+fixtures do not establish a deployed Prometheus scrape or alert delivery.
 
 - Checkpoints reject stale events and detect contradictory reuse of an event
   identity.

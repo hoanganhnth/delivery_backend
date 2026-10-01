@@ -18,9 +18,18 @@ Gateway routes `POST /api/promotions/collect/{code}` and
 
 - Platform vouchers/freeship are created by `ADMIN`; shop vouchers are created
   by `SHOP_OWNER` and automatically approved after ownership and validation
-  checks. Existing pending/rejected vouchers retain their state; admin can
+checks. Existing pending/rejected vouchers retain their state; admin can
   review pending rows and pause/resume approved campaigns. Legacy `MERCHANT` ownership is
   not checkout-eligible.
+- Soft-deleted vouchers cannot be reactivated or approved. A repeated delete
+  preserves the original deletion time, actor and reason. Wallet reads and
+  checkout calculations exclude retired vouchers even if an inconsistent
+  historical row still has `active=true`.
+  Normal admin, shop, merchant and pending-review lists also exclude retired
+  rows before applying the database page limit. Locked lifecycle and
+  reservation reads retain access to retired rows for rejection/compensation.
+  Public deletion requires a stable authenticated ADMIN principal and records
+  that Auth account ID as the deletion actor.
 - Scope is exactly `ALL` or `SHOP`. A `SHOP` voucher carries a positive
   canonical restaurant ID. Legacy `CATEGORY` scope is not checkout-eligible.
 - One order may select at most one voucher per layer (`SHOP_DISCOUNT`,

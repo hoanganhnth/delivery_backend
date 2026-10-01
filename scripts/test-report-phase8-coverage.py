@@ -9,6 +9,29 @@ SPEC.loader.exec_module(report)
 
 
 class CoverageReportTest(unittest.TestCase):
+    def test_scope_partition_keeps_unknown_business_and_reports_support_separately(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "jacoco.xml"
+            path.write_text('<report>'
+                            '<package name="com/delivery/demo/service"><counter type="LINE" covered="8" missed="2"/></package>'
+                            '<package name="com/delivery/demo/unfamiliar"><counter type="LINE" covered="1" missed="9"/></package>'
+                            '<package name="com/delivery/demo/dto"><counter type="LINE" covered="10" missed="0"/></package>'
+                            '<package name="com/delivery/demo/config"><counter type="LINE" covered="3" missed="1"/></package>'
+                            '<package name="db/migration"><counter type="LINE" covered="4" missed="2"/></package>'
+                            '<counter type="LINE" covered="26" missed="14"/></report>')
+            scopes = report.read_scope_counters(path)
+            self.assertEqual(scopes["business"]["counters"]["LINE"], {"covered": 9, "missed": 11})
+            self.assertEqual(scopes["business"]["percent"]["LINE"], 45.0)
+            self.assertEqual(scopes["model_contracts"]["percent"]["LINE"], 100.0)
+            self.assertEqual(scopes["migrations"]["packages"], ["db/migration"])
+
+    def test_scope_partition_rejects_missing_package_evidence(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "jacoco.xml"
+            path.write_text('<report><counter type="LINE" covered="10" missed="0"/></report>')
+            with self.assertRaises(ValueError):
+                report.read_scope_counters(path)
+
     def read(self, content):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "jacoco.xml"
@@ -50,7 +73,9 @@ class CoverageReportTest(unittest.TestCase):
             '<project xmlns="http://maven.apache.org/POM/4.0.0">' + properties + '</project>')
         xml = directory / "target/site/jacoco/jacoco.xml"
         xml.parent.mkdir(parents=True)
-        xml.write_text('<report><counter type="LINE" covered="' + str(covered) +
+        xml.write_text('<report><package name="com/delivery/demo/service"><counter type="LINE" covered="' + str(covered) +
+                       '" missed="' + str(100-covered) +
+                       '"/><counter type="BRANCH" covered="90" missed="10"/></package><counter type="LINE" covered="' + str(covered) +
                        '" missed="' + str(100-covered) +
                        '"/><counter type="BRANCH" covered="90" missed="10"/></report>')
 
