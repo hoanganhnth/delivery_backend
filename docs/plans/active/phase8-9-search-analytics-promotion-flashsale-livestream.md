@@ -12,6 +12,49 @@
 
 ## Resumed closure sequence — 2026-10-01
 
+### Merge audit and selective cleanup — 2026-10-02
+
+User requested verifying that everything was merged and deleting integrated
+work. At merge commit `7fe0634`, all ten non-main local branch tips and all
+eight linked worktree HEADs are ancestors of main: no committed phase history
+is missing. This is local integration only, not a remote-main update.
+
+Byte-level comparison of each dirty/untracked path against main found:
+
+| Worktree | Dirty paths already match main | Different paths retained |
+| --- | ---: | --- |
+| Kafka Notification | 0 | 6 source/test paths |
+| Kafka Order | 0 | 6 source/test paths |
+| Phase 4 User/Auth | 16 | None |
+| Phase 5 BFF/Shipper | 43 | 3 BFF source paths and 2 scratch artifacts |
+| Phase 6 | 0 | 2 orchestration manifests |
+| Phase 7 | 0 | None; clean |
+| Platform modules | 0 | 1 uncommitted plan update |
+| Phase 8–9 | 0 | 4 generated Python cache files only |
+
+Thus all committed phase history is merged, but not every old uncommitted file.
+Notification's old variant replaces the canonical delivery contract, drops
+RETURNING/RETURNED and SimulationContext validation. Order's old variant adds
+wire-type overloads including the older delivery namespace. BFF's old variant
+introduces nested exception types and a SessionView domain factory instead of
+the newer pure contracts. These variants were inspected, not blindly imported
+or deleted. The platform plan also contains progress notes absent from main.
+
+Removed the fully integrated Phase 4, Phase 7 and Phase 8–9 worktrees and seven
+merged branches: identity-auth-bff-close, the three Phase 3 branches,
+cp003-public-edge-manifest, phase4-user-auth and phase8-9-high-change-domains.
+The other five worktrees and their three named branches remain because they
+contain distinct uncommitted material. Unrelated main-checkout edits are kept.
+
+Recovery archives are at `/private/tmp/backend-merged-cleanup-3GJbPo/`:
+`merged-worktrees-source.tar.gz` contains source trees (excluding `.git` and
+build targets); `phase8-9-test-evidence.tar.gz` preserves Surefire/Failsafe,
+JaCoCo XML and any generated runtime graphs found in Phase 8–9. Both archives
+were successfully listed before removal. Committed source remains in main's
+history; disposable compiled targets can be rebuilt. Extract archives into a
+new directory, never over unrelated dirty main files. These temporary archives
+are not permanent storage. No push, deployment or further feature fix occurred.
+
 ### User-authorized local integration — 2026-10-02
 
 User explicitly requested merging all phase work into `main`, then confirmed
