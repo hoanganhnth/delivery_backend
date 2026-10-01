@@ -35,6 +35,37 @@ class FlashSaleServiceQuerySafetyTest {
     @Mock FlashSaleMapper mapper;
 
     @Test
+    void approveRejectsRetiredItemWithoutChangingStatusOrDeletionMetadata() {
+        FlashSaleService service = new FlashSaleService(campaignRepository, itemRepository, mapper);
+        var deletedAt = java.time.LocalDateTime.of(2026, 1, 1, 12, 0);
+        FlashSaleItem item = FlashSaleItem.builder().id(41L)
+                .status(FlashSaleItem.ItemStatus.REJECTED).deletedAt(deletedAt)
+                .deletedByPrincipalId(70L).deletionReason("retired").build();
+        when(itemRepository.findById(41L)).thenReturn(java.util.Optional.of(item));
+
+        assertThrows(com.delivery.flashsale_service.exception.ResourceNotFoundException.class,
+                () -> service.approveItem(41L));
+
+        assertEquals(FlashSaleItem.ItemStatus.REJECTED, item.getStatus());
+        assertEquals(deletedAt, item.getDeletedAt());
+        assertEquals(70L, item.getDeletedByPrincipalId());
+        assertEquals("retired", item.getDeletionReason());
+        org.mockito.Mockito.verify(itemRepository, org.mockito.Mockito.never()).save(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void approveActiveItemKeepsExistingApprovalBehavior() {
+        FlashSaleService service = new FlashSaleService(campaignRepository, itemRepository, mapper);
+        FlashSaleItem item = FlashSaleItem.builder().id(41L).status(FlashSaleItem.ItemStatus.PENDING).build();
+        when(itemRepository.findById(41L)).thenReturn(java.util.Optional.of(item));
+
+        service.approveItem(41L);
+
+        assertEquals(FlashSaleItem.ItemStatus.APPROVED, item.getStatus());
+        verify(itemRepository).save(item);
+    }
+
+    @Test
     void compatibilityListsCapRepositoryQueriesAtOneHundred() {
         FlashSaleService service = new FlashSaleService(campaignRepository, itemRepository, mapper);
         Pageable firstHundred = Pageable.ofSize(100);

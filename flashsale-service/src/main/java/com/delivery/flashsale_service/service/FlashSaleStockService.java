@@ -5,7 +5,6 @@ import com.delivery.flashsale_service.dto.FlashSaleReservationResponse;
 import com.delivery.flashsale_service.dto.ReserveItemRequest;
 import com.delivery.flashsale_service.dto.FlashSaleQuoteRequest;
 import com.delivery.flashsale_service.dto.FlashSaleQuoteResponse;
-import com.delivery.flashsale_service.entity.FlashSaleCampaign;
 import com.delivery.flashsale_service.entity.FlashSaleItem;
 import com.delivery.flashsale_service.entity.FlashSaleReservation;
 import com.delivery.flashsale_service.entity.FlashSaleReservationLine;
@@ -40,7 +39,8 @@ public class FlashSaleStockService {
     @Transactional(readOnly = true)
     public FlashSaleQuoteResponse quote(FlashSaleQuoteRequest request) {
         if (request == null || request.getRestaurantId() == null || request.getItems() == null
-                || request.getItems().isEmpty()) throw new IllegalArgumentException("Invalid flash-sale quote request");
+                || request.getRestaurantId() <= 0 || !hasValidLines(request.getItems()))
+            throw new IllegalArgumentException("Invalid flash-sale quote request");
         Map<Long, ReserveItemRequest> requested = request.getItems().stream().collect(Collectors.toMap(
                 ReserveItemRequest::getFlashSaleItemId, Function.identity(),
                 (left, right) -> { throw new IllegalArgumentException("Duplicate flashSaleItemId"); }, TreeMap::new));
@@ -50,7 +50,7 @@ public class FlashSaleStockService {
         List<FlashSaleQuoteResponse.Line> lines = items.stream().sorted(Comparator.comparing(FlashSaleItem::getId))
                 .map(item -> {
                     ReserveItemRequest line = requested.get(item.getId());
-                    validateAvailable(item, request.getRestaurantId(), line.getQuantity(), now);
+                    FlashSaleAvailabilityPolicy.requireAvailable(item, request.getRestaurantId(), line.getQuantity(), now);
                     return FlashSaleQuoteResponse.Line.builder().flashSaleItemId(item.getId())
                             .menuItemId(item.getMenuItemId()).quantity(line.getQuantity())
                             .unitPrice(item.getFlashSalePrice()).build();
@@ -86,7 +86,7 @@ public class FlashSaleStockService {
 
         for (FlashSaleItem item : items) {
             ReserveItemRequest lineRequest = requested.get(item.getId());
-            validateAvailable(item, request.getRestaurantId(), lineRequest.getQuantity(), now);
+            FlashSaleAvailabilityPolicy.requireAvailable(item, request.getRestaurantId(), lineRequest.getQuantity(), now);
             reservation.getLines().add(FlashSaleReservationLine.builder()
                     .reservation(reservation).flashSaleItemId(item.getId()).menuItemId(item.getMenuItemId())
                     .quantity(lineRequest.getQuantity()).unitPrice(item.getFlashSalePrice()).build());
@@ -106,10 +106,16 @@ public class FlashSaleStockService {
         FlashSaleReservation reservation = locked(reservationId, orderId);
         if (reservation.getState() == FlashSaleReservation.State.RESERVED
                 && !LocalDateTime.now().isBefore(reservation.getExpiresAt())) {
-            releaseCapacity(reservation, FlashSaleReservation.State.EXPIRED);
+            // The expiry sweep owns capacity restoration. A late order.created
+            // cannot be acknowledged as a successful COMMIT, including by the
+            // Kafka receipt transaction that calls this method.
+            throw new IllegalArgumentException("Flash sale reservation expired before commit");
         } else if (reservation.getState() == FlashSaleReservation.State.RESERVED) {
             reservation.setState(FlashSaleReservation.State.COMMITTED);
             outboxService.enqueue(reservation);
+        } else if (reservation.getState() != FlashSaleReservation.State.COMMITTED) {
+            throw new IllegalArgumentException(
+                    "Flash sale reservation cannot be committed from state " + reservation.getState());
         }
         return FlashSaleReservationResponse.from(reservation);
     }
@@ -186,30 +192,23 @@ public class FlashSaleStockService {
         return FlashSaleReservationResponse.from(reservation);
     }
 
-    private void validateAvailable(FlashSaleItem item, Long restaurantId, int quantity, LocalTime now) {
-        if (item.getDeletedAt() != null)
-            throw new IllegalArgumentException("Flash sale item is deleted");
-        if (!item.getRestaurantId().equals(restaurantId))
-            throw new IllegalArgumentException("Flash sale item belongs to another restaurant");
-        if (item.getStatus() != FlashSaleItem.ItemStatus.APPROVED)
-            throw new IllegalArgumentException("Flash sale item is not approved");
-        FlashSaleCampaign campaign = item.getCampaign();
-        if (campaign.getStatus() != FlashSaleCampaign.CampaignStatus.ACTIVE
-                || now.isBefore(campaign.getStartTime()) || now.isAfter(campaign.getEndTime()))
-            throw new IllegalArgumentException("Flash sale campaign is not active");
-        if (item.getStockQuantity() - item.getSoldQuantity() < quantity)
-            throw new IllegalArgumentException("Out of stock for flash sale item " + item.getId());
-    }
-
     private void validateRequest(FlashSaleReservationRequest request) {
         if (request == null || request.getReservationId() == null || request.getOrderId() == null
                 || request.getOrderId() <= 0 || request.getUserId() == null || request.getUserId() <= 0
                 || request.getRestaurantId() == null || request.getRestaurantId() <= 0
-                || request.getItems() == null || request.getItems().isEmpty())
+                || !hasValidLines(request.getItems()))
             throw new IllegalArgumentException("Invalid flash sale reservation request");
         if (principalOwnershipEnforced && (request.getUserPrincipalId() == null || request.getUserPrincipalId() <= 0)) {
             throw new IllegalArgumentException("userPrincipalId is required when principal ownership is enforced");
         }
+    }
+
+    private boolean hasValidLines(List<ReserveItemRequest> lines) {
+        return lines != null && !lines.isEmpty()
+                && lines.stream().noneMatch(line -> line == null
+                        || line.getFlashSaleItemId() == null || line.getFlashSaleItemId() <= 0
+                        || line.getQuantity() == null || line.getQuantity() <= 0)
+                && lines.stream().map(ReserveItemRequest::getFlashSaleItemId).distinct().count() == lines.size();
     }
 
     private Counter legacyReservationFallback() {
