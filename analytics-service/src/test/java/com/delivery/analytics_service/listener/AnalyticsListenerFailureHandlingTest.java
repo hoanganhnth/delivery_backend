@@ -16,7 +16,7 @@ class AnalyticsListenerFailureHandlingTest {
         Acknowledgment acknowledgment = mock(Acknowledgment.class);
         OrderEventListener listener = new OrderEventListener(service);
 
-        assertThrows(IllegalStateException.class,
+        assertThrows(IllegalArgumentException.class,
                 () -> listener.onOrderCreated("not-json", acknowledgment));
 
         verifyNoInteractions(service, acknowledgment);
@@ -28,7 +28,7 @@ class AnalyticsListenerFailureHandlingTest {
         Acknowledgment acknowledgment = mock(Acknowledgment.class);
         PaymentEventListener listener = new PaymentEventListener(service);
 
-        assertThrows(IllegalStateException.class,
+        assertThrows(IllegalArgumentException.class,
                 () -> listener.onPaymentCompleted("not-json", acknowledgment));
 
         verifyNoInteractions(service, acknowledgment);

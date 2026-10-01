@@ -22,9 +22,9 @@ import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.HexFormat;
-import java.util.Objects;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.JsonProcessingException;
 
 /**
  * Service xử lý events từ Kafka và cập nhật bảng thống kê
@@ -221,10 +221,9 @@ public class EventProcessingService {
         }
 
         // Platform revenue stats
-        DailyRevenueStats platRevStats = getOrCreateRevenueStats(today, null);
+        DailyRevenueStats platRevStats = getOrCreatePlatformRevenueStats(today);
         platRevStats.setSuccessfulPayments(platRevStats.getSuccessfulPayments() + 1);
-        BigDecimal amt = amount != null ? BigDecimal.valueOf(amount) : BigDecimal.ZERO;
-        platRevStats.setTotalPaymentAmount(platRevStats.getTotalPaymentAmount().add(amt));
+        platRevStats.setTotalPaymentAmount(platRevStats.getTotalPaymentAmount().add(safeAmount));
         revenueStatsRepo.save(platRevStats);
 
         log.info("📊 Processed PAYMENT_COMPLETED: orderId={}, amount={}", orderId, amount);
@@ -246,7 +245,7 @@ public class EventProcessingService {
             return;
         }
 
-        DailyRevenueStats platRevStats = getOrCreateRevenueStats(today, null);
+        DailyRevenueStats platRevStats = getOrCreatePlatformRevenueStats(today);
         platRevStats.setFailedPayments(platRevStats.getFailedPayments() + 1);
         revenueStatsRepo.save(platRevStats);
 
@@ -263,24 +262,11 @@ public class EventProcessingService {
     private void applyItemSnapshot(LocalDate statDate, Long restaurantId, String rawPayload,
                                    boolean cancelled) {
         if (itemSalesRepo == null || restaurantId == null) return;
-        JsonNode root = readJson(rawPayload);
-        JsonNode items = root.get("items");
-        if (items == null || items.isNull()) return;
-        if (!items.isArray()) throw new IllegalArgumentException("analytics items must be an array");
-        if (items.size() > 100) throw new IllegalArgumentException("analytics item snapshot exceeds 100 lines");
-
-        for (JsonNode line : items) {
-            long menuItemId = requiredPositiveLong(line, "menuItemId");
-            long quantity = requiredPositiveLong(line, "quantity");
-            BigDecimal unitPrice = requiredPositiveAmount(line, "unitPrice", "price");
-            BigDecimal lineTotal = optionalAmount(line, "lineTotal");
-            BigDecimal expectedLineTotal = unitPrice.multiply(BigDecimal.valueOf(quantity));
-            if (lineTotal == null) lineTotal = expectedLineTotal;
-            if (lineTotal.compareTo(expectedLineTotal) != 0) {
-                throw new IllegalArgumentException("analytics item line total does not reconcile");
-            }
-            String parsedMenuItemName = line.path("menuItemName").asText("UNKNOWN").trim();
-            final String menuItemName = parsedMenuItemName.isBlank() ? "UNKNOWN" : parsedMenuItemName;
+        for (AnalyticsItemSnapshotParser.Item line : AnalyticsItemSnapshotParser.parse(readJson(rawPayload))) {
+            long menuItemId = line.menuItemId();
+            long quantity = line.quantity();
+            BigDecimal lineTotal = line.lineTotal();
+            String menuItemName = line.menuItemName();
             long orderedQuantity = cancelled ? 0 : quantity;
             long cancelledQuantity = cancelled ? quantity : 0;
             BigDecimal orderedRevenue = cancelled ? BigDecimal.ZERO : lineTotal;
@@ -310,42 +296,16 @@ public class EventProcessingService {
     }
 
     private JsonNode readJson(String rawPayload) {
+        JsonNode root;
         try {
-            return OBJECT_MAPPER.readTree(rawPayload);
-        } catch (Exception invalid) {
+            root = OBJECT_MAPPER.readTree(rawPayload);
+        } catch (JsonProcessingException invalid) {
             throw new IllegalArgumentException("analytics raw payload is not valid JSON", invalid);
         }
-    }
-
-    private long requiredPositiveLong(JsonNode node, String field) {
-        JsonNode value = node == null ? null : node.get(field);
-        if (value == null || !value.canConvertToLong() || value.asLong() <= 0) {
-            throw new IllegalArgumentException("analytics item " + field + " must be positive");
+        if (root == null || !root.isObject()) {
+            throw new IllegalArgumentException("analytics raw payload must be a JSON object");
         }
-        return value.asLong();
-    }
-
-    private BigDecimal requiredPositiveAmount(JsonNode node, String... fields) {
-        for (String field : fields) {
-            BigDecimal value = optionalAmount(node, field);
-            if (value != null) {
-                if (value.signum() <= 0 || value.scale() > 2) {
-                    throw new IllegalArgumentException("analytics item price is invalid");
-                }
-                return value.setScale(2, RoundingMode.UNNECESSARY);
-            }
-        }
-        throw new IllegalArgumentException("analytics item price is required");
-    }
-
-    private BigDecimal optionalAmount(JsonNode node, String field) {
-        JsonNode value = node == null ? null : node.get(field);
-        if (value == null || value.isNull() || value.asText().isBlank()) return null;
-        try {
-            return new BigDecimal(value.asText());
-        } catch (NumberFormatException invalid) {
-            throw new IllegalArgumentException("analytics item " + field + " is not numeric", invalid);
-        }
+        return root;
     }
 
     private LocalDate eventDate(String rawPayload, LocalDate fallback) {
@@ -371,6 +331,12 @@ public class EventProcessingService {
         }
         String fingerprint = fingerprint(rawPayload);
         Long aggregateVersion = aggregateVersion(rawPayload);
+        AnalyticsEvent incoming = AnalyticsEvent.builder()
+                .deduplicationKey(key).eventType(type).eventTime(LocalDateTime.now())
+                .orderId(orderId).userId(userId).restaurantId(restaurantId)
+                .restaurantName(restaurantName).amount(amount).orderStatus(orderStatus)
+                .paymentMethod(paymentMethod).rawPayload(rawPayload)
+                .payloadFingerprint(fingerprint).aggregateVersion(aggregateVersion).build();
         AnalyticsEvent existing = eventRepo.findByDeduplicationKey(key).orElse(null);
         if (existing == null) {
             if (isPostgres()) {
@@ -381,45 +347,13 @@ public class EventProcessingService {
                 existing = eventRepo.findByDeduplicationKey(key).orElseThrow(() ->
                         new IllegalStateException("analytics receipt conflict resolved without a committed row"));
             } else {
-                eventRepo.saveAndFlush(AnalyticsEvent.builder()
-                        .deduplicationKey(key).eventType(type).eventTime(LocalDateTime.now())
-                        .orderId(orderId).userId(userId).restaurantId(restaurantId)
-                        .restaurantName(restaurantName).amount(amount).orderStatus(orderStatus)
-                        .paymentMethod(paymentMethod).rawPayload(rawPayload)
-                        .payloadFingerprint(fingerprint).aggregateVersion(aggregateVersion).build());
+                eventRepo.saveAndFlush(incoming);
                 return true;
             }
         }
-        requireExactReplay(existing, type, orderId, userId, restaurantId,
-                restaurantName, amount, orderStatus, paymentMethod, rawPayload, fingerprint, aggregateVersion);
+        AnalyticsReplayPolicy.requireExactReplay(existing, incoming);
         log.info("Skipping exact analytics replay {}", key);
         return false;
-    }
-
-    private void requireExactReplay(AnalyticsEvent existing, String type, Long orderId, Long userId,
-                                    Long restaurantId, String restaurantName, BigDecimal amount,
-                                    String orderStatus, String paymentMethod, String rawPayload,
-                                    String fingerprint, Long aggregateVersion) {
-        boolean payloadMatches = existing.getPayloadFingerprint() != null
-                ? existing.getPayloadFingerprint().equals(fingerprint)
-                : Objects.equals(existing.getRawPayload(), rawPayload);
-        if (!existing.getEventType().equals(type)
-                || !Objects.equals(existing.getOrderId(), orderId)
-                || !Objects.equals(existing.getUserId(), userId)
-                || !Objects.equals(existing.getRestaurantId(), restaurantId)
-                || !Objects.equals(existing.getRestaurantName(), restaurantName)
-                || !sameAmount(existing.getAmount(), amount)
-                || !Objects.equals(existing.getOrderStatus(), orderStatus)
-                || !Objects.equals(existing.getPaymentMethod(), paymentMethod)
-                || !Objects.equals(existing.getAggregateVersion(), aggregateVersion)
-                || !payloadMatches) {
-            throw new IllegalArgumentException(
-                    "analytics deduplication key replay has contradictory identity or payload");
-        }
-    }
-
-    private boolean sameAmount(BigDecimal left, BigDecimal right) {
-        return left == null ? right == null : right != null && left.compareTo(right) == 0;
     }
 
     private boolean isPostgres() {
@@ -438,7 +372,7 @@ public class EventProcessingService {
     private Long aggregateVersion(String rawPayload) {
         JsonNode value = readJson(rawPayload).get("aggregateVersion");
         if (value == null || value.isNull() || value.asText().isBlank()) return null;
-        if (!value.canConvertToLong() || value.asLong() <= 0) {
+        if (!value.isIntegralNumber() || !value.canConvertToLong() || value.asLong() <= 0) {
             throw new IllegalArgumentException("analytics aggregateVersion must be positive");
         }
         return value.asLong();
@@ -494,23 +428,11 @@ public class EventProcessingService {
                         .build());
     }
 
-    private DailyRevenueStats getOrCreateRevenueStats(LocalDate date, Long restaurantId) {
-        if (restaurantId == null) {
-            return revenueStatsRepo.findByStatDateAndRestaurantIdIsNull(date)
-                    .orElseGet(() -> DailyRevenueStats.builder()
-                            .statDate(date)
-                            .restaurantId(null)
-                            .totalPaymentAmount(BigDecimal.ZERO)
-                            .successfulPayments(0)
-                            .failedPayments(0)
-                            .totalWithdrawals(BigDecimal.ZERO)
-                            .platformFee(BigDecimal.ZERO)
-                            .build());
-        }
-        return revenueStatsRepo.findByStatDateAndRestaurantId(date, restaurantId)
+    private DailyRevenueStats getOrCreatePlatformRevenueStats(LocalDate date) {
+        return revenueStatsRepo.findByStatDateAndRestaurantIdIsNull(date)
                 .orElseGet(() -> DailyRevenueStats.builder()
                         .statDate(date)
-                        .restaurantId(restaurantId)
+                        .restaurantId(null)
                         .totalPaymentAmount(BigDecimal.ZERO)
                         .successfulPayments(0)
                         .failedPayments(0)

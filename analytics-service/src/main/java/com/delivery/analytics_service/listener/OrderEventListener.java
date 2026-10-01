@@ -44,11 +44,11 @@ public class OrderEventListener {
     public void onOrderCreated(@Payload String message, Acknowledgment ack) {
         try {
             log.info("📥 [Analytics] Received ORDER_CREATED event");
-            JsonNode json = objectMapper.readTree(message);
+            JsonNode json = AnalyticsEventPayload.read(objectMapper, message);
 
-            Long orderId = json.path("orderId").asLong();
-            Long userId = json.path("userId").asLong();
-            Long restaurantId = json.has("restaurantId") ? json.path("restaurantId").asLong() : null;
+            Long orderId = AnalyticsEventPayload.requiredId(json, "orderId");
+            Long userId = AnalyticsEventPayload.requiredId(json, "userId");
+            Long restaurantId = AnalyticsEventPayload.optionalId(json, "restaurantId");
             String restaurantName = json.path("restaurantName").asText(null);
             BigDecimal totalPrice = json.has("totalPrice") && !json.path("totalPrice").isNull()
                     ? new BigDecimal(json.path("totalPrice").asText("0"))
@@ -77,11 +77,11 @@ public class OrderEventListener {
     public void onOrderStatusUpdated(@Payload String message, Acknowledgment ack) {
         try {
             log.info("📥 [Analytics] Received ORDER_STATUS_UPDATED event");
-            JsonNode json = objectMapper.readTree(message);
+            JsonNode json = AnalyticsEventPayload.read(objectMapper, message);
 
             String newStatus = json.path("status").asText(json.path("newStatus").asText(""));
-            Long orderId = json.path("orderId").asLong();
-            Long restaurantId = json.has("restaurantId") ? json.path("restaurantId").asLong() : null;
+            Long orderId = AnalyticsEventPayload.requiredId(json, "orderId");
+            Long restaurantId = AnalyticsEventPayload.optionalId(json, "restaurantId");
             String restaurantName = json.path("restaurantName").asText(null);
 
             if ("DELIVERED".equalsIgnoreCase(newStatus)) {
@@ -111,10 +111,10 @@ public class OrderEventListener {
     public void onOrderCancelled(@Payload String message, Acknowledgment ack) {
         try {
             log.info("📥 [Analytics] Received ORDER_CANCELLED event");
-            JsonNode json = objectMapper.readTree(message);
+            JsonNode json = AnalyticsEventPayload.read(objectMapper, message);
 
-            Long orderId = json.path("orderId").asLong();
-            Long restaurantId = json.has("restaurantId") ? json.path("restaurantId").asLong() : null;
+            Long orderId = AnalyticsEventPayload.requiredId(json, "orderId");
+            Long restaurantId = AnalyticsEventPayload.optionalId(json, "restaurantId");
 
             eventService.processOrderCancelled(orderId, restaurantId, message);
 
