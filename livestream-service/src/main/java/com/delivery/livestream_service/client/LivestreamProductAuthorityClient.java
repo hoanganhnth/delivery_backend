@@ -1,6 +1,8 @@
 package com.delivery.livestream_service.client;
 
 import com.delivery.livestream_service.exception.UnauthorizedLivestreamAccessException;
+import com.delivery.observability.CorrelationContext;
+import com.delivery.observability.CorrelationId;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -37,8 +39,11 @@ public class LivestreamProductAuthorityClient {
         try {
             JsonNode envelope = client.get()
                     .uri("/api/restaurants/internal/{restaurantId}/livestream-products/{productId}", restaurantId, productId)
-                    .header("Internal-Token", secret).retrieve().body(JsonNode.class);
+                    .header("Internal-Token", secret)
+                    .header(CorrelationId.HEADER, CorrelationContext.currentOrCreate())
+                    .retrieve().body(JsonNode.class);
             if (envelope == null || !envelope.path("status").isIntegralNumber() ||
+                    !envelope.path("status").canConvertToInt() ||
                     envelope.path("status").asInt() != 1) throw denied();
             JsonNode data = envelope.path("data");
             if (!matchesId(data.path("productId"), productId) ||

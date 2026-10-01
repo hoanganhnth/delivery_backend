@@ -6,6 +6,8 @@ import com.delivery.analytics_service.repository.DailyItemSalesRepository;
 import com.delivery.analytics_service.repository.DailyOrderStatsRepository;
 import com.delivery.analytics_service.repository.DailyRevenueStatsRepository;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -22,8 +24,82 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 class EventProcessingServiceItemProjectionTest {
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "{}", "[null]", "[{\"quantity\":1,\"unitPrice\":10}]",
+            "[{\"menuItemId\":0,\"quantity\":1,\"unitPrice\":10}]",
+            "[{\"menuItemId\":9223372036854775808,\"quantity\":1,\"unitPrice\":10}]",
+            "[{\"menuItemId\":9,\"quantity\":0,\"unitPrice\":10}]",
+            "[{\"menuItemId\":9,\"quantity\":1}]",
+            "[{\"menuItemId\":9,\"quantity\":1,\"unitPrice\":0}]",
+            "[{\"menuItemId\":9,\"quantity\":1,\"unitPrice\":-10}]",
+            "[{\"menuItemId\":9,\"quantity\":1,\"unitPrice\":10.001}]",
+            "[{\"menuItemId\":9,\"quantity\":1,\"unitPrice\":\"oops\"}]",
+            "[{\"menuItemId\":9,\"quantity\":1,\"unitPrice\":10,\"lineTotal\":\"oops\"}]"
+    })
+    void rejectsMalformedSnapshotBeforeWritingAnyItem(String snapshot) {
+        var events = mock(AnalyticsEventRepository.class);
+        var orders = mock(DailyOrderStatsRepository.class);
+        var revenue = mock(DailyRevenueStatsRepository.class);
+        var items = mock(DailyItemSalesRepository.class);
+        var service = service(events, orders, revenue, items);
+        String payload = "{\"eventId\":\"malformed\",\"items\":" + snapshot + "}";
+
+        assertThatThrownBy(() -> service.processOrderCreated(101L, 3L, 7L, "Shop",
+                BigDecimal.TEN, "COD", payload)).isInstanceOf(IllegalArgumentException.class);
+        verifyNoInteractions(items);
+    }
+
+    @Test
+    void boundsSnapshotSizeBeforeWritingItems() {
+        var items = mock(DailyItemSalesRepository.class);
+        var service = service(mock(AnalyticsEventRepository.class), mock(DailyOrderStatsRepository.class),
+                mock(DailyRevenueStatsRepository.class), items);
+        String lines = String.join(",", java.util.Collections.nCopies(101,
+                "{\"menuItemId\":9,\"quantity\":1,\"unitPrice\":10}"));
+
+        assertThatThrownBy(() -> service.processOrderCreated(101L, 3L, 7L, "Shop", BigDecimal.TEN,
+                "COD", "{\"eventId\":\"too-large\",\"items\":[" + lines + "]}"))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("100 lines");
+        verifyNoInteractions(items);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"null", "\"\"", "\"   \""})
+    void legacyPriceFallbackDerivesLineTotalAndNormalizesBlankName(String absentUnitPrice) {
+        var items = mock(DailyItemSalesRepository.class);
+        var service = service(mock(AnalyticsEventRepository.class), mock(DailyOrderStatsRepository.class),
+                mock(DailyRevenueStatsRepository.class), items);
+
+        service.processOrderCreated(101L, 3L, 7L, "Shop", new BigDecimal("20"), "COD",
+                "{\"eventId\":\"fallback\",\"items\":[{\"menuItemId\":9,\"quantity\":2,"
+                        + "\"unitPrice\":" + absentUnitPrice
+                        + ",\"price\":\"10\",\"menuItemName\":\"   \"}]}");
+
+        ArgumentCaptor<com.delivery.analytics_service.entity.DailyItemSales> saved =
+                ArgumentCaptor.forClass(com.delivery.analytics_service.entity.DailyItemSales.class);
+        verify(items).save(saved.capture());
+        assertThat(saved.getValue().getMenuItemName()).isEqualTo("UNKNOWN");
+        assertThat(saved.getValue().getOrderedQuantity()).isEqualTo(2);
+        assertThat(saved.getValue().getOrderedRevenue()).isEqualByComparingTo("20.00");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"null", "[]"})
+    void nullOrEmptySnapshotContributesNoItemProjection(String snapshot) {
+        var items = mock(DailyItemSalesRepository.class);
+        var service = service(mock(AnalyticsEventRepository.class), mock(DailyOrderStatsRepository.class),
+                mock(DailyRevenueStatsRepository.class), items);
+
+        service.processOrderCreated(101L, 3L, 7L, "Shop", BigDecimal.TEN, "COD",
+                "{\"eventId\":\"empty\",\"items\":" + snapshot + "}");
+
+        verifyNoInteractions(items);
+    }
 
     @Test
     void createdAndCancelledSnapshotsIncrementSeparateItemCountersUsingEventDate() {

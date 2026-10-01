@@ -16,6 +16,9 @@ public class EntitySyncEvent extends com.delivery.search.contracts.EntitySyncEve
         public Builder action(String value) { event.setAction(value); return this; }
         public Builder entityId(String value) { event.setEntityId(value); return this; }
         public Builder payload(java.util.Map<String, Object> value) { event.setPayload(value); return this; }
+        public Builder aggregateVersion(Long value) { event.setAggregateVersion(value); return this; }
+        public Builder deletedAt(java.time.LocalDateTime value) { event.setDeletedAt(value); return this; }
+        public Builder deletionReason(String value) { event.setDeletionReason(value); return this; }
         public EntitySyncEvent build() { return event; }
     }
 }

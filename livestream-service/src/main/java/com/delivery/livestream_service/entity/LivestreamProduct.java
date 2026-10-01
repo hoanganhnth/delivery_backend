@@ -52,6 +52,15 @@ public class LivestreamProduct {
     @Column(name = "pinned_at")
     private LocalDateTime pinnedAt;
 
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
+
+    @Column(name = "deleted_by_principal_id")
+    private Long deletedByPrincipalId;
+
+    @Column(name = "deletion_reason")
+    private String deletionReason;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();

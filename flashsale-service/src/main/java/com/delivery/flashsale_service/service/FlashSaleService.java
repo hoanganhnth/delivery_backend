@@ -68,6 +68,7 @@ public class FlashSaleService {
     public void approveItem(Long itemId) {
         validatePositiveId(itemId, "itemId");
         FlashSaleItem item = itemRepo.findById(itemId)
+                .filter(candidate -> candidate.getDeletedAt() == null)
                 .orElseThrow(() -> new ResourceNotFoundException("Item not found"));
         item.setStatus(FlashSaleItem.ItemStatus.APPROVED);
         itemRepo.save(item);

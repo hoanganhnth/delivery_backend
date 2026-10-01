@@ -66,4 +66,8 @@ public class AnalyticsEvent {
     /** SHA-256 of the exact Kafka value; null only for pre-hardening rows. */
     @Column(name = "payload_fingerprint", length = 64, updatable = false)
     private String payloadFingerprint;
+
+    /** Monotonic version from the source aggregate, when the producer supplies one. */
+    @Column(name = "aggregate_version")
+    private Long aggregateVersion;
 }

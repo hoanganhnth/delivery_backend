@@ -67,6 +67,28 @@ class LivestreamFlywayMigrationTest {
     }
 
     @Test
+    void createsOneDurableCheckoutReceiptPerActorAndIdempotencyKey() throws Exception {
+        String url = databaseUrl("checkout_receipts");
+        migrate(url);
+        try (Connection connection = DriverManager.getConnection(url, "sa", "");
+             Statement statement = connection.createStatement()) {
+            statement.executeUpdate("""
+                    INSERT INTO livestream_checkout_receipts
+                        (actor_principal_id, idempotency_key, request_fingerprint, context_payload, created_at)
+                    VALUES (7, 'checkout-1', REPEAT('a', 64), '[]', CURRENT_TIMESTAMP)
+                    """);
+            assertThatThrownBy(() -> statement.executeUpdate("""
+                    INSERT INTO livestream_checkout_receipts
+                        (actor_principal_id, idempotency_key, request_fingerprint, context_payload, created_at)
+                    VALUES (7, 'checkout-1', REPEAT('b', 64), '[]', CURRENT_TIMESTAMP)
+                    """))
+                    .isInstanceOf(java.sql.SQLException.class);
+            assertThat(indexExists(connection, "livestream_checkout_receipts",
+                    "idx_livestream_checkout_receipt_created")).isTrue();
+        }
+    }
+
+    @Test
     void legacySchemaPreservesStreamProductAndEventRows() throws Exception {
         String url = databaseUrl("legacy");
         createLegacySchema(url, false);

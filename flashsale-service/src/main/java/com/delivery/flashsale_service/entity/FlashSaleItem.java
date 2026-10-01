@@ -39,6 +39,15 @@ public class FlashSaleItem {
     @Builder.Default
     private Integer soldQuantity = 0;
 
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
+
+    @Column(name = "deleted_by_principal_id")
+    private Long deletedByPrincipalId;
+
+    @Column(name = "deletion_reason", length = 255)
+    private String deletionReason;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private ItemStatus status; // PENDING, APPROVED, REJECTED

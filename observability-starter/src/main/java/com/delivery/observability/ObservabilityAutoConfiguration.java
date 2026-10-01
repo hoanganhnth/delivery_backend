@@ -4,11 +4,15 @@ import org.apache.kafka.clients.producer.ProducerConfig;
 import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.boot.web.client.RestTemplateCustomizer;
 import org.springframework.boot.web.reactive.function.client.WebClientCustomizer;
 import org.springframework.context.annotation.Bean;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.core.env.Environment;
 import io.micrometer.observation.ObservationRegistry;
 import org.springframework.scheduling.support.ScheduledTaskObservationContext;
@@ -18,8 +22,16 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.web.reactive.function.client.ClientRequest;
 import org.springframework.web.reactive.function.client.ExchangeFilterFunction;
 
-@AutoConfiguration
+@AutoConfiguration(afterName = "org.springframework.boot.actuate.autoconfigure.metrics.CompositeMeterRegistryAutoConfiguration")
+@EnableConfigurationProperties(Phase8RolloutProperties.class)
 public class ObservabilityAutoConfiguration {
+    @Bean
+    @ConditionalOnBean(MeterRegistry.class)
+    @ConditionalOnMissingBean(Phase8Metrics.class)
+    Phase8Metrics phase8Metrics(MeterRegistry registry, Environment environment) {
+        return new Phase8Metrics(registry, environment.getProperty("spring.application.name", "delivery"));
+    }
+
     @Bean
     static BeanPostProcessor scheduledObservationSuppressor() {
         return new BeanPostProcessor() {

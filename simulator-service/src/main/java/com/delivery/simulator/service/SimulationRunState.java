@@ -574,25 +574,7 @@ final class SimulationRunState {
     }
 
     private JsonNode safeScenario() {
-        JsonNode copy = rawScenario.deepCopy();
-        if (!copy.isObject()) {
-            return copy;
-        }
-        if (copy.path("customer").isObject()) {
-            ((com.fasterxml.jackson.databind.node.ObjectNode) copy.path("customer")).remove("token");
-        }
-        if (copy.path("restaurant").isObject()) {
-            ((com.fasterxml.jackson.databind.node.ObjectNode) copy.path("restaurant")).remove("ownerToken");
-        }
-        JsonNode configuredShippers = copy.path("shippers");
-        if (configuredShippers.isArray()) {
-            configuredShippers.forEach(shipper -> {
-                if (shipper.isObject()) {
-                    ((com.fasterxml.jackson.databind.node.ObjectNode) shipper).remove("token");
-                }
-            });
-        }
-        return copy;
+        return SimulationCredentialRedactor.redactedCopy(rawScenario);
     }
 
     private String text(JsonNode node, String field, String fallback) {

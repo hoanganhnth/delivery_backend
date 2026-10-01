@@ -22,11 +22,56 @@ import static org.mockito.Mockito.*;
 class StatsReconciliationJobPagingTest {
 
     @Test
+    void emptyDayDoesNotWriteOrMutateRawEvents() {
+        var events = mock(AnalyticsEventRepository.class);
+        var stats = mock(DailyOrderStatsRepository.class);
+        when(events.findByEventTimeBetween(any(), any(), any(Pageable.class)))
+                .thenReturn(Page.empty());
+        when(stats.findByStatDate(any(), any(Pageable.class))).thenReturn(Page.empty());
+        new StatsReconciliationJob(events, stats).reconcileDate(LocalDate.of(2026, 7, 24));
+        verify(stats).findByStatDate(any(), any(Pageable.class));
+        verifyNoMoreInteractions(stats);
+        verify(events).findByEventTimeBetween(any(), any(), any(Pageable.class));
+        verifyNoMoreInteractions(events);
+    }
+
+    @Test
+    void nonOrderEventsDoNotCountAndMissingDeliveredAmountContributesZero() {
+        var events = mock(AnalyticsEventRepository.class);
+        var stats = mock(DailyOrderStatsRepository.class);
+        LocalDate date = LocalDate.of(2026, 7, 24);
+        when(stats.findByStatDate(eq(date), any(Pageable.class))).thenReturn(Page.empty());
+        when(events.findByEventTimeBetween(any(), any(), any(Pageable.class)))
+                .thenReturn(new org.springframework.data.domain.PageImpl<>(List.of(
+                        event("PAYMENT_COMPLETED", null, new BigDecimal("999")),
+                        event("ORDER_DELIVERED", null, null),
+                        event("ORDER_DELIVERED", null, new BigDecimal("11")))));
+        var existing = DailyOrderStats.builder().id(99L).statDate(date)
+                .totalOrders(100).pendingOrders(100).totalRevenue(new BigDecimal("999"))
+                .totalShippingFee(BigDecimal.TEN).totalDiscount(BigDecimal.TEN).newCustomers(100).build();
+        when(stats.findByStatDateAndRestaurantIdIsNull(date)).thenReturn(Optional.of(existing));
+
+        new StatsReconciliationJob(events, stats).reconcileDate(date);
+
+        verify(stats).save(existing);
+        assertThat(existing.getId()).isEqualTo(99L);
+        assertThat(existing.getTotalOrders()).isZero();
+        assertThat(existing.getPendingOrders()).isZero();
+        assertThat(existing.getDeliveredOrders()).isEqualTo(2);
+        assertThat(existing.getTotalRevenue()).isEqualByComparingTo("11");
+        assertThat(existing.getAvgOrderValue()).isEqualByComparingTo("6");
+        assertThat(existing.getTotalShippingFee()).isZero();
+        assertThat(existing.getTotalDiscount()).isZero();
+        assertThat(existing.getNewCustomers()).isZero();
+    }
+
+    @Test
     void reconcilesAllPagesWithoutLoadingTheWholeDayAtOnce() {
         AnalyticsEventRepository events = mock(AnalyticsEventRepository.class);
         DailyOrderStatsRepository stats = mock(DailyOrderStatsRepository.class);
         StatsReconciliationJob job = new StatsReconciliationJob(events, stats);
         LocalDate date = LocalDate.of(2026, 7, 24);
+        when(stats.findByStatDate(eq(date), any(Pageable.class))).thenReturn(Page.empty());
 
         AnalyticsEvent created = event("ORDER_CREATED", 7L, null);
         AnalyticsEvent delivered = event("ORDER_DELIVERED", 7L, new BigDecimal("120000"));

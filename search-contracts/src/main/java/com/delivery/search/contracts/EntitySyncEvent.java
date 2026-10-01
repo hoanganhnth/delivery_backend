@@ -12,6 +12,9 @@ public class EntitySyncEvent {
     private String action;
     private String entityId;
     private Map<String, Object> payload;
+    private Long aggregateVersion;
+    private LocalDateTime deletedAt;
+    private String deletionReason;
 
     public EntitySyncEvent() {
     }
@@ -28,5 +31,11 @@ public class EntitySyncEvent {
     public void setEntityId(String entityId) { this.entityId = entityId; }
     public Map<String, Object> getPayload() { return payload; }
     public void setPayload(Map<String, Object> payload) { this.payload = payload; }
+    public Long getAggregateVersion() { return aggregateVersion; }
+    public void setAggregateVersion(Long aggregateVersion) { this.aggregateVersion = aggregateVersion; }
+    public LocalDateTime getDeletedAt() { return deletedAt; }
+    public void setDeletedAt(LocalDateTime deletedAt) { this.deletedAt = deletedAt; }
+    public String getDeletionReason() { return deletionReason; }
+    public void setDeletionReason(String deletionReason) { this.deletionReason = deletionReason; }
 
 }

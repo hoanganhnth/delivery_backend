@@ -64,6 +64,9 @@ public interface DailyOrderStatsRepository extends JpaRepository<DailyOrderStats
 
     Optional<DailyOrderStats> findByStatDateAndRestaurantId(LocalDate statDate, Long restaurantId);
 
+    org.springframework.data.domain.Page<DailyOrderStats> findByStatDate(
+            LocalDate statDate, org.springframework.data.domain.Pageable pageable);
+
     /**
      * Platform stats: restaurantId IS NULL
      */

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://delivery.example/contracts/events/entity-tombstone-v1.json",
+  "title": "EntityTombstoneV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["event_id", "event_type", "schema_version", "aggregate_type", "aggregate_id", "aggregate_version", "occurred_at", "deleted_at", "actor_id", "reason", "correlation_id"],
+  "properties": {
+    "event_id": { "type": "string", "format": "uuid" },
+    "event_type": { "const": "ENTITY_TOMBSTONED" },
+    "schema_version": { "const": 1 },
+    "aggregate_type": { "type": "string", "minLength": 1, "maxLength": 100 },
+    "aggregate_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "aggregate_version": { "type": "integer", "minimum": 1 },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "deleted_at": { "type": "string", "format": "date-time" },
+    "actor_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "reason": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "correlation_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "metadata": { "type": "object", "additionalProperties": { "type": "string" } }
+  }
+}

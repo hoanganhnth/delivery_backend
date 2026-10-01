@@ -51,6 +51,19 @@ class FlashSaleOrderReservationEventProcessorTest {
     }
 
     @Test
+    void lateCommitFailurePropagatesSoTheEventReceiptRollsBack() throws Exception {
+        UUID eventId = UUID.randomUUID();
+        UUID reservationId = UUID.randomUUID();
+        String payload = payload(eventId, 91L, reservationId);
+        when(receipts.insertIfAbsentPostgres(eq(eventId), eq("order.created"), eq("COMMIT"), eq(91L),
+                eq(reservationId), anyString())).thenReturn(1);
+        org.mockito.Mockito.when(stockService.commit(reservationId, 91L))
+                .thenThrow(new IllegalArgumentException("Flash sale reservation expired before commit"));
+
+        assertThrows(IllegalArgumentException.class, () -> processor.process(payload, "order.created"));
+    }
+
+    @Test
     void retryTopicUsesTheCanonicalSourceForAnExactReplay() throws Exception {
         UUID eventId = UUID.randomUUID();
         UUID reservationId = UUID.randomUUID();

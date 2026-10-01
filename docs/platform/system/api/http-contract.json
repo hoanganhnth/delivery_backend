@@ -9,15 +9,16 @@
   "scope": "Every annotated controller mapping, including internal, hidden, dev-only and experimental endpoints. Consult the HTTP inventory for public-edge classification and capability status.",
   "schemaStatus": "Field metadata is extracted from Java declarations and validation annotations. It is a source map, not an inferred OpenAPI/JSON Schema; controller/DTO source remains authoritative for Jackson, inheritance, polymorphism and error behavior.",
   "counts": {
-    "operations": 242,
-    "services": 17,
-    "sourceSchemas": 225,
+    "operations": 244,
+    "services": 18,
+    "sourceSchemas": 231,
     "byService": {
       "analytics-service": 4,
       "auth-service": 20,
       "delivery-service": 21,
       "flashsale-service": 12,
-      "livestream-service": 18,
+      "livestream-service": 19,
+      "match-service": 1,
       "notification-service": 12,
       "order-service": 10,
       "promotion-service": 21,
@@ -286,7 +287,7 @@
       "handler": "register",
       "source": {
         "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java",
-        "line": 74
+        "line": 53
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<AuthRegisterResponse>> register( @Valid @RequestBody RegisterRequest request, HttpServletRequest servletRequest)",
@@ -332,7 +333,7 @@
       "handler": "registrationStatus",
       "source": {
         "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java",
-        "line": 101
+        "line": 79
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<RegistrationStatusResponse>> registrationStatus(@PathVariable String handle)",
@@ -364,7 +365,7 @@
       "handler": "login",
       "source": {
         "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java",
-        "line": 144
+        "line": 122
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<AuthResponse>> login(@Valid @RequestBody LoginRequest request)",
@@ -403,7 +404,7 @@
       "handler": "socialLogin",
       "source": {
         "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java",
-        "line": 151
+        "line": 129
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<AuthResponse>> socialLogin(@Valid @RequestBody SocialLoginRequest request)",
@@ -442,7 +443,7 @@
       "handler": "refreshToken",
       "source": {
         "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java",
-        "line": 158
+        "line": 136
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<AuthResponse>> refreshToken(@Valid @RequestBody RefreshTokenRequest request)",
@@ -481,7 +482,7 @@
       "handler": "logout",
       "source": {
         "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java",
-        "line": 186
+        "line": 163
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<Void>> logout(@Valid @RequestBody RefreshTokenRequest request)",
@@ -520,7 +521,7 @@
       "handler": "forgotPassword",
       "source": {
         "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java",
-        "line": 109
+        "line": 87
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<Void>> forgotPassword( @Valid @RequestBody SecurityEmailRequest request, HttpServletRequest servletRequest)",
@@ -566,7 +567,7 @@
       "handler": "resetPassword",
       "source": {
         "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java",
-        "line": 118
+        "line": 96
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<Void>> resetPassword( @Valid @RequestBody ResetPasswordRequest request, HttpServletRequest servletRequest)",
@@ -612,7 +613,7 @@
       "handler": "requestEmailVerification",
       "source": {
         "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java",
-        "line": 127
+        "line": 105
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<Void>> requestEmailVerification( @Valid @RequestBody SecurityEmailRequest request, HttpServletRequest servletRequest)",
@@ -658,7 +659,7 @@
       "handler": "confirmEmailVerification",
       "source": {
         "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java",
-        "line": 136
+        "line": 114
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<Void>> confirmEmailVerification( @Valid @RequestBody SecurityTokenRequest request, HttpServletRequest servletRequest)",
@@ -704,7 +705,7 @@
       "handler": "firebaseChatToken",
       "source": {
         "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java",
-        "line": 165
+        "line": 143
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<FirebaseChatTokenResponse>> firebaseChatToken( Authentication authentication)",
@@ -731,7 +732,7 @@
       "handler": "getSessions",
       "source": {
         "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java",
-        "line": 193
+        "line": 170
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<List<SessionInfoResponse>>> getSessions()",
@@ -750,7 +751,7 @@
       "handler": "revokeDeviceSession",
       "source": {
         "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java",
-        "line": 206
+        "line": 183
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<Void>> revokeDeviceSession(@PathVariable String deviceId)",
@@ -782,7 +783,7 @@
       "handler": "getAccountById",
       "source": {
         "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java",
-        "line": 218
+        "line": 195
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<AuthAccountDto>> getAccountById(@PathVariable Long id)",
@@ -814,7 +815,7 @@
       "handler": "blockAccount",
       "source": {
         "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java",
-        "line": 234
+        "line": 211
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<Void>> blockAccount( @PathVariable Long id, @RequestBody(required = false) BlockAccountRequest request)",
@@ -858,7 +859,7 @@
       "handler": "unblockAccount",
       "source": {
         "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java",
-        "line": 264
+        "line": 241
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<Void>> unblockAccount(@PathVariable Long id)",
@@ -1080,7 +1081,7 @@
       "handler": "acceptDelivery",
       "source": {
         "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
-        "line": 123
+        "line": 113
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<DeliveryResponse>> acceptDelivery( @Valid @RequestBody AcceptDeliveryRequest request, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -1180,7 +1181,7 @@
       "handler": "rejectBatch",
       "source": {
         "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
-        "line": 107
+        "line": 104
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<Void>> rejectBatch( @Valid @RequestBody RejectBatchRequest request, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -1230,7 +1231,7 @@
       "handler": "cancelAssignedDelivery",
       "source": {
         "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
-        "line": 134
+        "line": 124
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<DeliveryResponse>> cancelAssignedDelivery( @Valid @RequestBody CancelDeliveryAssignmentRequest request, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -1280,7 +1281,7 @@
       "handler": "getCurrentOffer",
       "source": {
         "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
-        "line": 145
+        "line": 134
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<DeliveryOfferResponse>> getCurrentOffer( @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -1311,7 +1312,7 @@
       "handler": "getCurrentBatchOffer",
       "source": {
         "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
-        "line": 156
+        "line": 143
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<com.delivery.delivery_service.dto.response.DeliveryBatchOfferResponse>> getCurrentBatchOffer( @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -1342,7 +1343,7 @@
       "handler": "getBatchSnapshot",
       "source": {
         "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
-        "line": 169
+        "line": 153
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<com.delivery.delivery_service.dto.response.DeliveryBatchSnapshotResponse>> getBatchSnapshot( @PathVariable UUID batchId, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -1385,7 +1386,7 @@
       "handler": "createProofUploadIntent",
       "source": {
         "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
-        "line": 182
+        "line": 163
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<ProofUploadIntentResponse>> createProofUploadIntent( @PathVariable Long deliveryId, @Valid @RequestBody CreateProofUploadIntentRequest request, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -1447,7 +1448,7 @@
       "handler": "confirmProofUpload",
       "source": {
         "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
-        "line": 194
+        "line": 175
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<ProofOfDeliveryResponse>> confirmProofUpload( @PathVariable Long deliveryId, @PathVariable UUID proofId, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -1502,7 +1503,7 @@
       "handler": "createProofReadAccess",
       "source": {
         "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
-        "line": 206
+        "line": 186
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<ProofAccessResponse>> createProofReadAccess( @PathVariable Long deliveryId, @PathVariable UUID proofId, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -1557,7 +1558,7 @@
       "handler": "reportDeliveryFailure",
       "source": {
         "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
-        "line": 218
+        "line": 197
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<DeliveryExceptionResponse>> reportDeliveryFailure( @PathVariable Long deliveryId, @Valid @RequestBody ReportDeliveryFailureRequest request, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -1619,7 +1620,7 @@
       "handler": "useDeliveryRetry",
       "source": {
         "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
-        "line": 230
+        "line": 208
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<DeliveryExceptionResponse>> useDeliveryRetry( @PathVariable Long deliveryId, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -1662,7 +1663,7 @@
       "handler": "confirmDeliveryReturn",
       "source": {
         "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
-        "line": 241
+        "line": 218
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<DeliveryExceptionResponse>> confirmDeliveryReturn( @PathVariable Long deliveryId, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -1705,7 +1706,7 @@
       "handler": "getDeliveryException",
       "source": {
         "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
-        "line": 252
+        "line": 228
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<DeliveryExceptionResponse>> getDeliveryException( @PathVariable Long deliveryId, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -1748,7 +1749,7 @@
       "handler": "getDelivery",
       "source": {
         "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
-        "line": 263
+        "line": 238
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<DeliveryResponse>> getDelivery( @PathVariable Long id, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -1791,7 +1792,7 @@
       "handler": "updateStatus",
       "source": {
         "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
-        "line": 273
+        "line": 247
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<DeliveryResponse>> updateStatus( @PathVariable Long id, @RequestParam DeliveryStatus status, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -1846,7 +1847,7 @@
       "handler": "getDeliveriesByShipper",
       "source": {
         "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
-        "line": 285
+        "line": 258
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<List<DeliveryResponse>>> getDeliveriesByShipper( @PathVariable Long shipperId, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -1889,7 +1890,7 @@
       "handler": "getActiveDeliveriesByShipper",
       "source": {
         "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
-        "line": 295
+        "line": 268
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<List<DeliveryResponse>>> getActiveDeliveriesByShipper( @PathVariable Long shipperId, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -1932,7 +1933,7 @@
       "handler": "getDeliveryByOrderId",
       "source": {
         "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
-        "line": 305
+        "line": 278
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<DeliveryResponse>> getDeliveryByOrderId( @PathVariable Long orderId, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -2824,7 +2825,7 @@
       "handler": "quote",
       "source": {
         "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/InternalLivestreamCheckoutController.java",
-        "line": 34
+        "line": 35
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<LivestreamCheckoutQuoteResponse>> quote( @Valid @RequestBody LivestreamCheckoutQuoteRequest request, @RequestHeader(value = \"Internal-Token\", required = false) String token)",
@@ -2861,6 +2862,154 @@
             "required": false,
             "binding": "header",
             "wireName": "Internal-Token"
+          }
+        ]
+      }
+    },
+    {
+      "id": "livestream-service:InternalLivestreamCheckoutController.orderContext:POST:/api/livestreams/internal/order-context",
+      "service": "livestream-service",
+      "controller": "InternalLivestreamCheckoutController",
+      "verbs": [
+        "POST"
+      ],
+      "path": "/api/livestreams/internal/order-context",
+      "handler": "orderContext",
+      "source": {
+        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/InternalLivestreamCheckoutController.java",
+        "line": 46
+      },
+      "java": {
+        "signature": "public ResponseEntity<BaseResponse<java.util.List<LivestreamOrderContext>>> orderContext( @Valid @RequestBody LivestreamCheckoutQuoteRequest request, @RequestHeader(value = \"Internal-Token\", required = false) String token, @RequestHeader(value = \"X-Actor-Principal-Id\", required = false) Long actorPrincipalId, @RequestHeader(value = \"X-Correlation-Id\", required = false) String correlationId, @RequestHeader(value = \"Idempotency-Key\", required = false) String idempotencyKey)",
+        "returnType": "ResponseEntity<BaseResponse<java.util.List<LivestreamOrderContext>>>",
+        "parameters": [
+          {
+            "name": "request",
+            "type": "LivestreamCheckoutQuoteRequest",
+            "annotations": [
+              {
+                "name": "Valid"
+              },
+              {
+                "name": "RequestBody"
+              }
+            ],
+            "required": true,
+            "constraints": [
+              {
+                "name": "Valid"
+              }
+            ],
+            "binding": "body"
+          },
+          {
+            "name": "token",
+            "type": "String",
+            "annotations": [
+              {
+                "name": "RequestHeader",
+                "arguments": "value = \"Internal-Token\", required = false"
+              }
+            ],
+            "required": false,
+            "binding": "header",
+            "wireName": "Internal-Token"
+          },
+          {
+            "name": "actorPrincipalId",
+            "type": "Long",
+            "annotations": [
+              {
+                "name": "RequestHeader",
+                "arguments": "value = \"X-Actor-Principal-Id\", required = false"
+              }
+            ],
+            "required": false,
+            "binding": "header",
+            "wireName": "X-Actor-Principal-Id"
+          },
+          {
+            "name": "correlationId",
+            "type": "String",
+            "annotations": [
+              {
+                "name": "RequestHeader",
+                "arguments": "value = \"X-Correlation-Id\", required = false"
+              }
+            ],
+            "required": false,
+            "binding": "header",
+            "wireName": "X-Correlation-Id"
+          },
+          {
+            "name": "idempotencyKey",
+            "type": "String",
+            "annotations": [
+              {
+                "name": "RequestHeader",
+                "arguments": "value = \"Idempotency-Key\", required = false"
+              }
+            ],
+            "required": false,
+            "binding": "header",
+            "wireName": "Idempotency-Key"
+          }
+        ]
+      }
+    },
+    {
+      "id": "match-service:MatchController.findNearbyShippers:POST:/api/match/nearby-shippers",
+      "service": "match-service",
+      "controller": "MatchController",
+      "verbs": [
+        "POST"
+      ],
+      "path": "/api/match/nearby-shippers",
+      "handler": "findNearbyShippers",
+      "source": {
+        "file": "backend_delivery/match-service/src/main/java/com/delivery/match_service/controller/MatchController.java",
+        "line": 35
+      },
+      "java": {
+        "signature": "public Mono<ResponseEntity<BaseResponse<List<NearbyShipperResponse>>>> findNearbyShippers( @RequestBody FindNearbyShippersRequest request, @RequestHeader(value = HttpHeaderConstants.X_USER_ID, required = false) Long userId, @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role)",
+        "returnType": "Mono<ResponseEntity<BaseResponse<List<NearbyShipperResponse>>>>",
+        "parameters": [
+          {
+            "name": "request",
+            "type": "FindNearbyShippersRequest",
+            "annotations": [
+              {
+                "name": "RequestBody"
+              }
+            ],
+            "required": true,
+            "binding": "body"
+          },
+          {
+            "name": "userId",
+            "type": "Long",
+            "annotations": [
+              {
+                "name": "RequestHeader",
+                "arguments": "value = HttpHeaderConstants.X_USER_ID, required = false"
+              }
+            ],
+            "required": false,
+            "binding": "header",
+            "wireName": "userId"
+          },
+          {
+            "name": "role",
+            "type": "String",
+            "annotations": [
+              {
+                "name": "RequestHeader",
+                "arguments": "value = HttpHeaderConstants.X_ROLE, required = false"
+              }
+            ],
+            "required": false,
+            "binding": "header",
+            "wireName": "role"
           }
         ]
       }
@@ -5111,7 +5260,7 @@
       "handler": "calculate",
       "source": {
         "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
-        "line": 196
+        "line": 197
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<CalculateResponse>> calculate( @RequestBody CartContextRequest request, @RequestHeader(value = \"Internal-Token\", required = false) String internalToken)",
@@ -5155,7 +5304,7 @@
       "handler": "reserve",
       "source": {
         "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
-        "line": 212
+        "line": 213
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<VoucherReservationResponse>> reserve( @RequestBody ReserveRequest request, @RequestHeader(value = \"Internal-Token\", required = false) String internalToken)",
@@ -5199,7 +5348,7 @@
       "handler": "reserveBulk",
       "source": {
         "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
-        "line": 231
+        "line": 232
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<PromotionReservationResponse>> reserveBulk( @RequestBody @Valid BulkReserveRequest request, @RequestHeader(value = \"Internal-Token\", required = false) String internalToken)",
@@ -5251,7 +5400,7 @@
       "handler": "commit",
       "source": {
         "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
-        "line": 239
+        "line": 240
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<VoucherReservationResponse>> commit( @PathVariable UUID reservationId, @RequestParam Long orderId, @RequestHeader(value = \"Internal-Token\", required = false) String internalToken)",
@@ -5308,7 +5457,7 @@
       "handler": "release",
       "source": {
         "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
-        "line": 249
+        "line": 250
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<VoucherReservationResponse>> release( @PathVariable UUID reservationId, @RequestParam Long orderId, @RequestHeader(value = \"Internal-Token\", required = false) String internalToken)",
@@ -5365,7 +5514,7 @@
       "handler": "commitBulk",
       "source": {
         "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
-        "line": 259
+        "line": 260
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<PromotionReservationResponse>> commitBulk( @PathVariable UUID reservationId, @RequestParam Long orderId, @RequestParam Long userPrincipalId, @RequestHeader(value = \"Internal-Token\", required = false) String internalToken)",
@@ -5434,7 +5583,7 @@
       "handler": "releaseBulk",
       "source": {
         "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
-        "line": 270
+        "line": 271
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<PromotionReservationResponse>> releaseBulk( @PathVariable UUID reservationId, @RequestParam Long orderId, @RequestParam Long userPrincipalId, @RequestHeader(value = \"Internal-Token\", required = false) String internalToken)",
@@ -6020,7 +6169,7 @@
       "handler": "get",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemInventoryController.java",
-        "line": 36
+        "line": 38
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<MenuItemInventoryResponse>> get( @PathVariable Long menuItemId, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -6063,7 +6212,7 @@
       "handler": "update",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemInventoryController.java",
-        "line": 45
+        "line": 48
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<MenuItemInventoryResponse>> update( @PathVariable Long menuItemId, @Valid @RequestBody UpdateMenuItemInventoryRequest request, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -6169,32 +6318,61 @@
       "handler": "isOwnedBy",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/InternalRestaurantController.java",
-        "line": 45
+        "line": 37
       },
       "java": {
-        "signature": "public ResponseEntity<BaseResponse<Boolean>> isOwnedBy( Long restaurantId, Long ownerId, String internalToken)",
+        "signature": "public ResponseEntity<BaseResponse<Boolean>> isOwnedBy( @PathVariable Long restaurantId, @PathVariable Long ownerId, @RequestParam(value = \"legacyOwnerId\", required = false) Long legacyOwnerId, @RequestHeader(value = \"Internal-Token\", required = false) String internalToken)",
         "returnType": "ResponseEntity<BaseResponse<Boolean>>",
         "parameters": [
           {
             "name": "restaurantId",
             "type": "Long",
-            "annotations": [],
-            "required": false,
-            "binding": "framework"
+            "annotations": [
+              {
+                "name": "PathVariable"
+              }
+            ],
+            "required": true,
+            "binding": "path",
+            "wireName": "restaurantId"
           },
           {
             "name": "ownerId",
             "type": "Long",
-            "annotations": [],
+            "annotations": [
+              {
+                "name": "PathVariable"
+              }
+            ],
+            "required": true,
+            "binding": "path",
+            "wireName": "ownerId"
+          },
+          {
+            "name": "legacyOwnerId",
+            "type": "Long",
+            "annotations": [
+              {
+                "name": "RequestParam",
+                "arguments": "value = \"legacyOwnerId\", required = false"
+              }
+            ],
             "required": false,
-            "binding": "framework"
+            "binding": "query",
+            "wireName": "legacyOwnerId"
           },
           {
             "name": "internalToken",
             "type": "String",
-            "annotations": [],
+            "annotations": [
+              {
+                "name": "RequestHeader",
+                "arguments": "value = \"Internal-Token\", required = false"
+              }
+            ],
             "required": false,
-            "binding": "framework"
+            "binding": "header",
+            "wireName": "Internal-Token"
           }
         ]
       }
@@ -6210,7 +6388,7 @@
       "handler": "reserve",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/InternalInventoryController.java",
-        "line": 38
+        "line": 40
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<InventoryReservationResponse>> reserve( @Valid @RequestBody(required = false) InventoryReservationRequest request, @RequestHeader(value = \"Internal-Token\", required = false) String token)",
@@ -6263,7 +6441,7 @@
       "handler": "commit",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/InternalInventoryController.java",
-        "line": 52
+        "line": 55
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<InventoryReservationResponse>> commit( @PathVariable UUID reservationId, @RequestParam Long orderId, @RequestHeader(value = \"Internal-Token\", required = false) String token)",
@@ -6320,7 +6498,7 @@
       "handler": "release",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/InternalInventoryController.java",
-        "line": 67
+        "line": 71
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<InventoryReservationResponse>> release( @PathVariable UUID reservationId, @RequestParam Long orderId, @RequestHeader(value = \"Internal-Token\", required = false) String token)",
@@ -6503,7 +6681,7 @@
       "handler": "create",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java",
-        "line": 40
+        "line": 34
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<RestaurantResponse>> create( @Valid @RequestBody CreateRestaurantRequest request, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -6553,7 +6731,7 @@
       "handler": "update",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java",
-        "line": 52
+        "line": 44
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<RestaurantResponse>> update( @PathVariable Long id, @Valid @RequestBody UpdateRestaurantRequest request, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -6615,7 +6793,7 @@
       "handler": "delete",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java",
-        "line": 63
+        "line": 55
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<Void>> delete( @PathVariable Long id, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -6658,7 +6836,7 @@
       "handler": "changeLifecycle",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java",
-        "line": 72
+        "line": 64
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<RestaurantResponse>> changeLifecycle( @PathVariable Long id, @Valid @RequestBody RestaurantLifecycleRequest request, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -6720,7 +6898,7 @@
       "handler": "getById",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java",
-        "line": 83
+        "line": 75
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<RestaurantResponse>> getById(@PathVariable Long id)",
@@ -6752,7 +6930,7 @@
       "handler": "getAll",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java",
-        "line": 89
+        "line": 81
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<List<RestaurantResponse>>> getAll()",
@@ -6771,7 +6949,7 @@
       "handler": "search",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java",
-        "line": 95
+        "line": 87
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<List<RestaurantResponse>>> search(@RequestParam String keyword)",
@@ -6803,7 +6981,7 @@
       "handler": "getPage",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java",
-        "line": 101
+        "line": 93
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<PageResponse<RestaurantResponse>>> getPage( @RequestParam(defaultValue = \"0\") int page, @RequestParam(defaultValue = \"24\") int size, @RequestParam(required = false) String keyword)",
@@ -6864,7 +7042,7 @@
       "handler": "getMyRestaurants",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java",
-        "line": 111
+        "line": 103
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<List<RestaurantResponse>>> getMyRestaurants( @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -6895,7 +7073,7 @@
       "handler": "list",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantServiceabilityController.java",
-        "line": 34
+        "line": 37
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<List<ServiceabilityZoneResponse>>> list( @PathVariable Long restaurantId, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -6938,7 +7116,7 @@
       "handler": "create",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantServiceabilityController.java",
-        "line": 43
+        "line": 47
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<ServiceabilityZoneResponse>> create( @PathVariable Long restaurantId, @Valid @RequestBody CreateServiceabilityZoneRequest request, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -7000,7 +7178,7 @@
       "handler": "update",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantServiceabilityController.java",
-        "line": 53
+        "line": 59
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<ServiceabilityZoneResponse>> update( @PathVariable Long restaurantId, @PathVariable Long zoneId, @Valid @RequestBody UpdateServiceabilityZoneRequest request, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -7074,7 +7252,7 @@
       "handler": "delete",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantServiceabilityController.java",
-        "line": 64
+        "line": 72
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<Void>> delete( @PathVariable Long restaurantId, @PathVariable Long zoneId, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -7253,7 +7431,7 @@
       "handler": "submitRating",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantRatingController.java",
-        "line": 31
+        "line": 32
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<RestaurantRatingResponse>> submitRating( @PathVariable Long restaurantId, @AuthenticationPrincipal AuthenticatedActor actor, @Valid @RequestBody RestaurantRatingRequest request)",
@@ -7315,7 +7493,7 @@
       "handler": "getRestaurantRatings",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantRatingController.java",
-        "line": 42
+        "line": 44
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<List<RestaurantRatingResponse>>> getRestaurantRatings(@PathVariable Long restaurantId)",
@@ -7347,7 +7525,7 @@
       "handler": "getRestaurantRatingsPage",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantRatingController.java",
-        "line": 48
+        "line": 52
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<PageResponse<RestaurantRatingResponse>>> getRestaurantRatingsPage( @PathVariable Long restaurantId, @RequestParam(defaultValue = \"0\") int page, @RequestParam(defaultValue = \"20\") int size)",
@@ -7407,7 +7585,7 @@
       "handler": "getMyRatings",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantRatingController.java",
-        "line": 57
+        "line": 61
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<List<RestaurantRatingResponse>>> getMyRatings( @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -7438,7 +7616,7 @@
       "handler": "getAllRatings",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantRatingController.java",
-        "line": 65
+        "line": 71
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<List<RestaurantRatingResponse>>> getAllRatings( @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -7469,7 +7647,7 @@
       "handler": "getAllRatingsPage",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantRatingController.java",
-        "line": 76
+        "line": 84
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<PageResponse<RestaurantRatingResponse>>> getAllRatingsPage( @AuthenticationPrincipal AuthenticatedActor actor, @RequestParam(defaultValue = \"0\") int page, @RequestParam(defaultValue = \"20\") int size)",
@@ -7528,7 +7706,7 @@
       "handler": "updateRatingStatus",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantRatingController.java",
-        "line": 90
+        "line": 98
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<RestaurantRatingResponse>> updateRatingStatus( @PathVariable Long id, @RequestParam String status, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -8786,7 +8964,7 @@
       "handler": "createPayment",
       "source": {
         "file": "backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/PaymentController.java",
-        "line": 39
+        "line": 41
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<PaymentOrderResponse>> createPayment( @Valid @RequestBody CreatePaymentRequest request, HttpServletRequest httpRequest)",
@@ -8832,7 +9010,7 @@
       "handler": "vnpayCallback",
       "source": {
         "file": "backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/PaymentController.java",
-        "line": 60
+        "line": 64
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<PaymentOrderResponse>> vnpayCallback( @RequestParam Map<String, String> params)",
@@ -8865,7 +9043,7 @@
       "handler": "vnpayIpn",
       "source": {
         "file": "backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/PaymentController.java",
-        "line": 80
+        "line": 84
       },
       "java": {
         "signature": "public ResponseEntity<Map<String, String>> vnpayIpn(@RequestParam Map<String, String> params)",
@@ -8929,7 +9107,7 @@
       "handler": "getPaymentStatus",
       "source": {
         "file": "backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/PaymentController.java",
-        "line": 107
+        "line": 111
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<PaymentOrderResponse>> getPaymentStatus( @PathVariable Long paymentId)",
@@ -8961,7 +9139,7 @@
       "handler": "getPaymentByRef",
       "source": {
         "file": "backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/PaymentController.java",
-        "line": 118
+        "line": 122
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<PaymentOrderResponse>> getPaymentByRef( @PathVariable String paymentRef)",
@@ -8993,7 +9171,7 @@
       "handler": "getAvailableProviders",
       "source": {
         "file": "backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/PaymentController.java",
-        "line": 129
+        "line": 133
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<Set<String>>> getAvailableProviders()",
@@ -9811,7 +9989,7 @@
       "handler": "create",
       "source": {
         "file": "backend_delivery/shipper-service/src/main/java/com/delivery/shipper_service/controller/ShipperController.java",
-        "line": 34
+        "line": 62
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<ShipperResponse>> create( @Valid @RequestBody CreateShipperRequest request, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -9861,7 +10039,7 @@
       "handler": "getMyProfile",
       "source": {
         "file": "backend_delivery/shipper-service/src/main/java/com/delivery/shipper_service/controller/ShipperController.java",
-        "line": 43
+        "line": 80
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<ShipperResponse>> getMyProfile( @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -9892,7 +10070,7 @@
       "handler": "update",
       "source": {
         "file": "backend_delivery/shipper-service/src/main/java/com/delivery/shipper_service/controller/ShipperController.java",
-        "line": 51
+        "line": 88
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<ShipperResponse>> update( @Valid @RequestBody UpdateShipperRequest request, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -9942,7 +10120,7 @@
       "handler": "updateOnlineStatus",
       "source": {
         "file": "backend_delivery/shipper-service/src/main/java/com/delivery/shipper_service/controller/ShipperController.java",
-        "line": 60
+        "line": 112
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<ShipperResponse>> updateOnlineStatus( @RequestParam Boolean isOnline, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -9985,7 +10163,7 @@
       "handler": "getById",
       "source": {
         "file": "backend_delivery/shipper-service/src/main/java/com/delivery/shipper_service/controller/ShipperController.java",
-        "line": 70
+        "line": 123
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<ShipperResponse>> getById( @PathVariable Long id, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -10028,7 +10206,7 @@
       "handler": "getAll",
       "source": {
         "file": "backend_delivery/shipper-service/src/main/java/com/delivery/shipper_service/controller/ShipperController.java",
-        "line": 79
+        "line": 132
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<PageResponse<ShipperResponse>>> getAll( Pageable pageable, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -10066,7 +10244,7 @@
       "handler": "getOnlineShippers",
       "source": {
         "file": "backend_delivery/shipper-service/src/main/java/com/delivery/shipper_service/controller/ShipperController.java",
-        "line": 88
+        "line": 144
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<List<ShipperResponse>>> getOnlineShippers( @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -10097,7 +10275,7 @@
       "handler": "getMyRatings",
       "source": {
         "file": "backend_delivery/shipper-service/src/main/java/com/delivery/shipper_service/controller/ShipperRatingController.java",
-        "line": 23
+        "line": 32
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<List<ShipperRatingResponse>>> getMyRatings( @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -10128,7 +10306,7 @@
       "handler": "updateLocation",
       "source": {
         "file": "backend_delivery/tracking-service/src/main/java/com/delivery/tracking_service/controller/ShipperLocationController.java",
-        "line": 26
+        "line": 40
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<ShipperLocationResponse>> updateLocation( @AuthenticationPrincipal AuthenticatedActor actor, @Valid @RequestBody UpdateLocationRequest request)",
@@ -10178,7 +10356,7 @@
       "handler": "markOffline",
       "source": {
         "file": "backend_delivery/tracking-service/src/main/java/com/delivery/tracking_service/controller/ShipperLocationController.java",
-        "line": 42
+        "line": 58
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<String>> markOffline( @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -10209,7 +10387,7 @@
       "handler": "matrix",
       "source": {
         "file": "backend_delivery/routing-service/src/main/java/com/delivery/routing_service/controller/RoutingController.java",
-        "line": 29
+        "line": 36
       },
       "java": {
         "signature": "public ResponseEntity<MatrixResponse> matrix( @RequestHeader(value = \"Internal-Token\", required = false) String token, @RequestBody MatrixRequest request)",
@@ -10253,7 +10431,7 @@
       "handler": "route",
       "source": {
         "file": "backend_delivery/routing-service/src/main/java/com/delivery/routing_service/controller/RoutingController.java",
-        "line": 37
+        "line": 52
       },
       "java": {
         "signature": "public ResponseEntity<RouteResponse> route( @RequestHeader(value = \"Internal-Token\", required = false) String token, @RequestBody RouteRequest request)",
@@ -10297,7 +10475,7 @@
       "handler": "etaWindow",
       "source": {
         "file": "backend_delivery/routing-service/src/main/java/com/delivery/routing_service/controller/RoutingController.java",
-        "line": 45
+        "line": 65
       },
       "java": {
         "signature": "public ResponseEntity<EtaWindowResponse> etaWindow( @RequestHeader(value = \"Internal-Token\", required = false) String token, @RequestBody EtaWindowRequest request)",
@@ -10341,36 +10519,18 @@
       "handler": "markOffline",
       "source": {
         "file": "backend_delivery/tracking-service/src/main/java/com/delivery/tracking_service/controller/InternalShipperAvailabilityController.java",
-        "line": 33
+        "line": 40
       },
       "java": {
-        "signature": "public ResponseEntity<BaseResponse<Void>> markOffline( @PathVariable Long shipperId, @RequestHeader(value = \"Internal-Token\", required = false) String internalToken)",
-        "returnType": "ResponseEntity<BaseResponse<Void>>",
+        "signature": "public com.delivery.tracking.domain.LocationSnapshot markOffline(long shipperId)",
+        "returnType": "com.delivery.tracking.domain.LocationSnapshot",
         "parameters": [
           {
             "name": "shipperId",
-            "type": "Long",
-            "annotations": [
-              {
-                "name": "PathVariable"
-              }
-            ],
-            "required": true,
-            "binding": "path",
-            "wireName": "shipperId"
-          },
-          {
-            "name": "internalToken",
-            "type": "String",
-            "annotations": [
-              {
-                "name": "RequestHeader",
-                "arguments": "value = \"Internal-Token\", required = false"
-              }
-            ],
+            "type": "long",
+            "annotations": [],
             "required": false,
-            "binding": "header",
-            "wireName": "Internal-Token"
+            "binding": "framework"
           }
         ]
       }
@@ -10469,7 +10629,7 @@
       "handler": "getUserAddresses",
       "source": {
         "file": "backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserAddressController.java",
-        "line": 26
+        "line": 42
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<List<UserAddressResponse>>> getUserAddresses( @PathVariable Long userId, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -10512,7 +10672,7 @@
       "handler": "getAddress",
       "source": {
         "file": "backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserAddressController.java",
-        "line": 40
+        "line": 59
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<UserAddressResponse>> getAddress( @PathVariable Long id, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -10555,7 +10715,7 @@
       "handler": "createAddress",
       "source": {
         "file": "backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserAddressController.java",
-        "line": 55
+        "line": 70
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<UserAddressResponse>> createAddress( @PathVariable Long userId, @Valid @RequestBody UserAddressRequest request, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -10617,7 +10777,7 @@
       "handler": "updateAddress",
       "source": {
         "file": "backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserAddressController.java",
-        "line": 70
+        "line": 98
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<UserAddressResponse>> updateAddress( @PathVariable Long id, @Valid @RequestBody UserAddressRequest request, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -10679,7 +10839,7 @@
       "handler": "deleteAddress",
       "source": {
         "file": "backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserAddressController.java",
-        "line": 86
+        "line": 127
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<Void>> deleteAddress( @PathVariable Long id, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -10722,7 +10882,7 @@
       "handler": "setDefault",
       "source": {
         "file": "backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserAddressController.java",
-        "line": 104
+        "line": 145
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<UserAddressResponse>> setDefault( @PathVariable Long id, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -10765,7 +10925,7 @@
       "handler": "createUser",
       "source": {
         "file": "backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserController.java",
-        "line": 51
+        "line": 63
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<UserResponse>> createUser( @Valid @RequestBody UserRequest request, @RequestHeader(value = \"Internal-Token\", required = false) String internalToken)",
@@ -10817,7 +10977,7 @@
       "handler": "registerUser",
       "source": {
         "file": "backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserController.java",
-        "line": 64
+        "line": 85
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<UserResponse>> registerUser( @Valid @RequestBody UserRegistrationRequest request)",
@@ -10856,7 +11016,7 @@
       "handler": "getCurrentUser",
       "source": {
         "file": "backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserController.java",
-        "line": 85
+        "line": 112
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<UserResponse>> getCurrentUser( @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -10887,7 +11047,7 @@
       "handler": "getUserByAuthId",
       "source": {
         "file": "backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserController.java",
-        "line": 72
+        "line": 99
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<UserResponse>> getUserByAuthId( @PathVariable Long authId, @RequestHeader(value = \"Internal-Token\", required = false) String internalToken)",
@@ -10932,7 +11092,7 @@
       "handler": "updateCurrentUser",
       "source": {
         "file": "backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserController.java",
-        "line": 95
+        "line": 122
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<UserResponse>> updateCurrentUser( @Valid @RequestBody UserRequest request, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -10982,7 +11142,7 @@
       "handler": "getUserStatistics",
       "source": {
         "file": "backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserController.java",
-        "line": 122
+        "line": 155
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<UserStatisticsResponse>> getUserStatistics( @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -11013,7 +11173,7 @@
       "handler": "getAllUsers",
       "source": {
         "file": "backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserController.java",
-        "line": 138
+        "line": 171
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<List<UserResponse>>> getAllUsers( @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -11044,7 +11204,7 @@
       "handler": "blockUser",
       "source": {
         "file": "backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserController.java",
-        "line": 154
+        "line": 189
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<Void>> blockUser( @PathVariable Long userId, @RequestBody BlockUserRequest request, @RequestHeader(value = \"Internal-Token\", required = false) String internalToken, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -11111,7 +11271,7 @@
       "handler": "unblockUser",
       "source": {
         "file": "backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserController.java",
-        "line": 196
+        "line": 232
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<Void>> unblockUser( @PathVariable Long userId, @RequestBody(required = false) BlockUserRequest request, @RequestHeader(value = \"Internal-Token\", required = false) String internalToken, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -11179,7 +11339,7 @@
       "handler": "synchronizeBlockStatus",
       "source": {
         "file": "backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/InternalUserBlockStatusController.java",
-        "line": 33
+        "line": 34
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<Void>> synchronizeBlockStatus( @PathVariable @Positive Long userId, @Valid @RequestBody UserBlockStatusRequest request, @RequestHeader(value = \"Internal-Token\", required = false) String internalToken)",
@@ -11251,7 +11411,7 @@
       "handler": "refresh",
       "source": {
         "file": "backend_delivery/web-bff-service/src/main/java/com/delivery/web_bff/session/WebSessionController.java",
-        "line": 38
+        "line": 43
       },
       "java": {
         "signature": "public SessionView refresh( @CookieValue(name = COOKIE, required = false) String rawSessionId, @RequestHeader(name = \"X-CSRF-Token\", required = false) String csrf, HttpServletResponse response)",
@@ -11309,7 +11469,7 @@
       "handler": "login",
       "source": {
         "file": "backend_delivery/web-bff-service/src/main/java/com/delivery/web_bff/session/WebSessionController.java",
-        "line": 47
+        "line": 52
       },
       "java": {
         "signature": "public ResponseEntity<SessionView> login(@Valid @RequestBody LoginRequest request, HttpServletResponse response)",
@@ -11355,7 +11515,7 @@
       "handler": "current",
       "source": {
         "file": "backend_delivery/web-bff-service/src/main/java/com/delivery/web_bff/session/WebSessionController.java",
-        "line": 56
+        "line": 62
       },
       "java": {
         "signature": "public SessionView current(@CookieValue(name = COOKIE, required = false) String rawSessionId, HttpServletResponse response)",
@@ -11400,7 +11560,7 @@
       "handler": "logout",
       "source": {
         "file": "backend_delivery/web-bff-service/src/main/java/com/delivery/web_bff/session/WebSessionController.java",
-        "line": 65
+        "line": 71
       },
       "java": {
         "signature": "public ResponseEntity<Void> logout( @CookieValue(name = COOKIE, required = false) String rawSessionId, @RequestHeader(name = \"X-CSRF-Token\", required = false) String csrf, HttpServletResponse response)",
@@ -11458,7 +11618,7 @@
       "handler": "proxy",
       "source": {
         "file": "backend_delivery/web-bff-service/src/main/java/com/delivery/web_bff/proxy/ApiProxyController.java",
-        "line": 20
+        "line": 22
       },
       "java": {
         "signature": "public ResponseEntity<byte[]> proxy(HttpServletRequest request, @RequestHeader HttpHeaders headers, @CookieValue(name = WebSessionController.COOKIE, required = false) String rawSessionId, @RequestHeader(name = \"X-CSRF-Token\", required = false) String csrfToken) throws IOException",
@@ -13444,7 +13604,7 @@
     "com.delivery.delivery_service.entity.DeliveryBatchItemStatus": {
       "kind": "enum",
       "source": {
-        "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/entity/DeliveryBatchItemStatus.java",
+        "file": "backend_delivery/modules/delivery/delivery-infrastructure/src/main/java/com/delivery/delivery_service/entity/DeliveryBatchItemStatus.java",
         "line": 3
       },
       "fields": [],
@@ -13463,7 +13623,7 @@
     "com.delivery.delivery_service.entity.DeliveryBatchStatus": {
       "kind": "enum",
       "source": {
-        "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/entity/DeliveryBatchStatus.java",
+        "file": "backend_delivery/modules/delivery/delivery-infrastructure/src/main/java/com/delivery/delivery_service/entity/DeliveryBatchStatus.java",
         "line": 3
       },
       "fields": [],
@@ -13480,7 +13640,7 @@
     "com.delivery.delivery_service.entity.DeliveryExceptionStatus": {
       "kind": "enum",
       "source": {
-        "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/entity/DeliveryExceptionStatus.java",
+        "file": "backend_delivery/modules/delivery/delivery-infrastructure/src/main/java/com/delivery/delivery_service/entity/DeliveryExceptionStatus.java",
         "line": 4
       },
       "fields": [],
@@ -13495,7 +13655,7 @@
     "com.delivery.delivery_service.entity.DeliveryProofStatus": {
       "kind": "enum",
       "source": {
-        "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/entity/DeliveryProofStatus.java",
+        "file": "backend_delivery/modules/delivery/delivery-infrastructure/src/main/java/com/delivery/delivery_service/entity/DeliveryProofStatus.java",
         "line": 4
       },
       "fields": [],
@@ -13509,7 +13669,7 @@
     "com.delivery.delivery_service.entity.DeliveryStatus": {
       "kind": "enum",
       "source": {
-        "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/entity/DeliveryStatus.java",
+        "file": "backend_delivery/modules/delivery/delivery-infrastructure/src/main/java/com/delivery/delivery_service/entity/DeliveryStatus.java",
         "line": 3
       },
       "fields": [],
@@ -15406,6 +15566,75 @@
         }
       ]
     },
+    "com.delivery.livestream_service.dto.response.LivestreamOrderContext": {
+      "kind": "record",
+      "source": {
+        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/dto/response/LivestreamOrderContext.java",
+        "line": 7
+      },
+      "fields": [
+        {
+          "name": "schemaVersion",
+          "type": "int",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "streamId",
+          "type": "UUID",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "pinnedProductId",
+          "type": "Long",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "sellerId",
+          "type": "Long",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "restaurantId",
+          "type": "Long",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "priceSnapshotId",
+          "type": "Long",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "actorPrincipalId",
+          "type": "Long",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "correlationId",
+          "type": "String",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "idempotencyKey",
+          "type": "String",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "priceAtLive",
+          "type": "BigDecimal",
+          "annotations": [],
+          "required": false
+        }
+      ]
+    },
     "com.delivery.livestream_service.dto.response.LivestreamProductResponse": {
       "kind": "class",
       "source": {
@@ -15856,6 +16085,129 @@
         {
           "name": "details",
           "type": "Object",
+          "annotations": [],
+          "required": false
+        }
+      ]
+    },
+    "com.delivery.match_service.dto.request.FindNearbyShippersRequest": {
+      "kind": "class",
+      "source": {
+        "file": "backend_delivery/match-service/src/main/java/com/delivery/match_service/dto/request/FindNearbyShippersRequest.java",
+        "line": 7
+      },
+      "fields": [
+        {
+          "name": "latitude",
+          "type": "double",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "longitude",
+          "type": "double",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "radiusKm",
+          "type": "double",
+          "annotations": [],
+          "required": false
+        }
+      ]
+    },
+    "com.delivery.match_service.dto.response.NearbyShipperResponse": {
+      "kind": "class",
+      "source": {
+        "file": "backend_delivery/match-service/src/main/java/com/delivery/match_service/dto/response/NearbyShipperResponse.java",
+        "line": 14
+      },
+      "fields": [
+        {
+          "name": "shipperId",
+          "type": "Long",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "shipperName",
+          "type": "String",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "shipperPhone",
+          "type": "String",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "latitude",
+          "type": "double",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "longitude",
+          "type": "double",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "distanceKm",
+          "type": "double",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "isOnline",
+          "type": "boolean",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "completedDeliveries",
+          "type": "long",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "combinedScoreMinutes",
+          "type": "Double",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "lastUpdated",
+          "type": "String",
+          "annotations": [],
+          "required": false
+        }
+      ]
+    },
+    "com.delivery.match_service.payload.BaseResponse": {
+      "kind": "class",
+      "source": {
+        "file": "backend_delivery/match-service/src/main/java/com/delivery/match_service/payload/BaseResponse.java",
+        "line": 10
+      },
+      "fields": [
+        {
+          "name": "status",
+          "type": "int",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "message",
+          "type": "String",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "data",
+          "type": "T",
           "annotations": [],
           "required": false
         }
@@ -20249,6 +20601,57 @@
           ]
         },
         {
+          "name": "deletedAt",
+          "type": "LocalDateTime",
+          "annotations": [
+            {
+              "name": "Column",
+              "arguments": "name = \"deleted_at\""
+            }
+          ],
+          "required": false,
+          "constraints": [
+            {
+              "name": "Column",
+              "arguments": "name = \"deleted_at\""
+            }
+          ]
+        },
+        {
+          "name": "deletedByPrincipalId",
+          "type": "Long",
+          "annotations": [
+            {
+              "name": "Column",
+              "arguments": "name = \"deleted_by_principal_id\""
+            }
+          ],
+          "required": false,
+          "constraints": [
+            {
+              "name": "Column",
+              "arguments": "name = \"deleted_by_principal_id\""
+            }
+          ]
+        },
+        {
+          "name": "deletionReason",
+          "type": "String",
+          "annotations": [
+            {
+              "name": "Column",
+              "arguments": "name = \"deletion_reason\", length = 255"
+            }
+          ],
+          "required": false,
+          "constraints": [
+            {
+              "name": "Column",
+              "arguments": "name = \"deletion_reason\", length = 255"
+            }
+          ]
+        },
+        {
           "name": "createdAt",
           "type": "LocalDateTime",
           "annotations": [
@@ -20277,7 +20680,7 @@
           "kind": "enum",
           "source": {
             "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/entity/Voucher.java",
-            "line": 123
+            "line": 132
           },
           "fields": [],
           "values": [
@@ -20290,7 +20693,7 @@
           "kind": "enum",
           "source": {
             "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/entity/Voucher.java",
-            "line": 127
+            "line": 136
           },
           "fields": [],
           "values": [
@@ -20303,7 +20706,7 @@
           "kind": "enum",
           "source": {
             "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/entity/Voucher.java",
-            "line": 131
+            "line": 140
           },
           "fields": [],
           "values": [
@@ -20318,7 +20721,7 @@
       "kind": "enum",
       "source": {
         "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/entity/Voucher.java",
-        "line": 123
+        "line": 132
       },
       "fields": [],
       "values": [
@@ -20331,7 +20734,7 @@
       "kind": "enum",
       "source": {
         "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/entity/Voucher.java",
-        "line": 127
+        "line": 136
       },
       "fields": [],
       "values": [
@@ -20344,7 +20747,7 @@
       "kind": "enum",
       "source": {
         "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/entity/Voucher.java",
-        "line": 131
+        "line": 140
       },
       "fields": [],
       "values": [
@@ -20895,7 +21298,7 @@
       "kind": "class",
       "source": {
         "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/dto/request/CreateRestaurantRequest.java",
-        "line": 19
+        "line": 21
       },
       "fields": [
         {
@@ -23183,8 +23586,8 @@
     "com.delivery.restaurant_service.entity.MenuItem": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/entity/MenuItem.java",
-        "line": 9
+        "file": "backend_delivery/modules/restaurant/restaurant-infrastructure/src/main/java/com/delivery/restaurant_service/entity/MenuItem.java",
+        "line": 10
       },
       "fields": [
         {
@@ -23390,8 +23793,8 @@
         "Status": {
           "kind": "enum",
           "source": {
-            "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/entity/MenuItem.java",
-            "line": 11
+            "file": "backend_delivery/modules/restaurant/restaurant-infrastructure/src/main/java/com/delivery/restaurant_service/entity/MenuItem.java",
+            "line": 12
           },
           "fields": [],
           "values": [
@@ -23406,8 +23809,8 @@
     "com.delivery.restaurant_service.entity.MenuItem.Status": {
       "kind": "enum",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/entity/MenuItem.java",
-        "line": 11
+        "file": "backend_delivery/modules/restaurant/restaurant-infrastructure/src/main/java/com/delivery/restaurant_service/entity/MenuItem.java",
+        "line": 12
       },
       "fields": [],
       "values": [
@@ -23420,8 +23823,8 @@
     "com.delivery.restaurant_service.entity.Restaurant": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/entity/Restaurant.java",
-        "line": 10
+        "file": "backend_delivery/modules/restaurant/restaurant-infrastructure/src/main/java/com/delivery/restaurant_service/entity/Restaurant.java",
+        "line": 11
       },
       "fields": [
         {
@@ -23885,316 +24288,725 @@
         "ARCHIVED"
       ]
     },
-    "com.delivery.routing_service.api.Coordinate": {
+    "com.delivery.routing.contracts.Coordinate": {
       "kind": "record",
       "source": {
-        "file": "backend_delivery/routing-service/src/main/java/com/delivery/routing_service/api/Coordinate.java",
-        "line": 3
+        "file": "backend_delivery/routing-contracts/src/main/java/com/delivery/routing/contracts/Coordinate.java",
+        "line": 8
       },
       "fields": [
         {
           "name": "lat",
           "type": "double",
-          "annotations": [],
-          "required": false
+          "annotations": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"lat\""
+            }
+          ],
+          "required": false,
+          "constraints": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"lat\""
+            }
+          ]
         },
         {
           "name": "lng",
           "type": "double",
-          "annotations": [],
-          "required": false
+          "annotations": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"lng\""
+            }
+          ],
+          "required": false,
+          "constraints": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"lng\""
+            }
+          ]
         }
       ]
     },
-    "com.delivery.routing_service.api.EtaWindowRequest": {
+    "com.delivery.routing.contracts.EtaWindowRequest": {
       "kind": "record",
       "source": {
-        "file": "backend_delivery/routing-service/src/main/java/com/delivery/routing_service/api/EtaWindowRequest.java",
-        "line": 4
+        "file": "backend_delivery/routing-contracts/src/main/java/com/delivery/routing/contracts/EtaWindowRequest.java",
+        "line": 8
       },
       "fields": [
         {
           "name": "origin",
           "type": "Coordinate",
-          "annotations": [],
-          "required": false
+          "annotations": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"origin\""
+            }
+          ],
+          "required": false,
+          "constraints": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"origin\""
+            }
+          ]
         },
         {
           "name": "destination",
           "type": "Coordinate",
-          "annotations": [],
-          "required": false
+          "annotations": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"destination\""
+            }
+          ],
+          "required": false,
+          "constraints": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"destination\""
+            }
+          ]
         },
         {
           "name": "prepMinutes",
           "type": "Integer",
-          "annotations": [],
-          "required": false
+          "annotations": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"prepMinutes\""
+            }
+          ],
+          "required": false,
+          "constraints": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"prepMinutes\""
+            }
+          ]
         }
       ]
     },
-    "com.delivery.routing_service.api.EtaWindowResponse": {
+    "com.delivery.routing.contracts.EtaWindowResponse": {
       "kind": "record",
       "source": {
-        "file": "backend_delivery/routing-service/src/main/java/com/delivery/routing_service/api/EtaWindowResponse.java",
-        "line": 3
+        "file": "backend_delivery/routing-contracts/src/main/java/com/delivery/routing/contracts/EtaWindowResponse.java",
+        "line": 7
       },
       "fields": [
         {
           "name": "minMinutes",
           "type": "int",
-          "annotations": [],
-          "required": false
+          "annotations": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"minMinutes\""
+            }
+          ],
+          "required": false,
+          "constraints": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"minMinutes\""
+            }
+          ]
         },
         {
           "name": "maxMinutes",
           "type": "int",
-          "annotations": [],
-          "required": false
+          "annotations": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"maxMinutes\""
+            }
+          ],
+          "required": false,
+          "constraints": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"maxMinutes\""
+            }
+          ]
         },
         {
           "name": "source",
           "type": "String",
-          "annotations": [],
-          "required": false
+          "annotations": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"source\""
+            }
+          ],
+          "required": false,
+          "constraints": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"source\""
+            }
+          ]
         }
       ]
     },
-    "com.delivery.routing_service.api.MatrixRequest": {
+    "com.delivery.routing.contracts.MatrixRequest": {
       "kind": "record",
       "source": {
-        "file": "backend_delivery/routing-service/src/main/java/com/delivery/routing_service/api/MatrixRequest.java",
-        "line": 6
+        "file": "backend_delivery/routing-contracts/src/main/java/com/delivery/routing/contracts/MatrixRequest.java",
+        "line": 10
       },
       "fields": [
         {
           "name": "profile",
           "type": "String",
-          "annotations": [],
-          "required": false
+          "annotations": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"profile\""
+            }
+          ],
+          "required": false,
+          "constraints": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"profile\""
+            }
+          ]
         },
         {
           "name": "origin",
           "type": "Coordinate",
-          "annotations": [],
-          "required": false
+          "annotations": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"origin\""
+            }
+          ],
+          "required": false,
+          "constraints": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"origin\""
+            }
+          ]
         },
         {
           "name": "destinations",
           "type": "List<Destination>",
-          "annotations": [],
-          "required": false
+          "annotations": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"destinations\""
+            }
+          ],
+          "required": false,
+          "constraints": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"destinations\""
+            }
+          ]
         },
         {
           "name": "departureAt",
           "type": "Instant",
-          "annotations": [],
-          "required": false
+          "annotations": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"departureAt\""
+            },
+            {
+              "name": "JsonFormat",
+              "arguments": "shape = JsonFormat.Shape.STRING"
+            }
+          ],
+          "required": false,
+          "constraints": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"departureAt\""
+            },
+            {
+              "name": "JsonFormat",
+              "arguments": "shape = JsonFormat.Shape.STRING"
+            }
+          ]
         }
       ],
       "nestedTypes": {
         "Destination": {
           "kind": "record",
           "source": {
-            "file": "backend_delivery/routing-service/src/main/java/com/delivery/routing_service/api/MatrixRequest.java",
-            "line": 12
+            "file": "backend_delivery/routing-contracts/src/main/java/com/delivery/routing/contracts/MatrixRequest.java",
+            "line": 17
           },
           "fields": [
             {
               "name": "id",
               "type": "String",
-              "annotations": [],
-              "required": false
+              "annotations": [
+                {
+                  "name": "JsonProperty",
+                  "arguments": "\"id\""
+                }
+              ],
+              "required": false,
+              "constraints": [
+                {
+                  "name": "JsonProperty",
+                  "arguments": "\"id\""
+                }
+              ]
             },
             {
               "name": "coordinate",
               "type": "Coordinate",
-              "annotations": [],
-              "required": false
+              "annotations": [
+                {
+                  "name": "JsonProperty",
+                  "arguments": "\"coordinate\""
+                }
+              ],
+              "required": false,
+              "constraints": [
+                {
+                  "name": "JsonProperty",
+                  "arguments": "\"coordinate\""
+                }
+              ]
             }
           ]
         }
       }
     },
-    "com.delivery.routing_service.api.MatrixRequest.Destination": {
+    "com.delivery.routing.contracts.MatrixRequest.Destination": {
       "kind": "record",
       "source": {
-        "file": "backend_delivery/routing-service/src/main/java/com/delivery/routing_service/api/MatrixRequest.java",
-        "line": 12
+        "file": "backend_delivery/routing-contracts/src/main/java/com/delivery/routing/contracts/MatrixRequest.java",
+        "line": 17
       },
       "fields": [
         {
           "name": "id",
           "type": "String",
-          "annotations": [],
-          "required": false
+          "annotations": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"id\""
+            }
+          ],
+          "required": false,
+          "constraints": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"id\""
+            }
+          ]
         },
         {
           "name": "coordinate",
           "type": "Coordinate",
-          "annotations": [],
-          "required": false
+          "annotations": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"coordinate\""
+            }
+          ],
+          "required": false,
+          "constraints": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"coordinate\""
+            }
+          ]
         }
       ]
     },
-    "com.delivery.routing_service.api.MatrixResponse": {
+    "com.delivery.routing.contracts.MatrixResponse": {
       "kind": "record",
       "source": {
-        "file": "backend_delivery/routing-service/src/main/java/com/delivery/routing_service/api/MatrixResponse.java",
-        "line": 6
+        "file": "backend_delivery/routing-contracts/src/main/java/com/delivery/routing/contracts/MatrixResponse.java",
+        "line": 10
       },
       "fields": [
         {
           "name": "results",
           "type": "List<Result>",
-          "annotations": [],
-          "required": false
+          "annotations": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"results\""
+            }
+          ],
+          "required": false,
+          "constraints": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"results\""
+            }
+          ]
         },
         {
           "name": "generatedAt",
           "type": "Instant",
-          "annotations": [],
-          "required": false
+          "annotations": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"generatedAt\""
+            },
+            {
+              "name": "JsonFormat",
+              "arguments": "shape = JsonFormat.Shape.STRING"
+            }
+          ],
+          "required": false,
+          "constraints": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"generatedAt\""
+            },
+            {
+              "name": "JsonFormat",
+              "arguments": "shape = JsonFormat.Shape.STRING"
+            }
+          ]
         }
       ],
       "nestedTypes": {
         "Result": {
           "kind": "record",
           "source": {
-            "file": "backend_delivery/routing-service/src/main/java/com/delivery/routing_service/api/MatrixResponse.java",
-            "line": 10
+            "file": "backend_delivery/routing-contracts/src/main/java/com/delivery/routing/contracts/MatrixResponse.java",
+            "line": 15
           },
           "fields": [
             {
               "name": "id",
               "type": "String",
-              "annotations": [],
-              "required": false
+              "annotations": [
+                {
+                  "name": "JsonProperty",
+                  "arguments": "\"id\""
+                }
+              ],
+              "required": false,
+              "constraints": [
+                {
+                  "name": "JsonProperty",
+                  "arguments": "\"id\""
+                }
+              ]
             },
             {
               "name": "durationSeconds",
               "type": "long",
-              "annotations": [],
-              "required": false
+              "annotations": [
+                {
+                  "name": "JsonProperty",
+                  "arguments": "\"durationSeconds\""
+                }
+              ],
+              "required": false,
+              "constraints": [
+                {
+                  "name": "JsonProperty",
+                  "arguments": "\"durationSeconds\""
+                }
+              ]
             },
             {
               "name": "distanceMeters",
               "type": "long",
-              "annotations": [],
-              "required": false
+              "annotations": [
+                {
+                  "name": "JsonProperty",
+                  "arguments": "\"distanceMeters\""
+                }
+              ],
+              "required": false,
+              "constraints": [
+                {
+                  "name": "JsonProperty",
+                  "arguments": "\"distanceMeters\""
+                }
+              ]
             },
             {
               "name": "source",
               "type": "String",
-              "annotations": [],
-              "required": false
+              "annotations": [
+                {
+                  "name": "JsonProperty",
+                  "arguments": "\"source\""
+                }
+              ],
+              "required": false,
+              "constraints": [
+                {
+                  "name": "JsonProperty",
+                  "arguments": "\"source\""
+                }
+              ]
             }
           ]
         }
       }
     },
-    "com.delivery.routing_service.api.MatrixResponse.Result": {
+    "com.delivery.routing.contracts.MatrixResponse.Result": {
       "kind": "record",
       "source": {
-        "file": "backend_delivery/routing-service/src/main/java/com/delivery/routing_service/api/MatrixResponse.java",
-        "line": 10
+        "file": "backend_delivery/routing-contracts/src/main/java/com/delivery/routing/contracts/MatrixResponse.java",
+        "line": 15
       },
       "fields": [
         {
           "name": "id",
           "type": "String",
-          "annotations": [],
-          "required": false
+          "annotations": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"id\""
+            }
+          ],
+          "required": false,
+          "constraints": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"id\""
+            }
+          ]
         },
         {
           "name": "durationSeconds",
           "type": "long",
-          "annotations": [],
-          "required": false
+          "annotations": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"durationSeconds\""
+            }
+          ],
+          "required": false,
+          "constraints": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"durationSeconds\""
+            }
+          ]
         },
         {
           "name": "distanceMeters",
           "type": "long",
-          "annotations": [],
-          "required": false
+          "annotations": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"distanceMeters\""
+            }
+          ],
+          "required": false,
+          "constraints": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"distanceMeters\""
+            }
+          ]
         },
         {
           "name": "source",
           "type": "String",
-          "annotations": [],
-          "required": false
+          "annotations": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"source\""
+            }
+          ],
+          "required": false,
+          "constraints": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"source\""
+            }
+          ]
         }
       ]
     },
-    "com.delivery.routing_service.api.RouteRequest": {
+    "com.delivery.routing.contracts.RouteRequest": {
       "kind": "record",
       "source": {
-        "file": "backend_delivery/routing-service/src/main/java/com/delivery/routing_service/api/RouteRequest.java",
-        "line": 5
+        "file": "backend_delivery/routing-contracts/src/main/java/com/delivery/routing/contracts/RouteRequest.java",
+        "line": 9
       },
       "fields": [
         {
           "name": "profile",
           "type": "String",
-          "annotations": [],
-          "required": false
+          "annotations": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"profile\""
+            }
+          ],
+          "required": false,
+          "constraints": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"profile\""
+            }
+          ]
         },
         {
           "name": "origin",
           "type": "Coordinate",
-          "annotations": [],
-          "required": false
+          "annotations": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"origin\""
+            }
+          ],
+          "required": false,
+          "constraints": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"origin\""
+            }
+          ]
         },
         {
           "name": "destination",
           "type": "Coordinate",
-          "annotations": [],
-          "required": false
+          "annotations": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"destination\""
+            }
+          ],
+          "required": false,
+          "constraints": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"destination\""
+            }
+          ]
         },
         {
           "name": "departureAt",
           "type": "Instant",
-          "annotations": [],
-          "required": false
+          "annotations": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"departureAt\""
+            },
+            {
+              "name": "JsonFormat",
+              "arguments": "shape = JsonFormat.Shape.STRING"
+            }
+          ],
+          "required": false,
+          "constraints": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"departureAt\""
+            },
+            {
+              "name": "JsonFormat",
+              "arguments": "shape = JsonFormat.Shape.STRING"
+            }
+          ]
         },
         {
           "name": "includeGeometry",
           "type": "boolean",
-          "annotations": [],
-          "required": false
+          "annotations": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"includeGeometry\""
+            }
+          ],
+          "required": false,
+          "constraints": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"includeGeometry\""
+            }
+          ]
         }
       ]
     },
-    "com.delivery.routing_service.api.RouteResponse": {
+    "com.delivery.routing.contracts.RouteResponse": {
       "kind": "record",
       "source": {
-        "file": "backend_delivery/routing-service/src/main/java/com/delivery/routing_service/api/RouteResponse.java",
-        "line": 3
+        "file": "backend_delivery/routing-contracts/src/main/java/com/delivery/routing/contracts/RouteResponse.java",
+        "line": 7
       },
       "fields": [
         {
           "name": "durationSeconds",
           "type": "long",
-          "annotations": [],
-          "required": false
+          "annotations": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"durationSeconds\""
+            }
+          ],
+          "required": false,
+          "constraints": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"durationSeconds\""
+            }
+          ]
         },
         {
           "name": "distanceMeters",
           "type": "long",
-          "annotations": [],
-          "required": false
+          "annotations": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"distanceMeters\""
+            }
+          ],
+          "required": false,
+          "constraints": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"distanceMeters\""
+            }
+          ]
         },
         {
           "name": "geometry",
           "type": "String",
-          "annotations": [],
-          "required": false
+          "annotations": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"geometry\""
+            }
+          ],
+          "required": false,
+          "constraints": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"geometry\""
+            }
+          ]
         },
         {
           "name": "source",
           "type": "String",
-          "annotations": [],
-          "required": false
+          "annotations": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"source\""
+            }
+          ],
+          "required": false,
+          "constraints": [
+            {
+              "name": "JsonProperty",
+              "arguments": "\"source\""
+            }
+          ]
         }
       ]
     },
@@ -25199,7 +26011,7 @@
     "com.delivery.settlement_service.entity.CodCapacityHold": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/entity/CodCapacityHold.java",
+        "file": "backend_delivery/modules/settlement/settlement-infrastructure/src/main/java/com/delivery/settlement_service/entity/CodCapacityHold.java",
         "line": 26
       },
       "fields": [
@@ -25494,7 +26306,7 @@
     "com.delivery.settlement_service.entity.CodCapacityHoldStatus": {
       "kind": "enum",
       "source": {
-        "file": "backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/entity/CodCapacityHoldStatus.java",
+        "file": "backend_delivery/modules/settlement/settlement-infrastructure/src/main/java/com/delivery/settlement_service/entity/CodCapacityHoldStatus.java",
         "line": 3
       },
       "fields": [],
@@ -25694,6 +26506,23 @@
         "line": 6
       },
       "fields": [
+        {
+          "name": "fullName",
+          "type": "String",
+          "annotations": [
+            {
+              "name": "Size",
+              "arguments": "max = 100"
+            }
+          ],
+          "required": false,
+          "constraints": [
+            {
+              "name": "Size",
+              "arguments": "max = 100"
+            }
+          ]
+        },
         {
           "name": "vehicleType",
           "type": "String",
@@ -26418,7 +27247,7 @@
           "kind": "record",
           "source": {
             "file": "backend_delivery/simulator-service/src/main/java/com/delivery/simulator/service/SimulationRecoveryService.java",
-            "line": 170
+            "line": 171
           },
           "fields": [
             {
@@ -26708,6 +27537,84 @@
         {
           "name": "data",
           "type": "T",
+          "annotations": [],
+          "required": false
+        }
+      ]
+    },
+    "com.delivery.tracking.domain.Coordinate": {
+      "kind": "record",
+      "source": {
+        "file": "backend_delivery/modules/tracking/tracking-domain/src/main/java/com/delivery/tracking/domain/Coordinate.java",
+        "line": 4
+      },
+      "fields": [
+        {
+          "name": "latitude",
+          "type": "double",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "longitude",
+          "type": "double",
+          "annotations": [],
+          "required": false
+        }
+      ]
+    },
+    "com.delivery.tracking.domain.LocationSnapshot": {
+      "kind": "record",
+      "source": {
+        "file": "backend_delivery/modules/tracking/tracking-domain/src/main/java/com/delivery/tracking/domain/LocationSnapshot.java",
+        "line": 6
+      },
+      "fields": [
+        {
+          "name": "shipperId",
+          "type": "long",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "coordinate",
+          "type": "Coordinate",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "accuracy",
+          "type": "Double",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "speed",
+          "type": "Double",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "heading",
+          "type": "Double",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "online",
+          "type": "boolean",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "lastPing",
+          "type": "Instant",
+          "annotations": [],
+          "required": false
+        },
+        {
+          "name": "updatedAt",
+          "type": "Instant",
           "annotations": [],
           "required": false
         }
@@ -27603,7 +28510,7 @@
       "kind": "record",
       "source": {
         "file": "backend_delivery/web-bff-service/src/main/java/com/delivery/web_bff/session/WebSessionController.java",
-        "line": 91
+        "line": 97
       },
       "fields": [
         {
@@ -27669,7 +28576,7 @@
       "kind": "record",
       "source": {
         "file": "backend_delivery/web-bff-service/src/main/java/com/delivery/web_bff/session/WebSessionController.java",
-        "line": 98
+        "line": 104
       },
       "fields": [
         {

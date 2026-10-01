@@ -102,7 +102,7 @@ public class SimulationRecoveryService {
             Map<Long, String> statuses = new LinkedHashMap<>(recoveredStatuses);
             for (Long deliveryId : deliveryIds) {
                 if (statuses.containsKey(deliveryId)) continue;
-                JsonNode response = gateway.get("/api/deliveries/order/" + deliveryId,
+                JsonNode response = gateway.get("/api/deliveries/" + deliveryId,
                         customer.accessToken(), "recovery-" + runId);
                 JsonNode data = response.has("data") ? response.path("data") : response;
                 String status = data.path("status").asText("UNKNOWN");
@@ -159,7 +159,8 @@ public class SimulationRecoveryService {
         if (node == null || node.isNull()) return;
         if (node.isObject()) {
             node.fields().forEachRemaining(field -> {
-                if ("deliveryId".equals(field.getKey()) && field.getValue().canConvertToLong()) {
+                if ("deliveryId".equals(field.getKey()) && field.getValue().isIntegralNumber()
+                        && field.getValue().canConvertToLong() && field.getValue().asLong() > 0) {
                     result.add(field.getValue().asLong());
                 }
                 collectIds(field.getValue(), result);

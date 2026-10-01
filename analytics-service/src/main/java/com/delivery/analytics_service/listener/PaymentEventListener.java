@@ -41,11 +41,11 @@ public class PaymentEventListener {
     public void onPaymentCompleted(@Payload String message, Acknowledgment ack) {
         try {
             log.info("📥 [Analytics] Received PAYMENT_COMPLETED event");
-            JsonNode json = objectMapper.readTree(message);
+            JsonNode json = AnalyticsEventPayload.read(objectMapper, message);
 
-            Long orderId = json.path("orderId").asLong();
-            Long userId = json.path("userId").asLong();
-            Double amount = json.has("amount") ? json.path("amount").asDouble() : 0.0;
+            Long orderId = AnalyticsEventPayload.requiredId(json, "orderId");
+            Long userId = AnalyticsEventPayload.optionalId(json, "userId");
+            Double amount = AnalyticsEventPayload.amountOrZero(json);
             String paymentMethod = json.path("paymentMethod").asText(null);
 
             eventService.processPaymentCompleted(orderId, userId, amount, paymentMethod, message);
@@ -69,9 +69,9 @@ public class PaymentEventListener {
     public void onPaymentFailed(@Payload String message, Acknowledgment ack) {
         try {
             log.info("📥 [Analytics] Received PAYMENT_FAILED event");
-            JsonNode json = objectMapper.readTree(message);
+            JsonNode json = AnalyticsEventPayload.read(objectMapper, message);
 
-            Long orderId = json.path("orderId").asLong();
+            Long orderId = AnalyticsEventPayload.requiredId(json, "orderId");
 
             eventService.processPaymentFailed(orderId, message);
 

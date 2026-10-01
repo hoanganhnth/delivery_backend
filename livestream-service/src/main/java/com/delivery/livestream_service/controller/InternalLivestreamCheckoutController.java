@@ -2,6 +2,7 @@ package com.delivery.livestream_service.controller;
 
 import com.delivery.livestream_service.dto.request.LivestreamCheckoutQuoteRequest;
 import com.delivery.livestream_service.dto.response.LivestreamCheckoutQuoteResponse;
+import com.delivery.livestream_service.dto.response.LivestreamOrderContext;
 import com.delivery.livestream_service.payload.BaseResponse;
 import com.delivery.livestream_service.service.LivestreamCheckoutQuoteService;
 import jakarta.validation.Valid;
@@ -39,6 +40,21 @@ public class InternalLivestreamCheckoutController {
         }
         return ResponseEntity.ok(new BaseResponse<>(1, service.quote(request),
                 "Báo giá livestream hợp lệ"));
+    }
+
+    @PostMapping("/order-context")
+    public ResponseEntity<BaseResponse<java.util.List<LivestreamOrderContext>>> orderContext(
+            @Valid @RequestBody LivestreamCheckoutQuoteRequest request,
+            @RequestHeader(value = "Internal-Token", required = false) String token,
+            @RequestHeader(value = "X-Actor-Principal-Id", required = false) Long actorPrincipalId,
+            @RequestHeader(value = "X-Correlation-Id", required = false) String correlationId,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+        if (!matchesSecret(token)) {
+            return ResponseEntity.status(403).body(new BaseResponse<>(0, null, "Forbidden"));
+        }
+        return ResponseEntity.ok(new BaseResponse<>(1,
+                service.orderContext(request, actorPrincipalId, correlationId, idempotencyKey),
+                "Livestream checkout context hợp lệ"));
     }
 
     private boolean matchesSecret(String token) {

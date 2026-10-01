@@ -56,6 +56,47 @@ class ShopVoucherLifecycleTest {
         verify(vouchers, never()).save(any());
     }
 
+    @Test void deletedApprovedVoucherCannotBeReactivated() {
+        var voucher = Voucher.builder().id(9L).approvalStatus("APPROVED")
+                .active(false).deletedAt(LocalDateTime.now().minusDays(1)).build();
+        when(vouchers.findByIdForUpdate(9L)).thenReturn(Optional.of(voucher));
+
+        assertThrows(PromotionConflictException.class, () -> service.setVoucherActive(9L, true));
+
+        assertFalse(voucher.getActive());
+        verify(vouchers, never()).save(any());
+    }
+
+    @Test void deletedPendingShopVoucherCannotBeApproved() {
+        var voucher = Voucher.builder().id(9L).creatorType(Voucher.CreatorType.SHOP)
+                .approvalStatus("PENDING").active(false)
+                .deletedAt(LocalDateTime.now().minusDays(1)).build();
+        when(vouchers.findByIdForUpdate(9L)).thenReturn(Optional.of(voucher));
+
+        assertThrows(PromotionConflictException.class, () -> service.approveShopVoucher(9L, 151L));
+
+        assertFalse(voucher.getActive());
+        assertEquals("PENDING", voucher.getApprovalStatus());
+        verify(vouchers, never()).save(any());
+    }
+
+    @Test void deletedPendingShopVoucherCannotHaveItsApprovalAuditRewrittenByRejection() {
+        var deletedAt = LocalDateTime.now().minusDays(1);
+        var voucher = Voucher.builder().id(9L).creatorType(Voucher.CreatorType.SHOP)
+                .approvalStatus("PENDING").active(false).deletedAt(deletedAt)
+                .deletedByPrincipalId(70L).deletionReason("retired").build();
+        when(vouchers.findByIdForUpdate(9L)).thenReturn(Optional.of(voucher));
+
+        assertThrows(PromotionConflictException.class, () -> service.rejectShopVoucher(9L, 80L, "rejected"));
+
+        assertEquals("PENDING", voucher.getApprovalStatus());
+        assertNull(voucher.getApprovedAt());
+        assertNull(voucher.getApprovedByPrincipalId());
+        assertEquals(deletedAt, voucher.getDeletedAt());
+        assertEquals("retired", voucher.getDeletionReason());
+        verify(vouchers, never()).save(any());
+    }
+
     @Test void deletionUsesLockedCurrentQuotaAndPreservesUsage() {
         var current = Voucher.builder().id(9L).usedQuantity(1).active(true).build();
         // A stale, unlocked read would lose a concurrent reservation's quota.
@@ -67,6 +108,33 @@ class ShopVoucherLifecycleTest {
         assertFalse(current.getActive());
         assertEquals(1, current.getUsedQuantity());
         verify(vouchers, never()).findById(9L);
+    }
+
+    @Test void deletionRecordsTombstoneMetadataWithoutHardDeletingVoucher() {
+        var current = Voucher.builder().id(9L).usedQuantity(1).active(true).build();
+        when(vouchers.findByIdForUpdate(9L)).thenReturn(Optional.of(current));
+
+        service.deleteVoucher(9L, 151L, "merchant_retired");
+
+        assertFalse(current.getActive());
+        assertNotNull(current.getDeletedAt());
+        assertEquals(151L, current.getDeletedByPrincipalId());
+        assertEquals("merchant_retired", current.getDeletionReason());
+        verify(vouchers).save(current);
+    }
+
+    @Test void repeatedDeletionPreservesOriginalTombstoneMetadata() {
+        var current = Voucher.builder().id(9L).active(true).build();
+        when(vouchers.findByIdForUpdate(9L)).thenReturn(Optional.of(current));
+
+        service.deleteVoucher(9L, 151L, "merchant_retired");
+        LocalDateTime deletedAt = current.getDeletedAt();
+        service.deleteVoucher(9L, 200L, "retry");
+
+        assertEquals(deletedAt, current.getDeletedAt());
+        assertEquals(151L, current.getDeletedByPrincipalId());
+        assertEquals("merchant_retired", current.getDeletionReason());
+        verify(vouchers).save(current);
     }
 
     private CreateVoucherRequest request() {

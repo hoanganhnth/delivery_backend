@@ -115,7 +115,7 @@ def verify_core_module(pom_path: Path) -> list[str]:
                     f"{source}: application-api must contain behavior-free interfaces or empty-body records only"
                 )
         for forbidden in FORBIDDEN_CORE_IMPORTS:
-            if f"import {forbidden}" in text:
+            if re.search(r"\bimport\s+(?:static\s+)?" + re.escape(forbidden), text):
                 errors.append(f"{source}: forbidden core import {forbidden}")
     return errors
 
@@ -155,16 +155,20 @@ def verify_contracts(root: Path) -> list[str]:
             if child_text(dependency, "m:scope", "compile") == "test":
                 continue
             group_id = child_text(dependency, "m:groupId")
-            if group_id.startswith(("org.springframework", "org.apache.kafka", "org.hibernate")):
+            if group_id.startswith(FORBIDDEN_CORE_GROUPS):
                 errors.append(f"{pom_path}: contract has runtime framework dependency {group_id}")
     return errors
 
 
 def verify_cross_service_imports(root: Path) -> list[str]:
     errors: list[str] = []
-    pattern = re.compile(r"^import com\.delivery\.([a-z0-9_]+_service)\.", re.MULTILINE)
+    pattern = re.compile(
+        r"^\s*import\s+(?:static\s+)?com\.delivery\.([a-z0-9_]+_service|simulator)\.",
+        re.MULTILINE,
+    )
     for service_dir in root.glob("*-service"):
-        own_package = service_dir.name.replace("-", "_")
+        own_package = ("simulator" if service_dir.name == "simulator-service"
+                       else service_dir.name.replace("-", "_"))
         source_root = service_dir / "src" / "main" / "java"
         for source in source_root.rglob("*.java") if source_root.exists() else ():
             for imported_service in pattern.findall(source.read_text(encoding="utf-8")):
@@ -175,10 +179,36 @@ def verify_cross_service_imports(root: Path) -> list[str]:
     return errors
 
 
+def verify_cross_service_dependencies(root: Path) -> list[str]:
+    """Reject declared production links to another deployable service.
+
+    Profile declarations are checked even when inactive locally. Dependency
+    management entries are not links; Maven's resolved graph is separate proof.
+    """
+    errors: list[str] = []
+    for pom_path in sorted(root.glob("*-service/pom.xml")):
+        project = parse_pom(pom_path)
+        own_artifact = child_text(project, "m:artifactId")
+        dependencies = project.findall("m:dependencies/m:dependency", NS)
+        dependencies += project.findall(
+            "m:profiles/m:profile/m:dependencies/m:dependency", NS
+        )
+        for dependency in dependencies:
+            if child_text(dependency, "m:scope", "compile") == "test":
+                continue
+            group_id = child_text(dependency, "m:groupId")
+            artifact = child_text(dependency, "m:artifactId")
+            if (group_id == "com.delivery" and artifact.endswith("-service")
+                    and artifact != own_artifact):
+                errors.append(f"{pom_path}: production dependency on service implementation {artifact}")
+    return errors
+
+
 def verify(root: Path) -> list[str]:
     errors = verify_build_parent(root)
     errors.extend(verify_contracts(root))
     errors.extend(verify_cross_service_imports(root))
+    errors.extend(verify_cross_service_dependencies(root))
     modules_root = root / "modules"
     if modules_root.exists():
         for pom_path in modules_root.glob("*/*/pom.xml"):

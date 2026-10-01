@@ -7,6 +7,7 @@ import com.delivery.promotion_service.entity.UserVoucher;
 import com.delivery.promotion_service.entity.Voucher;
 import com.delivery.promotion_service.entity.VoucherReservation;
 import com.delivery.promotion_service.entity.PromotionReservation;
+import com.delivery.promotion_service.entity.PromotionReservationLine;
 import com.delivery.promotion_service.exception.PromotionConflictException;
 import com.delivery.promotion_service.repository.PromotionReservationLineRepository;
 import com.delivery.promotion_service.repository.PromotionReservationRepository;
@@ -24,11 +25,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Optional;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -187,6 +190,39 @@ class VoucherReservationServiceTest {
         verify(voucherRepository, never()).findByIdForUpdate(11L);
     }
 
+    @Test
+    void bulkCommitThenReleaseMovesWalletAndLineCountersExactlyOnce() {
+        UUID reservationId = UUID.randomUUID();
+        PromotionReservation reservation = bulkReservation(reservationId);
+        PromotionReservationLine line = PromotionReservationLine.builder().reservationId(reservationId)
+                .voucherId(11L).voucherCode("SAVE20").layer("PLATFORM_DISCOUNT")
+                .fundingSource("PLATFORM").discountBase(new BigDecimal("100000"))
+                .discountAmount(new BigDecimal("20000")).state(PromotionReservationLine.State.RESERVED).build();
+        UserVoucher wallet = wallet();
+        wallet.setUserPrincipalId(42L); wallet.setStatus(UserVoucher.Status.RESERVED);
+        wallet.setReservedCount(1); wallet.setUsedCount(0); wallet.setOrderId(101L);
+        Voucher voucher = voucher();
+        voucher.setUsedQuantity(1);
+        when(promotionReservationRepository.findByIdForUpdate(reservationId)).thenReturn(Optional.of(reservation));
+        when(promotionReservationLineRepository.findByReservationIdForUpdateOrderByVoucherIdAsc(reservationId))
+                .thenReturn(List.of(line));
+        when(userVoucherRepository.findByPrincipalOrUnbackfilledLegacyAndVoucherIdForUpdate(42L, 7L, 11L))
+                .thenReturn(Optional.of(wallet));
+        when(voucherRepository.findByIdForUpdate(11L)).thenReturn(Optional.of(voucher));
+
+        service.commitPromotionReservation(reservationId, 101L);
+        service.releasePromotionReservation(reservationId, 101L);
+        service.releasePromotionReservation(reservationId, 101L);
+
+        assertThat(reservation.getState()).isEqualTo(PromotionReservation.State.RELEASED);
+        assertThat(line.getState()).isEqualTo(PromotionReservationLine.State.RELEASED);
+        assertThat(wallet.getReservedCount()).isZero();
+        assertThat(wallet.getUsedCount()).isZero();
+        assertThat(wallet.getStatus()).isEqualTo(UserVoucher.Status.SAVED);
+        assertThat(voucher.getUsedQuantity()).isZero();
+        verify(outboxService, org.mockito.Mockito.times(2)).enqueue(eq(reservation), eq(List.of(line)));
+    }
+
     private ReserveRequest request() {
         return ReserveRequest.builder()
                 .reservationId(UUID.randomUUID())
@@ -224,5 +260,15 @@ class VoucherReservationServiceTest {
                 .shippingFee(request.getShippingFee()).discountAmount(new BigDecimal("20000.00"))
                 .state(VoucherReservation.State.RESERVED)
                 .expiresAt(LocalDateTime.now().plusMinutes(15)).build();
+    }
+
+    private PromotionReservation bulkReservation(UUID reservationId) {
+        return PromotionReservation.builder().reservationId(reservationId).orderId(101L)
+                .userId(7L).userPrincipalId(42L).restaurantId(9L).subtotal(new BigDecimal("100000"))
+                .grossShippingFee(new BigDecimal("15000")).itemDiscount(new BigDecimal("20000"))
+                .shippingDiscount(BigDecimal.ZERO).totalDiscount(new BigDecimal("20000"))
+                .customerShippingFee(new BigDecimal("15000")).state(PromotionReservation.State.RESERVED)
+                .expiresAt(LocalDateTime.now().plusMinutes(15)).createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now()).build();
     }
 }

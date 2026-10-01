@@ -22,13 +22,14 @@ import { fileURLToPath } from 'node:url';
 import { parseHttpInventory } from './http-api-inventory-lib.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-// This copy lives under backend_delivery/docs/platform/system/api, while
-// source code and the three client repositories remain siblings of
-// backend_delivery in the workspace root.
-const defaultWorkspace = path.resolve(here, '../../../../..');
+// Canonical artifacts live inside the backend checkout, including standalone
+// CI clones and git worktrees; an adjacent backend_delivery checkout is not required.
+const defaultBackend = path.resolve(here, '../../../..');
+const defaultWorkspace = path.dirname(defaultBackend);
 const workspace = path.resolve(process.env.DELIVERY_WORKSPACE_ROOT ?? defaultWorkspace);
 const backend = path.resolve(
-  process.env.DELIVERY_BACKEND_ROOT ?? path.join(workspace, 'backend_delivery'),
+  process.env.DELIVERY_BACKEND_ROOT ?? (process.env.DELIVERY_WORKSPACE_ROOT
+    ? path.join(workspace, 'backend_delivery') : defaultBackend),
 );
 const inventoryPath = path.join(backend, 'docs/http-api-inventory.md');
 const outputPath = path.join(here, 'http-contract.json');
