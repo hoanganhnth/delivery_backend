@@ -166,26 +166,7 @@ public class PromotionService {
     public void collectVoucher(Long principalId, Long userId, String voucherCode) {
         validatePositiveId(principalId, "principalId");
         validatePositiveId(userId, "userId");
-        if (voucherCode == null || voucherCode.isBlank()) {
-            throw new IllegalArgumentException("Voucher code is required");
-        }
-        Voucher voucher = voucherRepository.findByCode(normalizeCode(voucherCode))
-                .orElseThrow(() -> new IllegalArgumentException("Voucher not found"));
-        if (!isCheckoutWalletVoucher(voucher)) {
-            throw new IllegalArgumentException("Voucher is not checkout-eligible");
-        }
-
-        LocalDateTime now = LocalDateTime.now();
-        if (!isApproved(voucher) || !Boolean.TRUE.equals(voucher.getActive()) || voucher.getEndTime().isBefore(now)) {
-            throw new IllegalArgumentException("Voucher is expired or inactive");
-        }
-        if (voucher.getStartTime() != null && now.isBefore(voucher.getStartTime())) {
-            throw new IllegalArgumentException("Voucher is not active yet");
-        }
-
-        if (voucher.getUsedQuantity() >= voucher.getTotalQuantity()) {
-            throw new IllegalArgumentException("Voucher is out of stock");
-        }
+        Voucher voucher = collectableVoucher(voucherCode);
 
         Optional<UserVoucher> existing = principalOwnershipEnforced
                 ? userVoucherRepository.findByUserPrincipalIdAndVoucherId(principalId, voucher.getId())
@@ -215,24 +196,7 @@ public class PromotionService {
     @Transactional
     public void collectVoucher(Long userId, String voucherCode) {
         validatePositiveId(userId, "userId");
-        if (voucherCode == null || voucherCode.isBlank()) {
-            throw new IllegalArgumentException("Voucher code is required");
-        }
-        Voucher voucher = voucherRepository.findByCode(normalizeCode(voucherCode))
-                .orElseThrow(() -> new IllegalArgumentException("Voucher not found"));
-        if (!isCheckoutWalletVoucher(voucher)) {
-            throw new IllegalArgumentException("Voucher is not checkout-eligible");
-        }
-        LocalDateTime now = LocalDateTime.now();
-        if (!isApproved(voucher) || !Boolean.TRUE.equals(voucher.getActive()) || voucher.getEndTime().isBefore(now)) {
-            throw new IllegalArgumentException("Voucher is expired or inactive");
-        }
-        if (voucher.getStartTime() != null && now.isBefore(voucher.getStartTime())) {
-            throw new IllegalArgumentException("Voucher is not active yet");
-        }
-        if (voucher.getUsedQuantity() >= voucher.getTotalQuantity()) {
-            throw new IllegalArgumentException("Voucher is out of stock");
-        }
+        Voucher voucher = collectableVoucher(voucherCode);
         if (userVoucherRepository.findByUserIdAndVoucherId(userId, voucher.getId()).isPresent()) {
             throw new PromotionConflictException("Voucher already collected");
         }
@@ -242,6 +206,16 @@ public class PromotionService {
         } catch (DataIntegrityViolationException ex) {
             throw new PromotionConflictException("Voucher already collected", ex);
         }
+    }
+
+    private Voucher collectableVoucher(String voucherCode) {
+        if (voucherCode == null || voucherCode.isBlank()) {
+            throw new IllegalArgumentException("Voucher code is required");
+        }
+        Voucher voucher = voucherRepository.findByCode(normalizeCode(voucherCode))
+                .orElseThrow(() -> new IllegalArgumentException("Voucher not found"));
+        WalletVoucherPolicy.requireCollectable(voucher, LocalDateTime.now());
+        return voucher;
     }
 
     @Transactional(readOnly = true)
@@ -615,39 +589,6 @@ public class PromotionService {
         }
     }
 
-    private String checkVoucherAvailability(Voucher voucher, CartContextRequest request) {
-        if (!isCheckoutWalletVoucher(voucher)) return "Voucher is not checkout-eligible";
-        if (!isApproved(voucher)) return "Voucher is not approved";
-        if (!Boolean.TRUE.equals(voucher.getActive())) return "Voucher is inactive";
-        LocalDateTime now = LocalDateTime.now();
-        if (voucher.getStartTime() != null && now.isBefore(voucher.getStartTime())) return "Voucher is not active yet";
-        if (voucher.getEndTime() == null || !now.isBefore(voucher.getEndTime())) return "Voucher expired";
-        if (voucher.getUsedQuantity() >= voucher.getTotalQuantity()) return "Out of stock";
-        BigDecimal minOrderValue = voucher.getMinOrderValue() == null ? BigDecimal.ZERO : voucher.getMinOrderValue();
-        if (request.getSubTotal().compareTo(minOrderValue) < 0) {
-            return "Need " + minOrderValue.subtract(request.getSubTotal()) + " more to use";
-        }
-        if (voucher.getScopeType() == Voucher.ScopeType.SHOP
-                && (voucher.getScopeRefId() == null || !voucher.getScopeRefId().equals(request.getShopId()))) {
-            return "Not applicable for this shop";
-        }
-        if (voucher.getScopeType() == Voucher.ScopeType.CATEGORY) {
-            return "Legacy CATEGORY voucher is not checkout-eligible";
-        }
-        try {
-            VoucherLayer layer = VoucherLayerResolver.resolve(voucher);
-            if (layer == VoucherLayer.FREESHIP && voucher.getRewardType() != Voucher.RewardType.FREESHIP) {
-                return "Freeship layer requires a freeship reward";
-            }
-            if (layer != VoucherLayer.FREESHIP && voucher.getRewardType() == Voucher.RewardType.FREESHIP) {
-                return "Freeship reward cannot be used as an item discount";
-            }
-        } catch (IllegalArgumentException invalidLayer) {
-            return invalidLayer.getMessage() == null ? "Voucher layer is invalid" : invalidLayer.getMessage();
-        }
-        return null; // Available
-    }
-
     @Transactional
     public VoucherReservationResponse reserveVoucher(ReserveRequest request) {
         validateReserveRequest(request);
@@ -670,14 +611,8 @@ public class PromotionService {
 
         Voucher voucher = voucherRepository.findByIdForUpdate(request.getVoucherId())
                 .orElseThrow(() -> new IllegalArgumentException("Voucher not found"));
-        String unavailable = checkVoucherAvailability(voucher,
-                CartContextRequest.builder()
-                        .userId(request.getUserId())
-                        .userPrincipalId(request.getUserPrincipalId())
-                        .shopId(request.getRestaurantId())
-                        .subTotal(request.getSubtotal())
-                        .shippingFee(request.getShippingFee())
-                        .build());
+        String unavailable = WalletVoucherPolicy.reservationUnavailableReason(voucher,
+                request.getRestaurantId(), request.getSubtotal(), LocalDateTime.now());
         if (unavailable != null) throw new IllegalArgumentException(unavailable);
 
         BigDecimal discount = calculateDiscount(voucher, request.getSubtotal(), request.getShippingFee());
@@ -834,7 +769,7 @@ public class PromotionService {
                 .map(UserVoucher::getVoucherId)
                 .collect(Collectors.toList());
         return voucherRepository.findAllById(voucherIds).stream()
-                .filter(this::isCheckoutWalletVoucher)
+                .filter(WalletVoucherPolicy::isCheckoutEligible)
                 .toList();
     }
 
@@ -846,13 +781,13 @@ public class PromotionService {
                 userId, UserVoucher.Status.SAVED, PageRequest.of(0, COMPATIBILITY_LIST_LIMIT));
         return voucherRepository.findAllById(userVouchers.stream()
                         .map(UserVoucher::getVoucherId).collect(Collectors.toList())).stream()
-                .filter(this::isCheckoutWalletVoucher)
+                .filter(WalletVoucherPolicy::isCheckoutEligible)
                 .toList();
     }
 
     @Transactional(readOnly = true)
     public List<Voucher> listAllVouchers() {
-        return voucherRepository.findAll(PageRequest.of(0, COMPATIBILITY_LIST_LIMIT)).getContent();
+        return voucherRepository.findByDeletedAtIsNull(PageRequest.of(0, COMPATIBILITY_LIST_LIMIT)).getContent();
     }
 
     @Transactional(readOnly = true)
@@ -884,17 +819,7 @@ public class PromotionService {
         validatePositiveId(adminPrincipalId, "adminPrincipalId");
         Voucher voucher = voucherRepository.findByIdForUpdate(voucherId)
                 .orElseThrow(() -> new IllegalArgumentException("Voucher not found"));
-        if (voucher.getCreatorType() != Voucher.CreatorType.SHOP) {
-            throw new IllegalArgumentException("Only shop vouchers require approval");
-        }
-        if (!"PENDING".equalsIgnoreCase(voucher.getApprovalStatus())) {
-            throw new PromotionConflictException("Voucher is not pending approval");
-        }
-        voucher.setApprovalStatus("APPROVED");
-        voucher.setApprovedByPrincipalId(adminPrincipalId);
-        voucher.setApprovedAt(LocalDateTime.now());
-        voucher.setRejectionReason(null);
-        voucher.setActive(true);
+        VoucherLifecyclePolicy.approve(voucher, adminPrincipalId, LocalDateTime.now());
         return voucherRepository.save(voucher);
     }
 
@@ -904,17 +829,7 @@ public class PromotionService {
         validatePositiveId(adminPrincipalId, "adminPrincipalId");
         Voucher voucher = voucherRepository.findByIdForUpdate(voucherId)
                 .orElseThrow(() -> new IllegalArgumentException("Voucher not found"));
-        if (voucher.getCreatorType() != Voucher.CreatorType.SHOP) {
-            throw new IllegalArgumentException("Only shop vouchers require approval");
-        }
-        if (!"PENDING".equalsIgnoreCase(voucher.getApprovalStatus())) {
-            throw new PromotionConflictException("Voucher is not pending approval");
-        }
-        voucher.setApprovalStatus("REJECTED");
-        voucher.setApprovedByPrincipalId(adminPrincipalId);
-        voucher.setApprovedAt(LocalDateTime.now());
-        voucher.setRejectionReason(reason == null || reason.isBlank() ? "Rejected by admin" : reason.trim());
-        voucher.setActive(false);
+        VoucherLifecyclePolicy.reject(voucher, adminPrincipalId, reason, LocalDateTime.now());
         return voucherRepository.save(voucher);
     }
 
@@ -923,8 +838,7 @@ public class PromotionService {
         validatePositiveId(voucherId, "voucherId");
         Voucher voucher = voucherRepository.findByIdForUpdate(voucherId)
                 .orElseThrow(() -> new IllegalArgumentException("Voucher not found"));
-        if (active && !isApproved(voucher)) throw new PromotionConflictException("Voucher is not approved");
-        voucher.setActive(active);
+        VoucherLifecyclePolicy.setActive(voucher, active);
         return voucherRepository.save(voucher);
     }
 
@@ -938,11 +852,9 @@ public class PromotionService {
         validatePositiveId(id, "voucherId");
         Voucher voucher = voucherRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> new IllegalArgumentException("Voucher not found"));
-        voucher.setActive(false);
-        voucher.setDeletedAt(LocalDateTime.now());
-        voucher.setDeletedByPrincipalId(actorPrincipalId);
-        voucher.setDeletionReason(reason == null || reason.isBlank() ? "deleted_by_request" : reason.trim());
-        voucherRepository.save(voucher);
+        if (VoucherLifecyclePolicy.retire(voucher, actorPrincipalId, reason, LocalDateTime.now())) {
+            voucherRepository.save(voucher);
+        }
     }
 
     private void validateCreateVoucherRequest(CreateVoucherRequest request) {
@@ -1128,44 +1040,6 @@ public class PromotionService {
         return Counter.builder("delivery.identity.legacy.fallback")
                 .tag("service", "promotion").tag("surface", "user_voucher")
                 .register(meterRegistry);
-    }
-
-    private boolean isApproved(Voucher voucher) {
-        return voucher != null && (voucher.getApprovalStatus() == null
-                || "APPROVED".equalsIgnoreCase(voucher.getApprovalStatus()));
-    }
-
-    private boolean isCheckoutWalletVoucher(Voucher voucher) {
-        if (voucher == null || (voucher.getCreatorType() != Voucher.CreatorType.PLATFORM
-                && voucher.getCreatorType() != Voucher.CreatorType.SHOP)) return false;
-        if (voucher.getScopeType() != Voucher.ScopeType.ALL
-                && voucher.getScopeType() != Voucher.ScopeType.SHOP) return false;
-        if ((voucher.getScopeType() == Voucher.ScopeType.ALL && voucher.getScopeRefId() != null)
-                || (voucher.getScopeType() == Voucher.ScopeType.SHOP && voucher.getScopeRefId() == null)) return false;
-        // A wallet voucher must have a finite validity window. Besides being
-        // ineligible for checkout, this guards the collect rail from calling
-        // isBefore on a malformed legacy row with a null end time.
-        if (voucher.getEndTime() == null) return false;
-        if (voucher.getDiscountValue() == null || voucher.getDiscountValue().signum() < 0) return false;
-        if (voucher.getMinOrderValue() != null && voucher.getMinOrderValue().signum() < 0) return false;
-        if (voucher.getMaxDiscountValue() != null && voucher.getMaxDiscountValue().signum() < 0) return false;
-        if (voucher.getTotalQuantity() == null || voucher.getTotalQuantity() < 1
-                || voucher.getUsedQuantity() == null || voucher.getUsedQuantity() < 0) return false;
-        try {
-            VoucherLayer layer = VoucherLayerResolver.resolve(voucher);
-            if (voucher.getCreatorType() == Voucher.CreatorType.SHOP
-                    && (layer != VoucherLayer.SHOP_DISCOUNT
-                    || voucher.getScopeType() != Voucher.ScopeType.SHOP)) return false;
-            if (voucher.getCreatorType() == Voucher.CreatorType.PLATFORM
-                    && layer == VoucherLayer.SHOP_DISCOUNT) return false;
-            if (layer == VoucherLayer.FREESHIP) {
-                return voucher.getRewardType() == Voucher.RewardType.FREESHIP
-                        && voucher.getScopeType() == Voucher.ScopeType.ALL;
-            }
-            return voucher.getRewardType() != Voucher.RewardType.FREESHIP;
-        } catch (IllegalArgumentException invalidLayer) {
-            return false;
-        }
     }
 
     private String normalizeCode(String code) {

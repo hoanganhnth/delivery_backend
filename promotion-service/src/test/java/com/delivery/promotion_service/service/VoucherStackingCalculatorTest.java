@@ -16,6 +16,23 @@ class VoucherStackingCalculatorTest {
     private final VoucherStackingCalculator calculator = new VoucherStackingCalculator();
 
     @Test
+    void deletedVoucherIsExcludedEvenWhenItsActiveFlagIsStillTrue() {
+        Voucher deleted = voucher(11L, "RETIRED", Voucher.CreatorType.PLATFORM,
+                Voucher.RewardType.FIXED, "10000", Voucher.ScopeType.ALL, null, "0");
+        deleted.setDeletedAt(NOW.minusHours(1));
+
+        var result = calculator.calculate(List.of(deleted), 7L, new BigDecimal("100000"),
+                BigDecimal.ZERO, List.of(), VoucherSelectionMode.AUTO, NOW);
+
+        assertThat(result.appliedVouchers()).isEmpty();
+        assertThat(result.unavailableVouchers()).extracting(VoucherStackingCalculator.UnavailableVoucher::reason)
+                .containsExactly("Voucher is retired");
+        assertThatThrownBy(() -> calculator.calculate(List.of(deleted), 7L,
+                new BigDecimal("100000"), BigDecimal.ZERO, List.of(11L), VoucherSelectionMode.MANUAL, NOW))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("unavailable");
+    }
+
+    @Test
     void autoModeChoosesBestThreeLayerCombinationAndAppliesInOrder() {
         Voucher shop = voucher(1L, "SHOP10", Voucher.CreatorType.SHOP,
                 Voucher.RewardType.FIXED, "10000", Voucher.ScopeType.SHOP, 7L, "0");

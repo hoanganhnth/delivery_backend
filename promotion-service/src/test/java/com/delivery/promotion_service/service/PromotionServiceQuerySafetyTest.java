@@ -40,11 +40,33 @@ class PromotionServiceQuerySafetyTest {
     @Mock PromotionOutboxService outboxService;
 
     @Test
+    void bothWalletReadRailsExcludeDeletedVouchers() {
+        PromotionService service = new PromotionService(voucherRepository, userVoucherRepository,
+                voucherGroupRepository, voucherReservationRepository, outboxService);
+        UserVoucher wallet = UserVoucher.builder().userId(7L).userPrincipalId(70L)
+                .voucherId(11L).status(UserVoucher.Status.SAVED).build();
+        Voucher deleted = Voucher.builder().id(11L).creatorType(Voucher.CreatorType.PLATFORM)
+                .rewardType(Voucher.RewardType.FIXED).discountValue(BigDecimal.ONE)
+                .scopeType(Voucher.ScopeType.ALL).layerCode(VoucherLayer.PLATFORM_DISCOUNT.name())
+                .active(false).endTime(LocalDateTime.now().plusDays(1))
+                .totalQuantity(10).usedQuantity(0).deletedAt(LocalDateTime.now().minusHours(1)).build();
+        Pageable limit = Pageable.ofSize(100);
+        when(userVoucherRepository.findByUserIdAndStatus(7L, UserVoucher.Status.SAVED, limit))
+                .thenReturn(List.of(wallet));
+        when(userVoucherRepository.findByPrincipalOrUnbackfilledLegacyAndStatus(
+                70L, 7L, UserVoucher.Status.SAVED, limit)).thenReturn(List.of(wallet));
+        when(voucherRepository.findAllById(List.of(11L))).thenReturn(List.of(deleted));
+
+        assertEquals(List.of(), service.getCollectedVouchers(7L));
+        assertEquals(List.of(), service.getCollectedVouchers(70L, 7L));
+    }
+
+    @Test
     void compatibilityListsCapRepositoryQueriesAtOneHundred() {
         PromotionService service = new PromotionService(
                 voucherRepository, userVoucherRepository, voucherGroupRepository, voucherReservationRepository, outboxService);
         Pageable firstHundred = Pageable.ofSize(100);
-        when(voucherRepository.findAll(firstHundred)).thenReturn(new PageImpl<>(List.of()));
+        when(voucherRepository.findByDeletedAtIsNull(firstHundred)).thenReturn(new PageImpl<>(List.of()));
         when(voucherRepository.findByCreatorTypeAndCreatorId(
                 eq(Voucher.CreatorType.MERCHANT), eq(7L), eq(firstHundred)))
                 .thenReturn(List.of());
@@ -52,7 +74,7 @@ class PromotionServiceQuerySafetyTest {
         assertEquals(List.of(), service.listAllVouchers());
         assertEquals(List.of(), service.listMerchantVouchers(7L));
 
-        verify(voucherRepository).findAll(firstHundred);
+        verify(voucherRepository).findByDeletedAtIsNull(firstHundred);
         verify(voucherRepository).findByCreatorTypeAndCreatorId(
                 Voucher.CreatorType.MERCHANT, 7L, firstHundred);
     }
@@ -134,6 +156,30 @@ class PromotionServiceQuerySafetyTest {
 
         assertThrows(IllegalArgumentException.class, () -> service.collectVoucher(7L, "NOEND"));
 
+        verifyNoInteractions(userVoucherRepository);
+    }
+
+    @Test
+    void bothCollectRailsRejectInactiveVoucherBeforeWalletLookup() {
+        PromotionService service = new PromotionService(
+                voucherRepository, userVoucherRepository, voucherGroupRepository, voucherReservationRepository, outboxService);
+        Voucher voucher = Voucher.builder()
+                .id(11L).active(false)
+                .creatorType(Voucher.CreatorType.PLATFORM)
+                .rewardType(Voucher.RewardType.FIXED)
+                .discountValue(BigDecimal.ONE)
+                .scopeType(Voucher.ScopeType.ALL)
+                .layerCode(VoucherLayer.PLATFORM_DISCOUNT.name())
+                .startTime(LocalDateTime.now().minusHours(1))
+                .endTime(LocalDateTime.now().plusDays(1))
+                .usedQuantity(0).totalQuantity(10)
+                .build();
+        when(voucherRepository.findByCode("INACTIVE")).thenReturn(java.util.Optional.of(voucher));
+
+        assertEquals("Voucher is expired or inactive", assertThrows(IllegalArgumentException.class,
+                () -> service.collectVoucher(7L, "INACTIVE")).getMessage());
+        assertEquals("Voucher is expired or inactive", assertThrows(IllegalArgumentException.class,
+                () -> service.collectVoucher(70L, 7L, "INACTIVE")).getMessage());
         verifyNoInteractions(userVoucherRepository);
     }
 

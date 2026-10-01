@@ -117,6 +117,24 @@ class PromotionControllerAuthorizationTest {
     }
 
     @Test
+    void deletionRecordsTheAuthenticatedPrincipalInsteadOfTheLegacyProfile() {
+        AuthenticatedActor admin = new AuthenticatedActor(42L, 7L, "admin@example.com", Set.of("ADMIN"));
+
+        controller.deleteVoucher(11L, admin);
+
+        verify(promotionService).deleteVoucher(11L, 42L, "deleted_by_request");
+    }
+
+    @Test
+    void deletionRejectsAnAdminWithoutAStablePrincipal() {
+        AuthenticatedActor admin = new AuthenticatedActor(null, 7L, "admin@example.com", Set.of("ADMIN"));
+
+        assertThrows(ResponseStatusException.class, () -> controller.deleteVoucher(11L, admin));
+
+        verifyNoInteractions(promotionService);
+    }
+
+    @Test
     void reserveRequiresInternalCredential() {
         assertThrows(ResponseStatusException.class,
                 () -> controller.reserve(new ReserveRequest(), "wrong-secret"));

@@ -237,6 +237,7 @@ public final class VoucherStackingCalculator {
     }
 
     private String availabilityReason(Voucher voucher, Long restaurantId, BigDecimal subtotal, LocalDateTime now) {
+        if (voucher.getDeletedAt() != null) return "Voucher is retired";
         if (voucher.getCreatorType() == null) return "Voucher ownership is invalid";
         if (voucher.getRewardType() == null) return "Voucher reward type is invalid";
         if (voucher.getScopeType() == null) return "Voucher scope is invalid";

@@ -188,7 +188,8 @@ public class PromotionController {
             @PathVariable Long id,
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireRole(actor, "ADMIN");
-        promotionService.deleteVoucher(id);
+        requirePrincipal(actor);
+        promotionService.deleteVoucher(id, actor.getPrincipalId(), "deleted_by_request");
         return ResponseEntity.ok(new BaseResponse<>(1, null));
     }
 

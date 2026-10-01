@@ -1,9 +1,12 @@
 package com.delivery.promotion_service.service;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
+import com.delivery.observability.CorrelationContext;
+import com.delivery.observability.CorrelationId;
 
 import java.util.Map;
 
@@ -16,10 +19,16 @@ public class RestaurantOwnershipClient {
     private final RestClient client;
     private final String internalSecret;
 
+    @Autowired
     public RestaurantOwnershipClient(
             @Value("${restaurant.service.url:http://restaurant-service:8083}") String restaurantUrl,
             @Value("${app.internal.secret:}") String internalSecret) {
         this.client = RestClient.builder().baseUrl(restaurantUrl).build();
+        this.internalSecret = internalSecret;
+    }
+
+    RestaurantOwnershipClient(RestClient client, String internalSecret) {
+        this.client = client;
         this.internalSecret = internalSecret;
     }
 
@@ -37,6 +46,7 @@ public class RestaurantOwnershipClient {
                         .queryParam("legacyOwnerId", legacyOwnerId)
                         .build(restaurantId, ownerPrincipalId))
                 .header("Internal-Token", internalSecret)
+                .header(CorrelationId.HEADER, CorrelationContext.currentOrCreate())
                 .retrieve()
                 .onStatus(HttpStatusCode::isError,
                         (request, response) -> { throw new IllegalStateException("Restaurant ownership check failed"); })
@@ -48,7 +58,13 @@ public class RestaurantOwnershipClient {
     }
 
     private Integer number(Object value) {
-        if (value instanceof Number number) return number.intValue();
+        if (value instanceof Number number) {
+            try {
+                return new java.math.BigDecimal(number.toString()).intValueExact();
+            } catch (ArithmeticException | NumberFormatException invalid) {
+                return null;
+            }
+        }
         return value == null ? null : Integer.valueOf(value.toString());
     }
 }
