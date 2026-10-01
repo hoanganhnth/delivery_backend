@@ -16,6 +16,7 @@ class Phase8MetricsTest {
         metrics.staleEventRejected();
         metrics.reservationConflict();
         metrics.softDeleteFailure();
+        metrics.projectionReplayFailure();
 
         assertThat(registry.counter("delivery.tombstones", "service", "search", "action", "emitted").count())
                 .isEqualTo(1);
@@ -26,6 +27,8 @@ class Phase8MetricsTest {
         assertThat(registry.counter("delivery.reservations", "service", "search", "outcome", "conflict").count())
                 .isEqualTo(1);
         assertThat(registry.counter("delivery.soft_deletes", "service", "search", "outcome", "failure").count())
+                .isEqualTo(1);
+        assertThat(registry.counter("delivery.projections", "service", "search", "outcome", "replay_failure").count())
                 .isEqualTo(1);
     }
 }

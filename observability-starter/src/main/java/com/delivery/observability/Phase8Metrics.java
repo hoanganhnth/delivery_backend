@@ -11,6 +11,7 @@ public final class Phase8Metrics {
     private final Counter staleEventRejected;
     private final Counter reservationConflict;
     private final Counter softDeleteFailure;
+    private final Counter projectionReplayFailure;
 
     public Phase8Metrics(MeterRegistry registry, String service) {
         Objects.requireNonNull(registry, "registry");
@@ -22,6 +23,7 @@ public final class Phase8Metrics {
         staleEventRejected = counter(registry, "delivery.events", service, "stale_rejected");
         reservationConflict = counter(registry, "delivery.reservations", service, "conflict");
         softDeleteFailure = counter(registry, "delivery.soft_deletes", service, "failure");
+        projectionReplayFailure = counter(registry, "delivery.projections", service, "replay_failure");
     }
 
     public void tombstoneEmitted() { tombstoneEmitted.increment(); }
@@ -29,6 +31,7 @@ public final class Phase8Metrics {
     public void staleEventRejected() { staleEventRejected.increment(); }
     public void reservationConflict() { reservationConflict.increment(); }
     public void softDeleteFailure() { softDeleteFailure.increment(); }
+    public void projectionReplayFailure() { projectionReplayFailure.increment(); }
 
     private static Counter counter(MeterRegistry registry, String name, String service, String outcome) {
         String tag = name.equals("delivery.tombstones") ? "action" : "outcome";

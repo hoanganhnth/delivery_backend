@@ -3,7 +3,9 @@ package com.delivery.search_service.consumer;
 import com.delivery.search.contracts.EntitySyncEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
-import lombok.RequiredArgsConstructor;
+import com.delivery.observability.Phase8Metrics;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import org.springframework.beans.factory.annotation.Autowired;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
@@ -17,19 +19,37 @@ import java.util.TreeMap;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 @ConditionalOnProperty(name = "app.elasticsearch.enabled", havingValue = "true")
 public class ElasticsearchSyncConsumer {
 
     private final EntitySyncCheckpointStore checkpointStore;
     private final SearchProjectionWriter projectionWriter;
     private final ObjectMapper objectMapper;
+    private final Phase8Metrics metrics;
+
+    @Autowired
+    public ElasticsearchSyncConsumer(EntitySyncCheckpointStore checkpointStore,
+                                     SearchProjectionWriter projectionWriter,
+                                     ObjectMapper objectMapper, Phase8Metrics metrics) {
+        this.checkpointStore = checkpointStore;
+        this.projectionWriter = projectionWriter;
+        this.objectMapper = objectMapper;
+        this.metrics = java.util.Objects.requireNonNull(metrics);
+    }
+
+    /** Compatibility for focused fixtures; production uses the shared registry bean. */
+    public ElasticsearchSyncConsumer(EntitySyncCheckpointStore checkpointStore,
+                                     SearchProjectionWriter projectionWriter, ObjectMapper objectMapper) {
+        this(checkpointStore, projectionWriter, objectMapper,
+                new Phase8Metrics(new SimpleMeterRegistry(), "search-service"));
+    }
 
     @KafkaListener(topics = "entity-sync", groupId = "${spring.kafka.consumer.group-id}")
     public void consumeEntitySyncEvent(EntitySyncEvent event) {
         validateEvent(event);
         EntitySyncCheckpointStore.ClaimResult claim = checkpointStore.claim(event, fingerprint(event));
         if (claim == EntitySyncCheckpointStore.ClaimResult.STALE) {
+            metrics.staleEventRejected();
             log.info("Skipping stale entity-sync event {} for {}:{}",
                     event.getEventId(), event.getEntityType(), event.getEntityId());
             return;
@@ -39,8 +59,11 @@ public class ElasticsearchSyncConsumer {
 
         try {
             projectionWriter.apply(event);
+            if ("DELETE".equalsIgnoreCase(event.getAction())) metrics.tombstoneApplied();
         } catch (Exception e) {
-            log.error("Error processing sync event: {}", event, e);
+            metrics.projectionReplayFailure();
+            log.error("Search projection failed for {}:{} event {}",
+                    event.getEntityType(), event.getEntityId(), event.getEventId(), e);
             throw new IllegalStateException("Failed to synchronize search entity", e);
         }
     }
