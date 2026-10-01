@@ -12,6 +12,31 @@
 
 ## Resumed closure sequence — 2026-10-01
 
+### Remaining worktree cleanup — 2026-10-02
+
+User subsequently requested removing the remaining redundant worktrees.
+All five remaining HEADs were rechecked as ancestors of main, and all indexes
+were free of staged changes. Before removal, source archives and generated
+binary diffs preserved their distinct tracked edits, deletions, untracked
+files and non-build ignored files. Archive listings and file SHA-256 comparisons
+verified every dirty/non-build ignored file; Platform's 20 ignored non-build
+files were included. Only generated target directories and Git registration
+files were excluded from the recovery archives.
+
+Recovery material and recorded original HEADs are now stored persistently at
+`delivery/.worktree-backups/backend-remaining-OG2wfp/README.md`. The containing
+directory is owner-only; archives are owner-readable/writable only. Restore
+into a new checkout as described there, never over unrelated dirty main files.
+This preserves old experiments without pretending they were integrated.
+
+Removed Kafka Notification, Kafka Order, Phase 5 BFF/Shipper, Phase 6 and
+Platform modules worktrees and their three remaining merged named branches.
+The prior selective-cleanup checkpoint's retained worktrees have therefore
+been superseded: backend now has only its main checkout and main branch.
+The other three project repositories were inspected and each also has only its
+primary main checkout. No application source fix, push or deployment occurred;
+the known test failures and incomplete phase requirements remain unchanged.
+
 ### Merge audit and selective cleanup — 2026-10-02
 
 User requested verifying that everything was merged and deleting integrated
