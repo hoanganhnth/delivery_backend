@@ -22,6 +22,52 @@ import static org.mockito.Mockito.when;
 class SimulationRecoveryServiceTest {
     private final ObjectMapper mapper = new ObjectMapper();
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"0", "-1", "1.5", "9223372036854775808", "null"})
+    void invalidJournalDeliveryIdentityCannotTriggerActorBinding(String id) throws Exception {
+        UUID runId = UUID.randomUUID();
+        var runs = mock(SimulationRunRepository.class);
+        var journal = mock(SimulationRunJournalRepository.class);
+        var gateway = mock(GatewayClient.class);
+        var actors = mock(SimulationActorPoolClient.class);
+        when(runs.findById(runId)).thenReturn(java.util.Optional.of(new SimulationRun(runId, "ABORTED",
+                Instant.now(), Instant.now(), mapper.writeValueAsString(managedScenario(UUID.randomUUID())))));
+        when(journal.findByRunIdOrderByIdAsc(runId)).thenReturn(List.of(new SimulationRunJournalEntry(
+                runId, Instant.now(), "RUNNER", "legacy", "{\"deliveryId\":" + id + "}")));
+        var result = new SimulationRecoveryService(mapper, runs, journal, gateway, actors).reconcile(runId);
+        assertThat(result.reconciled()).isFalse();
+        assertThat(result.deliveryIds()).isEmpty();
+        org.mockito.Mockito.verifyNoInteractions(gateway, actors);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"RUNNING", "PAUSED", "PROVISIONING", "PASSED", "PARTIAL"})
+    void refusesNonRecoverableRunBeforeActorOrGatewaySideEffects(String status) {
+        UUID runId = UUID.randomUUID();
+        var runs = mock(SimulationRunRepository.class);
+        var journal = mock(SimulationRunJournalRepository.class);
+        var gateway = mock(GatewayClient.class);
+        var actors = mock(SimulationActorPoolClient.class);
+        when(runs.findById(runId)).thenReturn(java.util.Optional.of(new SimulationRun(
+                runId, status, Instant.now(), Instant.now(), "{}")));
+        var service = new SimulationRecoveryService(mapper, runs, journal, gateway, actors);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.reconcile(runId))
+                .isInstanceOf(IllegalStateException.class);
+        org.mockito.Mockito.verifyNoInteractions(journal, gateway, actors);
+    }
+
+    @Test
+    void nullRunIdIsRejectedBeforeAnyStorageAccess() {
+        var runs = mock(SimulationRunRepository.class);
+        var journal = mock(SimulationRunJournalRepository.class);
+        var gateway = mock(GatewayClient.class);
+        var actors = mock(SimulationActorPoolClient.class);
+        var service = new SimulationRecoveryService(mapper, runs, journal, gateway, actors);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.reconcile(null))
+                .isInstanceOf(IllegalArgumentException.class);
+        org.mockito.Mockito.verifyNoInteractions(runs, journal, gateway, actors);
+    }
+
     @Test
     void releasesFencedActorsOnlyAfterEveryPersistedDeliveryIsTerminal() throws Exception {
         UUID runId = UUID.randomUUID();
@@ -45,7 +91,7 @@ class SimulationRecoveryServiceTest {
                             com.delivery.identity.contracts.SimulationContext.ExecutionMode.SIMULATION,
                             runId, cohortId, 20L + principal), "token-" + principal);
         });
-        when(gateway.get(eq("/api/deliveries/order/27"), eq("token-11"), any()))
+        when(gateway.get(eq("/api/deliveries/27"), eq("token-11"), any()))
                 .thenReturn(mapper.readTree("{\"data\":{\"status\":\"DELIVERED\"}}"));
 
         SimulationRecoveryService service = new SimulationRecoveryService(
@@ -55,6 +101,8 @@ class SimulationRecoveryServiceTest {
 
         assertThat(result.reconciled()).isTrue();
         assertThat(result.deliveryIds()).containsExactly(27L);
+        verify(gateway).get(eq("/api/deliveries/27"), eq("token-11"), any());
+        verify(gateway, never()).get(eq("/api/deliveries/order/27"), any(), any());
         verify(actors).unbind(11L, runId, 31L);
         verify(actors).unbind(12L, runId, 32L);
         verify(actors).unbind(13L, runId, 33L);
@@ -81,7 +129,7 @@ class SimulationRecoveryServiceTest {
                             com.delivery.identity.contracts.SimulationContext.ExecutionMode.SIMULATION,
                             runId, cohortId, 40L + principal), "token-" + principal);
         });
-        when(gateway.get(eq("/api/deliveries/order/27"), eq("token-11"), any()))
+        when(gateway.get(eq("/api/deliveries/27"), eq("token-11"), any()))
                 .thenReturn(mapper.readTree("{\"data\":{\"status\":\"DELIVERING\"}}"));
 
         var result = new SimulationRecoveryService(mapper, runs, journal, gateway, actors).reconcile(runId);

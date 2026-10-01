@@ -45,6 +45,7 @@ public class SimulationService {
 
     private final SimulationRunRepository runRepository;
     private final SimulationLeaseService leaseService;
+    private final SimulationLeaseCoordinator leaseCoordinator;
     private final SimulationActorPoolClient actorPoolClient;
     private final SimulationRunJournalService journalService;
     private final Map<String, List<SimulationActorLease>> runLeases = new ConcurrentHashMap<>();
@@ -94,6 +95,7 @@ public class SimulationService {
         this.shadowAlgorithmComparator = new ShadowAlgorithmComparator(objectMapper);
         this.runRepository = runRepository;
         this.leaseService = leaseService;
+        this.leaseCoordinator = new SimulationLeaseCoordinator(leaseService, runs, runLeases);
         this.actorPoolClient = actorPoolClient;
         this.journalService = journalService;
         this.faultInjection = faultInjection;
@@ -351,9 +353,11 @@ public class SimulationService {
 
     private void quarantineRunActors(SimulationRunState state) {
         if (leaseService != null) {
-            List<SimulationActorLease> leases = runLeases.remove(state.getRunId());
-            if (leases != null) leases.forEach(lease ->
-                    leaseService.quarantine(lease.getLeaseId(), lease.getFencingToken()));
+            List<SimulationActorLease> leases = runLeases.get(state.getRunId());
+            if (leases != null) {
+                leases.forEach(lease -> leaseService.quarantine(lease.getLeaseId(), lease.getFencingToken()));
+                runLeases.remove(state.getRunId(), leases);
+            }
         }
         // Deliberately retain Auth's active binding. A later manual repair must
         // prove Delivery is terminal before calling the fenced unbind endpoint.
@@ -523,26 +527,13 @@ public class SimulationService {
     }
 
     private void releaseLeases(String runId) {
-        if (leaseService == null) return;
-        List<SimulationActorLease> leases = runLeases.remove(runId);
-        if (leases != null) leases.forEach(lease -> leaseService.releaseOrQuarantine(lease.getLeaseId(), lease.getFencingToken()));
+        leaseCoordinator.release(runId);
     }
 
     /** Keep every claimed actor alive; a failed heartbeat fences the run. */
     @Scheduled(fixedDelayString = "${simulator.lease-heartbeat-delay-ms:5000}")
     void heartbeatLeases() {
-        if (leaseService == null) return;
-        for (Map.Entry<String, List<SimulationActorLease>> entry : runLeases.entrySet()) {
-            SimulationRunState state = runs.get(entry.getKey());
-            if (state == null || state.isTerminal()) continue;
-            for (SimulationActorLease lease : entry.getValue()) {
-                if (!leaseService.renew(lease.getLeaseId(), lease.getFencingToken())) {
-                    state.abort();
-                    state.addEvent("LEASE", "Lease shipper hết hạn", "Run bị dừng để tránh worker stale gửi action", "ERROR");
-                    break;
-                }
-            }
-        }
+        leaseCoordinator.heartbeat();
     }
 
     @Scheduled(fixedDelayString = "${simulator.run-expiry-check-delay-ms:10000}")
@@ -585,6 +576,7 @@ public class SimulationService {
         ObjectNode previewItem = previewItems.addObject();
         previewItem.put("menuItemId", restaurant.path("menuItemId").asLong());
         previewItem.put("quantity", Math.max(1, customer.path("itemQuantity").asInt(1)));
+        checkControl(state);
         state.addEvent("GATEWAY", "Khách lấy checkout quote", "POST /api/orders/checkout-preview", "INFO");
         JsonNode quoteResponse = data(gateway.post("/api/orders/checkout-preview", customerToken,
                 preview, state.getCorrelationId()));
@@ -594,6 +586,7 @@ public class SimulationService {
             request.put("quoteId", quoteId);
             createHeaders.put("Idempotency-Key", UUID.randomUUID().toString());
         }
+        checkControl(state);
         state.addEvent("GATEWAY", "Khách tạo đơn COD", "POST /api/orders", "INFO");
         JsonNode orderResponse = data(gateway.postWithHeaders("/api/orders", customerToken, request,
                 state.getCorrelationId(), createHeaders));
@@ -636,6 +629,7 @@ public class SimulationService {
         ObjectNode request = objectMapper.createObjectNode();
         request.put("restaurantId", restaurant.path("id").asLong());
         request.put("estimatedPrepTime", Math.max(1, restaurant.path("prepTimeMinutes").asInt(10)));
+        checkControl(state);
         state.addEvent("GATEWAY", "Nhà hàng xác nhận đơn", "POST /api/restaurants/orders/{orderId}/confirm", "INFO");
         gateway.post("/api/restaurants/orders/" + state.getOrderId() + "/confirm",
                 ownerToken, request, state.getCorrelationId());
@@ -760,6 +754,7 @@ public class SimulationService {
             action.put("estimatedPickupTime", 5);
             action.put("currentLat", number(shipper, "currentLat", number(shipper, "initialLat", 0)));
             action.put("currentLng", number(shipper, "currentLng", number(shipper, "initialLng", 0)));
+            checkControl(state);
             gateway.post("/api/deliveries/accept", token, action, state.getCorrelationId());
 
             if ("REJECT_AFTER_DELAY".equals(behavior)) {
@@ -814,6 +809,7 @@ public class SimulationService {
             ObjectNode reject = objectMapper.createObjectNode();
             reject.put("batchId", response.path("batchId").asText());
             reject.put("reason", "Scenario Lab configured batch rejection");
+            checkControl(state);
             gateway.post("/api/deliveries/batch/reject", token, reject, state.getCorrelationId());
             state.updateShipper(id, "BATCH_REJECTED", true, null, null);
             state.updateCandidate(id, "REJECTED", "Shipper từ chối batch offer qua API thật");
@@ -824,6 +820,7 @@ public class SimulationService {
             accept.put("batchId", response.path("batchId").asText());
             accept.put("currentLat", number(shipper, "currentLat", number(shipper, "initialLat", 0)));
             accept.put("currentLng", number(shipper, "currentLng", number(shipper, "initialLng", 0)));
+            checkControl(state);
             gateway.post("/api/deliveries/batch/accept", token, accept, state.getCorrelationId());
             state.updateShipper(id, "BATCH_ACCEPTED", true, null, null);
             state.setAssignedShipperId(id);
@@ -851,6 +848,7 @@ public class SimulationService {
         if ("CANCEL_AFTER_ACCEPT".equals(behavior)
                 && state.markTriggerFired("cancel-assignment:" + assignedId)) {
             sleepControlled(state, Math.max(0, Math.round(number(shipper, "reactionDelaySeconds", 2))) * 1000);
+            checkControl(state);
             String token = requiredToken(shipper, "token", "shipper " + assignedId);
             ObjectNode request = objectMapper.createObjectNode();
             request.put("orderId", state.getOrderId());
@@ -899,6 +897,7 @@ public class SimulationService {
 
     private void transitionDelivery(SimulationRunState state, String token, String nextStatus) {
         if (state.getDeliveryId() == null) return;
+        checkControl(state);
         state.addEvent("GATEWAY", "Cập nhật delivery " + nextStatus,
                 "PUT /api/deliveries/" + state.getDeliveryId() + "/status?status=" + nextStatus, "INFO");
         gateway.put("/api/deliveries/" + state.getDeliveryId() + "/status?status=" + nextStatus,
@@ -954,6 +953,7 @@ public class SimulationService {
         // are idempotent snapshots, so a 429 is safe to retry with bounded
         // exponential backoff instead of aborting an otherwise valid run.
         for (int attempt = 0; ; attempt++) {
+            checkControl(state);
             try {
                 gateway.post("/api/tracking/shipper-locations/update", token, request, state.getCorrelationId());
                 break;
@@ -980,16 +980,13 @@ public class SimulationService {
         state.setOrderStatus(text(order, "status", state.getOrderStatus()));
         try {
             JsonNode delivery = data(gateway.get("/api/deliveries/order/" + state.getOrderId(), customerToken, state.getCorrelationId()));
-            if (delivery != null && delivery.isObject() && !delivery.isNull()) {
-                long deliveryId = delivery.path("id").asLong(delivery.path("deliveryId").asLong(-1));
-                if (deliveryId > 0) {
-                    state.setDelivery(deliveryId, text(delivery, "status", state.getDeliveryStatus()));
+            SimulationDeliverySnapshot.parse(delivery, state.getRawScenario(), state.getDeliveryStatus()).ifPresent(snapshot -> {
+                if (snapshot.deliveryId() > 0) {
+                    state.setDelivery(snapshot.deliveryId(), snapshot.status());
                 }
-                String offered = canonicalShipperId(state, text(delivery, "offeredShipperId", ""));
-                String assigned = canonicalShipperId(state, text(delivery, "shipperId", ""));
-                if (!offered.isBlank()) state.setActiveOfferShipperId(offered);
-                if (!assigned.isBlank() && !"null".equals(assigned)) state.setAssignedShipperId(assigned);
-            }
+                if (!snapshot.offeredShipper().isBlank()) state.setActiveOfferShipperId(snapshot.offeredShipper());
+                if (!snapshot.assignedShipper().isBlank()) state.setAssignedShipperId(snapshot.assignedShipper());
+            });
         } catch (GatewayClient.GatewayException exception) {
             if (exception.getStatus() != 404 && !isTransientRateLimit(exception)) throw exception;
         }
@@ -1016,6 +1013,7 @@ public class SimulationService {
             if (!state.markTriggerFired(key)) continue;
             long delay = Math.max(0, trigger.path("delaySecondsAfterStage").asLong(0));
             sleepControlled(state, delay * 1000);
+            checkControl(state);
             if ("CUSTOMER_CANCEL".equals(type)) {
                 ObjectNode request = objectMapper.createObjectNode();
                 request.put("reason", "Scenario Lab configured customer cancellation");
@@ -1069,35 +1067,17 @@ public class SimulationService {
             String id = text(configured, "id", "assertion-" + (++assertionIndex));
             String expectedTerminal = text(configured, "expectedTerminalState", "");
             String expectedShipper = text(configured, "expectedShipperId", "");
-            if (configured.has("expectedLedgerCount")) {
-                state.assertion(id, "SKIPPED", "Ledger observer chưa được bật trong MVP runner");
-                hasSkipped = true;
-                continue;
-            }
-            boolean terminalMatches = expectedTerminal.equals(terminal)
-                    // Restaurant rejection is represented canonically as
-                    // CANCELLED by OrderStatus.fromExternal; keep the UI's
-                    // human-facing REJECTED expectation compatible with that
-                    // durable state.
-                    || ("REJECTED".equals(expectedTerminal) && "CANCELLED".equals(terminal));
-            if (!terminalMatches) {
-                state.assertion(id, "FAILED", "Actual terminal=" + terminal + ", expected=" + expectedTerminal);
-                hasFailure = true;
-            } else if (!expectedShipper.isBlank() && !expectedShipper.equals(assigned)) {
-                state.assertion(id, "FAILED", "Actual shipper=" + assigned + ", expected=" + expectedShipper);
-                hasFailure = true;
-            } else {
-                state.assertion(id, "PASSED", "Verified through Gateway state polling: " + terminal);
-            }
+            var result = SimulationAssertionPolicy.evaluate(terminal, assigned, expectedTerminal,
+                    expectedShipper, configured.has("expectedLedgerCount"));
+            state.assertion(id, result.status(), result.actualValue());
+            hasFailure |= "FAILED".equals(result.status());
+            hasSkipped |= "SKIPPED".equals(result.status());
         }
-        if (hasFailure) {
-            state.setStatus("FAILED");
-        } else if (hasSkipped) {
-            state.setStatus("PARTIAL");
+        String outcome = SimulationAssertionPolicy.runOutcome(hasFailure, hasSkipped);
+        state.setStatus(outcome);
+        if ("PARTIAL".equals(outcome)) {
             state.addEvent("ASSERTION", "Scenario hoàn tất một phần",
                     "Có assertion cần observer ledger/Kafka chưa được bật", "WARNING");
-        } else {
-            state.setStatus("PASSED");
         }
     }
 
@@ -1301,17 +1281,6 @@ public class SimulationService {
             if (id.equals(text(shipper, "id", ""))) return shipper;
         }
         return null;
-    }
-
-    private String canonicalShipperId(SimulationRunState state, String rawId) {
-        if (rawId == null || rawId.isBlank() || "null".equals(rawId)) return "";
-        for (JsonNode shipper : state.getRawScenario().path("shippers")) {
-            if (rawId.equals(text(shipper, "id", ""))) return rawId;
-            if (shipper.path("userId").asText("").equals(rawId)) {
-                return text(shipper, "id", rawId);
-            }
-        }
-        return rawId;
     }
 
     private String stageFor(SimulationRunState state) {

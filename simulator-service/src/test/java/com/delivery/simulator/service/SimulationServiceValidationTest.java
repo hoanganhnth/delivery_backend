@@ -19,6 +19,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 class SimulationServiceValidationTest {
 
@@ -129,6 +130,27 @@ class SimulationServiceValidationTest {
         assertThatThrownBy(() -> service.validate(validScenario()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("không hợp lệ hoặc không an toàn");
+    }
+
+    @Test
+    void startRejectsProductionTargetBeforeActorBindingJournalOrGatewayCall() {
+        properties.setManagedActorPoolRequired(true);
+        properties.setAllowNonLocalTargets(true);
+        properties.setGatewayBaseUrl("https://production.example.test");
+        GatewayClient gateway = mock(GatewayClient.class);
+        SimulationRunRepository runs = mock(SimulationRunRepository.class);
+        SimulationActorPoolClient actors = mock(SimulationActorPoolClient.class);
+        SimulationRunJournalService journal = mock(SimulationRunJournalService.class);
+        SimulationService guarded = new SimulationService(objectMapper, properties, gateway,
+                runs, mock(SimulationLeaseService.class), actors, journal, new GatewayFaultInjection());
+        try {
+            assertThatThrownBy(() -> guarded.start(managedActorScenario()))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("không hợp lệ hoặc không an toàn");
+            verifyNoInteractions(gateway, runs, actors, journal);
+        } finally {
+            guarded.shutdown();
+        }
     }
 
     @Test
