@@ -6,7 +6,9 @@ import com.delivery.livestream_service.entity.LivestreamProduct;
 import com.delivery.livestream_service.enums.LivestreamStatus;
 import com.delivery.livestream_service.repository.LivestreamProductRepository;
 import com.delivery.livestream_service.repository.LivestreamRepository;
+import com.delivery.livestream_service.repository.LivestreamCheckoutReceiptRepository;
 import com.delivery.livestream_service.service.LivestreamCheckoutQuoteService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -24,7 +26,8 @@ class LivestreamOrderContextContractTest {
     void createsVersionedContextWithPinnedPriceAndCorrelation() {
         var rooms = mock(LivestreamRepository.class);
         var products = mock(LivestreamProductRepository.class);
-        var service = new LivestreamCheckoutQuoteService(rooms, products);
+        var receipts = mock(LivestreamCheckoutReceiptRepository.class);
+        var service = new LivestreamCheckoutQuoteService(rooms, products, receipts, new ObjectMapper());
         UUID streamId = UUID.randomUUID();
         var room = new Livestream();
         room.setId(streamId); room.setRestaurantId(42L); room.setSellerId(7L); room.setStatus(LivestreamStatus.LIVE);
@@ -34,6 +37,8 @@ class LivestreamOrderContextContractTest {
         when(rooms.findById(streamId)).thenReturn(Optional.of(room));
         when(products.findByLivestreamIdAndIsPinnedTrueAndProductIdIn(eq(streamId), eq(List.of(10L))))
                 .thenReturn(List.of(product));
+        when(receipts.findByActorPrincipalIdAndIdempotencyKey(123L, "idem-1")).thenReturn(Optional.empty());
+        when(receipts.saveAndFlush(org.mockito.ArgumentMatchers.any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         var request = new LivestreamCheckoutQuoteRequest();
         request.setLivestreamId(streamId); request.setRestaurantId(42L); request.setProductIds(List.of(10L));

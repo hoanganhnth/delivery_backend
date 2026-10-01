@@ -8,7 +8,9 @@ import com.delivery.livestream_service.exception.InvalidLivestreamStatusExceptio
 import com.delivery.livestream_service.exception.UnauthorizedLivestreamAccessException;
 import com.delivery.livestream_service.repository.LivestreamProductRepository;
 import com.delivery.livestream_service.repository.LivestreamRepository;
+import com.delivery.livestream_service.repository.LivestreamCheckoutReceiptRepository;
 import org.junit.jupiter.api.Test;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -24,7 +26,8 @@ import static org.mockito.Mockito.when;
 class LivestreamCheckoutQuoteServiceTest {
     private final LivestreamRepository rooms = mock(LivestreamRepository.class);
     private final LivestreamProductRepository products = mock(LivestreamProductRepository.class);
-    private final LivestreamCheckoutQuoteService service = new LivestreamCheckoutQuoteService(rooms, products);
+    private final LivestreamCheckoutReceiptRepository receipts = mock(LivestreamCheckoutReceiptRepository.class);
+    private final LivestreamCheckoutQuoteService service = new LivestreamCheckoutQuoteService(rooms, products, receipts, new ObjectMapper());
 
     @Test
     void returnsOnlyRequestedProductsThatAreCurrentlyPinned() {

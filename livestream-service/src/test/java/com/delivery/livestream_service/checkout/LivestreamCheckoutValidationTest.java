@@ -3,7 +3,9 @@ package com.delivery.livestream_service.checkout;
 import com.delivery.livestream_service.dto.request.LivestreamCheckoutQuoteRequest;
 import com.delivery.livestream_service.repository.LivestreamProductRepository;
 import com.delivery.livestream_service.repository.LivestreamRepository;
+import com.delivery.livestream_service.repository.LivestreamCheckoutReceiptRepository;
 import com.delivery.livestream_service.service.LivestreamCheckoutQuoteService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -35,12 +37,13 @@ class LivestreamCheckoutValidationTest {
     void rejectsInvalidScopeBeforeRepositoryAccess(LivestreamCheckoutQuoteRequest request) {
         var rooms = mock(LivestreamRepository.class);
         var products = mock(LivestreamProductRepository.class);
-        var service = new LivestreamCheckoutQuoteService(rooms, products);
+        var receipts = mock(LivestreamCheckoutReceiptRepository.class);
+        var service = new LivestreamCheckoutQuoteService(rooms, products, receipts, new ObjectMapper());
 
         assertThatThrownBy(() -> service.orderContext(request, 123L, "correlation", "key"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Invalid livestream checkout quote scope");
-        verifyNoInteractions(rooms, products);
+        verifyNoInteractions(rooms, products, receipts);
     }
 
     private static LivestreamCheckoutQuoteRequest scope(UUID stream, Long restaurant, List<Long> products) {
