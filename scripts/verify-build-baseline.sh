@@ -21,6 +21,7 @@ modules=(
   saga-orchestrator-service
   tracking-service
   match-service
+  routing/boot
   livestream-service
   settlement-service
   flashsale-service

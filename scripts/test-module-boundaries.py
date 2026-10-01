@@ -102,6 +102,36 @@ class ServiceBoundaryTest(unittest.TestCase):
         self.assertEqual(len(errors), 1)
         self.assertIn("forbidden core import", errors[0])
 
+    def test_relocated_core_is_still_checked(self):
+        module = self.root / "routing/domain"
+        source = module / "src/main/java/Route.java"
+        source.parent.mkdir(parents=True)
+        source.write_text("import org.springframework.context.ApplicationContext;")
+        (module / "pom.xml").write_text(
+            '<project xmlns="http://maven.apache.org/POM/4.0.0">'
+            '<parent><groupId>com.delivery</groupId><artifactId>delivery-build-parent</artifactId>'
+            '</parent><artifactId>routing-domain</artifactId><properties>'
+            '<delivery.coverage.line.minimum>0.85</delivery.coverage.line.minimum>'
+            '<delivery.coverage.branch.minimum>0.85</delivery.coverage.branch.minimum>'
+            '</properties></project>'
+        )
+        self.assertTrue(any("forbidden core import" in error
+                            for error in boundaries.verify(self.root)))
+
+    def test_relocated_http_adapter_cannot_import_foreign_service(self):
+        self.source("routing/infrastructure", "import com.delivery.order_service.Order;")
+        errors = boundaries.verify_cross_service_imports(self.root)
+        self.assertEqual(len(errors), 1)
+
+    def test_relocated_boot_cannot_depend_on_foreign_service(self):
+        pom = self.root / "routing/boot/pom.xml"
+        pom.parent.mkdir(parents=True)
+        pom.write_text('<project xmlns="http://maven.apache.org/POM/4.0.0">'
+                       '<artifactId>routing-service</artifactId><dependencies><dependency>'
+                       '<groupId>com.delivery</groupId><artifactId>order-service</artifactId>'
+                       '</dependency></dependencies></project>')
+        self.assertEqual(len(boundaries.verify_cross_service_dependencies(self.root)), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

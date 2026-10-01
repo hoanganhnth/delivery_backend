@@ -29,10 +29,6 @@
         <module>modules/restaurant/restaurant-application-api</module>
         <module>modules/restaurant/restaurant-application</module>
         <module>modules/restaurant/restaurant-infrastructure</module>
-        <module>modules/routing/routing-domain</module>
-        <module>modules/routing/routing-application-api</module>
-        <module>modules/routing/routing-application</module>
-        <module>modules/routing/routing-infrastructure</module>
         <module>modules/tracking/tracking-domain</module>
         <module>modules/tracking/tracking-application-api</module>
         <module>modules/tracking/tracking-application</module>
@@ -81,7 +77,7 @@
         <module>saga-orchestrator-service</module>
         <module>tracking-service</module>
         <module>match-service</module>
-        <module>routing-service</module>
+        <module>routing</module>
         <module>livestream-service</module>
         <module>settlement-service</module>
         <module>flashsale-service</module>

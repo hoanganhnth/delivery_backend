@@ -20,6 +20,7 @@ import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 import { parseHttpInventory } from './http-api-inventory-lib.mjs';
+import { serviceForSource } from './backend-source-layout.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 // Canonical artifacts live inside the backend checkout, including standalone
@@ -533,7 +534,7 @@ function buildContract() {
   const controllerByKey = new Map();
   for (const definition of classIndex.byFqcn.values()) {
     if (!path.basename(definition.file).endsWith('Controller.java')) continue;
-    const module = relative(definition.file).split('/')[1];
+    const module = serviceForSource(backend, definition.file);
     controllerByKey.set(`${module}:${definition.name}`, definition);
   }
   const operations = rows.map((row) => {

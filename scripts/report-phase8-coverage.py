@@ -85,8 +85,10 @@ def meets_gate(counter, threshold):
 
 def collect(root):
     errors, rows = [], []
-    poms = sorted((root / "modules").glob("*/*/pom.xml"))
-    poms = [p for p in poms if p.parent.name.endswith(("-domain", "-application"))]
+    poms = sorted(set((root / "modules").glob("*/*/pom.xml"))
+                  | set(root.glob("*/*/pom.xml")))
+    poms = [p for p in poms if ET.parse(p).getroot().findtext(
+        "m:artifactId", default=p.parent.name, namespaces=NS).endswith(("-domain", "-application"))]
     if not poms:
         errors.append("No extracted core modules found")
     targets = [(p, True) for p in poms]

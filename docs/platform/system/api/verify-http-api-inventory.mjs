@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
+import { serviceSourceRoots } from './backend-source-layout.mjs';
 
 import {
   compareInventoryToSource,
@@ -26,13 +27,10 @@ function walk(directory, files = []) {
 
 function mappedHandlers() {
   const handlers = [];
-  for (const entry of fs.readdirSync(backend, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue;
-    const sourceRoot = path.join(backend, entry.name, 'src/main/java');
-    if (!fs.existsSync(sourceRoot)) continue;
+  for (const { service, directory: sourceRoot } of serviceSourceRoots(backend)) {
     for (const file of walk(sourceRoot)) {
       handlers.push(...extractMappedHandlersFromJava(fs.readFileSync(file, 'utf8'), {
-        service: entry.name,
+        service,
         controller: path.basename(file, '.java'),
         file: path.relative(backend, file).split(path.sep).join('/'),
       }));

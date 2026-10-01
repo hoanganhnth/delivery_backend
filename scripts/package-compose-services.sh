@@ -18,12 +18,18 @@ else
   services=("$@")
 fi
 
+service_paths=()
 for service in "${services[@]}"; do
-  [[ -f "${service}/pom.xml" && -d "${service}/src" ]] \
-    || die "Unknown or non-packageable service: ${service}"
+  if [[ -f "${service}/pom.xml" && -d "${service}/src" ]]; then
+    service_paths+=("$service")
+  elif [[ -f "${service%-service}/boot/pom.xml" && -d "${service%-service}/boot/src" ]]; then
+    service_paths+=("${service%-service}/boot")
+  else
+    die "Unknown or non-packageable service: ${service}"
+  fi
 done
 
-modules="$(IFS=,; printf '%s' "${services[*]}")"
+modules="$(IFS=,; printf '%s' "${service_paths[*]}")"
 mvn -pl "$modules" -am -DskipTests package
 
 write_manifest() {
@@ -40,5 +46,5 @@ write_manifest() {
   mv "$tmp" "$target"
 }
 
-for service in "${services[@]}"; do write_manifest "$service"; done
+for service in "${service_paths[@]}"; do write_manifest "$service"; done
 printf 'Compose package: fresh artifact manifests written for %s.\n' "${services[*]}"

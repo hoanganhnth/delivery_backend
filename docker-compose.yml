@@ -547,7 +547,7 @@ services:
     networks: [delivery-network]
 
   routing-service:
-    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: routing-service } }
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: routing/boot } }
     container_name: routing-service
     expose: ["8094", "9090"]
     environment:

@@ -3315,7 +3315,7 @@ public ResponseEntity<BaseResponse<OrderValidationResultResponse>> validateOrder
 ### `POST` `/internal/routing/v1/eta-window`
 
 - Handler: `RoutingController.etaWindow`
-- Source: [`backend_delivery/routing-service/src/main/java/com/delivery/routing_service/controller/RoutingController.java:65`](../../../../routing-service/src/main/java/com/delivery/routing_service/controller/RoutingController.java)
+- Source: [`backend_delivery/routing/infrastructure/src/main/java/com/delivery/routing/infrastructure/http/RoutingController.java:65`](../../../../routing/infrastructure/src/main/java/com/delivery/routing/infrastructure/http/RoutingController.java)
 - Java return type: `ResponseEntity<EtaWindowResponse>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -3335,7 +3335,7 @@ public ResponseEntity<EtaWindowResponse> etaWindow( @RequestHeader(value = "Inte
 ### `POST` `/internal/routing/v1/matrix`
 
 - Handler: `RoutingController.matrix`
-- Source: [`backend_delivery/routing-service/src/main/java/com/delivery/routing_service/controller/RoutingController.java:36`](../../../../routing-service/src/main/java/com/delivery/routing_service/controller/RoutingController.java)
+- Source: [`backend_delivery/routing/infrastructure/src/main/java/com/delivery/routing/infrastructure/http/RoutingController.java:36`](../../../../routing/infrastructure/src/main/java/com/delivery/routing/infrastructure/http/RoutingController.java)
 - Java return type: `ResponseEntity<MatrixResponse>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -3355,7 +3355,7 @@ public ResponseEntity<MatrixResponse> matrix( @RequestHeader(value = "Internal-T
 ### `POST` `/internal/routing/v1/route`
 
 - Handler: `RoutingController.route`
-- Source: [`backend_delivery/routing-service/src/main/java/com/delivery/routing_service/controller/RoutingController.java:52`](../../../../routing-service/src/main/java/com/delivery/routing_service/controller/RoutingController.java)
+- Source: [`backend_delivery/routing/infrastructure/src/main/java/com/delivery/routing/infrastructure/http/RoutingController.java:52`](../../../../routing/infrastructure/src/main/java/com/delivery/routing/infrastructure/http/RoutingController.java)
 - Java return type: `ResponseEntity<RouteResponse>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |

@@ -11,6 +11,20 @@ SPEC.loader.exec_module(audit)
 
 
 class RuntimeDependencyBoundariesTest(unittest.TestCase):
+    def test_relocated_boot_and_core_still_require_graph_evidence(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for layer, artifact in (("boot", "routing-service"), ("domain", "routing-domain")):
+                pom = root / "routing" / layer / "pom.xml"
+                pom.parent.mkdir(parents=True)
+                pom.write_text('<project xmlns="http://maven.apache.org/POM/4.0.0">'
+                               f'<artifactId>{artifact}</artifactId></project>')
+            inventory = audit.inventory(root)
+            self.assertEqual({(artifact, layer) for _, artifact, layer in inventory},
+                             {("routing-service", "service"), ("routing-domain", "domain")})
+            self.assertTrue(all(audit.check_graph(path, artifact, layer)
+                                for path, artifact, layer in inventory))
+
     def graph(self, value):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)

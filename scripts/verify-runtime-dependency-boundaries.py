@@ -80,10 +80,10 @@ def check_graph(path: Path, artifact: str, layer: str) -> list[str]:
 
 
 def inventory(root: Path) -> list[tuple[Path, str, str]]:
-    candidates = [(path, "service") for path in root.glob("*-service/pom.xml")]
+    candidates = [(path, "service") for path in boundaries.service_poms(root)]
     candidates += [(path, "contract") for path in root.glob("*-contracts/pom.xml")]
     candidates += [(path, "contract") for path in (root / "contracts").glob("*/pom.xml")]
-    for path in (root / "modules").glob("*/*/pom.xml"):
+    for path in boundaries.business_module_poms(root):
         artifact = boundaries.child_text(boundaries.parse_pom(path), "m:artifactId")
         kind = boundaries.core_kind(artifact)
         if kind is not None:

@@ -9,6 +9,19 @@ SPEC.loader.exec_module(report)
 
 
 class CoverageReportTest(unittest.TestCase):
+    def test_relocated_core_report_cannot_be_omitted(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.fixture(root, "routing/domain", covered=84, gate="0.85")
+            pom = root / "routing/domain/pom.xml"
+            pom.write_text(pom.read_text().replace(
+                '<properties>', '<artifactId>routing-domain</artifactId><properties>'))
+            for name in report.SERVICES:
+                self.fixture(root, f"{name}-service")
+            rows, errors = report.collect(root)
+            self.assertEqual(len(rows), 7)
+            self.assertIn("routing/domain: LINE below configured gate 0.85", errors)
+
     def test_scope_partition_keeps_unknown_business_and_reports_support_separately(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "jacoco.xml"

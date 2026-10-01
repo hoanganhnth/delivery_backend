@@ -29,6 +29,17 @@ FORBIDDEN_CORE_IMPORTS = (
 CORE_SUFFIXES = ("-domain", "-application-api", "-application")
 
 
+def business_module_poms(root: Path) -> list[Path]:
+    """Discover both transitional modules and approved root-level service layers."""
+    return sorted(set((root / "modules").glob("*/*/pom.xml"))
+                  | set(root.glob("*/*/pom.xml")))
+
+
+def service_poms(root: Path) -> list[Path]:
+    return sorted(set(root.glob("*-service/pom.xml"))
+                  | set(root.glob("*/boot/pom.xml")))
+
+
 def child_text(node: ET.Element, path: str, default: str = "") -> str:
     found = node.find(path, NS)
     return default if found is None or found.text is None else found.text.strip()
@@ -166,9 +177,13 @@ def verify_cross_service_imports(root: Path) -> list[str]:
         r"^\s*import\s+(?:static\s+)?com\.delivery\.([a-z0-9_]+_service|simulator)\.",
         re.MULTILINE,
     )
-    for service_dir in root.glob("*-service"):
-        own_package = ("simulator" if service_dir.name == "simulator-service"
-                       else service_dir.name.replace("-", "_"))
+    sources = [(directory, directory.name) for directory in root.glob("*-service")]
+    sources += [(directory, f"{directory.parent.name}-service")
+                for layer in ("boot", "infrastructure")
+                for directory in root.glob(f"*/{layer}")]
+    for service_dir, service_name in sources:
+        own_package = ("simulator" if service_name == "simulator-service"
+                       else service_name.replace("-", "_"))
         source_root = service_dir / "src" / "main" / "java"
         for source in source_root.rglob("*.java") if source_root.exists() else ():
             for imported_service in pattern.findall(source.read_text(encoding="utf-8")):
@@ -186,7 +201,7 @@ def verify_cross_service_dependencies(root: Path) -> list[str]:
     management entries are not links; Maven's resolved graph is separate proof.
     """
     errors: list[str] = []
-    for pom_path in sorted(root.glob("*-service/pom.xml")):
+    for pom_path in service_poms(root):
         project = parse_pom(pom_path)
         own_artifact = child_text(project, "m:artifactId")
         dependencies = project.findall("m:dependencies/m:dependency", NS)
@@ -209,10 +224,8 @@ def verify(root: Path) -> list[str]:
     errors.extend(verify_contracts(root))
     errors.extend(verify_cross_service_imports(root))
     errors.extend(verify_cross_service_dependencies(root))
-    modules_root = root / "modules"
-    if modules_root.exists():
-        for pom_path in modules_root.glob("*/*/pom.xml"):
-            errors.extend(verify_core_module(pom_path))
+    for pom_path in business_module_poms(root):
+        errors.extend(verify_core_module(pom_path))
     return errors
 
 
