@@ -1,4 +1,4 @@
-package com.delivery.restaurant_service.exception;
+package com.delivery.restaurant.domain.catalog;
 
 public class ResourceNotFoundException extends RuntimeException {
     public ResourceNotFoundException(String message) {

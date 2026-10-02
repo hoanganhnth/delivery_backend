@@ -19,13 +19,15 @@ import com.delivery.restaurant_service.dto.response.RestaurantResponse;
 import com.delivery.restaurant_service.entity.MenuItem;
 import com.delivery.restaurant_service.entity.Restaurant;
 import com.delivery.restaurant_service.entity.CatalogLifecycleAudit;
-import com.delivery.restaurant_service.exception.StaleVersionException;
+import com.delivery.restaurant.domain.catalog.StaleVersionException;
 import com.delivery.restaurant_service.mapper.MenuItemMapper;
 import com.delivery.restaurant_service.mapper.RestaurantMapper;
 import com.delivery.restaurant_service.repository.MenuItemRepository;
 import com.delivery.restaurant_service.repository.RestaurantRepository;
 import com.delivery.restaurant_service.repository.CatalogLifecycleAuditRepository;
-import com.delivery.restaurant_service.service.impl.CatalogLifecycleService;
+import com.delivery.restaurant.application.DefaultCatalogLifecycleUseCase;
+import com.delivery.restaurant.application.api.*;
+import com.delivery.restaurant_service.service.JpaCatalogLifecycleAdapter;
 import com.delivery.restaurant_service.service.ownership.RestaurantOwnershipPolicy;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.util.Optional;
@@ -46,21 +48,13 @@ class CatalogLifecycleServiceTest {
     @Mock SearchSyncPublisher searchSyncPublisher;
     @Mock CatalogLifecycleAuditRepository auditRepository;
 
-    private CatalogLifecycleService service;
+    private LifecycleHarness service;
     private Restaurant restaurant;
     private MenuItem item;
 
     @BeforeEach
     void setUp() {
-        service = new CatalogLifecycleService(
-                restaurantRepository, menuItemRepository, restaurantMapper, menuItemMapper,
-                searchSyncPublisher, new RestaurantOwnershipPolicy(false,
-                        new DefaultRestaurantManagementAccessUseCase()),
-                new DefaultCatalogLifecycleDecisionUseCase(
-                        new com.delivery.restaurant.domain.catalog.RestaurantLifecyclePolicy(),
-                        new com.delivery.restaurant.domain.catalog.MenuItemLifecyclePolicy()),
-                auditRepository,
-                new SimpleMeterRegistry());
+        service = new LifecycleHarness();
         restaurant = new Restaurant();
         restaurant.setId(10L);
         restaurant.setOwnerPrincipalId(7L);
@@ -78,7 +72,7 @@ class CatalogLifecycleServiceTest {
         when(restaurantRepository.findById(10L)).thenReturn(Optional.of(restaurant));
         when(restaurantRepository.saveAndFlush(restaurant)).thenReturn(restaurant);
         RestaurantResponse response = new RestaurantResponse();
-        when(restaurantMapper.toResponse(restaurant)).thenReturn(response);
+        when(restaurantMapper.toResponse(any(RestaurantSnapshot.class))).thenReturn(response);
 
         RestaurantResponse result = service.changeRestaurantLifecycle(
                 10L, new RestaurantLifecycleRequest(RestaurantStatus.PAUSED, 4L),
@@ -109,7 +103,7 @@ class CatalogLifecycleServiceTest {
     void missingExpectedVersionIsCompatibleButIncrementsMetric() {
         when(restaurantRepository.findById(10L)).thenReturn(Optional.of(restaurant));
         when(restaurantRepository.saveAndFlush(restaurant)).thenReturn(restaurant);
-        when(restaurantMapper.toResponse(restaurant)).thenReturn(new RestaurantResponse());
+        when(restaurantMapper.toResponse(any(RestaurantSnapshot.class))).thenReturn(new RestaurantResponse());
 
         service.changeRestaurantLifecycle(
                 10L, new RestaurantLifecycleRequest(RestaurantStatus.PAUSED, null),
@@ -148,7 +142,7 @@ class CatalogLifecycleServiceTest {
         restaurant.setLifecycleStatus(RestaurantStatus.PAUSED);
         when(restaurantRepository.findById(10L)).thenReturn(Optional.of(restaurant));
         RestaurantResponse response = new RestaurantResponse();
-        when(restaurantMapper.toResponse(restaurant)).thenReturn(response);
+        when(restaurantMapper.toResponse(any(RestaurantSnapshot.class))).thenReturn(response);
 
         assertThat(service.changeRestaurantLifecycle(
                 10L, new RestaurantLifecycleRequest(RestaurantStatus.PAUSED, 4L),
@@ -165,7 +159,7 @@ class CatalogLifecycleServiceTest {
         assertThatThrownBy(() -> service.changeRestaurantLifecycle(
                 10L, new RestaurantLifecycleRequest(RestaurantStatus.PAUSED, 4L),
                 8L, 700L, "SHOP_OWNER"))
-                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
+                .isInstanceOf(com.delivery.restaurant.domain.catalog.CatalogAccessDeniedException.class);
 
         assertThat(restaurant.getLifecycleStatus()).isEqualTo(RestaurantStatus.ACTIVE);
         verify(restaurantRepository, never()).saveAndFlush(any());
@@ -220,5 +214,24 @@ class CatalogLifecycleServiceTest {
     private void verifyNoAuditOrSideEffects() {
         verify(auditRepository, never()).save(any());
         verify(searchSyncPublisher, never()).publishRestaurantChange(any(), any());
+    }
+    private class LifecycleHarness {
+        private final SimpleMeterRegistry metrics = new SimpleMeterRegistry();
+        private final JpaCatalogLifecycleAdapter adapter = new JpaCatalogLifecycleAdapter(
+                restaurantRepository, menuItemRepository, auditRepository, searchSyncPublisher, metrics);
+        private final DefaultCatalogLifecycleUseCase core = new DefaultCatalogLifecycleUseCase(adapter, adapter,
+                new DefaultCatalogLifecycleDecisionUseCase(new com.delivery.restaurant.domain.catalog.RestaurantLifecyclePolicy(),
+                        new com.delivery.restaurant.domain.catalog.MenuItemLifecyclePolicy()),
+                new DefaultRestaurantManagementAccessUseCase(), new RestaurantTransactionPort() {
+                    public <T> T required(java.util.function.Supplier<T> operation) { return operation.get(); }
+                    public <T> T readOnly(java.util.function.Supplier<T> operation) { return operation.get(); }
+                }, false);
+        RestaurantResponse changeRestaurantLifecycle(Long id, RestaurantLifecycleRequest request, Long principal, Long legacy, String role) {
+            return restaurantMapper.toResponse(core.changeRestaurant(id, request.targetStatus(), request.expectedVersion(), principal, legacy, role));
+        }
+        MenuItemResponse changeMenuItemLifecycle(Long id, MenuItemLifecycleRequest request, Long principal, Long legacy, String role) {
+            return menuItemMapper.toResponse(core.changeMenuItem(id, request.targetStatus(), request.expectedVersion(), principal, legacy, role));
+        }
+        double missingExpectedVersionCount() { return metrics.get("delivery.catalog.expected_version.missing").counter().count(); }
     }
 }

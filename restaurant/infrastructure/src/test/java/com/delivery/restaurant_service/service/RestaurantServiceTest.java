@@ -31,9 +31,9 @@ import com.delivery.restaurant_service.common.constants.RoleConstants;
 import com.delivery.restaurant_service.dto.request.CreateRestaurantRequest;
 import com.delivery.restaurant_service.dto.request.UpdateRestaurantRequest;
 import com.delivery.restaurant_service.dto.response.RestaurantResponse;
-import com.delivery.restaurant_service.exception.ResourceNotFoundException;
+import com.delivery.restaurant.domain.catalog.ResourceNotFoundException;
 import com.delivery.restaurant_service.mapper.RestaurantMapper;
-import com.delivery.restaurant_service.service.impl.CatalogLifecycleService;
+import com.delivery.restaurant.application.api.CatalogLifecycleUseCase;
 import com.delivery.restaurant_service.service.impl.RestaurantServiceImpl;
 import com.delivery.restaurant_service.service.ownership.RestaurantOwnershipPolicy;
 import java.time.LocalTime;
@@ -53,7 +53,7 @@ class RestaurantServiceTest {
     @Mock
     private RestaurantMapper restaurantMapper;
     @Mock
-    private CatalogLifecycleService catalogLifecycleService;
+    private CatalogLifecycleUseCase catalogLifecycleService;
     @Mock
     private RestaurantCreationPort creationPort;
     @Mock
@@ -240,21 +240,21 @@ class RestaurantServiceTest {
     @Test
     void deleteStillDelegatesToArchiveLifecycleBoundary() {
         restaurantService.deleteRestaurant(1L, 1L, 1L, RoleConstants.OWNER);
-        verify(catalogLifecycleService).archiveRestaurant(1L, 1L, 1L, RoleConstants.OWNER);
+        verify(catalogLifecycleService).changeRestaurant(1L, com.delivery.restaurant.domain.catalog.RestaurantStatus.ARCHIVED, null, 1L, 1L, RoleConstants.OWNER);
     }
 
     @Test
     void deleteRestaurant_ShouldAllowAdmin_WhenAdminIsNotOwner() {
         restaurantService.deleteRestaurant(1L, 99L, 99L, RoleConstants.ADMIN);
 
-        verify(catalogLifecycleService).archiveRestaurant(1L, 99L, 99L, RoleConstants.ADMIN);
+        verify(catalogLifecycleService).changeRestaurant(1L, com.delivery.restaurant.domain.catalog.RestaurantStatus.ARCHIVED, null, 99L, 99L, RoleConstants.ADMIN);
     }
 
     @Test
     void deleteRestaurant_PassesMissingRoleToCatalogBoundary() {
         restaurantService.deleteRestaurant(1L, 1L, 1L, null);
 
-        verify(catalogLifecycleService).archiveRestaurant(1L, 1L, 1L, null);
+        verify(catalogLifecycleService).changeRestaurant(1L, com.delivery.restaurant.domain.catalog.RestaurantStatus.ARCHIVED, null, 1L, 1L, null);
     }
 
     @Test
@@ -262,7 +262,7 @@ class RestaurantServiceTest {
         restaurantService.deleteRestaurant(1L, 1L, 1L, RoleConstants.OWNER);
 
         verify(catalogLifecycleService)
-                .archiveRestaurant(1L, 1L, 1L, RoleConstants.OWNER);
+                .changeRestaurant(1L, com.delivery.restaurant.domain.catalog.RestaurantStatus.ARCHIVED, null, 1L, 1L, RoleConstants.OWNER);
     }
 
     private CreateRestaurantResult creationResult() {

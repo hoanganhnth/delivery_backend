@@ -1,5 +1,7 @@
 package com.delivery.restaurant_service.service.impl;
 
+import com.delivery.restaurant.domain.catalog.CatalogAccessDeniedException;
+import com.delivery.restaurant.application.api.CatalogLifecycleUseCase;
 import com.delivery.restaurant.application.api.CreateMenuItemCommand;
 import com.delivery.restaurant.application.api.CreateMenuItemUseCase;
 import com.delivery.restaurant.application.api.MenuItemManagementQuery;
@@ -17,7 +19,7 @@ import com.delivery.restaurant_service.dto.request.MenuItemLifecycleRequest;
 import com.delivery.restaurant_service.dto.request.UpdateMenuItemRequest;
 import com.delivery.restaurant_service.dto.response.MenuItemResponse;
 import com.delivery.restaurant_service.entity.MenuItem;
-import com.delivery.restaurant_service.exception.ResourceNotFoundException;
+import com.delivery.restaurant.domain.catalog.ResourceNotFoundException;
 import com.delivery.restaurant_service.mapper.MenuItemMapper;
 import com.delivery.restaurant_service.service.MenuItemService;
 import com.delivery.restaurant_service.service.ownership.RestaurantOwnershipPolicy;
@@ -34,7 +36,7 @@ public class MenuItemServiceImpl implements MenuItemService {
 
     private final MenuItemMapper menuItemMapper;
     private final RestaurantOwnershipPolicy restaurantOwnershipPolicy;
-    private final CatalogLifecycleService catalogLifecycleService;
+    private final CatalogLifecycleUseCase catalogLifecycleService;
     private final CreateMenuItemUseCase createMenuItemUseCase;
     private final UpdateMenuItemUseCase updateMenuItemUseCase;
     private final MenuItemReadUseCase menuItemReadUseCase;
@@ -89,14 +91,22 @@ public class MenuItemServiceImpl implements MenuItemService {
 
     @Override
     public void deleteMenuItem(Long id, Long principalId, Long legacyUserId, String role) {
-        catalogLifecycleService.archiveMenuItem(id, principalId, legacyUserId, role);
+        try {
+            catalogLifecycleService.changeMenuItem(id, com.delivery.restaurant.domain.catalog.MenuItemStatus.ARCHIVED, null, principalId, legacyUserId, role);
+        } catch (CatalogAccessDeniedException denied) {
+            throw new AccessDeniedException(denied.getMessage(), denied);
+        }
     }
 
     @Override
     public MenuItemResponse changeLifecycle(Long id, MenuItemLifecycleRequest request,
             Long principalId, Long legacyUserId, String role) {
-        return catalogLifecycleService.changeMenuItemLifecycle(
-                id, request, principalId, legacyUserId, role);
+        try {
+            return menuItemMapper.toResponse(catalogLifecycleService.changeMenuItem(
+                    id, request.targetStatus(), request.expectedVersion(), principalId, legacyUserId, role));
+        } catch (CatalogAccessDeniedException denied) {
+            throw new AccessDeniedException(denied.getMessage(), denied);
+        }
     }
 
     @Override

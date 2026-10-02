@@ -1,5 +1,7 @@
 package com.delivery.restaurant_service.service.impl;
 
+import com.delivery.restaurant.domain.catalog.CatalogAccessDeniedException;
+import com.delivery.restaurant.application.api.CatalogLifecycleUseCase;
 import com.delivery.restaurant.application.api.CreateRestaurantCommand;
 import com.delivery.restaurant.application.api.CreateRestaurantUseCase;
 import com.delivery.restaurant.application.api.RestaurantManagementReadUseCase;
@@ -17,7 +19,7 @@ import com.delivery.restaurant_service.dto.request.CreateRestaurantRequest;
 import com.delivery.restaurant_service.dto.request.RestaurantLifecycleRequest;
 import com.delivery.restaurant_service.dto.request.UpdateRestaurantRequest;
 import com.delivery.restaurant_service.dto.response.RestaurantResponse;
-import com.delivery.restaurant_service.exception.ResourceNotFoundException;
+import com.delivery.restaurant.domain.catalog.ResourceNotFoundException;
 import com.delivery.restaurant_service.mapper.RestaurantMapper;
 import com.delivery.restaurant_service.service.RestaurantService;
 import com.delivery.restaurant_service.service.ownership.RestaurantOwnershipPolicy;
@@ -41,7 +43,7 @@ public class RestaurantServiceImpl implements RestaurantService {
     private final RestaurantMapper restaurantMapper;
     private final MeterRegistry meterRegistry;
     private final RestaurantOwnershipPolicy restaurantOwnershipPolicy;
-    private final CatalogLifecycleService catalogLifecycleService;
+    private final CatalogLifecycleUseCase catalogLifecycleService;
     private final CreateRestaurantUseCase createRestaurantUseCase;
     private final UpdateRestaurantUseCase updateRestaurantUseCase;
     private final RestaurantReadUseCase restaurantReadUseCase;
@@ -81,14 +83,22 @@ public class RestaurantServiceImpl implements RestaurantService {
 
     @Override
     public void deleteRestaurant(Long id, Long ownerPrincipalId, Long creatorId, String role) {
-        catalogLifecycleService.archiveRestaurant(id, ownerPrincipalId, creatorId, role);
+        try {
+            catalogLifecycleService.changeRestaurant(id, com.delivery.restaurant.domain.catalog.RestaurantStatus.ARCHIVED, null, ownerPrincipalId, creatorId, role);
+        } catch (CatalogAccessDeniedException denied) {
+            throw new AccessDeniedException(denied.getMessage(), denied);
+        }
     }
 
     @Override
     public RestaurantResponse changeLifecycle(Long id, RestaurantLifecycleRequest request,
             Long ownerPrincipalId, Long creatorId, String role) {
-        return catalogLifecycleService.changeRestaurantLifecycle(
-                id, request, ownerPrincipalId, creatorId, role);
+        try {
+            return restaurantMapper.toResponse(catalogLifecycleService.changeRestaurant(
+                    id, request.targetStatus(), request.expectedVersion(), ownerPrincipalId, creatorId, role));
+        } catch (CatalogAccessDeniedException denied) {
+            throw new AccessDeniedException(denied.getMessage(), denied);
+        }
     }
 
     @Override

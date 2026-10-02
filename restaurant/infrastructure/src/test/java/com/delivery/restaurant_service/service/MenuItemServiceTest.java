@@ -30,9 +30,9 @@ import com.delivery.restaurant_service.common.constants.RoleConstants;
 import com.delivery.restaurant_service.dto.request.CreateMenuItemRequest;
 import com.delivery.restaurant_service.dto.request.UpdateMenuItemRequest;
 import com.delivery.restaurant_service.dto.response.MenuItemResponse;
-import com.delivery.restaurant_service.exception.ResourceNotFoundException;
+import com.delivery.restaurant.domain.catalog.ResourceNotFoundException;
 import com.delivery.restaurant_service.mapper.MenuItemMapper;
-import com.delivery.restaurant_service.service.impl.CatalogLifecycleService;
+import com.delivery.restaurant.application.api.CatalogLifecycleUseCase;
 import com.delivery.restaurant_service.service.impl.MenuItemServiceImpl;
 import com.delivery.restaurant_service.service.ownership.RestaurantOwnershipPolicy;
 import java.math.BigDecimal;
@@ -59,7 +59,7 @@ class MenuItemServiceTest {
     @Mock
     private RestaurantOwnershipPolicy restaurantOwnershipPolicy;
     @Mock
-    private CatalogLifecycleService catalogLifecycleService;
+    private CatalogLifecycleUseCase catalogLifecycleService;
     @Mock
     private CreateMenuItemUseCase createMenuItemUseCase;
     @Mock
@@ -267,7 +267,7 @@ class MenuItemServiceTest {
     void deleteStillDelegatesToLifecycleBoundary() {
         menuItemService.deleteMenuItem(1L, 1L, 1L, RoleConstants.OWNER);
 
-        verify(catalogLifecycleService).archiveMenuItem(1L, 1L, 1L, RoleConstants.OWNER);
+        verify(catalogLifecycleService).changeMenuItem(1L, com.delivery.restaurant.domain.catalog.MenuItemStatus.ARCHIVED, null, 1L, 1L, RoleConstants.OWNER);
         verifyNoInteractions(createMenuItemUseCase, updateMenuItemUseCase,
                 menuItemReadUseCase, menuItemManagementReadUseCase);
     }

@@ -5,6 +5,8 @@ import com.delivery.restaurant.domain.rating.RestaurantRatingConflictException;
 import com.delivery.restaurant.domain.inventory.InventoryResourceNotFoundException;
 import com.delivery.restaurant.domain.serviceability.ServiceabilityResourceNotFoundException;
 import com.delivery.restaurant.domain.serviceability.ServiceabilityZoneConflictException;
+import com.delivery.restaurant.domain.catalog.ResourceNotFoundException;
+import com.delivery.restaurant.domain.catalog.StaleVersionException;
 import com.delivery.restaurant_service.payload.BaseResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -44,7 +46,7 @@ public class GlobalExceptionHandler {
 
 
     // ✅ Xử lý không có quyền
-    @ExceptionHandler({AccessDeniedException.class, com.delivery.restaurant.domain.serviceability.ServiceabilityAccessDeniedException.class, com.delivery.restaurant.domain.inventory.InventoryAccessDeniedException.class})
+    @ExceptionHandler({AccessDeniedException.class, com.delivery.restaurant.domain.serviceability.ServiceabilityAccessDeniedException.class, com.delivery.restaurant.domain.inventory.InventoryAccessDeniedException.class, com.delivery.restaurant.domain.catalog.CatalogAccessDeniedException.class})
     public ResponseEntity<BaseResponse<Object>> handleAccessDenied(RuntimeException ex) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(new BaseResponse<>(0, null, ex.getMessage()));

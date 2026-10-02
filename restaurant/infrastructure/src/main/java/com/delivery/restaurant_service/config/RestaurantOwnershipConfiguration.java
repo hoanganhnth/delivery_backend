@@ -1,5 +1,11 @@
 package com.delivery.restaurant_service.config;
 
+import org.springframework.beans.factory.annotation.Value;
+import com.delivery.restaurant.application.DefaultCatalogLifecycleUseCase;
+import com.delivery.restaurant.application.api.RestaurantTransactionPort;
+import com.delivery.restaurant.application.api.CatalogLifecycleEffectsPort;
+import com.delivery.restaurant.application.api.CatalogLifecycleStorePort;
+import com.delivery.restaurant.application.api.CatalogLifecycleUseCase;
 import com.delivery.restaurant.application.DefaultCatalogLifecycleDecisionUseCase;
 import com.delivery.restaurant.application.DefaultCreateMenuItemUseCase;
 import com.delivery.restaurant.application.DefaultMenuItemManagementReadUseCase;
@@ -125,5 +131,14 @@ public class RestaurantOwnershipConfiguration {
     @Bean
     Clock catalogClock() {
         return Clock.systemUTC();
+    }
+    @Bean
+    CatalogLifecycleUseCase catalogLifecycleUseCase(
+            CatalogLifecycleStorePort store,
+            CatalogLifecycleEffectsPort effects,
+            CatalogLifecycleDecisionUseCase decisions, RestaurantManagementAccessUseCase access,
+            RestaurantTransactionPort transactions,
+            @Value("${app.identity.principal-ownership.enforced:false}") boolean enforced) {
+        return new DefaultCatalogLifecycleUseCase(store, effects, decisions, access, transactions, enforced);
     }
 }

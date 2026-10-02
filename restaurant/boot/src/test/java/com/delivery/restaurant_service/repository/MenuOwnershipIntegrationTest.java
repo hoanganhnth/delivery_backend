@@ -12,7 +12,8 @@ import com.delivery.restaurant_service.mapper.MenuItemMapper;
 import com.delivery.restaurant_service.service.*;
 import com.delivery.restaurant_service.service.impl.MenuItemServiceImpl;
 import com.delivery.restaurant_service.mapper.RestaurantMapper;
-import com.delivery.restaurant_service.service.impl.CatalogLifecycleService;
+import com.delivery.restaurant.application.DefaultCatalogLifecycleUseCase;
+import com.delivery.restaurant.application.api.RestaurantTransactionPort;
 import com.delivery.restaurant.domain.catalog.MenuItemLifecyclePolicy;
 import com.delivery.restaurant.domain.catalog.RestaurantLifecyclePolicy;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -50,13 +51,16 @@ class MenuOwnershipIntegrationTest {
                 new JpaMenuItemReadAdapter(items, restaurants, accessUseCase));
         var managementReads = new DefaultMenuItemManagementReadUseCase(
                 new JpaMenuItemReadAdapter(items, restaurants, accessUseCase));
+        var lifecycleAdapter = new JpaCatalogLifecycleAdapter(restaurants, items, audits,
+                search, new SimpleMeterRegistry());
+        var lifecycle = new DefaultCatalogLifecycleUseCase(lifecycleAdapter, lifecycleAdapter,
+                new DefaultCatalogLifecycleDecisionUseCase(new RestaurantLifecyclePolicy(), new MenuItemLifecyclePolicy()),
+                accessUseCase, new RestaurantTransactionPort() {
+                    public <T> T required(java.util.function.Supplier<T> operation) { return operation.get(); }
+                    public <T> T readOnly(java.util.function.Supplier<T> operation) { return operation.get(); }
+                }, enforced);
         return new MenuItemServiceImpl(new MenuItemMapper(),
-                new RestaurantOwnershipPolicy(enforced, accessUseCase), new CatalogLifecycleService(
-                        restaurants, items, new RestaurantMapper(), new MenuItemMapper(),
-                        mock(SearchSyncPublisher.class),
-                        new RestaurantOwnershipPolicy(enforced, accessUseCase),
-                        new DefaultCatalogLifecycleDecisionUseCase(new RestaurantLifecyclePolicy(),
-                                new MenuItemLifecyclePolicy()), audits, new SimpleMeterRegistry()),
+                new RestaurantOwnershipPolicy(enforced, accessUseCase), lifecycle,
                 create, update, reads, managementReads);
     }
     private MenuItem seed(Long principal, long legacy, MenuItem.Status status) {
