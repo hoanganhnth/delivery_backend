@@ -40,7 +40,7 @@ from the earlier conversation, not implicitly authorized by this structural plan
   then relocate and retire legacy implementations with database/event proof.
 - [x] User: complete runtime profile/provisioning/address/block/lifecycle
   decisions and transactional adapters, preserving identity and outbox/inbox.
-- [ ] Auth: complete runtime use cases and adapters, preserving principal
+- [x] Auth: complete runtime use cases and adapters, preserving principal
   identity, session/token, lifecycle and security rules.
 - [ ] Restaurant: close decision/rating/serviceability/inventory use cases in
   addition to catalogue; retain transaction, concurrency and event guarantees.
@@ -306,6 +306,290 @@ Deployment proof includes Compose path resolution and artifact freshness.
   lifecycle replay/gaps and metadata, exact receipt fingerprints, original
   migrations, production feature flags, real cryptographic auth, source discovery
   and unchanged wire shapes. No shared database or runtime deployment is touched.
+
+## Auth in progress
+
+- Baseline verify exited 0 (`/tmp/auth-baseline-verify.log`). Relocation started
+  in worktree only; no Auth completion claim. Existing domain/application login
+  and registration are not production-wired and differ from actual retry,
+  onboarding, session/token and transaction rules. Do not activate them blindly.
+- Authority: current AuthService, AccountSecurityService, TokenService,
+  IdentityRegistrationService and existing integration tests. Preserve canonical
+  email, password registration resume/race, operator provisioning, lifecycle and
+  linked-profile guards, social identity, device/session/refresh-family replay,
+  noRollbackFor revocation, email/reset token locking and after-commit effects,
+  admission, simulation bindings, principal lookup and outbox/inbox semantics.
+- Move all technical HTTP/JWKS/crypto/JPA/SMTP/Google/Firebase adapters and
+  composition to infrastructure; boot owns entrypoint/config. Complete real core
+  policies/use cases before removing compatibility AuthUseCaseAdapter and legacy
+  business services. Retarget validation; add PostgreSQL/Kafka and packaged signed
+  JWT/session/provisioning/restart proof. Preserve original migrations.
+
+- Layout clean verify passed after restoring test-only config into infrastructure
+  and keeping shared JWT fixture helper in boot. Initial failures were missing
+  config/import isolation and helper test classpath, not changed runtime rules.
+  `/tmp/auth-layout-verify.log`.
+- Public password registration is now production-wired to core. Preserves role
+  admission/error messages (including rejecting role whitespace), canonical
+  email, credential/role/active guards for pending retries and concurrent winner,
+  identity persistence before handoff/handle, RS256 token and 15-minute opaque
+  recovery handle. Added granular crypto/handle ports and complete account mapper.
+  Domain exceptions preserve 401/409 envelope. Removed duplicate registration and
+  handle-issue methods only after actual-stack and PostgreSQL proof passed.
+- Core resume regression first failed (`/tmp/auth-registration-core-red.log`),
+  then core verify passed (`/tmp/auth-registration-core-verify.log`). Retargeted
+  existing registration tests to real core/JPA/password adapters, preserving
+  identity-field assertions instead of legacy entity-instance identity.
+- Five actual PostgreSQL registration tests passed with no skips/errors/failures:
+  Bcrypt/RS256/JWKS/recovery, concurrent identity convergence, takeover/blocked
+  guards, handle-failure durability/retry and production HTTP wire shape.
+  `/tmp/auth-registration-postgres-test.log`. Auth overall remains incomplete;
+  login/session/refresh, operator/social, lifecycle/security/admission/lookup
+  and packaged runtime evidence still pending.
+
+- Password login now production-wired to framework-free application: preserves
+  eligibility order/messages, raw stored device ID versus trimmed revocation key,
+  trusted principal/legacy profile and simulation facts, 7-day session, and exact
+  order of old device/token revocation, token issuance, session/credential writes.
+  Transaction port wraps the whole flow; crypto/JPA/hash adapters remain technical.
+  Legacy login method and compatibility inbound method removed after actual-stack
+  and retargeted existing refresh-rotation proof passed.
+- Login regression first failed (`/tmp/auth-login-core-red.log`), then core verify
+  passed (`/tmp/auth-login-core-verify.log`). New PostgreSQL proof covers real
+  login/simulation JWT claims, stored SHA-256 credential, same/other device
+  revocation, atomic rollback of new session and old revocation when credential
+  write fails, and production login HTTP/401 envelope. Combined registration/login
+  PostgreSQL suite has 9 passing tests; `/tmp/auth-login-postgres-verify.log`.
+  Retargeted legacy login guards/JWT and refresh rotation fixtures to actual core;
+  `/tmp/auth-login-retarget-verify.log` exited 0.
+- Auth expiry test flaked because a 1-second JWT expires at integer-second
+  precision before the first wall-clock assertion under load. Introduced a
+  package-private Clock seam for token signing/parsing and expiry helpers; the
+  production constructor still uses the system UTC clock and same TTL. Test now
+  advances a fixture clock, retaining before/after expiry assertions without
+  sleeping. Wiring test passed (`/tmp/auth-login-wiring-test.log`).
+
+- Refresh/logout now production-wired to framework-free core. Locked credential
+  port retains the existing pessimistic join-fetch and exact mutation order.
+  Reuse/family mismatch returns a transaction outcome, commits family/session
+  revocation, then raises the 401 domain rejection; successor-write failure
+  rolls back rotation and session changes. Domain reuse exception remains an
+  invalid-token subtype. Duplicate legacy refresh/logout methods removed.
+- Core refresh tests and full Auth verify passed. PostgreSQL suite expanded to
+  12 passing tests: concurrent refresh/replay durable revocation, successor-write
+  rollback/retry, HTTP 200/401 envelope and logout device isolation.
+  `/tmp/auth-refresh-postgres-green.log`. The first rollback fixture called an
+  abstract Mockito real method; fixed to fail only successor inserts, retaining
+  all rollback assertions. No production fix was needed for that fixture.
+- Device-session core preserves canonical lookup, locked trimmed device key,
+  transactional credential/session revocation and bounded active/unexpired
+  latest-login query (100). Core and retargeted HTTP/rotation tests verified:
+  `/tmp/auth-session-core-verify.log`, `/tmp/auth-session-wiring-verify.log`.
+  Removed legacy session-list/revocation methods after those passed. Additional
+  PostgreSQL list/revocation proof passed (see below). Module boundary checker passed:
+  `/tmp/auth-core-boundaries.log`. Auth tranche remains uncommitted/incomplete.
+
+- Device-session PostgreSQL proof passed: actual query filters/sorts 122 rows
+  and returns the latest 100 usable sessions; revocation isolates the selected
+  device. Strengthened the fault fixture to fail session save after token-family
+  revocation and verified both token/session changes roll back. Old session
+  methods and compatibility inbound entries are gone.
+- Recovery status/cleanup now belongs to DefaultRegistrationRecoveryUseCase.
+  JPA adapter only hashes/loads/deletes; scheduler delegates to core. Preserves
+  required/unknown/expired-handle errors, strict expiry deadline, all four
+  nextAction values, profile-link rule and configured retention clamp. Removed
+  IdentityRegistrationService after wiring proof. Real PostgreSQL/HTTP verifies
+  status headers/envelope, 404/400 and retention without deleting accounts.
+- Admission now belongs to DefaultRegistrationAdmissionUseCase. Preserves startup
+  percentage/key validation, master-first/allowlist-first precedence, canonical
+  email and strict percentage threshold. HMAC adapter keeps unsigned big-endian
+  SHA-256 cohort vectors; metrics adapter retains exactly four bounded counters
+  without identity labels. Removed RegistrationAdmissionPolicy and legacy inbound
+  entry after core/wiring proof. Logs: `/tmp/auth-recovery-core-green.log`,
+  `/tmp/auth-recovery-wiring-verify.log`, `/tmp/auth-admission-core-green.log`,
+  `/tmp/auth-admission-recovery-green.log`.
+- Fresh `mvn -B -pl :auth-service -am clean verify -q` passed after legacy removal:
+  157 tests (domain 13/application 24/infrastructure 90/boot 30), zero failures,
+  errors or skips, including 16 PostgreSQL workflows. Domain line/branch coverage
+  87.8%/88.4%; application both 100%; 85% gates unchanged.
+  `/tmp/auth-registration-session-clean-verify.log`.
+- Boundary verifier and self-test, HTTP inventory/contract check, explicit-claims
+  (16 resource services), Actuator, secret scan and Compose checks passed. Deep
+  contract comparison preserved all 244 operations/231 schemas after stripping
+  source metadata. Source gates now discover the new Auth/User/Shipper paths and
+  recursively inspect main source/config across service layers.
+- Corrected the existing public-envelope false positive for the internal principal
+  lookup wire contract. Its exact internal path, required authorization call,
+  fail-closed secret checks and constant-time comparison are checked before its
+  single canonical file is exempted. Existing executable controller tests retain
+  200/404/403/invalid-ID behavior; five negative/positive source-gate fixtures also
+  pass (`/tmp/auth-baseline-envelope-tests.log`). The public envelope gate remains
+  enforced for any other raw controller.
+- Full build-baseline gate is still NOT green: it now reaches the unchanged
+  SettlementApplicationConfiguration `matchIfMissing=true` violation. Do not
+  weaken that gate or change Settlement policy as part of this Auth slice.
+  `/tmp/auth-build-baseline-check.log`. Runtime-startup harness also has pre-existing
+  source-tree JWT-key paths; align it with file-backed secrets when running the
+  final packaged-runtime/whole-system proof, not by copying keys into source.
+- Remaining Auth sequence: shared profile/operator/social workflows; lifecycle
+  transitions/status sync/outbox/inbox; reset/verification security-token workflows;
+  principal/Firebase/simulation authorization; delete remaining business facades;
+  simplify boot dependencies; dependency graphs/packaged signed-JWT/Kafka/restart
+  proof and final review. Auth remains uncommitted in the worktree and must not be
+  merged to main or called complete until the whole service is verified.
+
+- Shared User-profile provisioning decisions now live in framework-free core:
+  accept only successful/nonempty matching principal/email/role replies, retain
+  exact errors and update lifecycle/version without discarding security/simulation
+  facts. HTTP/Internal-Token/circuit breaker remain technical adapters. The social
+  compatibility path already calls this core; its remaining orchestration is next.
+  Core/domain tests, a real local HTTP exchange proof and whole Auth wiring verify
+  passed (`/tmp/auth-profile-core-green.log`, `/tmp/auth-profile-wiring-verify.log`).
+- Operator ADMIN/SHIPPER workflows now production-wired to core and one-shot
+  runners. Preserve fixed roles, canonical email, credential/active/winner guards,
+  verified operator credentials, identity commit before profile handoff and retry
+  of linked/unlinked identities. Existing runner/operator assertions retargeted
+  without dropping authorization/binding checks. Two PostgreSQL proofs passed:
+  same linked identity on retry and signed ADMIN JWT; wrong binding leaves the
+  committed SHIPPER identity unlinked and resumable.
+  `/tmp/auth-operator-core-verify.log`, `/tmp/auth-operator-postgres-verify.log`.
+  Legacy operator methods/helpers removed after proof. Fresh post-removal clean
+  verify and final HTTP-503/logging regression verify both exited 0:
+  `/tmp/auth-operator-removal-clean-verify.log`, `/tmp/auth-operator-final-verify.log`.
+  167 tests (domain 14/application 30/infrastructure 91/boot 32), no failures,
+  errors or skips, including 18 PostgreSQL workflows. Application coverage is
+  100% line/branch; domain remains above both unchanged 85% gates.
+  Module boundaries, HTTP contract (244 operations/231 schemas), strict claims
+  and five envelope-gate fixtures pass. Full build-baseline still fails only at
+  the known unchanged Settlement matchIfMissing violation; do not claim global
+  green. Auth remains uncommitted/unmerged and incomplete. Next step: extract
+  social-login orchestration, then lifecycle/security/lookup/simulation and final
+  packaged-runtime proof.
+
+- Social login now production-wired to framework-free application core, sharing
+  public-role admission and profile binding. Retain Google verified-email checks,
+  existing/winning identity role, nullable-active compatibility, device normalization,
+  session/token claims and local transaction rollback. Legacy social orchestration,
+  its helpers and facade method removed only after runtime proof; AuthService's
+  unused crypto/Google/profile constructor dependencies also removed.
+  Deterministic PostgreSQL concurrency proof first reproduced a poisoned outer
+  Hibernate transaction after a duplicate-email insert. Persistence now inserts
+  all identity facts with `ON CONFLICT DO NOTHING` inside the existing transaction,
+  then reads the winner for core validation. Two initially missing social requests
+  converge on one identity/winning role; credential failures roll back identity,
+  verification and session changes. Remote User-profile creation retains the
+  previous distributed-transaction limitation; local rollback does not undo it.
+  Evidence: `/tmp/auth-social-postgres-red.log`,
+  `/tmp/auth-social-postgres-green.log`, `/tmp/auth-social-removal-clean-verify.log`.
+- Firebase chat claim construction, feature/identity/role guards and token lifetime
+  now live in application core. SDK availability/issuance/error translation stays
+  in a technical adapter; the old FirebaseChatTokenService was deleted after proof.
+  Retained original claim assertions and added unavailable SDK/error-cause tests.
+  HTTP proof uses real signed tokens and a local JWKS HTTP fixture with the unchanged
+  production decoder and all validators; USER/ADMIN retain 503 when disabled,
+  SHIPPER retains 403. No external DNS dependency or mocked decoder in this proof.
+  `/tmp/auth-firebase-core-green.log`, `/tmp/auth-firebase-http-green.log`.
+- Fresh post-removal `mvn -B -pl :auth-service -am clean verify -q` exited 0:
+  `/tmp/auth-social-firebase-final-clean-verify.log`. 184 tests (domain 15,
+  application 39, infrastructure 92, boot 38), zero failures/errors/skips,
+  including 24 PostgreSQL workflows. Application line/branch coverage 100%;
+  domain 86.36% line / 88.64% branch, above unchanged 85% gates.
+  Module-boundary verifier plus 13 fixtures, five envelope-gate fixtures, strict
+  explicit-claims and HTTP inventory checks pass. Source-location-independent
+  HTTP contract remains unchanged (244 operations / 231 schemas).
+  Build baseline still stops at the existing Settlement matchIfMissing violation
+  (`/tmp/auth-social-firebase-baseline.log`); no global-green claim.
+  Remaining Auth: lifecycle/status sync/outbox/inbox, password-reset/email-verification
+  security-token flows, principal/simulation policy, final facade/dependency removal,
+  packaged-runtime/Kafka/restart proof and review. Auth remains uncommitted and
+  unmerged in `.worktrees/backend-service-architecture`; complete Auth before
+  moving to another service. Saga-to-Dispatch is still not claimed complete.
+
+- Account block/unblock, credential revocation, User status-sync pending/version
+  decisions, after-commit projection, retry reconciliation and event-mode routing
+  now run in framework-free application core. Domain owns status selection from
+  active/profile/verification facts. Spring adapters retain JPA locks and versioned
+  updates, HTTP Internal-Token/circuit breaker, outbox persistence, REQUIRES_NEW
+  callbacks and scheduling. Old AuthService block/status implementation and
+  unused constructor dependencies were removed; the legacy sync job no longer
+  runs in parallel. An actual PostgreSQL test caught that the old retry-failure
+  metadata was rolled back with the post-commit exception. The new workflow
+  commits that diagnostic update before rethrowing; the account remains blocked
+  and pending until a later retry succeeds. Red/green evidence:
+  `/tmp/auth-lifecycle-failure-record-red.log`,
+  `/tmp/auth-lifecycle-failure-record-green.log`. PostgreSQL proofs include
+  rollback on credential or outbox failure, stale version ACK, unblock states,
+  blocked-session invalidation, event-mode outbox and retry recovery.
+- `identity.profile.created` now deserializes in the Kafka listener and delegates
+  transaction, binding, lifecycle transition, receipt validation and BLOCKED
+  snapshot replay to core. The existing retry/DLT annotation and raw-payload
+  SHA-256 fingerprint remain at the listener boundary. Three real PostgreSQL
+  workflows prove exact-once effect for a repeated event, conflict rejection,
+  BLOCKED replay after profile creation, and atomic rollback when receipt write
+  fails. Evidence: `/tmp/auth-profile-event-core-green.log`,
+  `/tmp/auth-profile-event-postgres-verify.log`.
+  Auth remains uncommitted/unmerged; remaining work is security-token workflows,
+  principal/simulation policies, facade/dependency cleanup, packaged-runtime and
+  Kafka/restart proof. Do not mark the service complete yet.
+
+- Safe account lookup moved to core with canonical email and a projection that
+  excludes password hashes. Admin and internal principal controllers now use
+  this lookup; the old AuthService, PrincipalLookupService and their compatibility
+  lookup port were deleted. Production HTTP behavior and four principal roles
+  remain covered by MVC tests. The strict-claims gate now checks the canonical
+  lookup rule in core. `/tmp/auth-lookup-legacy-removal-clean-verify.log`.
+- Simulation actor bind/unbind and fencing policy now live in application core.
+  A generic locked-account port retains pessimistic JPA updates; the JWT adapter
+  signs the exact saved run/cohort/version context. The old
+  SimulationActorBindingService was deleted. Real PostgreSQL proofs verified
+  signed RS256 simulation claims, leased-run/cohort rejection, stale-fence
+  rejection and transaction rollback when token signing fails.
+  `/tmp/auth-simulation-core-green.log`, `/tmp/auth-simulation-postgres-verify.log`.
+  Next: extract password-reset/email-verification issuance, consumption, audit
+  and retention from AccountSecurityService; then remove remaining facade,
+  simplify dependencies, run packaged-runtime/Kafka/restart proof and review.
+  Auth remains uncommitted/unmerged until the whole service is complete.
+
+- Password-reset and email-verification issuance, one-time consumption, uniform
+  rejection, credential revocation, audit and retention now run in application
+  core. JPA hashing/locks, email after-commit delivery and audit persistence stay
+  in infrastructure. The old `AccountSecurityService`, `AuthUseCase` facade,
+  `AuthUseCaseAdapter` and `JwksUseCase` were deleted; Auth/JWKS controllers
+  now call the corresponding core or technical service directly. Fresh
+  `mvn -B -pl :auth-service -am clean verify -q` exited 0 with 218 tests
+  (domain 18/application 62/infrastructure 88/boot 50), no failures/errors/
+  skips. Domain line/branch coverage is 87/90%; application 99.8/94.95%,
+  above unchanged 85% gates. Module boundaries, 13 boundary fixtures, five
+  build-contract fixtures, strict claims and HTTP inventory pass. The
+  source-independent HTTP contract is unchanged (244 operations/231 schemas).
+  Evidence: `/tmp/auth-security-removal-clean-verify.log`.
+- `scripts/verify-auth-runtime.py` now launches the packaged Auth JAR twice
+  against the same disposable PostgreSQL database with disposable file-backed
+  RSA keys. It passed readiness (excluding absent Kafka/SMTP health contributors
+  in this fixture), JWKS, public security requests, internal-secret denial,
+  registration and recovery after restart. CI runs this packaged proof.
+  Evidence: `/tmp/auth-packaged-runtime.log`. Resolved dependency review and
+  final Auth integration remain; Auth is still
+  uncommitted/unmerged in the isolated worktree.
+- A real Kafka and PostgreSQL Testcontainers proof now sends a profile event
+  through the listener, observes the committed inbox/account change, consumes
+  the relayed `identity.status.changed` event, and waits for the replayed input
+  offset before asserting one outbox effect. Fresh clean verify passed 219 Auth
+  tests with zero failures/errors/skips. Evidence:
+  `/tmp/auth-kafka-postgres-verify.log`, `/tmp/auth-final-clean-verify.log`.
+  The canonical runtime-startup script now validates operator-mounted JWT key
+  files instead of referencing the retired `auth-service/src/main/resources`
+  location; syntax and local-runtime safety checks pass.
+- Auth's resolved Maven runtime graphs pass for domain, application API,
+  application and boot. `scripts/package-compose-services.sh auth-service`
+  produced a fresh manifest; the production Dockerfile built the relocated
+  `auth/boot` artifact and the temporary image reports non-root UID/GID
+  `10001:10001`. Secret scanning passed. The full build-baseline gate still
+  stops only at the pre-existing Settlement `matchIfMissing=true` violation,
+  which this Auth tranche does not change. Evidence:
+  `/tmp/auth-runtime-dependency-tree.log`, `/tmp/auth-compose-package.log`,
+  `/tmp/auth-docker-build.log`, `/tmp/auth-secrets-check.log`,
+  `/tmp/auth-final-build-baseline.log`.
 
 ## Result
 

@@ -268,11 +268,16 @@ if [[ -z "${POSTGRES_PASSWORD:-}" ]]; then
   exit 1
 fi
 
-openssl pkey -in auth-service/src/main/resources/private.pem -pubout -outform PEM 2>/dev/null \
-  | cmp -s - auth-service/src/main/resources/public.pem
-cmp -s \
-  auth-service/src/main/resources/public.pem \
-  api-gateway/src/main/resources/public.pem
+if [[ ! -f "${JWT_PRIVATE_KEY_FILE:-}" || ! -f "${JWT_PUBLIC_KEY_FILE:-}" ]]; then
+  printf '%s\n' "JWT_PRIVATE_KEY_FILE and JWT_PUBLIC_KEY_FILE must name existing operator-owned PEM files." >&2
+  exit 1
+fi
+if ! cmp -s \
+  <(openssl pkey -in "$JWT_PRIVATE_KEY_FILE" -pubout 2>/dev/null) \
+  <(openssl pkey -pubin -in "$JWT_PUBLIC_KEY_FILE" -pubout 2>/dev/null); then
+  printf '%s\n' "Auth JWT private/public keys do not match." >&2
+  exit 1
+fi
 
 bash scripts/verify-compose-config.sh
 "${COMPOSE_COMMAND[@]}" config --quiet

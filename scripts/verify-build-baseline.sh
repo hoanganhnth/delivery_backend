@@ -5,11 +5,20 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BOOT_VERSION="3.5.15"
 CLOUD_VERSION="2025.0.3"
 
+service_directory() {
+  local service="$1" canonical="${1%-service}"
+  if [[ -f "${ROOT_DIR}/${canonical}/boot/pom.xml" ]]; then
+    printf '%s' "${ROOT_DIR}/${canonical}/boot"
+  else
+    printf '%s' "${ROOT_DIR}/${service}"
+  fi
+}
+
 modules=(
   runtime-platform-starter
   discovery-server
   config-server
-  auth-service
+  auth/boot
   user/boot
   api-gateway
   delivery-service
@@ -116,7 +125,7 @@ if rg -q "<version>(2022|2023)\\.0\\.[0-9]+</version>" "${ROOT_DIR}"/*/pom.xml; 
 fi
 
 if rg -q 'org\.mapstruct|mapstruct-processor|lombok-mapstruct-binding' \
-    "${ROOT_DIR}"/*/pom.xml "${ROOT_DIR}"/*/src/main/java; then
+    --glob '**/pom.xml' --glob '**/src/main/java/**/*.java' "${ROOT_DIR}"; then
   echo "MapStruct generated mappers are not allowed: clean builds must use deterministic source mappers." >&2
   exit 1
 fi
@@ -131,18 +140,20 @@ if [[ -n "${tracking_proto_files}" ]] \
   exit 1
 fi
 
-auth_service_file="${ROOT_DIR}/auth-service/src/main/java/com/delivery/auth_service/service/AuthService.java"
-auth_operator_shipper_runner="${ROOT_DIR}/auth-service/src/main/java/com/delivery/auth_service/runner/OperatorShipperProvisioningRunner.java"
-auth_operator_admin_runner="${ROOT_DIR}/auth-service/src/main/java/com/delivery/auth_service/runner/OperatorAdminProvisioningRunner.java"
+auth_public_role_core="${ROOT_DIR}/auth/application/src/main/java/com/delivery/auth/application/PublicRegistrationRole.java"
+auth_registration_policy="${ROOT_DIR}/auth/domain/src/main/java/com/delivery/auth/domain/policy/RegistrationPolicy.java"
+auth_operator_core="${ROOT_DIR}/auth/application/src/main/java/com/delivery/auth/application/DefaultOperatorProvisioningUseCase.java"
+auth_operator_shipper_runner="${ROOT_DIR}/auth/infrastructure/src/main/java/com/delivery/auth_service/runner/OperatorShipperProvisioningRunner.java"
+auth_operator_admin_runner="${ROOT_DIR}/auth/infrastructure/src/main/java/com/delivery/auth_service/runner/OperatorAdminProvisioningRunner.java"
 auth_operator_admin_script="${ROOT_DIR}/scripts/operator-provision-admin.sh"
-auth_properties="${ROOT_DIR}/auth-service/src/main/resources/application.properties"
+auth_properties="${ROOT_DIR}/auth/boot/src/main/resources/application.properties"
 if [[ ! -f "${auth_operator_shipper_runner}" ]] \
-    || ! rg -Fq 'operatorProvisionShipperAccount' "${auth_service_file}" \
-    || ! rg -Fq 'parsePublicRegistrationRole' "${auth_service_file}" \
-    || ! rg -Fq 'parsed == AuthAccount.Role.SHIPPER' "${auth_service_file}" \
+    || ! rg -Fq 'provisionShipper' "${auth_operator_core}" \
+    || ! rg -Fq 'SHIPPER accounts require operator provisioning and profile onboarding' "${auth_public_role_core}" \
+    || ! rg -Fq 'role == AuthAccount.Role.USER || role == AuthAccount.Role.SHOP_OWNER' "${auth_registration_policy}" \
     || ! rg -Fq 'APP_OPERATOR_SHIPPER_PROVISIONING_ENABLED' "${auth_properties}" \
     || ! rg -Fq 'APP_OPERATOR_SHIPPER_PROVISIONING_EXIT_AFTER_RUN' "${auth_properties}" \
-    || ! rg -Fq 'authService.operatorProvisionShipperAccount' "${auth_operator_shipper_runner}"; then
+    || ! rg -Fq 'operatorProvisioning.provisionShipper' "${auth_operator_shipper_runner}"; then
   echo "auth-service: SHIPPER fixtures must use explicit operator provisioning while public registration remains closed." >&2
   exit 1
 fi
@@ -153,12 +164,12 @@ if rg -n 'operatorProvisionAdmin|APP_OPERATOR_ADMIN|AuthAccount\.Role\.ADMIN' \
 fi
 if [[ ! -f "${auth_operator_admin_runner}" ]] \
     || [[ ! -f "${auth_operator_admin_script}" ]] \
-    || ! rg -Fq 'operatorProvisionAdminAccount' "${auth_service_file}" \
+    || ! rg -Fq 'provisionAdmin' "${auth_operator_core}" \
     || ! rg -Fq 'APP_OPERATOR_ADMIN_PROVISIONING_ENABLED' "${auth_properties}" \
     || ! rg -Fq 'APP_OPERATOR_ADMIN_PROVISIONING_EMAIL' "${auth_properties}" \
     || ! rg -Fq 'APP_OPERATOR_ADMIN_PROVISIONING_PASSWORD' "${auth_properties}" \
     || ! rg -Fq 'APP_OPERATOR_ADMIN_PROVISIONING_EXIT_AFTER_RUN' "${auth_properties}" \
-    || ! rg -Fq 'authService.operatorProvisionAdminAccount' "${auth_operator_admin_runner}" \
+    || ! rg -Fq 'operatorProvisioning.provisionAdmin' "${auth_operator_admin_runner}" \
     || ! rg -Fq 'APP_OPERATOR_ADMIN_PROVISIONING_ENABLED=true' "${auth_operator_admin_script}" \
     || ! rg -Fq 'APP_OPERATOR_ADMIN_PROVISIONING_EMAIL="$ADMIN_EMAIL"' "${auth_operator_admin_script}" \
     || ! rg -Fq 'APP_OPERATOR_ADMIN_PROVISIONING_PASSWORD="$ADMIN_PASSWORD"' "${auth_operator_admin_script}"; then
@@ -185,7 +196,7 @@ if rg -n 'role\\":\\"SHIPPER|\"role\"[[:space:]]*:[[:space:]]*\"SHIPPER\"|regist
 fi
 
 java_without_package="$(rg --files-without-match '^package ' \
-  "${ROOT_DIR}"/*/src/main/java -g '*.java' || true)"
+  "${ROOT_DIR}" -g '**/src/main/java/**/*.java' || true)"
 if [[ -n "${java_without_package}" ]]; then
   echo "Java source files without a package declaration remain:" >&2
   printf '%s\n' "${java_without_package}" >&2
@@ -193,10 +204,27 @@ if [[ -n "${java_without_package}" ]]; then
 fi
 
 if rg -n -U '@Autowired[[:space:]]*(private|protected|public)?[[:space:]]+[^()\n]+;' \
-    "${ROOT_DIR}"/*/src/main/java >/dev/null; then
+    --glob '**/src/main/java/**/*.java' "${ROOT_DIR}" >/dev/null; then
   echo "Production source must not use @Autowired field injection." >&2
   exit 1
 fi
+
+# The existing principal lookup is an internal wire contract consumed by the
+# identity client. Permit its raw response only while its exact internal route
+# and fail-closed constant-time secret boundary remain intact.
+principal_controller="${ROOT_DIR}/auth/infrastructure/src/main/java/com/delivery/auth_service/controller/PrincipalInternalController.java"
+for required in \
+  '@RequestMapping("/api/auth/internal/principals")' \
+  '@RequestHeader(value = "Internal-Token", required = false)' \
+  'authorize(suppliedSecret);' \
+  'internalSecret.isBlank() || suppliedSecret == null' \
+  'MessageDigest.isEqual(' \
+  'throw new AccessDeniedException("principal lookup unauthorized")'; do
+  if ! rg -Fq "$required" "$principal_controller"; then
+    echo "Internal principal lookup must retain its internal route and mandatory secret guard." >&2
+    exit 1
+  fi
+done
 
 # VNPay IPN is an external provider callback whose acknowledgement shape is provider-owned.
 # JWKS is an RFC-defined discovery document and intentionally is not wrapped in
@@ -215,6 +243,7 @@ raw_controller_responses="$(rg -n 'public ResponseEntity<' \
   | rg -v '/RoutingController\.java:' \
   | rg -v '/SimulatorController\.java:' \
   | rg -v '/SimulationActorInternalController\.java:' \
+  | rg -v '/auth/infrastructure/src/main/java/com/delivery/auth_service/controller/PrincipalInternalController\.java:' \
   || true)"
 if [[ -n "${raw_controller_responses}" ]]; then
   echo "Public controllers must use the canonical BaseResponse envelope:" >&2
@@ -236,7 +265,7 @@ fi
 
 if rg -n 'new BaseResponse<>' \
     --glob '!**/BaseResponse.java' \
-    "${ROOT_DIR}/auth-service/src/main/java" \
+    "${ROOT_DIR}/auth/infrastructure/src/main/java" \
     "${ROOT_DIR}/settlement-service/src/main/java" \
     "${ROOT_DIR}/flashsale-service/src/main/java" >/dev/null; then
   echo "Auth, Settlement and Flash Sale must use BaseResponse named factories at call sites." >&2
@@ -275,7 +304,7 @@ fi
 
 for stable_page in \
   "${ROOT_DIR}/order-service/src/main/java/com/delivery/order_service/payload/PageResponse.java" \
-  "${ROOT_DIR}/shipper-service/src/main/java/com/delivery/shipper_service/payload/PageResponse.java" \
+  "${ROOT_DIR}/shipper/infrastructure/src/main/java/com/delivery/shipper_service/payload/PageResponse.java" \
   "${ROOT_DIR}/search-service/src/main/java/com/delivery/search_service/payload/PageResponse.java"; do
   if ! rg -q -U 'List<T> items,[[:space:]]*int page,[[:space:]]*int size,[[:space:]]*long totalItems,[[:space:]]*int totalPages,[[:space:]]*boolean hasNext' \
       "${stable_page}"; then
@@ -285,17 +314,17 @@ for stable_page in \
 done
 
 if rg -q 'spring\.jpa\.show-sql=true|spring\.jpa\.properties\.hibernate\.format_sql=true|logging\.level\.[^=]+=(DEBUG|TRACE)' \
-    "${ROOT_DIR}"/*/src/main/resources/application*.properties; then
+    --glob '**/src/main/resources/application*.properties' "${ROOT_DIR}"; then
   echo "Unsafe verbose logging is enabled by default in a main application properties file." >&2
   exit 1
 fi
 if rg -q 'show-sql:[[:space:]]*true|format_sql:[[:space:]]*true|:[[:space:]]*(DEBUG|TRACE)[[:space:]]*$' \
-    "${ROOT_DIR}"/*/src/main/resources/application*.yml; then
+    --glob '**/src/main/resources/application*.yml' "${ROOT_DIR}"; then
   echo "Unsafe verbose logging is enabled by default in a main application YAML file." >&2
   exit 1
 fi
 if rg -q 'spring\.datasource\.password=123456|password:[[:space:]]*123456' \
-    "${ROOT_DIR}"/*/src/main/resources/application*; then
+    --glob '**/src/main/resources/application*' "${ROOT_DIR}"; then
   echo "A main application config still contains the legacy default database password." >&2
   exit 1
 fi
@@ -317,8 +346,8 @@ hidden_capability_defaults=(
   'settlement-service/src/main/resources/application.properties|app.settlement.self-service-api-enabled=${SETTLEMENT_SELF_SERVICE_API_ENABLED:false}'
   'settlement-service/src/main/resources/application.properties|app.settlement.admin-mutation-api-enabled=${SETTLEMENT_ADMIN_MUTATION_API_ENABLED:false}'
   'notification-service/src/main/resources/application.properties|app.notification.preferences-enabled=${NOTIFICATION_PREFERENCES_ENABLED:false}'
-  'shipper-service/src/main/resources/application.properties|app.shipper.legacy-rating-write-api-enabled=${SHIPPER_LEGACY_RATING_WRITE_API_ENABLED:false}'
-  'shipper-service/src/main/resources/application.properties|app.shipper.legacy-delete-api-enabled=${SHIPPER_LEGACY_DELETE_API_ENABLED:false}'
+  'shipper/boot/src/main/resources/application.properties|app.shipper.legacy-rating-write-api-enabled=${SHIPPER_LEGACY_RATING_WRITE_API_ENABLED:false}'
+  'shipper/boot/src/main/resources/application.properties|app.shipper.legacy-delete-api-enabled=${SHIPPER_LEGACY_DELETE_API_ENABLED:false}'
   'promotion-service/src/main/resources/application.yml|merchant-create-api-enabled: ${PROMOTION_MERCHANT_CREATE_API_ENABLED:false}'
   'promotion-service/src/main/resources/application.yml|checkout-enabled: ${PROMOTION_CHECKOUT_ENABLED:false}'
   'promotion-service/src/main/resources/application.yml|outbox-relay-enabled: ${PROMOTION_OUTBOX_RELAY_ENABLED:false}'
@@ -369,13 +398,13 @@ if rg -q 'private[[:space:]]+Double[[:space:]]+price;' \
 fi
 if rg -q 'Shipper(SearchController|SearchRepository|Document|SearchResponse)|searchShippers|SHIPPER_SEARCH_SYNC|SEARCH_SHIPPER_' \
     "${ROOT_DIR}/search-service/src" \
-    "${ROOT_DIR}/shipper-service/src" \
+    "${ROOT_DIR}/shipper/infrastructure/src" \
     "${ROOT_DIR}/docker-compose.yml"; then
   echo "Dead shipper Elasticsearch search/sync graph must not be restored without product authority and a caller." >&2
   exit 1
 fi
 unsafe_match_if_missing="$(rg -l 'matchIfMissing[[:space:]]*=[[:space:]]*true' \
-  --glob '*.java' "${ROOT_DIR}"/*/src/main/java \
+  --glob '**/src/main/java/**/*.java' "${ROOT_DIR}" \
   | rg -v '/(OrderOutboxRelay|RestaurantOutboxRelay|SagaOutboxRelay|OutboxMessageRelay|LivestreamDisabledWebFilter)\.java$' || true)"
 if [[ -n "${unsafe_match_if_missing}" ]]; then
   echo "Hidden/optional components must not use matchIfMissing=true:" >&2
@@ -383,8 +412,8 @@ if [[ -n "${unsafe_match_if_missing}" ]]; then
   exit 1
 fi
 
-auth_properties="${ROOT_DIR}/auth-service/src/main/resources/application.properties"
-auth_token_service="${ROOT_DIR}/auth-service/src/main/java/com/delivery/auth_service/service/TokenService.java"
+auth_properties="${ROOT_DIR}/auth/boot/src/main/resources/application.properties"
+auth_token_service="${ROOT_DIR}/auth/infrastructure/src/main/java/com/delivery/auth_service/service/TokenService.java"
 if ! rg -Fq 'jwt.private-key.path=${JWT_PRIVATE_KEY_PATH:}' "${auth_properties}" \
     || ! rg -Fq 'jwt.public-key.path=${JWT_PUBLIC_KEY_PATH:}' "${auth_properties}" \
     || rg -q '@Value\("\$\{jwt\.(private|public)-key\.path:classpath:' \
@@ -400,7 +429,7 @@ if ! rg -Fq 'REFRESH_TOKEN_TTL = Duration.ofDays(7)' "${auth_token_service}" \
   exit 1
 fi
 if rg -q 'System\.getenv\("JWT_(PRIVATE|PUBLIC)_KEY_PATH"\)' \
-    "${ROOT_DIR}/auth-service/src/main/java" \
+    "${ROOT_DIR}/auth/infrastructure/src/main/java" \
     "${ROOT_DIR}/api-gateway/src/main/java"; then
   echo "JWT loaders must use Spring-configured key locations instead of bypassing configuration." >&2
   exit 1
@@ -412,7 +441,7 @@ jpa_modules=(
   settlement-service flashsale-service analytics-service promotion-service
 )
 for module in "${jpa_modules[@]}"; do
-  resources="${ROOT_DIR}/${module}/src/main/resources"
+  resources="$(service_directory "$module")/src/main/resources"
   if ! rg -q 'spring\.jpa\.open-in-view=false|open-in-view:[[:space:]]*false' \
       "${resources}"/application.*; then
     echo "${module}: spring.jpa.open-in-view must be false." >&2
@@ -426,7 +455,7 @@ flyway_authority_modules=(
   saga-orchestrator-service settlement-service
 )
 for module in "${flyway_authority_modules[@]}"; do
-  properties="${ROOT_DIR}/${module}/src/main/resources/application.properties"
+  properties="$(service_directory "$module")/src/main/resources/application.properties"
   if ! rg -q '^spring\.jpa\.hibernate\.ddl-auto=validate$' "${properties}"; then
     echo "${module}: Flyway-owned production schema must use Hibernate validate." >&2
     exit 1

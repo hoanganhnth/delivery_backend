@@ -10,9 +10,13 @@ modules=(
 )
 
 for module in "${modules[@]}"; do
-  pom="${ROOT_DIR}/${module}/pom.xml"
-  config="${ROOT_DIR}/${module}/src/main/resources/application.properties"
-  [[ -f "${config}" ]] || config="${ROOT_DIR}/${module}/src/main/resources/application.yml"
+  directory="${module}"
+  if [[ -f "${ROOT_DIR}/${module%-service}/boot/pom.xml" ]]; then
+    directory="${module%-service}/boot"
+  fi
+  pom="${ROOT_DIR}/${directory}/pom.xml"
+  config="${ROOT_DIR}/${directory}/src/main/resources/application.properties"
+  [[ -f "${config}" ]] || config="${ROOT_DIR}/${directory}/src/main/resources/application.yml"
 
   [[ "$(rg -c '<artifactId>spring-boot-starter-actuator</artifactId>' "${pom}")" == "1" ]] \
     || { echo "${module}: expected exactly one Actuator dependency." >&2; exit 1; }

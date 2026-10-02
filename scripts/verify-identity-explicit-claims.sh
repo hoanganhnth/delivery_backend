@@ -77,7 +77,7 @@ while IFS= read -r reader; do
   [[ -n "$reader" ]] && sub_readers+=("$reader")
 done < <(
   rg -l 'getSubject\(' --glob '*.java' --glob '!**/test/**' \
-    --glob '!auth-service/**' \
+    --glob '!auth/infrastructure/**' \
     --glob '!user/infrastructure/src/main/java/com/delivery/user_service/service/ProvisioningTokenVerifier.java' \
     . || true
 )
@@ -115,14 +115,14 @@ require_text "$user_service" 'authId and principalId must identify the same Auth
 # Auth account identity is email-based before a principal exists. The lookup
 # and its PostgreSQL constraint must use the same canonical rule so case-only
 # or whitespace-only retries cannot manufacture a second credential.
-auth_repository='modules/auth/auth-infrastructure/src/main/java/com/delivery/auth/infrastructure/repository/AuthAccountRepository.java'
-auth_service='auth-service/src/main/java/com/delivery/auth_service/service/AuthService.java'
-auth_email_migration='auth-service/src/main/java/db/migration/V8__canonical_auth_account_email.java'
+auth_repository='auth/infrastructure/src/main/java/com/delivery/auth_service/repository/AuthAccountRepository.java'
+auth_lookup_core='auth/application/src/main/java/com/delivery/auth/application/DefaultAccountLookupUseCase.java'
+auth_email_migration='auth/infrastructure/src/main/java/db/migration/V8__canonical_auth_account_email.java'
 require_file "$auth_repository"
-require_file "$auth_service"
+require_file "$auth_lookup_core"
 require_file "$auth_email_migration"
 require_text "$auth_repository" 'lower(trim(account.email)) = lower(trim(:email))'
-require_text "$auth_service" 'private static String normalizeEmail(String email)'
+require_text "$auth_lookup_core" 'private static String normalizeEmail(String email)'
 require_text "$auth_email_migration" 'ON auth_account (lower(btrim(email)))'
 require_text "$auth_email_migration" 'CREATE UNIQUE INDEX CONCURRENTLY'
 require_text "$auth_email_migration" 'DROP INDEX CONCURRENTLY IF EXISTS'

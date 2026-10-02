@@ -286,8 +286,8 @@
       "path": "/api/auth/register",
       "handler": "register",
       "source": {
-        "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java",
-        "line": 53
+        "file": "backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/controller/AuthController.java",
+        "line": 82
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<AuthRegisterResponse>> register( @Valid @RequestBody RegisterRequest request, HttpServletRequest servletRequest)",
@@ -332,8 +332,8 @@
       "path": "/api/auth/registrations/{handle}",
       "handler": "registrationStatus",
       "source": {
-        "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java",
-        "line": 79
+        "file": "backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/controller/AuthController.java",
+        "line": 107
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<RegistrationStatusResponse>> registrationStatus(@PathVariable String handle)",
@@ -364,8 +364,8 @@
       "path": "/api/auth/login",
       "handler": "login",
       "source": {
-        "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java",
-        "line": 122
+        "file": "backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/controller/AuthController.java",
+        "line": 153
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<AuthResponse>> login(@Valid @RequestBody LoginRequest request)",
@@ -403,8 +403,8 @@
       "path": "/api/auth/social-login",
       "handler": "socialLogin",
       "source": {
-        "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java",
-        "line": 129
+        "file": "backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/controller/AuthController.java",
+        "line": 164
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<AuthResponse>> socialLogin(@Valid @RequestBody SocialLoginRequest request)",
@@ -442,8 +442,8 @@
       "path": "/api/auth/refresh-token",
       "handler": "refreshToken",
       "source": {
-        "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java",
-        "line": 136
+        "file": "backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/controller/AuthController.java",
+        "line": 177
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<AuthResponse>> refreshToken(@Valid @RequestBody RefreshTokenRequest request)",
@@ -481,8 +481,8 @@
       "path": "/api/auth/logout",
       "handler": "logout",
       "source": {
-        "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java",
-        "line": 163
+        "file": "backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/controller/AuthController.java",
+        "line": 205
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<Void>> logout(@Valid @RequestBody RefreshTokenRequest request)",
@@ -520,8 +520,8 @@
       "path": "/api/auth/forgot-password",
       "handler": "forgotPassword",
       "source": {
-        "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java",
-        "line": 87
+        "file": "backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/controller/AuthController.java",
+        "line": 118
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<Void>> forgotPassword( @Valid @RequestBody SecurityEmailRequest request, HttpServletRequest servletRequest)",
@@ -566,8 +566,8 @@
       "path": "/api/auth/reset-password",
       "handler": "resetPassword",
       "source": {
-        "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java",
-        "line": 96
+        "file": "backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/controller/AuthController.java",
+        "line": 127
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<Void>> resetPassword( @Valid @RequestBody ResetPasswordRequest request, HttpServletRequest servletRequest)",
@@ -612,8 +612,8 @@
       "path": "/api/auth/email-verification/request",
       "handler": "requestEmailVerification",
       "source": {
-        "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java",
-        "line": 105
+        "file": "backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/controller/AuthController.java",
+        "line": 136
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<Void>> requestEmailVerification( @Valid @RequestBody SecurityEmailRequest request, HttpServletRequest servletRequest)",
@@ -658,8 +658,8 @@
       "path": "/api/auth/email-verification/confirm",
       "handler": "confirmEmailVerification",
       "source": {
-        "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java",
-        "line": 114
+        "file": "backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/controller/AuthController.java",
+        "line": 145
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<Void>> confirmEmailVerification( @Valid @RequestBody SecurityTokenRequest request, HttpServletRequest servletRequest)",
@@ -704,8 +704,8 @@
       "path": "/api/auth/firebase/chat-token",
       "handler": "firebaseChatToken",
       "source": {
-        "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java",
-        "line": 143
+        "file": "backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/controller/AuthController.java",
+        "line": 185
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<FirebaseChatTokenResponse>> firebaseChatToken( Authentication authentication)",
@@ -731,8 +731,8 @@
       "path": "/api/auth/sessions",
       "handler": "getSessions",
       "source": {
-        "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java",
-        "line": 170
+        "file": "backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/controller/AuthController.java",
+        "line": 212
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<List<SessionInfoResponse>>> getSessions()",
@@ -750,8 +750,8 @@
       "path": "/api/auth/sessions/{deviceId}",
       "handler": "revokeDeviceSession",
       "source": {
-        "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java",
-        "line": 183
+        "file": "backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/controller/AuthController.java",
+        "line": 228
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<Void>> revokeDeviceSession(@PathVariable String deviceId)",
@@ -782,8 +782,8 @@
       "path": "/api/auth/accounts/{id}",
       "handler": "getAccountById",
       "source": {
-        "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java",
-        "line": 195
+        "file": "backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/controller/AuthController.java",
+        "line": 240
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<AuthAccountDto>> getAccountById(@PathVariable Long id)",
@@ -814,8 +814,8 @@
       "path": "/api/auth/admin/accounts/{id}/block",
       "handler": "blockAccount",
       "source": {
-        "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java",
-        "line": 211
+        "file": "backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/controller/AuthController.java",
+        "line": 257
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<Void>> blockAccount( @PathVariable Long id, @RequestBody(required = false) BlockAccountRequest request)",
@@ -858,8 +858,8 @@
       "path": "/api/auth/admin/accounts/{id}/unblock",
       "handler": "unblockAccount",
       "source": {
-        "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java",
-        "line": 241
+        "file": "backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/controller/AuthController.java",
+        "line": 287
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<Void>> unblockAccount(@PathVariable Long id)",
@@ -890,7 +890,7 @@
       "path": "/.well-known/jwks.json",
       "handler": "getJwks",
       "source": {
-        "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/JwksController.java",
+        "file": "backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/controller/JwksController.java",
         "line": 21
       },
       "java": {
@@ -909,8 +909,8 @@
       "path": "/api/auth/internal/principals/{principalId}",
       "handler": "findByPrincipalId",
       "source": {
-        "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/PrincipalInternalController.java",
-        "line": 31
+        "file": "backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/controller/PrincipalInternalController.java",
+        "line": 34
       },
       "java": {
         "signature": "public ResponseEntity<IdentityPrincipal> findByPrincipalId( @RequestHeader(value = \"Internal-Token\", required = false) String suppliedSecret, @PathVariable String principalId)",
@@ -954,7 +954,7 @@
       "path": "/api/auth/internal/simulation-actors/{principalId}/bindings",
       "handler": "bind",
       "source": {
-        "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/SimulationActorInternalController.java",
+        "file": "backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/controller/SimulationActorInternalController.java",
         "line": 33
       },
       "java": {
@@ -1010,8 +1010,8 @@
       "path": "/api/auth/internal/simulation-actors/{principalId}/bindings/{runId}",
       "handler": "unbind",
       "source": {
-        "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/SimulationActorInternalController.java",
-        "line": 43
+        "file": "backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/controller/SimulationActorInternalController.java",
+        "line": 46
       },
       "java": {
         "signature": "public ResponseEntity<Void> unbind( @RequestHeader(value = \"X-Internal-Secret\", required = false) String suppliedSecret, @PathVariable Long principalId, @PathVariable UUID runId, @RequestHeader(\"X-Simulation-Binding-Version\") long bindingVersion)",
@@ -11929,8 +11929,8 @@
     "com.delivery.auth_service.controller.SimulationActorInternalController.BindRequest": {
       "kind": "record",
       "source": {
-        "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/SimulationActorInternalController.java",
-        "line": 61
+        "file": "backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/controller/SimulationActorInternalController.java",
+        "line": 64
       },
       "fields": [
         {
@@ -11950,8 +11950,8 @@
     "com.delivery.auth_service.controller.SimulationActorInternalController.BindResponse": {
       "kind": "record",
       "source": {
-        "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/SimulationActorInternalController.java",
-        "line": 69
+        "file": "backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/controller/SimulationActorInternalController.java",
+        "line": 72
       },
       "fields": [
         {
@@ -11971,7 +11971,7 @@
     "com.delivery.auth_service.dto.AuthAccountDto": {
       "kind": "record",
       "source": {
-        "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/dto/AuthAccountDto.java",
+        "file": "backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/dto/AuthAccountDto.java",
         "line": 3
       },
       "fields": [
@@ -11998,7 +11998,7 @@
     "com.delivery.auth_service.dto.AuthRegisterResponse": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/dto/AuthRegisterResponse.java",
+        "file": "backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/dto/AuthRegisterResponse.java",
         "line": 10
       },
       "fields": [
@@ -12055,7 +12055,7 @@
     "com.delivery.auth_service.dto.AuthResponse": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/dto/AuthResponse.java",
+        "file": "backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/dto/AuthResponse.java",
         "line": 3
       },
       "fields": [
@@ -12094,7 +12094,7 @@
     "com.delivery.auth_service.dto.BlockAccountRequest": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/dto/BlockAccountRequest.java",
+        "file": "backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/dto/BlockAccountRequest.java",
         "line": 11
       },
       "fields": [
@@ -12120,7 +12120,7 @@
     "com.delivery.auth_service.dto.FirebaseChatTokenResponse": {
       "kind": "record",
       "source": {
-        "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/dto/FirebaseChatTokenResponse.java",
+        "file": "backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/dto/FirebaseChatTokenResponse.java",
         "line": 3
       },
       "fields": [
@@ -12153,7 +12153,7 @@
     "com.delivery.auth_service.dto.LoginRequest": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/dto/LoginRequest.java",
+        "file": "backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/dto/LoginRequest.java",
         "line": 8
       },
       "fields": [
@@ -12231,7 +12231,7 @@
     "com.delivery.auth_service.dto.RefreshTokenRequest": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/dto/RefreshTokenRequest.java",
+        "file": "backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/dto/RefreshTokenRequest.java",
         "line": 5
       },
       "fields": [
@@ -12255,7 +12255,7 @@
     "com.delivery.auth_service.dto.RegisterRequest": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/dto/RegisterRequest.java",
+        "file": "backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/dto/RegisterRequest.java",
         "line": 8
       },
       "fields": [
@@ -12315,7 +12315,7 @@
     "com.delivery.auth_service.dto.RegistrationStatusResponse": {
       "kind": "record",
       "source": {
-        "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/dto/RegistrationStatusResponse.java",
+        "file": "backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/dto/RegistrationStatusResponse.java",
         "line": 6
       },
       "fields": [
@@ -12354,7 +12354,7 @@
     "com.delivery.auth_service.dto.ResetPasswordRequest": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/dto/ResetPasswordRequest.java",
+        "file": "backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/dto/ResetPasswordRequest.java",
         "line": 6
       },
       "fields": [
@@ -12409,7 +12409,7 @@
     "com.delivery.auth_service.dto.SecurityEmailRequest": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/dto/SecurityEmailRequest.java",
+        "file": "backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/dto/SecurityEmailRequest.java",
         "line": 6
       },
       "fields": [
@@ -12439,7 +12439,7 @@
     "com.delivery.auth_service.dto.SecurityTokenRequest": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/dto/SecurityTokenRequest.java",
+        "file": "backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/dto/SecurityTokenRequest.java",
         "line": 6
       },
       "fields": [
@@ -12471,7 +12471,7 @@
     "com.delivery.auth_service.dto.SessionInfoResponse": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/dto/SessionInfoResponse.java",
+        "file": "backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/dto/SessionInfoResponse.java",
         "line": 10
       },
       "fields": [
@@ -12522,7 +12522,7 @@
     "com.delivery.auth_service.dto.SocialLoginRequest": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/dto/SocialLoginRequest.java",
+        "file": "backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/dto/SocialLoginRequest.java",
         "line": 13
       },
       "fields": [
@@ -12600,7 +12600,7 @@
     "com.delivery.auth_service.payload.BaseResponse": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/auth-service/src/main/java/com/delivery/auth_service/payload/BaseResponse.java",
+        "file": "backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/payload/BaseResponse.java",
         "line": 9
       },
       "fields": [

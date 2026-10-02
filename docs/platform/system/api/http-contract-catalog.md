@@ -124,7 +124,7 @@ public ResponseEntity<BaseResponse<String>> manualReconcile( @RequestParam Strin
 ### `GET` `/.well-known/jwks.json`
 
 - Handler: `JwksController.getJwks`
-- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/JwksController.java:21`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/JwksController.java)
+- Source: [`backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/controller/JwksController.java:21`](../../../../auth/infrastructure/src/main/java/com/delivery/auth_service/controller/JwksController.java)
 - Java return type: `ResponseEntity<Map<String, Object>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -143,7 +143,7 @@ public ResponseEntity<Map<String, Object>> getJwks()
 ### `GET` `/api/auth/accounts/{id}`
 
 - Handler: `AuthController.getAccountById`
-- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java:195`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java)
+- Source: [`backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/controller/AuthController.java:240`](../../../../auth/infrastructure/src/main/java/com/delivery/auth_service/controller/AuthController.java)
 - Java return type: `ResponseEntity<BaseResponse<AuthAccountDto>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -162,7 +162,7 @@ public ResponseEntity<BaseResponse<AuthAccountDto>> getAccountById(@PathVariable
 ### `POST` `/api/auth/admin/accounts/{id}/block`
 
 - Handler: `AuthController.blockAccount`
-- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java:211`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java)
+- Source: [`backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/controller/AuthController.java:257`](../../../../auth/infrastructure/src/main/java/com/delivery/auth_service/controller/AuthController.java)
 - Java return type: `ResponseEntity<BaseResponse<Void>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -182,7 +182,7 @@ public ResponseEntity<BaseResponse<Void>> blockAccount( @PathVariable Long id, @
 ### `POST` `/api/auth/admin/accounts/{id}/unblock`
 
 - Handler: `AuthController.unblockAccount`
-- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java:241`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java)
+- Source: [`backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/controller/AuthController.java:287`](../../../../auth/infrastructure/src/main/java/com/delivery/auth_service/controller/AuthController.java)
 - Java return type: `ResponseEntity<BaseResponse<Void>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -201,7 +201,7 @@ public ResponseEntity<BaseResponse<Void>> unblockAccount(@PathVariable Long id)
 ### `POST` `/api/auth/email-verification/confirm`
 
 - Handler: `AuthController.confirmEmailVerification`
-- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java:114`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java)
+- Source: [`backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/controller/AuthController.java:145`](../../../../auth/infrastructure/src/main/java/com/delivery/auth_service/controller/AuthController.java)
 - Java return type: `ResponseEntity<BaseResponse<Void>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -221,7 +221,7 @@ public ResponseEntity<BaseResponse<Void>> confirmEmailVerification( @Valid @Requ
 ### `POST` `/api/auth/email-verification/request`
 
 - Handler: `AuthController.requestEmailVerification`
-- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java:105`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java)
+- Source: [`backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/controller/AuthController.java:136`](../../../../auth/infrastructure/src/main/java/com/delivery/auth_service/controller/AuthController.java)
 - Java return type: `ResponseEntity<BaseResponse<Void>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -241,7 +241,7 @@ public ResponseEntity<BaseResponse<Void>> requestEmailVerification( @Valid @Requ
 ### `POST` `/api/auth/firebase/chat-token`
 
 - Handler: `AuthController.firebaseChatToken`
-- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java:143`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java)
+- Source: [`backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/controller/AuthController.java:185`](../../../../auth/infrastructure/src/main/java/com/delivery/auth_service/controller/AuthController.java)
 - Java return type: `ResponseEntity<BaseResponse<FirebaseChatTokenResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -260,7 +260,7 @@ public ResponseEntity<BaseResponse<FirebaseChatTokenResponse>> firebaseChatToken
 ### `POST` `/api/auth/forgot-password`
 
 - Handler: `AuthController.forgotPassword`
-- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java:87`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java)
+- Source: [`backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/controller/AuthController.java:118`](../../../../auth/infrastructure/src/main/java/com/delivery/auth_service/controller/AuthController.java)
 - Java return type: `ResponseEntity<BaseResponse<Void>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -280,7 +280,7 @@ public ResponseEntity<BaseResponse<Void>> forgotPassword( @Valid @RequestBody Se
 ### `GET` `/api/auth/internal/principals/{principalId}`
 
 - Handler: `PrincipalInternalController.findByPrincipalId`
-- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/PrincipalInternalController.java:31`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/PrincipalInternalController.java)
+- Source: [`backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/controller/PrincipalInternalController.java:34`](../../../../auth/infrastructure/src/main/java/com/delivery/auth_service/controller/PrincipalInternalController.java)
 - Java return type: `ResponseEntity<IdentityPrincipal>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -300,7 +300,7 @@ public ResponseEntity<IdentityPrincipal> findByPrincipalId( @RequestHeader(value
 ### `POST` `/api/auth/internal/simulation-actors/{principalId}/bindings`
 
 - Handler: `SimulationActorInternalController.bind`
-- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/SimulationActorInternalController.java:33`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/SimulationActorInternalController.java)
+- Source: [`backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/controller/SimulationActorInternalController.java:33`](../../../../auth/infrastructure/src/main/java/com/delivery/auth_service/controller/SimulationActorInternalController.java)
 - Java return type: `ResponseEntity<BindResponse>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -321,7 +321,7 @@ public ResponseEntity<BindResponse> bind( @RequestHeader(value = "X-Internal-Sec
 ### `DELETE` `/api/auth/internal/simulation-actors/{principalId}/bindings/{runId}`
 
 - Handler: `SimulationActorInternalController.unbind`
-- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/SimulationActorInternalController.java:43`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/SimulationActorInternalController.java)
+- Source: [`backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/controller/SimulationActorInternalController.java:46`](../../../../auth/infrastructure/src/main/java/com/delivery/auth_service/controller/SimulationActorInternalController.java)
 - Java return type: `ResponseEntity<Void>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -343,7 +343,7 @@ public ResponseEntity<Void> unbind( @RequestHeader(value = "X-Internal-Secret", 
 ### `POST` `/api/auth/login`
 
 - Handler: `AuthController.login`
-- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java:122`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java)
+- Source: [`backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/controller/AuthController.java:153`](../../../../auth/infrastructure/src/main/java/com/delivery/auth_service/controller/AuthController.java)
 - Java return type: `ResponseEntity<BaseResponse<AuthResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -362,7 +362,7 @@ public ResponseEntity<BaseResponse<AuthResponse>> login(@Valid @RequestBody Logi
 ### `POST` `/api/auth/logout`
 
 - Handler: `AuthController.logout`
-- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java:163`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java)
+- Source: [`backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/controller/AuthController.java:205`](../../../../auth/infrastructure/src/main/java/com/delivery/auth_service/controller/AuthController.java)
 - Java return type: `ResponseEntity<BaseResponse<Void>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -381,7 +381,7 @@ public ResponseEntity<BaseResponse<Void>> logout(@Valid @RequestBody RefreshToke
 ### `POST` `/api/auth/refresh-token`
 
 - Handler: `AuthController.refreshToken`
-- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java:136`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java)
+- Source: [`backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/controller/AuthController.java:177`](../../../../auth/infrastructure/src/main/java/com/delivery/auth_service/controller/AuthController.java)
 - Java return type: `ResponseEntity<BaseResponse<AuthResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -400,7 +400,7 @@ public ResponseEntity<BaseResponse<AuthResponse>> refreshToken(@Valid @RequestBo
 ### `POST` `/api/auth/register`
 
 - Handler: `AuthController.register`
-- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java:53`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java)
+- Source: [`backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/controller/AuthController.java:82`](../../../../auth/infrastructure/src/main/java/com/delivery/auth_service/controller/AuthController.java)
 - Java return type: `ResponseEntity<BaseResponse<AuthRegisterResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -420,7 +420,7 @@ public ResponseEntity<BaseResponse<AuthRegisterResponse>> register( @Valid @Requ
 ### `GET` `/api/auth/registrations/{handle}`
 
 - Handler: `AuthController.registrationStatus`
-- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java:79`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java)
+- Source: [`backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/controller/AuthController.java:107`](../../../../auth/infrastructure/src/main/java/com/delivery/auth_service/controller/AuthController.java)
 - Java return type: `ResponseEntity<BaseResponse<RegistrationStatusResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -439,7 +439,7 @@ public ResponseEntity<BaseResponse<RegistrationStatusResponse>> registrationStat
 ### `POST` `/api/auth/reset-password`
 
 - Handler: `AuthController.resetPassword`
-- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java:96`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java)
+- Source: [`backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/controller/AuthController.java:127`](../../../../auth/infrastructure/src/main/java/com/delivery/auth_service/controller/AuthController.java)
 - Java return type: `ResponseEntity<BaseResponse<Void>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -459,7 +459,7 @@ public ResponseEntity<BaseResponse<Void>> resetPassword( @Valid @RequestBody Res
 ### `GET` `/api/auth/sessions`
 
 - Handler: `AuthController.getSessions`
-- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java:170`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java)
+- Source: [`backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/controller/AuthController.java:212`](../../../../auth/infrastructure/src/main/java/com/delivery/auth_service/controller/AuthController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<SessionInfoResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -478,7 +478,7 @@ public ResponseEntity<BaseResponse<List<SessionInfoResponse>>> getSessions()
 ### `DELETE` `/api/auth/sessions/{deviceId}`
 
 - Handler: `AuthController.revokeDeviceSession`
-- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java:183`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java)
+- Source: [`backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/controller/AuthController.java:228`](../../../../auth/infrastructure/src/main/java/com/delivery/auth_service/controller/AuthController.java)
 - Java return type: `ResponseEntity<BaseResponse<Void>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -497,7 +497,7 @@ public ResponseEntity<BaseResponse<Void>> revokeDeviceSession(@PathVariable Stri
 ### `POST` `/api/auth/social-login`
 
 - Handler: `AuthController.socialLogin`
-- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java:129`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/AuthController.java)
+- Source: [`backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/controller/AuthController.java:164`](../../../../auth/infrastructure/src/main/java/com/delivery/auth_service/controller/AuthController.java)
 - Java return type: `ResponseEntity<BaseResponse<AuthResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -5090,7 +5090,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.auth_service.controller.SimulationActorInternalController.BindRequest`
 
 - Kind: `record`
-- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/SimulationActorInternalController.java:61`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/SimulationActorInternalController.java)
+- Source: [`backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/controller/SimulationActorInternalController.java:64`](../../../../auth/infrastructure/src/main/java/com/delivery/auth_service/controller/SimulationActorInternalController.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5100,7 +5100,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.auth_service.controller.SimulationActorInternalController.BindResponse`
 
 - Kind: `record`
-- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/controller/SimulationActorInternalController.java:69`](../../../../auth-service/src/main/java/com/delivery/auth_service/controller/SimulationActorInternalController.java)
+- Source: [`backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/controller/SimulationActorInternalController.java:72`](../../../../auth/infrastructure/src/main/java/com/delivery/auth_service/controller/SimulationActorInternalController.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5110,7 +5110,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.auth_service.dto.AuthAccountDto`
 
 - Kind: `record`
-- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/dto/AuthAccountDto.java:3`](../../../../auth-service/src/main/java/com/delivery/auth_service/dto/AuthAccountDto.java)
+- Source: [`backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/dto/AuthAccountDto.java:3`](../../../../auth/infrastructure/src/main/java/com/delivery/auth_service/dto/AuthAccountDto.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5121,7 +5121,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.auth_service.dto.AuthRegisterResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/dto/AuthRegisterResponse.java:10`](../../../../auth-service/src/main/java/com/delivery/auth_service/dto/AuthRegisterResponse.java)
+- Source: [`backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/dto/AuthRegisterResponse.java:10`](../../../../auth/infrastructure/src/main/java/com/delivery/auth_service/dto/AuthRegisterResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5137,7 +5137,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.auth_service.dto.AuthResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/dto/AuthResponse.java:3`](../../../../auth-service/src/main/java/com/delivery/auth_service/dto/AuthResponse.java)
+- Source: [`backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/dto/AuthResponse.java:3`](../../../../auth/infrastructure/src/main/java/com/delivery/auth_service/dto/AuthResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5150,7 +5150,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.auth_service.dto.BlockAccountRequest`
 
 - Kind: `class`
-- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/dto/BlockAccountRequest.java:11`](../../../../auth-service/src/main/java/com/delivery/auth_service/dto/BlockAccountRequest.java)
+- Source: [`backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/dto/BlockAccountRequest.java:11`](../../../../auth/infrastructure/src/main/java/com/delivery/auth_service/dto/BlockAccountRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5159,7 +5159,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.auth_service.dto.FirebaseChatTokenResponse`
 
 - Kind: `record`
-- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/dto/FirebaseChatTokenResponse.java:3`](../../../../auth-service/src/main/java/com/delivery/auth_service/dto/FirebaseChatTokenResponse.java)
+- Source: [`backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/dto/FirebaseChatTokenResponse.java:3`](../../../../auth/infrastructure/src/main/java/com/delivery/auth_service/dto/FirebaseChatTokenResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5171,7 +5171,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.auth_service.dto.LoginRequest`
 
 - Kind: `class`
-- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/dto/LoginRequest.java:8`](../../../../auth-service/src/main/java/com/delivery/auth_service/dto/LoginRequest.java)
+- Source: [`backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/dto/LoginRequest.java:8`](../../../../auth/infrastructure/src/main/java/com/delivery/auth_service/dto/LoginRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5185,7 +5185,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.auth_service.dto.RefreshTokenRequest`
 
 - Kind: `class`
-- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/dto/RefreshTokenRequest.java:5`](../../../../auth-service/src/main/java/com/delivery/auth_service/dto/RefreshTokenRequest.java)
+- Source: [`backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/dto/RefreshTokenRequest.java:5`](../../../../auth/infrastructure/src/main/java/com/delivery/auth_service/dto/RefreshTokenRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5194,7 +5194,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.auth_service.dto.RegisterRequest`
 
 - Kind: `class`
-- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/dto/RegisterRequest.java:8`](../../../../auth-service/src/main/java/com/delivery/auth_service/dto/RegisterRequest.java)
+- Source: [`backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/dto/RegisterRequest.java:8`](../../../../auth/infrastructure/src/main/java/com/delivery/auth_service/dto/RegisterRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5205,7 +5205,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.auth_service.dto.RegistrationStatusResponse`
 
 - Kind: `record`
-- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/dto/RegistrationStatusResponse.java:6`](../../../../auth-service/src/main/java/com/delivery/auth_service/dto/RegistrationStatusResponse.java)
+- Source: [`backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/dto/RegistrationStatusResponse.java:6`](../../../../auth/infrastructure/src/main/java/com/delivery/auth_service/dto/RegistrationStatusResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5218,7 +5218,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.auth_service.dto.ResetPasswordRequest`
 
 - Kind: `class`
-- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/dto/ResetPasswordRequest.java:6`](../../../../auth-service/src/main/java/com/delivery/auth_service/dto/ResetPasswordRequest.java)
+- Source: [`backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/dto/ResetPasswordRequest.java:6`](../../../../auth/infrastructure/src/main/java/com/delivery/auth_service/dto/ResetPasswordRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5228,7 +5228,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.auth_service.dto.SecurityEmailRequest`
 
 - Kind: `class`
-- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/dto/SecurityEmailRequest.java:6`](../../../../auth-service/src/main/java/com/delivery/auth_service/dto/SecurityEmailRequest.java)
+- Source: [`backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/dto/SecurityEmailRequest.java:6`](../../../../auth/infrastructure/src/main/java/com/delivery/auth_service/dto/SecurityEmailRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5237,7 +5237,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.auth_service.dto.SecurityTokenRequest`
 
 - Kind: `class`
-- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/dto/SecurityTokenRequest.java:6`](../../../../auth-service/src/main/java/com/delivery/auth_service/dto/SecurityTokenRequest.java)
+- Source: [`backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/dto/SecurityTokenRequest.java:6`](../../../../auth/infrastructure/src/main/java/com/delivery/auth_service/dto/SecurityTokenRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5246,7 +5246,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.auth_service.dto.SessionInfoResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/dto/SessionInfoResponse.java:10`](../../../../auth-service/src/main/java/com/delivery/auth_service/dto/SessionInfoResponse.java)
+- Source: [`backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/dto/SessionInfoResponse.java:10`](../../../../auth/infrastructure/src/main/java/com/delivery/auth_service/dto/SessionInfoResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5261,7 +5261,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.auth_service.dto.SocialLoginRequest`
 
 - Kind: `class`
-- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/dto/SocialLoginRequest.java:13`](../../../../auth-service/src/main/java/com/delivery/auth_service/dto/SocialLoginRequest.java)
+- Source: [`backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/dto/SocialLoginRequest.java:13`](../../../../auth/infrastructure/src/main/java/com/delivery/auth_service/dto/SocialLoginRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5276,7 +5276,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.auth_service.payload.BaseResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/auth-service/src/main/java/com/delivery/auth_service/payload/BaseResponse.java:9`](../../../../auth-service/src/main/java/com/delivery/auth_service/payload/BaseResponse.java)
+- Source: [`backend_delivery/auth/infrastructure/src/main/java/com/delivery/auth_service/payload/BaseResponse.java:9`](../../../../auth/infrastructure/src/main/java/com/delivery/auth_service/payload/BaseResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |

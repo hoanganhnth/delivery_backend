@@ -45,14 +45,10 @@
         <module>modules/match/match-application-api</module>
         <module>modules/match/match-application</module>
         <module>modules/match/match-infrastructure</module>
-        <module>modules/auth/auth-domain</module>
-        <module>modules/auth/auth-application-api</module>
-        <module>modules/auth/auth-application</module>
-        <module>modules/auth/auth-infrastructure</module>
         <module>auth-resource-server-starter</module>
         <module>discovery-server</module>
         <module>config-server</module>
-        <module>auth-service</module>
+        <module>auth</module>
         <module>user</module>
         <module>api-gateway</module>
         <module>web-bff</module>
