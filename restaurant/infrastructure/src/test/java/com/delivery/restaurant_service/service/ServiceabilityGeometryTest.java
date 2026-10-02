@@ -1,6 +1,7 @@
 package com.delivery.restaurant_service.service;
 
-import com.delivery.restaurant.infrastructure.serviceability.ServiceabilityGeometry;
+import com.delivery.restaurant.domain.serviceability.ServiceabilityGeometry;
+import com.delivery.restaurant.infrastructure.serviceability.GeoJsonServiceabilityPolygonAdapter;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -14,7 +15,7 @@ class ServiceabilityGeometryTest {
 
     @Test
     void containsInteriorExteriorAndBoundary() {
-        var polygon = ServiceabilityGeometry.parsePolygon(SQUARE);
+        var polygon = GeoJsonServiceabilityPolygonAdapter.parsePolygon(SQUARE);
 
         assertThat(ServiceabilityGeometry.contains(polygon, 106.65, 10.75)).isTrue();
         assertThat(ServiceabilityGeometry.contains(polygon, 106.75, 10.75)).isFalse();
@@ -23,22 +24,22 @@ class ServiceabilityGeometryTest {
 
     @Test
     void acceptsAClosedTriangleAsTheSmallestValidPolygon() {
-        var polygon = ServiceabilityGeometry.parsePolygon(
+        var polygon = GeoJsonServiceabilityPolygonAdapter.parsePolygon(
                 "{\"type\":\"Polygon\",\"coordinates\":[[[106.60,10.70],[106.70,10.70],[106.65,10.80],[106.60,10.70]]]}" );
         assertThat(ServiceabilityGeometry.contains(polygon, 106.65, 10.73)).isTrue();
     }
 
     @Test
     void rejectsOpenRingsHolesAndOutOfBoundsVertices() {
-        assertThatThrownBy(() -> ServiceabilityGeometry.parsePolygon(
+        assertThatThrownBy(() -> GeoJsonServiceabilityPolygonAdapter.parsePolygon(
                 "{\"type\":\"Polygon\",\"coordinates\":[[[106.6,10.7],[106.7,10.7],[106.7,10.8],[106.6,10.8]]]}"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("closed");
-        assertThatThrownBy(() -> ServiceabilityGeometry.parsePolygon(
+        assertThatThrownBy(() -> GeoJsonServiceabilityPolygonAdapter.parsePolygon(
                 "{\"type\":\"Polygon\",\"coordinates\":[[[106.6,10.7],[106.7,10.7],[106.7,10.8],[106.6,10.8],[106.6,10.7]],[[106.62,10.72],[106.63,10.72],[106.63,10.73],[106.62,10.72]]]}"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("exactly one");
-        assertThatThrownBy(() -> ServiceabilityGeometry.parsePolygon(
+        assertThatThrownBy(() -> GeoJsonServiceabilityPolygonAdapter.parsePolygon(
                 "{\"type\":\"Polygon\",\"coordinates\":[[[101.9,10.7],[106.7,10.7],[106.7,10.8],[101.9,10.7]]]}"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Vietnam");

@@ -6,6 +6,7 @@ import com.delivery.restaurant.application.api.ServiceabilityDecision;
 import com.delivery.restaurant.application.api.ServiceabilityZoneResult;
 import com.delivery.restaurant.application.api.UpdateServiceabilityZoneCommand;
 import com.delivery.restaurant.domain.ownership.RestaurantActorRole;
+import com.delivery.restaurant.domain.serviceability.ServiceabilityGeometry;
 import com.delivery.restaurant_service.entity.Restaurant;
 import com.delivery.restaurant_service.entity.RestaurantServiceabilityZone;
 import com.delivery.restaurant_service.repository.RestaurantRepository;
@@ -48,7 +49,7 @@ public class RestaurantServiceabilityService implements RestaurantServiceability
             Long principalId, Long legacyUserId, RestaurantActorRole actorRole) {
         requireManageAccess(restaurantId, principalId, legacyUserId, actorRole);
         if (command == null) throw new IllegalArgumentException("Zone request is required");
-        ServiceabilityGeometry.parsePolygon(command.polygonGeoJson());
+        GeoJsonServiceabilityPolygonAdapter.parsePolygon(command.polygonGeoJson());
 
         RestaurantServiceabilityZone zone = new RestaurantServiceabilityZone();
         zone.setRestaurantId(restaurantId);
@@ -75,7 +76,7 @@ public class RestaurantServiceabilityService implements RestaurantServiceability
             zone.setName(command.name().trim());
         }
         if (command.polygonGeoJson() != null) {
-            ServiceabilityGeometry.parsePolygon(command.polygonGeoJson());
+            GeoJsonServiceabilityPolygonAdapter.parsePolygon(command.polygonGeoJson());
             zone.setPolygonGeoJson(command.polygonGeoJson().trim());
         }
         if (command.priority() != null) zone.setPriority(command.priority());
@@ -115,7 +116,7 @@ public class RestaurantServiceabilityService implements RestaurantServiceability
             if (!zone.isActive()) continue;
             try {
                 if (ServiceabilityGeometry.contains(
-                        ServiceabilityGeometry.parsePolygon(zone.getPolygonGeoJson()),
+                        GeoJsonServiceabilityPolygonAdapter.parsePolygon(zone.getPolygonGeoJson()),
                         longitude, latitude)) {
                     return new ServiceabilityDecision(true, true, zone.getId(), zone.getRevision(), "MATCHED_ZONE");
                 }
