@@ -16,7 +16,7 @@ modules=(
   notification-service
   order-service
   restaurant-service
-  shipper-service
+  shipper/boot
   search-service
   saga-orchestrator-service
   tracking-service

@@ -36,7 +36,7 @@ from the earlier conversation, not implicitly authorized by this structural plan
   duplicated legacy session implementations only after controller/adapter
   integration and packaged JAR proofs cover login, refresh races, logout,
   token protection, origins/CSRF, proxy policy and response compatibility.
-- [ ] Shipper: complete profile/rating/availability/identity runtime paths,
+- [x] Shipper: complete profile/rating/availability/identity runtime paths,
   then relocate and retire legacy implementations with database/event proof.
 - [ ] User and Auth, independently: complete runtime use cases and adapters,
   preserving provisioning, principal identity, session/token and security rules.
@@ -179,6 +179,60 @@ Deployment proof includes Compose path resolution and artifact freshness.
   Inline review checked contract identity, test discovery, transaction commit
   ordering, adapter ownership, SQL checksum and removal of all legacy code.
 
+
+## Shipper implementation and proof
+
+- Baseline `mvn -B -pl :shipper-service -am verify -q` exited 0.
+  Relocated layers into `shipper/`, moved all host adapters into infrastructure,
+  retained only production entrypoint/config in boot. All six duplicate Java
+  migrations matched byte-for-byte; keep one canonical infrastructure copy.
+- Application now owns identity version-gap rejection and BLOCKED/offline
+  convergence. New focused tests first failed, then passed. Kafka listener
+  retains transport validation, exact event-ID/fingerprint inbox and its existing
+  transaction; it delegates business decisions. Removed unused synthetic-receipt
+  adapter/port that derived different IDs from principal/version and was not the
+  production inbox. Listener is non-final so Spring can apply its transaction.
+- Broad unvalidated combined rewrite was rejected by automatic approval review.
+  That command did not execute. Continued through bounded changes with separate
+  failing/passing proofs, preserving the actual Kafka event and receipt contract.
+- PostgreSQL regressions exposed missing live-create identity outbox insertion,
+  ignored excludingShipperId in document uniqueness, dropped document images
+  and audit timestamps. Restored original pre-refactor behavior from
+  `5fd2e08^` implementation, without adding DTO fields, endpoints or policy.
+  Each regression first failed and then passed; failed outbox insertion rolls
+  back profile. Logs `/tmp/shipper-{outbox,update,documents}-{red,green}.log`.
+- Real Kafka/PostgreSQL integration loads production application properties with
+  identity consumer and relay enabled. Raw JSON exposed the old JsonDeserializer
+  requiring missing type headers; listener accepts String and parses the envelope
+  itself, so corrected production to StringDeserializer. Wire/replay/version,
+  DLT conflict/gap, committed offsets and actual outbox publication passed.
+  `/tmp/shipper-kafka-red.log` retained only beginning/end after 545 MB repeated
+  deserialization errors; original issue captured in test report. Green proof
+  `/tmp/shipper-kafka-wire.log`. Added Tracking-failure rollback proof to final
+  run. Test context closes before fixture containers stop.
+- Packaged JAR proof prepared for real RS256/JWKS, PostgreSQL migrations/restart,
+  ownership/admin/ratings, profile images/timestamps, Tracking success/failure
+  and identity outbox. It uses only temporary fixtures. Exited 0;
+  `/tmp/shipper-packaged-runtime.log`, including restart against existing schema.
+- Final architecture check rejected compatibility constructors in application-api
+  records; removed behavior and updated 19 local call sites. Boundary audit
+  now passes. Updated test-context isolation discovery for root-level boot.
+- Final escalated clean verify exited 0: domain 9, application 9,
+  infrastructure 21, boot 7 tests; no failures/errors/skips. Domain line/branch
+  98.39/90%; application 98.85/88.75%. Tracking-failure Kafka proof confirms
+  no receipt, unchanged version and online projection after retry/DLT.
+  `/tmp/shipper-final-verify.log`. The sandbox-only preliminary run lacked
+  Docker/Mockito attach permissions and failed/skipped; it is not success proof.
+- Four resolved dependency graphs, architecture boundary and test isolation
+  audits pass. Inventory retains 244 operations/231 schemas, deep wire shape
+  comparison unchanged excluding source metadata; public-edge and Compose pass.
+  Stable-identity package and Docker freshness/non-root/read-only proof pass
+  (`/tmp/shipper-docker-proof.log`). CI runs the packaged proof.
+- Inline review checked canonical receipt handling, production feature flags,
+  transaction/outbox rollback, partial updates, identity ownership, layer/test
+  discovery, original migration bytes and wire compatibility. Updated accepted
+  architecture decision and AGENTS to describe the approved root-level layout.
+  No push/deployment or mutation of shared runtime data occurs.
 
 ## Result
 

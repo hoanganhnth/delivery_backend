@@ -4070,7 +4070,7 @@ public ResponseEntity<BaseResponse<List<TransactionResponse>>> getShipperTransac
 ### `GET` `/api/shippers`
 
 - Handler: `ShipperController.getAll`
-- Source: [`backend_delivery/shipper-service/src/main/java/com/delivery/shipper_service/controller/ShipperController.java:132`](../../../../shipper-service/src/main/java/com/delivery/shipper_service/controller/ShipperController.java)
+- Source: [`backend_delivery/shipper/infrastructure/src/main/java/com/delivery/shipper_service/controller/ShipperController.java:130`](../../../../shipper/infrastructure/src/main/java/com/delivery/shipper_service/controller/ShipperController.java)
 - Java return type: `ResponseEntity<BaseResponse<PageResponse<ShipperResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -4090,7 +4090,7 @@ public ResponseEntity<BaseResponse<PageResponse<ShipperResponse>>> getAll( Pagea
 ### `POST` `/api/shippers`
 
 - Handler: `ShipperController.create`
-- Source: [`backend_delivery/shipper-service/src/main/java/com/delivery/shipper_service/controller/ShipperController.java:62`](../../../../shipper-service/src/main/java/com/delivery/shipper_service/controller/ShipperController.java)
+- Source: [`backend_delivery/shipper/infrastructure/src/main/java/com/delivery/shipper_service/controller/ShipperController.java:62`](../../../../shipper/infrastructure/src/main/java/com/delivery/shipper_service/controller/ShipperController.java)
 - Java return type: `ResponseEntity<BaseResponse<ShipperResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -4110,7 +4110,7 @@ public ResponseEntity<BaseResponse<ShipperResponse>> create( @Valid @RequestBody
 ### `PUT` `/api/shippers`
 
 - Handler: `ShipperController.update`
-- Source: [`backend_delivery/shipper-service/src/main/java/com/delivery/shipper_service/controller/ShipperController.java:88`](../../../../shipper-service/src/main/java/com/delivery/shipper_service/controller/ShipperController.java)
+- Source: [`backend_delivery/shipper/infrastructure/src/main/java/com/delivery/shipper_service/controller/ShipperController.java:89`](../../../../shipper/infrastructure/src/main/java/com/delivery/shipper_service/controller/ShipperController.java)
 - Java return type: `ResponseEntity<BaseResponse<ShipperResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -4130,7 +4130,7 @@ public ResponseEntity<BaseResponse<ShipperResponse>> update( @Valid @RequestBody
 ### `GET` `/api/shippers/{id}`
 
 - Handler: `ShipperController.getById`
-- Source: [`backend_delivery/shipper-service/src/main/java/com/delivery/shipper_service/controller/ShipperController.java:123`](../../../../shipper-service/src/main/java/com/delivery/shipper_service/controller/ShipperController.java)
+- Source: [`backend_delivery/shipper/infrastructure/src/main/java/com/delivery/shipper_service/controller/ShipperController.java:121`](../../../../shipper/infrastructure/src/main/java/com/delivery/shipper_service/controller/ShipperController.java)
 - Java return type: `ResponseEntity<BaseResponse<ShipperResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -4150,7 +4150,7 @@ public ResponseEntity<BaseResponse<ShipperResponse>> getById( @PathVariable Long
 ### `GET` `/api/shippers/me/ratings`
 
 - Handler: `ShipperRatingController.getMyRatings`
-- Source: [`backend_delivery/shipper-service/src/main/java/com/delivery/shipper_service/controller/ShipperRatingController.java:32`](../../../../shipper-service/src/main/java/com/delivery/shipper_service/controller/ShipperRatingController.java)
+- Source: [`backend_delivery/shipper/infrastructure/src/main/java/com/delivery/shipper_service/controller/ShipperRatingController.java:32`](../../../../shipper/infrastructure/src/main/java/com/delivery/shipper_service/controller/ShipperRatingController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<ShipperRatingResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -4169,7 +4169,7 @@ public ResponseEntity<BaseResponse<List<ShipperRatingResponse>>> getMyRatings( @
 ### `GET` `/api/shippers/my-profile`
 
 - Handler: `ShipperController.getMyProfile`
-- Source: [`backend_delivery/shipper-service/src/main/java/com/delivery/shipper_service/controller/ShipperController.java:80`](../../../../shipper-service/src/main/java/com/delivery/shipper_service/controller/ShipperController.java)
+- Source: [`backend_delivery/shipper/infrastructure/src/main/java/com/delivery/shipper_service/controller/ShipperController.java:81`](../../../../shipper/infrastructure/src/main/java/com/delivery/shipper_service/controller/ShipperController.java)
 - Java return type: `ResponseEntity<BaseResponse<ShipperResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -4188,7 +4188,7 @@ public ResponseEntity<BaseResponse<ShipperResponse>> getMyProfile( @Authenticati
 ### `GET` `/api/shippers/online`
 
 - Handler: `ShipperController.getOnlineShippers`
-- Source: [`backend_delivery/shipper-service/src/main/java/com/delivery/shipper_service/controller/ShipperController.java:144`](../../../../shipper-service/src/main/java/com/delivery/shipper_service/controller/ShipperController.java)
+- Source: [`backend_delivery/shipper/infrastructure/src/main/java/com/delivery/shipper_service/controller/ShipperController.java:142`](../../../../shipper/infrastructure/src/main/java/com/delivery/shipper_service/controller/ShipperController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<ShipperResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -4207,7 +4207,7 @@ public ResponseEntity<BaseResponse<List<ShipperResponse>>> getOnlineShippers( @A
 ### `PATCH` `/api/shippers/online-status`
 
 - Handler: `ShipperController.updateOnlineStatus`
-- Source: [`backend_delivery/shipper-service/src/main/java/com/delivery/shipper_service/controller/ShipperController.java:112`](../../../../shipper-service/src/main/java/com/delivery/shipper_service/controller/ShipperController.java)
+- Source: [`backend_delivery/shipper/infrastructure/src/main/java/com/delivery/shipper_service/controller/ShipperController.java:110`](../../../../shipper/infrastructure/src/main/java/com/delivery/shipper_service/controller/ShipperController.java)
 - Java return type: `ResponseEntity<BaseResponse<ShipperResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -8257,7 +8257,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.shipper_service.dto.request.CreateShipperRequest`
 
 - Kind: `class`
-- Source: [`backend_delivery/shipper-service/src/main/java/com/delivery/shipper_service/dto/request/CreateShipperRequest.java:8`](../../../../shipper-service/src/main/java/com/delivery/shipper_service/dto/request/CreateShipperRequest.java)
+- Source: [`backend_delivery/shipper/infrastructure/src/main/java/com/delivery/shipper_service/dto/request/CreateShipperRequest.java:8`](../../../../shipper/infrastructure/src/main/java/com/delivery/shipper_service/dto/request/CreateShipperRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -8275,7 +8275,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.shipper_service.dto.request.UpdateShipperRequest`
 
 - Kind: `class`
-- Source: [`backend_delivery/shipper-service/src/main/java/com/delivery/shipper_service/dto/request/UpdateShipperRequest.java:6`](../../../../shipper-service/src/main/java/com/delivery/shipper_service/dto/request/UpdateShipperRequest.java)
+- Source: [`backend_delivery/shipper/infrastructure/src/main/java/com/delivery/shipper_service/dto/request/UpdateShipperRequest.java:6`](../../../../shipper/infrastructure/src/main/java/com/delivery/shipper_service/dto/request/UpdateShipperRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -8294,7 +8294,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.shipper_service.dto.response.ShipperRatingResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/shipper-service/src/main/java/com/delivery/shipper_service/dto/response/ShipperRatingResponse.java:8`](../../../../shipper-service/src/main/java/com/delivery/shipper_service/dto/response/ShipperRatingResponse.java)
+- Source: [`backend_delivery/shipper/infrastructure/src/main/java/com/delivery/shipper_service/dto/response/ShipperRatingResponse.java:8`](../../../../shipper/infrastructure/src/main/java/com/delivery/shipper_service/dto/response/ShipperRatingResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -8309,7 +8309,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.shipper_service.dto.response.ShipperResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/shipper-service/src/main/java/com/delivery/shipper_service/dto/response/ShipperResponse.java:9`](../../../../shipper-service/src/main/java/com/delivery/shipper_service/dto/response/ShipperResponse.java)
+- Source: [`backend_delivery/shipper/infrastructure/src/main/java/com/delivery/shipper_service/dto/response/ShipperResponse.java:9`](../../../../shipper/infrastructure/src/main/java/com/delivery/shipper_service/dto/response/ShipperResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -8335,7 +8335,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.shipper_service.payload.BaseResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/shipper-service/src/main/java/com/delivery/shipper_service/payload/BaseResponse.java:3`](../../../../shipper-service/src/main/java/com/delivery/shipper_service/payload/BaseResponse.java)
+- Source: [`backend_delivery/shipper/infrastructure/src/main/java/com/delivery/shipper_service/payload/BaseResponse.java:3`](../../../../shipper/infrastructure/src/main/java/com/delivery/shipper_service/payload/BaseResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -8346,7 +8346,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.shipper_service.payload.PageResponse`
 
 - Kind: `record`
-- Source: [`backend_delivery/shipper-service/src/main/java/com/delivery/shipper_service/payload/PageResponse.java:7`](../../../../shipper-service/src/main/java/com/delivery/shipper_service/payload/PageResponse.java)
+- Source: [`backend_delivery/shipper/infrastructure/src/main/java/com/delivery/shipper_service/payload/PageResponse.java:7`](../../../../shipper/infrastructure/src/main/java/com/delivery/shipper_service/payload/PageResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |

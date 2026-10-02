@@ -395,7 +395,7 @@ services:
     networks: [delivery-network]
 
   shipper-service:
-    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: shipper-service } }
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: shipper/boot } }
     container_name: shipper-service
     expose: ["8089", "9090"]
     environment:

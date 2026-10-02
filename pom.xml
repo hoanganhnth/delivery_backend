@@ -45,10 +45,6 @@
         <module>modules/delivery/delivery-application-api</module>
         <module>modules/delivery/delivery-application</module>
         <module>modules/delivery/delivery-infrastructure</module>
-        <module>modules/shipper/shipper-domain</module>
-        <module>modules/shipper/shipper-application-api</module>
-        <module>modules/shipper/shipper-application</module>
-        <module>modules/shipper/shipper-infrastructure</module>
         <module>modules/match/match-domain</module>
         <module>modules/match/match-application-api</module>
         <module>modules/match/match-application</module>
@@ -68,7 +64,7 @@
         <module>notification-service</module>
         <module>order-service</module>
         <module>restaurant-service</module>
-        <module>shipper-service</module>
+        <module>shipper</module>
         <module>search-service</module>
         <module>saga-orchestrator-service</module>
         <module>tracking-service</module>

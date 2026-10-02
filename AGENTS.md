@@ -13,8 +13,13 @@ Tài liệu định hướng (đọc trước khi sửa):
 - `docs/` — đặc tả service (`docs/services/`) và workflow chéo (`docs/workflows/`).
 - `BACKLOG_FIX.md` — lịch sử fix (P0 đã xong); `SYSTEM_REVIEW.md` **đã lỗi thời**.
 
-Quy ước: mỗi service là một module Maven riêng (`<name>-service/`), gọi nhau qua
-Kafka event (ưu tiên) hoặc HTTP nội bộ. Không hard-code secret; dùng env var.
+Quy ước: service đã hợp nhất nằm tại `<name>/{domain,application-api,
+application,infrastructure,boot}`; artifact/DNS vẫn là `<name>-service`.
+Routing, Web BFF và Shipper đã theo cấu trúc này. Các service còn lại đang chuyển
+lần lượt từ `modules/<name>/` + host `<name>-service/`; xem
+`docs/plans/active/service-architecture-consolidation.md`. Adapter HTTP/Kafka/JPA
+và composition nằm trong infrastructure; boot giữ entrypoint/config.
+Giao tiếp qua Kafka event hoặc HTTP nội bộ. Không hard-code secret; dùng env var.
 
 <!-- HARNESS:BEGIN -->
 ## Harness

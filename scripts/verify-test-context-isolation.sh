@@ -28,6 +28,9 @@ required_patterns=(
 
 for module in "${modules[@]}"; do
   config="${ROOT_DIR}/${module}/src/test/resources/application.properties"
+  if [[ ! -f "${config}" && -f "${ROOT_DIR}/${module%-service}/boot/pom.xml" ]]; then
+    config="${ROOT_DIR}/${module%-service}/boot/src/test/resources/application.properties"
+  fi
   if [[ ! -f "${config}" ]]; then
     echo "${module}: missing test application.properties." >&2
     exit 1

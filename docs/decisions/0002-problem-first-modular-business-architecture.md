@@ -2,6 +2,8 @@
 
 Date: 2026-09-21
 
+Layout amendment approved: 2026-10-02
+
 ## Status
 
 Accepted
@@ -22,12 +24,21 @@ and failure behavior remain correct.
   capabilities, contract modules for stable wire types, client SDK modules for
   one service API, and testkit modules for test-only support. There is no
   universal `common` business library.
-- A migrated business service may use domain, application-api, application and
-  infrastructure libraries plus its existing executable host. Layers are
-  created only when they own real behavior.
-- Domain and application remain framework-independent. Infrastructure
-  implements application-owned ports; the host owns controllers, listeners,
-  schedulers and runtime wiring.
+- A migrated business service owns a root-level `<service>/` directory with
+  `domain`, `application-api`, `application`, `infrastructure` and executable
+  `boot` subprojects. Its Maven artifact and runtime/DNS identity remain stable.
+  Complete and verify one service before removing its legacy host/libraries;
+  do not retain parallel production implementations or a `modules/` umbrella.
+  Technical services use only the layers justified by their actual behavior.
+- Domain and application remain framework-independent. Infrastructure owns
+  HTTP/Kafka/JPA adapters, technical schedulers and composition, and implements
+  application-owned ports. Boot contains the production entrypoint and runtime
+  configuration. A facade delegating business decisions to a legacy service
+  does not constitute migration. Application-api records remain behavior-free.
+- Removal requires core/adapter tests, database/event evidence appropriate to
+  the service, actual packaged startup/HTTP proof, stable wire contracts and
+  deployment/artifact freshness checks. Existing broad platform failures remain
+  visible; a successful service slice is not a full-system passing claim.
 - Every domain and application module enforces at least 85% line and branch
   coverage. Coverage is necessary evidence for rules, not evidence of database
   concurrency, event recovery or production performance.

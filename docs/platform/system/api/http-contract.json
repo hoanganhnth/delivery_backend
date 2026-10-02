@@ -9988,7 +9988,7 @@
       "path": "/api/shippers",
       "handler": "create",
       "source": {
-        "file": "backend_delivery/shipper-service/src/main/java/com/delivery/shipper_service/controller/ShipperController.java",
+        "file": "backend_delivery/shipper/infrastructure/src/main/java/com/delivery/shipper_service/controller/ShipperController.java",
         "line": 62
       },
       "java": {
@@ -10038,8 +10038,8 @@
       "path": "/api/shippers/my-profile",
       "handler": "getMyProfile",
       "source": {
-        "file": "backend_delivery/shipper-service/src/main/java/com/delivery/shipper_service/controller/ShipperController.java",
-        "line": 80
+        "file": "backend_delivery/shipper/infrastructure/src/main/java/com/delivery/shipper_service/controller/ShipperController.java",
+        "line": 81
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<ShipperResponse>> getMyProfile( @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -10069,8 +10069,8 @@
       "path": "/api/shippers",
       "handler": "update",
       "source": {
-        "file": "backend_delivery/shipper-service/src/main/java/com/delivery/shipper_service/controller/ShipperController.java",
-        "line": 88
+        "file": "backend_delivery/shipper/infrastructure/src/main/java/com/delivery/shipper_service/controller/ShipperController.java",
+        "line": 89
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<ShipperResponse>> update( @Valid @RequestBody UpdateShipperRequest request, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -10119,8 +10119,8 @@
       "path": "/api/shippers/online-status",
       "handler": "updateOnlineStatus",
       "source": {
-        "file": "backend_delivery/shipper-service/src/main/java/com/delivery/shipper_service/controller/ShipperController.java",
-        "line": 112
+        "file": "backend_delivery/shipper/infrastructure/src/main/java/com/delivery/shipper_service/controller/ShipperController.java",
+        "line": 110
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<ShipperResponse>> updateOnlineStatus( @RequestParam Boolean isOnline, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -10162,8 +10162,8 @@
       "path": "/api/shippers/{id}",
       "handler": "getById",
       "source": {
-        "file": "backend_delivery/shipper-service/src/main/java/com/delivery/shipper_service/controller/ShipperController.java",
-        "line": 123
+        "file": "backend_delivery/shipper/infrastructure/src/main/java/com/delivery/shipper_service/controller/ShipperController.java",
+        "line": 121
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<ShipperResponse>> getById( @PathVariable Long id, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -10205,8 +10205,8 @@
       "path": "/api/shippers",
       "handler": "getAll",
       "source": {
-        "file": "backend_delivery/shipper-service/src/main/java/com/delivery/shipper_service/controller/ShipperController.java",
-        "line": 132
+        "file": "backend_delivery/shipper/infrastructure/src/main/java/com/delivery/shipper_service/controller/ShipperController.java",
+        "line": 130
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<PageResponse<ShipperResponse>>> getAll( Pageable pageable, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -10243,8 +10243,8 @@
       "path": "/api/shippers/online",
       "handler": "getOnlineShippers",
       "source": {
-        "file": "backend_delivery/shipper-service/src/main/java/com/delivery/shipper_service/controller/ShipperController.java",
-        "line": 144
+        "file": "backend_delivery/shipper/infrastructure/src/main/java/com/delivery/shipper_service/controller/ShipperController.java",
+        "line": 142
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<List<ShipperResponse>>> getOnlineShippers( @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -10274,7 +10274,7 @@
       "path": "/api/shippers/me/ratings",
       "handler": "getMyRatings",
       "source": {
-        "file": "backend_delivery/shipper-service/src/main/java/com/delivery/shipper_service/controller/ShipperRatingController.java",
+        "file": "backend_delivery/shipper/infrastructure/src/main/java/com/delivery/shipper_service/controller/ShipperRatingController.java",
         "line": 32
       },
       "java": {
@@ -26348,7 +26348,7 @@
     "com.delivery.shipper_service.dto.request.CreateShipperRequest": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/shipper-service/src/main/java/com/delivery/shipper_service/dto/request/CreateShipperRequest.java",
+        "file": "backend_delivery/shipper/infrastructure/src/main/java/com/delivery/shipper_service/dto/request/CreateShipperRequest.java",
         "line": 8
       },
       "fields": [
@@ -26502,7 +26502,7 @@
     "com.delivery.shipper_service.dto.request.UpdateShipperRequest": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/shipper-service/src/main/java/com/delivery/shipper_service/dto/request/UpdateShipperRequest.java",
+        "file": "backend_delivery/shipper/infrastructure/src/main/java/com/delivery/shipper_service/dto/request/UpdateShipperRequest.java",
         "line": 6
       },
       "fields": [
@@ -26643,7 +26643,7 @@
     "com.delivery.shipper_service.dto.response.ShipperRatingResponse": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/shipper-service/src/main/java/com/delivery/shipper_service/dto/response/ShipperRatingResponse.java",
+        "file": "backend_delivery/shipper/infrastructure/src/main/java/com/delivery/shipper_service/dto/response/ShipperRatingResponse.java",
         "line": 8
       },
       "fields": [
@@ -26694,7 +26694,7 @@
     "com.delivery.shipper_service.dto.response.ShipperResponse": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/shipper-service/src/main/java/com/delivery/shipper_service/dto/response/ShipperResponse.java",
+        "file": "backend_delivery/shipper/infrastructure/src/main/java/com/delivery/shipper_service/dto/response/ShipperResponse.java",
         "line": 9
       },
       "fields": [
@@ -26811,7 +26811,7 @@
     "com.delivery.shipper_service.payload.BaseResponse": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/shipper-service/src/main/java/com/delivery/shipper_service/payload/BaseResponse.java",
+        "file": "backend_delivery/shipper/infrastructure/src/main/java/com/delivery/shipper_service/payload/BaseResponse.java",
         "line": 3
       },
       "fields": [
@@ -26838,7 +26838,7 @@
     "com.delivery.shipper_service.payload.PageResponse": {
       "kind": "record",
       "source": {
-        "file": "backend_delivery/shipper-service/src/main/java/com/delivery/shipper_service/payload/PageResponse.java",
+        "file": "backend_delivery/shipper/infrastructure/src/main/java/com/delivery/shipper_service/payload/PageResponse.java",
         "line": 7
       },
       "fields": [
