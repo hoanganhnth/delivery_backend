@@ -32,7 +32,7 @@ from the earlier conversation, not implicitly authorized by this structural plan
   infrastructure and bootstrap/config into `routing/boot`; update reactor,
   Compose, packaging, source inventories, dependency and coverage discovery;
   verify actual packaged JAR HTTP/auth/provider/fallback paths; remove old host.
-- [ ] Web BFF: enumerate all session/proxy flows and migration history; retire
+- [x] Web BFF: enumerate all session/proxy flows and migration history; retire
   duplicated legacy session implementations only after controller/adapter
   integration and packaged JAR proofs cover login, refresh races, logout,
   token protection, origins/CSRF, proxy policy and response compatibility.
@@ -137,6 +137,48 @@ Deployment proof includes Compose path resolution and artifact freshness.
 - Inline review checked layer dependencies, preserved service identity,
   credential-first HTTP handling, provider/fallback compatibility and test
   discovery at relocated paths. No new database or business policy was added.
+
+## Web BFF implementation and proof
+
+- Root-level `web-bff/{domain,application-api,application,infrastructure,boot}`
+  replaces both `modules/web-bff` and the old host. Boot contains only the
+  entrypoint/config; controllers, composition, Auth/Gateway HTTP and PostgreSQL
+  adapters belong to infrastructure. Stable artifact/DNS remains
+  `web-bff-service`. Compose, baseline and inventory discovery use the new paths.
+- Runtime baseline exposed two duplicate V1 migrations, duplicate ORM models,
+  an ambiguous token-protection bean, missing controller property binding and
+  a refresh-claim query lacking a transaction. Preserve original SQL V1 bytes
+  and checksum; remove the duplicate Java migration and legacy entity/repository.
+  The full production context now starts against PostgreSQL with ddl validation.
+- PostgreSQL regression first failed: logout between refresh read/save was
+  overwritten by detached refresh state. Introduced a framework-free atomic
+  transition port and a transactional adapter holding a pessimistic row lock.
+  Completion/rejection and logout commit locally before upstream or exception.
+  The regression now passes, and a two-thread test observes actual PostgreSQL
+  blocking and serial generations. No network call runs inside the row lock.
+- Retargeted all legacy session/auth/proxy/factory tests to actual use cases and
+  adapters. Replaced the legacy constructor-only Spring test with full production
+  context assertions in PostgreSQL runtime tests. Removed dead production
+  implementations only after their corresponding tests passed. Optional device
+  name no longer causes Map.of's null failure; no default is invented.
+- Fresh `mvn -B -pl :web-bff-service -am clean verify -q` exited 0: domain 3,
+  application 6, infrastructure 22, boot 4 tests, no failures/errors/skips.
+  Domain line/branch 98.25/98.53%; application 100/86%, existing gates retained.
+  Logs: `/tmp/bff-final-verify.log`; red proof `/tmp/bff-race-red.log`.
+- Packaged JAR proof exited 0 with actual Auth/Gateway HTTP adapters, isolated
+  PostgreSQL, readiness, safe credential rejection, login/session/encryption,
+  proxy server bearer and browser header stripping, origin/CSRF, refresh/logout,
+  and second startup against existing Flyway history. No live provider or real
+  credential is used. `/tmp/bff-packaged-runtime.log`; CI runs this proof.
+- Four resolved core/boot dependency graphs pass. Boundary fixtures 13, coverage
+  fixtures 10, runtime graph fixtures 8 and JS fixtures 13 pass. HTTP inventory
+  remains 244 operations/231 schemas, deep wire comparison unchanged excluding
+  source metadata; public-edge manifest and Compose rendering pass.
+- Packaging uses the stable service selector and new boot path. Docker
+  freshness/non-root/read-only proof exited 0; `/tmp/bff-docker-proof.log`.
+  Inline review checked contract identity, test discovery, transaction commit
+  ordering, adapter ownership, SQL checksum and removal of all legacy code.
+
 
 ## Result
 

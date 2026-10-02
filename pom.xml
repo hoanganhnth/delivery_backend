@@ -53,10 +53,6 @@
         <module>modules/match/match-application-api</module>
         <module>modules/match/match-application</module>
         <module>modules/match/match-infrastructure</module>
-        <module>modules/web-bff/web-bff-domain</module>
-        <module>modules/web-bff/web-bff-application-api</module>
-        <module>modules/web-bff/web-bff-application</module>
-        <module>modules/web-bff/web-bff-infrastructure</module>
         <module>modules/auth/auth-domain</module>
         <module>modules/auth/auth-application-api</module>
         <module>modules/auth/auth-application</module>
@@ -67,7 +63,7 @@
         <module>auth-service</module>
         <module>user-service</module>
         <module>api-gateway</module>
-        <module>web-bff-service</module>
+        <module>web-bff</module>
         <module>delivery-service</module>
         <module>notification-service</module>
         <module>order-service</module>

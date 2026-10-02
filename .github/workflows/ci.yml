@@ -39,6 +39,8 @@ jobs:
         run: mvn -B clean verify
       - name: Verify packaged Routing runtime
         run: python3 -B scripts/verify-routing-runtime.py
+      - name: Verify packaged Web BFF runtime
+        run: python3 -B scripts/verify-web-bff-runtime.py
       - name: Verify Phase 8 coverage and required integration evidence
         run: |
           python3 -B scripts/report-phase8-coverage.py

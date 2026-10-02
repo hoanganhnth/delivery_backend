@@ -22,6 +22,7 @@ modules=(
   tracking-service
   match-service
   routing/boot
+  web-bff/boot
   livestream-service
   settlement-service
   flashsale-service

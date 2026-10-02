@@ -186,7 +186,7 @@ services:
     networks: [delivery-network]
 
   web-bff-service:
-    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: web-bff-service } }
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: web-bff/boot } }
     container_name: web-bff-service
     expose: ["8091", "9090"]
     environment:

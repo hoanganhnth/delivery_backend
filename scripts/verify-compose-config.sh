@@ -8,7 +8,7 @@ command -v jq >/dev/null
 # URL. Merely rendering EUREKA_DEFAULT_ZONE in Compose is insufficient when a
 # service does not bind that variable into Spring's Eureka configuration.
 rg -Fq 'eureka.client.service-url.defaultZone=${EUREKA_DEFAULT_ZONE:http://discovery-server:8761/eureka/}' \
-  web-bff-service/src/main/resources/application.properties
+  web-bff/boot/src/main/resources/application.properties
 
 # Contract rendering references an ignored operator-owned secret file. The
 # renderer never reads this placeholder; a real Compose startup requires it.

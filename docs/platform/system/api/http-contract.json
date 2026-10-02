@@ -11410,8 +11410,8 @@
       "path": "/bff/session/refresh",
       "handler": "refresh",
       "source": {
-        "file": "backend_delivery/web-bff-service/src/main/java/com/delivery/web_bff/session/WebSessionController.java",
-        "line": 43
+        "file": "backend_delivery/web-bff/infrastructure/src/main/java/com/delivery/web_bff/session/WebSessionController.java",
+        "line": 45
       },
       "java": {
         "signature": "public SessionView refresh( @CookieValue(name = COOKIE, required = false) String rawSessionId, @RequestHeader(name = \"X-CSRF-Token\", required = false) String csrf, HttpServletResponse response)",
@@ -11468,8 +11468,8 @@
       "path": "/bff/session/login",
       "handler": "login",
       "source": {
-        "file": "backend_delivery/web-bff-service/src/main/java/com/delivery/web_bff/session/WebSessionController.java",
-        "line": 52
+        "file": "backend_delivery/web-bff/infrastructure/src/main/java/com/delivery/web_bff/session/WebSessionController.java",
+        "line": 54
       },
       "java": {
         "signature": "public ResponseEntity<SessionView> login(@Valid @RequestBody LoginRequest request, HttpServletResponse response)",
@@ -11514,8 +11514,8 @@
       "path": "/bff/session",
       "handler": "current",
       "source": {
-        "file": "backend_delivery/web-bff-service/src/main/java/com/delivery/web_bff/session/WebSessionController.java",
-        "line": 62
+        "file": "backend_delivery/web-bff/infrastructure/src/main/java/com/delivery/web_bff/session/WebSessionController.java",
+        "line": 64
       },
       "java": {
         "signature": "public SessionView current(@CookieValue(name = COOKIE, required = false) String rawSessionId, HttpServletResponse response)",
@@ -11559,8 +11559,8 @@
       "path": "/bff/session/logout",
       "handler": "logout",
       "source": {
-        "file": "backend_delivery/web-bff-service/src/main/java/com/delivery/web_bff/session/WebSessionController.java",
-        "line": 71
+        "file": "backend_delivery/web-bff/infrastructure/src/main/java/com/delivery/web_bff/session/WebSessionController.java",
+        "line": 73
       },
       "java": {
         "signature": "public ResponseEntity<Void> logout( @CookieValue(name = COOKIE, required = false) String rawSessionId, @RequestHeader(name = \"X-CSRF-Token\", required = false) String csrf, HttpServletResponse response)",
@@ -11617,7 +11617,7 @@
       "path": "/bff/api/**",
       "handler": "proxy",
       "source": {
-        "file": "backend_delivery/web-bff-service/src/main/java/com/delivery/web_bff/proxy/ApiProxyController.java",
+        "file": "backend_delivery/web-bff/infrastructure/src/main/java/com/delivery/web_bff/proxy/ApiProxyController.java",
         "line": 22
       },
       "java": {
@@ -28509,8 +28509,8 @@
     "com.delivery.web_bff.session.WebSessionController.LoginRequest": {
       "kind": "record",
       "source": {
-        "file": "backend_delivery/web-bff-service/src/main/java/com/delivery/web_bff/session/WebSessionController.java",
-        "line": 97
+        "file": "backend_delivery/web-bff/infrastructure/src/main/java/com/delivery/web_bff/session/WebSessionController.java",
+        "line": 99
       },
       "fields": [
         {
@@ -28575,8 +28575,8 @@
     "com.delivery.web_bff.session.WebSessionController.SessionView": {
       "kind": "record",
       "source": {
-        "file": "backend_delivery/web-bff-service/src/main/java/com/delivery/web_bff/session/WebSessionController.java",
-        "line": 104
+        "file": "backend_delivery/web-bff/infrastructure/src/main/java/com/delivery/web_bff/session/WebSessionController.java",
+        "line": 106
       },
       "fields": [
         {

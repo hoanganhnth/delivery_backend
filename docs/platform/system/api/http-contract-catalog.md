@@ -4890,7 +4890,7 @@ public ResponseEntity<BaseResponse<UserResponse>> registerUser( @Valid @RequestB
 ### `ANY` `/bff/api/**`
 
 - Handler: `ApiProxyController.proxy`
-- Source: [`backend_delivery/web-bff-service/src/main/java/com/delivery/web_bff/proxy/ApiProxyController.java:22`](../../../../web-bff-service/src/main/java/com/delivery/web_bff/proxy/ApiProxyController.java)
+- Source: [`backend_delivery/web-bff/infrastructure/src/main/java/com/delivery/web_bff/proxy/ApiProxyController.java:22`](../../../../web-bff/infrastructure/src/main/java/com/delivery/web_bff/proxy/ApiProxyController.java)
 - Java return type: `ResponseEntity<byte[]>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -4912,7 +4912,7 @@ public ResponseEntity<byte[]> proxy(HttpServletRequest request, @RequestHeader H
 ### `GET` `/bff/session`
 
 - Handler: `WebSessionController.current`
-- Source: [`backend_delivery/web-bff-service/src/main/java/com/delivery/web_bff/session/WebSessionController.java:62`](../../../../web-bff-service/src/main/java/com/delivery/web_bff/session/WebSessionController.java)
+- Source: [`backend_delivery/web-bff/infrastructure/src/main/java/com/delivery/web_bff/session/WebSessionController.java:64`](../../../../web-bff/infrastructure/src/main/java/com/delivery/web_bff/session/WebSessionController.java)
 - Java return type: `SessionView`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -4932,7 +4932,7 @@ public SessionView current(@CookieValue(name = COOKIE, required = false) String 
 ### `POST` `/bff/session/login`
 
 - Handler: `WebSessionController.login`
-- Source: [`backend_delivery/web-bff-service/src/main/java/com/delivery/web_bff/session/WebSessionController.java:52`](../../../../web-bff-service/src/main/java/com/delivery/web_bff/session/WebSessionController.java)
+- Source: [`backend_delivery/web-bff/infrastructure/src/main/java/com/delivery/web_bff/session/WebSessionController.java:54`](../../../../web-bff/infrastructure/src/main/java/com/delivery/web_bff/session/WebSessionController.java)
 - Java return type: `ResponseEntity<SessionView>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -4952,7 +4952,7 @@ public ResponseEntity<SessionView> login(@Valid @RequestBody LoginRequest reques
 ### `POST` `/bff/session/logout`
 
 - Handler: `WebSessionController.logout`
-- Source: [`backend_delivery/web-bff-service/src/main/java/com/delivery/web_bff/session/WebSessionController.java:71`](../../../../web-bff-service/src/main/java/com/delivery/web_bff/session/WebSessionController.java)
+- Source: [`backend_delivery/web-bff/infrastructure/src/main/java/com/delivery/web_bff/session/WebSessionController.java:73`](../../../../web-bff/infrastructure/src/main/java/com/delivery/web_bff/session/WebSessionController.java)
 - Java return type: `ResponseEntity<Void>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -4973,7 +4973,7 @@ public ResponseEntity<Void> logout( @CookieValue(name = COOKIE, required = false
 ### `POST` `/bff/session/refresh`
 
 - Handler: `WebSessionController.refresh`
-- Source: [`backend_delivery/web-bff-service/src/main/java/com/delivery/web_bff/session/WebSessionController.java:43`](../../../../web-bff-service/src/main/java/com/delivery/web_bff/session/WebSessionController.java)
+- Source: [`backend_delivery/web-bff/infrastructure/src/main/java/com/delivery/web_bff/session/WebSessionController.java:45`](../../../../web-bff/infrastructure/src/main/java/com/delivery/web_bff/session/WebSessionController.java)
 - Java return type: `SessionView`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -8750,7 +8750,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.web_bff.session.WebSessionController.LoginRequest`
 
 - Kind: `record`
-- Source: [`backend_delivery/web-bff-service/src/main/java/com/delivery/web_bff/session/WebSessionController.java:97`](../../../../web-bff-service/src/main/java/com/delivery/web_bff/session/WebSessionController.java)
+- Source: [`backend_delivery/web-bff/infrastructure/src/main/java/com/delivery/web_bff/session/WebSessionController.java:99`](../../../../web-bff/infrastructure/src/main/java/com/delivery/web_bff/session/WebSessionController.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -8762,7 +8762,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.web_bff.session.WebSessionController.SessionView`
 
 - Kind: `record`
-- Source: [`backend_delivery/web-bff-service/src/main/java/com/delivery/web_bff/session/WebSessionController.java:104`](../../../../web-bff-service/src/main/java/com/delivery/web_bff/session/WebSessionController.java)
+- Source: [`backend_delivery/web-bff/infrastructure/src/main/java/com/delivery/web_bff/session/WebSessionController.java:106`](../../../../web-bff/infrastructure/src/main/java/com/delivery/web_bff/session/WebSessionController.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
