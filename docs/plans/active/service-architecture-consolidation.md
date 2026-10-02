@@ -595,6 +595,24 @@ Deployment proof includes Compose path resolution and artifact freshness.
   `/tmp/auth-docker-build.log`, `/tmp/auth-secrets-check.log`,
   `/tmp/auth-final-build-baseline.log`.
 
+## Restaurant next tranche
+
+- Baseline `mvn -B -pl :restaurant-service -am clean verify -q` exited 0:
+  319 tests (domain 25/application 61/infrastructure 20/boot 213), zero
+  failures/errors/skips. Evidence: `/tmp/restaurant-baseline-clean-verify.log`.
+- Existing core already owns catalogue create/update/read and management access,
+  while runtime decision publishing, rating, serviceability and inventory
+  reservation/event processing still make material decisions in infrastructure.
+  The old host also contains catalogue lifecycle, order-cache validation and
+  HTTP/Kafka adapters. Extract those workflows to core with PostgreSQL/Kafka
+  concurrency and idempotency proof before removing the old host.
+- Ordered work: map existing API/event/transaction contracts; relocate layers
+  and boot; extract order-decision and rating policy; extract serviceability
+  geometry/zone workflow; extract inventory reserve/consume/release and event
+  receipts; retire duplicated host services; verify full tests, contracts,
+  packaged JAR/restart, Kafka relay and Compose image; integrate one complete
+  Restaurant tranche. No Restaurant source changes have been made yet.
+
 ## Result
 
 Pending. This plan remains active until all service tranches and final system
