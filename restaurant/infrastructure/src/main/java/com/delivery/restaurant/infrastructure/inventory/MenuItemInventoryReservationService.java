@@ -9,6 +9,7 @@ import com.delivery.restaurant.application.api.MenuItemInventoryResult;
 import com.delivery.restaurant.application.api.MenuItemInventoryUseCase;
 import com.delivery.restaurant.application.api.UpdateMenuItemInventoryCommand;
 import com.delivery.restaurant.domain.ownership.RestaurantActorRole;
+import com.delivery.restaurant.domain.inventory.InventoryCapacity;
 import com.delivery.restaurant_service.entity.MenuItem;
 import com.delivery.restaurant_service.entity.MenuItemInventory;
 import com.delivery.restaurant_service.entity.MenuItemInventoryReservation;
@@ -103,10 +104,7 @@ public class MenuItemInventoryReservationService implements MenuItemInventoryUse
                 throw new IllegalArgumentException("Menu item is not available: " + itemId);
             }
             MenuItemInventory inventory = inventoryById.get(itemId);
-            if (inventory == null || inventory.getOnHandQuantity() == null
-                    || inventory.getReservedQuantity() == null
-                    || inventory.getOnHandQuantity() < inventory.getReservedQuantity()
-                    || inventory.availableQuantity() < requested.get(itemId)) {
+            if (inventory == null || !capacity(inventory).canReserve(requested.get(itemId))) {
                 throw new IllegalArgumentException("Insufficient inventory for menu item " + itemId);
             }
         }
@@ -126,8 +124,7 @@ public class MenuItemInventoryReservationService implements MenuItemInventoryUse
 
         for (Map.Entry<Long, Integer> entry : requested.entrySet()) {
             MenuItemInventory inventory = inventoryById.get(entry.getKey());
-            inventory.setReservedQuantity(Math.addExact(inventory.getReservedQuantity(), entry.getValue()));
-            inventory.setRevision(Math.addExact(inventory.getRevision(), 1L));
+            apply(inventory, capacity(inventory).reserve(entry.getValue(), entry.getKey()));
             reservation.getLines().add(MenuItemInventoryReservationLine.builder()
                     .reservation(reservation)
                     .menuItemId(entry.getKey())
@@ -154,16 +151,11 @@ public class MenuItemInventoryReservationService implements MenuItemInventoryUse
         Map<Long, MenuItemInventory> inventoryById = lockedInventory(reservation);
         for (MenuItemInventoryReservationLine line : reservation.getLines()) {
             MenuItemInventory inventory = requireInventory(inventoryById, line.getMenuItemId());
-            if (inventory.getReservedQuantity() < line.getQuantity()
-                    || inventory.getOnHandQuantity() < line.getQuantity()) {
-                throw new IllegalStateException("Inventory ledger is inconsistent");
-            }
+            capacity(inventory).requireCommit(line.getQuantity());
         }
         for (MenuItemInventoryReservationLine line : reservation.getLines()) {
             MenuItemInventory inventory = inventoryById.get(line.getMenuItemId());
-            inventory.setReservedQuantity(inventory.getReservedQuantity() - line.getQuantity());
-            inventory.setOnHandQuantity(inventory.getOnHandQuantity() - line.getQuantity());
-            inventory.setRevision(Math.addExact(inventory.getRevision(), 1L));
+            apply(inventory, capacity(inventory).commit(line.getQuantity()));
         }
         reservation.setState(MenuItemInventoryReservation.State.COMMITTED);
         return toResult(reservation);
@@ -228,9 +220,7 @@ public class MenuItemInventoryReservationService implements MenuItemInventoryUse
         if (item == null || item.getRestaurant() == null
                 || !restaurantId.equals(item.getRestaurant().getId())
                 || item.getStatus() != MenuItem.Status.AVAILABLE
-                || inventory == null || inventory.getOnHandQuantity() == null
-                || inventory.getReservedQuantity() == null
-                || inventory.getOnHandQuantity() < inventory.getReservedQuantity()) {
+                || inventory == null || !capacity(inventory).canReserve(0)) {
             return new InventoryAvailability(false, 0);
         }
         int available = inventory.availableQuantity();
@@ -272,15 +262,7 @@ public class MenuItemInventoryReservationService implements MenuItemInventoryUse
             inventory.setRevision(0L);
             return toResult(inventoryRepository.saveAndFlush(inventory));
         }
-        if (command.expectedRevision() == null
-                || !command.expectedRevision().equals(inventory.getRevision())) {
-            throw new IllegalArgumentException("Inventory revision is stale; reload before updating");
-        }
-        if (command.onHandQuantity() < inventory.getReservedQuantity()) {
-            throw new IllegalArgumentException("onHandQuantity cannot be below reserved quantity");
-        }
-        inventory.setOnHandQuantity(command.onHandQuantity());
-        inventory.setRevision(Math.addExact(inventory.getRevision(), 1L));
+        apply(inventory, capacity(inventory).updateOnHand(command.onHandQuantity(), command.expectedRevision()));
         return toResult(inventoryRepository.saveAndFlush(inventory));
     }
 
@@ -333,14 +315,11 @@ public class MenuItemInventoryReservationService implements MenuItemInventoryUse
         Map<Long, MenuItemInventory> inventoryById = lockedInventory(reservation);
         for (MenuItemInventoryReservationLine line : reservation.getLines()) {
             MenuItemInventory inventory = requireInventory(inventoryById, line.getMenuItemId());
-            if (inventory.getReservedQuantity() < line.getQuantity()) {
-                throw new IllegalStateException("Inventory ledger is inconsistent");
-            }
+            capacity(inventory).requireRelease(line.getQuantity());
         }
         for (MenuItemInventoryReservationLine line : reservation.getLines()) {
             MenuItemInventory inventory = inventoryById.get(line.getMenuItemId());
-            inventory.setReservedQuantity(inventory.getReservedQuantity() - line.getQuantity());
-            inventory.setRevision(Math.addExact(inventory.getRevision(), 1L));
+            apply(inventory, capacity(inventory).release(line.getQuantity()));
         }
         reservation.setState(terminal);
     }
@@ -349,10 +328,19 @@ public class MenuItemInventoryReservationService implements MenuItemInventoryUse
         Map<Long, MenuItemInventory> inventoryById = lockedInventory(reservation);
         for (MenuItemInventoryReservationLine line : reservation.getLines()) {
             MenuItemInventory inventory = requireInventory(inventoryById, line.getMenuItemId());
-            inventory.setOnHandQuantity(Math.addExact(inventory.getOnHandQuantity(), line.getQuantity()));
-            inventory.setRevision(Math.addExact(inventory.getRevision(), 1L));
+            apply(inventory, capacity(inventory).restoreCommitted(line.getQuantity()));
         }
         reservation.setState(MenuItemInventoryReservation.State.RELEASED);
+    }
+
+    private static InventoryCapacity capacity(MenuItemInventory inventory) {
+        return new InventoryCapacity(inventory.getOnHandQuantity(), inventory.getReservedQuantity(), inventory.getRevision());
+    }
+
+    private static void apply(MenuItemInventory inventory, InventoryCapacity capacity) {
+        inventory.setOnHandQuantity(capacity.onHandQuantity());
+        inventory.setReservedQuantity(capacity.reservedQuantity());
+        inventory.setRevision(capacity.revision());
     }
 
     private MenuItemInventory requireInventory(Map<Long, MenuItemInventory> inventoryById, Long menuItemId) {

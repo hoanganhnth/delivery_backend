@@ -58,6 +58,7 @@ public class MenuItemInventory {
     }
 
     public int availableQuantity() {
-        return Math.max(0, onHandQuantity - reservedQuantity);
+        return new com.delivery.restaurant.domain.inventory.InventoryCapacity(
+                onHandQuantity, reservedQuantity, revision).availableQuantity();
     }
 }
