@@ -38,8 +38,10 @@ from the earlier conversation, not implicitly authorized by this structural plan
   token protection, origins/CSRF, proxy policy and response compatibility.
 - [x] Shipper: complete profile/rating/availability/identity runtime paths,
   then relocate and retire legacy implementations with database/event proof.
-- [ ] User and Auth, independently: complete runtime use cases and adapters,
-  preserving provisioning, principal identity, session/token and security rules.
+- [x] User: complete runtime profile/provisioning/address/block/lifecycle
+  decisions and transactional adapters, preserving identity and outbox/inbox.
+- [ ] Auth: complete runtime use cases and adapters, preserving principal
+  identity, session/token, lifecycle and security rules.
 - [ ] Restaurant: close decision/rating/serviceability/inventory use cases in
   addition to catalogue; retain transaction, concurrency and event guarantees.
 - [ ] Tracking: close REST/WebSocket/publication/lease/recovery use cases;
@@ -233,6 +235,77 @@ Deployment proof includes Compose path resolution and artifact freshness.
   discovery, original migration bytes and wire compatibility. Updated accepted
   architecture decision and AGENTS to describe the approved root-level layout.
   No push/deployment or mutation of shared runtime data occurs.
+
+## User completed
+
+- Baseline verify exited 0 (`/tmp/user-baseline-verify.log`). Root-level layout
+  moved into the root-level User group; subsequent evidence below establishes completion.
+- Audit: application mostly delegates to JPA adapters. Registration still lives
+  in a Spring service; legacy profile/address services remain registered but
+  controllers use the new interfaces. Complete registration, provisioning rules,
+  default-address transitions, block/lifecycle policy and authorization before
+  deleting duplicates. Retarget legacy tests rather than dropping validation.
+- Preserve signed provisioning identity, ON CONFLICT winner, profile/outbox
+  atomicity, principal/email ownership, address owner locks/single-default index,
+  replacement after deleting default, lifecycle replay/gaps and HTTP error shape.
+  Add PostgreSQL/Kafka and actual packaged RS256/JWKS/HTTP/restart proof.
+
+- Registration now runs through framework-free DefaultUserRegistrationUseCase;
+  Nimbus verifier implements a technical identity port. Removed the old Spring
+  registration service after core/wiring tests passed (logs
+  `/tmp/user-registration-{core-verify,wiring}.log`).
+- Provisioning command validity and immutable identity binding now live in
+  domain/application. Adapter invokes core checks within its original transaction,
+  including ON CONFLICT winner, then writes the existing outbox. Added domain
+  exception HTTP mapping preserving 400/409 envelope. Retargeted provisioning
+  tests to actual core/adapter; fixed a fixture that accidentally overwrote its
+  empty first lookup and never exercised insertion. Red/green/core verify logs
+  `/tmp/user-provisioning-core-{red,green,verify}.log`; clean stack verify exited 0
+  `/tmp/user-provisioning-clean-verify.log` before address changes.
+- Address workflow now owns default clearing, nullable update preservation and
+  promotion after deleting default in application. Infrastructure exposes an
+  owner-row-locked transaction callback, raw persistence and bounded lookups.
+  Reads are repeated after acquiring the lock. Core red/green/verify passed;
+  `/tmp/user-address-core-{red,green,verify}.log`. Retargeted list/default lock
+  tests; legacy ownership test still pending migration. Added isolated PostgreSQL
+  proof for concurrent provisioning/default selection and both rollback paths;
+  currently validating it, not yet claiming User complete or integrating it.
+
+- Block/unblock decisions now run in application through a locked projection
+  mutation; replay preserves original metadata. Domain/application own lifecycle
+  version and blocked/active projection decisions. Transport retains the exact
+  raw fingerprint/event-ID receipt and transaction. Moved address ownership into
+  a framework-free access use case; controllers preserve response shapes.
+- All legacy registration/profile/address facades and interfaces removed only
+  after retargeted actual-stack tests passed. No current source consumes them.
+  Boot now contains entrypoint/config and runtime integration tests, with
+  infrastructure dependencies rather than duplicated HTTP/JPA/business wiring.
+- Final clean verify exited 0 (`/tmp/user-final-verify.log`): domain 5,
+  application 24, infrastructure 41, boot 9 tests; no failures/errors/skips.
+  Domain/application line and branch coverage all 100%. Includes six actual
+  PostgreSQL concurrency/rollback/default-transition tests and real Kafka/raw
+  JSON/replay/version baseline/gap/conflict/DLT/offset/relay/block/unblock proof.
+- Actual packaged JAR proof exited 0 (`/tmp/user-packaged-runtime.log`): signed
+  Auth provisioning/access RS256/JWKS, immutable identity/replay/outbox, profile
+  full-replacement semantics, address ownership/default transitions, admin read,
+  idempotent internal block/unblock and restart against existing PostgreSQL.
+  CI runs this proof. Stable-identity package and Docker non-root/read-only/
+  freshness proof pass (`/tmp/user-docker-proof.log`).
+- Five resolved runtime graphs, static boundaries, test isolation, Compose,
+  HTTP inventory and deep wire-shape comparison pass (244 operations/231 schemas).
+  Explicit-claims gate now discovers canonical root infrastructure as well as
+  legacy hosts and checks all 16 resource services. Auth repository lookup updated
+  to its already-existing infrastructure path; missing discovery now fails closed.
+- Full build-baseline gate still fails on the unchanged Auth
+  PrincipalInternalController's raw IdentityPrincipal response versus the existing
+  public-envelope checker. Kept that checker intact; recorded
+  `/tmp/user-build-baseline.log` for the Auth tranche. This is not a claim of a
+  passing global reactor/CI; the earlier Order Kafka baseline issue also remains.
+- Inline review checked immutable provisioning winner, transactional callbacks,
+  owner locks, default rollback/concurrency, nullable/full replacement semantics,
+  lifecycle replay/gaps and metadata, exact receipt fingerprints, original
+  migrations, production feature flags, real cryptographic auth, source discovery
+  and unchanged wire shapes. No shared database or runtime deployment is touched.
 
 ## Result
 

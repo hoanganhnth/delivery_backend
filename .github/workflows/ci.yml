@@ -43,6 +43,8 @@ jobs:
         run: python3 -B scripts/verify-web-bff-runtime.py
       - name: Verify packaged Shipper runtime
         run: python3 -B scripts/verify-shipper-runtime.py
+      - name: Verify packaged User runtime
+        run: python3 -B scripts/verify-user-runtime.py
       - name: Verify Phase 8 coverage and required integration evidence
         run: |
           python3 -B scripts/report-phase8-coverage.py

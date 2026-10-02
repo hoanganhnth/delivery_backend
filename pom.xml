@@ -37,10 +37,6 @@
         <module>modules/settlement/settlement-application-api</module>
         <module>modules/settlement/settlement-application</module>
         <module>modules/settlement/settlement-infrastructure</module>
-        <module>modules/user/user-domain</module>
-        <module>modules/user/user-application-api</module>
-        <module>modules/user/user-application</module>
-        <module>modules/user/user-infrastructure</module>
         <module>modules/delivery/delivery-domain</module>
         <module>modules/delivery/delivery-application-api</module>
         <module>modules/delivery/delivery-application</module>
@@ -57,7 +53,7 @@
         <module>discovery-server</module>
         <module>config-server</module>
         <module>auth-service</module>
-        <module>user-service</module>
+        <module>user</module>
         <module>api-gateway</module>
         <module>web-bff</module>
         <module>delivery-service</module>

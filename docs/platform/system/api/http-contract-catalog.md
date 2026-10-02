@@ -4565,7 +4565,7 @@ public List<LocationHistoryPointResponse> byDelivery( @PathVariable long deliver
 ### `DELETE` `/api/addresses/{id}`
 
 - Handler: `UserAddressController.deleteAddress`
-- Source: [`backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserAddressController.java:127`](../../../../user-service/src/main/java/com/delivery/user_service/controller/UserAddressController.java)
+- Source: [`backend_delivery/user/infrastructure/src/main/java/com/delivery/user_service/controller/UserAddressController.java:128`](../../../../user/infrastructure/src/main/java/com/delivery/user_service/controller/UserAddressController.java)
 - Java return type: `ResponseEntity<BaseResponse<Void>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -4585,7 +4585,7 @@ public ResponseEntity<BaseResponse<Void>> deleteAddress( @PathVariable Long id, 
 ### `GET` `/api/addresses/{id}`
 
 - Handler: `UserAddressController.getAddress`
-- Source: [`backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserAddressController.java:59`](../../../../user-service/src/main/java/com/delivery/user_service/controller/UserAddressController.java)
+- Source: [`backend_delivery/user/infrastructure/src/main/java/com/delivery/user_service/controller/UserAddressController.java:60`](../../../../user/infrastructure/src/main/java/com/delivery/user_service/controller/UserAddressController.java)
 - Java return type: `ResponseEntity<BaseResponse<UserAddressResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -4605,7 +4605,7 @@ public ResponseEntity<BaseResponse<UserAddressResponse>> getAddress( @PathVariab
 ### `PUT` `/api/addresses/{id}`
 
 - Handler: `UserAddressController.updateAddress`
-- Source: [`backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserAddressController.java:98`](../../../../user-service/src/main/java/com/delivery/user_service/controller/UserAddressController.java)
+- Source: [`backend_delivery/user/infrastructure/src/main/java/com/delivery/user_service/controller/UserAddressController.java:99`](../../../../user/infrastructure/src/main/java/com/delivery/user_service/controller/UserAddressController.java)
 - Java return type: `ResponseEntity<BaseResponse<UserAddressResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -4626,7 +4626,7 @@ public ResponseEntity<BaseResponse<UserAddressResponse>> updateAddress( @PathVar
 ### `PATCH` `/api/addresses/{id}/default`
 
 - Handler: `UserAddressController.setDefault`
-- Source: [`backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserAddressController.java:145`](../../../../user-service/src/main/java/com/delivery/user_service/controller/UserAddressController.java)
+- Source: [`backend_delivery/user/infrastructure/src/main/java/com/delivery/user_service/controller/UserAddressController.java:146`](../../../../user/infrastructure/src/main/java/com/delivery/user_service/controller/UserAddressController.java)
 - Java return type: `ResponseEntity<BaseResponse<UserAddressResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -4646,7 +4646,7 @@ public ResponseEntity<BaseResponse<UserAddressResponse>> setDefault( @PathVariab
 ### `GET` `/api/addresses/users/{userId}/addresses`
 
 - Handler: `UserAddressController.getUserAddresses`
-- Source: [`backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserAddressController.java:42`](../../../../user-service/src/main/java/com/delivery/user_service/controller/UserAddressController.java)
+- Source: [`backend_delivery/user/infrastructure/src/main/java/com/delivery/user_service/controller/UserAddressController.java:43`](../../../../user/infrastructure/src/main/java/com/delivery/user_service/controller/UserAddressController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<UserAddressResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -4666,7 +4666,7 @@ public ResponseEntity<BaseResponse<List<UserAddressResponse>>> getUserAddresses(
 ### `POST` `/api/addresses/users/{userId}/addresses`
 
 - Handler: `UserAddressController.createAddress`
-- Source: [`backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserAddressController.java:70`](../../../../user-service/src/main/java/com/delivery/user_service/controller/UserAddressController.java)
+- Source: [`backend_delivery/user/infrastructure/src/main/java/com/delivery/user_service/controller/UserAddressController.java:71`](../../../../user/infrastructure/src/main/java/com/delivery/user_service/controller/UserAddressController.java)
 - Java return type: `ResponseEntity<BaseResponse<UserAddressResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -4687,7 +4687,7 @@ public ResponseEntity<BaseResponse<UserAddressResponse>> createAddress( @PathVar
 ### `POST` `/api/internal/users/{userId}/block-status`
 
 - Handler: `InternalUserBlockStatusController.synchronizeBlockStatus`
-- Source: [`backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/InternalUserBlockStatusController.java:34`](../../../../user-service/src/main/java/com/delivery/user_service/controller/InternalUserBlockStatusController.java)
+- Source: [`backend_delivery/user/infrastructure/src/main/java/com/delivery/user_service/controller/InternalUserBlockStatusController.java:34`](../../../../user/infrastructure/src/main/java/com/delivery/user_service/controller/InternalUserBlockStatusController.java)
 - Java return type: `ResponseEntity<BaseResponse<Void>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -4708,7 +4708,7 @@ public ResponseEntity<BaseResponse<Void>> synchronizeBlockStatus( @PathVariable 
 ### `GET` `/api/users`
 
 - Handler: `UserController.getCurrentUser`
-- Source: [`backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserController.java:112`](../../../../user-service/src/main/java/com/delivery/user_service/controller/UserController.java)
+- Source: [`backend_delivery/user/infrastructure/src/main/java/com/delivery/user_service/controller/UserController.java:112`](../../../../user/infrastructure/src/main/java/com/delivery/user_service/controller/UserController.java)
 - Java return type: `ResponseEntity<BaseResponse<UserResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -4727,7 +4727,7 @@ public ResponseEntity<BaseResponse<UserResponse>> getCurrentUser( @Authenticatio
 ### `POST` `/api/users`
 
 - Handler: `UserController.createUser`
-- Source: [`backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserController.java:63`](../../../../user-service/src/main/java/com/delivery/user_service/controller/UserController.java)
+- Source: [`backend_delivery/user/infrastructure/src/main/java/com/delivery/user_service/controller/UserController.java:63`](../../../../user/infrastructure/src/main/java/com/delivery/user_service/controller/UserController.java)
 - Java return type: `ResponseEntity<BaseResponse<UserResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -4747,7 +4747,7 @@ public ResponseEntity<BaseResponse<UserResponse>> createUser( @Valid @RequestBod
 ### `PUT` `/api/users`
 
 - Handler: `UserController.updateCurrentUser`
-- Source: [`backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserController.java:122`](../../../../user-service/src/main/java/com/delivery/user_service/controller/UserController.java)
+- Source: [`backend_delivery/user/infrastructure/src/main/java/com/delivery/user_service/controller/UserController.java:122`](../../../../user/infrastructure/src/main/java/com/delivery/user_service/controller/UserController.java)
 - Java return type: `ResponseEntity<BaseResponse<UserResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -4767,7 +4767,7 @@ public ResponseEntity<BaseResponse<UserResponse>> updateCurrentUser( @Valid @Req
 ### `POST` `/api/users/admin/{userId}/block`
 
 - Handler: `UserController.blockUser`
-- Source: [`backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserController.java:189`](../../../../user-service/src/main/java/com/delivery/user_service/controller/UserController.java)
+- Source: [`backend_delivery/user/infrastructure/src/main/java/com/delivery/user_service/controller/UserController.java:189`](../../../../user/infrastructure/src/main/java/com/delivery/user_service/controller/UserController.java)
 - Java return type: `ResponseEntity<BaseResponse<Void>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -4789,7 +4789,7 @@ public ResponseEntity<BaseResponse<Void>> blockUser( @PathVariable Long userId, 
 ### `POST` `/api/users/admin/{userId}/unblock`
 
 - Handler: `UserController.unblockUser`
-- Source: [`backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserController.java:232`](../../../../user-service/src/main/java/com/delivery/user_service/controller/UserController.java)
+- Source: [`backend_delivery/user/infrastructure/src/main/java/com/delivery/user_service/controller/UserController.java:232`](../../../../user/infrastructure/src/main/java/com/delivery/user_service/controller/UserController.java)
 - Java return type: `ResponseEntity<BaseResponse<Void>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -4811,7 +4811,7 @@ public ResponseEntity<BaseResponse<Void>> unblockUser( @PathVariable Long userId
 ### `GET` `/api/users/admin/all`
 
 - Handler: `UserController.getAllUsers`
-- Source: [`backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserController.java:171`](../../../../user-service/src/main/java/com/delivery/user_service/controller/UserController.java)
+- Source: [`backend_delivery/user/infrastructure/src/main/java/com/delivery/user_service/controller/UserController.java:171`](../../../../user/infrastructure/src/main/java/com/delivery/user_service/controller/UserController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<UserResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -4830,7 +4830,7 @@ public ResponseEntity<BaseResponse<List<UserResponse>>> getAllUsers( @Authentica
 ### `GET` `/api/users/admin/statistics`
 
 - Handler: `UserController.getUserStatistics`
-- Source: [`backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserController.java:155`](../../../../user-service/src/main/java/com/delivery/user_service/controller/UserController.java)
+- Source: [`backend_delivery/user/infrastructure/src/main/java/com/delivery/user_service/controller/UserController.java:155`](../../../../user/infrastructure/src/main/java/com/delivery/user_service/controller/UserController.java)
 - Java return type: `ResponseEntity<BaseResponse<UserStatisticsResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -4849,7 +4849,7 @@ public ResponseEntity<BaseResponse<UserStatisticsResponse>> getUserStatistics( @
 ### `GET` `/api/users/by-auth/{authId}`
 
 - Handler: `UserController.getUserByAuthId`
-- Source: [`backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserController.java:99`](../../../../user-service/src/main/java/com/delivery/user_service/controller/UserController.java)
+- Source: [`backend_delivery/user/infrastructure/src/main/java/com/delivery/user_service/controller/UserController.java:99`](../../../../user/infrastructure/src/main/java/com/delivery/user_service/controller/UserController.java)
 - Java return type: `ResponseEntity<BaseResponse<UserResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -4869,7 +4869,7 @@ public ResponseEntity<BaseResponse<UserResponse>> getUserByAuthId( @PathVariable
 ### `POST` `/api/users/registrations`
 
 - Handler: `UserController.registerUser`
-- Source: [`backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserController.java:85`](../../../../user-service/src/main/java/com/delivery/user_service/controller/UserController.java)
+- Source: [`backend_delivery/user/infrastructure/src/main/java/com/delivery/user_service/controller/UserController.java:85`](../../../../user/infrastructure/src/main/java/com/delivery/user_service/controller/UserController.java)
 - Java return type: `ResponseEntity<BaseResponse<UserResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -8610,7 +8610,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.user_service.dto.BlockUserRequest`
 
 - Kind: `class`
-- Source: [`backend_delivery/user-service/src/main/java/com/delivery/user_service/dto/BlockUserRequest.java:9`](../../../../user-service/src/main/java/com/delivery/user_service/dto/BlockUserRequest.java)
+- Source: [`backend_delivery/user/infrastructure/src/main/java/com/delivery/user_service/dto/BlockUserRequest.java:9`](../../../../user/infrastructure/src/main/java/com/delivery/user_service/dto/BlockUserRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -8620,7 +8620,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.user_service.dto.UserAddressRequest`
 
 - Kind: `class`
-- Source: [`backend_delivery/user-service/src/main/java/com/delivery/user_service/dto/UserAddressRequest.java:14`](../../../../user-service/src/main/java/com/delivery/user_service/dto/UserAddressRequest.java)
+- Source: [`backend_delivery/user/infrastructure/src/main/java/com/delivery/user_service/dto/UserAddressRequest.java:14`](../../../../user/infrastructure/src/main/java/com/delivery/user_service/dto/UserAddressRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -8639,7 +8639,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.user_service.dto.UserAddressResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/user-service/src/main/java/com/delivery/user_service/dto/UserAddressResponse.java:12`](../../../../user-service/src/main/java/com/delivery/user_service/dto/UserAddressResponse.java)
+- Source: [`backend_delivery/user/infrastructure/src/main/java/com/delivery/user_service/dto/UserAddressResponse.java:12`](../../../../user/infrastructure/src/main/java/com/delivery/user_service/dto/UserAddressResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -8662,7 +8662,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.user_service.dto.UserBlockStatusRequest`
 
 - Kind: `record`
-- Source: [`backend_delivery/user-service/src/main/java/com/delivery/user_service/dto/UserBlockStatusRequest.java:11`](../../../../user-service/src/main/java/com/delivery/user_service/dto/UserBlockStatusRequest.java)
+- Source: [`backend_delivery/user/infrastructure/src/main/java/com/delivery/user_service/dto/UserBlockStatusRequest.java:11`](../../../../user/infrastructure/src/main/java/com/delivery/user_service/dto/UserBlockStatusRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -8673,7 +8673,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.user_service.dto.UserRegistrationRequest`
 
 - Kind: `class`
-- Source: [`backend_delivery/user-service/src/main/java/com/delivery/user_service/dto/UserRegistrationRequest.java:11`](../../../../user-service/src/main/java/com/delivery/user_service/dto/UserRegistrationRequest.java)
+- Source: [`backend_delivery/user/infrastructure/src/main/java/com/delivery/user_service/dto/UserRegistrationRequest.java:11`](../../../../user/infrastructure/src/main/java/com/delivery/user_service/dto/UserRegistrationRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -8687,7 +8687,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.user_service.dto.UserRequest`
 
 - Kind: `class`
-- Source: [`backend_delivery/user-service/src/main/java/com/delivery/user_service/dto/UserRequest.java:20`](../../../../user-service/src/main/java/com/delivery/user_service/dto/UserRequest.java)
+- Source: [`backend_delivery/user/infrastructure/src/main/java/com/delivery/user_service/dto/UserRequest.java:20`](../../../../user/infrastructure/src/main/java/com/delivery/user_service/dto/UserRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -8704,7 +8704,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.user_service.dto.UserResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/user-service/src/main/java/com/delivery/user_service/dto/UserResponse.java:17`](../../../../user-service/src/main/java/com/delivery/user_service/dto/UserResponse.java)
+- Source: [`backend_delivery/user/infrastructure/src/main/java/com/delivery/user_service/dto/UserResponse.java:17`](../../../../user/infrastructure/src/main/java/com/delivery/user_service/dto/UserResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -8724,7 +8724,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.user_service.dto.UserStatisticsResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/user-service/src/main/java/com/delivery/user_service/dto/UserStatisticsResponse.java:14`](../../../../user-service/src/main/java/com/delivery/user_service/dto/UserStatisticsResponse.java)
+- Source: [`backend_delivery/user/infrastructure/src/main/java/com/delivery/user_service/dto/UserStatisticsResponse.java:14`](../../../../user/infrastructure/src/main/java/com/delivery/user_service/dto/UserStatisticsResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -8739,7 +8739,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.user_service.payload.BaseResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/user-service/src/main/java/com/delivery/user_service/payload/BaseResponse.java:5`](../../../../user-service/src/main/java/com/delivery/user_service/payload/BaseResponse.java)
+- Source: [`backend_delivery/user/infrastructure/src/main/java/com/delivery/user_service/payload/BaseResponse.java:5`](../../../../user/infrastructure/src/main/java/com/delivery/user_service/payload/BaseResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |

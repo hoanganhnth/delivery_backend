@@ -10628,8 +10628,8 @@
       "path": "/api/addresses/users/{userId}/addresses",
       "handler": "getUserAddresses",
       "source": {
-        "file": "backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserAddressController.java",
-        "line": 42
+        "file": "backend_delivery/user/infrastructure/src/main/java/com/delivery/user_service/controller/UserAddressController.java",
+        "line": 43
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<List<UserAddressResponse>>> getUserAddresses( @PathVariable Long userId, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -10671,8 +10671,8 @@
       "path": "/api/addresses/{id}",
       "handler": "getAddress",
       "source": {
-        "file": "backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserAddressController.java",
-        "line": 59
+        "file": "backend_delivery/user/infrastructure/src/main/java/com/delivery/user_service/controller/UserAddressController.java",
+        "line": 60
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<UserAddressResponse>> getAddress( @PathVariable Long id, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -10714,8 +10714,8 @@
       "path": "/api/addresses/users/{userId}/addresses",
       "handler": "createAddress",
       "source": {
-        "file": "backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserAddressController.java",
-        "line": 70
+        "file": "backend_delivery/user/infrastructure/src/main/java/com/delivery/user_service/controller/UserAddressController.java",
+        "line": 71
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<UserAddressResponse>> createAddress( @PathVariable Long userId, @Valid @RequestBody UserAddressRequest request, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -10776,8 +10776,8 @@
       "path": "/api/addresses/{id}",
       "handler": "updateAddress",
       "source": {
-        "file": "backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserAddressController.java",
-        "line": 98
+        "file": "backend_delivery/user/infrastructure/src/main/java/com/delivery/user_service/controller/UserAddressController.java",
+        "line": 99
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<UserAddressResponse>> updateAddress( @PathVariable Long id, @Valid @RequestBody UserAddressRequest request, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -10838,8 +10838,8 @@
       "path": "/api/addresses/{id}",
       "handler": "deleteAddress",
       "source": {
-        "file": "backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserAddressController.java",
-        "line": 127
+        "file": "backend_delivery/user/infrastructure/src/main/java/com/delivery/user_service/controller/UserAddressController.java",
+        "line": 128
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<Void>> deleteAddress( @PathVariable Long id, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -10881,8 +10881,8 @@
       "path": "/api/addresses/{id}/default",
       "handler": "setDefault",
       "source": {
-        "file": "backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserAddressController.java",
-        "line": 145
+        "file": "backend_delivery/user/infrastructure/src/main/java/com/delivery/user_service/controller/UserAddressController.java",
+        "line": 146
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<UserAddressResponse>> setDefault( @PathVariable Long id, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -10924,7 +10924,7 @@
       "path": "/api/users",
       "handler": "createUser",
       "source": {
-        "file": "backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserController.java",
+        "file": "backend_delivery/user/infrastructure/src/main/java/com/delivery/user_service/controller/UserController.java",
         "line": 63
       },
       "java": {
@@ -10976,7 +10976,7 @@
       "path": "/api/users/registrations",
       "handler": "registerUser",
       "source": {
-        "file": "backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserController.java",
+        "file": "backend_delivery/user/infrastructure/src/main/java/com/delivery/user_service/controller/UserController.java",
         "line": 85
       },
       "java": {
@@ -11015,7 +11015,7 @@
       "path": "/api/users",
       "handler": "getCurrentUser",
       "source": {
-        "file": "backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserController.java",
+        "file": "backend_delivery/user/infrastructure/src/main/java/com/delivery/user_service/controller/UserController.java",
         "line": 112
       },
       "java": {
@@ -11046,7 +11046,7 @@
       "path": "/api/users/by-auth/{authId}",
       "handler": "getUserByAuthId",
       "source": {
-        "file": "backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserController.java",
+        "file": "backend_delivery/user/infrastructure/src/main/java/com/delivery/user_service/controller/UserController.java",
         "line": 99
       },
       "java": {
@@ -11091,7 +11091,7 @@
       "path": "/api/users",
       "handler": "updateCurrentUser",
       "source": {
-        "file": "backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserController.java",
+        "file": "backend_delivery/user/infrastructure/src/main/java/com/delivery/user_service/controller/UserController.java",
         "line": 122
       },
       "java": {
@@ -11141,7 +11141,7 @@
       "path": "/api/users/admin/statistics",
       "handler": "getUserStatistics",
       "source": {
-        "file": "backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserController.java",
+        "file": "backend_delivery/user/infrastructure/src/main/java/com/delivery/user_service/controller/UserController.java",
         "line": 155
       },
       "java": {
@@ -11172,7 +11172,7 @@
       "path": "/api/users/admin/all",
       "handler": "getAllUsers",
       "source": {
-        "file": "backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserController.java",
+        "file": "backend_delivery/user/infrastructure/src/main/java/com/delivery/user_service/controller/UserController.java",
         "line": 171
       },
       "java": {
@@ -11203,7 +11203,7 @@
       "path": "/api/users/admin/{userId}/block",
       "handler": "blockUser",
       "source": {
-        "file": "backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserController.java",
+        "file": "backend_delivery/user/infrastructure/src/main/java/com/delivery/user_service/controller/UserController.java",
         "line": 189
       },
       "java": {
@@ -11270,7 +11270,7 @@
       "path": "/api/users/admin/{userId}/unblock",
       "handler": "unblockUser",
       "source": {
-        "file": "backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/UserController.java",
+        "file": "backend_delivery/user/infrastructure/src/main/java/com/delivery/user_service/controller/UserController.java",
         "line": 232
       },
       "java": {
@@ -11338,7 +11338,7 @@
       "path": "/api/internal/users/{userId}/block-status",
       "handler": "synchronizeBlockStatus",
       "source": {
-        "file": "backend_delivery/user-service/src/main/java/com/delivery/user_service/controller/InternalUserBlockStatusController.java",
+        "file": "backend_delivery/user/infrastructure/src/main/java/com/delivery/user_service/controller/InternalUserBlockStatusController.java",
         "line": 34
       },
       "java": {
@@ -27623,7 +27623,7 @@
     "com.delivery.user_service.dto.BlockUserRequest": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/user-service/src/main/java/com/delivery/user_service/dto/BlockUserRequest.java",
+        "file": "backend_delivery/user/infrastructure/src/main/java/com/delivery/user_service/dto/BlockUserRequest.java",
         "line": 9
       },
       "fields": [
@@ -27655,7 +27655,7 @@
     "com.delivery.user_service.dto.UserAddressRequest": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/user-service/src/main/java/com/delivery/user_service/dto/UserAddressRequest.java",
+        "file": "backend_delivery/user/infrastructure/src/main/java/com/delivery/user_service/dto/UserAddressRequest.java",
         "line": 14
       },
       "fields": [
@@ -27912,7 +27912,7 @@
     "com.delivery.user_service.dto.UserAddressResponse": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/user-service/src/main/java/com/delivery/user_service/dto/UserAddressResponse.java",
+        "file": "backend_delivery/user/infrastructure/src/main/java/com/delivery/user_service/dto/UserAddressResponse.java",
         "line": 12
       },
       "fields": [
@@ -28011,7 +28011,7 @@
     "com.delivery.user_service.dto.UserBlockStatusRequest": {
       "kind": "record",
       "source": {
-        "file": "backend_delivery/user-service/src/main/java/com/delivery/user_service/dto/UserBlockStatusRequest.java",
+        "file": "backend_delivery/user/infrastructure/src/main/java/com/delivery/user_service/dto/UserBlockStatusRequest.java",
         "line": 11
       },
       "fields": [
@@ -28073,7 +28073,7 @@
     "com.delivery.user_service.dto.UserRegistrationRequest": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/user-service/src/main/java/com/delivery/user_service/dto/UserRegistrationRequest.java",
+        "file": "backend_delivery/user/infrastructure/src/main/java/com/delivery/user_service/dto/UserRegistrationRequest.java",
         "line": 11
       },
       "fields": [
@@ -28180,7 +28180,7 @@
     "com.delivery.user_service.dto.UserRequest": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/user-service/src/main/java/com/delivery/user_service/dto/UserRequest.java",
+        "file": "backend_delivery/user/infrastructure/src/main/java/com/delivery/user_service/dto/UserRequest.java",
         "line": 20
       },
       "fields": [
@@ -28350,7 +28350,7 @@
     "com.delivery.user_service.dto.UserResponse": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/user-service/src/main/java/com/delivery/user_service/dto/UserResponse.java",
+        "file": "backend_delivery/user/infrastructure/src/main/java/com/delivery/user_service/dto/UserResponse.java",
         "line": 17
       },
       "fields": [
@@ -28431,7 +28431,7 @@
     "com.delivery.user_service.dto.UserStatisticsResponse": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/user-service/src/main/java/com/delivery/user_service/dto/UserStatisticsResponse.java",
+        "file": "backend_delivery/user/infrastructure/src/main/java/com/delivery/user_service/dto/UserStatisticsResponse.java",
         "line": 14
       },
       "fields": [
@@ -28482,7 +28482,7 @@
     "com.delivery.user_service.payload.BaseResponse": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/user-service/src/main/java/com/delivery/user_service/payload/BaseResponse.java",
+        "file": "backend_delivery/user/infrastructure/src/main/java/com/delivery/user_service/payload/BaseResponse.java",
         "line": 5
       },
       "fields": [

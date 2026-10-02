@@ -35,19 +35,34 @@ fi
 
 # Maven dependency is the source-of-truth inventory: any service that consumes
 # the starter must have its HTTP filter chain wired to the strict converter.
-consumer_poms=()
-while IFS= read -r pom; do
-  [[ -n "$pom" ]] && consumer_poms+=("$pom")
-done < <(
-  rg -l '<artifactId>auth-resource-server-starter</artifactId>' */pom.xml \
-    | grep -v '^auth-resource-server-starter/pom.xml$' \
-    | sort
-)
-(( ${#consumer_poms[@]} > 0 )) || die 'no resource service declares auth-resource-server-starter'
-
-for pom in "${consumer_poms[@]}"; do
-  service="${pom%/pom.xml}"
-  config="${service}/src/main/java/com/delivery/${service//-/_}/security/SecurityConfig.java"
+consumer_config_inventory="$(python3 - <<'PYTHON'
+import importlib.util
+from pathlib import Path
+spec = importlib.util.spec_from_file_location("boundaries", "scripts/verify-module-boundaries.py")
+boundaries = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(boundaries)
+root = Path.cwd()
+for pom in boundaries.service_poms(root):
+    roots = [pom.parent]
+    if pom.parent.name == "boot":
+        roots.append(pom.parent.parent / "infrastructure")
+    declarations = [directory / "pom.xml" for directory in roots]
+    consumes = any(boundaries.child_text(dependency, "m:artifactId") == "auth-resource-server-starter"
+        for declaration in declarations if declaration.exists()
+        for dependency in boundaries.parse_pom(declaration).findall("m:dependencies/m:dependency", boundaries.NS))
+    if consumes:
+        configs = [path for directory in roots for path in directory.glob("src/main/java/**/security/SecurityConfig.java")]
+        if len(configs) != 1:
+            raise SystemExit(f"{pom}: expected exactly one strict resource SecurityConfig")
+        print(configs[0].relative_to(root))
+PYTHON
+)" || die 'resource service SecurityConfig inventory could not be resolved'
+consumer_configs=()
+while IFS= read -r config; do
+  [[ -n "$config" ]] && consumer_configs+=("$config")
+done <<< "$consumer_config_inventory"
+(( ${#consumer_configs[@]} > 0 )) || die 'no resource service declares auth-resource-server-starter'
+for config in "${consumer_configs[@]}"; do
   require_file "$config"
   require_text "$config" 'DeliveryJwtAuthenticationConverter'
   require_text "$config" 'jwtAuthenticationConverter(converter)'
@@ -63,7 +78,7 @@ while IFS= read -r reader; do
 done < <(
   rg -l 'getSubject\(' --glob '*.java' --glob '!**/test/**' \
     --glob '!auth-service/**' \
-    --glob '!user-service/src/main/java/com/delivery/user_service/service/ProvisioningTokenVerifier.java' \
+    --glob '!user/infrastructure/src/main/java/com/delivery/user_service/service/ProvisioningTokenVerifier.java' \
     . || true
 )
 if (( ${#sub_readers[@]} > 0 )); then
@@ -85,22 +100,22 @@ fi
 # principal key invariant. Unlike old token compatibility, its consumer must
 # not fall back to `sub`: R5 changes the access-token subject and registration
 # authority is always the signed principal_id claim.
-provisioning_verifier='user-service/src/main/java/com/delivery/user_service/service/ProvisioningTokenVerifier.java'
+provisioning_verifier='user/infrastructure/src/main/java/com/delivery/user_service/service/ProvisioningTokenVerifier.java'
 require_file "$provisioning_verifier"
 require_text "$provisioning_verifier" 'jwt.getClaim("principal_id")'
 if rg -q 'getSubject\(' "$provisioning_verifier"; then
   die 'provisioning handoff must require principal_id and must not fall back to JWT sub'
 fi
 
-user_service='user-service/src/main/java/com/delivery/user_service/service/impl/UserServiceImpl.java'
+user_service='user/domain/src/main/java/com/delivery/user/domain/UserProvisioningRules.java'
 require_file "$user_service"
-require_text "$user_service" '!request.getAuthId().equals(request.getPrincipalId())'
+require_text "$user_service" '!authId.equals(principalId)'
 require_text "$user_service" 'authId and principalId must identify the same Auth account'
 
 # Auth account identity is email-based before a principal exists. The lookup
 # and its PostgreSQL constraint must use the same canonical rule so case-only
 # or whitespace-only retries cannot manufacture a second credential.
-auth_repository='auth-service/src/main/java/com/delivery/auth_service/repository/AuthAccountRepository.java'
+auth_repository='modules/auth/auth-infrastructure/src/main/java/com/delivery/auth/infrastructure/repository/AuthAccountRepository.java'
 auth_service='auth-service/src/main/java/com/delivery/auth_service/service/AuthService.java'
 auth_email_migration='auth-service/src/main/java/db/migration/V8__canonical_auth_account_email.java'
 require_file "$auth_repository"
@@ -119,4 +134,4 @@ require_file "$gateway_filter"
 require_text "$gateway_filter" 'headers.remove(USER_ID_HEADER)'
 require_text "$gateway_filter" 'headers.remove(ROLE_HEADER)'
 
-printf 'PASS: %s resource services use strict explicit JWT claims; no resource boundary reads access-token sub.\n' "${#consumer_poms[@]}"
+printf 'PASS: %s resource services use strict explicit JWT claims; no resource boundary reads access-token sub.\n' "${#consumer_configs[@]}"

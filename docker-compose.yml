@@ -258,7 +258,7 @@ services:
     networks: [delivery-network]
 
   user-service:
-    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: user-service } }
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: user/boot } }
     container_name: user-service
     expose: ["8082", "9090"]
     environment:

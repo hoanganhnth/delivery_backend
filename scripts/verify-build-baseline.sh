@@ -10,7 +10,7 @@ modules=(
   discovery-server
   config-server
   auth-service
-  user-service
+  user/boot
   api-gateway
   delivery-service
   notification-service
@@ -819,12 +819,16 @@ if [[ ! -f "${settlement_crash_harness}" || ! -f "${settlement_crash_probe}" ]] 
   echo "Gate B8 harness must preserve settlement crash recovery, durable offer recovery/raw WebSocket and isolated-volume safety." >&2
   exit 1
 fi
-user_service_contract="${ROOT_DIR}/user-service/src/main/java/com/delivery/user_service/service/UserService.java"
-user_service_implementation="${ROOT_DIR}/user-service/src/main/java/com/delivery/user_service/service/impl/UserServiceImpl.java"
-if [[ -e "${ROOT_DIR}/user-service/src/main/java/com/delivery/user_service/controller/LegacyUserDeleteController.java" ]] \
-    || rg -q 'deleteUser|userRepository\.delete(ById)?' \
-      "${user_service_contract}" \
-      "${user_service_implementation}"; then
+user_sources="${ROOT_DIR}/user/infrastructure/src/main/java"
+user_core="${ROOT_DIR}/user/application/src/main/java"
+user_api="${ROOT_DIR}/user/application-api/src/main/java"
+if [[ ! -d "${user_sources}" || ! -d "${user_core}" || ! -d "${user_api}" ]]; then
+  echo "user-service: canonical profile sources are missing." >&2
+  exit 1
+fi
+if [[ -e "${user_sources}/com/delivery/user_service/controller/LegacyUserDeleteController.java" ]] \
+    || rg -q 'deleteUser|users\.delete(ById)?|userRepository\.delete(ById)?' \
+      "${user_sources}" "${user_core}" "${user_api}"; then
   echo "user-service: direct profile hard-delete must not be restored; account lifecycle is Auth-owned soft deactivation." >&2
   exit 1
 fi
