@@ -283,7 +283,7 @@ services:
     networks: [delivery-network]
 
   restaurant-service:
-    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: restaurant-service } }
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: restaurant/boot } }
     container_name: restaurant-service
     expose: ["8083", "9090"]
     environment:

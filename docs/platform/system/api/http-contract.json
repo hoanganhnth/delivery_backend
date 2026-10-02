@@ -5651,7 +5651,7 @@
       "path": "/api/menu-items",
       "handler": "create",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java",
         "line": 34
       },
       "java": {
@@ -5701,7 +5701,7 @@
       "path": "/api/menu-items/{id}",
       "handler": "update",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java",
         "line": 44
       },
       "java": {
@@ -5763,7 +5763,7 @@
       "path": "/api/menu-items/{id}",
       "handler": "delete",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java",
         "line": 55
       },
       "java": {
@@ -5806,7 +5806,7 @@
       "path": "/api/menu-items/{id}/lifecycle",
       "handler": "changeLifecycle",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java",
         "line": 64
       },
       "java": {
@@ -5868,7 +5868,7 @@
       "path": "/api/menu-items/restaurant/{restaurantId}",
       "handler": "getByRestaurant",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java",
         "line": 75
       },
       "java": {
@@ -5900,7 +5900,7 @@
       "path": "/api/menu-items/restaurant/{restaurantId}/available",
       "handler": "getAvailableItems",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java",
         "line": 81
       },
       "java": {
@@ -5932,7 +5932,7 @@
       "path": "/api/menu-items/restaurant/{restaurantId}/page",
       "handler": "getPage",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java",
         "line": 87
       },
       "java": {
@@ -5992,7 +5992,7 @@
       "path": "/api/menu-items/restaurant/{restaurantId}/available/page",
       "handler": "getAvailablePage",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java",
         "line": 96
       },
       "java": {
@@ -6052,7 +6052,7 @@
       "path": "/api/menu-items/my-menu-items",
       "handler": "getMyMenuItems",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java",
         "line": 105
       },
       "java": {
@@ -6096,7 +6096,7 @@
       "path": "/api/menu-items/my-menu-items/page",
       "handler": "getMyMenuItemsPage",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/MenuItemController.java",
         "line": 120
       },
       "java": {
@@ -6168,7 +6168,7 @@
       "path": "/api/menu-items/{menuItemId}/inventory",
       "handler": "get",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemInventoryController.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/MenuItemInventoryController.java",
         "line": 38
       },
       "java": {
@@ -6211,7 +6211,7 @@
       "path": "/api/menu-items/{menuItemId}/inventory",
       "handler": "update",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/MenuItemInventoryController.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/MenuItemInventoryController.java",
         "line": 48
       },
       "java": {
@@ -6273,7 +6273,7 @@
       "path": "/api/restaurants/validate/order",
       "handler": "validateOrder",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/OrderValidationController.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/OrderValidationController.java",
         "line": 36
       },
       "java": {
@@ -6317,7 +6317,7 @@
       "path": "/api/restaurants/internal/{restaurantId}/owners/{ownerId}",
       "handler": "isOwnedBy",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/InternalRestaurantController.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/InternalRestaurantController.java",
         "line": 37
       },
       "java": {
@@ -6387,7 +6387,7 @@
       "path": "/api/menu-items/internal/inventory/reservations",
       "handler": "reserve",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/InternalInventoryController.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/InternalInventoryController.java",
         "line": 40
       },
       "java": {
@@ -6440,7 +6440,7 @@
       "path": "/api/menu-items/internal/inventory/reservations/{reservationId}/commit",
       "handler": "commit",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/InternalInventoryController.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/InternalInventoryController.java",
         "line": 55
       },
       "java": {
@@ -6497,7 +6497,7 @@
       "path": "/api/menu-items/internal/inventory/reservations/{reservationId}/release",
       "handler": "release",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/InternalInventoryController.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/InternalInventoryController.java",
         "line": 71
       },
       "java": {
@@ -6554,7 +6554,7 @@
       "path": "/api/restaurants/internal/{restaurantId}/serviceability",
       "handler": "evaluate",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/InternalServiceabilityController.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/InternalServiceabilityController.java",
         "line": 30
       },
       "java": {
@@ -6623,7 +6623,7 @@
       "path": "/api/restaurants/internal/{restaurantId}/livestream-products/{productId}",
       "handler": "get",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/InternalLivestreamProductController.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/InternalLivestreamProductController.java",
         "line": 31
       },
       "java": {
@@ -6680,7 +6680,7 @@
       "path": "/api/restaurants",
       "handler": "create",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java",
         "line": 34
       },
       "java": {
@@ -6730,7 +6730,7 @@
       "path": "/api/restaurants/{id}",
       "handler": "update",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java",
         "line": 44
       },
       "java": {
@@ -6792,7 +6792,7 @@
       "path": "/api/restaurants/{id}",
       "handler": "delete",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java",
         "line": 55
       },
       "java": {
@@ -6835,7 +6835,7 @@
       "path": "/api/restaurants/{id}/lifecycle",
       "handler": "changeLifecycle",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java",
         "line": 64
       },
       "java": {
@@ -6897,7 +6897,7 @@
       "path": "/api/restaurants/{id}",
       "handler": "getById",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java",
         "line": 75
       },
       "java": {
@@ -6929,7 +6929,7 @@
       "path": "/api/restaurants",
       "handler": "getAll",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java",
         "line": 81
       },
       "java": {
@@ -6948,7 +6948,7 @@
       "path": "/api/restaurants/search",
       "handler": "search",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java",
         "line": 87
       },
       "java": {
@@ -6980,7 +6980,7 @@
       "path": "/api/restaurants/page",
       "handler": "getPage",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java",
         "line": 93
       },
       "java": {
@@ -7041,7 +7041,7 @@
       "path": "/api/restaurants/my-restaurants",
       "handler": "getMyRestaurants",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/RestaurantController.java",
         "line": 103
       },
       "java": {
@@ -7072,7 +7072,7 @@
       "path": "/api/restaurants/{restaurantId}/serviceability-zones",
       "handler": "list",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantServiceabilityController.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/RestaurantServiceabilityController.java",
         "line": 37
       },
       "java": {
@@ -7115,7 +7115,7 @@
       "path": "/api/restaurants/{restaurantId}/serviceability-zones",
       "handler": "create",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantServiceabilityController.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/RestaurantServiceabilityController.java",
         "line": 47
       },
       "java": {
@@ -7177,7 +7177,7 @@
       "path": "/api/restaurants/{restaurantId}/serviceability-zones/{zoneId}",
       "handler": "update",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantServiceabilityController.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/RestaurantServiceabilityController.java",
         "line": 59
       },
       "java": {
@@ -7251,7 +7251,7 @@
       "path": "/api/restaurants/{restaurantId}/serviceability-zones/{zoneId}",
       "handler": "delete",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantServiceabilityController.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/RestaurantServiceabilityController.java",
         "line": 72
       },
       "java": {
@@ -7306,7 +7306,7 @@
       "path": "/api/restaurants/orders/{orderId}/confirm",
       "handler": "confirmOrder",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantOrderController.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/RestaurantOrderController.java",
         "line": 26
       },
       "java": {
@@ -7368,7 +7368,7 @@
       "path": "/api/restaurants/orders/{orderId}/reject",
       "handler": "rejectOrder",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantOrderController.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/RestaurantOrderController.java",
         "line": 58
       },
       "java": {
@@ -7430,7 +7430,7 @@
       "path": "/api/restaurants/{restaurantId}/ratings",
       "handler": "submitRating",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantRatingController.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/RestaurantRatingController.java",
         "line": 32
       },
       "java": {
@@ -7492,7 +7492,7 @@
       "path": "/api/restaurants/{restaurantId}/ratings",
       "handler": "getRestaurantRatings",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantRatingController.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/RestaurantRatingController.java",
         "line": 44
       },
       "java": {
@@ -7524,7 +7524,7 @@
       "path": "/api/restaurants/{restaurantId}/ratings/page",
       "handler": "getRestaurantRatingsPage",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantRatingController.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/RestaurantRatingController.java",
         "line": 52
       },
       "java": {
@@ -7584,7 +7584,7 @@
       "path": "/api/restaurants/me/ratings",
       "handler": "getMyRatings",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantRatingController.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/RestaurantRatingController.java",
         "line": 61
       },
       "java": {
@@ -7615,7 +7615,7 @@
       "path": "/api/restaurants/admin/ratings",
       "handler": "getAllRatings",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantRatingController.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/RestaurantRatingController.java",
         "line": 71
       },
       "java": {
@@ -7646,7 +7646,7 @@
       "path": "/api/restaurants/admin/ratings/page",
       "handler": "getAllRatingsPage",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantRatingController.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/RestaurantRatingController.java",
         "line": 84
       },
       "java": {
@@ -7705,7 +7705,7 @@
       "path": "/api/restaurants/admin/ratings/{id}/status",
       "handler": "updateRatingStatus",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/RestaurantRatingController.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/RestaurantRatingController.java",
         "line": 98
       },
       "java": {
@@ -21073,7 +21073,7 @@
     "com.delivery.restaurant_service.controller.InternalLivestreamProductController.Product": {
       "kind": "record",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/controller/InternalLivestreamProductController.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/InternalLivestreamProductController.java",
         "line": 26
       },
       "fields": [
@@ -21112,7 +21112,7 @@
     "com.delivery.restaurant_service.dto.request.ConfirmRestaurantOrderRequest": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/dto/request/ConfirmRestaurantOrderRequest.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/dto/request/ConfirmRestaurantOrderRequest.java",
         "line": 11
       },
       "fields": [
@@ -21190,7 +21190,7 @@
     "com.delivery.restaurant_service.dto.request.CreateMenuItemRequest": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/dto/request/CreateMenuItemRequest.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/dto/request/CreateMenuItemRequest.java",
         "line": 11
       },
       "fields": [
@@ -21297,7 +21297,7 @@
     "com.delivery.restaurant_service.dto.request.CreateRestaurantRequest": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/dto/request/CreateRestaurantRequest.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/dto/request/CreateRestaurantRequest.java",
         "line": 21
       },
       "fields": [
@@ -21508,7 +21508,7 @@
     "com.delivery.restaurant_service.dto.request.CreateServiceabilityZoneRequest": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/dto/request/CreateServiceabilityZoneRequest.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/dto/request/CreateServiceabilityZoneRequest.java",
         "line": 12
       },
       "fields": [
@@ -21594,7 +21594,7 @@
     "com.delivery.restaurant_service.dto.request.InventoryReservationRequest": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/dto/request/InventoryReservationRequest.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/dto/request/InventoryReservationRequest.java",
         "line": 21
       },
       "fields": [
@@ -21711,7 +21711,7 @@
         "Line": {
           "kind": "class",
           "source": {
-            "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/dto/request/InventoryReservationRequest.java",
+            "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/dto/request/InventoryReservationRequest.java",
             "line": 49
           },
           "fields": [
@@ -21764,7 +21764,7 @@
     "com.delivery.restaurant_service.dto.request.InventoryReservationRequest.Line": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/dto/request/InventoryReservationRequest.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/dto/request/InventoryReservationRequest.java",
         "line": 49
       },
       "fields": [
@@ -21815,7 +21815,7 @@
     "com.delivery.restaurant_service.dto.request.MenuItemLifecycleRequest": {
       "kind": "record",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/dto/request/MenuItemLifecycleRequest.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/dto/request/MenuItemLifecycleRequest.java",
         "line": 6
       },
       "fields": [
@@ -21845,7 +21845,7 @@
     "com.delivery.restaurant_service.dto.request.OrderValidationRequest": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/dto/request/OrderValidationRequest.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/dto/request/OrderValidationRequest.java",
         "line": 16
       },
       "fields": [
@@ -21938,7 +21938,7 @@
         "OrderItemRequest": {
           "kind": "class",
           "source": {
-            "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/dto/request/OrderValidationRequest.java",
+            "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/dto/request/OrderValidationRequest.java",
             "line": 47
           },
           "fields": [
@@ -21979,7 +21979,7 @@
     "com.delivery.restaurant_service.dto.request.OrderValidationRequest.OrderItemRequest": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/dto/request/OrderValidationRequest.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/dto/request/OrderValidationRequest.java",
         "line": 47
       },
       "fields": [
@@ -22018,7 +22018,7 @@
     "com.delivery.restaurant_service.dto.request.RejectRestaurantOrderRequest": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/dto/request/RejectRestaurantOrderRequest.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/dto/request/RejectRestaurantOrderRequest.java",
         "line": 10
       },
       "fields": [
@@ -22071,7 +22071,7 @@
     "com.delivery.restaurant_service.dto.request.RestaurantLifecycleRequest": {
       "kind": "record",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/dto/request/RestaurantLifecycleRequest.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/dto/request/RestaurantLifecycleRequest.java",
         "line": 6
       },
       "fields": [
@@ -22101,7 +22101,7 @@
     "com.delivery.restaurant_service.dto.request.RestaurantRatingRequest": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/dto/request/RestaurantRatingRequest.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/dto/request/RestaurantRatingRequest.java",
         "line": 10
       },
       "fields": [
@@ -22181,7 +22181,7 @@
     "com.delivery.restaurant_service.dto.request.UpdateMenuItemInventoryRequest": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/dto/request/UpdateMenuItemInventoryRequest.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/dto/request/UpdateMenuItemInventoryRequest.java",
         "line": 12
       },
       "fields": [
@@ -22228,7 +22228,7 @@
     "com.delivery.restaurant_service.dto.request.UpdateMenuItemRequest": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/dto/request/UpdateMenuItemRequest.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/dto/request/UpdateMenuItemRequest.java",
         "line": 14
       },
       "fields": [
@@ -22331,7 +22331,7 @@
     "com.delivery.restaurant_service.dto.request.UpdateRestaurantRequest": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/dto/request/UpdateRestaurantRequest.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/dto/request/UpdateRestaurantRequest.java",
         "line": 11
       },
       "fields": [
@@ -22517,7 +22517,7 @@
     "com.delivery.restaurant_service.dto.request.UpdateServiceabilityZoneRequest": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/dto/request/UpdateServiceabilityZoneRequest.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/dto/request/UpdateServiceabilityZoneRequest.java",
         "line": 12
       },
       "fields": [
@@ -22614,7 +22614,7 @@
     "com.delivery.restaurant_service.dto.response.InventoryReservationResponse": {
       "kind": "record",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/dto/response/InventoryReservationResponse.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/dto/response/InventoryReservationResponse.java",
         "line": 9
       },
       "fields": [
@@ -22659,7 +22659,7 @@
         "Line": {
           "kind": "record",
           "source": {
-            "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/dto/response/InventoryReservationResponse.java",
+            "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/dto/response/InventoryReservationResponse.java",
             "line": 29
           },
           "fields": [
@@ -22682,7 +22682,7 @@
     "com.delivery.restaurant_service.dto.response.InventoryReservationResponse.Line": {
       "kind": "record",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/dto/response/InventoryReservationResponse.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/dto/response/InventoryReservationResponse.java",
         "line": 29
       },
       "fields": [
@@ -22703,7 +22703,7 @@
     "com.delivery.restaurant_service.dto.response.MenuItemInventoryResponse": {
       "kind": "record",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/dto/response/MenuItemInventoryResponse.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/dto/response/MenuItemInventoryResponse.java",
         "line": 5
       },
       "fields": [
@@ -22742,7 +22742,7 @@
     "com.delivery.restaurant_service.dto.response.MenuItemResponse": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/dto/response/MenuItemResponse.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/dto/response/MenuItemResponse.java",
         "line": 8
       },
       "fields": [
@@ -22833,7 +22833,7 @@
     "com.delivery.restaurant_service.dto.response.OrderValidationResultResponse": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/dto/response/OrderValidationResultResponse.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/dto/response/OrderValidationResultResponse.java",
         "line": 15
       },
       "fields": [
@@ -22878,7 +22878,7 @@
         "ItemValidationInfo": {
           "kind": "class",
           "source": {
-            "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/dto/response/OrderValidationResultResponse.java",
+            "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/dto/response/OrderValidationResultResponse.java",
             "line": 66
           },
           "fields": [
@@ -22941,7 +22941,7 @@
         "RestaurantInfo": {
           "kind": "class",
           "source": {
-            "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/dto/response/OrderValidationResultResponse.java",
+            "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/dto/response/OrderValidationResultResponse.java",
             "line": 41
           },
           "fields": [
@@ -23052,7 +23052,7 @@
         "ValidationError": {
           "kind": "class",
           "source": {
-            "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/dto/response/OrderValidationResultResponse.java",
+            "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/dto/response/OrderValidationResultResponse.java",
             "line": 29
           },
           "fields": [
@@ -23087,7 +23087,7 @@
     "com.delivery.restaurant_service.dto.response.OrderValidationResultResponse.ItemValidationInfo": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/dto/response/OrderValidationResultResponse.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/dto/response/OrderValidationResultResponse.java",
         "line": 66
       },
       "fields": [
@@ -23150,7 +23150,7 @@
     "com.delivery.restaurant_service.dto.response.OrderValidationResultResponse.RestaurantInfo": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/dto/response/OrderValidationResultResponse.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/dto/response/OrderValidationResultResponse.java",
         "line": 41
       },
       "fields": [
@@ -23261,7 +23261,7 @@
     "com.delivery.restaurant_service.dto.response.OrderValidationResultResponse.ValidationError": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/dto/response/OrderValidationResultResponse.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/dto/response/OrderValidationResultResponse.java",
         "line": 29
       },
       "fields": [
@@ -23294,7 +23294,7 @@
     "com.delivery.restaurant_service.dto.response.RestaurantRatingResponse": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/dto/response/RestaurantRatingResponse.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/dto/response/RestaurantRatingResponse.java",
         "line": 7
       },
       "fields": [
@@ -23351,7 +23351,7 @@
     "com.delivery.restaurant_service.dto.response.RestaurantResponse": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/dto/response/RestaurantResponse.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/dto/response/RestaurantResponse.java",
         "line": 13
       },
       "fields": [
@@ -23484,7 +23484,7 @@
     "com.delivery.restaurant_service.dto.response.ServiceabilityDecisionResponse": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/dto/response/ServiceabilityDecisionResponse.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/dto/response/ServiceabilityDecisionResponse.java",
         "line": 9
       },
       "fields": [
@@ -23523,7 +23523,7 @@
     "com.delivery.restaurant_service.dto.response.ServiceabilityZoneResponse": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/dto/response/ServiceabilityZoneResponse.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/dto/response/ServiceabilityZoneResponse.java",
         "line": 10
       },
       "fields": [
@@ -23586,7 +23586,7 @@
     "com.delivery.restaurant_service.entity.MenuItem": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/modules/restaurant/restaurant-infrastructure/src/main/java/com/delivery/restaurant_service/entity/MenuItem.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/entity/MenuItem.java",
         "line": 10
       },
       "fields": [
@@ -23793,7 +23793,7 @@
         "Status": {
           "kind": "enum",
           "source": {
-            "file": "backend_delivery/modules/restaurant/restaurant-infrastructure/src/main/java/com/delivery/restaurant_service/entity/MenuItem.java",
+            "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/entity/MenuItem.java",
             "line": 12
           },
           "fields": [],
@@ -23809,7 +23809,7 @@
     "com.delivery.restaurant_service.entity.MenuItem.Status": {
       "kind": "enum",
       "source": {
-        "file": "backend_delivery/modules/restaurant/restaurant-infrastructure/src/main/java/com/delivery/restaurant_service/entity/MenuItem.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/entity/MenuItem.java",
         "line": 12
       },
       "fields": [],
@@ -23823,7 +23823,7 @@
     "com.delivery.restaurant_service.entity.Restaurant": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/modules/restaurant/restaurant-infrastructure/src/main/java/com/delivery/restaurant_service/entity/Restaurant.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/entity/Restaurant.java",
         "line": 11
       },
       "fields": [
@@ -24192,7 +24192,7 @@
     "com.delivery.restaurant_service.payload.BaseResponse": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/payload/BaseResponse.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/payload/BaseResponse.java",
         "line": 3
       },
       "fields": [
@@ -24219,7 +24219,7 @@
     "com.delivery.restaurant_service.payload.PageResponse": {
       "kind": "record",
       "source": {
-        "file": "backend_delivery/restaurant-service/src/main/java/com/delivery/restaurant_service/payload/PageResponse.java",
+        "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/payload/PageResponse.java",
         "line": 6
       },
       "fields": [
@@ -24264,7 +24264,7 @@
     "com.delivery.restaurant.domain.catalog.MenuItemStatus": {
       "kind": "enum",
       "source": {
-        "file": "backend_delivery/modules/restaurant/restaurant-domain/src/main/java/com/delivery/restaurant/domain/catalog/MenuItemStatus.java",
+        "file": "backend_delivery/restaurant/domain/src/main/java/com/delivery/restaurant/domain/catalog/MenuItemStatus.java",
         "line": 3
       },
       "fields": [],
@@ -24278,7 +24278,7 @@
     "com.delivery.restaurant.domain.catalog.RestaurantStatus": {
       "kind": "enum",
       "source": {
-        "file": "backend_delivery/modules/restaurant/restaurant-domain/src/main/java/com/delivery/restaurant/domain/catalog/RestaurantStatus.java",
+        "file": "backend_delivery/restaurant/domain/src/main/java/com/delivery/restaurant/domain/catalog/RestaurantStatus.java",
         "line": 3
       },
       "fields": [],

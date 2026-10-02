@@ -24,7 +24,7 @@ modules=(
   delivery-service
   notification-service
   order-service
-  restaurant-service
+  restaurant/boot
   shipper/boot
   search-service
   saga-orchestrator-service
@@ -279,7 +279,7 @@ if rg -n 'log\.(error|warn|info)\([^\n]*(Raw Message|Raw:|rawPayload|message\s*\
 fi
 
 if rg -n 'Math\.random\(|Featured Item|example\.com/item|RestaurantCatalog(Service|Response)' \
-    "${ROOT_DIR}/restaurant-service/src/main/java" >/dev/null; then
+    "${ROOT_DIR}/restaurant/infrastructure/src/main/java" >/dev/null; then
   echo "restaurant-service: synthetic/random catalog data or its dead cache graph must not return." >&2
   exit 1
 fi

@@ -648,3 +648,10 @@ Deployment proof includes Compose path resolution and artifact freshness.
 Pending. This plan remains active until all service tranches and final system
 validation are complete. A completed Routing tranche does not imply other
 services or the earlier Saga-to-Dispatch migration are complete.
+
+### Restaurant root layout (in progress)
+
+- Relocated all five layers to `restaurant/{domain,application-api,application,infrastructure,boot}`. Production HTTP/Kafka/JPA adapters and canonical migrations now live in infrastructure; boot keeps the entrypoint, runtime properties and Spring/database integration tests. Reactor and Compose use the root layout while retaining `restaurant-service` artifact/DNS identity.
+- Clean verify after relocation passed: domain 25, application 73, infrastructure 159 and boot 81 tests (338 total), zero failures/errors/skips; `/tmp/restaurant-root-layout-clean-verify.log`. Restored the direct Flyway/H2 migration test to boot after initial test relocation exposed its runtime dependency.
+- Boundary audit and HTTP inventory passed; regenerated source metadata and compared the full HTTP contract excluding source locations: all 244 operations/231 schemas unchanged.
+- Restaurant remains incomplete: serviceability, inventory and catalog lifecycle still need business decisions extracted into core. Keep this tranche in the refactor worktree until the full service is verified.
