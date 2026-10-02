@@ -1,7 +1,10 @@
 package com.delivery.restaurant_service.service;
 
 import com.delivery.restaurant.application.api.ServiceabilityDecision;
-import com.delivery.restaurant.infrastructure.serviceability.RestaurantServiceabilityService;
+import com.delivery.restaurant.application.DefaultRestaurantServiceabilityUseCase;
+import com.delivery.restaurant.application.api.RestaurantTransactionPort;
+import com.delivery.restaurant.infrastructure.serviceability.JpaServiceabilityAdapter;
+import com.delivery.restaurant.infrastructure.serviceability.GeoJsonServiceabilityPolygonAdapter;
 import com.delivery.restaurant_service.entity.RestaurantServiceabilityZone;
 import com.delivery.restaurant_service.repository.RestaurantRepository;
 import com.delivery.restaurant_service.repository.RestaurantServiceabilityZoneRepository;
@@ -10,7 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.springframework.test.util.ReflectionTestUtils;
+
 
 import java.util.List;
 
@@ -31,12 +34,11 @@ class RestaurantServiceabilityServiceTest {
     @Mock RestaurantRepository restaurantRepository;
     @Mock RestaurantServiceabilityZoneRepository zoneRepository;
 
-    private RestaurantServiceabilityService service;
+    private DefaultRestaurantServiceabilityUseCase service;
 
     @BeforeEach
     void setUp() {
-        service = new RestaurantServiceabilityService(restaurantRepository, zoneRepository);
-        ReflectionTestUtils.setField(service, "enabled", true);
+        service = core(true);
         lenient().when(restaurantRepository.existsById(7L)).thenReturn(true);
     }
 
@@ -68,12 +70,22 @@ class RestaurantServiceabilityServiceTest {
 
     @Test
     void disabledCapabilityDoesNotReadZoneData() {
-        ReflectionTestUtils.setField(service, "enabled", false);
+        service = core(false);
 
         var decision = service.evaluate(7L, 10.75, 106.65);
 
         assertThat(decision.enabled()).isFalse();
         assertThat(decision.serviceable()).isFalse();
+    }
+
+    private DefaultRestaurantServiceabilityUseCase core(boolean enabled) {
+        return new DefaultRestaurantServiceabilityUseCase(
+                new JpaServiceabilityAdapter(restaurantRepository, zoneRepository),
+                GeoJsonServiceabilityPolygonAdapter::parsePolygon, (zone, restaurant) -> { },
+                new RestaurantTransactionPort() {
+                    public <T> T readOnly(java.util.function.Supplier<T> operation) { return operation.get(); }
+                    public <T> T required(java.util.function.Supplier<T> operation) { return operation.get(); }
+                }, enabled, false);
     }
 
     private RestaurantServiceabilityZone zone(Long id, int priority, String polygon) {

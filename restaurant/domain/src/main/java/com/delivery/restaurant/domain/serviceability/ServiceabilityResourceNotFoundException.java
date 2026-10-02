@@ -1,4 +1,4 @@
-package com.delivery.restaurant.infrastructure.serviceability;
+package com.delivery.restaurant.domain.serviceability;
 
 public class ServiceabilityResourceNotFoundException extends RuntimeException {
 

@@ -48,4 +48,30 @@ class GlobalExceptionHandlerTest {
         assertThat(invalidTarget.getBody()).isNotNull();
         assertThat(invalidTarget.getBody().getMessage()).isEqualTo("INVALID_OWNER_PRINCIPAL");
     }
+    @Test
+    void serviceabilityDomainErrorsKeepTheirHttpStatusAndBody() throws Exception {
+        var mvc = org.springframework.test.web.servlet.setup.MockMvcBuilders
+                .standaloneSetup(new ServiceabilityErrorController()).setControllerAdvice(handler).build();
+        String[] failures = {"denied", "missing", "stale"};
+        String[] messages = {"You are not allowed to manage this restaurant", "Serviceability zone not found", "Serviceability zone revision is stale"};
+        int[] statuses = {403, 404, 409};
+        for (int i = 0; i < failures.length; i++) {
+            mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/fixture/" + failures[i]))
+                    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().is(statuses[i]))
+                    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.status").value(0))
+                    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.message").value(messages[i]));
+        }
+    }
+
+    @org.springframework.web.bind.annotation.RestController
+    static class ServiceabilityErrorController {
+        @org.springframework.web.bind.annotation.GetMapping("/fixture/{failure}")
+        void fail(@org.springframework.web.bind.annotation.PathVariable("failure") String failure) {
+            switch (failure) {
+                case "denied" -> throw new com.delivery.restaurant.domain.serviceability.ServiceabilityAccessDeniedException("You are not allowed to manage this restaurant");
+                case "missing" -> throw new com.delivery.restaurant.domain.serviceability.ServiceabilityResourceNotFoundException("Serviceability zone not found");
+                default -> throw new com.delivery.restaurant.domain.serviceability.ServiceabilityZoneConflictException("Serviceability zone revision is stale");
+            }
+        }
+    }
 }

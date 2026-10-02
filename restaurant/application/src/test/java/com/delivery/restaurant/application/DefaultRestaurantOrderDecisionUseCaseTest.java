@@ -73,7 +73,8 @@ class DefaultRestaurantOrderDecisionUseCaseTest {
         final List<String> calls = new ArrayList<>();
         StoredDecision stored; RestaurantDecisionCommand saved; String legacy; boolean eligible = true;
         DefaultRestaurantOrderDecisionUseCase core() { return new DefaultRestaurantOrderDecisionUseCase(this, this, this); }
-        public <T> T required(Supplier<T> action) { calls.add("begin"); T result = action.get(); calls.add("commit"); return result; }
+        public <T> T readOnly(java.util.function.Supplier<T> operation) { return operation.get(); }
+        @Override public <T> T required(Supplier<T> action) { calls.add("begin"); T result = action.get(); calls.add("commit"); return result; }
         public void lockOrder(Long id) { calls.add("lock"); }
         public Optional<StoredDecision> find(Long id) { calls.add("find"); return Optional.ofNullable(stored); }
         public Optional<String> legacyFingerprint(Long id, RestaurantDecisionKind decision) { calls.add("legacy"); return Optional.ofNullable(legacy); }

@@ -64,7 +64,8 @@ class DefaultRestaurantRatingUseCaseTest {
         final List<String> calls = new ArrayList<>();
         boolean restaurant = true, rating = true, duplicate, eligible = true;
         DefaultRestaurantRatingUseCase core() { return new DefaultRestaurantRatingUseCase(this, this, this); }
-        public <T> T required(Supplier<T> action) { calls.add("begin"); T result = action.get(); calls.add("commit"); return result; }
+        public <T> T readOnly(java.util.function.Supplier<T> operation) { return operation.get(); }
+        @Override public <T> T required(Supplier<T> action) { calls.add("begin"); T result = action.get(); calls.add("commit"); return result; }
         public void requireDeliveredOrder(Long order, Long customer, Long restaurant) {
             calls.add("eligible:" + order + ":" + customer + ":" + restaurant);
             if (!eligible) throw new IllegalArgumentException("Order is not delivered");
