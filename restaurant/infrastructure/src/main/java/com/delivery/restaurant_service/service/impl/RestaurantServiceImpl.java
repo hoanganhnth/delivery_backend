@@ -22,7 +22,7 @@ import com.delivery.restaurant_service.dto.response.RestaurantResponse;
 import com.delivery.restaurant.domain.catalog.ResourceNotFoundException;
 import com.delivery.restaurant_service.mapper.RestaurantMapper;
 import com.delivery.restaurant_service.service.RestaurantService;
-import com.delivery.restaurant_service.service.ownership.RestaurantOwnershipPolicy;
+import com.delivery.restaurant_service.config.RestaurantOwnershipSettings;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.util.List;
@@ -42,7 +42,7 @@ public class RestaurantServiceImpl implements RestaurantService {
 
     private final RestaurantMapper restaurantMapper;
     private final MeterRegistry meterRegistry;
-    private final RestaurantOwnershipPolicy restaurantOwnershipPolicy;
+    private final RestaurantOwnershipSettings restaurantOwnershipSettings;
     private final CatalogLifecycleUseCase catalogLifecycleService;
     private final CreateRestaurantUseCase createRestaurantUseCase;
     private final UpdateRestaurantUseCase updateRestaurantUseCase;
@@ -64,7 +64,7 @@ public class RestaurantServiceImpl implements RestaurantService {
             Long ownerPrincipalId, Long creatorId, String role) {
         UpdateRestaurantCommand command = new UpdateRestaurantCommand(
                 id, ownerPrincipalId, creatorId, actorRole(role),
-                restaurantOwnershipPolicy.isPrincipalOwnershipEnforced(),
+                restaurantOwnershipSettings.isPrincipalOwnershipEnforced(),
                 request.getName(), request.getAddress(), request.getPhone(),
                 request.getOpeningHour(), request.getClosingHour(), request.getDefaultPrepTimeMinutes(),
                 request.getImage(), request.getAddressLat(), request.getAddressLng(), request.getDescription());
@@ -121,7 +121,7 @@ public class RestaurantServiceImpl implements RestaurantService {
         try {
             result = restaurantManagementReadUseCase.readForAdmin(
                     principalId, legacyUserId,
-                    restaurantOwnershipPolicy.isPrincipalOwnershipEnforced());
+                    restaurantOwnershipSettings.isPrincipalOwnershipEnforced());
         } catch (ManagementAccessException ex) {
             throw accessDenied();
         }
@@ -142,7 +142,7 @@ public class RestaurantServiceImpl implements RestaurantService {
         try {
             result = restaurantManagementReadUseCase.readForOwner(
                     ownerPrincipalId, legacyCreatorId,
-                    restaurantOwnershipPolicy.isPrincipalOwnershipEnforced());
+                    restaurantOwnershipSettings.isPrincipalOwnershipEnforced());
         } catch (ManagementAccessException ex) {
             throw accessDenied();
         }

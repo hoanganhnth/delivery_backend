@@ -35,7 +35,7 @@ import com.delivery.restaurant.domain.catalog.ResourceNotFoundException;
 import com.delivery.restaurant_service.mapper.RestaurantMapper;
 import com.delivery.restaurant.application.api.CatalogLifecycleUseCase;
 import com.delivery.restaurant_service.service.impl.RestaurantServiceImpl;
-import com.delivery.restaurant_service.service.ownership.RestaurantOwnershipPolicy;
+import com.delivery.restaurant_service.config.RestaurantOwnershipSettings;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
@@ -65,8 +65,8 @@ class RestaurantServiceTest {
     @Mock
     private RestaurantManagementReadUseCase restaurantManagementReadUseCase;
 
-    private final RestaurantOwnershipPolicy restaurantOwnershipPolicy =
-            new RestaurantOwnershipPolicy(false, new DefaultRestaurantManagementAccessUseCase());
+    private final RestaurantOwnershipSettings restaurantOwnershipSettings =
+            new RestaurantOwnershipSettings(false);
     private RestaurantServiceImpl restaurantService;
     private io.micrometer.core.instrument.simple.SimpleMeterRegistry meterRegistry;
     private CreateRestaurantRequest createRequest;
@@ -77,7 +77,7 @@ class RestaurantServiceTest {
         meterRegistry = new io.micrometer.core.instrument.simple.SimpleMeterRegistry();
         restaurantService = new RestaurantServiceImpl(restaurantMapper,
                 meterRegistry,
-                restaurantOwnershipPolicy, catalogLifecycleService,
+                restaurantOwnershipSettings, catalogLifecycleService,
                 new DefaultCreateRestaurantUseCase(
                         new DefaultRestaurantOwnerAssignmentUseCase(directory), creationPort),
                 updateRestaurantUseCase, restaurantReadUseCase, restaurantManagementReadUseCase);

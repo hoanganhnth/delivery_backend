@@ -17,7 +17,7 @@ import com.delivery.restaurant.application.api.RestaurantTransactionPort;
 import com.delivery.restaurant.domain.catalog.MenuItemLifecyclePolicy;
 import com.delivery.restaurant.domain.catalog.RestaurantLifecyclePolicy;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
-import com.delivery.restaurant_service.service.ownership.RestaurantOwnershipPolicy;
+import com.delivery.restaurant_service.config.RestaurantOwnershipSettings;
 import com.delivery.restaurant_service.dto.request.*;
 import com.delivery.restaurant_service.service.JpaMenuItemCreationAdapter;
 import com.delivery.restaurant_service.service.JpaMenuItemReadAdapter;
@@ -61,7 +61,7 @@ class MenuOwnershipIntegrationTest {
                     public <T> T readOnly(java.util.function.Supplier<T> operation) { return operation.get(); }
                 }, enforced);
         return new MenuItemServiceImpl(new MenuItemMapper(),
-                new RestaurantOwnershipPolicy(enforced, accessUseCase), lifecycle,
+                new RestaurantOwnershipSettings(enforced), lifecycle,
                 create, update, reads, managementReads);
     }
     private MenuItem seed(Long principal, long legacy, MenuItem.Status status) {

@@ -22,7 +22,7 @@ import com.delivery.restaurant_service.entity.MenuItem;
 import com.delivery.restaurant.domain.catalog.ResourceNotFoundException;
 import com.delivery.restaurant_service.mapper.MenuItemMapper;
 import com.delivery.restaurant_service.service.MenuItemService;
-import com.delivery.restaurant_service.service.ownership.RestaurantOwnershipPolicy;
+import com.delivery.restaurant_service.config.RestaurantOwnershipSettings;
 import java.util.List;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -35,7 +35,7 @@ import org.springframework.stereotype.Service;
 public class MenuItemServiceImpl implements MenuItemService {
 
     private final MenuItemMapper menuItemMapper;
-    private final RestaurantOwnershipPolicy restaurantOwnershipPolicy;
+    private final RestaurantOwnershipSettings restaurantOwnershipSettings;
     private final CatalogLifecycleUseCase catalogLifecycleService;
     private final CreateMenuItemUseCase createMenuItemUseCase;
     private final UpdateMenuItemUseCase updateMenuItemUseCase;
@@ -47,7 +47,7 @@ public class MenuItemServiceImpl implements MenuItemService {
             Long legacyUserId, String role, int page, int size) {
         MenuItemManagementQuery query = new MenuItemManagementQuery(
                 restaurantId, principalId, managementLegacyId(principalId, legacyUserId, role),
-                actorRole(role), restaurantOwnershipPolicy.isPrincipalOwnershipEnforced(), page, size);
+                actorRole(role), restaurantOwnershipSettings.isPrincipalOwnershipEnforced(), page, size);
         try {
             MenuItemPageSlice result = menuItemManagementReadUseCase.read(query)
                     .orElseThrow(() -> new ResourceNotFoundException("Restaurant not found"));
@@ -63,7 +63,7 @@ public class MenuItemServiceImpl implements MenuItemService {
         CreateMenuItemCommand command = new CreateMenuItemCommand(
                 request.getRestaurantId(), principalId,
                 managementLegacyId(principalId, legacyUserId, role), actorRole(role),
-                restaurantOwnershipPolicy.isPrincipalOwnershipEnforced(), request.getName(),
+                restaurantOwnershipSettings.isPrincipalOwnershipEnforced(), request.getName(),
                 request.getDescription(), request.getPrice(), request.getImage());
         try {
             return menuItemMapper.toResponse(createMenuItemUseCase.create(command)
@@ -78,7 +78,7 @@ public class MenuItemServiceImpl implements MenuItemService {
             Long legacyUserId, String role) {
         UpdateMenuItemCommand command = new UpdateMenuItemCommand(
                 id, principalId, managementLegacyId(principalId, legacyUserId, role), actorRole(role),
-                restaurantOwnershipPolicy.isPrincipalOwnershipEnforced(), request.getName(),
+                restaurantOwnershipSettings.isPrincipalOwnershipEnforced(), request.getName(),
                 request.getDescription(), request.getPrice(), menuItemStatus(request.getStatus()),
                 request.getImage(), request.getRestaurantId());
         try {

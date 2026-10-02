@@ -28,7 +28,6 @@ import com.delivery.restaurant_service.repository.CatalogLifecycleAuditRepositor
 import com.delivery.restaurant.application.DefaultCatalogLifecycleUseCase;
 import com.delivery.restaurant.application.api.*;
 import com.delivery.restaurant_service.service.JpaCatalogLifecycleAdapter;
-import com.delivery.restaurant_service.service.ownership.RestaurantOwnershipPolicy;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;

@@ -34,7 +34,7 @@ import com.delivery.restaurant.domain.catalog.ResourceNotFoundException;
 import com.delivery.restaurant_service.mapper.MenuItemMapper;
 import com.delivery.restaurant.application.api.CatalogLifecycleUseCase;
 import com.delivery.restaurant_service.service.impl.MenuItemServiceImpl;
-import com.delivery.restaurant_service.service.ownership.RestaurantOwnershipPolicy;
+import com.delivery.restaurant_service.config.RestaurantOwnershipSettings;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -57,7 +57,7 @@ class MenuItemServiceTest {
     @Mock
     private MenuItemMapper menuItemMapper;
     @Mock
-    private RestaurantOwnershipPolicy restaurantOwnershipPolicy;
+    private RestaurantOwnershipSettings restaurantOwnershipSettings;
     @Mock
     private CatalogLifecycleUseCase catalogLifecycleService;
     @Mock
@@ -94,7 +94,7 @@ class MenuItemServiceTest {
         snapshot = new MenuItemSnapshot(1L, 1L, "Pizza", "Classic",
                 new BigDecimal("25.99"), MenuItemStatus.AVAILABLE,
                 LocalDateTime.MIN, LocalDateTime.MIN, "pizza.jpg", 0L);
-        lenient().when(restaurantOwnershipPolicy.isPrincipalOwnershipEnforced()).thenReturn(false);
+        lenient().when(restaurantOwnershipSettings.isPrincipalOwnershipEnforced()).thenReturn(false);
     }
 
     @Test
