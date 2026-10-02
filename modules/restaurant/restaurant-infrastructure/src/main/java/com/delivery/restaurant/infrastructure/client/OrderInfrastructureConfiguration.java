@@ -1,5 +1,7 @@
 package com.delivery.restaurant.infrastructure.client;
 
+import com.delivery.restaurant.application.api.OrderDecisionEligibilityPort;
+
 import com.delivery.restaurant.application.api.RatingOrderEligibilityPort;
 
 import java.time.Duration;

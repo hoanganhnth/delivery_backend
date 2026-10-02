@@ -2,7 +2,7 @@ package com.delivery.restaurant_service.controller;
 
 import com.delivery.restaurant_service.payload.BaseResponse;
 import com.delivery.restaurant_service.repository.RestaurantRepository;
-import com.delivery.restaurant.infrastructure.decision.RestaurantOrderEventPublisher;
+import com.delivery.restaurant.application.api.RestaurantOrderDecisionUseCase;
 import com.delivery.restaurant_service.dto.request.ConfirmRestaurantOrderRequest;
 import com.delivery.restaurant_service.dto.request.RejectRestaurantOrderRequest;
 import com.delivery.auth.resourceserver.security.AuthenticatedActor;
@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class RestaurantOrderController {
 
-    private final RestaurantOrderEventPublisher eventPublisher;
+    private final RestaurantOrderDecisionUseCase eventPublisher;
     private final RestaurantRepository restaurantRepository;
 
     @PostMapping("/{orderId}/confirm")
@@ -50,7 +50,7 @@ public class RestaurantOrderController {
                     .body(new BaseResponse<>(0, null, "estimatedPrepTime phải từ 1 đến 240 phút"));
         }
 
-        eventPublisher.publishConfirmed(orderId, restaurantId, actor.getUserId(), estimatedPrepTime, notes);
+        eventPublisher.confirm(orderId, restaurantId, actor.getUserId(), estimatedPrepTime, notes);
         return ResponseEntity.ok(new BaseResponse<>(1, "CONFIRMED", "Đã xác nhận đơn hàng"));
     }
 
@@ -80,7 +80,7 @@ public class RestaurantOrderController {
             return ResponseEntity.badRequest().body(new BaseResponse<>(0, null, "Lý do từ chối là bắt buộc"));
         }
 
-        eventPublisher.publishRejected(orderId, restaurantId, actor.getUserId(), reason);
+        eventPublisher.reject(orderId, restaurantId, actor.getUserId(), reason);
         return ResponseEntity.ok(new BaseResponse<>(1, "REJECTED", "Đã từ chối đơn hàng"));
     }
 

@@ -1,5 +1,7 @@
 package com.delivery.restaurant.infrastructure.client;
 
+import com.delivery.restaurant.application.api.OrderDecisionEligibilityPort;
+
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;

@@ -1,6 +1,6 @@
 package com.delivery.restaurant_service.exception;
 
-import com.delivery.restaurant.infrastructure.decision.RestaurantDecisionConflictException;
+import com.delivery.restaurant.domain.decision.RestaurantDecisionConflictException;
 import com.delivery.restaurant.domain.rating.RestaurantRatingConflictException;
 import com.delivery.restaurant.infrastructure.inventory.InventoryResourceNotFoundException;
 import com.delivery.restaurant.infrastructure.serviceability.ServiceabilityResourceNotFoundException;

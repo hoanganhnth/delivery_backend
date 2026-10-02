@@ -1,7 +1,7 @@
 package com.delivery.restaurant_service.controller;
 
 import com.delivery.auth.resourceserver.security.AuthenticatedActor;
-import com.delivery.restaurant.infrastructure.decision.RestaurantOrderEventPublisher;
+import com.delivery.restaurant.application.api.RestaurantOrderDecisionUseCase;
 import com.delivery.restaurant_service.common.constants.RoleConstants;
 import com.delivery.restaurant_service.repository.RestaurantRepository;
 import com.delivery.restaurant_service.dto.request.ConfirmRestaurantOrderRequest;
@@ -23,7 +23,7 @@ import static org.mockito.Mockito.when;
 class RestaurantOrderControllerAuthorizationTest {
 
     @Mock
-    private RestaurantOrderEventPublisher eventPublisher;
+    private RestaurantOrderDecisionUseCase eventPublisher;
 
     @Mock
     private RestaurantRepository restaurantRepository;
@@ -46,7 +46,7 @@ class RestaurantOrderControllerAuthorizationTest {
                 actor);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
-        verify(eventPublisher).publishConfirmed(101L, 7L, 11L, 20, null);
+        verify(eventPublisher).confirm(101L, 7L, 11L, 20, null);
     }
 
     @Test
@@ -60,7 +60,7 @@ class RestaurantOrderControllerAuthorizationTest {
                 actor);
 
         assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
-        verify(eventPublisher, never()).publishConfirmed(101L, 7L, 11L, 20, null);
+        verify(eventPublisher, never()).confirm(101L, 7L, 11L, 20, null);
     }
 
     @Test
@@ -74,7 +74,7 @@ class RestaurantOrderControllerAuthorizationTest {
                 actor);
 
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
-        verify(eventPublisher, never()).publishConfirmed(101L, 7L, 11L, 0, null);
+        verify(eventPublisher, never()).confirm(101L, 7L, 11L, 0, null);
     }
 
     @Test
@@ -87,7 +87,7 @@ class RestaurantOrderControllerAuthorizationTest {
                 actor);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
-        verify(eventPublisher).publishConfirmed(101L, 7L, 99L, 20, null);
+        verify(eventPublisher).confirm(101L, 7L, 99L, 20, null);
     }
 
     private ConfirmRestaurantOrderRequest confirmRequest(Long restaurantId, Integer prepTime) {

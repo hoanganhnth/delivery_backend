@@ -1,4 +1,4 @@
-package com.delivery.restaurant.infrastructure.rating;
+package com.delivery.restaurant.infrastructure.transaction;
 
 import com.delivery.restaurant.application.api.RestaurantTransactionPort;
 import java.util.function.Supplier;

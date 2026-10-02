@@ -628,6 +628,20 @@ Deployment proof includes Compose path resolution and artifact freshness.
   zero failures/errors/skips; module boundaries and diff checks pass.
   `/tmp/restaurant-rating-final-clean-verify.log`. Restaurant remains in the
   isolated worktree until all remaining workflows and runtime proofs are done.
+- Confirmation/rejection now use framework-free
+  `DefaultRestaurantOrderDecisionUseCase`. Core owns input admission, order-lock
+  ordering, eligibility and authoritative/replayed/opposite decision behavior;
+  the JPA adapter retains the existing canonical SHA-256, legacy outbox
+  fingerprint fallback, tracing and event envelope. The old publisher business
+  service was removed and controller/HTTP conflict mapping now use the core.
+  Existing H2 replay and validation tests were retargeted without dropping
+  assertions. Three PostgreSQL proofs verify retained fingerprints after outbox
+  pruning, one winner/event for concurrent opposite decisions, and full rollback
+  on outbox failure followed by successful retry. Fresh clean verify exited 0
+  with 338 tests, zero failures/errors/skips; module boundaries pass.
+  `/tmp/restaurant-decision-core-verify.log`,
+  `/tmp/restaurant-decision-postgres-verify.log`,
+  `/tmp/restaurant-decision-final-clean-verify.log`.
 
 ## Result
 

@@ -1,8 +1,8 @@
 package com.delivery.restaurant_service.service;
 
-import com.delivery.restaurant.infrastructure.decision.RestaurantDecisionConflictException;
-import com.delivery.restaurant.infrastructure.decision.RestaurantOrderEventPublisher;
-import com.delivery.restaurant.infrastructure.client.OrderDecisionEligibilityPort;
+import com.delivery.restaurant.domain.decision.RestaurantDecisionConflictException;
+import com.delivery.restaurant.application.api.RestaurantOrderDecisionUseCase;
+import com.delivery.restaurant.application.api.OrderDecisionEligibilityPort;
 import com.delivery.restaurant_service.repository.RestaurantOrderDecisionRepository;
 import com.delivery.restaurant_service.repository.RestaurantOutboxEventRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,7 +33,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 })
 class RestaurantDecisionOutboxIntegrationTest {
 
-    @Autowired RestaurantOrderEventPublisher publisher;
+    @Autowired RestaurantOrderDecisionUseCase publisher;
     @Autowired RestaurantOrderDecisionRepository decisionRepository;
     @Autowired RestaurantOutboxEventRepository outboxRepository;
     @Autowired TransactionTemplate transactionTemplate;
@@ -47,8 +47,8 @@ class RestaurantDecisionOutboxIntegrationTest {
 
     @Test
     void duplicateConfirmationIsIdempotent() {
-        publisher.publishConfirmed(101L, 7L, 70L, 20, null);
-        publisher.publishConfirmed(101L, 7L, 70L, 20, null);
+        publisher.confirm(101L, 7L, 70L, 20, null);
+        publisher.confirm(101L, 7L, 70L, 20, null);
 
         assertThat(decisionRepository.count()).isEqualTo(1);
         assertThat(decisionRepository.findById(101L).orElseThrow().getPayloadFingerprint())
@@ -61,10 +61,10 @@ class RestaurantDecisionOutboxIntegrationTest {
 
     @Test
     void storedDecisionFingerprintRejectsContradictoryReplayEvenIfOutboxIsPruned() {
-        publisher.publishConfirmed(101L, 7L, 70L, 20, null);
+        publisher.confirm(101L, 7L, 70L, 20, null);
         outboxRepository.deleteAll();
 
-        assertThatThrownBy(() -> publisher.publishConfirmed(101L, 7L, 70L, 30, "changed payload"))
+        assertThatThrownBy(() -> publisher.confirm(101L, 7L, 70L, 30, "changed payload"))
                 .isInstanceOf(RestaurantDecisionConflictException.class)
                 .hasMessageContaining("contradictory payload");
         assertThat(decisionRepository.count()).isEqualTo(1);
@@ -73,10 +73,10 @@ class RestaurantDecisionOutboxIntegrationTest {
 
     @Test
     void storedDecisionFingerprintKeepsExactReplayIdempotentEvenIfOutboxIsPruned() {
-        publisher.publishConfirmed(101L, 7L, 70L, 20, null);
+        publisher.confirm(101L, 7L, 70L, 20, null);
         outboxRepository.deleteAll();
 
-        publisher.publishConfirmed(101L, 7L, 70L, 20, null);
+        publisher.confirm(101L, 7L, 70L, 20, null);
 
         assertThat(decisionRepository.count()).isEqualTo(1);
         assertThat(outboxRepository.count()).isZero();
@@ -84,9 +84,9 @@ class RestaurantDecisionOutboxIntegrationTest {
 
     @Test
     void contradictoryConfirmationReplayIsRejectedWithoutAnotherEvent() {
-        publisher.publishConfirmed(101L, 7L, 70L, 20, null);
+        publisher.confirm(101L, 7L, 70L, 20, null);
 
-        assertThatThrownBy(() -> publisher.publishConfirmed(101L, 7L, 70L, 30, "changed payload"))
+        assertThatThrownBy(() -> publisher.confirm(101L, 7L, 70L, 30, "changed payload"))
                 .isInstanceOf(RestaurantDecisionConflictException.class)
                 .hasMessageContaining("contradictory payload");
         assertThat(decisionRepository.count()).isEqualTo(1);
@@ -95,9 +95,9 @@ class RestaurantDecisionOutboxIntegrationTest {
 
     @Test
     void oppositeDecisionIsRejectedWithoutAnotherEvent() {
-        publisher.publishConfirmed(101L, 7L, 70L, 20, null);
+        publisher.confirm(101L, 7L, 70L, 20, null);
 
-        assertThatThrownBy(() -> publisher.publishRejected(101L, 7L, 70L, "closed"))
+        assertThatThrownBy(() -> publisher.reject(101L, 7L, 70L, "closed"))
                 .isInstanceOf(RestaurantDecisionConflictException.class);
         assertThat(decisionRepository.count()).isEqualTo(1);
         assertThat(outboxRepository.count()).isEqualTo(1);
@@ -106,7 +106,7 @@ class RestaurantDecisionOutboxIntegrationTest {
     @Test
     void rollbackRemovesDecisionAndEvent() {
         assertThatThrownBy(() -> transactionTemplate.executeWithoutResult(status -> {
-            publisher.publishRejected(202L, 8L, 80L, "closed");
+            publisher.reject(202L, 8L, 80L, "closed");
             throw new DeliberateRollback();
         })).isInstanceOf(DeliberateRollback.class);
 
@@ -119,7 +119,7 @@ class RestaurantDecisionOutboxIntegrationTest {
         doThrow(new IllegalArgumentException("wrong restaurant"))
                 .when(orderEligibilityPort).requirePendingOrderForRestaurant(303L, 9L);
 
-        assertThatThrownBy(() -> publisher.publishConfirmed(303L, 9L, 90L, 20, null))
+        assertThatThrownBy(() -> publisher.confirm(303L, 9L, 90L, 20, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("wrong restaurant");
         assertThat(decisionRepository.count()).isZero();
@@ -128,13 +128,13 @@ class RestaurantDecisionOutboxIntegrationTest {
 
     @Test
     void invalidDecisionInputFailsClosedBeforeEligibilityOrPersistence() {
-        assertThatThrownBy(() -> publisher.publishConfirmed(0L, 7L, 70L, 20, null))
+        assertThatThrownBy(() -> publisher.confirm(0L, 7L, 70L, 20, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("orderId");
-        assertThatThrownBy(() -> publisher.publishRejected(101L, 0L, 70L, "closed"))
+        assertThatThrownBy(() -> publisher.reject(101L, 0L, 70L, "closed"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("restaurantId");
-        assertThatThrownBy(() -> publisher.publishRejected(101L, 7L, 70L, " "))
+        assertThatThrownBy(() -> publisher.reject(101L, 7L, 70L, " "))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("rejectionReason");
 
