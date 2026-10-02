@@ -32,6 +32,10 @@ public class SecurityConfig {
                                 "/api/menu-items/restaurant/*/available/page",
                                 "/api/menu-items/restaurant/*/available").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/restaurants/validate/order").permitAll()
+                        .requestMatchers(HttpMethod.POST,
+                                "/api/menu-items/internal/inventory/reservations",
+                                "/api/menu-items/internal/inventory/reservations/*/commit",
+                                "/api/menu-items/internal/inventory/reservations/*/release").permitAll()
                         .requestMatchers("/api/restaurants/internal/**").permitAll()
                         .anyRequest().authenticated()
                 )
