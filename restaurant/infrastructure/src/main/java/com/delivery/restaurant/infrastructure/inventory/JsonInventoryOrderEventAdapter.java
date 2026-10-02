@@ -1,89 +1,53 @@
 package com.delivery.restaurant.infrastructure.inventory;
 
-import com.delivery.restaurant.application.api.MenuItemInventoryUseCase;
-import com.delivery.restaurant_service.entity.MenuItemInventoryOrderReceipt;
-import com.delivery.restaurant_service.repository.MenuItemInventoryOrderReceiptRepository;
+import com.delivery.restaurant.application.api.InventoryOrderEventUseCase;
+import com.delivery.restaurant.application.api.InventoryOrderEventCommand;
+import com.delivery.restaurant.domain.inventory.InventoryOrderSource;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
-import java.util.Objects;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-/**
- * Replay-safe Kafka boundary for the inventory ledger. The receipt is written
- * in the same transaction as the reservation transition, so an ACK can only
- * follow a durable commit/release or an exact replay.
- */
+/** Decodes Kafka JSON and retry topic identity for the inventory event core. */
 @Service
 @ConditionalOnProperty(name = "app.restaurant.inventory-enabled", havingValue = "true")
-public class MenuItemInventoryOrderEventProcessor {
+public class JsonInventoryOrderEventAdapter {
 
-    private static final String COMMIT = "COMMIT";
-    private static final String RELEASE = "RELEASE";
-
-    private final MenuItemInventoryUseCase reservationService;
-    private final MenuItemInventoryOrderReceiptRepository receiptRepository;
+    private final InventoryOrderEventUseCase events;
     private final ObjectMapper objectMapper;
-    private final String dataSourceUrl;
     private final String orderCreatedTopic;
     private final String orderCancelledTopic;
     private final String refundEligibleTopic;
 
-    public MenuItemInventoryOrderEventProcessor(
-            MenuItemInventoryUseCase reservationService,
-            MenuItemInventoryOrderReceiptRepository receiptRepository,
+    public JsonInventoryOrderEventAdapter(
+            InventoryOrderEventUseCase events,
             ObjectMapper objectMapper,
-            @Value("${spring.datasource.url:}") String dataSourceUrl,
             @Value("${app.kafka.topics.order-created:order.created}") String orderCreatedTopic,
             @Value("${app.kafka.topics.order-cancelled:order.cancelled}") String orderCancelledTopic,
             @Value("${app.kafka.topics.refund-eligible:order.refund-eligible}") String refundEligibleTopic) {
-        this.reservationService = reservationService;
-        this.receiptRepository = receiptRepository;
+        this.events = events;
         this.objectMapper = objectMapper;
-        this.dataSourceUrl = dataSourceUrl;
         this.orderCreatedTopic = orderCreatedTopic;
         this.orderCancelledTopic = orderCancelledTopic;
         this.refundEligibleTopic = refundEligibleTopic;
     }
 
-    @Transactional
     public void process(String payload, String receivedTopic) throws Exception {
         JsonNode event = objectMapper.readTree(payload);
         UUID eventId = requiredUuid(event, "eventId");
         long orderId = requiredPositiveLong(event, "orderId");
         String sourceTopic = canonicalSourceTopic(receivedTopic);
-        String action = actionFor(sourceTopic);
+        InventoryOrderSource source = sourceFor(sourceTopic);
         UUID reservationId = optionalUuid(event, "inventoryReservationId");
         String fingerprint = fingerprint(payload);
 
-        if (insertIfAbsent(eventId, sourceTopic, action, orderId, reservationId, fingerprint) == 0) {
-            MenuItemInventoryOrderReceipt existing = receiptRepository.findById(eventId)
-                    .orElseThrow(() -> new IllegalStateException(
-                            "inventory receipt conflict resolved without a committed receipt"));
-            requireExactReplay(existing, sourceTopic, action, orderId, reservationId, fingerprint);
-            return;
-        }
-
-        if (reservationId == null) return;
-        if (COMMIT.equals(action)) reservationService.commit(reservationId, orderId);
-        else reservationService.release(reservationId, orderId);
-    }
-
-    private int insertIfAbsent(UUID eventId, String sourceTopic, String action, long orderId,
-            UUID reservationId, String fingerprint) {
-        if (dataSourceUrl != null && dataSourceUrl.startsWith("jdbc:h2:")) {
-            return receiptRepository.insertIfAbsentH2(eventId, sourceTopic, action, orderId,
-                    reservationId, fingerprint);
-        }
-        return receiptRepository.insertIfAbsentPostgres(eventId, sourceTopic, action, orderId,
-                reservationId, fingerprint);
+        events.consume(new InventoryOrderEventCommand(eventId, orderId, reservationId, sourceTopic, source, fingerprint));
     }
 
     private String canonicalSourceTopic(String receivedTopic) {
@@ -93,9 +57,10 @@ public class MenuItemInventoryOrderEventProcessor {
         return receivedTopic.replaceFirst("-retry-inventory-\\d+$", "");
     }
 
-    private String actionFor(String sourceTopic) {
-        if (orderCreatedTopic.equals(sourceTopic)) return COMMIT;
-        if (orderCancelledTopic.equals(sourceTopic) || refundEligibleTopic.equals(sourceTopic)) return RELEASE;
+    private InventoryOrderSource sourceFor(String sourceTopic) {
+        if (orderCreatedTopic.equals(sourceTopic)) return InventoryOrderSource.ORDER_CREATED;
+        if (orderCancelledTopic.equals(sourceTopic)) return InventoryOrderSource.ORDER_CANCELLED;
+        if (refundEligibleTopic.equals(sourceTopic)) return InventoryOrderSource.REFUND_ELIGIBLE;
         throw new IllegalArgumentException("Unexpected inventory reservation source topic: " + sourceTopic);
     }
 
@@ -139,15 +104,4 @@ public class MenuItemInventoryOrderEventProcessor {
         }
     }
 
-    private void requireExactReplay(MenuItemInventoryOrderReceipt receipt, String sourceTopic,
-            String action, long orderId, UUID reservationId, String fingerprint) {
-        if (!receipt.getSourceTopic().equals(sourceTopic)
-                || !receipt.getAction().equals(action)
-                || !receipt.getOrderId().equals(orderId)
-                || !Objects.equals(receipt.getReservationId(), reservationId)
-                || !receipt.getPayloadFingerprint().equals(fingerprint)) {
-            throw new IllegalArgumentException(
-                    "eventId replay has a contradictory inventory reservation payload");
-        }
-    }
 }

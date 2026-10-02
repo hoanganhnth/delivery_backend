@@ -5,6 +5,7 @@ import com.delivery.restaurant.application.api.*;
 import com.delivery.restaurant.domain.inventory.*;
 import com.delivery.restaurant.domain.ownership.RestaurantActorRole;
 import com.delivery.restaurant.infrastructure.inventory.JpaInventoryAdapter;
+import com.delivery.restaurant.infrastructure.inventory.JsonInventoryOrderEventAdapter;
 import com.delivery.restaurant_service.entity.*;
 import com.delivery.restaurant_service.repository.*;
 import java.math.BigDecimal;
@@ -41,6 +42,8 @@ class RestaurantInventoryPostgresIntegrationTest {
         registry.add("spring.datasource.password", POSTGRES::getPassword);
     }
     @Autowired MenuItemInventoryUseCase inventory;
+    @Autowired JsonInventoryOrderEventAdapter events;
+    @Autowired MenuItemInventoryOrderReceiptRepository receipts;
     @Autowired RestaurantRepository restaurants;
     @Autowired MenuItemRepository items;
     @Autowired MenuItemInventoryRepository stocks;
@@ -162,6 +165,69 @@ class RestaurantInventoryPostgresIntegrationTest {
             assertThat(reservations.findById(id).orElseThrow().getState()).isEqualTo(MenuItemInventoryReservation.State.RELEASED);
             assertThat(inventory.getInventory(fixture.first()).reservedQuantity()).isZero();
         } finally { pool.shutdownNow(); reset(store); }
+    }
+
+    @Test void rawOrderEventRetryAndRefundHaveExactlyOnceLedgerEffects() throws Exception {
+        var fixture = fixture(5, 0); UUID reservation = UUID.randomUUID(), createdEvent = UUID.randomUUID();
+        inventory.reserve(command(reservation, 99210L, fixture, List.of(line(fixture.first(), 2))));
+        String created = eventPayload(createdEvent, 99210L, reservation);
+        events.process(created, "order.created");
+        events.process(created, "order.created-retry-inventory-1");
+        assertThat(inventory.getInventory(fixture.first()).onHandQuantity()).isEqualTo(3);
+        assertThat(receipts.findById(createdEvent).orElseThrow().getSourceTopic()).isEqualTo("order.created");
+        assertThatThrownBy(() -> events.process(created + " ", "order.created"))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("contradictory");
+        UUID refundEvent = UUID.randomUUID();
+        events.process(eventPayload(refundEvent, 99210L, reservation), "order.refund-eligible");
+        events.process(eventPayload(UUID.randomUUID(), 99210L, reservation), "order.cancelled");
+        assertThat(receipts.findById(refundEvent).orElseThrow().getAction()).isEqualTo("RELEASE");
+        assertThat(inventory.getInventory(fixture.first()).onHandQuantity()).isEqualTo(5);
+        assertThat(inventory.getInventory(fixture.first()).revision()).isEqualTo(3L);
+    }
+
+    @Test void receiptAndInventoryTransitionRollbackTogetherOnFailure() throws Exception {
+        var fixture = fixture(5, 0); UUID reservation = UUID.randomUUID(), eventId = UUID.randomUUID();
+        inventory.reserve(command(reservation, 99211L, fixture, List.of(line(fixture.first(), 2))));
+        String payload = eventPayload(eventId, 99211L, reservation);
+        doAnswer(invocation -> { invocation.callRealMethod(); throw new IllegalStateException("fixture state failure"); })
+                .when(store).changeReservationState(any(UUID.class), any(InventoryReservation.State.class));
+        try {
+            assertThatThrownBy(() -> events.process(payload, "order.created")).hasMessage("fixture state failure");
+            assertThat(receipts.findById(eventId)).isEmpty();
+            assertThat(inventory.getInventory(fixture.first()).onHandQuantity()).isEqualTo(5);
+            assertThat(inventory.getInventory(fixture.first()).reservedQuantity()).isEqualTo(2);
+            assertThat(reservations.findById(reservation).orElseThrow().getState()).isEqualTo(MenuItemInventoryReservation.State.RESERVED);
+        } finally { reset(store); }
+        events.process(payload, "order.created");
+        assertThat(receipts.findById(eventId)).isPresent();
+        assertThat(inventory.getInventory(fixture.first()).onHandQuantity()).isEqualTo(3);
+    }
+
+    @Test void concurrentDuplicateEventCommitsOneReceiptAndOneTransition() throws Exception {
+        var fixture = fixture(5, 0); UUID reservation = UUID.randomUUID(), eventId = UUID.randomUUID();
+        inventory.reserve(command(reservation, 99212L, fixture, List.of(line(fixture.first(), 2))));
+        String payload = eventPayload(eventId, 99212L, reservation); var start = new CountDownLatch(1);
+        var pool = Executors.newFixedThreadPool(2);
+        try {
+            Callable<Void> consume = () -> { start.await(10, TimeUnit.SECONDS); events.process(payload, "order.created"); return null; };
+            var first = pool.submit(consume); var second = pool.submit(consume); start.countDown();
+            first.get(20, TimeUnit.SECONDS); second.get(20, TimeUnit.SECONDS);
+            assertThat(sql.queryForObject("select count(*) from menu_item_inventory_order_receipts where event_id = ?", Integer.class, eventId)).isEqualTo(1);
+            assertThat(inventory.getInventory(fixture.first()).onHandQuantity()).isEqualTo(3);
+            assertThat(inventory.getInventory(fixture.first()).revision()).isEqualTo(2L);
+        } finally { pool.shutdownNow(); }
+    }
+
+    @Test void orderEventWithoutReservationStillRecordsExactReplayIdentity() throws Exception {
+        var fixture = fixture(5, 0); UUID eventId = UUID.randomUUID();
+        String payload = "{\"eventId\":\"" + eventId + "\",\"orderId\":99213}";
+        events.process(payload, "order.created"); events.process(payload, "order.created");
+        assertThat(receipts.findById(eventId).orElseThrow().getReservationId()).isNull();
+        assertThat(inventory.getInventory(fixture.first()).onHandQuantity()).isEqualTo(5);
+    }
+
+    private static String eventPayload(UUID eventId, Long orderId, UUID reservation) {
+        return "{\"eventId\":\"" + eventId + "\",\"orderId\":" + orderId + ",\"inventoryReservationId\":\"" + reservation + "\"}";
     }
 
     private void awaitTwoDatabaseLockWaiters() {

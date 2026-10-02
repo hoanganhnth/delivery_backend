@@ -1,6 +1,6 @@
 package com.delivery.restaurant_service.listener;
 
-import com.delivery.restaurant.infrastructure.inventory.MenuItemInventoryOrderEventProcessor;
+import com.delivery.restaurant.infrastructure.inventory.JsonInventoryOrderEventAdapter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -15,7 +15,7 @@ import org.springframework.stereotype.Component;
 @ConditionalOnProperty(name = "app.restaurant.inventory-enabled", havingValue = "true")
 public class MenuItemInventoryOrderEventListener {
 
-    private final MenuItemInventoryOrderEventProcessor processor;
+    private final JsonInventoryOrderEventAdapter processor;
 
     @RetryableTopic(
             attempts = "${app.kafka.retry.attempts:4}",

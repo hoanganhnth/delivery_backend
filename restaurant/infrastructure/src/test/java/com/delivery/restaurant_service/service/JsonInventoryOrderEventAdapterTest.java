@@ -1,7 +1,10 @@
 package com.delivery.restaurant_service.service;
 
-import com.delivery.restaurant.infrastructure.inventory.MenuItemInventoryOrderEventProcessor;
+import com.delivery.restaurant.infrastructure.inventory.JsonInventoryOrderEventAdapter;
 import com.delivery.restaurant.application.api.MenuItemInventoryUseCase;
+import com.delivery.restaurant.application.api.RestaurantTransactionPort;
+import com.delivery.restaurant.application.DefaultInventoryOrderEventUseCase;
+import com.delivery.restaurant.infrastructure.inventory.JpaInventoryReceiptAdapter;
 import com.delivery.restaurant_service.entity.MenuItemInventoryOrderReceipt;
 import com.delivery.restaurant_service.repository.MenuItemInventoryOrderReceiptRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -22,7 +25,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-class MenuItemInventoryOrderEventProcessorTest {
+class JsonInventoryOrderEventAdapterTest {
 
     @Mock MenuItemInventoryUseCase reservationService;
     @Mock MenuItemInventoryOrderReceiptRepository receiptRepository;
@@ -32,7 +35,7 @@ class MenuItemInventoryOrderEventProcessorTest {
         UUID createdEventId = UUID.randomUUID();
         UUID cancelledEventId = UUID.randomUUID();
         UUID reservationId = UUID.randomUUID();
-        MenuItemInventoryOrderEventProcessor processor = processor();
+        JsonInventoryOrderEventAdapter processor = processor();
         when(receiptRepository.insertIfAbsentPostgres(eq(createdEventId), eq("order.created"), eq("COMMIT"),
                 eq(101L), eq(reservationId), any())).thenReturn(1);
         when(receiptRepository.insertIfAbsentPostgres(eq(cancelledEventId), eq("order.cancelled"), eq("RELEASE"),
@@ -50,7 +53,7 @@ class MenuItemInventoryOrderEventProcessorTest {
         UUID eventId = UUID.randomUUID();
         UUID reservationId = UUID.randomUUID();
         String payload = payload(eventId, reservationId);
-        MenuItemInventoryOrderEventProcessor processor = processor();
+        JsonInventoryOrderEventAdapter processor = processor();
         when(receiptRepository.insertIfAbsentPostgres(eq(eventId), eq("order.created"), eq("COMMIT"),
                 eq(101L), eq(reservationId), any())).thenReturn(0);
         when(receiptRepository.findById(eventId)).thenReturn(Optional.of(receipt(
@@ -67,7 +70,7 @@ class MenuItemInventoryOrderEventProcessorTest {
         UUID eventId = UUID.randomUUID();
         UUID reservationId = UUID.randomUUID();
         String payload = payload(eventId, reservationId);
-        MenuItemInventoryOrderEventProcessor processor = processor();
+        JsonInventoryOrderEventAdapter processor = processor();
         when(receiptRepository.insertIfAbsentPostgres(eq(eventId), eq("order.created"), eq("COMMIT"),
                 eq(101L), eq(reservationId), any())).thenReturn(0);
         when(receiptRepository.findById(eventId)).thenReturn(Optional.of(receipt(
@@ -79,9 +82,40 @@ class MenuItemInventoryOrderEventProcessorTest {
         verify(reservationService, never()).commit(any(), any());
     }
 
-    private MenuItemInventoryOrderEventProcessor processor() {
-        return new MenuItemInventoryOrderEventProcessor(reservationService, receiptRepository,
-                new ObjectMapper(), "jdbc:postgresql://localhost/restaurant", "order.created",
+    @Test
+    void refundRetryUsesReleaseAndCanonicalReceiptIdentity() throws Exception {
+        UUID eventId = UUID.randomUUID(), reservationId = UUID.randomUUID();
+        when(receiptRepository.insertIfAbsentPostgres(eq(eventId), eq("order.refund-eligible"), eq("RELEASE"),
+                eq(101L), eq(reservationId), any())).thenReturn(1);
+        processor().process(payload(eventId, reservationId), "order.refund-eligible-retry-inventory-2");
+        verify(reservationService).release(reservationId, 101L);
+    }
+
+    @Test
+    void malformedWireFieldsAndUnexpectedTopicsNeverReachEventCore() throws Exception {
+        var events = org.mockito.Mockito.mock(com.delivery.restaurant.application.api.InventoryOrderEventUseCase.class);
+        var adapter = new JsonInventoryOrderEventAdapter(events, new ObjectMapper(), "order.created", "order.cancelled", "order.refund-eligible");
+        String prefix = "{\"eventId\":\"" + UUID.randomUUID() + "\",\"orderId\":101";
+        for (String invalid : java.util.List.of("null", "{}", "{\"eventId\":null}", "{\"eventId\":\" \"}",
+                "{\"eventId\":\"invalid\"}", prefix + ",\"inventoryReservationId\":\" \"}",
+                prefix + ",\"inventoryReservationId\":\"invalid\"}", prefix.replace("101", "0") + "}",
+                prefix.replace("101", "\"101\"") + "}")) {
+            assertThatThrownBy(() -> adapter.process(invalid, "order.created")).isInstanceOf(IllegalArgumentException.class);
+        }
+        for (String topic : java.util.Arrays.asList(null, " ", "unexpected.topic")) {
+            assertThatThrownBy(() -> adapter.process(prefix + "}", topic)).isInstanceOf(IllegalArgumentException.class);
+        }
+        org.mockito.Mockito.verifyNoInteractions(events);
+    }
+
+    private JsonInventoryOrderEventAdapter processor() {
+        var events = new DefaultInventoryOrderEventUseCase(
+                new JpaInventoryReceiptAdapter(receiptRepository, "jdbc:postgresql://localhost/restaurant"), reservationService,
+                new RestaurantTransactionPort() {
+                    public <T> T required(java.util.function.Supplier<T> operation) { return operation.get(); }
+                    public <T> T readOnly(java.util.function.Supplier<T> operation) { return operation.get(); }
+                });
+        return new JsonInventoryOrderEventAdapter(events, new ObjectMapper(), "order.created",
                 "order.cancelled", "order.refund-eligible");
     }
 
