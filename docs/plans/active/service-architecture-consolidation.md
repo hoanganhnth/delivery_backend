@@ -7,6 +7,10 @@ Date: 2026-10-02
 Active. User approved the root-level service layout and completing one service
 before starting the next. Worktree: `.worktrees/backend-service-architecture`
 at workspace root, branch `refactor/service-architecture`, base `71218d7`.
+Auth tranche is integrated on `main` at `047ccb2`; Restaurant is next. The
+retired Auth source paths have no tracked files. Ignored local build outputs
+and operator PEM files may still remain in a developer checkout under the old
+directory; do not delete or package those PEM files as part of source cleanup.
 
 ## Outcome and approved design
 
