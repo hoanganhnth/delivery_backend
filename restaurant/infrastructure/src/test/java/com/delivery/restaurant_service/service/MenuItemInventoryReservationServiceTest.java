@@ -48,6 +48,7 @@ class MenuItemInventoryReservationServiceTest {
                 new JpaInventoryAdapter(menuItemRepository, inventoryRepository, reservationRepository),
                 new RestaurantTransactionPort() {
                     public <T> T required(java.util.function.Supplier<T> operation) { return operation.get(); }
+                    public <T> T repeatableRead(java.util.function.Supplier<T> operation) { return operation.get(); }
                     public <T> T readOnly(java.util.function.Supplier<T> operation) { return operation.get(); }
                 }, Duration.ofMinutes(15), java.time.Clock.systemDefaultZone());
         Restaurant restaurant = new Restaurant();

@@ -73,6 +73,7 @@ class DefaultRestaurantOrderDecisionUseCaseTest {
         final List<String> calls = new ArrayList<>();
         StoredDecision stored; RestaurantDecisionCommand saved; String legacy; boolean eligible = true;
         DefaultRestaurantOrderDecisionUseCase core() { return new DefaultRestaurantOrderDecisionUseCase(this, this, this); }
+        public <T> T repeatableRead(java.util.function.Supplier<T> operation) { return operation.get(); }
         public <T> T readOnly(java.util.function.Supplier<T> operation) { return operation.get(); }
         @Override public <T> T required(Supplier<T> action) { calls.add("begin"); T result = action.get(); calls.add("commit"); return result; }
         public void lockOrder(Long id) { calls.add("lock"); }

@@ -131,6 +131,7 @@ class DefaultRestaurantServiceabilityUseCaseTest {
         DefaultRestaurantServiceabilityUseCase core(boolean enabled, boolean enforced) {
             return new DefaultRestaurantServiceabilityUseCase(this, this, this, this, enabled, enforced);
         }
+        public <T> T repeatableRead(java.util.function.Supplier<T> operation) { return operation.get(); }
         public <T> T readOnly(Supplier<T> work) { calls.add("readOnly"); return work.get(); }
         public <T> T required(Supplier<T> work) { calls.add("required"); return work.get(); }
         public Optional<RestaurantOwner> findRestaurant(Long id) { reads++; calls.add("owner"); return Optional.ofNullable(owner); }

@@ -1,5 +1,11 @@
 package com.delivery.restaurant_service.config;
 
+import com.delivery.restaurant.application.api.OrderValidationUseCase;
+import com.delivery.restaurant.application.api.OrderValidationCatalogPort;
+import com.delivery.restaurant.application.api.RestaurantServiceabilityUseCase;
+import com.delivery.restaurant.application.api.MenuItemInventoryUseCase;
+import org.springframework.beans.factory.ObjectProvider;
+import com.delivery.restaurant.application.DefaultOrderValidationUseCase;
 import org.springframework.beans.factory.annotation.Value;
 import com.delivery.restaurant.application.DefaultCatalogLifecycleUseCase;
 import com.delivery.restaurant.application.api.RestaurantTransactionPort;
@@ -52,6 +58,17 @@ import org.springframework.context.annotation.Configuration;
         RestaurantDecisionInfrastructureConfiguration.class, RestaurantRatingInfrastructureConfiguration.class,
         RestaurantServiceabilityInfrastructureConfiguration.class})
 public class RestaurantOwnershipConfiguration {
+
+    @Bean
+    OrderValidationUseCase orderValidationUseCase(
+            OrderValidationCatalogPort catalog,
+            RestaurantServiceabilityUseCase serviceability,
+            ObjectProvider<MenuItemInventoryUseCase> inventory,
+            Clock clock, RestaurantTransactionPort transactions) {
+        return new DefaultOrderValidationUseCase(
+                catalog, serviceability, inventory::getIfAvailable, clock, transactions);
+    }
+
 
     @Bean
     CreateRestaurantUseCase createRestaurantUseCase(

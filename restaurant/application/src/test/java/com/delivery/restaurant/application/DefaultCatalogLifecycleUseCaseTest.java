@@ -77,6 +77,7 @@ class DefaultCatalogLifecycleUseCaseTest {
                 new DefaultCatalogLifecycleDecisionUseCase(new RestaurantLifecyclePolicy(), new MenuItemLifecyclePolicy()),
                 new DefaultRestaurantManagementAccessUseCase(), this, enforced); }
         public <T> T required(Supplier<T> operation) { calls.add("transaction"); return operation.get(); }
+        public <T> T repeatableRead(java.util.function.Supplier<T> operation) { return operation.get(); }
         public <T> T readOnly(Supplier<T> operation) { return operation.get(); }
         public Optional<RestaurantSnapshot> findRestaurant(Long id) { calls.add("findRestaurant"); return Optional.ofNullable(restaurant); }
         public Optional<MenuFacts> findMenuItem(Long id) { return menu == null ? Optional.empty() : Optional.of(new MenuFacts(menu, new RestaurantManagementFacts(10L,20L))); }

@@ -224,6 +224,7 @@ class CatalogLifecycleServiceTest {
                         new com.delivery.restaurant.domain.catalog.MenuItemLifecyclePolicy()),
                 new DefaultRestaurantManagementAccessUseCase(), new RestaurantTransactionPort() {
                     public <T> T required(java.util.function.Supplier<T> operation) { return operation.get(); }
+                    public <T> T repeatableRead(java.util.function.Supplier<T> operation) { return operation.get(); }
                     public <T> T readOnly(java.util.function.Supplier<T> operation) { return operation.get(); }
                 }, false);
         RestaurantResponse changeRestaurantLifecycle(Long id, RestaurantLifecycleRequest request, Long principal, Long legacy, String role) {

@@ -154,6 +154,7 @@ class RestaurantRatingAdapterTest {
             RestaurantRatingLock ratingLock) {
         return new DefaultRestaurantRatingUseCase(new JpaRestaurantRatingAdapter(ratings, restaurants, ratingLock),
                 eligibility, new RestaurantTransactionPort() {
+                    public <T> T repeatableRead(java.util.function.Supplier<T> operation) { return operation.get(); }
                     public <T> T readOnly(java.util.function.Supplier<T> operation) { return operation.get(); }
                     @Override public <T> T required(java.util.function.Supplier<T> operation) { return operation.get(); }
                 });

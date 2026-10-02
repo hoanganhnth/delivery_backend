@@ -13,7 +13,11 @@ import com.delivery.restaurant_service.entity.Restaurant;
 import com.delivery.restaurant.application.api.MenuItemInventoryUseCase;
 import com.delivery.restaurant.application.api.RestaurantServiceabilityUseCase;
 import com.delivery.restaurant.application.api.ServiceabilityDecision;
-import com.delivery.restaurant_service.service.impl.OrderCacheValidationServiceImpl;
+import com.delivery.restaurant_service.service.OrderValidationHttpAdapter;
+import com.delivery.restaurant_service.service.JpaOrderValidationCatalogAdapter;
+import com.delivery.restaurant.application.DefaultOrderValidationUseCase;
+import com.delivery.restaurant.application.api.RestaurantTransactionPort;
+import java.util.function.Supplier;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
@@ -64,15 +68,20 @@ class OrderValidationPersistenceIntegrationTest {
                 .contains("RESTAURANT_NOT_ACCEPTING_ORDERS");
     }
 
-    private OrderCacheValidationServiceImpl validator() {
+    private OrderValidationHttpAdapter validator() {
         RestaurantServiceabilityUseCase serviceability = mock(RestaurantServiceabilityUseCase.class);
         when(serviceability.evaluate(anyLong(), any(), any()))
                 .thenReturn(new ServiceabilityDecision(false, false, null, null, "CAPABILITY_DISABLED"));
         @SuppressWarnings("unchecked")
         ObjectProvider<MenuItemInventoryUseCase> inventory = mock(ObjectProvider.class);
         when(inventory.getIfAvailable()).thenReturn(null);
-        return new OrderCacheValidationServiceImpl(restaurants, menuItems, serviceability, inventory,
-                Clock.fixed(Instant.parse("2026-01-01T05:00:00Z"), ZoneOffset.UTC));
+        return new OrderValidationHttpAdapter(new DefaultOrderValidationUseCase(
+                new JpaOrderValidationCatalogAdapter(restaurants, menuItems), serviceability, inventory::getIfAvailable,
+                Clock.fixed(Instant.parse("2026-01-01T05:00:00Z"), ZoneOffset.UTC), new RestaurantTransactionPort() {
+                    @Override public <T> T required(Supplier<T> operation) { return operation.get(); }
+                    @Override public <T> T readOnly(Supplier<T> operation) { return operation.get(); }
+                    @Override public <T> T repeatableRead(Supplier<T> operation) { return operation.get(); }
+                }));
     }
 
     private Restaurant restaurant(RestaurantStatus status) {

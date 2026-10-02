@@ -57,6 +57,7 @@ class MenuOwnershipIntegrationTest {
                 new DefaultCatalogLifecycleDecisionUseCase(new RestaurantLifecyclePolicy(), new MenuItemLifecyclePolicy()),
                 accessUseCase, new RestaurantTransactionPort() {
                     public <T> T required(java.util.function.Supplier<T> operation) { return operation.get(); }
+                    public <T> T repeatableRead(java.util.function.Supplier<T> operation) { return operation.get(); }
                     public <T> T readOnly(java.util.function.Supplier<T> operation) { return operation.get(); }
                 }, enforced);
         return new MenuItemServiceImpl(new MenuItemMapper(),

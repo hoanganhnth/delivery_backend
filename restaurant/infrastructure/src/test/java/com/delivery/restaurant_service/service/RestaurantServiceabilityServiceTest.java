@@ -83,6 +83,7 @@ class RestaurantServiceabilityServiceTest {
                 new JpaServiceabilityAdapter(restaurantRepository, zoneRepository),
                 GeoJsonServiceabilityPolygonAdapter::parsePolygon, (zone, restaurant) -> { },
                 new RestaurantTransactionPort() {
+                    public <T> T repeatableRead(java.util.function.Supplier<T> operation) { return operation.get(); }
                     public <T> T readOnly(java.util.function.Supplier<T> operation) { return operation.get(); }
                     public <T> T required(java.util.function.Supplier<T> operation) { return operation.get(); }
                 }, enabled, false);

@@ -10,7 +10,11 @@ import com.delivery.restaurant_service.entity.MenuItem;
 import com.delivery.restaurant_service.entity.Restaurant;
 import com.delivery.restaurant_service.repository.MenuItemRepository;
 import com.delivery.restaurant_service.repository.RestaurantRepository;
-import com.delivery.restaurant_service.service.impl.OrderCacheValidationServiceImpl;
+import com.delivery.restaurant_service.service.OrderValidationHttpAdapter;
+import com.delivery.restaurant_service.service.JpaOrderValidationCatalogAdapter;
+import com.delivery.restaurant.application.DefaultOrderValidationUseCase;
+import com.delivery.restaurant.application.api.RestaurantTransactionPort;
+import java.util.function.Supplier;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
@@ -123,14 +127,19 @@ class OrderCacheValidationServiceImplTest {
         assertThat(result.getErrors()).extracting("errorCode").contains("MENU_ITEM_NOT_AVAILABLE");
     }
 
-    private OrderCacheValidationServiceImpl service() {
+    private OrderValidationHttpAdapter service() {
         when(serviceability.evaluate(anyLong(), any(), any()))
                 .thenReturn(new ServiceabilityDecision(false, false, null, null, "CAPABILITY_DISABLED"));
         when(inventoryProvider.getIfAvailable()).thenReturn(inventory);
         when(inventory.availability(anyLong(), anyLong(), anyInt()))
                 .thenReturn(new InventoryAvailability(true, null));
-        return new OrderCacheValidationServiceImpl(restaurants, items, serviceability,
-                inventoryProvider, Clock.fixed(Instant.parse("2026-01-01T05:00:00Z"), ZoneOffset.UTC));
+        return new OrderValidationHttpAdapter(new DefaultOrderValidationUseCase(
+                new JpaOrderValidationCatalogAdapter(restaurants, items), serviceability, inventoryProvider::getIfAvailable,
+                Clock.fixed(Instant.parse("2026-01-01T05:00:00Z"), ZoneOffset.UTC), new RestaurantTransactionPort() {
+                    @Override public <T> T required(Supplier<T> operation) { return operation.get(); }
+                    @Override public <T> T readOnly(Supplier<T> operation) { return operation.get(); }
+                    @Override public <T> T repeatableRead(Supplier<T> operation) { return operation.get(); }
+                }));
     }
 
     private void given(Restaurant restaurant, MenuItem item) {

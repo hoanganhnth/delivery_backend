@@ -70,6 +70,7 @@ class DefaultInventoryOrderEventUseCaseTest {
         Map<UUID, Receipt> rows = new HashMap<>(); List<String> calls = new ArrayList<>(); boolean forceDuplicate, failTransition;
         DefaultInventoryOrderEventUseCase core = new DefaultInventoryOrderEventUseCase(this, this, this);
         public <T> T required(Supplier<T> work) { calls.add("transaction"); return work.get(); }
+        public <T> T repeatableRead(java.util.function.Supplier<T> operation) { return operation.get(); }
         public <T> T readOnly(Supplier<T> work) { throw new UnsupportedOperationException(); }
         public int insertIfAbsent(Receipt receipt) { calls.add("receipt"); if (forceDuplicate) return 0; return rows.putIfAbsent(receipt.eventId(), receipt) == null ? 1 : 0; }
         public Optional<Receipt> find(UUID id) { calls.add("find"); return Optional.ofNullable(rows.get(id)); }

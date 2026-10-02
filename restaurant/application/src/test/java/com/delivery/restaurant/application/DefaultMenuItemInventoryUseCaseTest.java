@@ -192,6 +192,7 @@ class DefaultMenuItemInventoryUseCaseTest {
         DefaultMenuItemInventoryUseCase core = new DefaultMenuItemInventoryUseCase(this, this, Duration.ofMinutes(15), CLOCK);
         Fixture() { for (long id : new long[]{11,12}) { items.put(id, new Item(id, 7L, 70L, true)); stock.put(id, new Stock(id, new InventoryCapacity(5, 0, 0L))); } }
         public <T> T required(Supplier<T> work) { calls.add("write"); return work.get(); }
+        public <T> T repeatableRead(java.util.function.Supplier<T> operation) { return operation.get(); }
         public <T> T readOnly(Supplier<T> work) { calls.add("read"); return work.get(); }
         public Optional<InventoryReservation> findReservation(UUID id) { return Optional.ofNullable(reservations.get(id)); }
         public Optional<InventoryReservation> findReservationByOrder(Long id) { return forcedOrder != null ? Optional.of(forcedOrder) : reservations.values().stream().filter(r -> r.orderId().equals(id)).findFirst(); }

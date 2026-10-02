@@ -113,6 +113,7 @@ class JsonInventoryOrderEventAdapterTest {
                 new JpaInventoryReceiptAdapter(receiptRepository, "jdbc:postgresql://localhost/restaurant"), reservationService,
                 new RestaurantTransactionPort() {
                     public <T> T required(java.util.function.Supplier<T> operation) { return operation.get(); }
+                    public <T> T repeatableRead(java.util.function.Supplier<T> operation) { return operation.get(); }
                     public <T> T readOnly(java.util.function.Supplier<T> operation) { return operation.get(); }
                 });
         return new JsonInventoryOrderEventAdapter(events, new ObjectMapper(), "order.created",
