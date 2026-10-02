@@ -611,7 +611,23 @@ Deployment proof includes Compose path resolution and artifact freshness.
   geometry/zone workflow; extract inventory reserve/consume/release and event
   receipts; retire duplicated host services; verify full tests, contracts,
   packaged JAR/restart, Kafka relay and Compose image; integrate one complete
-  Restaurant tranche. No Restaurant source changes have been made yet.
+  Restaurant tranche.
+- Rating submission/moderation/read decisions now run in framework-free
+  `DefaultRestaurantRatingUseCase`; JPA mapping, aggregate queries, PostgreSQL
+  locking and Spring transactions are adapters. The old infrastructure rating
+  use-case implementation and eligibility port were removed. Existing ordering,
+  duplicate-conflict, HTTP and approved-read assertions remain. Four new real
+  PostgreSQL tests cover approval/rejection aggregates, simultaneous duplicate
+  submissions, aggregate-write rollback and identities larger than int32.
+  They exposed the old `(integer,bigint)` advisory-lock call, which PostgreSQL
+  does not support. The lock now folds the full identity to a deterministic
+  int32 key in the existing namespace; collisions only add serialization.
+  Red/green evidence: `/tmp/restaurant-rating-postgres-lock-red.log`,
+  `/tmp/restaurant-rating-postgres-green.log`. Fresh post-removal clean verify
+  exited 0: 329 tests (25 domain/67 application/20 infrastructure/217 boot),
+  zero failures/errors/skips; module boundaries and diff checks pass.
+  `/tmp/restaurant-rating-final-clean-verify.log`. Restaurant remains in the
+  isolated worktree until all remaining workflows and runtime proofs are done.
 
 ## Result
 

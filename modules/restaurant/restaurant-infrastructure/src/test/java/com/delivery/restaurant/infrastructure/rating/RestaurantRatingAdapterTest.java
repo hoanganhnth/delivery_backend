@@ -1,8 +1,12 @@
 package com.delivery.restaurant.infrastructure.rating;
 
 import com.delivery.restaurant.application.api.RestaurantRatingResult;
+import com.delivery.restaurant.application.api.RestaurantRatingUseCase;
+import com.delivery.restaurant.application.api.RestaurantTransactionPort;
+import com.delivery.restaurant.application.DefaultRestaurantRatingUseCase;
+import com.delivery.restaurant.domain.rating.RestaurantRatingConflictException;
 import com.delivery.restaurant.application.api.SubmitRestaurantRatingCommand;
-import com.delivery.restaurant.infrastructure.client.OrderEligibilityPort;
+import com.delivery.restaurant.application.api.RatingOrderEligibilityPort;
 import com.delivery.restaurant_service.entity.RatingStatus;
 import com.delivery.restaurant_service.entity.Restaurant;
 import com.delivery.restaurant_service.entity.RestaurantRating;
@@ -27,13 +31,13 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-class RestaurantRatingServiceImplTest {
+class RestaurantRatingAdapterTest {
 
     @Test
     void submissionUsesExplicitAggregateLockAndDatabaseAggregate() {
         RestaurantRatingRepository ratings = mock(RestaurantRatingRepository.class);
         RestaurantRepository restaurants = mock(RestaurantRepository.class);
-        OrderEligibilityPort eligibility = mock(OrderEligibilityPort.class);
+        RatingOrderEligibilityPort eligibility = mock(RatingOrderEligibilityPort.class);
         RestaurantRatingLock ratingLock = mock(RestaurantRatingLock.class);
         Restaurant restaurant = restaurant(7L);
         when(restaurants.findById(7L)).thenReturn(Optional.of(restaurant));
@@ -62,7 +66,7 @@ class RestaurantRatingServiceImplTest {
     void duplicateRatingConstraintIsReportedAsConflict() {
         RestaurantRatingRepository ratings = mock(RestaurantRatingRepository.class);
         RestaurantRepository restaurants = mock(RestaurantRepository.class);
-        OrderEligibilityPort eligibility = mock(OrderEligibilityPort.class);
+        RatingOrderEligibilityPort eligibility = mock(RatingOrderEligibilityPort.class);
         RestaurantRatingLock ratingLock = mock(RestaurantRatingLock.class);
         when(restaurants.findById(7L)).thenReturn(Optional.of(restaurant(7L)));
         when(ratings.existsByOrderId(99L)).thenReturn(false);
@@ -82,7 +86,7 @@ class RestaurantRatingServiceImplTest {
     void existingRatingIsReportedAsConflictBeforeAnotherInsert() {
         RestaurantRatingRepository ratings = mock(RestaurantRatingRepository.class);
         RestaurantRepository restaurants = mock(RestaurantRepository.class);
-        OrderEligibilityPort eligibility = mock(OrderEligibilityPort.class);
+        RatingOrderEligibilityPort eligibility = mock(RatingOrderEligibilityPort.class);
         RestaurantRatingLock ratingLock = mock(RestaurantRatingLock.class);
         when(restaurants.findById(7L)).thenReturn(Optional.of(restaurant(7L)));
         when(ratings.existsByOrderId(99L)).thenReturn(true);
@@ -101,8 +105,8 @@ class RestaurantRatingServiceImplTest {
         RestaurantRatingRepository ratings = mock(RestaurantRatingRepository.class);
         when(ratings.findByRestaurantIdAndStatus(eq(7L), eq(RatingStatus.APPROVED), any(Pageable.class)))
                 .thenReturn(List.of());
-        RestaurantRatingServiceImpl service = service(
-                ratings, mock(RestaurantRepository.class), mock(OrderEligibilityPort.class),
+        RestaurantRatingUseCase service = service(
+                ratings, mock(RestaurantRepository.class), mock(RatingOrderEligibilityPort.class),
                 mock(RestaurantRatingLock.class));
 
         assertThat(service.getRestaurantRatings(7L)).isEmpty();
@@ -116,7 +120,7 @@ class RestaurantRatingServiceImplTest {
     void statusUpdateLocksRestaurantBeforeRecalculatingAggregate() {
         RestaurantRatingRepository ratings = mock(RestaurantRatingRepository.class);
         RestaurantRepository restaurants = mock(RestaurantRepository.class);
-        OrderEligibilityPort eligibility = mock(OrderEligibilityPort.class);
+        RatingOrderEligibilityPort eligibility = mock(RatingOrderEligibilityPort.class);
         RestaurantRatingLock ratingLock = mock(RestaurantRatingLock.class);
         RestaurantRating rating = new RestaurantRating();
         rating.setId(21L);
@@ -143,12 +147,15 @@ class RestaurantRatingServiceImplTest {
         verify(restaurants, never()).findByIdForUpdate(7L);
     }
 
-    private RestaurantRatingServiceImpl service(
+    private RestaurantRatingUseCase service(
             RestaurantRatingRepository ratings,
             RestaurantRepository restaurants,
-            OrderEligibilityPort eligibility,
+            RatingOrderEligibilityPort eligibility,
             RestaurantRatingLock ratingLock) {
-        return new RestaurantRatingServiceImpl(ratings, restaurants, eligibility, ratingLock);
+        return new DefaultRestaurantRatingUseCase(new JpaRestaurantRatingAdapter(ratings, restaurants, ratingLock),
+                eligibility, new RestaurantTransactionPort() {
+                    public <T> T required(java.util.function.Supplier<T> operation) { return operation.get(); }
+                });
     }
 
     private static Restaurant restaurant(Long id) {

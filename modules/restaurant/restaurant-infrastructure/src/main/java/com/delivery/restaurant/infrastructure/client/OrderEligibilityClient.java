@@ -1,5 +1,7 @@
 package com.delivery.restaurant.infrastructure.client;
 
+import com.delivery.restaurant.application.api.RatingOrderEligibilityPort;
+
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -8,7 +10,7 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
 /** HTTP adapter for Order's delivered-order rating eligibility endpoint. */
-public class OrderEligibilityClient implements OrderEligibilityPort {
+public class OrderEligibilityClient implements RatingOrderEligibilityPort {
 
     private final RestTemplate restTemplate;
     private final String orderServiceUrl;

@@ -30,7 +30,10 @@ public class RestaurantRatingLock {
                     "SELECT pg_advisory_xact_lock(?, ?)",
                     Object.class,
                     LOCK_NAMESPACE,
-                    restaurantId);
+                    // PostgreSQL's two-key overload accepts two int32 values.
+                    // Fold the full identity deterministically; collisions only
+                    // serialize unrelated restaurants, and low IDs keep their key.
+                    Long.hashCode(restaurantId));
         }
     }
 

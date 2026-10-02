@@ -1,5 +1,7 @@
 package com.delivery.restaurant.infrastructure.client;
 
+import com.delivery.restaurant.application.api.RatingOrderEligibilityPort;
+
 import java.time.Duration;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -33,7 +35,7 @@ public class OrderInfrastructureConfiguration {
     }
 
     @Bean
-    OrderEligibilityPort orderEligibilityPort(
+    RatingOrderEligibilityPort orderEligibilityPort(
             RestTemplate orderRestTemplate,
             @Value("${order.service.url}") String orderServiceUrl,
             @Value("${app.internal.secret:}") String internalSecret,
