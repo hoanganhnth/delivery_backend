@@ -12,8 +12,7 @@ import org.springframework.context.annotation.Import;
 /** Explicit composition for the serviceability core and its technical adapters. */
 @Configuration
 @Import({JpaServiceabilityAdapter.class, RestaurantTransactionConfiguration.class,
-        com.delivery.restaurant.infrastructure.inventory.MenuItemInventoryReservationService.class,
-        com.delivery.restaurant.infrastructure.inventory.MenuItemInventoryOrderEventProcessor.class})
+        com.delivery.restaurant.infrastructure.inventory.RestaurantInventoryInfrastructureConfiguration.class})
 public class RestaurantServiceabilityInfrastructureConfiguration {
     @Bean ServiceabilityPolygonPort serviceabilityPolygons() {
         return GeoJsonServiceabilityPolygonAdapter::parsePolygon;

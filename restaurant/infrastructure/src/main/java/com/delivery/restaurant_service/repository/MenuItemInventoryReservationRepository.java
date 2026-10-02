@@ -17,14 +17,18 @@ public interface MenuItemInventoryReservationRepository
         extends JpaRepository<MenuItemInventoryReservation, UUID> {
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select distinct reservation from MenuItemInventoryReservation reservation "
-            + "left join fetch reservation.lines where reservation.reservationId = :id")
+    // Lock the root row before reading its lines. DISTINCT/fetch joins trigger
+    // follow-on locking on PostgreSQL, which can retain a pre-lock state snapshot.
+    @Query("select reservation from MenuItemInventoryReservation reservation where reservation.reservationId = :id")
     Optional<MenuItemInventoryReservation> findByIdForUpdate(@Param("id") UUID id);
 
     @Query("select distinct reservation from MenuItemInventoryReservation reservation "
             + "left join fetch reservation.lines where reservation.orderId = :orderId")
     Optional<MenuItemInventoryReservation> findByOrderId(@Param("orderId") Long orderId);
 
-    List<MenuItemInventoryReservation> findTop100ByStateAndExpiresAtLessThanEqualOrderByExpiresAtAsc(
-            MenuItemInventoryReservation.State state, LocalDateTime expiresAt);
+    // Candidate IDs avoid retaining pre-lock entity snapshots in the expiry transaction.
+    @Query("select reservation.reservationId from MenuItemInventoryReservation reservation "
+            + "where reservation.state = :state and reservation.expiresAt <= :expiresAt order by reservation.expiresAt")
+    List<UUID> findDueReservationIds(@Param("state") MenuItemInventoryReservation.State state,
+            @Param("expiresAt") LocalDateTime expiresAt, org.springframework.data.domain.Pageable page);
 }

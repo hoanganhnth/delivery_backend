@@ -49,12 +49,12 @@ class GlobalExceptionHandlerTest {
         assertThat(invalidTarget.getBody().getMessage()).isEqualTo("INVALID_OWNER_PRINCIPAL");
     }
     @Test
-    void serviceabilityDomainErrorsKeepTheirHttpStatusAndBody() throws Exception {
+    void coreDomainErrorsKeepTheirHttpStatusAndBody() throws Exception {
         var mvc = org.springframework.test.web.servlet.setup.MockMvcBuilders
                 .standaloneSetup(new ServiceabilityErrorController()).setControllerAdvice(handler).build();
-        String[] failures = {"denied", "missing", "stale"};
-        String[] messages = {"You are not allowed to manage this restaurant", "Serviceability zone not found", "Serviceability zone revision is stale"};
-        int[] statuses = {403, 404, 409};
+        String[] failures = {"denied", "missing", "stale", "inventory-denied", "inventory-missing"};
+        String[] messages = {"You are not allowed to manage this restaurant", "Serviceability zone not found", "Serviceability zone revision is stale", "Actor does not own this menu item", "Inventory is not configured for menu item"};
+        int[] statuses = {403, 404, 409, 403, 404};
         for (int i = 0; i < failures.length; i++) {
             mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/fixture/" + failures[i]))
                     .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().is(statuses[i]))
@@ -68,6 +68,8 @@ class GlobalExceptionHandlerTest {
         @org.springframework.web.bind.annotation.GetMapping("/fixture/{failure}")
         void fail(@org.springframework.web.bind.annotation.PathVariable("failure") String failure) {
             switch (failure) {
+                case "inventory-denied" -> throw new com.delivery.restaurant.domain.inventory.InventoryAccessDeniedException("Actor does not own this menu item");
+                case "inventory-missing" -> throw new com.delivery.restaurant.domain.inventory.InventoryResourceNotFoundException("Inventory is not configured for menu item");
                 case "denied" -> throw new com.delivery.restaurant.domain.serviceability.ServiceabilityAccessDeniedException("You are not allowed to manage this restaurant");
                 case "missing" -> throw new com.delivery.restaurant.domain.serviceability.ServiceabilityResourceNotFoundException("Serviceability zone not found");
                 default -> throw new com.delivery.restaurant.domain.serviceability.ServiceabilityZoneConflictException("Serviceability zone revision is stale");

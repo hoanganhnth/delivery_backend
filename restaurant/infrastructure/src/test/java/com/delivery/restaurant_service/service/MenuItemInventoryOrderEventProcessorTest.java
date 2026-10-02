@@ -1,7 +1,7 @@
 package com.delivery.restaurant_service.service;
 
 import com.delivery.restaurant.infrastructure.inventory.MenuItemInventoryOrderEventProcessor;
-import com.delivery.restaurant.infrastructure.inventory.MenuItemInventoryReservationService;
+import com.delivery.restaurant.application.api.MenuItemInventoryUseCase;
 import com.delivery.restaurant_service.entity.MenuItemInventoryOrderReceipt;
 import com.delivery.restaurant_service.repository.MenuItemInventoryOrderReceiptRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -24,7 +24,7 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class MenuItemInventoryOrderEventProcessorTest {
 
-    @Mock MenuItemInventoryReservationService reservationService;
+    @Mock MenuItemInventoryUseCase reservationService;
     @Mock MenuItemInventoryOrderReceiptRepository receiptRepository;
 
     @Test

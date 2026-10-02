@@ -2,7 +2,9 @@ package com.delivery.restaurant_service.service;
 
 import com.delivery.restaurant.application.api.InventoryReservationCommand;
 import com.delivery.restaurant.application.api.InventoryReservationLineCommand;
-import com.delivery.restaurant.infrastructure.inventory.MenuItemInventoryReservationService;
+import com.delivery.restaurant.application.DefaultMenuItemInventoryUseCase;
+import com.delivery.restaurant.application.api.RestaurantTransactionPort;
+import com.delivery.restaurant.infrastructure.inventory.JpaInventoryAdapter;
 import com.delivery.restaurant_service.entity.MenuItem;
 import com.delivery.restaurant_service.entity.MenuItemInventory;
 import com.delivery.restaurant_service.entity.MenuItemInventoryReservation;
@@ -36,14 +38,18 @@ class MenuItemInventoryReservationServiceTest {
     @Mock MenuItemInventoryRepository inventoryRepository;
     @Mock MenuItemInventoryReservationRepository reservationRepository;
 
-    private MenuItemInventoryReservationService service;
+    private DefaultMenuItemInventoryUseCase service;
     private MenuItem item;
     private MenuItemInventory inventory;
 
     @BeforeEach
     void setUp() {
-        service = new MenuItemInventoryReservationService(menuItemRepository, inventoryRepository,
-                reservationRepository, Duration.ofMinutes(15));
+        service = new DefaultMenuItemInventoryUseCase(
+                new JpaInventoryAdapter(menuItemRepository, inventoryRepository, reservationRepository),
+                new RestaurantTransactionPort() {
+                    public <T> T required(java.util.function.Supplier<T> operation) { return operation.get(); }
+                    public <T> T readOnly(java.util.function.Supplier<T> operation) { return operation.get(); }
+                }, Duration.ofMinutes(15), java.time.Clock.systemDefaultZone());
         Restaurant restaurant = new Restaurant();
         restaurant.setId(7L);
         item = new MenuItem();
@@ -55,6 +61,7 @@ class MenuItemInventoryReservationServiceTest {
         inventory.setOnHandQuantity(5);
         inventory.setReservedQuantity(0);
         inventory.setRevision(0L);
+        lenient().when(inventoryRepository.findById(11L)).thenReturn(Optional.of(inventory));
         when(reservationRepository.findById(any())).thenReturn(Optional.empty());
         when(reservationRepository.findByOrderId(any())).thenReturn(Optional.empty());
         when(menuItemRepository.findAllByIdForUpdate(any())).thenReturn(List.of(item));
@@ -106,6 +113,7 @@ class MenuItemInventoryReservationServiceTest {
         service.reserve(request(reservationId, 2));
         MenuItemInventoryReservation stored = reservationRepositoryArgument();
         when(reservationRepository.findByIdForUpdate(reservationId)).thenReturn(Optional.of(stored));
+        when(reservationRepository.findById(reservationId)).thenReturn(Optional.of(stored));
 
         assertThat(service.commit(reservationId, 101L).state()).isEqualTo("COMMITTED");
         assertThat(inventory.getOnHandQuantity()).isEqualTo(3);

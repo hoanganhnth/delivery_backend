@@ -1,4 +1,4 @@
-package com.delivery.restaurant.infrastructure.inventory;
+package com.delivery.restaurant.domain.inventory;
 
 public class InventoryResourceNotFoundException extends RuntimeException {
 
