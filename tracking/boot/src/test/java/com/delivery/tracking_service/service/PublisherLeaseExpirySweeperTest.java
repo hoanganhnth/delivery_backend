@@ -32,10 +32,12 @@ class PublisherLeaseExpirySweeperTest {
         when(leases.claimExpired(anyInt(), anyLong())).thenReturn(List.of(claim));
         when(leases.shouldMarkOfflineAfterGrace(lease)).thenReturn(true);
 
+        when(availability.markOfflineIfExpired(claim)).thenReturn(true);
         sweeper.sweep();
 
-        verify(availability).markOfflineAndBroadcast(7L);
-        verify(leases).completeClaim(claim);
+        var order = inOrder(availability, leases);
+        order.verify(availability).markOfflineIfExpired(claim);
+        order.verify(leases).completeClaim(claim);
     }
 
     @Test
@@ -53,7 +55,7 @@ class PublisherLeaseExpirySweeperTest {
     void failedOfflinePublishLeavesClaimForRetry() {
         when(leases.claimExpired(anyInt(), anyLong())).thenReturn(List.of(claim));
         when(leases.shouldMarkOfflineAfterGrace(lease)).thenReturn(true);
-        when(availability.markOfflineAndBroadcast(7L)).thenThrow(new IllegalStateException("broker unavailable"));
+        when(availability.markOfflineIfExpired(claim)).thenThrow(new IllegalStateException("broker unavailable"));
 
         sweeper.sweep();
 

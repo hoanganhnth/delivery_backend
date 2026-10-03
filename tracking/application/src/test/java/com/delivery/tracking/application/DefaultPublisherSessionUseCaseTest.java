@@ -46,6 +46,12 @@ class DefaultPublisherSessionUseCaseTest {
         f.core.disconnected(f.lease); f.task.run();
         assertThat(f.operations).containsExactly("release", "schedule", "claim", "fence", "complete:7");
     }
+    @Test void finalMutationFenceCompletesOldClaimWithoutPublishingOrReportingAnOfflineTransition() {
+        var f = new Fixture(); f.mutationAdmitted = false;
+        f.core.sweepExpired(100);
+        assertThat(f.operations).containsExactly("batch", "fence", "offline:7", "complete:7");
+        assertThat(f.completed).containsExactly(f.claim);
+    }
     @Test void graceFailureRetainsRetryableClaimAndReportsTheOriginalError() {
         for (String stage : List.of("claim", "fence", "offline:7", "fanout:7", "complete:7")) {
             var f = new Fixture(); f.failAt = stage;
@@ -95,7 +101,7 @@ class DefaultPublisherSessionUseCaseTest {
         final OfflineShipperLocation offline = new OfflineShipperLocation(new CachedShipperLocation(7L, null, null, null, null, null, null), LocalDateTime.of(2026, 10, 3, 7, 0));
         final List<String> operations = new ArrayList<>(); final List<PublisherExpiryClaim> completed = new ArrayList<>();
         final RuntimeException failure = new IllegalStateException("Boundary unavailable");
-        String failAt; Exception reported; boolean released = true, refresh = true, fenced = true;
+        String failAt; Exception reported; boolean released = true, refresh = true, fenced = true, mutationAdmitted = true;
         long ttl, grace, claimSeconds; int batch; Runnable task; Instant deadline;
         final DefaultPublisherSessionUseCase core = core(30, 120, 30);
         DefaultPublisherSessionUseCase core(long grace, long ttl, long claim) {
@@ -111,6 +117,11 @@ class DefaultPublisherSessionUseCaseTest {
         public boolean completeClaim(PublisherExpiryClaim claim) { step("complete:" + claim.lease().shipperId()); completed.add(claim); return true; }
         public void schedule(Runnable task, Instant deadline) { step("schedule"); this.task = task; this.deadline = deadline; }
         public OfflineShipperLocation markOffline(Long id) { throw new AssertionError("Recovery must include distributed fanout"); }
+        public boolean markOfflineIfExpired(PublisherExpiryClaim claim) {
+            var id = claim.lease().shipperId(); step("offline:" + id);
+            if (!mutationAdmitted) return false;
+            step("fanout:" + id); return true;
+        }
         public OfflineShipperLocation markOfflineAndBroadcast(Long id) { step("offline:" + id); step("fanout:" + id); return offline; }
         public void graceFailed(PublisherLease lease, Exception failure) { operations.add("grace-error:" + lease.shipperId()); reported = failure; }
         public void sweepFailed(PublisherLease lease, Exception failure) { operations.add("sweep-error:" + lease.shipperId()); reported = failure; }

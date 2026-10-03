@@ -27,14 +27,11 @@ class PublisherSessionSchedulingAdapterTest {
     @Test
     void currentDisconnectMarksOfflineOnlyAfterGraceAndGenerationCheck() {
         PublisherLease lease = new PublisherLease(7L, "session-1", 3L);
-        var offline = new com.delivery.tracking.application.api.OfflineShipperLocation(
-                new com.delivery.tracking.application.api.CachedShipperLocation(7L, null, null, null, null, null, null),
-                java.time.LocalDateTime.of(2026, 10, 3, 7, 0));
         PublisherExpiryClaim claim = new PublisherExpiryClaim(lease, 12345L);
         when(leases.releaseForGraceIfCurrent(lease, 30)).thenReturn(true);
         when(leases.claimIfExpired(lease, 30)).thenReturn(claim);
         when(leases.shouldMarkOfflineAfterGrace(lease)).thenReturn(true);
-        when(availability.markOfflineAndBroadcast(7L)).thenReturn(offline);
+        when(availability.markOfflineIfExpired(claim)).thenReturn(true);
 
         manager.disconnected(lease);
 
@@ -42,7 +39,7 @@ class PublisherSessionSchedulingAdapterTest {
         verify(scheduler).schedule(task.capture(), any(Instant.class));
         verifyNoInteractions(availability);
         task.getValue().run();
-        verify(availability).markOfflineAndBroadcast(7L);
+        verify(availability).markOfflineIfExpired(claim);
         verify(leases).completeClaim(claim);
     }
 

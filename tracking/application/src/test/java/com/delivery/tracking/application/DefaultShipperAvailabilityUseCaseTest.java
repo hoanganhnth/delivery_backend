@@ -1,12 +1,39 @@
 package com.delivery.tracking.application;
 
 import com.delivery.tracking.application.api.*;
+import com.delivery.tracking.domain.*;
 import java.time.*;
 import java.util.*;
 import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.*;
 
 class DefaultShipperAvailabilityUseCaseTest {
+    private static final PublisherExpiryClaim CLAIM = new PublisherExpiryClaim(new PublisherLease(7, "expired", 3), 12345);
+    @Test void expiryMutatesConditionallyBeforeKafkaAndFanoutWithOrWithoutCachedFacts() {
+        for (boolean cached : new boolean[]{false, true}) {
+            var f = new Fixture();
+            if (cached) f.cached = new CachedShipperLocation(7L, 10.77, null, null, null, null, null);
+            assertThat(f.core.markOfflineIfExpired(CLAIM)).isTrue();
+            assertThat(f.operations).containsExactly("read", "conditional", "OFFLINE_TOMBSTONE", "broadcast");
+            assertThat(f.claim).isSameAs(CLAIM); assertThat(f.saved != null).isEqualTo(cached);
+            assertThat(f.published.facts().shipperId()).isEqualTo(7);
+            assertThat(f.published.timestamp()).isEqualTo(LocalDateTime.of(2026, 10, 3, 7, 0));
+        }
+    }
+    @Test void fencedExpiryCannotPublishAndStorageOrPublicationFailureStaysRetryable() {
+        var fenced = new Fixture(); fenced.admitted = false;
+        assertThat(fenced.core.markOfflineIfExpired(CLAIM)).isFalse();
+        assertThat(fenced.operations).containsExactly("read", "conditional");
+        assertThat(fenced.published).isNull(); assertThat(fenced.broadcast).isNull();
+        for (String stage : List.of("read", "conditional", "OFFLINE_TOMBSTONE", "broadcast")) {
+            var f = new Fixture(); f.failAt = stage;
+            assertThatThrownBy(() -> f.core.markOfflineIfExpired(CLAIM)).isSameAs(f.failure);
+            if (!stage.equals("broadcast")) assertThat(f.broadcast).isNull();
+        }
+        assertThatThrownBy(() -> new Fixture().core.markOfflineIfExpired(null)).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new Fixture().core.markOfflineIfExpired(new PublisherExpiryClaim(null, 0)))
+                .isInstanceOf(NullPointerException.class);
+    }
     @Test void keepsCachedFactsAndWritesBeforePublishingTheTimestampedTombstone() {
         var f = new Fixture();
         f.cached = new CachedShipperLocation(7L, 10.77, 106.7, 3.5, 12.0, 90.0, 1.2);
@@ -60,6 +87,7 @@ class DefaultShipperAvailabilityUseCaseTest {
     }
     private static final class Fixture implements ShipperAvailabilityStorePort, ShipperAvailabilityEventPort {
         CachedShipperLocation cached; OfflineShipperLocation saved, published, broadcast; String failAt;
+        boolean admitted = true; PublisherExpiryClaim claim;
         final List<String> operations = new ArrayList<>();
         final RuntimeException failure = new IllegalStateException("Boundary unavailable");
         final DefaultShipperAvailabilityUseCase core = new DefaultShipperAvailabilityUseCase(this, this,
@@ -67,6 +95,11 @@ class DefaultShipperAvailabilityUseCaseTest {
         void step(String stage) { operations.add(stage); if (stage.equals(failAt)) throw failure; }
         public Optional<CachedShipperLocation> findCached(Long id) { assertThat(id).isEqualTo(7L); step("read"); return Optional.ofNullable(cached); }
         public void saveOffline(Long id, OfflineShipperLocation location) { assertThat(id).isEqualTo(7L); step("save"); saved = location; }
+        public boolean applyOfflineIfExpired(com.delivery.tracking.domain.PublisherExpiryClaim claim, Optional<OfflineShipperLocation> row) {
+            step("conditional"); this.claim = claim;
+            if (admitted) saved = row.orElse(null);
+            return admitted;
+        }
         public void remove(Long id) { assertThat(id).isEqualTo(7L); step("remove"); }
         public void publish(OfflineShipperLocation location, String source) { step(source); published = location; }
         public void broadcast(OfflineShipperLocation location) { step("broadcast"); broadcast = location; }

@@ -29,7 +29,7 @@ class RedisGeoRepositoryTest {
 
     @BeforeEach
     void setUp() {
-        repository = new RedisGeoRepository(redisTemplate);
+        repository = new RedisGeoRepository(redisTemplate, org.mockito.Mockito.mock(org.springframework.data.redis.core.StringRedisTemplate.class));
         when(redisTemplate.opsForValue()).thenReturn(values);
     }
 

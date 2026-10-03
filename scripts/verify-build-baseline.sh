@@ -608,7 +608,7 @@ if ! rg -Fq 'publishers.sweepExpired(batchSize)' "${tracking_expiry_sweeper}" \
     || ! rg -Fq "redis.call('ZRANGEBYSCORE'" "${tracking_lease_repository}" \
     || ! rg -Fq "tonumber(score) ~= tonumber(ARGV[2])" "${tracking_lease_repository}" \
     || ! rg -Fq 'shouldMarkOfflineAfterGrace(claim.lease())' "${tracking_publisher_core}" \
-    || ! rg -Fq 'availability.markOfflineAndBroadcast(claim.lease().shipperId())' "${tracking_publisher_core}" \
+    || ! rg -Fq 'availability.markOfflineIfExpired(claim)' "${tracking_publisher_core}" \
     || ! rg -Fq 'disconnect-grace-seconds=${TRACKING_PUBLISHER_DISCONNECT_GRACE_SECONDS:30}' "${tracking_properties}" \
     || ! rg -Fq 'lease-ttl-seconds=${TRACKING_PUBLISHER_LEASE_TTL_SECONDS:120}' "${tracking_properties}" \
     || ! rg -Fq 'expiry-sweep-interval-ms=${TRACKING_PUBLISHER_EXPIRY_SWEEP_INTERVAL_MS:5000}' "${tracking_properties}" \

@@ -1,6 +1,7 @@
 package com.delivery.tracking.application;
 
 import com.delivery.tracking.application.api.*;
+import com.delivery.tracking.domain.PublisherExpiryClaim;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.Objects;
@@ -29,6 +30,19 @@ public final class DefaultShipperAvailabilityUseCase implements ShipperAvailabil
     @Override
     public OfflineShipperLocation markOfflineAndBroadcast(Long shipperId) {
         return markOffline(shipperId, true);
+    }
+
+    @Override
+    public boolean markOfflineIfExpired(PublisherExpiryClaim claim) {
+        Objects.requireNonNull(claim, "claim");
+        var shipperId = Objects.requireNonNull(claim.lease(), "claim.lease").shipperId();
+        var cached = store.findCached(shipperId);
+        var facts = cached.orElseGet(() -> new CachedShipperLocation(shipperId, null, null, null, null, null, null));
+        var offline = new OfflineShipperLocation(facts, LocalDateTime.now(clock));
+        if (!store.applyOfflineIfExpired(claim, cached.map(ignored -> offline))) return false;
+        events.publish(offline, "OFFLINE_TOMBSTONE");
+        events.broadcast(offline);
+        return true;
     }
 
     private OfflineShipperLocation markOffline(Long shipperId, boolean broadcast) {

@@ -15,9 +15,9 @@ import java.util.ArrayList;
 @RequiredArgsConstructor
 public class ShipperPublisherLeaseRepository implements PublisherLeaseStorePort {
 
-    private static final String GENERATION_PREFIX = "tracking:publisher:generation:";
-    private static final String ACTIVE_PREFIX = "tracking:publisher:active:";
-    private static final String DEADLINES_KEY = "tracking:publisher:deadlines";
+    static final String GENERATION_PREFIX = "tracking:publisher:generation:";
+    static final String ACTIVE_PREFIX = "tracking:publisher:active:";
+    static final String DEADLINES_KEY = "tracking:publisher:deadlines";
 
     private static final DefaultRedisScript<Long> ACQUIRE = new DefaultRedisScript<>("""
             local current = redis.call('GET', KEYS[2])
@@ -65,6 +65,10 @@ public class ShipperPublisherLeaseRepository implements PublisherLeaseStorePort 
     private static final DefaultRedisScript<Long> COMPLETE_CLAIM = new DefaultRedisScript<>("""
             local score = redis.call('ZSCORE', KEYS[1], ARGV[1])
             if not score or tonumber(score) ~= tonumber(ARGV[2]) then
+              return 0
+            end
+            local now = redis.call('TIME')
+            if tonumber(score) <= tonumber(now[1]) * 1000 + tonumber(now[2]) / 1000 then
               return 0
             end
             return redis.call('ZREM', KEYS[1], ARGV[1])

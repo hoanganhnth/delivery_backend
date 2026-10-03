@@ -38,9 +38,17 @@ window.
 Mỗi shipper chỉ có một publisher generation trong Redis. Connection mới tăng
 generation và connection cũ bị fence ở lần `ping`/`update_location` tiếp theo.
 Clean disconnect lưu deadline grace 30 giây trong Redis; hard crash giữ deadline
-theo lease TTL 120 giây. Sweeper phân tán claim deadline, kiểm generation và
-active lease trước khi phát offline tombstone, nên restart hoặc process chết
-trong cửa sổ grace không làm mất transition offline.
+theo lease TTL 120 giây. Sweeper phân tán claim deadline; một Lua operation kiểm
+đồng thời generation, không có active lease và claim còn hiệu lực trước khi ghi
+offline vào cache/GEO/online set. Reconnect hoặc worker claim mới chặn mutation
+cũ và không phát tombstone từ attempt bị chặn. Với attempt được chấp nhận,
+claim chỉ hoàn tất sau Kafka và fanout. Claim hết hạn không được xóa deadline;
+lỗi giữ deadline để retry sau restart/process chết trong cửa sổ grace.
+
+Fence này bảo vệ mutation Redis; Kafka/PubSub vẫn là các bước tiếp theo, chưa có
+transaction chung với Redis. Thứ tự event khi reconnect xảy ra sau mutation và
+writer WebSocket cũ dừng giữa refresh lease và ghi cache vẫn đang được audit
+trong worktree refactor trước khi hợp nhất Tracking vào main.
 
 ## Luồng subscriber
 

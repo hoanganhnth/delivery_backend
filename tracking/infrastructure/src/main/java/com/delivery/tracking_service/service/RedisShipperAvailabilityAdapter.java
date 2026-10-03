@@ -1,6 +1,7 @@
 package com.delivery.tracking_service.service;
 
 import com.delivery.tracking.application.api.*;
+import com.delivery.tracking.domain.PublisherExpiryClaim;
 import com.delivery.tracking_service.dto.response.ShipperLocationResponse;
 import com.delivery.tracking_service.repository.ShipperLocationRepository;
 import java.util.Optional;
@@ -26,6 +27,9 @@ public class RedisShipperAvailabilityAdapter implements ShipperAvailabilityStore
         locations.cacheShipperLocation(shipperId, toResponse(location));
     }
     @Override public void remove(Long shipperId) { locations.removeShipperLocationCache(shipperId); }
+    @Override public boolean applyOfflineIfExpired(PublisherExpiryClaim claim, Optional<OfflineShipperLocation> cachedOffline) {
+        return locations.applyOfflineIfExpired(claim, cachedOffline.map(RedisShipperAvailabilityAdapter::toResponse));
+    }
     @Override public void publish(OfflineShipperLocation location, String source) {
         events.publishLocationUpdate(toResponse(location), source);
     }

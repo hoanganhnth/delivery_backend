@@ -9,6 +9,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.geo.Point;
 import org.springframework.data.redis.core.GeoOperations;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
+import com.delivery.tracking.domain.PublisherExpiryClaim;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Optional;
 
 import java.util.concurrent.TimeUnit;
 
@@ -17,8 +23,58 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 public class RedisGeoRepository implements ShipperLocationRepository {
     private final RedisTemplate<String, Object> redisTemplate;
+    private final StringRedisTemplate stringRedisTemplate;
     private static final String GEO_KEY = "shippers:geo:locations";
     private static final String ONLINE_SHIPPERS_SET = "shippers:online:set";
+    private static final DefaultRedisScript<Long> OFFLINE_IF_EXPIRED = new DefaultRedisScript<>("""
+            if redis.call('GET', KEYS[1]) ~= ARGV[1] or redis.call('EXISTS', KEYS[2]) == 1 then
+              return 0
+            end
+            local score = redis.call('ZSCORE', KEYS[3], ARGV[2])
+            local now = redis.call('TIME')
+            if not score or tonumber(score) ~= tonumber(ARGV[3])
+                or tonumber(score) <= tonumber(now[1]) * 1000 + tonumber(now[2]) / 1000 then
+              return 0
+            end
+            -- Redis does not roll back earlier Lua writes after a command error.
+            -- Validate membership types before changing any of the three projections.
+            local geoType = redis.call('TYPE', KEYS[5]).ok
+            local onlineType = redis.call('TYPE', KEYS[6]).ok
+            if (geoType ~= 'none' and geoType ~= 'zset') or (onlineType ~= 'none' and onlineType ~= 'set') then
+              return redis.error_reply('Invalid shipper membership type')
+            end
+            if ARGV[4] == '1' then
+              redis.call('SET', KEYS[4], ARGV[5], 'EX', ARGV[7])
+            else
+              redis.call('DEL', KEYS[4])
+            end
+            redis.call('ZREM', KEYS[5], ARGV[6])
+            redis.call('SREM', KEYS[6], ARGV[6])
+            return 1
+            """, Long.class);
+
+    @Override
+    public boolean applyOfflineIfExpired(PublisherExpiryClaim claim, Optional<ShipperLocationResponse> cachedOffline) {
+        var lease = claim.lease();
+        String id = Long.toString(lease.shipperId());
+        // The normal cache/GEO/set API uses GenericJackson serialization; Lua uses raw UTF-8.
+        String payload = cachedOffline.map(this::serialized).orElse("");
+        Long result = stringRedisTemplate.execute(OFFLINE_IF_EXPIRED, List.of(
+                ShipperPublisherLeaseRepository.GENERATION_PREFIX + id,
+                ShipperPublisherLeaseRepository.ACTIVE_PREFIX + id,
+                ShipperPublisherLeaseRepository.DEADLINES_KEY,
+                RedisConstants.SHIPPER_LOCATION_KEY_PREFIX + id, GEO_KEY, ONLINE_SHIPPERS_SET),
+                Long.toString(lease.generation()), id + ":" + lease.redisValue(),
+                Long.toString(claim.claimUntilEpochMillis()), cachedOffline.isPresent() ? "1" : "0",
+                payload, serialized(id), Long.toString(RedisConstants.SHIPPER_LOCATION_TTL));
+        return Long.valueOf(1).equals(result);
+    }
+
+    @SuppressWarnings("unchecked")
+    private String serialized(Object value) {
+        var serializer = (org.springframework.data.redis.serializer.RedisSerializer<Object>) redisTemplate.getValueSerializer();
+        return new String(serializer.serialize(value), StandardCharsets.UTF_8);
+    }
 
     // --- BEGIN: Method implement từ RedisGeoService ---
     public void cacheShipperLocation(Long shipperId, ShipperLocationResponse location) {

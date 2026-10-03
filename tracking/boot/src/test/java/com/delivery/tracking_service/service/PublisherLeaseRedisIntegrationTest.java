@@ -115,6 +115,9 @@ class PublisherLeaseRedisIntegrationTest {
     private static final class RecordingBoundary implements ShipperAvailabilityUseCase, PublisherLeaseIncidentPort {
         final List<Long> offline = new ArrayList<>(); final List<PublisherLease> recovered = new ArrayList<>();
         final List<Exception> failures = new ArrayList<>(); boolean failOffline; int attempts;
+        public boolean markOfflineIfExpired(PublisherExpiryClaim claim) {
+            markOfflineAndBroadcast(claim.lease().shipperId()); return true;
+        }
         public OfflineShipperLocation markOfflineAndBroadcast(Long id) {
             attempts++; if (failOffline) throw new IllegalStateException("Broker unavailable"); offline.add(id);
             return new OfflineShipperLocation(new CachedShipperLocation(id, null, null, null, null, null, null), LocalDateTime.now());

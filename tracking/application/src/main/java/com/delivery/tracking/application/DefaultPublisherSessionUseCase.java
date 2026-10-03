@@ -65,8 +65,8 @@ public final class DefaultPublisherSessionUseCase implements PublisherSessionUse
         }
     }
     private boolean reconcile(PublisherExpiryClaim claim) {
-        boolean transitioned = leases.shouldMarkOfflineAfterGrace(claim.lease());
-        if (transitioned) availability.markOfflineAndBroadcast(claim.lease().shipperId());
+        boolean transitioned = leases.shouldMarkOfflineAfterGrace(claim.lease())
+                && availability.markOfflineIfExpired(claim);
         leases.completeClaim(claim);
         return transitioned;
     }
