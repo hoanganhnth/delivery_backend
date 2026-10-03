@@ -12,7 +12,6 @@ import java.util.Objects;
 /** Framework-free tracking use cases; transport and persistence stay behind ports. */
 public final class DefaultTrackingService implements TrackingPort {
     private static final String UPDATE_SOURCE = "APPLICATION";
-    private static final String OFFLINE_SOURCE = "OFFLINE_TOMBSTONE";
 
     private final LocationStorePort store;
     private final LocationEventPort events;
@@ -40,18 +39,4 @@ public final class DefaultTrackingService implements TrackingPort {
         return snapshot;
     }
 
-    @Override
-    public LocationSnapshot markOffline(long shipperId) {
-        if (shipperId <= 0) {
-            throw new IllegalArgumentException("shipperId must be positive");
-        }
-        LocationSnapshot current = store.findByShipperId(shipperId)
-                .orElseThrow(() -> new IllegalStateException("No location exists for shipper " + shipperId));
-        Instant now = Instant.now(clock);
-        LocationSnapshot offline = new LocationSnapshot(shipperId, current.coordinate(), current.accuracy(),
-                current.speed(), current.heading(), false, now, now);
-        store.save(offline);
-        events.publish(offline, OFFLINE_SOURCE);
-        return offline;
-    }
 }

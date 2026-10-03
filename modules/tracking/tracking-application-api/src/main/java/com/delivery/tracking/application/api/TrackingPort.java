@@ -6,5 +6,4 @@ import com.delivery.tracking.domain.LocationSnapshot;
 public interface TrackingPort {
     LocationSnapshot updateLocation(UpdateLocationCommand command);
 
-    LocationSnapshot markOffline(long shipperId);
 }

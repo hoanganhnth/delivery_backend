@@ -1,6 +1,9 @@
 package com.delivery.tracking_service.service;
 
 import com.delivery.tracking_service.dto.request.UpdateLocationRequest;
+import com.delivery.tracking.application.DefaultShipperAvailabilityUseCase;
+import org.springframework.beans.factory.ObjectProvider;
+import org.mockito.ArgumentCaptor;
 import com.delivery.tracking_service.dto.response.ShipperLocationResponse;
 import com.delivery.tracking_service.repository.ShipperLocationRepository;
 import com.delivery.tracking_service.websocket.ShipperLocationWebSocketHandler;
@@ -21,8 +24,16 @@ class ShipperLocationServiceFailureTest {
     private final ShipperLocationRepository repository = mock(ShipperLocationRepository.class);
     private final ShipperLocationWebSocketHandler webSocketHandler = mock(ShipperLocationWebSocketHandler.class);
     private final ShipperLocationEventPublisher publisher = mock(ShipperLocationEventPublisher.class);
+    private final ObjectProvider<ShipperLocationWebSocketHandler> sockets = socketProvider();
+    private final RedisShipperAvailabilityAdapter adapter = new RedisShipperAvailabilityAdapter(repository, publisher, sockets);
     private final ShipperAvailabilityService availabilityService =
-            new ShipperAvailabilityService(repository, publisher);
+            new ShipperAvailabilityService(new DefaultShipperAvailabilityUseCase(adapter, adapter));
+
+    @SuppressWarnings("unchecked")
+    private ObjectProvider<ShipperLocationWebSocketHandler> socketProvider() {
+        var provider = (ObjectProvider<ShipperLocationWebSocketHandler>) mock(ObjectProvider.class);
+        when(provider.getObject()).thenReturn(webSocketHandler); return provider;
+    }
     private final ShipperLocationService service =
             new ShipperLocationService(repository, webSocketHandler, publisher, availabilityService);
 
@@ -75,17 +86,27 @@ class ShipperLocationServiceFailureTest {
         current.setShipperId(7L);
         current.setLatitude(10.77);
         current.setLongitude(106.70);
+        current.setDistance(1.2);
         current.setIsOnline(true);
         when(repository.getCachedShipperLocation(7L)).thenReturn(current);
 
         service.markShipperOffline(7L);
 
-        verify(repository).cacheShipperLocation(eq(7L), eq(current));
+        var saved = ArgumentCaptor.forClass(ShipperLocationResponse.class);
+        verify(repository).cacheShipperLocation(eq(7L), saved.capture());
+        var offline = saved.getValue();
+        org.assertj.core.api.Assertions.assertThat(offline.getLatitude()).isEqualTo(current.getLatitude());
+        org.assertj.core.api.Assertions.assertThat(offline.getLongitude()).isEqualTo(current.getLongitude());
+        org.assertj.core.api.Assertions.assertThat(offline.getDistance()).isEqualTo(current.getDistance());
         verify(repository, never()).removeShipperLocationCache(7L);
-        verify(publisher).publishLocationUpdate(current, "OFFLINE_TOMBSTONE");
-        verify(webSocketHandler).broadcastShipperLocation(current);
-        org.assertj.core.api.Assertions.assertThat(current.getIsOnline()).isFalse();
-        org.assertj.core.api.Assertions.assertThat(current.getUpdatedAt()).isNotBlank();
+        var event = ArgumentCaptor.forClass(ShipperLocationResponse.class);
+        verify(publisher).publishLocationUpdate(event.capture(), eq("OFFLINE_TOMBSTONE"));
+        org.assertj.core.api.Assertions.assertThat(event.getValue()).usingRecursiveComparison().isEqualTo(offline);
+        var fanout = ArgumentCaptor.forClass(ShipperLocationResponse.class);
+        verify(webSocketHandler).broadcastShipperLocation(fanout.capture());
+        org.assertj.core.api.Assertions.assertThat(fanout.getValue()).usingRecursiveComparison().isEqualTo(offline);
+        org.assertj.core.api.Assertions.assertThat(offline.getIsOnline()).isFalse();
+        org.assertj.core.api.Assertions.assertThat(offline.getUpdatedAt()).isNotBlank();
     }
 
     @Test
@@ -110,9 +131,15 @@ class ShipperLocationServiceFailureTest {
 
         service.markShipperOffline(7L);
 
-        verify(repository).cacheShipperLocation(7L, current);
-        verify(publisher).publishLocationUpdate(current, "OFFLINE_TOMBSTONE");
-        org.assertj.core.api.Assertions.assertThat(current.getIsOnline()).isFalse();
+        var saved = ArgumentCaptor.forClass(ShipperLocationResponse.class);
+        verify(repository).cacheShipperLocation(eq(7L), saved.capture());
+        var offline = saved.getValue();
+        org.assertj.core.api.Assertions.assertThat(offline.getLatitude()).isEqualTo(10.77);
+        org.assertj.core.api.Assertions.assertThat(offline.getLongitude()).isNull();
+        var event = ArgumentCaptor.forClass(ShipperLocationResponse.class);
+        verify(publisher).publishLocationUpdate(event.capture(), eq("OFFLINE_TOMBSTONE"));
+        org.assertj.core.api.Assertions.assertThat(event.getValue()).usingRecursiveComparison().isEqualTo(offline);
+        org.assertj.core.api.Assertions.assertThat(offline.getIsOnline()).isFalse();
     }
 
     @Test

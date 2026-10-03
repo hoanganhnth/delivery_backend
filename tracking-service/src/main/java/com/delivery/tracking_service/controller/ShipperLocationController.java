@@ -4,10 +4,10 @@ import com.delivery.tracking_service.common.constants.ApiPathConstants;
 import com.delivery.tracking_service.dto.request.UpdateLocationRequest;
 import com.delivery.tracking_service.dto.response.ShipperLocationResponse;
 import com.delivery.tracking_service.payload.BaseResponse;
-import com.delivery.tracking_service.service.ShipperLocationService;
 import com.delivery.tracking_service.service.ShipperIdentityResolver;
 import com.delivery.auth.resourceserver.security.AuthenticatedActor;
 import com.delivery.tracking.application.api.TrackingPort;
+import com.delivery.tracking.application.api.ShipperAvailabilityUseCase;
 import com.delivery.tracking.application.api.UpdateLocationCommand;
 import com.delivery.tracking.domain.Coordinate;
 import com.delivery.tracking.domain.LocationSnapshot;
@@ -23,17 +23,14 @@ import org.springframework.web.bind.annotation.*;
 public class ShipperLocationController {
 
     private final TrackingPort tracking;
+    private final ShipperAvailabilityUseCase availability;
     private final ShipperIdentityResolver shipperIdentityResolver;
 
     @Autowired
-    public ShipperLocationController(TrackingPort tracking, ShipperIdentityResolver shipperIdentityResolver) {
+    public ShipperLocationController(TrackingPort tracking, ShipperAvailabilityUseCase availability, ShipperIdentityResolver shipperIdentityResolver) {
         this.tracking = tracking;
+        this.availability = availability;
         this.shipperIdentityResolver = shipperIdentityResolver;
-    }
-
-    /** Compatibility constructor for adapters instantiated directly by older tests. */
-    public ShipperLocationController(ShipperLocationService legacy, ShipperIdentityResolver identities) {
-        this(new LegacyTrackingPort(legacy), identities);
     }
 
     @PostMapping("/update")
@@ -63,7 +60,7 @@ public class ShipperLocationController {
                 .body(new BaseResponse<>(0, null, "Không có quyền truy cập"));
         }
 
-        tracking.markOffline(shipperIdentityResolver.requireShipperId(actor.getPrincipalId(), actor.getLegacyUserId()));
+        availability.markOfflineAndBroadcast(shipperIdentityResolver.requireShipperId(actor.getPrincipalId(), actor.getLegacyUserId()));
         return ResponseEntity.ok(new BaseResponse<>(1, "Đã đánh dấu offline thành công"));
     }
 
@@ -81,22 +78,4 @@ public class ShipperLocationController {
         return response;
     }
 
-    private static final class LegacyTrackingPort implements TrackingPort {
-        private final ShipperLocationService legacy;
-        private LegacyTrackingPort(ShipperLocationService legacy) { this.legacy = legacy; }
-        @Override public LocationSnapshot updateLocation(UpdateLocationCommand command) {
-            var request = new UpdateLocationRequest();
-            request.setLatitude(command.coordinate().latitude()); request.setLongitude(command.coordinate().longitude());
-            request.setAccuracy(command.accuracy()); request.setSpeed(command.speed()); request.setHeading(command.heading());
-            request.setIsOnline(command.online());
-            var result = legacy.updateLocation(command.shipperId(), request);
-            return new LocationSnapshot(command.shipperId(), command.coordinate(), command.accuracy(), command.speed(),
-                    command.heading(), command.online(), java.time.Instant.parse(result.getLastPing()),
-                    java.time.Instant.parse(result.getUpdatedAt()));
-        }
-        @Override public LocationSnapshot markOffline(long shipperId) {
-            legacy.markShipperOffline(shipperId);
-            throw new IllegalStateException("legacy compatibility path does not return a snapshot");
-        }
-    }
 }

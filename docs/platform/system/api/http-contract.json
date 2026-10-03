@@ -11,7 +11,7 @@
   "counts": {
     "operations": 244,
     "services": 18,
-    "sourceSchemas": 231,
+    "sourceSchemas": 229,
     "byService": {
       "analytics-service": 4,
       "auth-service": 20,
@@ -10306,7 +10306,7 @@
       "handler": "updateLocation",
       "source": {
         "file": "backend_delivery/tracking-service/src/main/java/com/delivery/tracking_service/controller/ShipperLocationController.java",
-        "line": 40
+        "line": 37
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<ShipperLocationResponse>> updateLocation( @AuthenticationPrincipal AuthenticatedActor actor, @Valid @RequestBody UpdateLocationRequest request)",
@@ -10356,7 +10356,7 @@
       "handler": "markOffline",
       "source": {
         "file": "backend_delivery/tracking-service/src/main/java/com/delivery/tracking_service/controller/ShipperLocationController.java",
-        "line": 58
+        "line": 55
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<String>> markOffline( @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -10519,18 +10519,36 @@
       "handler": "markOffline",
       "source": {
         "file": "backend_delivery/tracking-service/src/main/java/com/delivery/tracking_service/controller/InternalShipperAvailabilityController.java",
-        "line": 40
+        "line": 35
       },
       "java": {
-        "signature": "public com.delivery.tracking.domain.LocationSnapshot markOffline(long shipperId)",
-        "returnType": "com.delivery.tracking.domain.LocationSnapshot",
+        "signature": "public ResponseEntity<BaseResponse<Void>> markOffline( @PathVariable Long shipperId, @RequestHeader(value = \"Internal-Token\", required = false) String internalToken)",
+        "returnType": "ResponseEntity<BaseResponse<Void>>",
         "parameters": [
           {
             "name": "shipperId",
-            "type": "long",
-            "annotations": [],
+            "type": "Long",
+            "annotations": [
+              {
+                "name": "PathVariable"
+              }
+            ],
+            "required": true,
+            "binding": "path",
+            "wireName": "shipperId"
+          },
+          {
+            "name": "internalToken",
+            "type": "String",
+            "annotations": [
+              {
+                "name": "RequestHeader",
+                "arguments": "value = \"Internal-Token\", required = false"
+              }
+            ],
             "required": false,
-            "binding": "framework"
+            "binding": "header",
+            "wireName": "Internal-Token"
           }
         ]
       }
@@ -27537,84 +27555,6 @@
         {
           "name": "data",
           "type": "T",
-          "annotations": [],
-          "required": false
-        }
-      ]
-    },
-    "com.delivery.tracking.domain.Coordinate": {
-      "kind": "record",
-      "source": {
-        "file": "backend_delivery/modules/tracking/tracking-domain/src/main/java/com/delivery/tracking/domain/Coordinate.java",
-        "line": 4
-      },
-      "fields": [
-        {
-          "name": "latitude",
-          "type": "double",
-          "annotations": [],
-          "required": false
-        },
-        {
-          "name": "longitude",
-          "type": "double",
-          "annotations": [],
-          "required": false
-        }
-      ]
-    },
-    "com.delivery.tracking.domain.LocationSnapshot": {
-      "kind": "record",
-      "source": {
-        "file": "backend_delivery/modules/tracking/tracking-domain/src/main/java/com/delivery/tracking/domain/LocationSnapshot.java",
-        "line": 6
-      },
-      "fields": [
-        {
-          "name": "shipperId",
-          "type": "long",
-          "annotations": [],
-          "required": false
-        },
-        {
-          "name": "coordinate",
-          "type": "Coordinate",
-          "annotations": [],
-          "required": false
-        },
-        {
-          "name": "accuracy",
-          "type": "Double",
-          "annotations": [],
-          "required": false
-        },
-        {
-          "name": "speed",
-          "type": "Double",
-          "annotations": [],
-          "required": false
-        },
-        {
-          "name": "heading",
-          "type": "Double",
-          "annotations": [],
-          "required": false
-        },
-        {
-          "name": "online",
-          "type": "boolean",
-          "annotations": [],
-          "required": false
-        },
-        {
-          "name": "lastPing",
-          "type": "Instant",
-          "annotations": [],
-          "required": false
-        },
-        {
-          "name": "updatedAt",
-          "type": "Instant",
           "annotations": [],
           "required": false
         }

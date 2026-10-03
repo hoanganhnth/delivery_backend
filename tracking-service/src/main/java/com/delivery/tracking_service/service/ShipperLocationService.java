@@ -100,8 +100,7 @@ public class ShipperLocationService {
      * Mark shipper offline - updated with Redis GEO support
      */
     public void markShipperOffline(Long shipperId) {
-        ShipperLocationResponse location = availabilityService.markOffline(shipperId);
-        webSocketHandler.broadcastShipperLocation(location);
+        availabilityService.markOfflineAndBroadcast(shipperId);
     }
 
 }

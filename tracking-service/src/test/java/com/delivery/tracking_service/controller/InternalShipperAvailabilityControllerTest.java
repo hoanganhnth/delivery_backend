@@ -1,6 +1,6 @@
 package com.delivery.tracking_service.controller;
 
-import com.delivery.tracking_service.service.ShipperLocationService;
+import com.delivery.tracking.application.api.ShipperAvailabilityUseCase;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -10,7 +10,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 class InternalShipperAvailabilityControllerTest {
 
-    private final ShipperLocationService locationService = mock(ShipperLocationService.class);
+    private final ShipperAvailabilityUseCase locationService = mock(ShipperAvailabilityUseCase.class);
     private final InternalShipperAvailabilityController controller =
             new InternalShipperAvailabilityController(locationService, "shared-secret");
 
@@ -35,6 +35,6 @@ class InternalShipperAvailabilityControllerTest {
         var response = controller.markOffline(42L, "shared-secret");
 
         assertThat(response.getStatusCode().is2xxSuccessful()).isTrue();
-        verify(locationService).markShipperOffline(42L);
+        verify(locationService).markOfflineAndBroadcast(42L);
     }
 }

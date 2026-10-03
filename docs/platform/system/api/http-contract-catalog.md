@@ -5,7 +5,7 @@
 > or JSON Schema. Read [API Contract Guide](README.md) for edge classification,
 > error semantics and compatibility rules.
 
-Current inventory: **244 operations** across **18 controller-owning services** and **231 reachable source schemas**.
+Current inventory: **244 operations** across **18 controller-owning services** and **229 reachable source schemas**.
 
 ## Service index
 
@@ -4482,18 +4482,19 @@ public Map<String, Object> validate(@RequestHeader(value = "X-Simulator-Token", 
 ### `POST` `/api/tracking/internal/shippers/{shipperId}/offline`
 
 - Handler: `InternalShipperAvailabilityController.markOffline`
-- Source: [`backend_delivery/tracking-service/src/main/java/com/delivery/tracking_service/controller/InternalShipperAvailabilityController.java:40`](../../../../tracking-service/src/main/java/com/delivery/tracking_service/controller/InternalShipperAvailabilityController.java)
-- Java return type: `com.delivery.tracking.domain.LocationSnapshot`
+- Source: [`backend_delivery/tracking-service/src/main/java/com/delivery/tracking_service/controller/InternalShipperAvailabilityController.java:35`](../../../../tracking-service/src/main/java/com/delivery/tracking_service/controller/InternalShipperAvailabilityController.java)
+- Java return type: `ResponseEntity<BaseResponse<Void>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
 | --- | --- | --- | --- | --- | --- |
-| framework | shipperId | long | not declared required | — | — |
+| path | shipperId | Long | declared required | — | @PathVariable |
+| header | Internal-Token | String | not declared required | — | @RequestHeader(value = "Internal-Token", required = false) |
 
 <details>
 <summary>Java signature for markOffline</summary>
 
 ```java
-public com.delivery.tracking.domain.LocationSnapshot markOffline(long shipperId)
+public ResponseEntity<BaseResponse<Void>> markOffline( @PathVariable Long shipperId, @RequestHeader(value = "Internal-Token", required = false) String internalToken)
 ```
 
 </details>
@@ -4501,7 +4502,7 @@ public com.delivery.tracking.domain.LocationSnapshot markOffline(long shipperId)
 ### `POST` `/api/tracking/shipper-locations/offline`
 
 - Handler: `ShipperLocationController.markOffline`
-- Source: [`backend_delivery/tracking-service/src/main/java/com/delivery/tracking_service/controller/ShipperLocationController.java:58`](../../../../tracking-service/src/main/java/com/delivery/tracking_service/controller/ShipperLocationController.java)
+- Source: [`backend_delivery/tracking-service/src/main/java/com/delivery/tracking_service/controller/ShipperLocationController.java:55`](../../../../tracking-service/src/main/java/com/delivery/tracking_service/controller/ShipperLocationController.java)
 - Java return type: `ResponseEntity<BaseResponse<String>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -4520,7 +4521,7 @@ public ResponseEntity<BaseResponse<String>> markOffline( @AuthenticationPrincipa
 ### `POST` `/api/tracking/shipper-locations/update`
 
 - Handler: `ShipperLocationController.updateLocation`
-- Source: [`backend_delivery/tracking-service/src/main/java/com/delivery/tracking_service/controller/ShipperLocationController.java:40`](../../../../tracking-service/src/main/java/com/delivery/tracking_service/controller/ShipperLocationController.java)
+- Source: [`backend_delivery/tracking-service/src/main/java/com/delivery/tracking_service/controller/ShipperLocationController.java:37`](../../../../tracking-service/src/main/java/com/delivery/tracking_service/controller/ShipperLocationController.java)
 - Java return type: `ResponseEntity<BaseResponse<ShipperLocationResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -8580,32 +8581,6 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 | status | int | not declared required | — |
 | message | String | not declared required | — |
 | data | T | not declared required | — |
-
-### `com.delivery.tracking.domain.Coordinate`
-
-- Kind: `record`
-- Source: [`backend_delivery/modules/tracking/tracking-domain/src/main/java/com/delivery/tracking/domain/Coordinate.java:4`](../../../../modules/tracking/tracking-domain/src/main/java/com/delivery/tracking/domain/Coordinate.java)
-
-| Field | Java type | Required | Validation/annotations |
-| --- | --- | --- | --- |
-| latitude | double | not declared required | — |
-| longitude | double | not declared required | — |
-
-### `com.delivery.tracking.domain.LocationSnapshot`
-
-- Kind: `record`
-- Source: [`backend_delivery/modules/tracking/tracking-domain/src/main/java/com/delivery/tracking/domain/LocationSnapshot.java:6`](../../../../modules/tracking/tracking-domain/src/main/java/com/delivery/tracking/domain/LocationSnapshot.java)
-
-| Field | Java type | Required | Validation/annotations |
-| --- | --- | --- | --- |
-| shipperId | long | not declared required | — |
-| coordinate | Coordinate | not declared required | — |
-| accuracy | Double | not declared required | — |
-| speed | Double | not declared required | — |
-| heading | Double | not declared required | — |
-| online | boolean | not declared required | — |
-| lastPing | Instant | not declared required | — |
-| updatedAt | Instant | not declared required | — |
 
 ### `com.delivery.user_service.dto.BlockUserRequest`
 
