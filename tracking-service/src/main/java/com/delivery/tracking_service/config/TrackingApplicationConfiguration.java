@@ -48,6 +48,12 @@ public class TrackingApplicationConfiguration {
 
 
     @Bean
+    com.delivery.tracking.application.api.ShipperIdentityInboxUseCase shipperIdentityInbox(
+            com.delivery.tracking.application.api.ShipperIdentityInboxStorePort store) {
+        return new com.delivery.tracking.application.DefaultShipperIdentityInboxUseCase(store);
+    }
+
+    @Bean
     TrackingPort tracking(LocationStorePort store, LocationEventPort events) {
         return new DefaultTrackingService(store, events);
     }

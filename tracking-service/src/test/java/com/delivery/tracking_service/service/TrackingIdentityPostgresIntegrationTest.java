@@ -1,6 +1,14 @@
 package com.delivery.tracking_service.service;
 
 import com.delivery.tracking.application.DefaultShipperIdentityUseCase;
+import com.delivery.tracking.application.DefaultShipperIdentityInboxUseCase;
+import com.delivery.identity.contracts.ShipperIdentityUpserted;
+import com.delivery.tracking_service.repository.ShipperIdentityInboxReceiptRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.PlatformTransactionManager;
+import java.util.concurrent.*;
+import static org.awaitility.Awaitility.await;
 import com.delivery.tracking.application.api.*;
 import com.delivery.tracking.domain.Coordinate;
 import com.delivery.tracking.domain.LocationSnapshot;
@@ -66,7 +74,110 @@ class TrackingIdentityPostgresIntegrationTest {
     @MockitoBean ShipperPublisherLeaseRepository leases;
     @MockitoBean RedisGeoRepository geo;
 
-    @BeforeEach void clean() { projections.deleteAll(); }
+    @Autowired ShipperIdentityProjectionListener identityEvents;
+    @Autowired ShipperIdentityInboxReceiptRepository receipts;
+    @Autowired ObjectMapper mapper;
+    @Autowired JdbcTemplate jdbc;
+    @Autowired PlatformTransactionManager transactions;
+    @BeforeEach void clean() { receipts.deleteAll(); projections.deleteAll(); }
+
+    @Test void realListenerRetainsReplayStaleEqualVersionAndGapSemantics() throws Exception {
+        UUID eventId = UUID.randomUUID();
+        String initial = raw(eventId, 100L, 200L, 987L, 4);
+        identityEvents.upsert(initial); identityEvents.upsert(initial);
+        assertThat(receipts.count()).isEqualTo(1);
+        assertThat(projections.findById(100L).orElseThrow().getMappingVersion()).isEqualTo(4);
+        assertThatThrownBy(() -> identityEvents.upsert(initial + " "))
+                .isInstanceOf(IllegalStateException.class).hasMessage("Conflicting shipper identity event reuse");
+        identityEvents.upsert(raw(UUID.randomUUID(), 100L, 201L, 988L, 3));
+        assertThat(projections.findById(100L).orElseThrow().getShipperId()).isEqualTo(987);
+        UUID gap = UUID.randomUUID();
+        assertThatThrownBy(() -> identityEvents.upsert(raw(gap, 100L, 200L, 987L, 6)))
+                .isInstanceOf(IllegalStateException.class).hasMessage("Shipper identity mapping version gap");
+        assertThat(receipts.existsById(gap)).isFalse();
+        // Existing listener admits a different event at the same version; preserve this policy explicitly.
+        identityEvents.upsert(raw(UUID.randomUUID(), 100L, 201L, 988L, 4));
+        identityEvents.upsert(raw(UUID.randomUUID(), 100L, 201L, 988L, 5));
+        assertThat(projections.findById(100L).orElseThrow().getMappingVersion()).isEqualTo(5);
+        assertThat(receipts.count()).isEqualTo(4);
+    }
+
+    @Test void uniquenessFailureRollsBackProjectionAndReceiptTogether() throws Exception {
+        mapping(100L, 200L, 987L);
+        UUID id = UUID.randomUUID();
+        assertThatThrownBy(() -> identityEvents.upsert(raw(id, 101L, 201L, 987L, 1)))
+                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+        assertThat(receipts.existsById(id)).isFalse();
+        assertThat(projections.existsById(101L)).isFalse();
+        assertThat(projections.findById(100L).orElseThrow().getShipperId()).isEqualTo(987);
+        identityEvents.upsert(raw(id, 101L, 201L, 988L, 1));
+        assertThat(receipts.existsById(id)).isTrue();
+    }
+
+    @Test void independentCoreInstancesConvergeOnConcurrentExactReplay() throws Exception {
+        var first = new DefaultShipperIdentityInboxUseCase(newAdapter());
+        var second = new DefaultShipperIdentityInboxUseCase(newAdapter());
+        UUID id = UUID.randomUUID();
+        String raw = raw(id, 100L, 200L, 987L, 1);
+        var command = new ApplyShipperIdentityCommand(id, ShipperIdentityUpserted.TYPE, 100L, 200L, 987L, 1, raw);
+        var start = new CountDownLatch(1);
+        var executor = Executors.newFixedThreadPool(8);
+        try {
+            List<Future<?>> results = new ArrayList<>();
+            for (int i = 0; i < 8; i++) {
+                var instance = i % 2 == 0 ? first : second;
+                results.add(executor.submit(() -> { start.await(); instance.apply(command); return null; }));
+            }
+            start.countDown();
+            for (var result : results) result.get(15, TimeUnit.SECONDS);
+            assertThat(receipts.count()).isEqualTo(1);
+            assertThat(projections.count()).isEqualTo(1);
+            assertThat(projections.findById(100L).orElseThrow().getMappingVersion()).isEqualTo(1);
+        } finally { executor.shutdownNow(); }
+    }
+
+    @Test void databaseLocksSerializeAbsentPrincipalAndGlobalEventIdentity() throws Exception {
+        for (boolean sameEvent : List.of(false, true)) {
+            UUID heldEvent = UUID.randomUUID();
+            UUID nextEvent = sameEvent ? heldEvent : UUID.randomUUID();
+            Long heldPrincipal = sameEvent ? 102L : 103L;
+            Long nextPrincipal = sameEvent ? 104L : heldPrincipal;
+            var locked = new CountDownLatch(1); var release = new CountDownLatch(1);
+            var started = new CountDownLatch(1); var executor = Executors.newFixedThreadPool(2);
+            var adapter = newAdapter();
+            try {
+                Future<?> owner = executor.submit(() -> adapter.atomically(heldEvent, heldPrincipal, () -> {
+                    locked.countDown();
+                    try { if (!release.await(10, TimeUnit.SECONDS)) throw new AssertionError("lock release timeout"); }
+                    catch (InterruptedException error) { Thread.currentThread().interrupt(); throw new IllegalStateException(error); }
+                }));
+                assertThat(locked.await(5, TimeUnit.SECONDS)).isTrue();
+                Future<?> contender = executor.submit(() -> {
+                    started.countDown();
+                    new DefaultShipperIdentityInboxUseCase(newAdapter()).apply(new ApplyShipperIdentityCommand(
+                            nextEvent, ShipperIdentityUpserted.TYPE, nextPrincipal, nextPrincipal + 100,
+                            nextPrincipal + 1000, 1, "locked event " + nextEvent));
+                });
+                assertThat(started.await(5, TimeUnit.SECONDS)).isTrue();
+                await().atMost(java.time.Duration.ofSeconds(5)).untilAsserted(() -> assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND NOT granted", Long.class)).isPositive());
+                assertThat(contender.isDone()).isFalse();
+                assertThat(projections.existsById(nextPrincipal)).isFalse();
+                release.countDown(); owner.get(10, TimeUnit.SECONDS); contender.get(10, TimeUnit.SECONDS);
+                assertThat(receipts.existsById(nextEvent)).isTrue();
+                assertThat(projections.existsById(nextPrincipal)).isTrue();
+            } finally { release.countDown(); executor.shutdownNow(); }
+        }
+    }
+
+    private JpaShipperIdentityInboxAdapter newAdapter() {
+        return new JpaShipperIdentityInboxAdapter(projections, receipts, jdbc, transactions);
+    }
+    private String raw(UUID id, Long principal, Long legacy, Long shipper, long version) throws Exception {
+        return mapper.writeValueAsString(new ShipperIdentityUpserted(id, ShipperIdentityUpserted.TYPE, 1,
+                Instant.parse("2026-10-03T00:00:00Z"), UUID.randomUUID(), null,
+                principal, legacy, shipper, version));
+    }
 
     @Test void restAndSocketUseCanonicalShipperFromTheSameProductionCore() throws Exception {
         assertThat(core).isInstanceOf(DefaultShipperIdentityUseCase.class);

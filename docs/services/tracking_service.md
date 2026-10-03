@@ -83,7 +83,7 @@ khác trước contract freeze.
 
 ## Kiến trúc đang hợp nhất
 
-Policy principal/projection identity, offline/tombstone, publication và publisher lease/grace/recovery hiện chạy trong
+Policy principal/projection identity và identity inbox, offline/tombstone, publication và publisher lease/grace/recovery hiện chạy trong
 `tracking-application`; adapter JPA/Redis/Kafka/HTTP giữ mapping và transport.
 REST và internal offline dùng cùng core, gồm cả khi không có cache hoặc tọa độ
 cache chỉ có một phía. Lease/grace vẫn dùng operation Kafka-only rồi callback
@@ -96,6 +96,12 @@ availability cũ không còn caller đã được xoá, test lỗi chuyển sang
 `spring.task.scheduling.enabled=false` tắt các job định kỳ (lease sweep/history
 retention); scheduler cho callback grace vẫn hoạt động. Khi không cấu hình cờ,
 hai job định kỳ vẫn bật như trước. Spring context thật kiểm chứng cả ba cấu hình.
-Identity inbox, history và runtime còn cần hoàn thiện;
+Identity inbox dùng core để kiểm raw-payload fingerprint, replay, stale version
+và version gap. PostgreSQL adapter khoá theo event rồi principal trong cùng
+transaction ghi projection/receipt, kể cả khi chưa có row. Exact replay không
+ghi lại, event cũ chỉ tạo receipt và gap không tạo receipt. Giữ admission cũ:
+snapshot đầu tiên có thể có version bất kỳ lớn hơn 0; event mới cùng version
+vẫn được apply. Kafka retry/DLT và shape event không đổi.
+History, audit room/fanout policy và runtime còn cần hoàn thiện;
 chưa xoá host cũ hoặc coi toàn bộ Tracking hoàn tất. Bằng chứng và tiến độ nằm ở
 `../plans/active/service-architecture-consolidation.md`.
