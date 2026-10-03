@@ -3108,7 +3108,7 @@ public ResponseEntity<BaseResponse<PageResponse<RestaurantRatingResponse>>> getA
 ### `GET` `/api/restaurants/internal/{restaurantId}/livestream-products/{productId}`
 
 - Handler: `InternalLivestreamProductController.get`
-- Source: [`backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/InternalLivestreamProductController.java:31`](../../../../restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/InternalLivestreamProductController.java)
+- Source: [`backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/InternalLivestreamProductController.java:28`](../../../../restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/InternalLivestreamProductController.java)
 - Java return type: `ResponseEntity<BaseResponse<Product>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -3211,7 +3211,7 @@ public ResponseEntity<BaseResponse<List<RestaurantResponse>>> getMyRestaurants( 
 ### `POST` `/api/restaurants/orders/{orderId}/confirm`
 
 - Handler: `RestaurantOrderController.confirmOrder`
-- Source: [`backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/RestaurantOrderController.java:26`](../../../../restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/RestaurantOrderController.java)
+- Source: [`backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/RestaurantOrderController.java:31`](../../../../restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/RestaurantOrderController.java)
 - Java return type: `ResponseEntity<BaseResponse<String>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -3232,7 +3232,7 @@ public ResponseEntity<BaseResponse<String>> confirmOrder( @PathVariable Long ord
 ### `POST` `/api/restaurants/orders/{orderId}/reject`
 
 - Handler: `RestaurantOrderController.rejectOrder`
-- Source: [`backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/RestaurantOrderController.java:58`](../../../../restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/RestaurantOrderController.java)
+- Source: [`backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/RestaurantOrderController.java:63`](../../../../restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/RestaurantOrderController.java)
 - Java return type: `ResponseEntity<BaseResponse<String>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -7212,7 +7212,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.restaurant_service.controller.InternalLivestreamProductController.Product`
 
 - Kind: `record`
-- Source: [`backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/InternalLivestreamProductController.java:26`](../../../../restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/InternalLivestreamProductController.java)
+- Source: [`backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/InternalLivestreamProductController.java:24`](../../../../restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/InternalLivestreamProductController.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |

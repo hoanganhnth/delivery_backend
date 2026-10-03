@@ -7,7 +7,7 @@ Date: 2026-10-02
 Active. User approved the root-level service layout and completing one service
 before starting the next. Worktree: `.worktrees/backend-service-architecture`
 at workspace root, branch `refactor/service-architecture`, base `71218d7`.
-Auth tranche is integrated on `main` at `047ccb2`; Restaurant is next. The
+Auth tranche is integrated on `main` at `047ccb2`; Restaurant is verified and ready for integration. Tracking is next. The
 retired Auth source paths have no tracked files. Ignored local build outputs
 and operator PEM files may still remain in a developer checkout under the old
 directory; do not delete or package those PEM files as part of source cleanup.
@@ -46,7 +46,7 @@ from the earlier conversation, not implicitly authorized by this structural plan
   decisions and transactional adapters, preserving identity and outbox/inbox.
 - [x] Auth: complete runtime use cases and adapters, preserving principal
   identity, session/token, lifecycle and security rules.
-- [ ] Restaurant: close decision/rating/serviceability/inventory use cases in
+- [x] Restaurant: close decision/rating/serviceability/inventory use cases in
   addition to catalogue; retain transaction, concurrency and event guarantees.
 - [ ] Tracking: close REST/WebSocket/publication/lease/recovery use cases;
   preserve location ordering and reconnect fences.
@@ -735,3 +735,15 @@ services or the earlier Saga-to-Dispatch migration are complete.
 - Moved all six former ownership wrapper vectors into application against actual `DefaultRestaurantManagementAccessUseCase`: missing principal, principal mismatch despite matching legacy identity, principal success without fallback, gated unmigrated fallback and ADMIN. Domain exceptions are asserted at their owning core boundary; existing facade/HTTP tests retain Spring authorization response proof.
 - Focused adapter/core/ownership fixtures passed; fresh `/tmp/restaurant-final-adapter-clean-verify.log` full clean verify exited 0 with 418 tests (35 domain/117 application/156 infrastructure/110 boot), zero failures/errors/skips. No business policy or API/event shape was changed.
 - Final controller audit found two remaining ownership decisions outside core: internal principal/legacy lookup and legacy creator admission for order confirm/reject. They must be moved next while preserving their distinct existing semantics; Restaurant remains unintegrated pending this work and final runtime/Docker proof.
+
+
+### Restaurant final ownership, Livestream authority and completion audit
+
+- Moved internal ownership queries and confirm/reject authorization to `DefaultRestaurantOwnershipLookupUseCase`, backed by a read-only transaction and canonical JPA facts. Removed three obsolete ownership repository queries. Internal old-client creator lookup and gated principal-aware fallback/counter remain compatible.
+- Final review found confirm/reject still authorized only legacy creator. The repository specification (`docs/services/restaurant_and_menu.md`, ownership policy) makes principal identity authoritative and restricts legacy fallback to unmigrated rows with enforcement off. Corrected this gap: assigned principal owner succeeds even when legacy creator differs; former creator fails before Order eligibility or outbox mutation. Two regression tests failed against a temporary creator-only implementation, then passed against the canonical core (`/tmp/restaurant-order-owner-legacy-red.log`). Event `actorUserId` remains the trusted legacy actor identity.
+- Moved the remaining repository-backed HTTP business decision for Livestream products to `DefaultLivestreamProductUseCase`. JPA supplies unfiltered canonical metadata within core-owned read-only transaction; application checks AVAILABLE and restaurant scope. Internal token, invalid-scope 400, unavailable/missing/foreign 404, response fields and Gateway exclusion remain unchanged. Existing controller tests exercise the real replacement; four core tests cover canonical metadata, every status, missing/foreign/parentless facts and invalid scope before persistence.
+- Fresh full `mvn -B -pl :restaurant-service -am clean verify -q` passed: 434 tests (domain 35/application 128/infrastructure 158/boot 113), zero failures/errors/skips; `/tmp/restaurant-final-livestream-clean-verify.log`. Domain line/branch coverage 87.73/98.05%; application 99.86/96.81%; all existing 85% gates retained.
+- Final actual JAR proof passed (`/tmp/restaurant-final-livestream-runtime.log`): real PostgreSQL migrations/restart, RS256/JWKS authentication, owner/admin/foreign role checks, canonical checkout with serviceability/stock enabled, inventory compensation/private credentials, lifecycle audits, Search and decision outbox rows, actual load-balanced Order HTTP eligibility, confirm/reject/replay/conflict, rating moderation and Livestream metadata/secret/scope/status. Order outage returns the existing generic HTTP 500 and creates no decision/outbox; an earlier fixture assumption of 503 was corrected without changing production error policy. Fixtures do not prove a live Auth/Order/Search deployment.
+- Final adapter review confirms HTTP controllers do not import repositories, core has no framework dependency, business writes/receipts/outbox retain core transaction boundaries, and JPA/JSON/HTTP/Kafka/lease/scheduler adapters retain technical responsibilities. Existing facade classes are wire/exception translators to actual core use cases; no legacy business implementation is delegated to.
+- Docker freshness rejection and Compose configuration checks passed (`/tmp/restaurant-docker-freshness.log`, `/tmp/restaurant-compose-config-green.log`). Compose render proof supplies a placeholder Web BFF encryption-key path, without reading operator key material. Final Compose Restaurant package manifest is generated (`/tmp/restaurant-final-compose-package.log`). Final Docker security passed (`/tmp/restaurant-final-docker-security.log`): non-root 10001:10001, read-only application filesystem, writable temporary directory. Fresh final runtime dependency graphs passed (domain 1/API 2/application 3/boot 190 nodes), without framework dependencies in core or foreign service implementations (`/tmp/restaurant-final-livestream-dependencies.log`).
+- HTTP wire shape remains identical (244 operations/231 schemas), with controller source metadata updated; public edge remains 93 routes/157 patterns. Static module boundaries and all 17 test-context isolation checks passed. No tracked old `restaurant-service/` or `modules/restaurant/` source remains. Whole-backend consolidation and Saga-to-Dispatch remain pending.

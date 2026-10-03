@@ -1,11 +1,17 @@
 package com.delivery.restaurant_service.config;
 
+import com.delivery.restaurant.application.DefaultLivestreamProductUseCase;
+import com.delivery.restaurant.application.api.LivestreamProductUseCase;
+import com.delivery.restaurant.application.api.LivestreamProductReadPort;
 import com.delivery.restaurant.application.api.OrderValidationUseCase;
 import com.delivery.restaurant.application.api.OrderValidationCatalogPort;
 import com.delivery.restaurant.application.api.RestaurantServiceabilityUseCase;
 import com.delivery.restaurant.application.api.MenuItemInventoryUseCase;
 import org.springframework.beans.factory.ObjectProvider;
 import com.delivery.restaurant.application.DefaultOrderValidationUseCase;
+import com.delivery.restaurant.application.api.RestaurantOwnershipLookupUseCase;
+import com.delivery.restaurant.application.api.RestaurantOwnershipReadPort;
+import com.delivery.restaurant.application.DefaultRestaurantOwnershipLookupUseCase;
 import org.springframework.beans.factory.annotation.Value;
 import com.delivery.restaurant.application.DefaultCatalogLifecycleUseCase;
 import com.delivery.restaurant.application.api.RestaurantTransactionPort;
@@ -58,6 +64,19 @@ import org.springframework.context.annotation.Configuration;
         RestaurantDecisionInfrastructureConfiguration.class, RestaurantRatingInfrastructureConfiguration.class,
         RestaurantServiceabilityInfrastructureConfiguration.class})
 public class RestaurantOwnershipConfiguration {
+
+    @Bean
+    LivestreamProductUseCase livestreamProductUseCase(LivestreamProductReadPort products, RestaurantTransactionPort transactions) {
+        return new DefaultLivestreamProductUseCase(products, transactions);
+    }
+
+
+    @Bean
+    RestaurantOwnershipLookupUseCase restaurantOwnershipLookupUseCase(
+            RestaurantOwnershipReadPort ownership, RestaurantTransactionPort transactions, RestaurantManagementAccessUseCase access) {
+        return new DefaultRestaurantOwnershipLookupUseCase(ownership, transactions, access);
+    }
+
 
     @Bean
     OrderValidationUseCase orderValidationUseCase(

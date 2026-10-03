@@ -6624,7 +6624,7 @@
       "handler": "get",
       "source": {
         "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/InternalLivestreamProductController.java",
-        "line": 31
+        "line": 28
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<Product>> get(@PathVariable Long restaurantId, @PathVariable Long productId, @RequestHeader(value = \"Internal-Token\", required = false) String token)",
@@ -7307,7 +7307,7 @@
       "handler": "confirmOrder",
       "source": {
         "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/RestaurantOrderController.java",
-        "line": 26
+        "line": 31
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<String>> confirmOrder( @PathVariable Long orderId, @Valid @RequestBody ConfirmRestaurantOrderRequest request, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -7369,7 +7369,7 @@
       "handler": "rejectOrder",
       "source": {
         "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/RestaurantOrderController.java",
-        "line": 58
+        "line": 63
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<String>> rejectOrder( @PathVariable Long orderId, @Valid @RequestBody RejectRestaurantOrderRequest request, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -21074,7 +21074,7 @@
       "kind": "record",
       "source": {
         "file": "backend_delivery/restaurant/infrastructure/src/main/java/com/delivery/restaurant_service/controller/InternalLivestreamProductController.java",
-        "line": 26
+        "line": 24
       },
       "fields": [
         {

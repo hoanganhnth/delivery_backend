@@ -1,6 +1,6 @@
 package com.delivery.restaurant_service.controller;
 
-import com.delivery.restaurant_service.repository.RestaurantRepository;
+import com.delivery.restaurant.application.api.RestaurantOwnershipLookupUseCase;
 import com.delivery.restaurant_service.payload.BaseResponse;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/restaurants/internal")
 public class InternalRestaurantController {
 
-    private final RestaurantRepository restaurantRepository;
+    private final RestaurantOwnershipLookupUseCase ownership;
     private final MeterRegistry meterRegistry;
 
     @Value("${app.internal.secret:}")
@@ -27,9 +27,9 @@ public class InternalRestaurantController {
     @Value("${app.identity.principal-ownership.enforced:false}")
     private boolean principalOwnershipEnforced;
 
-    public InternalRestaurantController(RestaurantRepository restaurantRepository,
+    public InternalRestaurantController(RestaurantOwnershipLookupUseCase ownership,
                                         MeterRegistry meterRegistry) {
-        this.restaurantRepository = restaurantRepository;
+        this.ownership = ownership;
         this.meterRegistry = meterRegistry;
     }
 
@@ -44,26 +44,9 @@ public class InternalRestaurantController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(new BaseResponse<>(0, null, "Forbidden"));
         }
-        // A caller without the query parameter is an old internal client and
-        // keeps legacy behaviour. Principal-aware callers supply both values;
-        // legacy fallback is allowed only for rows not yet backfilled.
-        boolean owned;
-        if (legacyOwnerId == null) {
-            owned = restaurantRepository.existsByIdAndCreatorId(restaurantId, ownerId);
-        } else if (principalOwnershipEnforced) {
-            owned = restaurantRepository.existsByIdAndOwnerPrincipalId(restaurantId, ownerId);
-        } else {
-            // Count only a real fallback, never every principal-aware internal
-            // request. This makes the R4 zero-fallback gate meaningful for
-            // Flash Sale and any other caller using this ownership boundary.
-            owned = restaurantRepository.existsByIdAndOwnerPrincipalId(restaurantId, ownerId);
-            if (!owned) {
-                owned = restaurantRepository.existsByIdAndOwnerPrincipalOrUnmigratedCreator(
-                        restaurantId, ownerId, legacyOwnerId);
-                if (owned) identityLegacyFallback();
-            }
-        }
-        return ResponseEntity.ok(new BaseResponse<>(1, owned));
+        var decision = ownership.internalCheck(restaurantId, ownerId, legacyOwnerId, principalOwnershipEnforced);
+        if (decision.usedLegacyFallback()) identityLegacyFallback();
+        return ResponseEntity.ok(new BaseResponse<>(1, decision.owned()));
     }
 
     private void identityLegacyFallback() {

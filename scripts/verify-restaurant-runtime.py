@@ -17,6 +17,7 @@ import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.error import HTTPError
 from urllib.request import ProxyHandler, Request, build_opener
+from urllib.parse import urlsplit, parse_qs
 
 ROOT = Path(__file__).resolve().parents[1]
 HTTP = build_opener(ProxyHandler({}))
@@ -30,6 +31,9 @@ def encoded(value):
 
 class Boundary(BaseHTTPRequestHandler):
     jwks = {}
+    restaurant_id = None
+    order_unavailable = False
+    order_calls = []
 
     def respond(self, payload, status=200):
         body = json.dumps(payload).encode()
@@ -40,8 +44,23 @@ class Boundary(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self):
-        self.respond(self.jwks if self.path == "/.well-known/jwks.json" else {},
-                     200 if self.path == "/.well-known/jwks.json" else 404)
+        if self.path == "/.well-known/jwks.json":
+            self.respond(self.jwks)
+            return
+        uri = urlsplit(self.path)
+        if uri.path.startswith("/api/orders/internal/"):
+            assert self.headers.get("Internal-Token") == SECRET
+            self.order_calls.append(self.path)
+            if self.order_unavailable:
+                self.respond({"status": 0, "data": None}, 503)
+                return
+            query = parse_qs(uri.query)
+            eligible = query.get("restaurantId") == [str(self.restaurant_id)]
+            if uri.path.endswith("/rating-eligibility"):
+                eligible = eligible and query.get("userId") == ["1973"]
+            self.respond({"status": 1, "data": eligible})
+            return
+        self.respond({}, 404)
 
     def log_message(self, *_): pass
 
@@ -109,7 +128,7 @@ def main():
                 signature = subprocess.check_output(["openssl", "dgst", "-sha256", "-sign", str(key)], input=unsigned.encode())
                 return unsigned + "." + encoded(signature)
 
-            owner, admin, customer = token(971, 1971, "SHOP_OWNER"), token(972, 1972, "ADMIN"), token(973, 1973, "CUSTOMER")
+            owner, admin, customer = token(971, 1971, "SHOP_OWNER"), token(972, 1972, "ADMIN"), token(973, 1973, "USER")
             foreign = token(974, 1974, "SHOP_OWNER")
             environment = {k: v for k, v in os.environ.items()
                            if not k.startswith(("SPRING_", "EUREKA_", "JAVA_TOOL_OPTIONS", "JDK_JAVA_OPTIONS"))}
@@ -130,6 +149,8 @@ def main():
                         "--app.restaurant.inventory-enabled=true", "--app.restaurant.serviceability-enabled=true",
                         "--app.identity.principal-ownership.enforced=true",
                         "--management.otlp.tracing.export.enabled=false",
+                        "--order.service.url=http://order-service",
+                        f"--spring.cloud.discovery.client.simple.instances.order-service[0].uri=http://127.0.0.1:{boundary.server_port}",
                     ], cwd=ROOT, stdout=output, stderr=subprocess.STDOUT, env=environment)
                     try:
                         deadline = time.monotonic() + 90
@@ -163,6 +184,18 @@ def main():
                                                {"restaurantId": restaurant_id, "name": "Canonical meal", "price": 42.5})
                         assert status == 200 and body["data"]["price"] == 42.5, (status, body)
                         menu_id = body["data"]["id"]
+                        product_path = f"/api/restaurants/internal/{restaurant_id}/livestream-products/{menu_id}"
+                        assert request(base, product_path)[0] == 403
+                        assert request(base, product_path, internal="wrong")[0] == 403
+                        status, product = request(base, product_path, internal=SECRET)
+                        assert status == 200 and product["data"] == {"productId": menu_id, "restaurantId": restaurant_id,
+                            "productName": "Canonical meal", "productImage": None, "restaurantName": "Runtime Restaurant"}, (status, product)
+                        assert request(base, f"/api/restaurants/internal/{restaurant_id+1}/livestream-products/{menu_id}", internal=SECRET)[0] == 404
+                        assert request(base, f"/api/restaurants/internal/{restaurant_id}/livestream-products/999999", internal=SECRET)[0] == 404
+                        assert request(base, f"/api/restaurants/internal/0/livestream-products/{menu_id}", internal=SECRET)[0] == 400
+                        sql(f"update menu_item set status='SOLD_OUT' where id={menu_id}")
+                        assert request(base, product_path, internal=SECRET)[0] == 404
+                        sql(f"update menu_item set status='AVAILABLE' where id={menu_id}")
                         zone_path = f"/api/restaurants/{restaurant_id}/serviceability-zones"
                         polygon = {"type": "Polygon", "coordinates": [[[106.6,10.7],[106.7,10.7],[106.7,10.8],[106.6,10.8],[106.6,10.7]]]}
                         zone = {"name": "Coverage", "polygonGeoJson": json.dumps(polygon), "priority": 0, "active": True}
@@ -186,6 +219,33 @@ def main():
                         status, body = request(base, validation_path, "POST", body=checkout, internal=SECRET)
                         assert status == 200 and body["status"] == 0 and body["data"]["errors"][0]["errorCode"] == "OUTSIDE_ACTIVE_ZONES", (status, body)
                         checkout["deliveryLat"] = 10.75
+                        Boundary.restaurant_id = restaurant_id
+                        # Principal assignment remains authoritative when legacy creator differs.
+                        sql(f"update restaurant set creator_id=1974 where id={restaurant_id}")
+                        decision = {"restaurantId": restaurant_id, "estimatedPrepTime": 20}
+                        confirm_path = "/api/restaurants/orders/99801/confirm"
+                        calls_before = len(Boundary.order_calls)
+                        assert request(base, confirm_path, "POST", foreign, decision)[0] == 403
+                        assert len(Boundary.order_calls) == calls_before
+                        status, body = request(base, confirm_path, "POST", owner, decision)
+                        assert status == 200 and body["data"] == "CONFIRMED", (status, body)
+                        assert request(base, confirm_path, "POST", owner, decision)[0] == 200
+                        contradictory = dict(decision, estimatedPrepTime=21)
+                        assert request(base, confirm_path, "POST", owner, contradictory)[0] == 409
+                        status, body = request(base, "/api/restaurants/orders/99802/reject", "POST", owner,
+                                               {"restaurantId": restaurant_id, "reason": "Closed"})
+                        assert status == 200 and body["data"] == "REJECTED", (status, body)
+                        Boundary.order_unavailable = True
+                        try:
+                            status, body = request(base, "/api/restaurants/orders/99803/confirm", "POST", owner, decision)
+                            assert status == 500 and body["status"] == 0, (status, body)
+                            assert any("/99803/restaurant-decision-eligibility" in path for path in Boundary.order_calls)
+                            assert sql("select count(*) from restaurant_order_decisions where order_id=99803") == "0"
+                        finally: Boundary.order_unavailable = False
+                        assert sql("select count(*) from restaurant_order_decisions") == "2"
+                        internal_owner = f"/api/restaurants/internal/{restaurant_id}/owners/971?legacyOwnerId=1971"
+                        assert request(base, internal_owner, internal=SECRET)[1]["data"] is True
+                        assert request(base, internal_owner, internal="wrong")[0] == 403
                         reservation_id = str(uuid.uuid4())
                         reserve_path = "/api/menu-items/internal/inventory/reservations"
                         reservation = {"reservationId": reservation_id, "orderId": 99501, "userId": 300, "userPrincipalId": 400,
@@ -217,12 +277,26 @@ def main():
                         status, body = request(base, lifecycle_path, "PATCH", admin, {"targetStatus": "PAUSED", "expectedVersion": 3})
                         assert status == 200 and body["data"]["version"] == 4, (status, body)
                         assert sql("select count(*) from catalog_lifecycle_audits") == "4"
-                        assert sql("select count(*) from restaurant_outbox_events") == "6"
+                        assert sql("select count(*) from restaurant_outbox_events") == "8"
+                        rating_path = f"/api/restaurants/{restaurant_id}/ratings"
+                        rating = {"orderId": 99811, "rating": 5, "comment": "Runtime meal"}
+                        assert request(base, rating_path, "POST", owner, rating)[0] == 403
+                        status, body = request(base, rating_path, "POST", customer, rating)
+                        assert status == 200 and body["data"]["status"] == "PENDING", (status, body)
+                        rating_id = body["data"]["id"]
+                        assert request(base, rating_path)[1]["data"] == []
+                        assert request(base, rating_path, "POST", customer, rating)[0] == 409
+                        moderation = f"/api/restaurants/admin/ratings/{rating_id}/status?status=APPROVED"
+                        assert request(base, moderation, "PUT", customer)[0] == 403
+                        assert request(base, moderation, "PUT", admin)[0] == 200
+                        assert request(base, rating_path)[1]["data"][0]["rating"] == 5
+                        assert request(base, f"/api/restaurants/{restaurant_id}")[1]["data"]["ratingCount"] == 1
+                        assert request(base, "/api/restaurants/me/ratings", token=customer)[1]["data"][0]["orderId"] == 99811
                     except Exception:
                         print(log.read_text()[-5000:])
                         raise
                     finally: stop(child)
-        print("Restaurant packaged JAR PASSED: PostgreSQL migrations/restart, RS256/JWKS authentication, owner/admin authorization, canonical checkout, serviceability, inventory reserve/commit/compensation and lifecycle audit/outbox.")
+        print("Restaurant packaged JAR PASSED: PostgreSQL migrations/restart, RS256/JWKS authentication, owner/admin authorization, canonical checkout, serviceability, inventory reserve/commit/compensation, lifecycle audit/outbox, principal-owned order decisions/eligibility failure and rating moderation.")
     finally:
         if created: docker("rm", "-f", name)
         boundary.shutdown()

@@ -1,6 +1,13 @@
 package com.delivery.restaurant_service.controller;
 
 import com.delivery.restaurant_service.repository.RestaurantRepository;
+import com.delivery.restaurant.application.DefaultRestaurantOwnershipLookupUseCase;
+import com.delivery.restaurant.application.DefaultRestaurantManagementAccessUseCase;
+import com.delivery.restaurant.application.api.RestaurantTransactionPort;
+import com.delivery.restaurant_service.service.JpaRestaurantOwnershipReadAdapter;
+import com.delivery.restaurant_service.entity.Restaurant;
+import java.util.Optional;
+import java.util.function.Supplier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -25,7 +32,7 @@ class InternalRestaurantControllerAuthorizationTest {
 
     @BeforeEach
     void setUp() {
-        controller = new InternalRestaurantController(restaurantRepository, new SimpleMeterRegistry());
+        controller = new InternalRestaurantController(ownership(), new SimpleMeterRegistry());
         ReflectionTestUtils.setField(controller, "internalSecret", "test-secret");
     }
 
@@ -41,13 +48,22 @@ class InternalRestaurantControllerAuthorizationTest {
 
     @Test
     void matchingCredentialReturnsRepositoryOwnership() {
-        when(restaurantRepository.existsByIdAndCreatorId(7L, 11L)).thenReturn(true);
+        when(restaurantRepository.findById(7L)).thenReturn(Optional.of(ownedRestaurant()));
 
         var response = controller.isOwnedBy(7L, 11L, null, "test-secret");
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals(1, response.getBody().getStatus());
         assertTrue(response.getBody().getData());
-        verify(restaurantRepository).existsByIdAndCreatorId(7L, 11L);
+        verify(restaurantRepository).findById(7L);
     }
+    private DefaultRestaurantOwnershipLookupUseCase ownership() {
+        return new DefaultRestaurantOwnershipLookupUseCase(new JpaRestaurantOwnershipReadAdapter(restaurantRepository), new RestaurantTransactionPort() {
+            @Override public <T> T required(Supplier<T> operation) { return operation.get(); }
+            @Override public <T> T readOnly(Supplier<T> operation) { return operation.get(); }
+            @Override public <T> T repeatableRead(Supplier<T> operation) { return operation.get(); }
+        }, new DefaultRestaurantManagementAccessUseCase());
+    }
+    private Restaurant ownedRestaurant() { var row = new Restaurant(); row.setCreatorId(11L); return row; }
+
 }

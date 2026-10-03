@@ -13,6 +13,11 @@
 
 - Menu kế thừa quyền từ Restaurant. `principalId` là identity chính; legacy ID
   chỉ áp dụng với Restaurant chưa có `ownerPrincipalId`, khi enforcement tắt.
+- Confirm/reject đơn cũng dùng `ownerPrincipalId` để cấp quyền cho SHOP_OWNER;
+  creator cũ không còn quyền trên Restaurant đã chuyển ownership. ADMIN giữ
+  quyền hiện tại. `actorUserId` trong event vẫn là legacy identity đã xác thực.
+  API internal ownership không truyền `legacyOwnerId` vẫn giữ lookup creator
+  cho client cũ; client truyền `legacyOwnerId` dùng principal và fallback có gate.
 - Management list và page, có hoặc không có `restaurantId`, đều kiểm tra role
   và ownership tại service. ADMIN xem toàn bộ; SHOP_OWNER chỉ xem tài nguyên của mình.
 - Các route public `/api/menu-items/restaurant/{id}` và `/available`, kể cả

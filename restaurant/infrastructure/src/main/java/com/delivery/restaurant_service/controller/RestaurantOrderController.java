@@ -1,13 +1,15 @@
 package com.delivery.restaurant_service.controller;
 
 import com.delivery.restaurant_service.payload.BaseResponse;
-import com.delivery.restaurant_service.repository.RestaurantRepository;
+import com.delivery.restaurant.application.api.RestaurantOwnershipLookupUseCase;
+import com.delivery.restaurant.domain.ownership.RestaurantActorRole;
 import com.delivery.restaurant.application.api.RestaurantOrderDecisionUseCase;
 import com.delivery.restaurant_service.dto.request.ConfirmRestaurantOrderRequest;
 import com.delivery.restaurant_service.dto.request.RejectRestaurantOrderRequest;
 import com.delivery.auth.resourceserver.security.AuthenticatedActor;
 
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Value;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -20,7 +22,10 @@ import org.springframework.web.bind.annotation.*;
 public class RestaurantOrderController {
 
     private final RestaurantOrderDecisionUseCase eventPublisher;
-    private final RestaurantRepository restaurantRepository;
+    private final RestaurantOwnershipLookupUseCase ownership;
+
+    @Value("${app.identity.principal-ownership.enforced:false}")
+    private boolean principalOwnershipEnforced;
 
     @PostMapping("/{orderId}/confirm")
     public ResponseEntity<BaseResponse<String>> confirmOrder(
@@ -94,6 +99,8 @@ public class RestaurantOrderController {
 
     private boolean canManageRestaurant(Long restaurantId, AuthenticatedActor actor) {
         if (actor == null) return false;
-        return actor.isAdmin() || (actor.isShopOwner() && restaurantRepository.existsByIdAndCreatorId(restaurantId, actor.getUserId()));
+        return ownership.canDecideOrder(restaurantId,
+                actor.isAdmin() ? RestaurantActorRole.ADMIN : actor.isShopOwner() ? RestaurantActorRole.SHOP_OWNER : RestaurantActorRole.OTHER,
+                actor.getPrincipalId(), actor.getLegacyUserId(), principalOwnershipEnforced);
     }
 }

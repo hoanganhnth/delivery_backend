@@ -1,5 +1,9 @@
 package com.delivery.restaurant_service.controller;
 
+import com.delivery.restaurant.application.DefaultLivestreamProductUseCase;
+import com.delivery.restaurant.application.api.RestaurantTransactionPort;
+import com.delivery.restaurant_service.service.JpaLivestreamProductReadAdapter;
+import java.util.function.Supplier;
 import com.delivery.restaurant_service.entity.MenuItem;
 import com.delivery.restaurant_service.entity.Restaurant;
 import com.delivery.restaurant_service.repository.MenuItemRepository;
@@ -11,7 +15,12 @@ import static org.assertj.core.api.Assertions.*;
 class InternalLivestreamProductControllerTest {
     private final MenuItemRepository menu = mock(MenuItemRepository.class);
     private final InternalLivestreamProductController controller =
-            new InternalLivestreamProductController(menu, "test-only-secret");
+            new InternalLivestreamProductController(new DefaultLivestreamProductUseCase(
+                    new JpaLivestreamProductReadAdapter(menu), new RestaurantTransactionPort() {
+                        public <T> T readOnly(Supplier<T> work) { return work.get(); }
+                        public <T> T required(Supplier<T> work) { throw new UnsupportedOperationException(); }
+                        public <T> T repeatableRead(Supplier<T> work) { throw new UnsupportedOperationException(); }
+                    }), "test-only-secret");
 
     @Test
     void deniesMissingOrWrongInternalTokenBeforeQuery() {

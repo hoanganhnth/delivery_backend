@@ -1,11 +1,9 @@
 package com.delivery.restaurant_service.controller;
 
-import com.delivery.restaurant_service.entity.MenuItem;
-import com.delivery.restaurant_service.repository.MenuItemRepository;
+import com.delivery.restaurant.application.api.LivestreamProductUseCase;
 import com.delivery.restaurant_service.payload.BaseResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -14,12 +12,12 @@ import java.security.MessageDigest;
 @RestController
 @RequestMapping("/api/restaurants/internal")
 public class InternalLivestreamProductController {
-    private final MenuItemRepository menu;
+    private final LivestreamProductUseCase products;
     private final String secret;
 
-    public InternalLivestreamProductController(MenuItemRepository menu,
+    public InternalLivestreamProductController(LivestreamProductUseCase products,
             @Value("${app.internal.secret:}") String secret) {
-        this.menu = menu;
+        this.products = products;
         this.secret = secret;
     }
 
@@ -27,7 +25,6 @@ public class InternalLivestreamProductController {
                           String productImage, String restaurantName) {}
 
     @GetMapping("/{restaurantId}/livestream-products/{productId}")
-    @Transactional(readOnly = true)
     public ResponseEntity<BaseResponse<Product>> get(@PathVariable Long restaurantId,
             @PathVariable Long productId,
             @RequestHeader(value = "Internal-Token", required = false) String token) {
@@ -38,12 +35,11 @@ public class InternalLivestreamProductController {
         if (restaurantId == null || restaurantId <= 0 || productId == null || productId <= 0) {
             return ResponseEntity.badRequest().body(new BaseResponse<>(0, null, "Invalid product scope"));
         }
-        var item = menu.findById(productId).orElse(null);
-        if (item == null || item.getRestaurant() == null ||
-                !restaurantId.equals(item.getRestaurant().getId()) || item.getStatus() != MenuItem.Status.AVAILABLE) {
+        var item = products.findAvailable(restaurantId, productId).orElse(null);
+        if (item == null) {
             return ResponseEntity.status(404).body(new BaseResponse<>(0, null, "Available product not found"));
         }
-        return ResponseEntity.ok(new BaseResponse<>(1, new Product(item.getId(), restaurantId,
-                item.getName(), item.getImage(), item.getRestaurant().getName())));
+        return ResponseEntity.ok(new BaseResponse<>(1, new Product(item.productId(), item.restaurantId(),
+                item.productName(), item.productImage(), item.restaurantName())));
     }
 }
