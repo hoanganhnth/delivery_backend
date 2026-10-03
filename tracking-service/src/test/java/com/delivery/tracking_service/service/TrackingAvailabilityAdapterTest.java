@@ -1,11 +1,9 @@
 package com.delivery.tracking_service.service;
 
 import com.delivery.tracking.application.DefaultShipperAvailabilityUseCase;
-import org.springframework.beans.factory.ObjectProvider;
 import org.mockito.ArgumentCaptor;
 import com.delivery.tracking_service.dto.response.ShipperLocationResponse;
 import com.delivery.tracking_service.repository.ShipperLocationRepository;
-import com.delivery.tracking_service.websocket.ShipperLocationWebSocketHandler;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -21,18 +19,12 @@ import static org.mockito.Mockito.when;
 class TrackingAvailabilityAdapterTest {
 
     private final ShipperLocationRepository repository = mock(ShipperLocationRepository.class);
-    private final ShipperLocationWebSocketHandler webSocketHandler = mock(ShipperLocationWebSocketHandler.class);
+    private final LocationFanoutPublisher fanoutPublisher = mock(LocationFanoutPublisher.class);
     private final ShipperLocationEventPublisher publisher = mock(ShipperLocationEventPublisher.class);
-    private final ObjectProvider<ShipperLocationWebSocketHandler> sockets = socketProvider();
-    private final RedisShipperAvailabilityAdapter adapter = new RedisShipperAvailabilityAdapter(repository, publisher, sockets);
+    private final RedisShipperAvailabilityAdapter adapter = new RedisShipperAvailabilityAdapter(repository, publisher, fanoutPublisher);
     private final com.delivery.tracking.application.api.ShipperAvailabilityUseCase availability =
             new DefaultShipperAvailabilityUseCase(adapter, adapter);
 
-    @SuppressWarnings("unchecked")
-    private ObjectProvider<ShipperLocationWebSocketHandler> socketProvider() {
-        var provider = (ObjectProvider<ShipperLocationWebSocketHandler>) mock(ObjectProvider.class);
-        when(provider.getObject()).thenReturn(webSocketHandler); return provider;
-    }
     @Test
     void explicitOfflineUpdatesRedisAndPublishesMatchTombstone() {
         ShipperLocationResponse current = new ShipperLocationResponse();
@@ -56,7 +48,7 @@ class TrackingAvailabilityAdapterTest {
         verify(publisher).publishLocationUpdate(event.capture(), eq("OFFLINE_TOMBSTONE"));
         org.assertj.core.api.Assertions.assertThat(event.getValue()).usingRecursiveComparison().isEqualTo(offline);
         var fanout = ArgumentCaptor.forClass(ShipperLocationResponse.class);
-        verify(webSocketHandler).broadcastShipperLocation(fanout.capture());
+        verify(fanoutPublisher).publish(fanout.capture());
         org.assertj.core.api.Assertions.assertThat(fanout.getValue()).usingRecursiveComparison().isEqualTo(offline);
         org.assertj.core.api.Assertions.assertThat(offline.getIsOnline()).isFalse();
         org.assertj.core.api.Assertions.assertThat(offline.getUpdatedAt()).isNotBlank();
@@ -71,7 +63,7 @@ class TrackingAvailabilityAdapterTest {
         verify(repository).removeShipperLocationCache(7L);
         verify(repository, never()).cacheShipperLocation(eq(7L), any());
         verify(publisher).publishLocationUpdate(any(ShipperLocationResponse.class), eq("OFFLINE_TOMBSTONE"));
-        verify(webSocketHandler).broadcastShipperLocation(any(ShipperLocationResponse.class));
+        verify(fanoutPublisher).publish(any(ShipperLocationResponse.class));
     }
 
     @Test
@@ -104,7 +96,7 @@ class TrackingAvailabilityAdapterTest {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("redis unavailable");
 
-        verifyNoInteractions(publisher, webSocketHandler);
+        verifyNoInteractions(publisher, fanoutPublisher);
     }
 
     @Test
@@ -118,6 +110,20 @@ class TrackingAvailabilityAdapterTest {
                 .hasMessage("broker unavailable");
 
         verify(repository).removeShipperLocationCache(7L);
-        verifyNoInteractions(webSocketHandler);
+        verifyNoInteractions(fanoutPublisher);
     }
+    @Test
+    void fanoutFailureIsVisibleAfterRedisAndKafkaComplete() {
+        doThrow(new IllegalStateException("fanout read unavailable")).when(fanoutPublisher).publish(any());
+
+        assertThatThrownBy(() -> availability.markOfflineAndBroadcast(7L))
+                .isInstanceOf(IllegalStateException.class).hasMessage("fanout read unavailable");
+
+        var order = org.mockito.Mockito.inOrder(repository, publisher, fanoutPublisher);
+        order.verify(repository).getCachedShipperLocation(7L);
+        order.verify(repository).removeShipperLocationCache(7L);
+        order.verify(publisher).publishLocationUpdate(any(), eq("OFFLINE_TOMBSTONE"));
+        order.verify(fanoutPublisher).publish(any());
+    }
+
 }

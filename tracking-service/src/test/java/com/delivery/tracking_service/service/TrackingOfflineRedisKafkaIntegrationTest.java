@@ -152,14 +152,14 @@ class TrackingOfflineRedisKafkaIntegrationTest {
 
             List<ConsumerRecord<String, String>> records = new ArrayList<>();
             long deadline = System.nanoTime() + Duration.ofSeconds(20).toNanos();
-            while (records.size() < 6 && System.nanoTime() < deadline) consumer.poll(Duration.ofMillis(300)).forEach(records::add);
-            assertThat(records).hasSize(6);
+            while (records.size() < 8 && System.nanoTime() < deadline) consumer.poll(Duration.ofMillis(300)).forEach(records::add);
+            assertThat(records).hasSize(8);
             Set<String> eventIds = new HashSet<>();
             Map<Long, JsonNode> events = new HashMap<>();
             for (var record : records) {
                 var event = mapper.readTree(record.value()); long shipper = event.get("shipperId").asLong();
                 if (event.get("source").asText().equals("OFFLINE_TOMBSTONE")) {
-                    events.put(shipper, event); assertThat(event.get("isOnline").asBoolean()).isFalse();
+                    events.putIfAbsent(shipper, event); assertThat(event.get("isOnline").asBoolean()).isFalse();
                 } else {
                     assertThat(shipper).isEqualTo(7002); assertThat(event.get("isOnline").asBoolean()).isTrue();
                     assertThat(event.get("source").asText()).isIn("WEBSOCKET", "APPLICATION");
@@ -175,8 +175,8 @@ class TrackingOfflineRedisKafkaIntegrationTest {
                 try { return mapper.readTree(record.value()).get("source").asText(); }
                 catch (Exception failure) { throw new AssertionError(failure); }
             }).toList();
-            assertThat(sources).containsExactly("OFFLINE_TOMBSTONE", "OFFLINE_TOMBSTONE", "OFFLINE_TOMBSTONE", "OFFLINE_TOMBSTONE", "WEBSOCKET", "APPLICATION");
-            assertThat(eventIds).hasSize(6); assertThat(events.keySet()).containsExactlyInAnyOrder(7001L, 7002L, 7003L, 7004L);
+            assertThat(sources).containsExactly("OFFLINE_TOMBSTONE", "OFFLINE_TOMBSTONE", "OFFLINE_TOMBSTONE", "OFFLINE_TOMBSTONE", "WEBSOCKET", "APPLICATION", "OFFLINE_TOMBSTONE", "OFFLINE_TOMBSTONE");
+            assertThat(eventIds).hasSize(8); assertThat(events.keySet()).containsExactlyInAnyOrder(7001L, 7002L, 7003L, 7004L);
             assertThat(events.get(7001L).get("latitude").isNull()).isTrue();
             assertThat(events.get(7001L).get("longitude").isNull()).isTrue();
             assertThat(events.get(7002L).get("accuracy").asDouble()).isEqualTo(3.5);
@@ -186,6 +186,17 @@ class TrackingOfflineRedisKafkaIntegrationTest {
             assertThat(events.get(7003L).get("longitude").isNull()).isTrue();
             assertThat(events.get(7004L).get("latitude").isNull()).isTrue();
             assertThat(events.get(7004L).get("longitude").isNull()).isTrue();
+            var cachedOffline = mapper.readTree(records.get(6).value());
+            assertThat(cachedOffline.get("shipperId").asLong()).isEqualTo(7002L);
+            assertThat(cachedOffline.get("latitude").asDouble()).isEqualTo(10.8);
+            assertThat(cachedOffline.get("longitude").asDouble()).isEqualTo(106.7);
+            assertThat(cachedOffline.get("deliveryId").asLong()).isEqualTo(9002L);
+            var identityOffline = mapper.readTree(records.get(7).value());
+            assertThat(identityOffline.get("shipperId").asLong()).isEqualTo(7002L);
+            assertThat(identityOffline.get("latitude").isNull()).isTrue();
+            assertThat(identityOffline.get("longitude").isNull()).isTrue();
+            assertThat(identityOffline.get("deliveryId").asLong()).isEqualTo(9002L);
+
         }
     }
     private void publishThroughIndependentSubscriber() throws Exception {
@@ -226,6 +237,15 @@ class TrackingOfflineRedisKafkaIntegrationTest {
             assertThat(data.get("isOnline").asBoolean()).isTrue();
             assertThat(java.time.Instant.parse(data.get("updatedAt").asText())).isNotNull();
             awaitLocation(messages, 10.8);
+            messages.clear();
+            mvc.perform(post("/api/tracking/shipper-locations/offline").with(authentication(actor())))
+                    .andExpect(status().isOk());
+            awaitOffline(messages, false);
+            assertOfflineMembership(7002L);
+            messages.clear(); locations.removeShipperLocationCache(7002L);
+            mvc.perform(post("/api/tracking/internal/shippers/7002/offline").header("Internal-Token", "offline-proof-only"))
+                    .andExpect(status().isOk());
+            awaitOffline(messages, true);
             assertThat(deniedMessages).noneMatch(message -> message.contains("\"type\":\"location_update\""));
         } finally {
             receiver.stop(); receiver.destroy(); ReflectionTestUtils.invokeMethod(dispatcher, "shutdown");
@@ -271,6 +291,19 @@ class TrackingOfflineRedisKafkaIntegrationTest {
         } finally {receiver.stop();receiver.destroy();ReflectionTestUtils.invokeMethod(dispatcher,"shutdown");}
     }
 
+    private void awaitOffline(List<String> messages, boolean withoutCoordinates) {
+        await().atMost(Duration.ofSeconds(8)).untilAsserted(() -> {
+            var updates = messages.stream().map(message -> {
+                try { return mapper.readTree(message); }
+                catch (Exception failure) { throw new AssertionError(failure); }
+            }).filter(message -> "location_update".equals(message.path("type").asText())).toList();
+            assertThat(updates).isNotEmpty();
+            var update = updates.get(updates.size() - 1);
+            assertThat(update.toString()).contains("\"isOnline\":false");
+            assertThat(update.toString()).contains("\"shipperId\":7002");
+            assertThat(update.toString()).contains(withoutCoordinates ? "\"latitude\":null" : "\"latitude\":10.8");
+        });
+    }
     private void awaitLocation(List<String> messages, double latitude) {
         String expected = "\"latitude\":" + latitude;
         try {

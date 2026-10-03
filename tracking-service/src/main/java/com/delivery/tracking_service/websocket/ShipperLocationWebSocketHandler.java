@@ -368,15 +368,6 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
         log.info("❌ WebSocket disconnected: sessionId={}, status={}", sessionId, status);
     }
 
-    /**
-     * Broadcast vị trí shipper mới tới tất cả client đang theo dõi
-     */
-    public void broadcastShipperLocation(ShipperLocationResponse location) {
-        Long shipperId = location == null ? null : location.getShipperId();
-        if (shipperId != null) for (Long deliveryId : deliveryRooms.activeDeliveries(shipperId))
-            broadcastDeliveryLocation(deliveryId, location);
-    }
-
     public void broadcastDeliveryLocation(Long deliveryId, ShipperLocationResponse location) {
         Long shipperId = location == null ? null : location.getShipperId();
         var subscribers = deliveryId == null || shipperId == null ? java.util.List.<String>of()

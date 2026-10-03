@@ -3,9 +3,7 @@ package com.delivery.tracking_service.service;
 import com.delivery.tracking.application.api.*;
 import com.delivery.tracking_service.dto.response.ShipperLocationResponse;
 import com.delivery.tracking_service.repository.ShipperLocationRepository;
-import com.delivery.tracking_service.websocket.ShipperLocationWebSocketHandler;
 import java.util.Optional;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
 /** Redis/Kafka/fanout representation mapping; the core owns offline decisions and ordering. */
@@ -13,11 +11,11 @@ import org.springframework.stereotype.Component;
 public class RedisShipperAvailabilityAdapter implements ShipperAvailabilityStorePort, ShipperAvailabilityEventPort {
     private final ShipperLocationRepository locations;
     private final ShipperLocationEventPublisher events;
-    private final ObjectProvider<ShipperLocationWebSocketHandler> sockets;
+    private final LocationFanoutPublisher fanout;
 
     public RedisShipperAvailabilityAdapter(ShipperLocationRepository locations, ShipperLocationEventPublisher events,
-            ObjectProvider<ShipperLocationWebSocketHandler> sockets) {
-        this.locations = locations; this.events = events; this.sockets = sockets;
+            LocationFanoutPublisher fanout) {
+        this.locations = locations; this.events = events; this.fanout = fanout;
     }
     @Override public Optional<CachedShipperLocation> findCached(Long shipperId) {
         return Optional.ofNullable(locations.getCachedShipperLocation(shipperId)).map(row ->
@@ -32,7 +30,7 @@ public class RedisShipperAvailabilityAdapter implements ShipperAvailabilityStore
         events.publishLocationUpdate(toResponse(location), source);
     }
     @Override public void broadcast(OfflineShipperLocation location) {
-        sockets.getObject().broadcastShipperLocation(toResponse(location));
+        fanout.publish(toResponse(location));
     }
     public static ShipperLocationResponse toResponse(OfflineShipperLocation location) {
         var facts = location.facts(); var response = new ShipperLocationResponse();

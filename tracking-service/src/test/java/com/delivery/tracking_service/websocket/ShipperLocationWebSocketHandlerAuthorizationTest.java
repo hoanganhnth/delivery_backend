@@ -80,7 +80,7 @@ class ShipperLocationWebSocketHandlerAuthorizationTest {
         location.setIsOnline(true);
         location.setUpdatedAt("2026-07-28T20:00:00");
 
-        handler.broadcastShipperLocation(location);
+        handler.broadcastDeliveryLocation(100L, location);
 
         verify(session).sendMessage(argThat((TextMessage message) ->
                 message.getPayload().contains("\"accuracy\":null")

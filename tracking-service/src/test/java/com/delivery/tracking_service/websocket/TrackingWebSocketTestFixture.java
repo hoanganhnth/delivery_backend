@@ -14,14 +14,20 @@ final class TrackingWebSocketTestFixture {
     static ShipperLocationWebSocketHandler create(RedisGeoRepository locations, ShipperLocationEventPublisher events,
             DeliveryTrackingAccessClient access, ShipperPublisherSessionManager publishers) {
         var handler = new AtomicReference<ShipperLocationWebSocketHandler>();
-        var fanout = new LocationFanoutPublisher(location -> {}) {
-            @Override public void publish(com.delivery.tracking_service.dto.response.ShipperLocationResponse location) {
-                handler.get().broadcastShipperLocation(location);
-            }
+        var rooms = new DeliveryRoomRegistry();
+        var reads = new com.delivery.tracking.application.api.FanoutDeliveryReadPort() {
+            public java.util.Set<Long> activeDeliveries(Long shipperId) { return rooms.activeDeliveries(shipperId); }
+            public Optional<Long> activeDelivery(Long shipperId) { return Optional.ofNullable(rooms.activeDelivery(shipperId)); }
         };
+        var fanoutEvents = new com.delivery.tracking.application.api.LocationFanoutEventPort() {
+            public void publish(Long deliveryId, com.delivery.tracking.application.api.FanoutLocation location) {
+                handler.get().broadcastDeliveryLocation(deliveryId, FanoutLocationMapper.toResponse(location));
+            }
+            public void failed(Long shipperId, Exception failure) { throw new AssertionError(failure); }
+        };
+        var fanout = new LocationFanoutPublisher(new com.delivery.tracking.application.DefaultLocationFanoutUseCase(reads, fanoutEvents));
         var adapter = new RedisLocationUpdateAdapter(locations, events, fanout);
         var identities = new ShipperIdentityResolver(new DefaultShipperIdentityUseCase(id -> Optional.empty()), false, new SimpleMeterRegistry());
-        var rooms = new DeliveryRoomRegistry();
         var subscriptions = new com.delivery.tracking.application.DefaultDeliveryRoomSubscriptionUseCase(
                 org.mockito.Mockito.mock(com.delivery.tracking.application.api.DeliveryRoomAssignmentPort.class), rooms);
         var result = new ShipperLocationWebSocketHandler(new ObjectMapper(), locations, new DefaultTrackingService(adapter, adapter),
