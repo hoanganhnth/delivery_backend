@@ -77,4 +77,17 @@ class DeliveryRoomRegistryTest {
         rooms.synchronize(42,java.util.Set.of()); assertThat(rooms.roomCount()).isZero();
     }
 
+    @Test
+    void authorizedReassignmentReplacesOldMembershipAndLateOldOwnerEndCannotRemoveNewRoom() {
+        var rooms=new DeliveryRoomRegistry(); rooms.subscribe(100,42,"old-shipper-session");
+        org.assertj.core.api.Assertions.assertThatCode(()->rooms.subscribe(100,43,"new-shipper-session")).doesNotThrowAnyException();
+        assertThat(rooms.subscribers(100,42)).isEmpty();
+        assertThat(rooms.subscribers(100,43)).containsExactly("new-shipper-session");
+        rooms.activate(100,42); // A late local old-owner assignment must not own the new membership.
+        rooms.end(100,42);
+        assertThat(rooms.subscribers(100,43)).containsExactly("new-shipper-session");
+        rooms.removeSession("old-shipper-session");
+        assertThat(rooms.subscribers(100,43)).containsExactly("new-shipper-session");
+    }
+
 }

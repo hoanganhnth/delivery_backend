@@ -420,9 +420,13 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
         locationUpdate.put("speed", location.getSpeed());
         locationUpdate.put("heading", location.getHeading());
         locationUpdate.put("timestamp", location.getUpdatedAt());
+        long targetShipper = location.getShipperId();
+        Long membership = deliveryRooms.membershipVersion(deliveryId, targetShipper, session.getId());
+        if (membership == null) return;
         messageDispatcher.dispatch(session, deliveryId,
                 new TextMessage(objectMapper.writeValueAsString(locationUpdate)),
-                Boolean.TRUE.equals(location.getIsOnline()));
+                Boolean.TRUE.equals(location.getIsOnline()),
+                () -> membership.equals(deliveryRooms.membershipVersion(deliveryId, targetShipper, session.getId())));
     }
 
 }

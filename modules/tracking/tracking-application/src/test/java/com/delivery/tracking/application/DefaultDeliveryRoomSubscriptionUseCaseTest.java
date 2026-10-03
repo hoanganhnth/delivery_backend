@@ -35,6 +35,7 @@ class DefaultDeliveryRoomSubscriptionUseCaseTest {
     }
     private static class Ports implements DeliveryRoomAssignmentPort,DeliveryRoomIndexPort {
         Set<Long> active=Set.of(),synced; RuntimeException failure; final List<String> calls=new ArrayList<>();
+        public void withinUpdate(long shipperId,Runnable operation){operation.run();}
         public Set<Long> activeDeliveries(long shipper){calls.add("read");if(failure!=null)throw failure;return active;}
         public void synchronize(long shipper,Set<Long> deliveries){assertThat(shipper).isEqualTo(42);calls.add("sync");synced=Set.copyOf(deliveries);}
         public void subscribe(long delivery,long shipper,String session){assertThat(delivery).isEqualTo(100);assertThat(shipper).isEqualTo(42);assertThat(session).isEqualTo("session");calls.add("subscribe");}

@@ -21,6 +21,9 @@ public final class DefaultDeliveryRoomAssignmentUseCase implements DeliveryRoomA
         if(command.status()==null || command.status().isBlank())throw new IllegalArgumentException("status is required");
         String status = command.status().toUpperCase(Locale.ROOT);
         if(!Set.of("BUSY","AVAILABLE").contains(status))throw new IllegalArgumentException("Unsupported shipper status");
+        rooms.withinUpdate(command.shipperId(),()->applyCurrent(command,status));
+    }
+    private void applyCurrent(DeliveryRoomAssignmentCommand command,String status) {
         if("BUSY".equals(status)) {
             if(command.batch())assignments.busyBatch(command.shipperId(),command.deliveryId(),command.timestamp(),command.eventId());
             else assignments.busy(command.shipperId(),command.deliveryId(),command.timestamp(),command.eventId());

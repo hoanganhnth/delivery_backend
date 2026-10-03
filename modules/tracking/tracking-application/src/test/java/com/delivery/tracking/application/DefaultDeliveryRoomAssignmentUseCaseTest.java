@@ -57,6 +57,7 @@ class DefaultDeliveryRoomAssignmentUseCaseTest {
         public void busyBatch(long shipper,long delivery,long time,String id){apply("busyBatch",shipper,delivery,time);}
         public void available(long shipper,long delivery,long time){apply("available",shipper,delivery,time);}
         public void availableBatch(long shipper,long delivery,long time){apply("availableBatch",shipper,delivery,time);}
+        public void withinUpdate(long shipperId,Runnable operation){operation.run();}
         public Set<Long> activeDeliveries(long shipper){calls.add("read");if(failOnRead)throw failure;return active;}
         public void activate(long delivery,long shipper){calls.add("activate");assertThat(delivery).isEqualTo(100);assertThat(shipper).isEqualTo(42);}
         public void synchronize(long shipper,Set<Long> deliveries){calls.add("sync");assertThat(deliveries).isEqualTo(active);}

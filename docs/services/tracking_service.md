@@ -125,6 +125,12 @@ so với delivery vừa được authorize dùng fallback đúng delivery đó. 
 index tập delivery và session membership; kết thúc một item không xoá audience
 item khác. Local offline broadcast cũng đi qua từng room đang hoạt động.
 Terminal replay fence trong TTL đã có proof Redis; race đọc projection/index
-local, recovery ngoài TTL/mất Redis và runtime còn cần audit;
+local được tuần tự hoá theo shipper trên mỗi instance bằng bounded striped lock.
+Membership có version riêng: message còn trong queue chỉ gửi nếu version vẫn
+còn hiệu lực ngay trước send. Unsubscribe/rejoin, kết thúc item và authorized
+reassignment vô hiệu queued message cũ; old-owner cleanup không xoá room mới.
+Đây chưa phải distributed transaction với Redis hoặc Delivery authorization.
+Explicit HTTP offline vẫn dùng local broadcast và cần hợp nhất với distributed
+fanout; race giữa JVM, recovery ngoài TTL/mất Redis và runtime còn cần audit;
 chưa xoá host cũ hoặc coi toàn bộ Tracking hoàn tất. Bằng chứng và tiến độ nằm ở
 `../plans/active/service-architecture-consolidation.md`.

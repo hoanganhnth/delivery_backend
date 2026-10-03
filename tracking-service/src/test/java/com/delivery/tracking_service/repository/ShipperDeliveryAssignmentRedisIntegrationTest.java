@@ -144,6 +144,50 @@ class ShipperDeliveryAssignmentRedisIntegrationTest {
         assertThat(assignments.activeDeliveries(43)).isEmpty();
     }
 
+    @Test
+    void localSubscriptionAndAssignmentUpdateCannotInterleaveProjectionReadAndRoomMutation() throws Exception {
+        assignments.busy(42,100,1000,"initial");
+        var rooms=new com.delivery.tracking_service.websocket.DeliveryRoomRegistry();
+        rooms.subscribe(100,42,"initial");
+        var read=new java.util.concurrent.CountDownLatch(1); var release=new java.util.concurrent.CountDownLatch(1);
+        var blockedReader=new ShipperDeliveryAssignmentStore(redis) {
+            @Override public java.util.Set<Long> activeDeliveries(long shipper) {
+                var snapshot=super.activeDeliveries(shipper); read.countDown();
+                try {if(!release.await(10,java.util.concurrent.TimeUnit.SECONDS))throw new AssertionError("subscription release timeout");}
+                catch(InterruptedException error){Thread.currentThread().interrupt();throw new IllegalStateException(error);}
+                return snapshot;
+            }
+        };
+        var subscription=new com.delivery.tracking.application.DefaultDeliveryRoomSubscriptionUseCase(blockedReader,rooms);
+        var update=new com.delivery.tracking.application.DefaultDeliveryRoomAssignmentUseCase(assignments,rooms);
+        var updaterThread=new java.util.concurrent.atomic.AtomicReference<Thread>();
+        var executor=java.util.concurrent.Executors.newFixedThreadPool(2);
+        try {
+            var first=executor.submit(()->subscription.subscribeAuthorized(100,42,"late-old"));
+            assertThat(read.await(5,java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+            var second=executor.submit(()->{
+                updaterThread.set(Thread.currentThread());
+                update.apply(new com.delivery.tracking.application.api.DeliveryRoomAssignmentCommand(42,200,7,2000,
+                        "00000000-0000-0000-0000-000000000002","BUSY",false));
+            });
+            try {
+                org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(5)).untilAsserted(()->
+                        assertThat(updaterThread.get()).isNotNull().satisfies(thread->assertThat(thread.getState()).isEqualTo(Thread.State.BLOCKED)));
+            } catch(org.awaitility.core.ConditionTimeoutException missingFence) {
+                throw new AssertionError("Assignment was not serialized behind the in-flight subscription",missingFence);
+            }
+            assertThat(assignments.activeDelivery(42)).contains(100L);
+            // Another shipper can progress while this projection read is stalled.
+            update.apply(new com.delivery.tracking.application.api.DeliveryRoomAssignmentCommand(43,300,8,2000,
+                    "00000000-0000-0000-0000-000000000003","BUSY",false));
+            assertThat(rooms.activeDelivery(43)).isEqualTo(300L);
+            release.countDown(); first.get(10,java.util.concurrent.TimeUnit.SECONDS); second.get(10,java.util.concurrent.TimeUnit.SECONDS);
+            assertThat(assignments.activeDelivery(42)).contains(200L);
+            assertThat(rooms.activeDelivery(42)).isEqualTo(200L);
+            assertThat(rooms.subscribers(100,42)).isEmpty();
+        } finally {release.countDown();executor.shutdownNow();}
+    }
+
     @TestConfiguration
     static class RedisConfiguration {
         @Bean

@@ -58,7 +58,8 @@ public class LocationMessageDispatcher {
     }
 
     public void dispatch(WebSocketSession session, long deliveryId,
-                         TextMessage message, boolean online) {
+                         TextMessage message, boolean online, java.util.function.BooleanSupplier eligible) {
+        java.util.Objects.requireNonNull(eligible, "eligible");
         offered.increment();
         PendingSession sessionQueue = pending.computeIfAbsent(
                 session.getId(), ignored -> new PendingSession());
@@ -71,7 +72,7 @@ public class LocationMessageDispatcher {
                 roomQueue.removeLast();
                 coalesced.increment();
             }
-            roomQueue.addLast(new PendingMessage(message, online));
+            roomQueue.addLast(new PendingMessage(message, online, eligible));
             while (roomQueue.size() > 2) {
                 roomQueue.removeFirst();
                 coalesced.increment();
@@ -120,9 +121,11 @@ public class LocationMessageDispatcher {
             }
             try {
                 synchronized (session) {
-                    session.sendMessage(next.message());
+                    if (next.eligible().getAsBoolean()) {
+                        session.sendMessage(next.message());
+                        sent.increment();
+                    }
                 }
-                sent.increment();
             } catch (Exception exception) {
                 failed.increment();
                 pending.remove(session.getId(), sessionQueue);
@@ -153,7 +156,7 @@ public class LocationMessageDispatcher {
         private boolean draining;
     }
 
-    private record PendingMessage(TextMessage message, boolean online) {}
+    private record PendingMessage(TextMessage message, boolean online, java.util.function.BooleanSupplier eligible) {}
 
     public record Stats(long offered, long sent, long coalesced, long failed) {}
 }

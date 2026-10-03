@@ -12,17 +12,29 @@ import java.util.concurrent.ConcurrentHashMap;
 @Component
 public class DeliveryRoomRegistry implements com.delivery.tracking.application.api.DeliveryRoomIndexPort {
 
+    private final Object[] updateLocks = java.util.stream.IntStream.range(0, 256)
+            .mapToObj(ignored -> new Object()).toArray(Object[]::new);
+    private final java.util.concurrent.atomic.AtomicLong membershipSequence = new java.util.concurrent.atomic.AtomicLong();
     private final Map<Long, Room> rooms = new ConcurrentHashMap<>();
     private final Map<Long, Set<Long>> activeDeliveriesByShipper = new ConcurrentHashMap<>();
     private final Map<String, Set<Long>> roomsBySession = new ConcurrentHashMap<>();
 
+    public void withinUpdate(long shipperId, Runnable operation) {
+        synchronized (updateLocks[Math.floorMod(Long.hashCode(shipperId), updateLocks.length)]) { operation.run(); }
+    }
+
     public synchronized void subscribe(long deliveryId, long shipperId, String sessionId) {
+        Room prior = rooms.get(deliveryId);
+        if (prior != null && prior.shipperId() != shipperId) {
+            removeRoom(deliveryId);
+            var oldAssignments = new java.util.HashSet<>(activeDeliveries(prior.shipperId()));
+            oldAssignments.remove(deliveryId);
+            if (oldAssignments.isEmpty()) activeDeliveriesByShipper.remove(prior.shipperId());
+            else activeDeliveriesByShipper.put(prior.shipperId(), Set.copyOf(oldAssignments));
+        }
         if (!activeDeliveries(shipperId).contains(deliveryId)) activate(deliveryId, shipperId);
         Room room = rooms.computeIfAbsent(deliveryId, ignored -> new Room(shipperId));
-        if (room.shipperId() != shipperId) {
-            throw new IllegalStateException("Delivery room shipper identity changed");
-        }
-        room.sessions().add(sessionId);
+        room.sessions().putIfAbsent(sessionId, membershipSequence.incrementAndGet());
         roomsBySession.computeIfAbsent(sessionId, ignored -> ConcurrentHashMap.newKeySet())
                 .add(deliveryId);
     }
@@ -36,7 +48,10 @@ public class DeliveryRoomRegistry implements com.delivery.tracking.application.a
         Set<Long> previous = activeDeliveriesByShipper.getOrDefault(shipperId, Set.of());
         if (incoming.isEmpty()) activeDeliveriesByShipper.remove(shipperId);
         else activeDeliveriesByShipper.put(shipperId, incoming);
-        for (Long deliveryId : previous) if (!incoming.contains(deliveryId)) removeRoom(deliveryId);
+        for (Long deliveryId : previous) if (!incoming.contains(deliveryId)) {
+            Room room = rooms.get(deliveryId);
+            if (room != null && room.shipperId() == shipperId) removeRoom(deliveryId);
+        }
     }
 
     public synchronized void end(long deliveryId, long shipperId) {
@@ -85,7 +100,13 @@ public class DeliveryRoomRegistry implements com.delivery.tracking.application.a
                 || !activeDeliveries(shipperId).contains(deliveryId)) {
             return List.of();
         }
-        return List.copyOf(room.sessions());
+        return List.copyOf(room.sessions().keySet());
+    }
+
+    public Long membershipVersion(long deliveryId, long shipperId, String sessionId) {
+        Room room = rooms.get(deliveryId);
+        if (room == null || room.shipperId() != shipperId || !activeDeliveries(shipperId).contains(deliveryId)) return null;
+        return room.sessions().get(sessionId);
     }
 
     public Long activeDelivery(long shipperId) {
@@ -113,7 +134,7 @@ public class DeliveryRoomRegistry implements com.delivery.tracking.application.a
     private void removeRoom(Long deliveryId) {
         Room removed = rooms.remove(deliveryId);
         if (removed == null) return;
-        for (String sessionId : removed.sessions()) {
+        for (String sessionId : removed.sessions().keySet()) {
             Set<Long> sessionRooms = roomsBySession.get(sessionId);
             if (sessionRooms != null) {
                 sessionRooms.remove(deliveryId);
@@ -122,9 +143,9 @@ public class DeliveryRoomRegistry implements com.delivery.tracking.application.a
         }
     }
 
-    private record Room(long shipperId, Set<String> sessions) {
+    private record Room(long shipperId, Map<String, Long> sessions) {
         private Room(long shipperId) {
-            this(shipperId, ConcurrentHashMap.newKeySet());
+            this(shipperId, new ConcurrentHashMap<>());
         }
     }
 }
