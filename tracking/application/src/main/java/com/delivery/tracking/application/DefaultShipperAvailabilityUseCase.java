@@ -3,7 +3,7 @@ package com.delivery.tracking.application;
 import com.delivery.tracking.application.api.*;
 import com.delivery.tracking.domain.PublisherExpiryClaim;
 import java.time.Clock;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.Objects;
 
 /** Publishes the canonical tombstone after Redis membership has safely changed. */
@@ -13,7 +13,7 @@ public final class DefaultShipperAvailabilityUseCase implements ShipperAvailabil
     private final Clock clock;
 
     public DefaultShipperAvailabilityUseCase(ShipperAvailabilityStorePort store, ShipperAvailabilityEventPort events) {
-        this(store, events, Clock.systemDefaultZone());
+        this(store, events, Clock.systemUTC());
     }
 
     public DefaultShipperAvailabilityUseCase(ShipperAvailabilityStorePort store, ShipperAvailabilityEventPort events, Clock clock) {
@@ -38,7 +38,7 @@ public final class DefaultShipperAvailabilityUseCase implements ShipperAvailabil
         var shipperId = Objects.requireNonNull(claim.lease(), "claim.lease").shipperId();
         var cached = store.findCached(shipperId);
         var facts = cached.orElseGet(() -> new CachedShipperLocation(shipperId, null, null, null, null, null, null));
-        var offline = new OfflineShipperLocation(facts, LocalDateTime.now(clock));
+        var offline = new OfflineShipperLocation(facts, Instant.now(clock));
         if (!store.applyOfflineIfExpired(claim, cached.map(ignored -> offline))) return false;
         events.publish(offline, "OFFLINE_TOMBSTONE");
         events.broadcast(offline);
@@ -48,7 +48,7 @@ public final class DefaultShipperAvailabilityUseCase implements ShipperAvailabil
     private OfflineShipperLocation markOffline(Long shipperId, boolean broadcast) {
         if (shipperId == null || shipperId <= 0) throw new IllegalArgumentException("shipperId must be positive");
         var cached = store.findCached(shipperId);
-        var timestamp = LocalDateTime.now(clock);
+        var timestamp = Instant.now(clock);
         var facts = cached.orElseGet(() -> new CachedShipperLocation(shipperId, null, null, null, null, null, null));
         var offline = new OfflineShipperLocation(facts, timestamp);
         if (cached.isPresent()) store.saveOffline(shipperId, offline);

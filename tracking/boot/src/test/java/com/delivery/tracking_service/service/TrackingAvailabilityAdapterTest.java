@@ -45,7 +45,7 @@ class TrackingAvailabilityAdapterTest {
         org.assertj.core.api.Assertions.assertThat(offline.getDistance()).isEqualTo(current.getDistance());
         verify(repository, never()).removeShipperLocationCache(7L);
         var event = ArgumentCaptor.forClass(ShipperLocationResponse.class);
-        verify(publisher).publishLocationUpdate(event.capture(), eq("OFFLINE_TOMBSTONE"));
+        verify(publisher).publishLocationUpdate(event.capture(), eq("OFFLINE_TOMBSTONE"), org.mockito.ArgumentMatchers.anyLong());
         org.assertj.core.api.Assertions.assertThat(event.getValue()).usingRecursiveComparison().isEqualTo(offline);
         var fanout = ArgumentCaptor.forClass(ShipperLocationResponse.class);
         verify(fanoutPublisher).publish(fanout.capture());
@@ -62,7 +62,7 @@ class TrackingAvailabilityAdapterTest {
 
         verify(repository).removeShipperLocationCache(7L);
         verify(repository, never()).cacheShipperLocation(eq(7L), any());
-        verify(publisher).publishLocationUpdate(any(ShipperLocationResponse.class), eq("OFFLINE_TOMBSTONE"));
+        verify(publisher).publishLocationUpdate(any(ShipperLocationResponse.class), eq("OFFLINE_TOMBSTONE"), org.mockito.ArgumentMatchers.anyLong());
         verify(fanoutPublisher).publish(any(ShipperLocationResponse.class));
     }
 
@@ -82,7 +82,7 @@ class TrackingAvailabilityAdapterTest {
         org.assertj.core.api.Assertions.assertThat(offline.getLatitude()).isEqualTo(10.77);
         org.assertj.core.api.Assertions.assertThat(offline.getLongitude()).isNull();
         var event = ArgumentCaptor.forClass(ShipperLocationResponse.class);
-        verify(publisher).publishLocationUpdate(event.capture(), eq("OFFLINE_TOMBSTONE"));
+        verify(publisher).publishLocationUpdate(event.capture(), eq("OFFLINE_TOMBSTONE"), org.mockito.ArgumentMatchers.anyLong());
         org.assertj.core.api.Assertions.assertThat(event.getValue()).usingRecursiveComparison().isEqualTo(offline);
         org.assertj.core.api.Assertions.assertThat(offline.getIsOnline()).isFalse();
     }
@@ -103,7 +103,7 @@ class TrackingAvailabilityAdapterTest {
     void explicitOfflineReportsBrokerFailureAfterSafeRedisMutation() {
         when(repository.getCachedShipperLocation(7L)).thenReturn(null);
         doThrow(new IllegalStateException("broker unavailable"))
-                .when(publisher).publishLocationUpdate(any(ShipperLocationResponse.class), eq("OFFLINE_TOMBSTONE"));
+                .when(publisher).publishLocationUpdate(any(ShipperLocationResponse.class), eq("OFFLINE_TOMBSTONE"), org.mockito.ArgumentMatchers.anyLong());
 
         assertThatThrownBy(() -> availability.markOfflineAndBroadcast(7L))
                 .isInstanceOf(IllegalStateException.class)
@@ -122,7 +122,7 @@ class TrackingAvailabilityAdapterTest {
         var order = org.mockito.Mockito.inOrder(repository, publisher, fanoutPublisher);
         order.verify(repository).getCachedShipperLocation(7L);
         order.verify(repository).removeShipperLocationCache(7L);
-        order.verify(publisher).publishLocationUpdate(any(), eq("OFFLINE_TOMBSTONE"));
+        order.verify(publisher).publishLocationUpdate(any(), eq("OFFLINE_TOMBSTONE"), org.mockito.ArgumentMatchers.anyLong());
         order.verify(fanoutPublisher).publish(any());
     }
 

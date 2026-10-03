@@ -31,7 +31,7 @@ public class RedisShipperAvailabilityAdapter implements ShipperAvailabilityStore
         return locations.applyOfflineIfExpired(claim, cachedOffline.map(RedisShipperAvailabilityAdapter::toResponse));
     }
     @Override public void publish(OfflineShipperLocation location, String source) {
-        events.publishLocationUpdate(toResponse(location), source);
+        events.publishLocationUpdate(toResponse(location), source, location.timestamp().toEpochMilli());
     }
     @Override public void broadcast(OfflineShipperLocation location) {
         fanout.publish(toResponse(location));
@@ -40,7 +40,8 @@ public class RedisShipperAvailabilityAdapter implements ShipperAvailabilityStore
         var facts = location.facts(); var response = new ShipperLocationResponse();
         response.setShipperId(facts.shipperId()); response.setLatitude(facts.latitude()); response.setLongitude(facts.longitude());
         response.setAccuracy(facts.accuracy()); response.setSpeed(facts.speed()); response.setHeading(facts.heading()); response.setDistance(facts.distance());
-        response.setIsOnline(false); response.setLastPing(location.timestamp().toString()); response.setUpdatedAt(location.timestamp().toString());
+        var timestamp = java.time.LocalDateTime.ofInstant(location.timestamp(), java.time.ZoneId.systemDefault()).toString();
+        response.setIsOnline(false); response.setLastPing(timestamp); response.setUpdatedAt(timestamp);
         return response;
     }
 }

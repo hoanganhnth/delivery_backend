@@ -45,7 +45,7 @@ class ShipperLocationEventPublisherTest {
         location.setIsOnline(true);
 
         new ShipperLocationEventPublisher(kafka, assignments)
-                .publishLocationUpdate(location, "WEBSOCKET");
+                .publishLocationUpdate(location, "WEBSOCKET", 12345L);
 
         ArgumentCaptor<Object> event = ArgumentCaptor.forClass(Object.class);
         verify(kafka).send(eq("shipper.location-updated"), eq("7"), event.capture());
@@ -67,9 +67,24 @@ class ShipperLocationEventPublisherTest {
         when(kafka.send(anyString(), anyString(), any())).thenReturn(failed);
 
         ShipperLocationEventPublisher publisher = new ShipperLocationEventPublisher(kafka);
+        ShipperLocationResponse location = new ShipperLocationResponse();
+        location.setShipperId(7L); location.setLatitude(10.7); location.setLongitude(106.6); location.setIsOnline(true);
 
-        assertThrows(IllegalStateException.class,
-                () -> publisher.publishLocationUpdate(7L, 10.7, 106.6, true));
+        var failure = assertThrows(IllegalStateException.class,
+                () -> publisher.publishLocationUpdate(location, "APPLICATION", 12345L));
+        assertThat(failure).hasRootCauseMessage("broker unavailable");
+        verify(kafka).send(eq("shipper.location-updated"), eq("7"), any());
+    }
+
+    @Test void invalidOccurrenceTimeIsRejectedBeforeAssignmentLookupOrKafka() {
+        @SuppressWarnings("unchecked") KafkaTemplate<String, Object> kafka = mock(KafkaTemplate.class);
+        var assignments = mock(ShipperDeliveryAssignmentStore.class);
+        var publisher = new ShipperLocationEventPublisher(kafka, assignments);
+        for (long timestamp : new long[]{0, -1}) {
+            assertThrows(IllegalArgumentException.class,
+                    () -> publisher.publishLocationUpdate(new ShipperLocationResponse(), "APPLICATION", timestamp));
+        }
+        org.mockito.Mockito.verifyNoInteractions(kafka, assignments);
     }
 
     @Test
@@ -86,7 +101,7 @@ class ShipperLocationEventPublisherTest {
         SimulationContext context = new SimulationContext(SimulationContext.ExecutionMode.SIMULATION,
                 UUID.randomUUID(), UUID.randomUUID(), 2L);
 
-        new ShipperLocationEventPublisher(kafka).publishLocationUpdate(location, "REST", context);
+        new ShipperLocationEventPublisher(kafka).publishLocationUpdate(location, "REST", 12345L, context);
 
         ArgumentCaptor<Object> event = ArgumentCaptor.forClass(Object.class);
         verify(kafka).send(eq("shipper.location-updated"), eq("7"), event.capture());

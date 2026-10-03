@@ -33,7 +33,10 @@ báo lỗi để client retry, không trả success giả.
 
 Explicit offline tạo timestamped tombstone kể cả khi chưa có tọa độ cache. Match
 dùng timestamp này để chặn online event cũ làm shipper sống lại trong freshness
-window.
+window. Kafka timestamp là thời điểm core tạo location/tombstone fact, được
+truyền nguyên epoch millis đến publisher; thời gian chờ Kafka không làm fact cũ
+trở thành mới. Core giữ Instant tuyệt đối; adapter giữ encoding timestamp
+local-date-time hiện tại cho WebSocket/offline payload.
 
 Mỗi shipper chỉ có một publisher generation trong Redis. Connection mới tăng
 generation và connection cũ bị fence ở lần `ping`/`update_location` tiếp theo.
@@ -49,8 +52,10 @@ claim chỉ hoàn tất sau Kafka và fanout. Claim hết hạn không được 
 lỗi giữ deadline để retry sau restart/process chết trong cửa sổ grace.
 
 Fence này bảo vệ mutation Redis; Kafka/PubSub vẫn là các bước tiếp theo, chưa có
-transaction chung với Redis. Thứ tự event khi reconnect xảy ra sau mutation
-vẫn đang được audit trong worktree refactor trước khi hợp nhất Tracking vào main.
+transaction chung với Redis. Match dùng occurrence timestamp để chặn fact cũ
+publish muộn trong freshness window; cùng millisecond vẫn theo policy hiện tại
+của Match. Thứ tự packet Redis PubSub/WebSocket vẫn đang được audit trong worktree
+refactor trước khi hợp nhất Tracking vào main.
 
 ## Luồng subscriber
 

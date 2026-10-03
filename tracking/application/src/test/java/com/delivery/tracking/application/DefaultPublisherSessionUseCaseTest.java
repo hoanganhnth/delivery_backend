@@ -98,7 +98,7 @@ class DefaultPublisherSessionUseCaseTest {
         final PublisherLease lease = new PublisherLease(7, "session", 3);
         PublisherExpiryClaim claim = new PublisherExpiryClaim(lease, 12345);
         List<PublisherExpiryClaim> claims = List.of(claim);
-        final OfflineShipperLocation offline = new OfflineShipperLocation(new CachedShipperLocation(7L, null, null, null, null, null, null), LocalDateTime.of(2026, 10, 3, 7, 0));
+        final OfflineShipperLocation offline = new OfflineShipperLocation(new CachedShipperLocation(7L, null, null, null, null, null, null), Instant.parse("2026-10-03T00:00:00Z"));
         final List<String> operations = new ArrayList<>(); final List<PublisherExpiryClaim> completed = new ArrayList<>();
         final RuntimeException failure = new IllegalStateException("Boundary unavailable");
         String failAt; Exception reported; boolean released = true, refresh = true, fenced = true, mutationAdmitted = true;

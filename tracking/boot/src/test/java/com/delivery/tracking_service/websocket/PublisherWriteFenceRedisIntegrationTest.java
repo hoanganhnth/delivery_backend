@@ -56,7 +56,7 @@ class PublisherWriteFenceRedisIntegrationTest {
             assertThat(redis.opsForSet().isMember("shippers:online:set", "7")).isEqualTo(online);
             assertThat(redis.opsForGeo().position("shippers:geo:locations", "7").get(0) != null).isEqualTo(online);
             var order = inOrder(events, fanout);
-            order.verify(events).publishLocationUpdate(any(), eq("WEBSOCKET")); order.verify(fanout).publish(any());
+            order.verify(events).publishLocationUpdate(any(), eq("WEBSOCKET"), org.mockito.ArgumentMatchers.anyLong()); order.verify(fanout).publish(any());
             assertThat(result.online()).isEqualTo(online); clearInvocations(events, fanout);
         }
     }

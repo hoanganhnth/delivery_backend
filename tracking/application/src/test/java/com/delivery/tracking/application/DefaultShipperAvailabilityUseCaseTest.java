@@ -17,7 +17,7 @@ class DefaultShipperAvailabilityUseCaseTest {
             assertThat(f.operations).containsExactly("read", "conditional", "OFFLINE_TOMBSTONE", "broadcast");
             assertThat(f.claim).isSameAs(CLAIM); assertThat(f.saved != null).isEqualTo(cached);
             assertThat(f.published.facts().shipperId()).isEqualTo(7);
-            assertThat(f.published.timestamp()).isEqualTo(LocalDateTime.of(2026, 10, 3, 7, 0));
+            assertThat(f.published.timestamp()).isEqualTo(Instant.parse("2026-10-03T00:00:00Z"));
         }
     }
     @Test void fencedExpiryCannotPublishAndStorageOrPublicationFailureStaysRetryable() {
@@ -39,7 +39,7 @@ class DefaultShipperAvailabilityUseCaseTest {
         f.cached = new CachedShipperLocation(7L, 10.77, 106.7, 3.5, 12.0, 90.0, 1.2);
         var result = f.core.markOffline(7L);
         assertThat(result.facts()).isSameAs(f.cached);
-        assertThat(result.timestamp()).isEqualTo(LocalDateTime.of(2026, 10, 3, 7, 0));
+        assertThat(result.timestamp()).isEqualTo(Instant.parse("2026-10-03T00:00:00Z"));
         assertThat(f.operations).containsExactly("read", "save", "OFFLINE_TOMBSTONE");
         assertThat(f.saved).isSameAs(result); assertThat(f.published).isSameAs(result);
     }

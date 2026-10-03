@@ -33,7 +33,7 @@ class LocationPublicationMappingTest {
             var broadcast = ArgumentCaptor.forClass(ShipperLocationResponse.class);
             if (source == LocationUpdateSource.APPLICATION) verify(cache).cacheShipperLocation(eq(7L), saved.capture());
             else verify(cache).cacheIfCurrentPublisher(eq(lease), saved.capture());
-            verify(kafka).publishLocationUpdate(event.capture(), eq(source.name())); verify(fanout).publish(broadcast.capture());
+            verify(kafka).publishLocationUpdate(event.capture(), eq(source.name()), eq(now.toEpochMilli())); verify(fanout).publish(broadcast.capture());
             var result = saved.getValue();
             assertThat(event.getValue()).usingRecursiveComparison().isEqualTo(result);
             assertThat(broadcast.getValue()).usingRecursiveComparison().isEqualTo(result);

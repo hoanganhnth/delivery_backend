@@ -22,7 +22,7 @@ public class RedisLocationUpdateAdapter implements LocationStorePort, LocationEv
         return locations.cacheIfCurrentPublisher(lease, LocationUpdateMapper.toResponse(location, LocationUpdateSource.WEBSOCKET));
     }
     @Override public void publish(LocationSnapshot location, LocationUpdateSource source) {
-        events.publishLocationUpdate(LocationUpdateMapper.toResponse(location, source), source.name());
+        events.publishLocationUpdate(LocationUpdateMapper.toResponse(location, source), source.name(), location.updatedAt().toEpochMilli());
     }
     @Override public void broadcast(LocationSnapshot location, LocationUpdateSource source) {
         fanout.publish(LocationUpdateMapper.toResponse(location, source));

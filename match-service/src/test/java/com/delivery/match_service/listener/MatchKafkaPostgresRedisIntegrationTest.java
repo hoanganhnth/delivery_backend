@@ -203,6 +203,30 @@ class MatchKafkaPostgresRedisIntegrationTest {
     }
 
     @Test
+    void delayedOlderLocationFactsCannotUndoNewerOnlineOrOfflineDespiteKafkaPublicationOrder() throws Exception {
+        startListenersFor(LOCATION_TOPIC);
+        long observed = System.currentTimeMillis() - 5000;
+        kafkaTemplate.send(LOCATION_TOPIC, Long.toString(SHIPPER_ID), locationPayload(observed)).get();
+        var oldOffline = objectMapper.createObjectNode();
+        oldOffline.put("shipperId", SHIPPER_ID); oldOffline.put("isOnline", false);
+        oldOffline.put("timestamp", observed - 1);
+        var delayedOffline = kafkaTemplate.send(LOCATION_TOPIC, Long.toString(SHIPPER_ID),
+                objectMapper.writeValueAsString(oldOffline)).get();
+        await("both new online and delayed older offline to commit", () -> committedOffsetAtLeast(
+                LOCATION_TOPIC, delayedOffline.getRecordMetadata().offset() + 1));
+        assertThat(redisTemplate.opsForSet().isMember("match:shippers:online", Long.toString(SHIPPER_ID))).isTrue();
+        assertThat(redisTemplate.opsForGeo().position("match:shippers:geo", Long.toString(SHIPPER_ID)).get(0)).isNotNull();
+
+        oldOffline.put("timestamp", observed + 1);
+        kafkaTemplate.send(LOCATION_TOPIC, Long.toString(SHIPPER_ID), objectMapper.writeValueAsString(oldOffline)).get();
+        var delayedOnline = kafkaTemplate.send(LOCATION_TOPIC, Long.toString(SHIPPER_ID), locationPayload(observed - 2)).get();
+        await("both new offline and delayed older online to commit", () -> committedOffsetAtLeast(
+                LOCATION_TOPIC, delayedOnline.getRecordMetadata().offset() + 1));
+        assertThat(redisTemplate.opsForSet().isMember("match:shippers:online", Long.toString(SHIPPER_ID))).isFalse();
+        assertThat(redisTemplate.opsForGeo().position("match:shippers:geo", Long.toString(SHIPPER_ID)).get(0)).isNull();
+    }
+
+    @Test
     void stopBeforeFindIsDurablyFencedAcrossKafkaPostgresAndRedis() throws Exception {
         // If find were allowed to run, this real eligible candidate would be
         // reserved in Redis and a shipper.found outbox event would be stored.

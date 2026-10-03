@@ -55,7 +55,7 @@ class ShipperLocationWebSocketHandlerAuthorizationTest {
 
         ArgumentCaptor<ShipperLocationResponse> location = ArgumentCaptor.forClass(ShipperLocationResponse.class);
         verify(repository).cacheIfCurrentPublisher(argThat(lease -> lease.shipperId() == 42L), location.capture());
-        verify(publisher).publishLocationUpdate(any(ShipperLocationResponse.class), eq("WEBSOCKET"));
+        verify(publisher).publishLocationUpdate(any(ShipperLocationResponse.class), eq("WEBSOCKET"), org.mockito.ArgumentMatchers.anyLong());
         assertThat(location.getValue().getShipperId()).isEqualTo(42L);
         assertThat(location.getValue().getAccuracy()).isNull();
         assertThat(location.getValue().getSpeed()).isNull();
@@ -108,7 +108,7 @@ class ShipperLocationWebSocketHandlerAuthorizationTest {
         when(session.isOpen()).thenReturn(true);
         establishPublisher();
         doThrow(new IllegalStateException("Cannot replicate shipper location"))
-                .when(publisher).publishLocationUpdate(any(ShipperLocationResponse.class), eq("WEBSOCKET"));
+                .when(publisher).publishLocationUpdate(any(ShipperLocationResponse.class), eq("WEBSOCKET"), org.mockito.ArgumentMatchers.anyLong());
 
         handler.handleTextMessage(session, new TextMessage(
                 "{\"action\":\"update_location\",\"latitude\":10.75,\"longitude\":106.67}"));

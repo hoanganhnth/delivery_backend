@@ -33,30 +33,18 @@ public class ShipperLocationEventPublisher {
         this(kafkaTemplate, null);
     }
 
-    /**
-     * Publish sự kiện cập nhật vị trí shipper
-     * Chỉ gửi dữ liệu tối thiểu: shipperId, lat, lng, isOnline
-     */
-    public void publishLocationUpdate(Long shipperId, Double latitude, Double longitude, Boolean isOnline) {
-        ShipperLocationResponse location = new ShipperLocationResponse();
-        location.setShipperId(shipperId);
-        location.setLatitude(latitude);
-        location.setLongitude(longitude);
-        location.setIsOnline(isOnline);
-        publishLocationUpdate(location, "UNKNOWN");
+    public void publishLocationUpdate(ShipperLocationResponse location, String source, long occurredAt) {
+        publishLocationUpdate(location, source, occurredAt, SimulationContext.real());
     }
 
-    public void publishLocationUpdate(ShipperLocationResponse location, String source) {
-        publishLocationUpdate(location, source, SimulationContext.real());
-    }
-
-    public void publishLocationUpdate(ShipperLocationResponse location, String source,
+    public void publishLocationUpdate(ShipperLocationResponse location, String source, long occurredAt,
                                       SimulationContext simulationContext) {
+        if (occurredAt <= 0) throw new IllegalArgumentException("positive location occurrence timestamp is required");
         Long shipperId = location.getShipperId();
         try {
             ShipperLocationUpdatedEvent event = new ShipperLocationUpdatedEvent(
                     shipperId, location.getLatitude(), location.getLongitude(), location.getIsOnline(),
-                    System.currentTimeMillis(), java.util.UUID.randomUUID(),
+                    occurredAt, java.util.UUID.randomUUID(),
                     assignments == null ? null : assignments.activeDelivery(shipperId).orElse(null),
                     location.getAccuracy(), location.getSpeed(), location.getHeading(), source
             );

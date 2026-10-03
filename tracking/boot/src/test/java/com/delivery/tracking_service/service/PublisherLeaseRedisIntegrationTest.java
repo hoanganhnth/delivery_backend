@@ -120,7 +120,7 @@ class PublisherLeaseRedisIntegrationTest {
         }
         public OfflineShipperLocation markOfflineAndBroadcast(Long id) {
             attempts++; if (failOffline) throw new IllegalStateException("Broker unavailable"); offline.add(id);
-            return new OfflineShipperLocation(new CachedShipperLocation(id, null, null, null, null, null, null), LocalDateTime.now());
+            return new OfflineShipperLocation(new CachedShipperLocation(id, null, null, null, null, null, null), Instant.now());
         }
         public OfflineShipperLocation markOffline(Long id) { throw new AssertionError("Recovery must include distributed fanout"); }
         public void graceFailed(PublisherLease lease, Exception failure) { failures.add(failure); }

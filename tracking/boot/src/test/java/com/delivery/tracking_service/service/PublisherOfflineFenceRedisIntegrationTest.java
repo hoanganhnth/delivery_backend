@@ -56,7 +56,7 @@ class PublisherOfflineFenceRedisIntegrationTest {
         assertThat(redis.opsForSet().isMember("shippers:online:set", "7")).isFalse();
         assertThat(redis.opsForGeo().position("shippers:geo:locations", "7").get(0)).isNull();
         var order = inOrder(events, fanout);
-        order.verify(events).publishLocationUpdate(any(), eq("OFFLINE_TOMBSTONE"));
+        order.verify(events).publishLocationUpdate(any(), eq("OFFLINE_TOMBSTONE"), org.mockito.ArgumentMatchers.anyLong());
         order.verify(fanout).publish(any());
     }
 
@@ -67,7 +67,7 @@ class PublisherOfflineFenceRedisIntegrationTest {
         assertThat(redis.opsForSet().isMember("shippers:online:set", "7")).isFalse();
         assertThat(redis.opsForGeo().position("shippers:geo:locations", "7").get(0)).isNull();
         var row = org.mockito.ArgumentCaptor.forClass(ShipperLocationResponse.class);
-        verify(events).publishLocationUpdate(row.capture(), eq("OFFLINE_TOMBSTONE"));
+        verify(events).publishLocationUpdate(row.capture(), eq("OFFLINE_TOMBSTONE"), org.mockito.ArgumentMatchers.anyLong());
         assertThat(row.getValue().getShipperId()).isEqualTo(7L);
         assertThat(row.getValue().getLatitude()).isNull(); assertThat(row.getValue().getIsOnline()).isFalse();
         verify(fanout).publish(any());
