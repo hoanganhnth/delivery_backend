@@ -55,6 +55,13 @@ Assignment BUSY/AVAILABLE fence room cũ/mới bằng Redis Lua compare-and-set 
 nhau cùng timestamp fail-closed. Redis Pub/Sub chuyển exact `deliveryId` giữa
 các Tracking instance. Routing listener có bounded retry và owner DLT
 `shipper.status-change.tracking.DLT`; nó không đổi Match availability state.
+AVAILABLE giữ terminal timestamp riêng trong cùng Lua transaction xoá active
+assignment. Trong TTL projection 24 giờ, BUSY cũ hoặc cùng timestamp không
+khôi phục assignment đã kết thúc; AVAILABLE đến trước BUSY cũng giữ fence.
+Batch fence scope theo shipper/delivery nên kết thúc một item không chặn sibling.
+Active key giữ format cũ. Các writer cần cùng phiên bản fence mới để bảo vệ này
+có hiệu lực; writer phiên bản cũ bỏ qua terminal key. Redis mất dữ liệu hoặc
+terminal key hết TTL vẫn cần recovery/replay audit riêng.
 Slow session dùng bounded coalescing queue và subscribe/reconnect luôn đọc
 location cuối từ Redis nên không mất final state.
 
@@ -117,6 +124,7 @@ room của batch sau khi Delivery authorize participant. Projection thiếu/stal
 so với delivery vừa được authorize dùng fallback đúng delivery đó. Registry
 index tập delivery và session membership; kết thúc một item không xoá audience
 item khác. Local offline broadcast cũng đi qua từng room đang hoạt động.
-Race đọc projection/index local, terminal replay fence và runtime còn cần audit;
+Terminal replay fence trong TTL đã có proof Redis; race đọc projection/index
+local, recovery ngoài TTL/mất Redis và runtime còn cần audit;
 chưa xoá host cũ hoặc coi toàn bộ Tracking hoàn tất. Bằng chứng và tiến độ nằm ở
 `../plans/active/service-architecture-consolidation.md`.

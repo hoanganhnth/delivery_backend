@@ -70,6 +70,80 @@ class ShipperDeliveryAssignmentRedisIntegrationTest {
         assertThat(assignments.activeDelivery(42)).isEmpty();
     }
 
+    @Test
+    void terminalLegacyAssignmentRejectsLateBusyButAllowsTheNextDelivery() {
+        assignments.busy(42,100,1000,"initial"); assignments.available(42,100,2000);
+        assignments.busy(42,100,1500,"late");
+        assertThat(assignments.activeDeliveries(42)).isEmpty();
+        assignments.busy(42,100,2000,"terminal-tie");
+        assertThat(assignments.activeDeliveries(42)).isEmpty();
+        assignments.busy(42,200,3000,"next");
+        assignments.available(42,100,3500);
+        assertThat(assignments.activeDelivery(42)).contains(200L);
+        assignments.available(42,200,3500); assignments.busy(42,200,3200,"late-next");
+        assertThat(assignments.activeDeliveries(42)).isEmpty();
+        assignments.busy(42,300,4000,"later");
+        assertThat(assignments.activeDelivery(42)).contains(300L);
+    }
+
+    @Test
+    void terminalBatchItemCannotResurrectAndDoesNotCloseItsSibling() {
+        assignments.busyBatch(42,100,1000,"first"); assignments.busyBatch(42,101,1000,"sibling");
+        assignments.availableBatch(42,100,2000); assignments.busyBatch(42,100,1500,"late");
+        assertThat(assignments.activeDeliveries(42)).containsExactly(101L);
+        assignments.busyBatch(42,100,2000,"terminal-tie");
+        assertThat(assignments.activeDeliveries(42)).containsExactly(101L);
+        assignments.availableBatch(42,101,2000);
+        assertThat(assignments.activeDeliveries(42)).isEmpty();
+        assignments.busyBatch(42,100,3000,"newer");
+        assertThat(assignments.activeDeliveries(42)).containsExactly(100L);
+    }
+
+    @Test
+    void availableBeforeInitialBusyRetainsTerminalFenceForLegacyAndBatch() {
+        assignments.available(42,100,2000); assignments.busy(42,100,1500,"late");
+        assertThat(assignments.activeDelivery(42)).isEmpty();
+        assignments.availableBatch(43,101,2000); assignments.busyBatch(43,101,1500,"late-batch");
+        assertThat(assignments.activeDeliveries(43)).isEmpty();
+    }
+
+    @Test
+    void independentWritersConvergeWhenTerminalAndLateBusyRace() throws Exception {
+        var second=new ShipperDeliveryAssignmentStore(redis);
+        var executor=java.util.concurrent.Executors.newFixedThreadPool(2);
+        try {
+            for(boolean batch:java.util.List.of(false,true)) for(int i=0;i<12;i++) {
+                long shipper=1000+i+(batch?100:0);
+                var start=new java.util.concurrent.CountDownLatch(1);
+                var busy=executor.submit(()->{start.await();if(batch)assignments.busyBatch(shipper,100,1500,"late");else assignments.busy(shipper,100,1500,"late");return null;});
+                var available=executor.submit(()->{start.await();if(batch)second.availableBatch(shipper,100,2000);else second.available(shipper,100,2000);return null;});
+                start.countDown(); busy.get(10,java.util.concurrent.TimeUnit.SECONDS); available.get(10,java.util.concurrent.TimeUnit.SECONDS);
+                assertThat(assignments.activeDeliveries(shipper)).isEmpty();
+            }
+        } finally {executor.shutdownNow();}
+    }
+
+    @Test
+    void terminalKeysUseExistingTtlAndCorruptionFailsBeforeMutation() {
+        assignments.available(42,100,2000); assignments.availableBatch(43,101,2000);
+        String legacy="tracking:shipper:assignment-terminal:42";
+        String batch="tracking:shipper:batch-assignment-terminal:43:101";
+        assertThat(redis.opsForValue().get(legacy)).isEqualTo("2000");
+        assertThat(redis.opsForValue().get(batch)).isEqualTo("2000");
+        assertThat(redis.getExpire(legacy)).isBetween(86300L,86400L);
+        assertThat(redis.getExpire(batch)).isBetween(86300L,86400L);
+        assignments.available(42,100,1500); assignments.availableBatch(43,101,1500);
+        assertThat(redis.opsForValue().get(legacy)).isEqualTo("2000");
+        assertThat(redis.opsForValue().get(batch)).isEqualTo("2000");
+        redis.opsForValue().set(legacy,"corrupt"); redis.opsForValue().set(batch,"corrupt");
+        assertThatThrownBy(()->assignments.busy(42,100,3000,"next")).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(()->assignments.available(42,100,3000)).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(()->assignments.busyBatch(43,101,3000,"next")).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(()->assignments.availableBatch(43,101,3000)).isInstanceOf(IllegalStateException.class);
+        assertThat(assignments.activeDeliveries(42)).isEmpty();
+        assertThat(assignments.activeDeliveries(43)).isEmpty();
+    }
+
     @TestConfiguration
     static class RedisConfiguration {
         @Bean

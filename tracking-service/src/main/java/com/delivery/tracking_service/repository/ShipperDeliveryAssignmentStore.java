@@ -17,6 +17,8 @@ public class ShipperDeliveryAssignmentStore implements com.delivery.tracking.app
     private static final String PREFIX = "tracking:shipper:active-delivery:";
     private static final String BATCH_PREFIX = "tracking:shipper:active-deliveries:";
     private static final String BATCH_FENCE_PREFIX = "tracking:shipper:active-delivery-fence:";
+    private static final String TERMINAL_PREFIX = "tracking:shipper:assignment-terminal:";
+    private static final String BATCH_TERMINAL_PREFIX = "tracking:shipper:batch-assignment-terminal:";
     private static final Duration TTL = Duration.ofHours(24);
     /**
      * Kafka partitions prevent duplicate execution only inside one consumer
@@ -26,6 +28,12 @@ public class ShipperDeliveryAssignmentStore implements com.delivery.tracking.app
     private static final DefaultRedisScript<Long> APPLY_BUSY = new DefaultRedisScript<>("""
             local current = redis.call('GET', KEYS[1])
             local incomingTimestamp = tonumber(ARGV[2])
+            local terminal = redis.call('GET', KEYS[2])
+            if terminal then
+              local terminalTimestamp = tonumber(terminal)
+              if not terminalTimestamp then return -2 end
+              if terminalTimestamp >= incomingTimestamp then return 0 end
+            end
             if current then
               local first = string.find(current, '|')
               local second = first and string.find(current, '|', first + 1) or nil
@@ -44,15 +52,22 @@ public class ShipperDeliveryAssignmentStore implements com.delivery.tracking.app
             return 1
             """, Long.class);
     private static final DefaultRedisScript<Long> APPLY_AVAILABLE = new DefaultRedisScript<>("""
+            local incoming = tonumber(ARGV[2])
+            local terminal = redis.call('GET', KEYS[2])
+            local terminalTimestamp = terminal and tonumber(terminal) or nil
+            if terminal and not terminalTimestamp then return -2 end
+            if terminalTimestamp and terminalTimestamp > incoming then return 0 end
             local current = redis.call('GET', KEYS[1])
-            if not current then return 0 end
-            local first = string.find(current, '|')
-            local second = first and string.find(current, '|', first + 1) or nil
-            if not second then return -2 end
-            local currentDelivery = string.sub(current, 1, first - 1)
-            local currentTimestamp = tonumber(string.sub(current, first + 1, second - 1))
-            if not currentTimestamp then return -2 end
-            if currentDelivery ~= ARGV[1] or currentTimestamp > tonumber(ARGV[2]) then return 0 end
+            if current then
+              local first = string.find(current, '|')
+              local second = first and string.find(current, '|', first + 1) or nil
+              if not second then return -2 end
+              local currentDelivery = string.sub(current, 1, first - 1)
+              local currentTimestamp = tonumber(string.sub(current, first + 1, second - 1))
+              if not currentTimestamp then return -2 end
+              if currentDelivery ~= ARGV[1] or currentTimestamp > incoming then return 0 end
+            elseif terminalTimestamp and terminalTimestamp == incoming then return 0 end
+            redis.call('SET', KEYS[2], ARGV[2], 'EX', tonumber(ARGV[3]))
             redis.call('DEL', KEYS[1])
             return 1
             """, Long.class);
@@ -61,6 +76,12 @@ public class ShipperDeliveryAssignmentStore implements com.delivery.tracking.app
     private static final DefaultRedisScript<Long> APPLY_BATCH_BUSY = new DefaultRedisScript<>("""
             local current = redis.call('GET', KEYS[2])
             local incoming = tonumber(ARGV[2])
+            local terminal = redis.call('GET', KEYS[3])
+            if terminal then
+              local terminalTimestamp = tonumber(terminal)
+              if not terminalTimestamp then return -2 end
+              if terminalTimestamp >= incoming then return 0 end
+            end
             if current then
               local sep = string.find(current, '|')
               if not sep then return -2 end
@@ -79,13 +100,20 @@ public class ShipperDeliveryAssignmentStore implements com.delivery.tracking.app
             return 1
             """, Long.class);
     private static final DefaultRedisScript<Long> APPLY_BATCH_AVAILABLE = new DefaultRedisScript<>("""
+            local incoming = tonumber(ARGV[2])
+            local terminal = redis.call('GET', KEYS[3])
+            local terminalTimestamp = terminal and tonumber(terminal) or nil
+            if terminal and not terminalTimestamp then return -2 end
+            if terminalTimestamp and terminalTimestamp > incoming then return 0 end
             local current = redis.call('GET', KEYS[2])
-            if not current then return 0 end
-            local sep = string.find(current, '|')
-            if not sep then return -2 end
-            local timestamp = tonumber(string.sub(current, 1, sep - 1))
-            if not timestamp then return -2 end
-            if timestamp > tonumber(ARGV[2]) then return 0 end
+            if current then
+              local sep = string.find(current, '|')
+              if not sep then return -2 end
+              local timestamp = tonumber(string.sub(current, 1, sep - 1))
+              if not timestamp then return -2 end
+              if timestamp > incoming then return 0 end
+            elseif terminalTimestamp and terminalTimestamp == incoming then return 0 end
+            redis.call('SET', KEYS[3], ARGV[2], 'EX', tonumber(ARGV[3]))
             redis.call('DEL', KEYS[2])
             redis.call('SREM', KEYS[1], ARGV[1])
             return 1
@@ -99,7 +127,7 @@ public class ShipperDeliveryAssignmentStore implements com.delivery.tracking.app
         if (shipperId <= 0 || deliveryId <= 0 || timestamp <= 0 || eventId == null || eventId.isBlank()) {
             throw new IllegalArgumentException("positive assignment identity/timestamp and eventId are required");
         }
-        Long result = redis.execute(APPLY_BUSY, List.of(key(shipperId)), Long.toString(deliveryId),
+        Long result = redis.execute(APPLY_BUSY, List.of(key(shipperId), terminalKey(shipperId)), Long.toString(deliveryId),
                 Long.toString(timestamp), eventId, Long.toString(TTL.toSeconds()));
         if (result == null || result == -2L) {
             throw new IllegalStateException("Corrupt shipper assignment projection");
@@ -113,8 +141,8 @@ public class ShipperDeliveryAssignmentStore implements com.delivery.tracking.app
         if (shipperId <= 0 || deliveryId <= 0 || timestamp <= 0) {
             throw new IllegalArgumentException("positive assignment identity and timestamp are required");
         }
-        Long result = redis.execute(APPLY_AVAILABLE, List.of(key(shipperId)), Long.toString(deliveryId),
-                Long.toString(timestamp));
+        Long result = redis.execute(APPLY_AVAILABLE, List.of(key(shipperId), terminalKey(shipperId)), Long.toString(deliveryId),
+                Long.toString(timestamp), Long.toString(TTL.toSeconds()));
         if (result == null || result == -2L) {
             throw new IllegalStateException("Corrupt shipper assignment projection");
         }
@@ -123,7 +151,7 @@ public class ShipperDeliveryAssignmentStore implements com.delivery.tracking.app
     public void busyBatch(long shipperId, long deliveryId, long timestamp, String eventId) {
         validate(shipperId, deliveryId, timestamp, eventId);
         Long result = redis.execute(APPLY_BATCH_BUSY,
-                List.of(batchKey(shipperId), batchFenceKey(shipperId, deliveryId)),
+                List.of(batchKey(shipperId), batchFenceKey(shipperId, deliveryId), batchTerminalKey(shipperId, deliveryId)),
                 Long.toString(deliveryId), Long.toString(timestamp), eventId, Long.toString(TTL.toSeconds()));
         if (result == null || result == -2L) throw new IllegalStateException("Corrupt batch assignment projection");
         if (result == -1L) throw new IllegalArgumentException("Conflicting batch assignment events share the same timestamp");
@@ -134,8 +162,8 @@ public class ShipperDeliveryAssignmentStore implements com.delivery.tracking.app
             throw new IllegalArgumentException("positive batch assignment identity and timestamp are required");
         }
         Long result = redis.execute(APPLY_BATCH_AVAILABLE,
-                List.of(batchKey(shipperId), batchFenceKey(shipperId, deliveryId)),
-                Long.toString(deliveryId), Long.toString(timestamp));
+                List.of(batchKey(shipperId), batchFenceKey(shipperId, deliveryId), batchTerminalKey(shipperId, deliveryId)),
+                Long.toString(deliveryId), Long.toString(timestamp), Long.toString(TTL.toSeconds()));
         if (result == null || result == -2L) throw new IllegalStateException("Corrupt batch assignment projection");
     }
 
@@ -174,6 +202,9 @@ public class ShipperDeliveryAssignmentStore implements com.delivery.tracking.app
     private String key(long shipperId) {
         return PREFIX + shipperId;
     }
+
+    private String terminalKey(long shipperId) { return TERMINAL_PREFIX + shipperId; }
+    private String batchTerminalKey(long shipperId, long deliveryId) { return BATCH_TERMINAL_PREFIX + shipperId + ":" + deliveryId; }
 
     private String batchKey(long shipperId) { return BATCH_PREFIX + shipperId; }
 
