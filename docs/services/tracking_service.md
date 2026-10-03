@@ -112,6 +112,11 @@ khi một lần PubSub lỗi trong `DefaultLocationFanoutUseCase`; Redis/JSON/lo
 `DefaultDeliveryRoomAssignmentUseCase` sở hữu BUSY/AVAILABLE single/batch orchestration.
 Sau Redis fence, core kiểm projection trước khi activate/end room local, tránh
 event cũ sửa index local dù Redis đã bỏ qua event đó. Lua và retry/DLT không đổi.
-Batch subscription, race đọc projection/index local và runtime còn cần audit;
+`DefaultDeliveryRoomSubscriptionUseCase` dùng projection shared để giữ tất cả
+room của batch sau khi Delivery authorize participant. Projection thiếu/stale
+so với delivery vừa được authorize dùng fallback đúng delivery đó. Registry
+index tập delivery và session membership; kết thúc một item không xoá audience
+item khác. Local offline broadcast cũng đi qua từng room đang hoạt động.
+Race đọc projection/index local, terminal replay fence và runtime còn cần audit;
 chưa xoá host cũ hoặc coi toàn bộ Tracking hoàn tất. Bằng chứng và tiến độ nằm ở
 `../plans/active/service-architecture-consolidation.md`.

@@ -21,8 +21,11 @@ final class TrackingWebSocketTestFixture {
         };
         var adapter = new RedisLocationUpdateAdapter(locations, events, fanout);
         var identities = new ShipperIdentityResolver(new DefaultShipperIdentityUseCase(id -> Optional.empty()), false, new SimpleMeterRegistry());
+        var rooms = new DeliveryRoomRegistry();
+        var subscriptions = new com.delivery.tracking.application.DefaultDeliveryRoomSubscriptionUseCase(
+                org.mockito.Mockito.mock(com.delivery.tracking.application.api.DeliveryRoomAssignmentPort.class), rooms);
         var result = new ShipperLocationWebSocketHandler(new ObjectMapper(), locations, new DefaultTrackingService(adapter, adapter),
-                access, publishers, new DeliveryRoomRegistry(), new LocationMessageDispatcher(Runnable::run), fanout, identities);
+                access, publishers, rooms, new LocationMessageDispatcher(Runnable::run), fanout, identities, subscriptions);
         handler.set(result); return result;
     }
 }

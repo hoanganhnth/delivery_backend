@@ -8,20 +8,16 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * Local authorized room membership. A shipper can be routed to only one active
- * delivery room; activating a newer authorized assignment evicts the previous
- * room so participants of a completed delivery cannot receive later work.
- */
+/** Local authorized membership index for legacy single and projected batch rooms. */
 @Component
 public class DeliveryRoomRegistry implements com.delivery.tracking.application.api.DeliveryRoomIndexPort {
 
     private final Map<Long, Room> rooms = new ConcurrentHashMap<>();
-    private final Map<Long, Long> activeDeliveryByShipper = new ConcurrentHashMap<>();
+    private final Map<Long, Set<Long>> activeDeliveriesByShipper = new ConcurrentHashMap<>();
     private final Map<String, Set<Long>> roomsBySession = new ConcurrentHashMap<>();
 
     public synchronized void subscribe(long deliveryId, long shipperId, String sessionId) {
-        activate(deliveryId, shipperId);
+        if (!activeDeliveries(shipperId).contains(deliveryId)) activate(deliveryId, shipperId);
         Room room = rooms.computeIfAbsent(deliveryId, ignored -> new Room(shipperId));
         if (room.shipperId() != shipperId) {
             throw new IllegalStateException("Delivery room shipper identity changed");
@@ -32,15 +28,22 @@ public class DeliveryRoomRegistry implements com.delivery.tracking.application.a
     }
 
     public synchronized void activate(long deliveryId, long shipperId) {
-        Long previousDelivery = activeDeliveryByShipper.put(shipperId, deliveryId);
-        if (previousDelivery != null && previousDelivery != deliveryId) {
-            removeRoom(previousDelivery);
-        }
+        synchronize(shipperId, Set.of(deliveryId));
+    }
+
+    public synchronized void synchronize(long shipperId, Set<Long> deliveryIds) {
+        Set<Long> incoming = Set.copyOf(deliveryIds);
+        Set<Long> previous = activeDeliveriesByShipper.getOrDefault(shipperId, Set.of());
+        if (incoming.isEmpty()) activeDeliveriesByShipper.remove(shipperId);
+        else activeDeliveriesByShipper.put(shipperId, incoming);
+        for (Long deliveryId : previous) if (!incoming.contains(deliveryId)) removeRoom(deliveryId);
     }
 
     public synchronized void end(long deliveryId, long shipperId) {
-        if (activeDeliveryByShipper.remove(shipperId, deliveryId)) {
-            removeRoom(deliveryId);
+        Set<Long> current = activeDeliveries(shipperId);
+        if (current.contains(deliveryId)) {
+            var remaining = new java.util.HashSet<>(current); remaining.remove(deliveryId);
+            synchronize(shipperId, remaining);
         }
     }
 
@@ -63,7 +66,7 @@ public class DeliveryRoomRegistry implements com.delivery.tracking.application.a
             if (room != null) {
                 room.sessions().remove(sessionId);
                 if (room.sessions().isEmpty()
-                        && !activeDeliveryByShipper.containsValue(deliveryId)) {
+                        && !activeDeliveries(room.shipperId()).contains(deliveryId)) {
                     rooms.remove(deliveryId, room);
                 }
             }
@@ -71,24 +74,26 @@ public class DeliveryRoomRegistry implements com.delivery.tracking.application.a
     }
 
     public List<String> subscribersForShipper(long shipperId) {
-        Long deliveryId = activeDeliveryByShipper.get(shipperId);
-        if (deliveryId == null) return List.of();
-        Room room = rooms.get(deliveryId);
-        if (room == null || room.shipperId() != shipperId) return List.of();
-        return List.copyOf(room.sessions());
+        var sessions = new java.util.HashSet<String>();
+        for (Long deliveryId : activeDeliveries(shipperId)) sessions.addAll(subscribers(deliveryId, shipperId));
+        return List.copyOf(sessions);
     }
 
     public List<String> subscribers(long deliveryId, long shipperId) {
         Room room = rooms.get(deliveryId);
         if (room == null || room.shipperId() != shipperId
-                || !Long.valueOf(deliveryId).equals(activeDeliveryByShipper.get(shipperId))) {
+                || !activeDeliveries(shipperId).contains(deliveryId)) {
             return List.of();
         }
         return List.copyOf(room.sessions());
     }
 
     public Long activeDelivery(long shipperId) {
-        return activeDeliveryByShipper.get(shipperId);
+        return activeDeliveries(shipperId).stream().min(Long::compareTo).orElse(null);
+    }
+
+    public Set<Long> activeDeliveries(long shipperId) {
+        return activeDeliveriesByShipper.getOrDefault(shipperId, Set.of());
     }
 
     public int roomCount() {

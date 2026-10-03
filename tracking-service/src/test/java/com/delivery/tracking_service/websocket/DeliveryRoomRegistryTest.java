@@ -52,4 +52,29 @@ class DeliveryRoomRegistryTest {
         assertThat(rooms.activeDelivery(42L)).isNull();
         assertThat(rooms.subscribersForShipper(42L)).isEmpty();
     }
+    @Test
+    void batchAudienceSurvivesSiblingSubscribeAndOnlyFinishedItemIsClosed() {
+        var rooms=new DeliveryRoomRegistry();
+        rooms.synchronize(42,java.util.Set.of(100L,101L));
+        rooms.subscribe(100,42,"first"); rooms.subscribe(101,42,"second");
+        assertThat(rooms.subscribers(100,42)).containsExactly("first");
+        assertThat(rooms.subscribers(101,42)).containsExactly("second");
+        rooms.synchronize(42,java.util.Set.of(100L,101L));
+        assertThat(rooms.subscribersForShipper(42)).containsExactlyInAnyOrder("first","second");
+        rooms.end(100,42);
+        assertThat(rooms.subscribers(100,42)).isEmpty();
+        assertThat(rooms.subscribers(101,42)).containsExactly("second");
+        assertThat(rooms.activeDeliveries(42)).containsExactly(101L);
+    }
+    @Test
+    void batchUnsubscribeAndDisconnectCleanEveryRoomForTheSession() {
+        var rooms=new DeliveryRoomRegistry(); rooms.synchronize(42,java.util.Set.of(100L,101L));
+        rooms.subscribe(100,42,"shared"); rooms.subscribe(101,42,"shared");
+        assertThat(rooms.subscribersForShipper(42)).containsExactly("shared");
+        rooms.unsubscribe("shared",42); assertThat(rooms.subscribersForShipper(42)).isEmpty();
+        rooms.subscribe(100,42,"shared"); rooms.subscribe(101,42,"shared");
+        rooms.removeSession("shared"); assertThat(rooms.subscribersForShipper(42)).isEmpty();
+        rooms.synchronize(42,java.util.Set.of()); assertThat(rooms.roomCount()).isZero();
+    }
+
 }

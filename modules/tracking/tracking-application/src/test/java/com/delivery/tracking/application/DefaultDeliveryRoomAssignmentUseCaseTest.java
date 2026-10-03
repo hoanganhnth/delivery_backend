@@ -16,8 +16,8 @@ class DefaultDeliveryRoomAssignmentUseCaseTest {
         core.apply(valid("busy",false)); core.apply(valid("BUSY",true));
         ports.active=Set.of();
         core.apply(valid("available",false)); core.apply(valid("AVAILABLE",true));
-        assertThat(ports.calls).containsExactly("busy","read","activate","busyBatch","read","activate",
-                "available","read","end","availableBatch","read","end");
+        assertThat(ports.calls).containsExactly("busy","read","activate","busyBatch","read","sync",
+                "available","read","end","availableBatch","read","sync");
     }
     @Test void staleBusyCannotReplaceCurrentRoomAndStaleAvailableCannotEndIt() {
         ports.active=Set.of(200L); core.apply(valid("BUSY",false));
@@ -59,6 +59,8 @@ class DefaultDeliveryRoomAssignmentUseCaseTest {
         public void availableBatch(long shipper,long delivery,long time){apply("availableBatch",shipper,delivery,time);}
         public Set<Long> activeDeliveries(long shipper){calls.add("read");if(failOnRead)throw failure;return active;}
         public void activate(long delivery,long shipper){calls.add("activate");assertThat(delivery).isEqualTo(100);assertThat(shipper).isEqualTo(42);}
+        public void synchronize(long shipper,Set<Long> deliveries){calls.add("sync");assertThat(deliveries).isEqualTo(active);}
+        public void subscribe(long delivery,long shipper,String session){throw new AssertionError("unexpected subscription");}
         public void end(long delivery,long shipper){calls.add("end");assertThat(delivery).isEqualTo(100);assertThat(shipper).isEqualTo(42);}
     }
 }

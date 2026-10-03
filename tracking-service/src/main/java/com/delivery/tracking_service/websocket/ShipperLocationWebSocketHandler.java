@@ -44,6 +44,7 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
     private final LocationMessageDispatcher messageDispatcher;
     private final LocationFanoutPublisher locationFanoutPublisher;
     private final ShipperIdentityResolver shipperIdentityResolver;
+    private final com.delivery.tracking.application.api.DeliveryRoomSubscriptionUseCase subscriptions;
 
     @Autowired
     public ShipperLocationWebSocketHandler(ObjectMapper objectMapper, 
@@ -54,7 +55,8 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
                                            DeliveryRoomRegistry deliveryRooms,
                                            LocationMessageDispatcher messageDispatcher,
                                            LocationFanoutPublisher locationFanoutPublisher,
-                                           ShipperIdentityResolver shipperIdentityResolver) {
+                                           ShipperIdentityResolver shipperIdentityResolver,
+                                           com.delivery.tracking.application.api.DeliveryRoomSubscriptionUseCase subscriptions) {
         this.objectMapper = objectMapper;
         this.redisGeoRepository = redisGeoRepository;
         this.tracking = tracking;
@@ -64,6 +66,7 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
         this.messageDispatcher = messageDispatcher;
         this.locationFanoutPublisher = locationFanoutPublisher;
         this.shipperIdentityResolver = shipperIdentityResolver;
+        this.subscriptions = subscriptions;
     }
 
     @Override
@@ -200,7 +203,7 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
             return;
         }
         String shipperId = shipperIdValue.toString();
-        deliveryRooms.subscribe(deliveryId, shipperIdValue, sessionId);
+        subscriptions.subscribeAuthorized(deliveryId, shipperIdValue, sessionId);
 
         log.info("📍 Session {} subscribed to shipper {}", sessionId, shipperId);
 
@@ -370,8 +373,8 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
      */
     public void broadcastShipperLocation(ShipperLocationResponse location) {
         Long shipperId = location == null ? null : location.getShipperId();
-        Long deliveryId = shipperId == null ? null : deliveryRooms.activeDelivery(shipperId);
-        if (deliveryId != null) broadcastDeliveryLocation(deliveryId, location);
+        if (shipperId != null) for (Long deliveryId : deliveryRooms.activeDeliveries(shipperId))
+            broadcastDeliveryLocation(deliveryId, location);
     }
 
     public void broadcastDeliveryLocation(Long deliveryId, ShipperLocationResponse location) {

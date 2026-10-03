@@ -193,8 +193,10 @@ class TrackingOfflineRedisKafkaIntegrationTest {
         var access = mock(DeliveryTrackingAccessClient.class);
         when(access.canTrack(9002L, 300L, "USER", 7002L)).thenReturn(true);
         var dispatcher = new LocationMessageDispatcher(1, 64);
+        var rooms = new DeliveryRoomRegistry();
+        var subscriptions = new com.delivery.tracking.application.DefaultDeliveryRoomSubscriptionUseCase(assignments, rooms);
         var subscriberHandler = new ShipperLocationWebSocketHandler(mapper, locations, core, access, publishers,
-                new DeliveryRoomRegistry(), dispatcher, fanout, identities);
+                rooms, dispatcher, fanout, identities, subscriptions);
         var receiver = new RedisMessageListenerContainer(); receiver.setConnectionFactory(connections);
         receiver.addMessageListener(new RedisLocationFanoutListener(mapper, subscriberHandler), new ChannelTopic(LocationFanoutPublisher.CHANNEL));
         try {
@@ -229,6 +231,46 @@ class TrackingOfflineRedisKafkaIntegrationTest {
             receiver.stop(); receiver.destroy(); ReflectionTestUtils.invokeMethod(dispatcher, "shutdown");
         }
     }
+    @Test
+    void independentRedisSubscriberKeepsBothAuthorizedBatchAudiences() throws Exception {
+        long time=System.currentTimeMillis();
+        assignments.busyBatch(8002,9102,time,UUID.randomUUID().toString());
+        assignments.busyBatch(8002,9103,time,UUID.randomUUID().toString());
+        var rooms=new DeliveryRoomRegistry(); var dispatcher=new LocationMessageDispatcher(1,64);
+        var access=mock(DeliveryTrackingAccessClient.class);
+        when(access.canTrack(9102L,300L,"USER",8002L)).thenReturn(true);
+        when(access.canTrack(9103L,301L,"USER",8002L)).thenReturn(true);
+        var subscriptions=new com.delivery.tracking.application.DefaultDeliveryRoomSubscriptionUseCase(assignments,rooms);
+        var handler=new ShipperLocationWebSocketHandler(mapper,locations,core,access,publishers,rooms,dispatcher,fanout,identities,subscriptions);
+        var receiver=new RedisMessageListenerContainer(); receiver.setConnectionFactory(connections);
+        receiver.addMessageListener(new RedisLocationFanoutListener(mapper,handler),new ChannelTopic(LocationFanoutPublisher.CHANNEL));
+        receiver.afterPropertiesSet(); receiver.start();
+        var firstMessages=new CopyOnWriteArrayList<String>(); var secondMessages=new CopyOnWriteArrayList<String>();
+        var deniedMessages=new CopyOnWriteArrayList<String>();
+        try {
+            var first=session("batch-first",1300L,300L,"USER",firstMessages);
+            var second=session("batch-second",1301L,301L,"USER",secondMessages);
+            var denied=session("batch-denied",1302L,302L,"USER",deniedMessages);
+            handler.afterConnectionEstablished(first); handler.afterConnectionEstablished(second); handler.afterConnectionEstablished(denied);
+            handler.handleMessage(first,new TextMessage("{\"action\":\"subscribe_shipper\",\"deliveryId\":9102,\"shipperId\":8002}"));
+            handler.handleMessage(second,new TextMessage("{\"action\":\"subscribe_shipper\",\"deliveryId\":9103,\"shipperId\":8002}"));
+            handler.handleMessage(denied,new TextMessage("{\"action\":\"subscribe_shipper\",\"deliveryId\":9102,\"shipperId\":8002}"));
+            var location=new ShipperLocationResponse(); location.setShipperId(8002L); location.setLatitude(10.8); location.setLongitude(106.7);
+            location.setIsOnline(true); location.setUpdatedAt(java.time.Instant.now().toString()); location.setLastPing(location.getUpdatedAt());
+            locations.cacheShipperLocation(8002L,location); fanout.publish(location);
+            awaitLocation(firstMessages,10.8); awaitLocation(secondMessages,10.8);
+            assertThat(deniedMessages).anyMatch(message->message.contains("FORBIDDEN"));
+            assertThat(deniedMessages).noneMatch(message->message.contains("location_update"));
+            var assignmentCore=new com.delivery.tracking.application.DefaultDeliveryRoomAssignmentUseCase(assignments,rooms);
+            assignmentCore.apply(new com.delivery.tracking.application.api.DeliveryRoomAssignmentCommand(8002,9102,7,time+1,
+                    UUID.randomUUID().toString(),"AVAILABLE",true));
+            location.setLatitude(10.81); locations.cacheShipperLocation(8002L,location); fanout.publish(location);
+            awaitLocation(secondMessages,10.81);
+            assertThat(firstMessages).noneMatch(message->message.contains("10.81"));
+            assertThat(rooms.activeDeliveries(8002)).containsExactly(9103L);
+        } finally {receiver.stop();receiver.destroy();ReflectionTestUtils.invokeMethod(dispatcher,"shutdown");}
+    }
+
     private void awaitLocation(List<String> messages, double latitude) {
         String expected = "\"latitude\":" + latitude;
         try {

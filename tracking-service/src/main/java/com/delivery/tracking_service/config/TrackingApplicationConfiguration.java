@@ -68,6 +68,13 @@ public class TrackingApplicationConfiguration {
     }
 
     @Bean
+    com.delivery.tracking.application.api.DeliveryRoomSubscriptionUseCase deliveryRoomSubscriptions(
+            com.delivery.tracking.application.api.DeliveryRoomAssignmentPort assignments,
+            com.delivery.tracking.application.api.DeliveryRoomIndexPort rooms) {
+        return new com.delivery.tracking.application.DefaultDeliveryRoomSubscriptionUseCase(assignments, rooms);
+    }
+
+    @Bean
     TrackingPort tracking(LocationStorePort store, LocationEventPort events) {
         return new DefaultTrackingService(store, events);
     }

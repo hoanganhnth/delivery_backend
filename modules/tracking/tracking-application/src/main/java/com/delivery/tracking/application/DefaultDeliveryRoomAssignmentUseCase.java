@@ -24,13 +24,19 @@ public final class DefaultDeliveryRoomAssignmentUseCase implements DeliveryRoomA
         if("BUSY".equals(status)) {
             if(command.batch())assignments.busyBatch(command.shipperId(),command.deliveryId(),command.timestamp(),command.eventId());
             else assignments.busy(command.shipperId(),command.deliveryId(),command.timestamp(),command.eventId());
-            if(assignments.activeDeliveries(command.shipperId()).contains(command.deliveryId()))
-                rooms.activate(command.deliveryId(),command.shipperId());
+            var active=assignments.activeDeliveries(command.shipperId());
+            if(active.contains(command.deliveryId())) {
+                if(command.batch())rooms.synchronize(command.shipperId(),active);
+                else rooms.activate(command.deliveryId(),command.shipperId());
+            }
         } else {
             if(command.batch())assignments.availableBatch(command.shipperId(),command.deliveryId(),command.timestamp());
             else assignments.available(command.shipperId(),command.deliveryId(),command.timestamp());
-            if(!assignments.activeDeliveries(command.shipperId()).contains(command.deliveryId()))
-                rooms.end(command.deliveryId(),command.shipperId());
+            var active=assignments.activeDeliveries(command.shipperId());
+            if(!active.contains(command.deliveryId())) {
+                if(command.batch())rooms.synchronize(command.shipperId(),active);
+                else rooms.end(command.deliveryId(),command.shipperId());
+            }
         }
     }
     private static void positive(long value,String field) {
