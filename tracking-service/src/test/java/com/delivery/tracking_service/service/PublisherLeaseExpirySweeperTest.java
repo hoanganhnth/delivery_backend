@@ -1,7 +1,10 @@
 package com.delivery.tracking_service.service;
 
 import com.delivery.tracking_service.repository.ShipperPublisherLeaseRepository;
-import com.delivery.tracking_service.repository.ShipperPublisherLeaseRepository.ExpiryClaim;
+import com.delivery.tracking.domain.PublisherExpiryClaim;
+import com.delivery.tracking.application.DefaultPublisherSessionUseCase;
+import com.delivery.tracking.application.api.ShipperAvailabilityUseCase;
+import com.delivery.tracking.application.api.PublisherLeaseIncidentPort;
 import com.delivery.tracking.domain.PublisherLease;
 import org.junit.jupiter.api.Test;
 
@@ -15,12 +18,14 @@ class PublisherLeaseExpirySweeperTest {
 
     private final ShipperPublisherLeaseRepository leases =
             mock(ShipperPublisherLeaseRepository.class);
-    private final ShipperAvailabilityService availability =
-            mock(ShipperAvailabilityService.class);
+    private final ShipperAvailabilityUseCase availability =
+            mock(ShipperAvailabilityUseCase.class);
     private final PublisherLeaseExpirySweeper sweeper =
-            new PublisherLeaseExpirySweeper(leases, availability);
+            new PublisherLeaseExpirySweeper(new DefaultPublisherSessionUseCase(leases, availability,
+                    new TaskSchedulerPublisherAdapter(mock(org.springframework.scheduling.TaskScheduler.class)),
+                    mock(PublisherLeaseIncidentPort.class), 30, 120, 30));
     private final PublisherLease lease = new PublisherLease(7L, "session-1", 3L);
-    private final ExpiryClaim claim = new ExpiryClaim(lease, 12345L);
+    private final PublisherExpiryClaim claim = new PublisherExpiryClaim(lease, 12345L);
 
     @Test
     void expiredDisconnectedLeasePublishesOfflineThenCompletesClaim() {

@@ -1,6 +1,8 @@
 package com.delivery.tracking_service.repository;
 
 import com.delivery.tracking.domain.PublisherLease;
+import com.delivery.tracking.domain.PublisherExpiryClaim;
+import com.delivery.tracking.application.api.PublisherLeaseStorePort;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
@@ -11,7 +13,7 @@ import java.util.ArrayList;
 
 @Repository
 @RequiredArgsConstructor
-public class ShipperPublisherLeaseRepository {
+public class ShipperPublisherLeaseRepository implements PublisherLeaseStorePort {
 
     private static final String GENERATION_PREFIX = "tracking:publisher:generation:";
     private static final String ACTIVE_PREFIX = "tracking:publisher:active:";
@@ -122,7 +124,7 @@ public class ShipperPublisherLeaseRepository {
     }
 
     @SuppressWarnings("unchecked")
-    public List<ExpiryClaim> claimExpired(int limit, long claimSeconds) {
+    public List<PublisherExpiryClaim> claimExpired(int limit, long claimSeconds) {
         long claimUntil = deadline(Math.max(1, claimSeconds));
         List<String> members = (List<String>) redisTemplate.execute(
                 CLAIM_EXPIRED,
@@ -133,13 +135,13 @@ public class ShipperPublisherLeaseRepository {
         if (members == null || members.isEmpty()) {
             return List.of();
         }
-        List<ExpiryClaim> claims = new ArrayList<>(members.size());
+        List<PublisherExpiryClaim> claims = new ArrayList<>(members.size());
         for (String member : members) {
             String[] parts = member.split(":", 3);
             if (parts.length != 3) {
                 throw new IllegalStateException("Invalid publisher deadline member");
             }
-            claims.add(new ExpiryClaim(
+            claims.add(new PublisherExpiryClaim(
                     new PublisherLease(
                             Long.parseLong(parts[0]), parts[2], Long.parseLong(parts[1])),
                     claimUntil));
@@ -147,7 +149,7 @@ public class ShipperPublisherLeaseRepository {
         return List.copyOf(claims);
     }
 
-    public boolean completeClaim(ExpiryClaim claim) {
+    public boolean completeClaim(PublisherExpiryClaim claim) {
         Long completed = redisTemplate.execute(
                 COMPLETE_CLAIM,
                 List.of(DEADLINES_KEY),
@@ -156,7 +158,7 @@ public class ShipperPublisherLeaseRepository {
         return Long.valueOf(1L).equals(completed);
     }
 
-    public ExpiryClaim claimIfExpired(PublisherLease lease, long claimSeconds) {
+    public PublisherExpiryClaim claimIfExpired(PublisherLease lease, long claimSeconds) {
         long claimUntil = deadline(Math.max(1, claimSeconds));
         Long claimed = redisTemplate.execute(
                 CLAIM_IF_EXPIRED,
@@ -164,10 +166,8 @@ public class ShipperPublisherLeaseRepository {
                 deadlineMember(lease),
                 Long.toString(System.currentTimeMillis()),
                 Long.toString(claimUntil));
-        return Long.valueOf(1L).equals(claimed) ? new ExpiryClaim(lease, claimUntil) : null;
+        return Long.valueOf(1L).equals(claimed) ? new PublisherExpiryClaim(lease, claimUntil) : null;
     }
-
-    public record ExpiryClaim(PublisherLease lease, long claimUntilEpochMillis) {}
 
     private long deadline(long seconds) {
         return System.currentTimeMillis() + Math.max(1, seconds) * 1000L;
