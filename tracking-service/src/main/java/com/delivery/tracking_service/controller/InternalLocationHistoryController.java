@@ -1,7 +1,7 @@
 package com.delivery.tracking_service.controller;
 
 import com.delivery.tracking_service.dto.response.LocationHistoryPointResponse;
-import com.delivery.tracking_service.service.LocationHistoryService;
+import com.delivery.tracking.application.api.LocationHistoryUseCase;
 import com.delivery.auth.resourceserver.security.AuthenticatedActor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -24,11 +24,11 @@ import java.util.List;
 @Slf4j
 public class InternalLocationHistoryController {
 
-    private final LocationHistoryService history;
+    private final LocationHistoryUseCase history;
     private final byte[] internalSecret;
 
     public InternalLocationHistoryController(
-            LocationHistoryService history,
+            LocationHistoryUseCase history,
             @Value("${app.internal.secret:}") String internalSecret) {
         this.history = history;
         this.internalSecret = internalSecret.getBytes(StandardCharsets.UTF_8);

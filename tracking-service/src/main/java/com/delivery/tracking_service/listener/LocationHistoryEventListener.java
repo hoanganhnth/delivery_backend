@@ -1,7 +1,7 @@
 package com.delivery.tracking_service.listener;
 
 import com.delivery.tracking_service.dto.event.ShipperLocationUpdatedEvent;
-import com.delivery.tracking_service.service.LocationHistoryService;
+import com.delivery.tracking.application.api.LocationHistoryUseCase;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.annotation.RetryableTopic;
@@ -16,9 +16,9 @@ import java.util.UUID;
 public class LocationHistoryEventListener {
 
     private final ObjectMapper objectMapper;
-    private final LocationHistoryService history;
+    private final LocationHistoryUseCase history;
 
-    public LocationHistoryEventListener(ObjectMapper objectMapper, LocationHistoryService history) {
+    public LocationHistoryEventListener(ObjectMapper objectMapper, LocationHistoryUseCase history) {
         this.objectMapper = objectMapper;
         this.history = history;
     }
@@ -46,7 +46,7 @@ public class LocationHistoryEventListener {
             if (event.getEventId() == null) {
                 event.setEventId(UUID.nameUUIDFromBytes(payload.getBytes(StandardCharsets.UTF_8)));
             }
-            history.record(event, payload);
+            history.record(com.delivery.tracking_service.service.LocationHistoryCommandMapper.from(event, payload));
             acknowledgment.acknowledge();
         } catch (IllegalArgumentException poison) {
             throw poison;

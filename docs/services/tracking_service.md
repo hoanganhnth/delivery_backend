@@ -102,6 +102,10 @@ transaction ghi projection/receipt, kể cả khi chưa có row. Exact replay kh
 ghi lại, event cũ chỉ tạo receipt và gap không tạo receipt. Giữ admission cũ:
 snapshot đầu tiên có thể có version bất kỳ lớn hơn 0; event mới cùng version
 vẫn được apply. Kafka retry/DLT và shape event không đổi.
-History, audit room/fanout policy và runtime còn cần hoàn thiện;
+History hiện dùng `LocationHistoryPolicy` và `DefaultLocationHistoryUseCase`:
+sampling/precision trong domain; replay, query bound và retention trong application.
+JPA adapter giữ SQL claim, transaction và khoá sampling theo delivery/shipper.
+Listener/controller/job gọi core trực tiếp; `LocationHistoryService` cũ đã xoá.
+Audit room/fanout policy và runtime còn cần hoàn thiện;
 chưa xoá host cũ hoặc coi toàn bộ Tracking hoàn tất. Bằng chứng và tiến độ nằm ở
 `../plans/active/service-architecture-consolidation.md`.

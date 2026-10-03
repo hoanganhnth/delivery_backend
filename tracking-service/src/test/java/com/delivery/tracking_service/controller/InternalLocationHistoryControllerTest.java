@@ -1,7 +1,7 @@
 package com.delivery.tracking_service.controller;
 
 import com.delivery.auth.resourceserver.security.AuthenticatedActor;
-import com.delivery.tracking_service.service.LocationHistoryService;
+import com.delivery.tracking.application.api.LocationHistoryUseCase;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -13,7 +13,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 class InternalLocationHistoryControllerTest {
 
-    private final LocationHistoryService history = mock(LocationHistoryService.class);
+    private final LocationHistoryUseCase history = mock(LocationHistoryUseCase.class);
     private final InternalLocationHistoryController controller =
             new InternalLocationHistoryController(history, "internal-test-secret");
 

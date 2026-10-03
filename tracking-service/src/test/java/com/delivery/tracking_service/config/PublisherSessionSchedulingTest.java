@@ -2,7 +2,7 @@ package com.delivery.tracking_service.config;
 
 import com.delivery.tracking.application.api.PublisherSessionUseCase;
 import com.delivery.tracking_service.service.LocationHistoryRetentionJob;
-import com.delivery.tracking_service.service.LocationHistoryService;
+import com.delivery.tracking.application.api.LocationHistoryUseCase;
 import com.delivery.tracking_service.service.PublisherLeaseExpirySweeper;
 import com.delivery.tracking_service.service.TaskSchedulerPublisherAdapter;
 import java.time.Instant;
@@ -33,7 +33,7 @@ class PublisherSessionSchedulingTest {
             new TaskSchedulerPublisherAdapter(scheduler).schedule(completed::countDown, Instant.now());
             assertThat(completed.await(2, TimeUnit.SECONDS)).isTrue();
             verifyNoInteractions(context.getBean(PublisherSessionUseCase.class),
-                    context.getBean(LocationHistoryService.class));
+                    context.getBean(LocationHistoryUseCase.class));
         });
     }
 
@@ -53,12 +53,12 @@ class PublisherSessionSchedulingTest {
     @Configuration(proxyBeanMethods = false)
     static class Jobs {
         @Bean PublisherSessionUseCase publishers() { return mock(PublisherSessionUseCase.class); }
-        @Bean LocationHistoryService history() { return mock(LocationHistoryService.class); }
+        @Bean LocationHistoryUseCase history() { return mock(LocationHistoryUseCase.class); }
         @Bean PublisherLeaseExpirySweeper sweeper(PublisherSessionUseCase publishers) {
             return new PublisherLeaseExpirySweeper(publishers);
         }
-        @Bean LocationHistoryRetentionJob retention(LocationHistoryService history) {
-            return new LocationHistoryRetentionJob(history, 90);
+        @Bean LocationHistoryRetentionJob retention(LocationHistoryUseCase history) {
+            return new LocationHistoryRetentionJob(history);
         }
     }
 }

@@ -29,6 +29,12 @@ NO_DELIVERY, or OFFLINE_TOMBSTONE outcomes. Exact consumer restart/replay is a
 no-op. A rolling legacy event receives a deterministic receipt ID but, because
 it has no delivery association, is never guessed into a trip.
 
+Sampling is serialized by `(deliveryId, shipperId)` inside the PostgreSQL write
+transaction before reading either neighbour. The receipt claim, sampled point
+and final outcome commit together, so different event IDs cannot concurrently
+bypass the sampling window. The H2 fallback supports sequential fixtures only;
+concurrency evidence uses PostgreSQL.
+
 The daily cleanup deletes history and receipts older than the configured
 90-day cutoff. The delivery/time and shipper/time indexes support investigation
 and cleanup without adding an index to the realtime write path.
@@ -50,3 +56,9 @@ sampling, out-of-order input, delivery query ordering, listener restart/replay,
 legacy rollout, no-assignment rejection and retention cleanup. Publisher tests
 prove enriched Kafka output uses only Redis assignment and contains no history
 repository/database dependency. Controller tests reject wrong role or secret.
+
+`LocationHistoryPolicyTest` and `DefaultLocationHistoryUseCaseTest` exercise the
+framework-free rules. `LocationHistoryPostgresConcurrencyTest` checks exact
+duplicate ingress, rollback/retry and different event IDs competing for one
+sampling window. `LocationHistoryKafkaPostgresIntegrationTest` exercises real
+Kafka replay and owner DLT through independent application contexts.

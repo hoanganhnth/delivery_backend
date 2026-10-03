@@ -1,6 +1,6 @@
 package com.delivery.tracking_service.dto.response;
 
-import com.delivery.tracking_service.entity.ShipperLocationHistory;
+import com.delivery.tracking.application.api.LocationHistoryPoint;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -16,10 +16,10 @@ public record LocationHistoryPointResponse(
         BigDecimal heading,
         String source) {
 
-    public static LocationHistoryPointResponse from(ShipperLocationHistory point) {
+    public static LocationHistoryPointResponse from(LocationHistoryPoint point) {
         return new LocationHistoryPointResponse(
-                point.getDeliveryId(), point.getShipperId(), point.getOccurredAt(),
-                point.getLatitude(), point.getLongitude(), point.getAccuracy(),
-                point.getSpeed(), point.getHeading(), point.getSource());
+                point.deliveryId(), point.shipperId(), point.occurredAt(),
+                point.latitude(), point.longitude(), point.accuracy(),
+                point.speed(), point.heading(), point.source());
     }
 }
