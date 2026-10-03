@@ -4,6 +4,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import jakarta.validation.constraints.NotNull;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 
@@ -24,5 +25,7 @@ public class UpdateLocationRequest {
     private Double accuracy;
     private Double speed;
     private Double heading;
+    @NotNull(message = "isOnline must be boolean")
+    @JsonDeserialize(using = OnlineFlagDeserializer.class)
     private Boolean isOnline = true;
 }

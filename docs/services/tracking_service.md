@@ -83,11 +83,16 @@ khác trước contract freeze.
 
 ## Kiến trúc đang hợp nhất
 
-Policy principal/projection identity, offline/tombstone và publisher lease/grace/recovery hiện chạy trong
+Policy principal/projection identity, offline/tombstone, publication và publisher lease/grace/recovery hiện chạy trong
 `tracking-application`; adapter JPA/Redis/Kafka/HTTP giữ mapping và transport.
 REST và internal offline dùng cùng core, gồm cả khi không có cache hoặc tọa độ
 cache chỉ có một phía. Lease/grace vẫn dùng operation Kafka-only rồi callback
 hiện tại; explicit HTTP offline broadcast sau khi publish thành công.
-WebSocket update, identity inbox và history còn trong đợt hợp nhất tiếp theo;
+REST và WebSocket update dùng chung core, Redis/Kafka adapter và Redis PubSub
+fanout. Source do server quyết định; giữ encoding Instant của REST và local
+date-time của WebSocket. REST bỏ qua `isOnline` vẫn mặc định true; null hoặc
+giá trị khác boolean bị từ chối trước khi ghi vị trí. Hai service location và
+availability cũ không còn caller đã được xoá, test lỗi chuyển sang core/adapter.
+Identity inbox, history, kiểm chứng scheduler và runtime còn cần hoàn thiện;
 chưa xoá host cũ hoặc coi toàn bộ Tracking hoàn tất. Bằng chứng và tiến độ nằm ở
 `../plans/active/service-architecture-consolidation.md`.

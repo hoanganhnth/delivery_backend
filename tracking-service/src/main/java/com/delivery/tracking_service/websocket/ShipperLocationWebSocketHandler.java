@@ -2,7 +2,10 @@ package com.delivery.tracking_service.websocket;
 
 import com.delivery.tracking_service.dto.response.ShipperLocationResponse;
 import com.delivery.tracking_service.repository.RedisGeoRepository;
-import com.delivery.tracking_service.service.ShipperLocationEventPublisher;
+import com.delivery.tracking.application.api.TrackingPort;
+import com.delivery.tracking.application.api.UpdateLocationCommand;
+import com.delivery.tracking.domain.LocationUpdateSource;
+import com.delivery.tracking.domain.Coordinate;
 import com.delivery.tracking.domain.PublisherLease;
 import com.delivery.tracking_service.service.DeliveryTrackingAccessClient;
 import com.delivery.tracking_service.service.ShipperPublisherSessionManager;
@@ -20,7 +23,6 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.time.LocalDateTime;
 
 @Component
 public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
@@ -35,7 +37,7 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
 
     private final ObjectMapper objectMapper;
     private final RedisGeoRepository redisGeoRepository;
-    private final ShipperLocationEventPublisher eventPublisher;
+    private final TrackingPort tracking;
     private final DeliveryTrackingAccessClient trackingAccessClient;
     private final ShipperPublisherSessionManager publisherSessionManager;
     private final DeliveryRoomRegistry deliveryRooms;
@@ -46,7 +48,7 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
     @Autowired
     public ShipperLocationWebSocketHandler(ObjectMapper objectMapper, 
                                            RedisGeoRepository redisGeoRepository,
-                                           ShipperLocationEventPublisher eventPublisher,
+                                           TrackingPort tracking,
                                            DeliveryTrackingAccessClient trackingAccessClient,
                                            ShipperPublisherSessionManager publisherSessionManager,
                                            DeliveryRoomRegistry deliveryRooms,
@@ -55,24 +57,13 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
                                            ShipperIdentityResolver shipperIdentityResolver) {
         this.objectMapper = objectMapper;
         this.redisGeoRepository = redisGeoRepository;
-        this.eventPublisher = eventPublisher;
+        this.tracking = tracking;
         this.trackingAccessClient = trackingAccessClient;
         this.publisherSessionManager = publisherSessionManager;
         this.deliveryRooms = deliveryRooms;
         this.messageDispatcher = messageDispatcher;
         this.locationFanoutPublisher = locationFanoutPublisher;
         this.shipperIdentityResolver = shipperIdentityResolver;
-    }
-
-    /** Compatibility constructor retained for focused tests. */
-    public ShipperLocationWebSocketHandler(ObjectMapper objectMapper,
-                                           RedisGeoRepository redisGeoRepository,
-                                           ShipperLocationEventPublisher eventPublisher,
-                                           DeliveryTrackingAccessClient trackingAccessClient,
-                                           ShipperPublisherSessionManager publisherSessionManager) {
-        this(objectMapper, redisGeoRepository, eventPublisher, trackingAccessClient,
-                publisherSessionManager, new DeliveryRoomRegistry(),
-                new LocationMessageDispatcher(Runnable::run), null, null);
     }
 
     @Override
@@ -183,30 +174,11 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
         Double latitude = requiredFiniteNumberInRange(message, "latitude", -90.0, 90.0);
         Double longitude = requiredFiniteNumberInRange(message, "longitude", -180.0, 180.0);
 
-        ShipperLocationResponse response = new ShipperLocationResponse();
-        response.setShipperId(shipperId);
-        response.setLatitude(latitude);
-        response.setLongitude(longitude);
-        response.setAccuracy(optionalFiniteNumber(message, "accuracy"));
-        response.setSpeed(optionalFiniteNumber(message, "speed"));
-        response.setHeading(optionalFiniteNumber(message, "heading"));
-        response.setIsOnline(optionalBoolean(message, "isOnline", true));
-        String serverTimestamp = LocalDateTime.now().toString();
-        response.setUpdatedAt(serverTimestamp);
-        response.setLastPing(serverTimestamp);
-
-        // Lưu vào Redis
-        redisGeoRepository.cacheShipperLocation(shipperId, response);
-
-        // Publish qua Kafka cho Match Service
-        eventPublisher.publishLocationUpdate(response, "WEBSOCKET");
-        log.debug("📤 [WS] Published location to Kafka `shipper.location-updated` for shipper {}", shipperId);
-
-        // Broadcast tới subscribers
-        fanout(response);
-
-        log.info("📍 [WS] Updated location for shipper {} and queued authorized fanout",
-                shipperId);
+        tracking.updateLocation(new UpdateLocationCommand(shipperId, new Coordinate(latitude, longitude),
+                optionalFiniteNumber(message, "accuracy"), optionalFiniteNumber(message, "speed"),
+                optionalFiniteNumber(message, "heading"), optionalBoolean(message, "isOnline", true),
+                LocationUpdateSource.WEBSOCKET));
+        log.info("📍 [WS] Updated location for shipper {} and queued authorized fanout", shipperId);
     }
 
     private void handleSubscribeShipper(WebSocketSession session, Map<String, Object> message) throws Exception {
@@ -280,10 +252,6 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
     }
 
     private Long requireShipperId(WebSocketSession session) {
-        if (shipperIdentityResolver == null) {
-            // Constructor used only by existing focused unit fixtures.
-            return authenticatedUserId(session);
-        }
         return shipperIdentityResolver.requireShipperId(authenticatedPrincipalId(session), authenticatedUserId(session));
     }
 
@@ -434,8 +402,7 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
     }
 
     private void fanout(ShipperLocationResponse location) {
-        if (locationFanoutPublisher == null) broadcastShipperLocation(location);
-        else locationFanoutPublisher.publish(location);
+        locationFanoutPublisher.publish(location);
     }
 
     private void dispatchLocation(WebSocketSession session, long deliveryId,

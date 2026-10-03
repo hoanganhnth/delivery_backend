@@ -11,6 +11,8 @@ import com.delivery.tracking.application.api.ShipperAvailabilityUseCase;
 import com.delivery.tracking.application.api.UpdateLocationCommand;
 import com.delivery.tracking.domain.Coordinate;
 import com.delivery.tracking.domain.LocationSnapshot;
+import com.delivery.tracking_service.service.LocationUpdateMapper;
+import com.delivery.tracking.domain.LocationUpdateSource;
 
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -46,8 +48,8 @@ public class ShipperLocationController {
         long shipperId = shipperIdentityResolver.requireShipperId(actor.getPrincipalId(), actor.getLegacyUserId());
         LocationSnapshot snapshot = tracking.updateLocation(new UpdateLocationCommand(shipperId,
                 new Coordinate(request.getLatitude(), request.getLongitude()), request.getAccuracy(),
-                request.getSpeed(), request.getHeading(), Boolean.TRUE.equals(request.getIsOnline())));
-        ShipperLocationResponse response = toResponse(snapshot);
+                request.getSpeed(), request.getHeading(), Boolean.TRUE.equals(request.getIsOnline()), LocationUpdateSource.APPLICATION));
+        ShipperLocationResponse response = LocationUpdateMapper.toResponse(snapshot, LocationUpdateSource.APPLICATION);
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Cập nhật vị trí thành công"));
     }
 
@@ -62,20 +64,6 @@ public class ShipperLocationController {
 
         availability.markOfflineAndBroadcast(shipperIdentityResolver.requireShipperId(actor.getPrincipalId(), actor.getLegacyUserId()));
         return ResponseEntity.ok(new BaseResponse<>(1, "Đã đánh dấu offline thành công"));
-    }
-
-    private ShipperLocationResponse toResponse(LocationSnapshot snapshot) {
-        var response = new ShipperLocationResponse();
-        response.setShipperId(snapshot.shipperId());
-        response.setLatitude(snapshot.coordinate().latitude());
-        response.setLongitude(snapshot.coordinate().longitude());
-        response.setAccuracy(snapshot.accuracy());
-        response.setSpeed(snapshot.speed());
-        response.setHeading(snapshot.heading());
-        response.setIsOnline(snapshot.online());
-        response.setLastPing(snapshot.lastPing().toString());
-        response.setUpdatedAt(snapshot.updatedAt().toString());
-        return response;
     }
 
 }

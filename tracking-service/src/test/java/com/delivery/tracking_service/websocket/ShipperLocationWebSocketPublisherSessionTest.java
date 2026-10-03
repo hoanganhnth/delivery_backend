@@ -24,8 +24,7 @@ class ShipperLocationWebSocketPublisherSessionTest {
         RedisGeoRepository locations = mock(RedisGeoRepository.class);
         ShipperLocationEventPublisher publisher = mock(ShipperLocationEventPublisher.class);
         ShipperPublisherSessionManager sessions = mock(ShipperPublisherSessionManager.class);
-        ShipperLocationWebSocketHandler handler = new ShipperLocationWebSocketHandler(
-                new ObjectMapper(), locations, publisher,
+        ShipperLocationWebSocketHandler handler = TrackingWebSocketTestFixture.create(locations, publisher,
                 mock(DeliveryTrackingAccessClient.class), sessions);
         WebSocketSession oldSession = shipperSession("old", 7L);
         WebSocketSession newSession = shipperSession("new", 7L);
@@ -51,8 +50,7 @@ class ShipperLocationWebSocketPublisherSessionTest {
         RedisGeoRepository locations = mock(RedisGeoRepository.class);
         ShipperLocationEventPublisher publisher = mock(ShipperLocationEventPublisher.class);
         ShipperPublisherSessionManager sessions = mock(ShipperPublisherSessionManager.class);
-        ShipperLocationWebSocketHandler handler = new ShipperLocationWebSocketHandler(
-                new ObjectMapper(), locations, publisher,
+        ShipperLocationWebSocketHandler handler = TrackingWebSocketTestFixture.create(locations, publisher,
                 mock(DeliveryTrackingAccessClient.class), sessions);
         WebSocketSession session = shipperSession("old", 7L);
         PublisherLease lease = new PublisherLease(7L, "old", 1L);
@@ -71,6 +69,7 @@ class ShipperLocationWebSocketPublisherSessionTest {
         WebSocketSession session = mock(WebSocketSession.class);
         HashMap<String, Object> attributes = new HashMap<>();
         attributes.put("authenticatedUserId", shipperId);
+        attributes.put("authenticatedPrincipalId", shipperId + 1000);
         attributes.put("authenticatedRole", "SHIPPER");
         when(session.getId()).thenReturn(id);
         when(session.getAttributes()).thenReturn(attributes);

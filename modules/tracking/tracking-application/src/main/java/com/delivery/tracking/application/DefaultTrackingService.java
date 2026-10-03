@@ -1,6 +1,7 @@
 package com.delivery.tracking.application;
 
 import com.delivery.tracking.application.api.LocationEventPort;
+import com.delivery.tracking.domain.LocationUpdateSource;
 import com.delivery.tracking.application.api.LocationStorePort;
 import com.delivery.tracking.application.api.TrackingPort;
 import com.delivery.tracking.application.api.UpdateLocationCommand;
@@ -11,8 +12,6 @@ import java.util.Objects;
 
 /** Framework-free tracking use cases; transport and persistence stay behind ports. */
 public final class DefaultTrackingService implements TrackingPort {
-    private static final String UPDATE_SOURCE = "APPLICATION";
-
     private final LocationStorePort store;
     private final LocationEventPort events;
     private final Clock clock;
@@ -31,11 +30,14 @@ public final class DefaultTrackingService implements TrackingPort {
     @Override
     public LocationSnapshot updateLocation(UpdateLocationCommand command) {
         Objects.requireNonNull(command, "command");
+        var source = Objects.requireNonNull(command.source(), "source");
         Instant now = Instant.now(clock);
         LocationSnapshot snapshot = new LocationSnapshot(command.shipperId(), command.coordinate(),
                 command.accuracy(), command.speed(), command.heading(), command.online(), now, now);
-        store.save(snapshot);
-        events.publish(snapshot, UPDATE_SOURCE);
+        store.save(snapshot, source);
+        if (!source.publishesBeforeFanout()) events.broadcast(snapshot, source);
+        events.publish(snapshot, source);
+        if (source.publishesBeforeFanout()) events.broadcast(snapshot, source);
         return snapshot;
     }
 

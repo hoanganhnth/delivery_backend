@@ -1,6 +1,5 @@
 package com.delivery.tracking_service.service;
 
-import com.delivery.tracking_service.dto.request.UpdateLocationRequest;
 import com.delivery.tracking.application.DefaultShipperAvailabilityUseCase;
 import org.springframework.beans.factory.ObjectProvider;
 import org.mockito.ArgumentCaptor;
@@ -19,67 +18,21 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-class ShipperLocationServiceFailureTest {
+class TrackingAvailabilityAdapterTest {
 
     private final ShipperLocationRepository repository = mock(ShipperLocationRepository.class);
     private final ShipperLocationWebSocketHandler webSocketHandler = mock(ShipperLocationWebSocketHandler.class);
     private final ShipperLocationEventPublisher publisher = mock(ShipperLocationEventPublisher.class);
     private final ObjectProvider<ShipperLocationWebSocketHandler> sockets = socketProvider();
     private final RedisShipperAvailabilityAdapter adapter = new RedisShipperAvailabilityAdapter(repository, publisher, sockets);
-    private final ShipperAvailabilityService availabilityService =
-            new ShipperAvailabilityService(new DefaultShipperAvailabilityUseCase(adapter, adapter));
+    private final com.delivery.tracking.application.api.ShipperAvailabilityUseCase availability =
+            new DefaultShipperAvailabilityUseCase(adapter, adapter);
 
     @SuppressWarnings("unchecked")
     private ObjectProvider<ShipperLocationWebSocketHandler> socketProvider() {
         var provider = (ObjectProvider<ShipperLocationWebSocketHandler>) mock(ObjectProvider.class);
         when(provider.getObject()).thenReturn(webSocketHandler); return provider;
     }
-    private final ShipperLocationService service =
-            new ShipperLocationService(repository, webSocketHandler, publisher, availabilityService);
-
-    @Test
-    void locationUpdateDoesNotReportSuccessWhenCanonicalRedisWriteFails() {
-        UpdateLocationRequest request = new UpdateLocationRequest();
-        request.setLatitude(10.77);
-        request.setLongitude(106.70);
-        request.setIsOnline(true);
-        doThrow(new IllegalStateException("redis unavailable"))
-                .when(repository).cacheShipperLocation(eq(7L), any(ShipperLocationResponse.class));
-
-        assertThatThrownBy(() -> service.updateLocation(7L, request))
-                .isInstanceOf(RuntimeException.class)
-                .hasMessage("Không thể cập nhật vị trí shipper");
-    }
-
-    @Test
-    void locationUpdateRejectsNonFiniteTelemetryBeforePersistence() {
-        UpdateLocationRequest request = new UpdateLocationRequest();
-        request.setLatitude(10.77);
-        request.setLongitude(106.70);
-        request.setSpeed(Double.POSITIVE_INFINITY);
-        request.setIsOnline(true);
-
-        assertThatThrownBy(() -> service.updateLocation(7L, request))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("speed is invalid");
-
-        verifyNoInteractions(repository, webSocketHandler, publisher);
-    }
-
-    @Test
-    void locationUpdateRejectsNullOnlineFlagBeforePersistence() {
-        UpdateLocationRequest request = new UpdateLocationRequest();
-        request.setLatitude(10.77);
-        request.setLongitude(106.70);
-        request.setIsOnline(null);
-
-        assertThatThrownBy(() -> service.updateLocation(7L, request))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("isOnline must be boolean");
-
-        verifyNoInteractions(repository, webSocketHandler, publisher);
-    }
-
     @Test
     void explicitOfflineUpdatesRedisAndPublishesMatchTombstone() {
         ShipperLocationResponse current = new ShipperLocationResponse();
@@ -90,7 +43,7 @@ class ShipperLocationServiceFailureTest {
         current.setIsOnline(true);
         when(repository.getCachedShipperLocation(7L)).thenReturn(current);
 
-        service.markShipperOffline(7L);
+        availability.markOfflineAndBroadcast(7L);
 
         var saved = ArgumentCaptor.forClass(ShipperLocationResponse.class);
         verify(repository).cacheShipperLocation(eq(7L), saved.capture());
@@ -113,7 +66,7 @@ class ShipperLocationServiceFailureTest {
     void explicitOfflineWithoutCachedCoordinatesStillPublishesIdentityTombstone() {
         when(repository.getCachedShipperLocation(7L)).thenReturn(null);
 
-        service.markShipperOffline(7L);
+        availability.markOfflineAndBroadcast(7L);
 
         verify(repository).removeShipperLocationCache(7L);
         verify(repository, never()).cacheShipperLocation(eq(7L), any());
@@ -129,7 +82,7 @@ class ShipperLocationServiceFailureTest {
         current.setIsOnline(true);
         when(repository.getCachedShipperLocation(7L)).thenReturn(current);
 
-        service.markShipperOffline(7L);
+        availability.markOfflineAndBroadcast(7L);
 
         var saved = ArgumentCaptor.forClass(ShipperLocationResponse.class);
         verify(repository).cacheShipperLocation(eq(7L), saved.capture());
@@ -147,7 +100,7 @@ class ShipperLocationServiceFailureTest {
         doThrow(new IllegalStateException("redis unavailable"))
                 .when(repository).getCachedShipperLocation(7L);
 
-        assertThatThrownBy(() -> service.markShipperOffline(7L))
+        assertThatThrownBy(() -> availability.markOfflineAndBroadcast(7L))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("redis unavailable");
 
@@ -160,7 +113,7 @@ class ShipperLocationServiceFailureTest {
         doThrow(new IllegalStateException("broker unavailable"))
                 .when(publisher).publishLocationUpdate(any(ShipperLocationResponse.class), eq("OFFLINE_TOMBSTONE"));
 
-        assertThatThrownBy(() -> service.markShipperOffline(7L))
+        assertThatThrownBy(() -> availability.markOfflineAndBroadcast(7L))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("broker unavailable");
 

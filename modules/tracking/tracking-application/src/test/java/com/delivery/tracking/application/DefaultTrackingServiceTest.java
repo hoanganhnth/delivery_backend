@@ -1,70 +1,90 @@
 package com.delivery.tracking.application;
 
-import com.delivery.tracking.application.api.LocationEventPort;
-import com.delivery.tracking.application.api.LocationStorePort;
-import com.delivery.tracking.application.api.UpdateLocationCommand;
-import com.delivery.tracking.domain.Coordinate;
-import com.delivery.tracking.domain.LocationSnapshot;
-import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneOffset;
+import com.delivery.tracking.application.api.*;
+import com.delivery.tracking.domain.*;
+import java.time.*;
+import java.util.*;
 import org.junit.jupiter.api.Test;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.*;
 
 class DefaultTrackingServiceTest {
-    private final RecordingStore store = new RecordingStore();
-    private final RecordingEvents events = new RecordingEvents();
-    private final Instant fixedNow = Instant.parse("2026-02-03T04:05:06Z");
-    private final DefaultTrackingService service = new DefaultTrackingService(store, events,
-            Clock.fixed(fixedNow, ZoneOffset.UTC));
-
-    @Test
-    void updateBuildsSnapshotPersistsItAndPublishesIt() {
-        UpdateLocationCommand command = new UpdateLocationCommand(7,
-                new Coordinate(10.77, 106.7), 3.5, 12.0, 90.0, true);
-
-        LocationSnapshot result = service.updateLocation(command);
-
-        assertThat(result.shipperId()).isEqualTo(7);
-        assertThat(result.coordinate()).isEqualTo(command.coordinate());
-        assertThat(result.online()).isTrue();
-        assertThat(result.lastPing()).isEqualTo(fixedNow);
-        assertThat(result.updatedAt()).isEqualTo(fixedNow);
-        assertThat(store.saved).isSameAs(result);
-        assertThat(events.location).isSameAs(result);
-        assertThat(events.source).isEqualTo("APPLICATION");
+    @Test void applicationUpdateKeepsCanonicalFactsAndSaveFanoutPublishOrder() {
+        var f = new Fixture(); var result = f.core.updateLocation(command(LocationUpdateSource.APPLICATION));
+        assertThat(result.shipperId()).isEqualTo(7); assertThat(result.coordinate()).isEqualTo(new Coordinate(10.77, 106.7));
+        assertThat(result.online()).isTrue(); assertThat(result.accuracy()).isEqualTo(3.5);
+        assertThat(result.speed()).isEqualTo(12.0); assertThat(result.heading()).isEqualTo(90.0);
+        assertThat(result.lastPing()).isEqualTo(f.now); assertThat(result.updatedAt()).isEqualTo(f.now);
+        assertThat(f.saved).isSameAs(result); assertThat(f.published).isSameAs(result); assertThat(f.broadcast).isSameAs(result);
+        assertThat(f.source).isEqualTo(LocationUpdateSource.APPLICATION);
+        assertThat(f.steps).containsExactly("save", "broadcast", "publish");
     }
-
-    @Test
-    void validatesDependenciesCommandsAndShipperIdentity() {
-        assertThatThrownBy(() -> new DefaultTrackingService(null, events, Clock.systemUTC()))
-                .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> new DefaultTrackingService(store, null, Clock.systemUTC()))
-                .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> new DefaultTrackingService(store, events, null))
-                .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> service.updateLocation(null))
-                .isInstanceOf(NullPointerException.class);
+    @Test void webSocketUpdateKeepsSavePublishFanoutOrderAndUnknownTelemetry() {
+        var f = new Fixture(); var result = f.core.updateLocation(new UpdateLocationCommand(7, new Coordinate(10.77, 106.7),
+                null, null, null, false, LocationUpdateSource.WEBSOCKET));
+        assertThat(result.online()).isFalse(); assertThat(result.accuracy()).isNull();
+        assertThat(result.speed()).isNull(); assertThat(result.heading()).isNull();
+        assertThat(f.saved).isSameAs(result); assertThat(f.published).isSameAs(result); assertThat(f.broadcast).isSameAs(result);
+        assertThat(f.source).isEqualTo(LocationUpdateSource.WEBSOCKET);
+        assertThat(f.steps).containsExactly("save", "publish", "broadcast");
     }
-
-    private static final class RecordingStore implements LocationStorePort {
-        private LocationSnapshot saved;
-
-        @Override
-        public void save(LocationSnapshot location) { saved = location; }
-
-    }
-
-    private static final class RecordingEvents implements LocationEventPort {
-        private LocationSnapshot location;
-        private String source;
-
-        @Override
-        public void publish(LocationSnapshot location, String source) {
-            this.location = location;
-            this.source = source;
+    @Test void persistenceFailureCannotPublishOrFanoutForEitherSource() {
+        for (var source : LocationUpdateSource.values()) {
+            var f = new Fixture(); f.failAt = "save";
+            assertThatThrownBy(() -> f.core.updateLocation(command(source))).isSameAs(f.failure);
+            assertThat(f.steps).containsExactly("save"); assertThat(f.published).isNull(); assertThat(f.broadcast).isNull();
         }
+    }
+    @Test void brokerFailureRemainsVisibleAndWebSocketCannotFanoutBeforeKafka() {
+        for (var source : LocationUpdateSource.values()) {
+            var f = new Fixture(); f.failAt = "publish";
+            assertThatThrownBy(() -> f.core.updateLocation(command(source))).isSameAs(f.failure);
+            assertThat(f.saved).isNotNull();
+            if (source == LocationUpdateSource.WEBSOCKET) assertThat(f.steps).containsExactly("save", "publish");
+            else assertThat(f.steps).containsExactly("save", "broadcast", "publish");
+        }
+    }
+    @Test void unexpectedFanoutFailurePropagatesAtTheEstablishedPointInEachPipeline() {
+        for (var source : LocationUpdateSource.values()) {
+            var f = new Fixture(); f.failAt = "broadcast";
+            assertThatThrownBy(() -> f.core.updateLocation(command(source))).isSameAs(f.failure);
+            if (source == LocationUpdateSource.WEBSOCKET) assertThat(f.steps).containsExactly("save", "publish", "broadcast");
+            else assertThat(f.steps).containsExactly("save", "broadcast");
+        }
+    }
+    @Test void invalidTelemetryIdentityOrCoordinatesAreRejectedBeforeSideEffects() {
+        for (int measurement = 0; measurement < 3; measurement++) {
+            var f = new Fixture(); int index = measurement;
+            assertThatThrownBy(() -> f.core.updateLocation(new UpdateLocationCommand(7, new Coordinate(10, 106),
+                    index == 0 ? Double.NaN : null, index == 1 ? Double.POSITIVE_INFINITY : null,
+                    index == 2 ? Double.NEGATIVE_INFINITY : null, true, LocationUpdateSource.APPLICATION))).isInstanceOf(IllegalArgumentException.class);
+            assertThat(f.steps).isEmpty();
+        }
+        var f = new Fixture();
+        assertThatThrownBy(() -> f.core.updateLocation(new UpdateLocationCommand(0, new Coordinate(10, 106), null, null, null, true, LocationUpdateSource.APPLICATION)))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> f.core.updateLocation(new UpdateLocationCommand(7, null, null, null, null, true, LocationUpdateSource.APPLICATION)))
+                .isInstanceOf(IllegalArgumentException.class); assertThat(f.steps).isEmpty();
+    }
+    @Test void validatesDependenciesCommandAndTrustedSource() {
+        var f = new Fixture();
+        assertThatThrownBy(() -> new DefaultTrackingService(null, f)).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new DefaultTrackingService(f, null)).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new DefaultTrackingService(f, f, null)).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> f.core.updateLocation(null)).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> f.core.updateLocation(new UpdateLocationCommand(7, new Coordinate(10, 106), null, null, null, true, null)))
+                .isInstanceOf(NullPointerException.class);
+    }
+    private UpdateLocationCommand command(LocationUpdateSource source) {
+        return new UpdateLocationCommand(7, new Coordinate(10.77, 106.7), 3.5, 12.0, 90.0, true, source);
+    }
+    private static final class Fixture implements LocationStorePort, LocationEventPort {
+        final Instant now = Instant.parse("2026-02-03T04:05:06Z");
+        final DefaultTrackingService core = new DefaultTrackingService(this, this, Clock.fixed(now, ZoneOffset.UTC));
+        LocationSnapshot saved, published, broadcast; LocationUpdateSource source; String failAt;
+        final RuntimeException failure = new IllegalStateException("Boundary unavailable"); final List<String> steps = new ArrayList<>();
+        void step(String step) { steps.add(step); if (step.equals(failAt)) throw failure; }
+        public void save(LocationSnapshot value, LocationUpdateSource source) { step("save"); saved = value; this.source = source; }
+        public void publish(LocationSnapshot value, LocationUpdateSource source) { step("publish"); published = value; this.source = source; }
+        public void broadcast(LocationSnapshot value, LocationUpdateSource source) { step("broadcast"); broadcast = value; this.source = source; }
     }
 }

@@ -7,6 +7,22 @@ import com.delivery.tracking_service.entity.ShipperIdentityProjection;
 import com.delivery.tracking_service.repository.RedisGeoRepository;
 import com.delivery.tracking_service.repository.ShipperIdentityProjectionRepository;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.delivery.tracking.application.api.TrackingPort;
+import com.delivery.identity.contracts.SimulationContext;
+import com.delivery.tracking_service.repository.ShipperDeliveryAssignmentStore;
+import com.delivery.tracking_service.websocket.*;
+import com.delivery.tracking_service.listener.RedisLocationFanoutListener;
+import org.springframework.data.redis.connection.RedisConnectionFactory;
+import org.springframework.data.redis.listener.RedisMessageListenerContainer;
+import org.springframework.data.redis.listener.ChannelTopic;
+import org.springframework.web.socket.WebSocketSession;
+import org.springframework.web.socket.TextMessage;
+import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.test.annotation.DirtiesContext;
+import java.util.concurrent.CopyOnWriteArrayList;
+import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.awaitility.Awaitility.await;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -39,7 +55,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/** Production HTTP/core/Redis/JSON producer proof; realtime offline does not require a PostgreSQL write. */
+/** Real Redis/Kafka and independent subscriber-handler proof for HTTP, WebSocket and offline publication. */
 @SpringBootTest(properties = {
         "spring.datasource.url=jdbc:h2:mem:tracking_offline_wire;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE",
         "spring.datasource.driver-class-name=org.h2.Driver", "spring.datasource.username=sa", "spring.datasource.password=",
@@ -48,6 +64,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "app.internal.secret=offline-proof-only", "delivery.service.url=http://delivery-service"
 })
 @AutoConfigureMockMvc
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @Testcontainers(disabledWithoutDocker = true)
 class TrackingOfflineRedisKafkaIntegrationTest {
     private static final String TOPIC = "shipper.location-updated";
@@ -63,6 +80,13 @@ class TrackingOfflineRedisKafkaIntegrationTest {
     @Autowired RedisTemplate<String, Object> redis;
     @Autowired ShipperIdentityProjectionRepository projections;
     @Autowired ObjectMapper mapper;
+    @Autowired TrackingPort core;
+    @Autowired ShipperLocationWebSocketHandler publisherHandler;
+    @Autowired ShipperPublisherSessionManager publishers;
+    @Autowired ShipperIdentityResolver identities;
+    @Autowired LocationFanoutPublisher fanout;
+    @Autowired ShipperDeliveryAssignmentStore assignments;
+    @Autowired RedisConnectionFactory connections;
 
     @Test void internalAndAuthenticatedOfflineClearRedisAndEmitExactTombstonesWithOrWithoutCoordinates() throws Exception {
         try (var admin = AdminClient.create(Map.of("bootstrap.servers", KAFKA.getBootstrapServers()))) {
@@ -116,22 +140,43 @@ class TrackingOfflineRedisKafkaIntegrationTest {
                     .andExpect(status().isOk());
             assertOfflineMembership(7004L); assertThat(locations.getCachedShipperLocation(7004L)).isNull();
 
+            // Explicitly malformed flags must be rejected before any cache or broker mutation.
+            String cachedTime = locations.getCachedShipperLocation(7002L).getUpdatedAt();
+            for (String flag : List.of("null", "1", "0", "\"true\"", "\"false\"", "[]", "{}")) {
+                mvc.perform(post("/api/tracking/shipper-locations/update").with(authentication(actor()))
+                        .contentType("application/json").content("{\"latitude\":10.8,\"longitude\":106.7,\"isOnline\":" + flag + "}"))
+                        .andExpect(status().isBadRequest());
+                assertThat(locations.getCachedShipperLocation(7002L).getUpdatedAt()).isEqualTo(cachedTime);
+            }
+            publishThroughIndependentSubscriber();
+
             List<ConsumerRecord<String, String>> records = new ArrayList<>();
             long deadline = System.nanoTime() + Duration.ofSeconds(20).toNanos();
-            while (records.size() < 4 && System.nanoTime() < deadline) consumer.poll(Duration.ofMillis(300)).forEach(records::add);
-            assertThat(records).hasSize(4);
+            while (records.size() < 6 && System.nanoTime() < deadline) consumer.poll(Duration.ofMillis(300)).forEach(records::add);
+            assertThat(records).hasSize(6);
             Set<String> eventIds = new HashSet<>();
             Map<Long, JsonNode> events = new HashMap<>();
             for (var record : records) {
-                var event = mapper.readTree(record.value()); long shipper = event.get("shipperId").asLong(); events.put(shipper, event);
+                var event = mapper.readTree(record.value()); long shipper = event.get("shipperId").asLong();
+                if (event.get("source").asText().equals("OFFLINE_TOMBSTONE")) {
+                    events.put(shipper, event); assertThat(event.get("isOnline").asBoolean()).isFalse();
+                } else {
+                    assertThat(shipper).isEqualTo(7002); assertThat(event.get("isOnline").asBoolean()).isTrue();
+                    assertThat(event.get("source").asText()).isIn("WEBSOCKET", "APPLICATION");
+                    assertThat(event.get("deliveryId").asLong()).isEqualTo(9002);
+                }
                 assertThat(record.key()).isEqualTo(Long.toString(shipper));
-                assertThat(event.get("isOnline").asBoolean()).isFalse();
-                assertThat(event.get("source").asText()).isEqualTo("OFFLINE_TOMBSTONE");
+                assertThat(event.get("simulationContext")).isEqualTo(mapper.valueToTree(SimulationContext.real()));
                 assertThat(event.get("timestamp").asLong()).isBetween(before, System.currentTimeMillis());
                 assertThat(UUID.fromString(event.get("eventId").asText())).isNotNull();
                 eventIds.add(event.get("eventId").asText());
             }
-            assertThat(eventIds).hasSize(4); assertThat(events.keySet()).containsExactlyInAnyOrder(7001L, 7002L, 7003L, 7004L);
+            var sources = records.stream().map(record -> {
+                try { return mapper.readTree(record.value()).get("source").asText(); }
+                catch (Exception failure) { throw new AssertionError(failure); }
+            }).toList();
+            assertThat(sources).containsExactly("OFFLINE_TOMBSTONE", "OFFLINE_TOMBSTONE", "OFFLINE_TOMBSTONE", "OFFLINE_TOMBSTONE", "WEBSOCKET", "APPLICATION");
+            assertThat(eventIds).hasSize(6); assertThat(events.keySet()).containsExactlyInAnyOrder(7001L, 7002L, 7003L, 7004L);
             assertThat(events.get(7001L).get("latitude").isNull()).isTrue();
             assertThat(events.get(7001L).get("longitude").isNull()).isTrue();
             assertThat(events.get(7002L).get("accuracy").asDouble()).isEqualTo(3.5);
@@ -142,6 +187,61 @@ class TrackingOfflineRedisKafkaIntegrationTest {
             assertThat(events.get(7004L).get("latitude").isNull()).isTrue();
             assertThat(events.get(7004L).get("longitude").isNull()).isTrue();
         }
+    }
+    private void publishThroughIndependentSubscriber() throws Exception {
+        assignments.busy(7002L, 9002L, System.currentTimeMillis(), UUID.randomUUID().toString());
+        var access = mock(DeliveryTrackingAccessClient.class);
+        when(access.canTrack(9002L, 300L, "USER", 7002L)).thenReturn(true);
+        var dispatcher = new LocationMessageDispatcher(1, 64);
+        var subscriberHandler = new ShipperLocationWebSocketHandler(mapper, locations, core, access, publishers,
+                new DeliveryRoomRegistry(), dispatcher, fanout, identities);
+        var receiver = new RedisMessageListenerContainer(); receiver.setConnectionFactory(connections);
+        receiver.addMessageListener(new RedisLocationFanoutListener(mapper, subscriberHandler), new ChannelTopic(LocationFanoutPublisher.CHANNEL));
+        try {
+            receiver.afterPropertiesSet(); receiver.start();
+            var messages = new CopyOnWriteArrayList<String>(); var deniedMessages = new CopyOnWriteArrayList<String>();
+            var subscriber = session("remote-subscriber", 1300L, 300L, "USER", messages);
+            subscriberHandler.afterConnectionEstablished(subscriber);
+            subscriberHandler.handleMessage(subscriber, new TextMessage("{\"action\":\"subscribe_shipper\",\"deliveryId\":9002,\"shipperId\":7002}"));
+            var denied = session("denied-subscriber", 1301L, 301L, "USER", deniedMessages);
+            subscriberHandler.afterConnectionEstablished(denied);
+            subscriberHandler.handleMessage(denied, new TextMessage("{\"action\":\"subscribe_shipper\",\"deliveryId\":9002,\"shipperId\":7002}"));
+            assertThat(deniedMessages).anyMatch(message -> message.contains("FORBIDDEN"));
+            var publisher = session("real-publisher", 100L, 200L, "SHIPPER", new CopyOnWriteArrayList<>());
+            publisherHandler.afterConnectionEstablished(publisher);
+            publisherHandler.handleMessage(publisher, new TextMessage("{\"action\":\"update_location\",\"shipperId\":999,\"latitude\":10.79,\"longitude\":106.69}"));
+            awaitLocation(messages, 10.79);
+            var websocket = locations.getCachedShipperLocation(7002L);
+            assertThat(websocket.getShipperId()).isEqualTo(7002L); assertThat(websocket.getAccuracy()).isNull();
+            assertThat(websocket.getLastPing()).isEqualTo(websocket.getUpdatedAt());
+            assertThat(LocalDateTime.parse(websocket.getUpdatedAt())).isNotNull();
+            assertThat(redis.opsForSet().isMember("shippers:online:set", "7002")).isTrue();
+            // Source/identity metadata is server-owned; omitted online flag retains the existing true default.
+            String response = mvc.perform(post("/api/tracking/shipper-locations/update").with(authentication(actor()))
+                    .contentType("application/json").content("{\"shipperId\":999,\"source\":\"WEBSOCKET\",\"latitude\":10.8,\"longitude\":106.7}"))
+                    .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+            var data = mapper.readTree(response).get("data"); assertThat(data.get("shipperId").asLong()).isEqualTo(7002);
+            assertThat(data.get("isOnline").asBoolean()).isTrue();
+            assertThat(java.time.Instant.parse(data.get("updatedAt").asText())).isNotNull();
+            awaitLocation(messages, 10.8);
+            assertThat(deniedMessages).noneMatch(message -> message.contains("\"type\":\"location_update\""));
+        } finally {
+            receiver.stop(); receiver.destroy(); ReflectionTestUtils.invokeMethod(dispatcher, "shutdown");
+        }
+    }
+    private void awaitLocation(List<String> messages, double latitude) {
+        String expected = "\"latitude\":" + latitude;
+        try {
+            await().atMost(Duration.ofSeconds(8)).until(() -> messages.stream().anyMatch(message -> message.contains(expected)));
+        } catch (org.awaitility.core.ConditionTimeoutException timeout) {
+            throw new AssertionError("Independent subscriber did not receive " + expected + ": " + messages, timeout);
+        }
+    }
+    private WebSocketSession session(String id, long principal, long legacy, String role, List<String> messages) throws Exception {
+        var session = mock(WebSocketSession.class); when(session.getId()).thenReturn(id); when(session.isOpen()).thenReturn(true);
+        when(session.getAttributes()).thenReturn(new HashMap<>(Map.of("authenticatedPrincipalId", principal, "authenticatedUserId", legacy, "authenticatedRole", role)));
+        doAnswer(call -> { messages.add(((TextMessage) call.getArgument(0)).getPayload()); return null; }).when(session).sendMessage(any());
+        return session;
     }
     private void seedMembership(long shipper) {
         redis.opsForGeo().add("shippers:geo:locations", new Point(106.7, 10.77), Long.toString(shipper));

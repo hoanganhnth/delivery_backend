@@ -10306,7 +10306,7 @@
       "handler": "updateLocation",
       "source": {
         "file": "backend_delivery/tracking-service/src/main/java/com/delivery/tracking_service/controller/ShipperLocationController.java",
-        "line": 37
+        "line": 39
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<ShipperLocationResponse>> updateLocation( @AuthenticationPrincipal AuthenticatedActor actor, @Valid @RequestBody UpdateLocationRequest request)",
@@ -10356,7 +10356,7 @@
       "handler": "markOffline",
       "source": {
         "file": "backend_delivery/tracking-service/src/main/java/com/delivery/tracking_service/controller/ShipperLocationController.java",
-        "line": 55
+        "line": 57
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<String>> markOffline( @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -27306,7 +27306,7 @@
       "kind": "class",
       "source": {
         "file": "backend_delivery/tracking-service/src/main/java/com/delivery/tracking_service/dto/request/UpdateLocationRequest.java",
-        "line": 12
+        "line": 13
       },
       "fields": [
         {
@@ -27396,8 +27396,27 @@
         {
           "name": "isOnline",
           "type": "Boolean",
-          "annotations": [],
-          "required": false
+          "annotations": [
+            {
+              "name": "NotNull",
+              "arguments": "message = \"isOnline must be boolean\""
+            },
+            {
+              "name": "JsonDeserialize",
+              "arguments": "using = OnlineFlagDeserializer.class"
+            }
+          ],
+          "required": true,
+          "constraints": [
+            {
+              "name": "NotNull",
+              "arguments": "message = \"isOnline must be boolean\""
+            },
+            {
+              "name": "JsonDeserialize",
+              "arguments": "using = OnlineFlagDeserializer.class"
+            }
+          ]
         }
       ]
     },

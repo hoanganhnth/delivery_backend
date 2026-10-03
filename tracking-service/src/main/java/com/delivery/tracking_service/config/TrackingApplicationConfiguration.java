@@ -17,9 +17,6 @@ import com.delivery.tracking.application.api.ShipperIdentityUseCase;
 import com.delivery.tracking.application.api.LocationEventPort;
 import com.delivery.tracking.application.api.LocationStorePort;
 import com.delivery.tracking.application.api.TrackingPort;
-import com.delivery.tracking_service.repository.ShipperLocationRepository;
-import com.delivery.tracking_service.service.ShipperLocationEventPublisher;
-import com.delivery.tracking_service.websocket.ShipperLocationWebSocketHandler;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -49,42 +46,6 @@ public class TrackingApplicationConfiguration {
         return new DefaultShipperIdentityUseCase(identities);
     }
 
-
-    @Bean
-    LocationStorePort trackingLocationStore(ShipperLocationRepository repository) {
-        return location -> {
-            var response = new com.delivery.tracking_service.dto.response.ShipperLocationResponse();
-            response.setShipperId(location.shipperId());
-            response.setLatitude(location.coordinate().latitude());
-            response.setLongitude(location.coordinate().longitude());
-            response.setAccuracy(location.accuracy());
-            response.setSpeed(location.speed());
-            response.setHeading(location.heading());
-            response.setIsOnline(location.online());
-            response.setLastPing(location.lastPing().toString());
-            response.setUpdatedAt(location.updatedAt().toString());
-            repository.cacheShipperLocation(location.shipperId(), response);
-        };
-    }
-
-    @Bean
-    LocationEventPort trackingLocationEvents(ShipperLocationEventPublisher publisher,
-                                             ShipperLocationWebSocketHandler webSocket) {
-        return (location, source) -> {
-            var response = new com.delivery.tracking_service.dto.response.ShipperLocationResponse();
-            response.setShipperId(location.shipperId());
-            response.setLatitude(location.coordinate().latitude());
-            response.setLongitude(location.coordinate().longitude());
-            response.setAccuracy(location.accuracy());
-            response.setSpeed(location.speed());
-            response.setHeading(location.heading());
-            response.setIsOnline(location.online());
-            response.setLastPing(location.lastPing().toString());
-            response.setUpdatedAt(location.updatedAt().toString());
-            webSocket.broadcastShipperLocation(response);
-            publisher.publishLocationUpdate(response, source);
-        };
-    }
 
     @Bean
     TrackingPort tracking(LocationStorePort store, LocationEventPort events) {

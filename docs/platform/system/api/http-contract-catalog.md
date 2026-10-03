@@ -4502,7 +4502,7 @@ public ResponseEntity<BaseResponse<Void>> markOffline( @PathVariable Long shippe
 ### `POST` `/api/tracking/shipper-locations/offline`
 
 - Handler: `ShipperLocationController.markOffline`
-- Source: [`backend_delivery/tracking-service/src/main/java/com/delivery/tracking_service/controller/ShipperLocationController.java:55`](../../../../tracking-service/src/main/java/com/delivery/tracking_service/controller/ShipperLocationController.java)
+- Source: [`backend_delivery/tracking-service/src/main/java/com/delivery/tracking_service/controller/ShipperLocationController.java:57`](../../../../tracking-service/src/main/java/com/delivery/tracking_service/controller/ShipperLocationController.java)
 - Java return type: `ResponseEntity<BaseResponse<String>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -4521,7 +4521,7 @@ public ResponseEntity<BaseResponse<String>> markOffline( @AuthenticationPrincipa
 ### `POST` `/api/tracking/shipper-locations/update`
 
 - Handler: `ShipperLocationController.updateLocation`
-- Source: [`backend_delivery/tracking-service/src/main/java/com/delivery/tracking_service/controller/ShipperLocationController.java:37`](../../../../tracking-service/src/main/java/com/delivery/tracking_service/controller/ShipperLocationController.java)
+- Source: [`backend_delivery/tracking-service/src/main/java/com/delivery/tracking_service/controller/ShipperLocationController.java:39`](../../../../tracking-service/src/main/java/com/delivery/tracking_service/controller/ShipperLocationController.java)
 - Java return type: `ResponseEntity<BaseResponse<ShipperLocationResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -8525,7 +8525,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.tracking_service.dto.request.UpdateLocationRequest`
 
 - Kind: `class`
-- Source: [`backend_delivery/tracking-service/src/main/java/com/delivery/tracking_service/dto/request/UpdateLocationRequest.java:12`](../../../../tracking-service/src/main/java/com/delivery/tracking_service/dto/request/UpdateLocationRequest.java)
+- Source: [`backend_delivery/tracking-service/src/main/java/com/delivery/tracking_service/dto/request/UpdateLocationRequest.java:13`](../../../../tracking-service/src/main/java/com/delivery/tracking_service/dto/request/UpdateLocationRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -8534,7 +8534,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 | accuracy | Double | not declared required | — |
 | speed | Double | not declared required | — |
 | heading | Double | not declared required | — |
-| isOnline | Boolean | not declared required | — |
+| isOnline | Boolean | declared required | @NotNull(message = "isOnline must be boolean"), @JsonDeserialize(using = OnlineFlagDeserializer.class) |
 
 ### `com.delivery.tracking_service.dto.response.LocationHistoryPointResponse`
 

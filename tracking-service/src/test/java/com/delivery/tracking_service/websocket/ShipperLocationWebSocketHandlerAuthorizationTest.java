@@ -37,9 +37,7 @@ class ShipperLocationWebSocketHandlerAuthorizationTest {
 
     @BeforeEach
     void setUp() {
-        handler = new ShipperLocationWebSocketHandler(
-                new ObjectMapper(), repository, publisher, trackingAccessClient,
-                publisherSessionManager);
+        handler = TrackingWebSocketTestFixture.create(repository, publisher, trackingAccessClient, publisherSessionManager);
         attributes = new HashMap<>();
         lenient().when(session.getAttributes()).thenReturn(attributes);
         when(session.getId()).thenReturn("session-1");
@@ -211,6 +209,7 @@ class ShipperLocationWebSocketHandlerAuthorizationTest {
     }
 
     private void establishPublisher() throws Exception {
+        attributes.put("authenticatedPrincipalId", 84L);
         PublisherLease lease = new PublisherLease(42L, "session-1", 1L);
         when(publisherSessionManager.acquire(42L, "session-1")).thenReturn(lease);
         when(publisherSessionManager.refreshIfCurrent(lease)).thenReturn(true);
