@@ -12,6 +12,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import com.delivery.tracking.domain.PublisherExpiryClaim;
+import com.delivery.tracking.domain.PublisherLease;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Optional;
@@ -26,6 +27,42 @@ public class RedisGeoRepository implements ShipperLocationRepository {
     private final StringRedisTemplate stringRedisTemplate;
     private static final String GEO_KEY = "shippers:geo:locations";
     private static final String ONLINE_SHIPPERS_SET = "shippers:online:set";
+    private static final DefaultRedisScript<Long> CACHE_IF_CURRENT = new DefaultRedisScript<>("""
+            if redis.call('GET', KEYS[1]) ~= ARGV[1] or redis.call('GET', KEYS[2]) ~= ARGV[2] then
+              return 0
+            end
+            local geoType = redis.call('TYPE', KEYS[4]).ok
+            local onlineType = redis.call('TYPE', KEYS[5]).ok
+            if (geoType ~= 'none' and geoType ~= 'zset') or (onlineType ~= 'none' and onlineType ~= 'set') then
+              return redis.error_reply('Invalid shipper membership type')
+            end
+            if ARGV[5] == '1' then
+              -- GEO validates Redis latitude limits before any projection is changed.
+              redis.call('GEOADD', KEYS[4], ARGV[6], ARGV[7], ARGV[4])
+              redis.call('EXPIRE', KEYS[4], ARGV[8])
+              redis.call('SADD', KEYS[5], ARGV[4])
+              redis.call('EXPIRE', KEYS[5], ARGV[8])
+            else
+              redis.call('ZREM', KEYS[4], ARGV[4])
+              redis.call('SREM', KEYS[5], ARGV[4])
+            end
+            redis.call('SET', KEYS[3], ARGV[3], 'EX', ARGV[8])
+            return 1
+            """, Long.class);
+
+    @Override
+    public boolean cacheIfCurrentPublisher(PublisherLease lease, ShipperLocationResponse location) {
+        String id = Long.toString(lease.shipperId());
+        Long result = stringRedisTemplate.execute(CACHE_IF_CURRENT, List.of(
+                ShipperPublisherLeaseRepository.GENERATION_PREFIX + id,
+                ShipperPublisherLeaseRepository.ACTIVE_PREFIX + id,
+                RedisConstants.SHIPPER_LOCATION_KEY_PREFIX + id, GEO_KEY, ONLINE_SHIPPERS_SET),
+                Long.toString(lease.generation()), lease.redisValue(), serialized(location), serialized(id),
+                Boolean.TRUE.equals(location.getIsOnline()) ? "1" : "0",
+                String.valueOf(location.getLongitude()), String.valueOf(location.getLatitude()),
+                Long.toString(RedisConstants.SHIPPER_LOCATION_TTL));
+        return Long.valueOf(1).equals(result);
+    }
     private static final DefaultRedisScript<Long> OFFLINE_IF_EXPIRED = new DefaultRedisScript<>("""
             if redis.call('GET', KEYS[1]) ~= ARGV[1] or redis.call('EXISTS', KEYS[2]) == 1 then
               return 0

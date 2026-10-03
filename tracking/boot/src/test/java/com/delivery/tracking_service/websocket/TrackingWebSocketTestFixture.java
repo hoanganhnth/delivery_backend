@@ -14,6 +14,10 @@ import java.util.concurrent.atomic.AtomicReference;
 final class TrackingWebSocketTestFixture {
     static ShipperLocationWebSocketHandler create(RedisGeoRepository locations, ShipperLocationEventPublisher events,
             DeliveryTrackingAccessClient access, PublisherSessionUseCase publishers) {
+        if (org.mockito.Mockito.mockingDetails(locations).isMock()) {
+            org.mockito.Mockito.lenient().when(locations.cacheIfCurrentPublisher(org.mockito.ArgumentMatchers.any(),
+                    org.mockito.ArgumentMatchers.any())).thenReturn(true);
+        }
         var handler = new AtomicReference<ShipperLocationWebSocketHandler>();
         var rooms = new DeliveryRoomRegistry();
         var reads = new com.delivery.tracking.application.api.FanoutDeliveryReadPort() {

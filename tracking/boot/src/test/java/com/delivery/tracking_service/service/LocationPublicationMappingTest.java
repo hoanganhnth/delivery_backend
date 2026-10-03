@@ -21,11 +21,18 @@ class LocationPublicationMappingTest {
             var cache = mock(ShipperLocationRepository.class); var kafka = mock(ShipperLocationEventPublisher.class);
             var fanout = mock(LocationFanoutPublisher.class); var adapter = new RedisLocationUpdateAdapter(cache, kafka, fanout);
             var core = new DefaultTrackingService(adapter, adapter, Clock.fixed(now, ZoneOffset.UTC));
-            core.updateLocation(new UpdateLocationCommand(7, new Coordinate(10.77, 106.7), null, 12.0, 90.0, true, source));
+            var command = new UpdateLocationCommand(7, new Coordinate(10.77, 106.7), null, 12.0, 90.0, true, source);
+            var lease = new com.delivery.tracking.domain.PublisherLease(7, "current", 1);
+            if (source == LocationUpdateSource.APPLICATION) core.updateLocation(command);
+            else {
+                when(cache.cacheIfCurrentPublisher(eq(lease), any())).thenReturn(true);
+                core.updatePublisherLocation(command, lease);
+            }
             var saved = ArgumentCaptor.forClass(ShipperLocationResponse.class);
             var event = ArgumentCaptor.forClass(ShipperLocationResponse.class);
             var broadcast = ArgumentCaptor.forClass(ShipperLocationResponse.class);
-            verify(cache).cacheShipperLocation(eq(7L), saved.capture());
+            if (source == LocationUpdateSource.APPLICATION) verify(cache).cacheShipperLocation(eq(7L), saved.capture());
+            else verify(cache).cacheIfCurrentPublisher(eq(lease), saved.capture());
             verify(kafka).publishLocationUpdate(event.capture(), eq(source.name())); verify(fanout).publish(broadcast.capture());
             var result = saved.getValue();
             assertThat(event.getValue()).usingRecursiveComparison().isEqualTo(result);

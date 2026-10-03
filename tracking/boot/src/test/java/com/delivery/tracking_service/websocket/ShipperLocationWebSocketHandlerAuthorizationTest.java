@@ -54,7 +54,7 @@ class ShipperLocationWebSocketHandlerAuthorizationTest {
                 """));
 
         ArgumentCaptor<ShipperLocationResponse> location = ArgumentCaptor.forClass(ShipperLocationResponse.class);
-        verify(repository).cacheShipperLocation(eq(42L), location.capture());
+        verify(repository).cacheIfCurrentPublisher(argThat(lease -> lease.shipperId() == 42L), location.capture());
         verify(publisher).publishLocationUpdate(any(ShipperLocationResponse.class), eq("WEBSOCKET"));
         assertThat(location.getValue().getShipperId()).isEqualTo(42L);
         assertThat(location.getValue().getAccuracy()).isNull();
@@ -113,7 +113,7 @@ class ShipperLocationWebSocketHandlerAuthorizationTest {
         handler.handleTextMessage(session, new TextMessage(
                 "{\"action\":\"update_location\",\"latitude\":10.75,\"longitude\":106.67}"));
 
-        verify(repository).cacheShipperLocation(eq(42L), any(ShipperLocationResponse.class));
+        verify(repository).cacheIfCurrentPublisher(argThat(lease -> lease.shipperId() == 42L), any(ShipperLocationResponse.class));
         verify(session).sendMessage(argThat((TextMessage message) ->
                 message.getPayload().contains("MESSAGE_PROCESSING_FAILED")));
     }

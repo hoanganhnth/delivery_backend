@@ -166,17 +166,22 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
     }
 
     private void handleUpdateLocation(WebSocketSession session, Map<String, Object> message) throws Exception {
-        if (!ensureCurrentPublisher(session)) {
+        PublisherLease lease = publisherLeases.get(session.getId());
+        if (!ensureCurrentPublisher(session, lease)) {
             return;
         }
         Long shipperId = requireShipperId(session);
         Double latitude = requiredFiniteNumberInRange(message, "latitude", -90.0, 90.0);
         Double longitude = requiredFiniteNumberInRange(message, "longitude", -180.0, 180.0);
 
-        tracking.updateLocation(new UpdateLocationCommand(shipperId, new Coordinate(latitude, longitude),
+        var result = tracking.updatePublisherLocation(new UpdateLocationCommand(shipperId, new Coordinate(latitude, longitude),
                 optionalFiniteNumber(message, "accuracy"), optionalFiniteNumber(message, "speed"),
                 optionalFiniteNumber(message, "heading"), optionalBoolean(message, "isOnline", true),
-                LocationUpdateSource.WEBSOCKET));
+                LocationUpdateSource.WEBSOCKET), lease);
+        if (result.isEmpty()) {
+            rejectSupersededPublisher(session);
+            return;
+        }
         log.info("📍 [WS] Updated location for shipper {} and queued authorized fanout", shipperId);
     }
 
@@ -320,13 +325,20 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
     }
 
     private boolean ensureCurrentPublisher(WebSocketSession session) throws Exception {
-        PublisherLease lease = publisherLeases.get(session.getId());
+        return ensureCurrentPublisher(session, publisherLeases.get(session.getId()));
+    }
+
+    private boolean ensureCurrentPublisher(WebSocketSession session, PublisherLease lease) throws Exception {
         if (lease != null && publisherSessions.refreshIfCurrent(lease)) {
             return true;
         }
+        rejectSupersededPublisher(session);
+        return false;
+    }
+
+    private void rejectSupersededPublisher(WebSocketSession session) throws Exception {
         sendError(session, "PUBLISHER_SUPERSEDED", "A newer shipper location session is active");
         session.close(CloseStatus.POLICY_VIOLATION.withReason("Publisher superseded"));
-        return false;
     }
 
     private void supersedeLocalPublisher(String previousSessionId) {
