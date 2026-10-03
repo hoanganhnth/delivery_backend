@@ -45,9 +45,9 @@ class PublisherLeaseRedisIntegrationTest {
         var old = first.acquire(7L, "first"); var current = second.acquire(7L, "second");
         assertThat(current.generation()).isGreaterThan(old.generation());
         assertThat(first.refreshIfCurrent(old)).isFalse();
-        first.disconnected(old, ignored -> { throw new AssertionError("Superseded callback"); });
+        first.disconnected(old);
         assertThat(tasks).isEmpty();
-        second.disconnected(current, ignored -> { throw new AssertionError("Reconnected callback"); });
+        second.disconnected(current);
         assertThat(tasks).hasSize(1);
         var replacement = first.acquire(7L, "replacement"); tasks.get(0).run();
         assertThat(boundary.offline).isEmpty();
@@ -64,7 +64,7 @@ class PublisherLeaseRedisIntegrationTest {
     }
     @Test void persistedGraceDeadlineRecoversWhenOriginalInstanceLosesItsScheduledCallback() {
         var original = core(1, 2, 1); var lease = original.acquire(7L, "lost-callback");
-        original.disconnected(lease, ignored -> { throw new AssertionError("Original callback must remain lost"); });
+        original.disconnected(lease);
         assertThat(tasks).hasSize(1); assertThat(redis.hasKey("tracking:publisher:active:7")).isFalse();
         waitExpired(lease);
         core(1, 2, 1).sweepExpired(100);
@@ -115,11 +115,11 @@ class PublisherLeaseRedisIntegrationTest {
     private static final class RecordingBoundary implements ShipperAvailabilityUseCase, PublisherLeaseIncidentPort {
         final List<Long> offline = new ArrayList<>(); final List<PublisherLease> recovered = new ArrayList<>();
         final List<Exception> failures = new ArrayList<>(); boolean failOffline; int attempts;
-        public OfflineShipperLocation markOffline(Long id) {
+        public OfflineShipperLocation markOfflineAndBroadcast(Long id) {
             attempts++; if (failOffline) throw new IllegalStateException("Broker unavailable"); offline.add(id);
             return new OfflineShipperLocation(new CachedShipperLocation(id, null, null, null, null, null, null), LocalDateTime.now());
         }
-        public OfflineShipperLocation markOfflineAndBroadcast(Long id) { throw new AssertionError("Lease recovery is Kafka-only"); }
+        public OfflineShipperLocation markOffline(Long id) { throw new AssertionError("Recovery must include distributed fanout"); }
         public void graceFailed(PublisherLease lease, Exception failure) { failures.add(failure); }
         public void sweepFailed(PublisherLease lease, Exception failure) { failures.add(failure); }
         public void expiredOffline(PublisherLease lease) { recovered.add(lease); }

@@ -403,9 +403,13 @@ if rg -q 'Shipper(SearchController|SearchRepository|Document|SearchResponse)|sea
   echo "Dead shipper Elasticsearch search/sync graph must not be restored without product authority and a caller." >&2
   exit 1
 fi
-unsafe_match_if_missing="$(rg -l 'matchIfMissing[[:space:]]*=[[:space:]]*true' \
+# The documented default-enabled periodic scheduler is a runtime trigger, not
+# an optional business capability. Exempt only this exact annotation at its
+# canonical source path; another default-enabled property in that file fails.
+unsafe_match_if_missing="$(rg -n 'matchIfMissing[[:space:]]*=[[:space:]]*true' \
   --glob '**/src/main/java/**/*.java' "${ROOT_DIR}" \
-  | rg -v '/(OrderOutboxRelay|RestaurantOutboxRelay|SagaOutboxRelay|OutboxMessageRelay|LivestreamDisabledWebFilter)\.java$' || true)"
+  | rg -v '/(OrderOutboxRelay|RestaurantOutboxRelay|SagaOutboxRelay|OutboxMessageRelay|LivestreamDisabledWebFilter)\.java:[0-9]+:' \
+  | rg -v '/tracking/infrastructure/src/main/java/com/delivery/tracking_service/config/PublisherSessionConfig\.java:[0-9]+:[[:space:]]*@ConditionalOnProperty\(name = "spring.task.scheduling.enabled", havingValue = "true", matchIfMissing = true\)[[:space:]]*$' || true)"
 if [[ -n "${unsafe_match_if_missing}" ]]; then
   echo "Hidden/optional components must not use matchIfMissing=true:" >&2
   printf '%s\n' "${unsafe_match_if_missing}" >&2
@@ -604,7 +608,7 @@ if ! rg -Fq 'publishers.sweepExpired(batchSize)' "${tracking_expiry_sweeper}" \
     || ! rg -Fq "redis.call('ZRANGEBYSCORE'" "${tracking_lease_repository}" \
     || ! rg -Fq "tonumber(score) ~= tonumber(ARGV[2])" "${tracking_lease_repository}" \
     || ! rg -Fq 'shouldMarkOfflineAfterGrace(claim.lease())' "${tracking_publisher_core}" \
-    || ! rg -Fq 'availability.markOffline(claim.lease().shipperId())' "${tracking_publisher_core}" \
+    || ! rg -Fq 'availability.markOfflineAndBroadcast(claim.lease().shipperId())' "${tracking_publisher_core}" \
     || ! rg -Fq 'disconnect-grace-seconds=${TRACKING_PUBLISHER_DISCONNECT_GRACE_SECONDS:30}' "${tracking_properties}" \
     || ! rg -Fq 'lease-ttl-seconds=${TRACKING_PUBLISHER_LEASE_TTL_SECONDS:120}' "${tracking_properties}" \
     || ! rg -Fq 'expiry-sweep-interval-ms=${TRACKING_PUBLISHER_EXPIRY_SWEEP_INTERVAL_MS:5000}' "${tracking_properties}" \

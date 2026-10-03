@@ -34,4 +34,18 @@ class InternalLocationHistoryControllerTest {
 
         verifyNoInteractions(history);
     }
+    @Test
+    void httpAdvicePreservesSupportForbiddenStatusAndEnvelope() throws Exception {
+        var mvc = org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup(controller)
+                .setControllerAdvice(new com.delivery.tracking_service.exception.GlobalExceptionHandler())
+                .setCustomArgumentResolvers(new org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver()).build();
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                .get("/internal/tracking/location-history/deliveries/100")
+                .header("Internal-Token", "internal-test-secret"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isForbidden())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.status").value(0))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.message").value("Support access required"));
+        verifyNoInteractions(history);
+    }
+
 }

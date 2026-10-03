@@ -1,5 +1,6 @@
 package com.delivery.tracking_service.service;
 
+import com.delivery.tracking.application.api.PublisherSessionUseCase;
 import com.delivery.auth.resourceserver.security.AuthenticatedActor;
 import com.delivery.auth.resourceserver.security.AuthenticatedActorAuthenticationToken;
 import com.delivery.tracking_service.dto.response.ShipperLocationResponse;
@@ -82,7 +83,7 @@ class TrackingOfflineRedisKafkaIntegrationTest {
     @Autowired ObjectMapper mapper;
     @Autowired TrackingPort core;
     @Autowired ShipperLocationWebSocketHandler publisherHandler;
-    @Autowired ShipperPublisherSessionManager publishers;
+    @Autowired PublisherSessionUseCase publishers;
     @Autowired ShipperIdentityResolver identities;
     @Autowired LocationFanoutPublisher fanout;
     @Autowired ShipperDeliveryAssignmentStore assignments;
@@ -207,7 +208,7 @@ class TrackingOfflineRedisKafkaIntegrationTest {
         var rooms = new DeliveryRoomRegistry();
         var subscriptions = new com.delivery.tracking.application.DefaultDeliveryRoomSubscriptionUseCase(assignments, rooms);
         var subscriberHandler = new ShipperLocationWebSocketHandler(mapper, locations, core, access, publishers,
-                rooms, dispatcher, fanout, identities, subscriptions);
+                rooms, dispatcher, identities, subscriptions);
         var receiver = new RedisMessageListenerContainer(); receiver.setConnectionFactory(connections);
         receiver.addMessageListener(new RedisLocationFanoutListener(mapper, subscriberHandler), new ChannelTopic(LocationFanoutPublisher.CHANNEL));
         try {
@@ -261,7 +262,7 @@ class TrackingOfflineRedisKafkaIntegrationTest {
         when(access.canTrack(9102L,300L,"USER",8002L)).thenReturn(true);
         when(access.canTrack(9103L,301L,"USER",8002L)).thenReturn(true);
         var subscriptions=new com.delivery.tracking.application.DefaultDeliveryRoomSubscriptionUseCase(assignments,rooms);
-        var handler=new ShipperLocationWebSocketHandler(mapper,locations,core,access,publishers,rooms,dispatcher,fanout,identities,subscriptions);
+        var handler=new ShipperLocationWebSocketHandler(mapper,locations,core,access,publishers,rooms,dispatcher,identities,subscriptions);
         var receiver=new RedisMessageListenerContainer(); receiver.setConnectionFactory(connections);
         receiver.addMessageListener(new RedisLocationFanoutListener(mapper,handler),new ChannelTopic(LocationFanoutPublisher.CHANNEL));
         receiver.afterPropertiesSet(); receiver.start();

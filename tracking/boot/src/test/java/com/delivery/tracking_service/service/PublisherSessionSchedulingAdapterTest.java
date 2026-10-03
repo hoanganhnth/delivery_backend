@@ -1,6 +1,5 @@
 package com.delivery.tracking_service.service;
 
-import com.delivery.tracking_service.dto.response.ShipperLocationResponse;
 import com.delivery.tracking_service.repository.ShipperPublisherLeaseRepository;
 import com.delivery.tracking.domain.PublisherExpiryClaim;
 import com.delivery.tracking.application.DefaultPublisherSessionUseCase;
@@ -12,19 +11,18 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.scheduling.TaskScheduler;
 
 import java.time.Instant;
-import java.util.function.Consumer;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
-class ShipperPublisherSessionManagerTest {
+class PublisherSessionSchedulingAdapterTest {
 
     private final ShipperPublisherLeaseRepository leases = mock(ShipperPublisherLeaseRepository.class);
     private final ShipperAvailabilityUseCase availability = mock(ShipperAvailabilityUseCase.class);
     private final TaskScheduler scheduler = mock(TaskScheduler.class);
-    private final ShipperPublisherSessionManager manager =
-            new ShipperPublisherSessionManager(new DefaultPublisherSessionUseCase(leases, availability,
-                    new TaskSchedulerPublisherAdapter(scheduler), mock(PublisherLeaseIncidentPort.class), 30, 120, 30));
+    private final com.delivery.tracking.application.api.PublisherSessionUseCase manager =
+            new DefaultPublisherSessionUseCase(leases, availability,
+                    new TaskSchedulerPublisherAdapter(scheduler), mock(PublisherLeaseIncidentPort.class), 30, 120, 30);
 
     @Test
     void currentDisconnectMarksOfflineOnlyAfterGraceAndGenerationCheck() {
@@ -32,55 +30,44 @@ class ShipperPublisherSessionManagerTest {
         var offline = new com.delivery.tracking.application.api.OfflineShipperLocation(
                 new com.delivery.tracking.application.api.CachedShipperLocation(7L, null, null, null, null, null, null),
                 java.time.LocalDateTime.of(2026, 10, 3, 7, 0));
-        @SuppressWarnings("unchecked")
-        Consumer<ShipperLocationResponse> callback = mock(Consumer.class);
         PublisherExpiryClaim claim = new PublisherExpiryClaim(lease, 12345L);
         when(leases.releaseForGraceIfCurrent(lease, 30)).thenReturn(true);
         when(leases.claimIfExpired(lease, 30)).thenReturn(claim);
         when(leases.shouldMarkOfflineAfterGrace(lease)).thenReturn(true);
-        when(availability.markOffline(7L)).thenReturn(offline);
+        when(availability.markOfflineAndBroadcast(7L)).thenReturn(offline);
 
-        manager.disconnected(lease, callback);
+        manager.disconnected(lease);
 
         ArgumentCaptor<Runnable> task = ArgumentCaptor.forClass(Runnable.class);
         verify(scheduler).schedule(task.capture(), any(Instant.class));
-        verifyNoInteractions(availability, callback);
+        verifyNoInteractions(availability);
         task.getValue().run();
-        verify(availability).markOffline(7L);
-        var result = ArgumentCaptor.forClass(ShipperLocationResponse.class);
-        verify(callback).accept(result.capture());
-        org.assertj.core.api.Assertions.assertThat(result.getValue().getShipperId()).isEqualTo(7L);
-        org.assertj.core.api.Assertions.assertThat(result.getValue().getIsOnline()).isFalse();
-        org.assertj.core.api.Assertions.assertThat(result.getValue().getUpdatedAt()).isEqualTo(offline.timestamp().toString());
+        verify(availability).markOfflineAndBroadcast(7L);
         verify(leases).completeClaim(claim);
     }
 
     @Test
     void supersededDisconnectCannotScheduleOffline() {
         PublisherLease oldLease = new PublisherLease(7L, "old", 2L);
-        @SuppressWarnings("unchecked")
-        Consumer<ShipperLocationResponse> callback = mock(Consumer.class);
         when(leases.releaseForGraceIfCurrent(oldLease, 30)).thenReturn(false);
 
-        manager.disconnected(oldLease, callback);
+        manager.disconnected(oldLease);
 
-        verifyNoInteractions(scheduler, availability, callback);
+        verifyNoInteractions(scheduler, availability);
     }
 
     @Test
     void reconnectDuringGraceCancelsOfflineAtGenerationFence() {
         PublisherLease oldLease = new PublisherLease(7L, "old", 2L);
-        @SuppressWarnings("unchecked")
-        Consumer<ShipperLocationResponse> callback = mock(Consumer.class);
         when(leases.releaseForGraceIfCurrent(oldLease, 30)).thenReturn(true);
         when(leases.claimIfExpired(oldLease, 30)).thenReturn(null);
 
-        manager.disconnected(oldLease, callback);
+        manager.disconnected(oldLease);
 
         ArgumentCaptor<Runnable> task = ArgumentCaptor.forClass(Runnable.class);
         verify(scheduler).schedule(task.capture(), any(Instant.class));
         task.getValue().run();
-        verifyNoInteractions(availability, callback);
+        verifyNoInteractions(availability);
         verify(leases, never()).shouldMarkOfflineAfterGrace(any());
     }
 }

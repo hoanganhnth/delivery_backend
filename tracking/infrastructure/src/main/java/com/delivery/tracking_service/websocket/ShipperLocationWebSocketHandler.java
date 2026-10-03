@@ -8,8 +8,7 @@ import com.delivery.tracking.domain.LocationUpdateSource;
 import com.delivery.tracking.domain.Coordinate;
 import com.delivery.tracking.domain.PublisherLease;
 import com.delivery.tracking_service.service.DeliveryTrackingAccessClient;
-import com.delivery.tracking_service.service.ShipperPublisherSessionManager;
-import com.delivery.tracking_service.service.LocationFanoutPublisher;
+import com.delivery.tracking.application.api.PublisherSessionUseCase;
 import com.delivery.tracking_service.service.ShipperIdentityResolver;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,10 +38,9 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
     private final RedisGeoRepository redisGeoRepository;
     private final TrackingPort tracking;
     private final DeliveryTrackingAccessClient trackingAccessClient;
-    private final ShipperPublisherSessionManager publisherSessionManager;
+    private final PublisherSessionUseCase publisherSessions;
     private final DeliveryRoomRegistry deliveryRooms;
     private final LocationMessageDispatcher messageDispatcher;
-    private final LocationFanoutPublisher locationFanoutPublisher;
     private final ShipperIdentityResolver shipperIdentityResolver;
     private final com.delivery.tracking.application.api.DeliveryRoomSubscriptionUseCase subscriptions;
 
@@ -51,20 +49,18 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
                                            RedisGeoRepository redisGeoRepository,
                                            TrackingPort tracking,
                                            DeliveryTrackingAccessClient trackingAccessClient,
-                                           ShipperPublisherSessionManager publisherSessionManager,
+                                           PublisherSessionUseCase publisherSessions,
                                            DeliveryRoomRegistry deliveryRooms,
                                            LocationMessageDispatcher messageDispatcher,
-                                           LocationFanoutPublisher locationFanoutPublisher,
                                            ShipperIdentityResolver shipperIdentityResolver,
                                            com.delivery.tracking.application.api.DeliveryRoomSubscriptionUseCase subscriptions) {
         this.objectMapper = objectMapper;
         this.redisGeoRepository = redisGeoRepository;
         this.tracking = tracking;
         this.trackingAccessClient = trackingAccessClient;
-        this.publisherSessionManager = publisherSessionManager;
+        this.publisherSessions = publisherSessions;
         this.deliveryRooms = deliveryRooms;
         this.messageDispatcher = messageDispatcher;
-        this.locationFanoutPublisher = locationFanoutPublisher;
         this.shipperIdentityResolver = shipperIdentityResolver;
         this.subscriptions = subscriptions;
     }
@@ -81,7 +77,7 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
         if ("SHIPPER".equals(authenticatedRole(session))) {
             try {
                 Long shipperId = requireShipperId(session);
-                lease = publisherSessionManager.acquire(shipperId, sessionId);
+                lease = publisherSessions.acquire(shipperId, sessionId);
                 publisherLeases.put(sessionId, lease);
                 String previousSessionId = localPublisherSessions.put(shipperId, sessionId);
                 if (previousSessionId != null && !previousSessionId.equals(sessionId)) {
@@ -325,7 +321,7 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
 
     private boolean ensureCurrentPublisher(WebSocketSession session) throws Exception {
         PublisherLease lease = publisherLeases.get(session.getId());
-        if (lease != null && publisherSessionManager.refreshIfCurrent(lease)) {
+        if (lease != null && publisherSessions.refreshIfCurrent(lease)) {
             return true;
         }
         sendError(session, "PUBLISHER_SUPERSEDED", "A newer shipper location session is active");
@@ -357,9 +353,7 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
         PublisherLease lease = publisherLeases.remove(sessionId);
         if (lease != null) {
             localPublisherSessions.remove(lease.shipperId(), sessionId);
-            publisherSessionManager.disconnected(lease, offline -> {
-                fanout(offline);
-            });
+            publisherSessions.disconnected(lease);
         }
 
         deliveryRooms.removeSession(sessionId);
@@ -393,10 +387,6 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
                 log.error("💥 Error broadcasting shipper location: {}", e.getMessage(), e);
             }
         }
-    }
-
-    private void fanout(ShipperLocationResponse location) {
-        locationFanoutPublisher.publish(location);
     }
 
     private void dispatchLocation(WebSocketSession session, long deliveryId,

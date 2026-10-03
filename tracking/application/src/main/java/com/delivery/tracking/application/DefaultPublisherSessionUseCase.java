@@ -6,7 +6,6 @@ import com.delivery.tracking.domain.PublisherExpiryClaim;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Objects;
-import java.util.function.Consumer;
 
 /** Owns generation/grace admission and retryable offline recovery; Redis retains atomic fences. */
 public final class DefaultPublisherSessionUseCase implements PublisherSessionUseCase {
@@ -44,14 +43,14 @@ public final class DefaultPublisherSessionUseCase implements PublisherSessionUse
     @Override public boolean refreshIfCurrent(PublisherLease lease) {
         return leases.refreshIfCurrent(lease, leaseSeconds);
     }
-    @Override public void disconnected(PublisherLease lease, Consumer<OfflineShipperLocation> afterOffline) {
+    @Override public void disconnected(PublisherLease lease) {
         if (!leases.releaseForGraceIfCurrent(lease, graceSeconds)) return;
-        tasks.schedule(() -> afterGrace(lease, afterOffline), Instant.now(clock).plusSeconds(graceSeconds));
+        tasks.schedule(() -> afterGrace(lease), Instant.now(clock).plusSeconds(graceSeconds));
     }
-    private void afterGrace(PublisherLease lease, Consumer<OfflineShipperLocation> afterOffline) {
+    private void afterGrace(PublisherLease lease) {
         try {
             var claim = leases.claimIfExpired(lease, claimSeconds);
-            if (claim != null) reconcile(claim, afterOffline);
+            if (claim != null) reconcile(claim);
         } catch (Exception failure) {
             incidents.graceFailed(lease, failure);
         }
@@ -59,17 +58,16 @@ public final class DefaultPublisherSessionUseCase implements PublisherSessionUse
     @Override public void sweepExpired(int batchSize) {
         for (var claim : leases.claimExpired(Math.max(1, batchSize), claimSeconds)) {
             try {
-                reconcile(claim, ignored -> incidents.expiredOffline(claim.lease()));
+                if (reconcile(claim)) incidents.expiredOffline(claim.lease());
             } catch (Exception failure) {
                 incidents.sweepFailed(claim.lease(), failure);
             }
         }
     }
-    private void reconcile(PublisherExpiryClaim claim, Consumer<OfflineShipperLocation> afterOffline) {
-        if (leases.shouldMarkOfflineAfterGrace(claim.lease())) {
-            var offline = availability.markOffline(claim.lease().shipperId());
-            afterOffline.accept(offline);
-        }
+    private boolean reconcile(PublisherExpiryClaim claim) {
+        boolean transitioned = leases.shouldMarkOfflineAfterGrace(claim.lease());
+        if (transitioned) availability.markOfflineAndBroadcast(claim.lease().shipperId());
         leases.completeClaim(claim);
+        return transitioned;
     }
 }

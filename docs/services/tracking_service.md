@@ -94,15 +94,19 @@ khác trước contract freeze.
 Source nằm tại `tracking/{domain,application-api,application,infrastructure,boot}`.
 Infrastructure giữ toàn bộ HTTP/WebSocket/Redis/Kafka/JPA adapter và Spring
 composition; boot chỉ giữ entrypoint, runtime properties và integration tests.
-Artifact/DNS vẫn là `tracking-service`; packaged runtime/recovery và hợp nhất main
-chưa hoàn tất. Host `tracking-service/` và `modules/tracking/` đã được thay bằng
+Artifact/DNS vẫn là `tracking-service`. Packaged two-JVM HTTP/WebSocket/JWKS,
+Kafka/Redis/PostgreSQL, hard-kill recovery và restart đã có executable proof tại
+`scripts/verify-tracking-runtime.py`. Audit generation-check → offline mutation,
+race giữa instance và recovery ngoài TTL/mất Redis còn cần hoàn tất trước main. Host `tracking-service/` và `modules/tracking/` đã được thay bằng
 các layer ở gốc trong worktree refactor.
 
 Policy principal/projection identity và identity inbox, offline/tombstone, publication và publisher lease/grace/recovery hiện chạy trong
 `tracking-application`; adapter JPA/Redis/Kafka/HTTP giữ mapping và transport.
 REST và internal offline dùng cùng core, gồm cả khi không có cache hoặc tọa độ
-cache chỉ có một phía. Lease/grace vẫn dùng operation Kafka-only rồi callback
-hiện tại; explicit HTTP offline broadcast sau khi publish thành công.
+cache chỉ có một phía. Grace và expiry sweeper dùng cùng operation offline +
+distributed fanout; Redis mutation → Kafka tombstone → PubSub trước khi complete
+expiry claim. HTTP offline cũng dùng operation này. WebSocket gọi publisher core
+trực tiếp; facade/callback fanout cũ đã được xoá.
 REST và WebSocket update dùng chung core, Redis/Kafka adapter và Redis PubSub
 fanout. Source do server quyết định; giữ encoding Instant của REST và local
 date-time của WebSocket. REST bỏ qua `isOnline` vẫn mặc định true; null hoặc
@@ -112,11 +116,12 @@ availability cũ không còn caller đã được xoá, test lỗi chuyển sang
 retention); scheduler cho callback grace vẫn hoạt động. Khi không cấu hình cờ,
 hai job định kỳ vẫn bật như trước. Spring context thật kiểm chứng cả ba cấu hình.
 Identity inbox dùng core để kiểm raw-payload fingerprint, replay, stale version
-và version gap. PostgreSQL adapter khoá theo event rồi principal trong cùng
+và version gap. Support-denial HTTP403 giữ nguyên qua global advice. PostgreSQL adapter khoá theo event rồi principal trong cùng
 transaction ghi projection/receipt, kể cả khi chưa có row. Exact replay không
 ghi lại, event cũ chỉ tạo receipt và gap không tạo receipt. Giữ admission cũ:
 snapshot đầu tiên có thể có version bất kỳ lớn hơn 0; event mới cùng version
-vẫn được apply. Kafka retry/DLT và shape event không đổi.
+vẫn được apply. Listener ACK sau khi inbox transaction hoàn tất; decode/conflict/
+storage failure không ACK. Kafka retry/DLT và shape event không đổi.
 History hiện dùng `LocationHistoryPolicy` và `DefaultLocationHistoryUseCase`:
 sampling/precision trong domain; replay, query bound và retention trong application.
 JPA adapter giữ SQL claim, transaction và khoá sampling theo delivery/shipper.

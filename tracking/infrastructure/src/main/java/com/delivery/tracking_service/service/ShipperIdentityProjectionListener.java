@@ -5,6 +5,7 @@ import com.delivery.tracking.application.api.ApplyShipperIdentityCommand;
 import com.delivery.tracking.application.api.ShipperIdentityInboxUseCase;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.kafka.annotation.RetryableTopic;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.stereotype.Component;
@@ -28,9 +29,10 @@ public class ShipperIdentityProjectionListener {
             dltTopicSuffix = ".tracking-shipper-identity.DLT")
     @KafkaListener(topics = "${app.shipper.identity-topic:shipper.identity.upserted}",
             groupId = "${app.shipper.identity-consumer-group:tracking-shipper-identity-v1}")
-    public void upsert(String raw) throws Exception {
+    public void upsert(String raw, Acknowledgment acknowledgment) throws Exception {
         ShipperIdentityUpserted event = mapper.readValue(raw, ShipperIdentityUpserted.class);
         inbox.apply(new ApplyShipperIdentityCommand(event.eventId(), event.eventType(), event.principalId(),
                 event.legacyUserId(), event.shipperId(), event.mappingVersion(), raw));
+        acknowledgment.acknowledge();
     }
 }

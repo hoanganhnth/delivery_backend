@@ -6,7 +6,7 @@ import com.delivery.tracking_service.dto.response.ShipperLocationResponse;
 import com.delivery.tracking_service.repository.RedisGeoRepository;
 import com.delivery.tracking_service.service.ShipperLocationEventPublisher;
 import com.delivery.tracking_service.service.DeliveryTrackingAccessClient;
-import com.delivery.tracking_service.service.ShipperPublisherSessionManager;
+import com.delivery.tracking.application.api.PublisherSessionUseCase;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -29,7 +29,7 @@ class ShipperLocationWebSocketHandlerAuthorizationTest {
     @Mock RedisGeoRepository repository;
     @Mock ShipperLocationEventPublisher publisher;
     @Mock DeliveryTrackingAccessClient trackingAccessClient;
-    @Mock ShipperPublisherSessionManager publisherSessionManager;
+    @Mock PublisherSessionUseCase publisherSessionManager;
     @Mock WebSocketSession session;
 
     private ShipperLocationWebSocketHandler handler;

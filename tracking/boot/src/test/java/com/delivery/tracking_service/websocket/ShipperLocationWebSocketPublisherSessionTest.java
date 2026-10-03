@@ -5,7 +5,7 @@ import com.delivery.tracking.domain.PublisherLease;
 import com.delivery.tracking_service.repository.RedisGeoRepository;
 import com.delivery.tracking_service.service.DeliveryTrackingAccessClient;
 import com.delivery.tracking_service.service.ShipperLocationEventPublisher;
-import com.delivery.tracking_service.service.ShipperPublisherSessionManager;
+import com.delivery.tracking.application.api.PublisherSessionUseCase;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.socket.CloseStatus;
@@ -23,7 +23,7 @@ class ShipperLocationWebSocketPublisherSessionTest {
     void newerConnectionSupersedesOldPublisherAndOldCloseCannotOwnOffline() throws Exception {
         RedisGeoRepository locations = mock(RedisGeoRepository.class);
         ShipperLocationEventPublisher publisher = mock(ShipperLocationEventPublisher.class);
-        ShipperPublisherSessionManager sessions = mock(ShipperPublisherSessionManager.class);
+        PublisherSessionUseCase sessions = mock(PublisherSessionUseCase.class);
         ShipperLocationWebSocketHandler handler = TrackingWebSocketTestFixture.create(locations, publisher,
                 mock(DeliveryTrackingAccessClient.class), sessions);
         WebSocketSession oldSession = shipperSession("old", 7L);
@@ -41,15 +41,15 @@ class ShipperLocationWebSocketPublisherSessionTest {
         verify(oldSession).sendMessage(argThat((TextMessage message) ->
                 message.getPayload().contains("PUBLISHER_SUPERSEDED")));
         verify(oldSession).close(any(CloseStatus.class));
-        verify(sessions).disconnected(eq(oldLease), any());
-        verify(sessions, never()).disconnected(eq(newLease), any());
+        verify(sessions).disconnected(eq(oldLease));
+        verify(sessions, never()).disconnected(eq(newLease));
     }
 
     @Test
     void fencedPublisherCannotWriteLocation() throws Exception {
         RedisGeoRepository locations = mock(RedisGeoRepository.class);
         ShipperLocationEventPublisher publisher = mock(ShipperLocationEventPublisher.class);
-        ShipperPublisherSessionManager sessions = mock(ShipperPublisherSessionManager.class);
+        PublisherSessionUseCase sessions = mock(PublisherSessionUseCase.class);
         ShipperLocationWebSocketHandler handler = TrackingWebSocketTestFixture.create(locations, publisher,
                 mock(DeliveryTrackingAccessClient.class), sessions);
         WebSocketSession session = shipperSession("old", 7L);

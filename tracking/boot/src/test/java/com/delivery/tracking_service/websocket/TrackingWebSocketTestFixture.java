@@ -1,5 +1,6 @@
 package com.delivery.tracking_service.websocket;
 
+import com.delivery.tracking.application.api.PublisherSessionUseCase;
 import com.delivery.tracking.application.DefaultTrackingService;
 import com.delivery.tracking.application.DefaultShipperIdentityUseCase;
 import com.delivery.tracking_service.repository.RedisGeoRepository;
@@ -12,7 +13,7 @@ import java.util.concurrent.atomic.AtomicReference;
 /** Real application cores; only external Redis/Kafka/fanout collaborators are test fixtures. */
 final class TrackingWebSocketTestFixture {
     static ShipperLocationWebSocketHandler create(RedisGeoRepository locations, ShipperLocationEventPublisher events,
-            DeliveryTrackingAccessClient access, ShipperPublisherSessionManager publishers) {
+            DeliveryTrackingAccessClient access, PublisherSessionUseCase publishers) {
         var handler = new AtomicReference<ShipperLocationWebSocketHandler>();
         var rooms = new DeliveryRoomRegistry();
         var reads = new com.delivery.tracking.application.api.FanoutDeliveryReadPort() {
@@ -31,7 +32,7 @@ final class TrackingWebSocketTestFixture {
         var subscriptions = new com.delivery.tracking.application.DefaultDeliveryRoomSubscriptionUseCase(
                 org.mockito.Mockito.mock(com.delivery.tracking.application.api.DeliveryRoomAssignmentPort.class), rooms);
         var result = new ShipperLocationWebSocketHandler(new ObjectMapper(), locations, new DefaultTrackingService(adapter, adapter),
-                access, publishers, rooms, new LocationMessageDispatcher(Runnable::run), fanout, identities, subscriptions);
+                access, publishers, rooms, new LocationMessageDispatcher(Runnable::run), identities, subscriptions);
         handler.set(result); return result;
     }
 }

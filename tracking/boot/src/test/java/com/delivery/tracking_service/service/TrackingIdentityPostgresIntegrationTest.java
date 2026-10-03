@@ -1,5 +1,6 @@
 package com.delivery.tracking_service.service;
 
+import com.delivery.tracking.application.api.PublisherSessionUseCase;
 import com.delivery.tracking.application.DefaultShipperIdentityUseCase;
 import com.delivery.tracking.application.DefaultShipperIdentityInboxUseCase;
 import com.delivery.identity.contracts.ShipperIdentityUpserted;
@@ -70,7 +71,7 @@ class TrackingIdentityPostgresIntegrationTest {
     @Autowired MockMvc mvc;
     @Autowired ShipperLocationWebSocketHandler socket;
     @MockitoBean TrackingPort locations;
-    @MockitoBean ShipperPublisherSessionManager publishers;
+    @MockitoBean PublisherSessionUseCase publishers;
     @MockitoBean ShipperPublisherLeaseRepository leases;
     @MockitoBean RedisGeoRepository geo;
 
@@ -84,20 +85,20 @@ class TrackingIdentityPostgresIntegrationTest {
     @Test void realListenerRetainsReplayStaleEqualVersionAndGapSemantics() throws Exception {
         UUID eventId = UUID.randomUUID();
         String initial = raw(eventId, 100L, 200L, 987L, 4);
-        identityEvents.upsert(initial); identityEvents.upsert(initial);
+        applyIdentity(initial); applyIdentity(initial);
         assertThat(receipts.count()).isEqualTo(1);
         assertThat(projections.findById(100L).orElseThrow().getMappingVersion()).isEqualTo(4);
-        assertThatThrownBy(() -> identityEvents.upsert(initial + " "))
+        assertThatThrownBy(() -> applyIdentity(initial + " "))
                 .isInstanceOf(IllegalStateException.class).hasMessage("Conflicting shipper identity event reuse");
-        identityEvents.upsert(raw(UUID.randomUUID(), 100L, 201L, 988L, 3));
+        applyIdentity(raw(UUID.randomUUID(), 100L, 201L, 988L, 3));
         assertThat(projections.findById(100L).orElseThrow().getShipperId()).isEqualTo(987);
         UUID gap = UUID.randomUUID();
-        assertThatThrownBy(() -> identityEvents.upsert(raw(gap, 100L, 200L, 987L, 6)))
+        assertThatThrownBy(() -> applyIdentity(raw(gap, 100L, 200L, 987L, 6)))
                 .isInstanceOf(IllegalStateException.class).hasMessage("Shipper identity mapping version gap");
         assertThat(receipts.existsById(gap)).isFalse();
         // Existing listener admits a different event at the same version; preserve this policy explicitly.
-        identityEvents.upsert(raw(UUID.randomUUID(), 100L, 201L, 988L, 4));
-        identityEvents.upsert(raw(UUID.randomUUID(), 100L, 201L, 988L, 5));
+        applyIdentity(raw(UUID.randomUUID(), 100L, 201L, 988L, 4));
+        applyIdentity(raw(UUID.randomUUID(), 100L, 201L, 988L, 5));
         assertThat(projections.findById(100L).orElseThrow().getMappingVersion()).isEqualTo(5);
         assertThat(receipts.count()).isEqualTo(4);
     }
@@ -105,12 +106,12 @@ class TrackingIdentityPostgresIntegrationTest {
     @Test void uniquenessFailureRollsBackProjectionAndReceiptTogether() throws Exception {
         mapping(100L, 200L, 987L);
         UUID id = UUID.randomUUID();
-        assertThatThrownBy(() -> identityEvents.upsert(raw(id, 101L, 201L, 987L, 1)))
+        assertThatThrownBy(() -> applyIdentity(raw(id, 101L, 201L, 987L, 1)))
                 .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
         assertThat(receipts.existsById(id)).isFalse();
         assertThat(projections.existsById(101L)).isFalse();
         assertThat(projections.findById(100L).orElseThrow().getShipperId()).isEqualTo(987);
-        identityEvents.upsert(raw(id, 101L, 201L, 988L, 1));
+        applyIdentity(raw(id, 101L, 201L, 988L, 1));
         assertThat(receipts.existsById(id)).isTrue();
     }
 
@@ -172,6 +173,9 @@ class TrackingIdentityPostgresIntegrationTest {
 
     private JpaShipperIdentityInboxAdapter newAdapter() {
         return new JpaShipperIdentityInboxAdapter(projections, receipts, jdbc, transactions);
+    }
+    private void applyIdentity(String raw) throws Exception {
+        identityEvents.upsert(raw, () -> {});
     }
     private String raw(UUID id, Long principal, Long legacy, Long shipper, long version) throws Exception {
         return mapper.writeValueAsString(new ShipperIdentityUpserted(id, ShipperIdentityUpserted.TYPE, 1,
