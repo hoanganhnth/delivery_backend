@@ -1,6 +1,9 @@
 package com.delivery.tracking_service.config;
 
 import com.delivery.tracking.application.DefaultTrackingService;
+import com.delivery.tracking.application.DefaultShipperIdentityUseCase;
+import com.delivery.tracking.application.api.ShipperIdentityReadPort;
+import com.delivery.tracking.application.api.ShipperIdentityUseCase;
 import com.delivery.tracking.application.api.LocationEventPort;
 import com.delivery.tracking.application.api.LocationStorePort;
 import com.delivery.tracking.application.api.TrackingPort;
@@ -17,6 +20,12 @@ import java.time.ZoneOffset;
 /** Composes the framework-free tracking use case with service adapters. */
 @Configuration
 public class TrackingApplicationConfiguration {
+
+    @Bean
+    ShipperIdentityUseCase shipperIdentityUseCase(ShipperIdentityReadPort identities) {
+        return new DefaultShipperIdentityUseCase(identities);
+    }
+
 
     @Bean
     LocationStorePort trackingLocationStore(ShipperLocationRepository repository) {
