@@ -28,7 +28,7 @@ modules=(
   shipper/boot
   search-service
   saga-orchestrator-service
-  tracking-service
+  tracking/boot
   match-service
   routing/boot
   web-bff/boot
@@ -130,12 +130,12 @@ if rg -q 'org\.mapstruct|mapstruct-processor|lombok-mapstruct-binding' \
   exit 1
 fi
 
-tracking_root="${ROOT_DIR}/tracking-service"
-tracking_proto_files="$(rg --files "${tracking_root}/src/main" 2>/dev/null \
+tracking_root="${ROOT_DIR}/tracking"
+tracking_proto_files="$(rg --files "${tracking_root}" 2>/dev/null \
   | rg '/proto/|\.proto$' || true)"
 if [[ -n "${tracking_proto_files}" ]] \
     || rg -qi 'io\.grpc|grpc-|protobuf-maven-plugin|protobuf-java' \
-      "${tracking_root}/pom.xml" "${tracking_root}/src/main/java"; then
+      --glob pom.xml --glob '**/src/main/java/**/*.java' "${tracking_root}"; then
   echo "tracking-service: gRPC/protobuf runtime artifacts are outside the raw-WebSocket MVP contract." >&2
   exit 1
 fi
@@ -586,24 +586,25 @@ if [[ -e "${ROOT_DIR}/livestream-service/src/main/java/com/delivery/livestream_s
     || rg -q 'findByRoomId|countActiveDeliveriesByShipper' \
       "${livestream_repository}" \
       "${ROOT_DIR}/delivery-service/src/main/java/com/delivery/delivery_service/repository/DeliveryRepository.java" \
-    || rg -q 'getShipperLocation' \
-      "${ROOT_DIR}/tracking-service/src/main/java/com/delivery/tracking_service/service/ShipperLocationService.java"; then
+    || [[ -e "${ROOT_DIR}/tracking/infrastructure/src/main/java/com/delivery/tracking_service/service/ShipperLocationService.java" ]]; then
   echo "dead hidden-capability repository graphs must not be restored without a caller and contract." >&2
   exit 1
 fi
 
-tracking_lease_repository="${ROOT_DIR}/tracking-service/src/main/java/com/delivery/tracking_service/repository/ShipperPublisherLeaseRepository.java"
-tracking_expiry_sweeper="${ROOT_DIR}/tracking-service/src/main/java/com/delivery/tracking_service/service/PublisherLeaseExpirySweeper.java"
-tracking_properties="${ROOT_DIR}/tracking-service/src/main/resources/application.properties"
-if ! rg -Fq "redis.call('INCR', KEYS[1])" "${tracking_lease_repository}" \
+tracking_lease_repository="${ROOT_DIR}/tracking/infrastructure/src/main/java/com/delivery/tracking_service/repository/ShipperPublisherLeaseRepository.java"
+tracking_expiry_sweeper="${ROOT_DIR}/tracking/infrastructure/src/main/java/com/delivery/tracking_service/service/PublisherLeaseExpirySweeper.java"
+tracking_publisher_core="${ROOT_DIR}/tracking/application/src/main/java/com/delivery/tracking/application/DefaultPublisherSessionUseCase.java"
+tracking_properties="${ROOT_DIR}/tracking/boot/src/main/resources/application.properties"
+if ! rg -Fq 'publishers.sweepExpired(batchSize)' "${tracking_expiry_sweeper}" \
+    || ! rg -Fq "redis.call('INCR', KEYS[1])" "${tracking_lease_repository}" \
     || ! rg -Fq 'releaseForGraceIfCurrent' "${tracking_lease_repository}" \
     || ! rg -Fq 'claimIfExpired' "${tracking_lease_repository}" \
     || ! rg -Fq 'shouldMarkOfflineAfterGrace' "${tracking_lease_repository}" \
     || ! rg -Fq 'tracking:publisher:deadlines' "${tracking_lease_repository}" \
     || ! rg -Fq "redis.call('ZRANGEBYSCORE'" "${tracking_lease_repository}" \
     || ! rg -Fq "tonumber(score) ~= tonumber(ARGV[2])" "${tracking_lease_repository}" \
-    || ! rg -Fq 'shouldMarkOfflineAfterGrace(claim.lease())' "${tracking_expiry_sweeper}" \
-    || ! rg -Fq 'availabilityService.markOffline(claim.lease().shipperId())' "${tracking_expiry_sweeper}" \
+    || ! rg -Fq 'shouldMarkOfflineAfterGrace(claim.lease())' "${tracking_publisher_core}" \
+    || ! rg -Fq 'availability.markOffline(claim.lease().shipperId())' "${tracking_publisher_core}" \
     || ! rg -Fq 'disconnect-grace-seconds=${TRACKING_PUBLISHER_DISCONNECT_GRACE_SECONDS:30}' "${tracking_properties}" \
     || ! rg -Fq 'lease-ttl-seconds=${TRACKING_PUBLISHER_LEASE_TTL_SECONDS:120}' "${tracking_properties}" \
     || ! rg -Fq 'expiry-sweep-interval-ms=${TRACKING_PUBLISHER_EXPIRY_SWEEP_INTERVAL_MS:5000}' "${tracking_properties}" \

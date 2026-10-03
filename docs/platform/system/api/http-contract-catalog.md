@@ -4482,7 +4482,7 @@ public Map<String, Object> validate(@RequestHeader(value = "X-Simulator-Token", 
 ### `POST` `/api/tracking/internal/shippers/{shipperId}/offline`
 
 - Handler: `InternalShipperAvailabilityController.markOffline`
-- Source: [`backend_delivery/tracking-service/src/main/java/com/delivery/tracking_service/controller/InternalShipperAvailabilityController.java:35`](../../../../tracking-service/src/main/java/com/delivery/tracking_service/controller/InternalShipperAvailabilityController.java)
+- Source: [`backend_delivery/tracking/infrastructure/src/main/java/com/delivery/tracking_service/controller/InternalShipperAvailabilityController.java:35`](../../../../tracking/infrastructure/src/main/java/com/delivery/tracking_service/controller/InternalShipperAvailabilityController.java)
 - Java return type: `ResponseEntity<BaseResponse<Void>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -4502,7 +4502,7 @@ public ResponseEntity<BaseResponse<Void>> markOffline( @PathVariable Long shippe
 ### `POST` `/api/tracking/shipper-locations/offline`
 
 - Handler: `ShipperLocationController.markOffline`
-- Source: [`backend_delivery/tracking-service/src/main/java/com/delivery/tracking_service/controller/ShipperLocationController.java:57`](../../../../tracking-service/src/main/java/com/delivery/tracking_service/controller/ShipperLocationController.java)
+- Source: [`backend_delivery/tracking/infrastructure/src/main/java/com/delivery/tracking_service/controller/ShipperLocationController.java:57`](../../../../tracking/infrastructure/src/main/java/com/delivery/tracking_service/controller/ShipperLocationController.java)
 - Java return type: `ResponseEntity<BaseResponse<String>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -4521,7 +4521,7 @@ public ResponseEntity<BaseResponse<String>> markOffline( @AuthenticationPrincipa
 ### `POST` `/api/tracking/shipper-locations/update`
 
 - Handler: `ShipperLocationController.updateLocation`
-- Source: [`backend_delivery/tracking-service/src/main/java/com/delivery/tracking_service/controller/ShipperLocationController.java:39`](../../../../tracking-service/src/main/java/com/delivery/tracking_service/controller/ShipperLocationController.java)
+- Source: [`backend_delivery/tracking/infrastructure/src/main/java/com/delivery/tracking_service/controller/ShipperLocationController.java:39`](../../../../tracking/infrastructure/src/main/java/com/delivery/tracking_service/controller/ShipperLocationController.java)
 - Java return type: `ResponseEntity<BaseResponse<ShipperLocationResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -4541,7 +4541,7 @@ public ResponseEntity<BaseResponse<ShipperLocationResponse>> updateLocation( @Au
 ### `GET` `/internal/tracking/location-history/deliveries/{deliveryId}`
 
 - Handler: `InternalLocationHistoryController.byDelivery`
-- Source: [`backend_delivery/tracking-service/src/main/java/com/delivery/tracking_service/controller/InternalLocationHistoryController.java:38`](../../../../tracking-service/src/main/java/com/delivery/tracking_service/controller/InternalLocationHistoryController.java)
+- Source: [`backend_delivery/tracking/infrastructure/src/main/java/com/delivery/tracking_service/controller/InternalLocationHistoryController.java:38`](../../../../tracking/infrastructure/src/main/java/com/delivery/tracking_service/controller/InternalLocationHistoryController.java)
 - Java return type: `List<LocationHistoryPointResponse>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -8525,7 +8525,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.tracking_service.dto.request.UpdateLocationRequest`
 
 - Kind: `class`
-- Source: [`backend_delivery/tracking-service/src/main/java/com/delivery/tracking_service/dto/request/UpdateLocationRequest.java:13`](../../../../tracking-service/src/main/java/com/delivery/tracking_service/dto/request/UpdateLocationRequest.java)
+- Source: [`backend_delivery/tracking/infrastructure/src/main/java/com/delivery/tracking_service/dto/request/UpdateLocationRequest.java:13`](../../../../tracking/infrastructure/src/main/java/com/delivery/tracking_service/dto/request/UpdateLocationRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -8539,7 +8539,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.tracking_service.dto.response.LocationHistoryPointResponse`
 
 - Kind: `record`
-- Source: [`backend_delivery/tracking-service/src/main/java/com/delivery/tracking_service/dto/response/LocationHistoryPointResponse.java:8`](../../../../tracking-service/src/main/java/com/delivery/tracking_service/dto/response/LocationHistoryPointResponse.java)
+- Source: [`backend_delivery/tracking/infrastructure/src/main/java/com/delivery/tracking_service/dto/response/LocationHistoryPointResponse.java:8`](../../../../tracking/infrastructure/src/main/java/com/delivery/tracking_service/dto/response/LocationHistoryPointResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -8556,7 +8556,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.tracking_service.dto.response.ShipperLocationResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/tracking-service/src/main/java/com/delivery/tracking_service/dto/response/ShipperLocationResponse.java:9`](../../../../tracking-service/src/main/java/com/delivery/tracking_service/dto/response/ShipperLocationResponse.java)
+- Source: [`backend_delivery/tracking/infrastructure/src/main/java/com/delivery/tracking_service/dto/response/ShipperLocationResponse.java:9`](../../../../tracking/infrastructure/src/main/java/com/delivery/tracking_service/dto/response/ShipperLocationResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -8574,7 +8574,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.tracking_service.payload.BaseResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/tracking-service/src/main/java/com/delivery/tracking_service/payload/BaseResponse.java:8`](../../../../tracking-service/src/main/java/com/delivery/tracking_service/payload/BaseResponse.java)
+- Source: [`backend_delivery/tracking/infrastructure/src/main/java/com/delivery/tracking_service/payload/BaseResponse.java:8`](../../../../tracking/infrastructure/src/main/java/com/delivery/tracking_service/payload/BaseResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |

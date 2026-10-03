@@ -91,6 +91,13 @@ khác trước contract freeze.
 
 ## Kiến trúc đang hợp nhất
 
+Source nằm tại `tracking/{domain,application-api,application,infrastructure,boot}`.
+Infrastructure giữ toàn bộ HTTP/WebSocket/Redis/Kafka/JPA adapter và Spring
+composition; boot chỉ giữ entrypoint, runtime properties và integration tests.
+Artifact/DNS vẫn là `tracking-service`; packaged runtime/recovery và hợp nhất main
+chưa hoàn tất. Host `tracking-service/` và `modules/tracking/` đã được thay bằng
+các layer ở gốc trong worktree refactor.
+
 Policy principal/projection identity và identity inbox, offline/tombstone, publication và publisher lease/grace/recovery hiện chạy trong
 `tracking-application`; adapter JPA/Redis/Kafka/HTTP giữ mapping và transport.
 REST và internal offline dùng cùng core, gồm cả khi không có cache hoặc tọa độ
@@ -132,5 +139,5 @@ còn hiệu lực ngay trước send. Unsubscribe/rejoin, kết thúc item và a
 reassignment vô hiệu queued message cũ; old-owner cleanup không xoá room mới.
 Đây chưa phải distributed transaction với Redis hoặc Delivery authorization.
 Race giữa JVM, recovery ngoài TTL/mất Redis và runtime còn cần audit;
-chưa xoá host cũ hoặc coi toàn bộ Tracking hoàn tất. Bằng chứng và tiến độ nằm ở
+chưa coi toàn bộ Tracking hoàn tất. Bằng chứng và tiến độ nằm ở
 `../plans/active/service-architecture-consolidation.md`.

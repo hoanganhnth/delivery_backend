@@ -10305,7 +10305,7 @@
       "path": "/api/tracking/shipper-locations/update",
       "handler": "updateLocation",
       "source": {
-        "file": "backend_delivery/tracking-service/src/main/java/com/delivery/tracking_service/controller/ShipperLocationController.java",
+        "file": "backend_delivery/tracking/infrastructure/src/main/java/com/delivery/tracking_service/controller/ShipperLocationController.java",
         "line": 39
       },
       "java": {
@@ -10355,7 +10355,7 @@
       "path": "/api/tracking/shipper-locations/offline",
       "handler": "markOffline",
       "source": {
-        "file": "backend_delivery/tracking-service/src/main/java/com/delivery/tracking_service/controller/ShipperLocationController.java",
+        "file": "backend_delivery/tracking/infrastructure/src/main/java/com/delivery/tracking_service/controller/ShipperLocationController.java",
         "line": 57
       },
       "java": {
@@ -10518,7 +10518,7 @@
       "path": "/api/tracking/internal/shippers/{shipperId}/offline",
       "handler": "markOffline",
       "source": {
-        "file": "backend_delivery/tracking-service/src/main/java/com/delivery/tracking_service/controller/InternalShipperAvailabilityController.java",
+        "file": "backend_delivery/tracking/infrastructure/src/main/java/com/delivery/tracking_service/controller/InternalShipperAvailabilityController.java",
         "line": 35
       },
       "java": {
@@ -10563,7 +10563,7 @@
       "path": "/internal/tracking/location-history/deliveries/{deliveryId}",
       "handler": "byDelivery",
       "source": {
-        "file": "backend_delivery/tracking-service/src/main/java/com/delivery/tracking_service/controller/InternalLocationHistoryController.java",
+        "file": "backend_delivery/tracking/infrastructure/src/main/java/com/delivery/tracking_service/controller/InternalLocationHistoryController.java",
         "line": 38
       },
       "java": {
@@ -27305,7 +27305,7 @@
     "com.delivery.tracking_service.dto.request.UpdateLocationRequest": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/tracking-service/src/main/java/com/delivery/tracking_service/dto/request/UpdateLocationRequest.java",
+        "file": "backend_delivery/tracking/infrastructure/src/main/java/com/delivery/tracking_service/dto/request/UpdateLocationRequest.java",
         "line": 13
       },
       "fields": [
@@ -27423,7 +27423,7 @@
     "com.delivery.tracking_service.dto.response.LocationHistoryPointResponse": {
       "kind": "record",
       "source": {
-        "file": "backend_delivery/tracking-service/src/main/java/com/delivery/tracking_service/dto/response/LocationHistoryPointResponse.java",
+        "file": "backend_delivery/tracking/infrastructure/src/main/java/com/delivery/tracking_service/dto/response/LocationHistoryPointResponse.java",
         "line": 8
       },
       "fields": [
@@ -27486,7 +27486,7 @@
     "com.delivery.tracking_service.dto.response.ShipperLocationResponse": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/tracking-service/src/main/java/com/delivery/tracking_service/dto/response/ShipperLocationResponse.java",
+        "file": "backend_delivery/tracking/infrastructure/src/main/java/com/delivery/tracking_service/dto/response/ShipperLocationResponse.java",
         "line": 9
       },
       "fields": [
@@ -27555,7 +27555,7 @@
     "com.delivery.tracking_service.payload.BaseResponse": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/tracking-service/src/main/java/com/delivery/tracking_service/payload/BaseResponse.java",
+        "file": "backend_delivery/tracking/infrastructure/src/main/java/com/delivery/tracking_service/payload/BaseResponse.java",
         "line": 8
       },
       "fields": [

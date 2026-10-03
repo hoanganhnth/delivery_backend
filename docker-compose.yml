@@ -516,7 +516,7 @@ services:
     networks: [delivery-network]
 
   tracking-service:
-    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: tracking-service } }
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: tracking/boot } }
     container_name: tracking-service
     expose: ["8093", "9090"]
     environment:

@@ -15,7 +15,9 @@ Tài liệu định hướng (đọc trước khi sửa):
 
 Quy ước: service đã hợp nhất nằm tại `<name>/{domain,application-api,
 application,infrastructure,boot}`; artifact/DNS vẫn là `<name>-service`.
-Routing, Web BFF, Shipper, User, Auth và Restaurant đã theo cấu trúc này. Các service còn lại đang chuyển
+Routing, Web BFF, Shipper, User, Auth và Restaurant đã theo cấu trúc này.
+Tracking đã chuyển sang layout này trong worktree refactor; kiểm chứng packaged
+runtime/recovery và hợp nhất main còn đang thực hiện. Các service còn lại đang chuyển
 lần lượt từ `modules/<name>/` + host `<name>-service/`; xem
 `docs/plans/active/service-architecture-consolidation.md`. Adapter HTTP/Kafka/JPA
 và composition nằm trong infrastructure; boot giữ entrypoint/config.

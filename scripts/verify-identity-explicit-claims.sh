@@ -87,7 +87,7 @@ fi
 
 # Tracking does its WebSocket handshake outside the HTTP SecurityFilterChain;
 # require the same explicit claims and make the no-sub rule visible here.
-tracking_ws='tracking-service/src/main/java/com/delivery/tracking_service/config/WebSocketConfig.java'
+tracking_ws='tracking/infrastructure/src/main/java/com/delivery/tracking_service/config/WebSocketConfig.java'
 require_file "$tracking_ws"
 require_text "$tracking_ws" 'jwt.getClaim("principal_id")'
 require_text "$tracking_ws" 'jwt.getClaim("legacy_user_id")'
