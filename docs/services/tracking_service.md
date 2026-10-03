@@ -93,6 +93,9 @@ fanout. Source do server quyết định; giữ encoding Instant của REST và 
 date-time của WebSocket. REST bỏ qua `isOnline` vẫn mặc định true; null hoặc
 giá trị khác boolean bị từ chối trước khi ghi vị trí. Hai service location và
 availability cũ không còn caller đã được xoá, test lỗi chuyển sang core/adapter.
-Identity inbox, history, kiểm chứng scheduler và runtime còn cần hoàn thiện;
+`spring.task.scheduling.enabled=false` tắt các job định kỳ (lease sweep/history
+retention); scheduler cho callback grace vẫn hoạt động. Khi không cấu hình cờ,
+hai job định kỳ vẫn bật như trước. Spring context thật kiểm chứng cả ba cấu hình.
+Identity inbox, history và runtime còn cần hoàn thiện;
 chưa xoá host cũ hoặc coi toàn bộ Tracking hoàn tất. Bằng chứng và tiến độ nằm ở
 `../plans/active/service-architecture-consolidation.md`.

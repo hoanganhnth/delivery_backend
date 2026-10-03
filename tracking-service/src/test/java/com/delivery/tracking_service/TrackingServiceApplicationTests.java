@@ -24,6 +24,8 @@ class TrackingServiceApplicationTests {
 	@Test
 	void contextLoads() {
 		assertThat(applicationContext).isNotNull();
+		assertThat(applicationContext.getBeansOfType(
+				org.springframework.scheduling.annotation.ScheduledAnnotationBeanPostProcessor.class)).isEmpty();
 	}
 
 }

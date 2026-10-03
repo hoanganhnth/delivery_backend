@@ -4,10 +4,15 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.scheduling.annotation.EnableScheduling;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 @Configuration
-@EnableScheduling
 public class PublisherSessionConfig {
+
+    @Configuration(proxyBeanMethods = false)
+    @EnableScheduling
+    @ConditionalOnProperty(name = "spring.task.scheduling.enabled", havingValue = "true", matchIfMissing = true)
+    static class PeriodicSchedulingConfiguration {}
 
     @Bean("publisherGraceTaskScheduler")
     public ThreadPoolTaskScheduler publisherGraceTaskScheduler() {
