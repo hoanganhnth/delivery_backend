@@ -52,6 +52,24 @@ class ShipperDeliveryAssignmentRedisIntegrationTest {
         assertThat(assignments.activeDelivery(42L)).isEmpty();
     }
 
+    @Test
+    void actualCoreKeepsNewerLocalRoomWhenRedisRejectsStaleBusyOrAvailable() {
+        var rooms = new com.delivery.tracking_service.websocket.DeliveryRoomRegistry();
+        var core = new com.delivery.tracking.application.DefaultDeliveryRoomAssignmentUseCase(assignments,rooms);
+        var id = "00000000-0000-0000-0000-000000000001";
+        core.apply(new com.delivery.tracking.application.api.DeliveryRoomAssignmentCommand(42,200,7,2000,id,"BUSY",false));
+        rooms.subscribe(200,42,"participant");
+        core.apply(new com.delivery.tracking.application.api.DeliveryRoomAssignmentCommand(42,100,7,1000,id,"BUSY",false));
+        assertThat(rooms.activeDelivery(42)).isEqualTo(200);
+        assertThat(rooms.subscribers(200,42)).containsExactly("participant");
+        core.apply(new com.delivery.tracking.application.api.DeliveryRoomAssignmentCommand(42,200,7,1999,id,"AVAILABLE",false));
+        assertThat(rooms.subscribers(200,42)).containsExactly("participant");
+        assertThat(assignments.activeDelivery(42)).contains(200L);
+        core.apply(new com.delivery.tracking.application.api.DeliveryRoomAssignmentCommand(42,200,7,2000,id,"AVAILABLE",false));
+        assertThat(rooms.subscribersForShipper(42)).isEmpty();
+        assertThat(assignments.activeDelivery(42)).isEmpty();
+    }
+
     @TestConfiguration
     static class RedisConfiguration {
         @Bean

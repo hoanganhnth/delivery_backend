@@ -16,8 +16,9 @@ MVP.
 - Redis lưu location/online freshness và active-delivery routing projection của Tracking.
 - Kafka `shipper.location-updated` replicate vị trí sang Match và async history consumer.
 - PostgreSQL `tracking_db` chỉ lưu sampled audit/support history; không nằm trong hot path.
-- Tracking không sở hữu BUSY/AVAILABLE matching state và không consume
-  `shipper.status-change`; Match là consumer duy nhất cần trạng thái đó.
+- Tracking không sở hữu BUSY/AVAILABLE matching state. Tracking dùng event
+  `shipper.status-change` của Delivery để cập nhật routing projection; Match
+  dùng event này cho availability phục vụ matching.
 
 ## Luồng publisher
 
@@ -106,6 +107,11 @@ History hiện dùng `LocationHistoryPolicy` và `DefaultLocationHistoryUseCase`
 sampling/precision trong domain; replay, query bound và retention trong application.
 JPA adapter giữ SQL claim, transaction và khoá sampling theo delivery/shipper.
 Listener/controller/job gọi core trực tiếp; `LocationHistoryService` cũ đã xoá.
-Audit room/fanout policy và runtime còn cần hoàn thiện;
+Fanout chọn exact delivery set, fallback projection cũ và tiếp tục gửi room khác
+khi một lần PubSub lỗi trong `DefaultLocationFanoutUseCase`; Redis/JSON/log ở adapter.
+`DefaultDeliveryRoomAssignmentUseCase` sở hữu BUSY/AVAILABLE single/batch orchestration.
+Sau Redis fence, core kiểm projection trước khi activate/end room local, tránh
+event cũ sửa index local dù Redis đã bỏ qua event đó. Lua và retry/DLT không đổi.
+Batch subscription, race đọc projection/index local và runtime còn cần audit;
 chưa xoá host cũ hoặc coi toàn bộ Tracking hoàn tất. Bằng chứng và tiến độ nằm ở
 `../plans/active/service-architecture-consolidation.md`.

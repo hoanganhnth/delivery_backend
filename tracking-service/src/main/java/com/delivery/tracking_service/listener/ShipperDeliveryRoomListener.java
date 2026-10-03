@@ -1,30 +1,22 @@
 package com.delivery.tracking_service.listener;
 
-import com.delivery.tracking_service.websocket.DeliveryRoomRegistry;
-import com.delivery.tracking_service.repository.ShipperDeliveryAssignmentStore;
+import com.delivery.tracking.application.api.DeliveryRoomAssignmentUseCase;
+import com.delivery.tracking.application.api.DeliveryRoomAssignmentCommand;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Component;
 
-import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
 
 /** Keeps socket routing aligned with durable Delivery assignment events. */
 @Component
 public class ShipperDeliveryRoomListener {
 
     private final ObjectMapper objectMapper;
-    private final DeliveryRoomRegistry rooms;
-    private final ShipperDeliveryAssignmentStore assignments;
-
-    public ShipperDeliveryRoomListener(ObjectMapper objectMapper, DeliveryRoomRegistry rooms,
-                                       ShipperDeliveryAssignmentStore assignments) {
-        this.objectMapper = objectMapper;
-        this.rooms = rooms;
-        this.assignments = assignments;
+    private final DeliveryRoomAssignmentUseCase assignments;
+    public ShipperDeliveryRoomListener(ObjectMapper objectMapper, DeliveryRoomAssignmentUseCase assignments) {
+        this.objectMapper=objectMapper; this.assignments=assignments;
     }
 
     @KafkaListener(topics = "${app.kafka.topics.shipper-status-change:shipper.status-change}",
@@ -34,26 +26,10 @@ public class ShipperDeliveryRoomListener {
     public void handle(String payload, Acknowledgment acknowledgment) {
         try {
             Map<String, Object> event = objectMapper.readValue(payload, Map.class);
-            long shipperId = positiveLong(event, "shipperId");
-            long deliveryId = positiveLong(event, "deliveryId");
-            positiveLong(event, "orderId");
-            positiveLong(event, "timestamp");
-            UUID.fromString(requiredString(event, "eventId"));
-            String status = requiredString(event, "status").toUpperCase(Locale.ROOT);
-            if (!Set.of("BUSY", "AVAILABLE").contains(status)) {
-                throw new IllegalArgumentException("Unsupported shipper status");
-            }
-            String eventId = requiredString(event, "eventId");
             boolean batch = event.get("batchId") instanceof String batchId && !batchId.isBlank();
-            if ("BUSY".equals(status)) {
-                if (batch) assignments.busyBatch(shipperId, deliveryId, positiveLong(event, "timestamp"), eventId);
-                else assignments.busy(shipperId, deliveryId, positiveLong(event, "timestamp"), eventId);
-                rooms.activate(deliveryId, shipperId);
-            } else {
-                if (batch) assignments.availableBatch(shipperId, deliveryId, positiveLong(event, "timestamp"));
-                else assignments.available(shipperId, deliveryId, positiveLong(event, "timestamp"));
-                rooms.end(deliveryId, shipperId);
-            }
+            assignments.apply(new DeliveryRoomAssignmentCommand(positiveLong(event,"shipperId"),
+                    positiveLong(event,"deliveryId"), positiveLong(event,"orderId"), positiveLong(event,"timestamp"),
+                    requiredString(event,"eventId"), requiredString(event,"status"), batch));
             acknowledgment.acknowledge();
         } catch (IllegalArgumentException poison) {
             throw poison;

@@ -14,7 +14,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * room so participants of a completed delivery cannot receive later work.
  */
 @Component
-public class DeliveryRoomRegistry {
+public class DeliveryRoomRegistry implements com.delivery.tracking.application.api.DeliveryRoomIndexPort {
 
     private final Map<Long, Room> rooms = new ConcurrentHashMap<>();
     private final Map<Long, Long> activeDeliveryByShipper = new ConcurrentHashMap<>();

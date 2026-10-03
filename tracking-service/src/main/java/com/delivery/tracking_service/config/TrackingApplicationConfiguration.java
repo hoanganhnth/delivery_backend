@@ -54,6 +54,20 @@ public class TrackingApplicationConfiguration {
     }
 
     @Bean
+    com.delivery.tracking.application.api.LocationFanoutUseCase locationFanout(
+            com.delivery.tracking.application.api.FanoutDeliveryReadPort assignments,
+            com.delivery.tracking.application.api.LocationFanoutEventPort events) {
+        return new com.delivery.tracking.application.DefaultLocationFanoutUseCase(assignments, events);
+    }
+
+    @Bean
+    com.delivery.tracking.application.api.DeliveryRoomAssignmentUseCase deliveryRoomAssignments(
+            com.delivery.tracking.application.api.DeliveryRoomAssignmentPort assignments,
+            com.delivery.tracking.application.api.DeliveryRoomIndexPort rooms) {
+        return new com.delivery.tracking.application.DefaultDeliveryRoomAssignmentUseCase(assignments, rooms);
+    }
+
+    @Bean
     TrackingPort tracking(LocationStorePort store, LocationEventPort events) {
         return new DefaultTrackingService(store, events);
     }

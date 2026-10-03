@@ -12,7 +12,7 @@ import java.util.HashSet;
 
 /** Shared Redis routing projection derived from durable shipper status events. */
 @Repository
-public class ShipperDeliveryAssignmentStore {
+public class ShipperDeliveryAssignmentStore implements com.delivery.tracking.application.api.DeliveryRoomAssignmentPort {
 
     private static final String PREFIX = "tracking:shipper:active-delivery:";
     private static final String BATCH_PREFIX = "tracking:shipper:active-deliveries:";

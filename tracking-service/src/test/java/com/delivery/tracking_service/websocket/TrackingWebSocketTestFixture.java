@@ -14,7 +14,7 @@ final class TrackingWebSocketTestFixture {
     static ShipperLocationWebSocketHandler create(RedisGeoRepository locations, ShipperLocationEventPublisher events,
             DeliveryTrackingAccessClient access, ShipperPublisherSessionManager publishers) {
         var handler = new AtomicReference<ShipperLocationWebSocketHandler>();
-        var fanout = new LocationFanoutPublisher(null, null, null) {
+        var fanout = new LocationFanoutPublisher(location -> {}) {
             @Override public void publish(com.delivery.tracking_service.dto.response.ShipperLocationResponse location) {
                 handler.get().broadcastShipperLocation(location);
             }

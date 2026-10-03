@@ -16,7 +16,8 @@ class ShipperDeliveryRoomListenerTest {
     private final DeliveryRoomRegistry rooms = new DeliveryRoomRegistry();
     private final ShipperDeliveryAssignmentStore assignments = mock(ShipperDeliveryAssignmentStore.class);
     private final ShipperDeliveryRoomListener listener =
-            new ShipperDeliveryRoomListener(new ObjectMapper(), rooms, assignments);
+            new ShipperDeliveryRoomListener(new ObjectMapper(),
+                    new com.delivery.tracking.application.DefaultDeliveryRoomAssignmentUseCase(assignments, rooms));
 
     @Test
     void busyAndAvailableEventsFenceRoomByDelivery() {
