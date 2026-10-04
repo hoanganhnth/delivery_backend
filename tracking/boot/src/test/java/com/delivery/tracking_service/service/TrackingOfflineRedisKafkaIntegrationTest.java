@@ -116,7 +116,7 @@ class TrackingOfflineRedisKafkaIntegrationTest {
             var current = new ShipperLocationResponse(); current.setShipperId(7002L); current.setLatitude(10.77);
             current.setLongitude(106.7); current.setAccuracy(3.5); current.setSpeed(12.0); current.setHeading(90.0);
             current.setDistance(1.2); current.setIsOnline(true);
-            locations.cacheShipperLocation(7002L, current);
+            locations.cacheShipperLocation(7002L, current, System.currentTimeMillis());
             mvc.perform(post("/api/tracking/shipper-locations/offline").with(authentication(actor())))
                     .andExpect(status().isOk());
             assertOfflineMembership(7002L);
@@ -127,7 +127,7 @@ class TrackingOfflineRedisKafkaIntegrationTest {
             assertThat(LocalDateTime.parse(offline.getUpdatedAt())).isNotNull();
 
             var partial = new ShipperLocationResponse(); partial.setShipperId(7003L); partial.setLatitude(10.78); partial.setIsOnline(true);
-            locations.cacheShipperLocation(7003L, partial); seedMembership(7003L);
+            locations.cacheShipperLocation(7003L, partial, System.currentTimeMillis()); seedMembership(7003L);
             mvc.perform(post("/api/tracking/internal/shippers/7003/offline").header("Internal-Token", "offline-proof-only"))
                     .andExpect(status().isOk());
             assertOfflineMembership(7003L);
@@ -243,7 +243,7 @@ class TrackingOfflineRedisKafkaIntegrationTest {
                     .andExpect(status().isOk());
             awaitOffline(messages, false);
             assertOfflineMembership(7002L);
-            messages.clear(); locations.removeShipperLocationCache(7002L);
+            messages.clear(); locations.removeShipperLocationCache(7002L, System.currentTimeMillis());
             mvc.perform(post("/api/tracking/internal/shippers/7002/offline").header("Internal-Token", "offline-proof-only"))
                     .andExpect(status().isOk());
             awaitOffline(messages, true);
@@ -278,14 +278,14 @@ class TrackingOfflineRedisKafkaIntegrationTest {
             handler.handleMessage(denied,new TextMessage("{\"action\":\"subscribe_shipper\",\"deliveryId\":9102,\"shipperId\":8002}"));
             var location=new ShipperLocationResponse(); location.setShipperId(8002L); location.setLatitude(10.8); location.setLongitude(106.7);
             location.setIsOnline(true); location.setUpdatedAt(java.time.Instant.now().toString()); location.setLastPing(location.getUpdatedAt());
-            locations.cacheShipperLocation(8002L,location); fanout.publish(location);
+            locations.cacheShipperLocation(8002L,location, System.currentTimeMillis()); fanout.publish(location, System.currentTimeMillis());
             awaitLocation(firstMessages,10.8); awaitLocation(secondMessages,10.8);
             assertThat(deniedMessages).anyMatch(message->message.contains("FORBIDDEN"));
             assertThat(deniedMessages).noneMatch(message->message.contains("location_update"));
             var assignmentCore=new com.delivery.tracking.application.DefaultDeliveryRoomAssignmentUseCase(assignments,rooms);
             assignmentCore.apply(new com.delivery.tracking.application.api.DeliveryRoomAssignmentCommand(8002,9102,7,time+1,
                     UUID.randomUUID().toString(),"AVAILABLE",true));
-            location.setLatitude(10.81); locations.cacheShipperLocation(8002L,location); fanout.publish(location);
+            location.setLatitude(10.81); locations.cacheShipperLocation(8002L,location, System.currentTimeMillis()); fanout.publish(location, System.currentTimeMillis());
             awaitLocation(secondMessages,10.81);
             assertThat(firstMessages).noneMatch(message->message.contains("10.81"));
             assertThat(rooms.activeDeliveries(8002)).containsExactly(9103L);

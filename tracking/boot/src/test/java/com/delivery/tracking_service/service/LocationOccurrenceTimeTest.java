@@ -30,7 +30,7 @@ class LocationOccurrenceTimeTest {
         var command = new UpdateLocationCommand(7, new Coordinate(10.77, 106.7), null, null, null, true, source);
         if (source == LocationUpdateSource.APPLICATION) core.updateLocation(command);
         else {
-            when(f.store.cacheIfCurrentPublisher(any(), any())).thenReturn(true);
+            when(f.store.cacheIfCurrentPublisher(any(), any(), org.mockito.ArgumentMatchers.anyLong())).thenReturn(true);
             core.updatePublisherLocation(command, new PublisherLease(7, "current", 1));
         }
         assertThat(f.event().getTimestamp()).isEqualTo(OBSERVED.toEpochMilli());

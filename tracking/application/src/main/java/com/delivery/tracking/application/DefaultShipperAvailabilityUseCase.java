@@ -39,7 +39,7 @@ public final class DefaultShipperAvailabilityUseCase implements ShipperAvailabil
         var cached = store.findCached(shipperId);
         var facts = cached.orElseGet(() -> new CachedShipperLocation(shipperId, null, null, null, null, null, null));
         var offline = new OfflineShipperLocation(facts, Instant.now(clock));
-        if (!store.applyOfflineIfExpired(claim, cached.map(ignored -> offline))) return false;
+        if (!store.applyOfflineIfExpired(claim, cached.map(ignored -> offline), offline.timestamp())) return false;
         events.publish(offline, "OFFLINE_TOMBSTONE");
         events.broadcast(offline);
         return true;
@@ -52,7 +52,7 @@ public final class DefaultShipperAvailabilityUseCase implements ShipperAvailabil
         var facts = cached.orElseGet(() -> new CachedShipperLocation(shipperId, null, null, null, null, null, null));
         var offline = new OfflineShipperLocation(facts, timestamp);
         if (cached.isPresent()) store.saveOffline(shipperId, offline);
-        else store.remove(shipperId);
+        else store.remove(shipperId, offline.timestamp());
         events.publish(offline, "OFFLINE_TOMBSTONE");
         if (broadcast) events.broadcast(offline);
         return offline;

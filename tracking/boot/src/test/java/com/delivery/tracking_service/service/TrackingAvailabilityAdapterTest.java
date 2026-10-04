@@ -23,7 +23,8 @@ class TrackingAvailabilityAdapterTest {
     private final ShipperLocationEventPublisher publisher = mock(ShipperLocationEventPublisher.class);
     private final RedisShipperAvailabilityAdapter adapter = new RedisShipperAvailabilityAdapter(repository, publisher, fanoutPublisher);
     private final com.delivery.tracking.application.api.ShipperAvailabilityUseCase availability =
-            new DefaultShipperAvailabilityUseCase(adapter, adapter);
+            new DefaultShipperAvailabilityUseCase(adapter, adapter,
+                    java.time.Clock.fixed(java.time.Instant.ofEpochMilli(12345L), java.time.ZoneOffset.UTC));
 
     @Test
     void explicitOfflineUpdatesRedisAndPublishesMatchTombstone() {
@@ -38,17 +39,17 @@ class TrackingAvailabilityAdapterTest {
         availability.markOfflineAndBroadcast(7L);
 
         var saved = ArgumentCaptor.forClass(ShipperLocationResponse.class);
-        verify(repository).cacheShipperLocation(eq(7L), saved.capture());
+        verify(repository).cacheShipperLocation(eq(7L), saved.capture(), org.mockito.ArgumentMatchers.anyLong());
         var offline = saved.getValue();
         org.assertj.core.api.Assertions.assertThat(offline.getLatitude()).isEqualTo(current.getLatitude());
         org.assertj.core.api.Assertions.assertThat(offline.getLongitude()).isEqualTo(current.getLongitude());
         org.assertj.core.api.Assertions.assertThat(offline.getDistance()).isEqualTo(current.getDistance());
-        verify(repository, never()).removeShipperLocationCache(7L);
+        verify(repository, never()).removeShipperLocationCache(7L, 12345L);
         var event = ArgumentCaptor.forClass(ShipperLocationResponse.class);
         verify(publisher).publishLocationUpdate(event.capture(), eq("OFFLINE_TOMBSTONE"), org.mockito.ArgumentMatchers.anyLong());
         org.assertj.core.api.Assertions.assertThat(event.getValue()).usingRecursiveComparison().isEqualTo(offline);
         var fanout = ArgumentCaptor.forClass(ShipperLocationResponse.class);
-        verify(fanoutPublisher).publish(fanout.capture());
+        verify(fanoutPublisher).publish(fanout.capture(), org.mockito.ArgumentMatchers.anyLong());
         org.assertj.core.api.Assertions.assertThat(fanout.getValue()).usingRecursiveComparison().isEqualTo(offline);
         org.assertj.core.api.Assertions.assertThat(offline.getIsOnline()).isFalse();
         org.assertj.core.api.Assertions.assertThat(offline.getUpdatedAt()).isNotBlank();
@@ -60,10 +61,10 @@ class TrackingAvailabilityAdapterTest {
 
         availability.markOfflineAndBroadcast(7L);
 
-        verify(repository).removeShipperLocationCache(7L);
-        verify(repository, never()).cacheShipperLocation(eq(7L), any());
+        verify(repository).removeShipperLocationCache(7L, 12345L);
+        verify(repository, never()).cacheShipperLocation(eq(7L), any(), org.mockito.ArgumentMatchers.anyLong());
         verify(publisher).publishLocationUpdate(any(ShipperLocationResponse.class), eq("OFFLINE_TOMBSTONE"), org.mockito.ArgumentMatchers.anyLong());
-        verify(fanoutPublisher).publish(any(ShipperLocationResponse.class));
+        verify(fanoutPublisher).publish(any(ShipperLocationResponse.class), org.mockito.ArgumentMatchers.anyLong());
     }
 
     @Test
@@ -77,7 +78,7 @@ class TrackingAvailabilityAdapterTest {
         availability.markOfflineAndBroadcast(7L);
 
         var saved = ArgumentCaptor.forClass(ShipperLocationResponse.class);
-        verify(repository).cacheShipperLocation(eq(7L), saved.capture());
+        verify(repository).cacheShipperLocation(eq(7L), saved.capture(), org.mockito.ArgumentMatchers.anyLong());
         var offline = saved.getValue();
         org.assertj.core.api.Assertions.assertThat(offline.getLatitude()).isEqualTo(10.77);
         org.assertj.core.api.Assertions.assertThat(offline.getLongitude()).isNull();
@@ -109,21 +110,21 @@ class TrackingAvailabilityAdapterTest {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("broker unavailable");
 
-        verify(repository).removeShipperLocationCache(7L);
+        verify(repository).removeShipperLocationCache(7L, 12345L);
         verifyNoInteractions(fanoutPublisher);
     }
     @Test
     void fanoutFailureIsVisibleAfterRedisAndKafkaComplete() {
-        doThrow(new IllegalStateException("fanout read unavailable")).when(fanoutPublisher).publish(any());
+        doThrow(new IllegalStateException("fanout read unavailable")).when(fanoutPublisher).publish(any(), org.mockito.ArgumentMatchers.anyLong());
 
         assertThatThrownBy(() -> availability.markOfflineAndBroadcast(7L))
                 .isInstanceOf(IllegalStateException.class).hasMessage("fanout read unavailable");
 
         var order = org.mockito.Mockito.inOrder(repository, publisher, fanoutPublisher);
         order.verify(repository).getCachedShipperLocation(7L);
-        order.verify(repository).removeShipperLocationCache(7L);
+        order.verify(repository).removeShipperLocationCache(7L, 12345L);
         order.verify(publisher).publishLocationUpdate(any(), eq("OFFLINE_TOMBSTONE"), org.mockito.ArgumentMatchers.anyLong());
-        order.verify(fanoutPublisher).publish(any());
+        order.verify(fanoutPublisher).publish(any(), org.mockito.ArgumentMatchers.anyLong());
     }
 
 }

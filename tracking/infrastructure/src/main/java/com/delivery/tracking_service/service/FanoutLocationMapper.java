@@ -3,11 +3,11 @@ import com.delivery.tracking.application.api.FanoutLocation;
 import com.delivery.tracking_service.dto.response.ShipperLocationResponse;
 public final class FanoutLocationMapper {
     private FanoutLocationMapper() {}
-    public static FanoutLocation from(ShipperLocationResponse location) {
+    public static FanoutLocation from(ShipperLocationResponse location, long occurredAt) {
         if (location == null) return null;
         return new FanoutLocation(location.getShipperId(), location.getLatitude(), location.getLongitude(),
                 location.getAccuracy(), location.getSpeed(), location.getHeading(), location.getIsOnline(),
-                location.getLastPing(), location.getUpdatedAt(), location.getDistance());
+                location.getLastPing(), location.getUpdatedAt(), location.getDistance(), occurredAt);
     }
     public static ShipperLocationResponse toResponse(FanoutLocation location) {
         var dto = new ShipperLocationResponse(); dto.setShipperId(location.shipperId());

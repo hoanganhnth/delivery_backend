@@ -24,17 +24,17 @@ public class RedisShipperAvailabilityAdapter implements ShipperAvailabilityStore
                         row.getAccuracy(), row.getSpeed(), row.getHeading(), row.getDistance()));
     }
     @Override public void saveOffline(Long shipperId, OfflineShipperLocation location) {
-        locations.cacheShipperLocation(shipperId, toResponse(location));
+        locations.cacheShipperLocation(shipperId, toResponse(location), location.timestamp().toEpochMilli());
     }
-    @Override public void remove(Long shipperId) { locations.removeShipperLocationCache(shipperId); }
-    @Override public boolean applyOfflineIfExpired(PublisherExpiryClaim claim, Optional<OfflineShipperLocation> cachedOffline) {
-        return locations.applyOfflineIfExpired(claim, cachedOffline.map(RedisShipperAvailabilityAdapter::toResponse));
+    @Override public void remove(Long shipperId, java.time.Instant occurredAt) { locations.removeShipperLocationCache(shipperId, occurredAt.toEpochMilli()); }
+    @Override public boolean applyOfflineIfExpired(PublisherExpiryClaim claim, Optional<OfflineShipperLocation> cachedOffline, java.time.Instant occurredAt) {
+        return locations.applyOfflineIfExpired(claim, cachedOffline.map(RedisShipperAvailabilityAdapter::toResponse), occurredAt.toEpochMilli());
     }
     @Override public void publish(OfflineShipperLocation location, String source) {
         events.publishLocationUpdate(toResponse(location), source, location.timestamp().toEpochMilli());
     }
     @Override public void broadcast(OfflineShipperLocation location) {
-        fanout.publish(toResponse(location));
+        fanout.publish(toResponse(location), location.timestamp().toEpochMilli());
     }
     public static ShipperLocationResponse toResponse(OfflineShipperLocation location) {
         var facts = location.facts(); var response = new ShipperLocationResponse();

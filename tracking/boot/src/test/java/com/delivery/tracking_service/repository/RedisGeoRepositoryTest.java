@@ -22,8 +22,6 @@ class RedisGeoRepositoryTest {
 
     @Mock RedisTemplate<String, Object> redisTemplate;
     @Mock ValueOperations<String, Object> values;
-    @Mock SetOperations<String, Object> sets;
-    @Mock GeoOperations<String, Object> geo;
 
     private RedisGeoRepository repository;
 
@@ -34,20 +32,30 @@ class RedisGeoRepositoryTest {
     }
 
     @Test
-    void cachingOfflineLocationRemovesGeoAndOnlineMembership() {
-        when(redisTemplate.opsForGeo()).thenReturn(geo);
-        when(redisTemplate.opsForSet()).thenReturn(sets);
-        ShipperLocationResponse location = new ShipperLocationResponse();
+    void pairedCacheKeepsAbsoluteMetadataAndPublicDetailsTogether() {
+        var location = new ShipperLocationResponse();
         location.setShipperId(7L);
-        location.setLatitude(10.77);
-        location.setLongitude(106.70);
-        location.setIsOnline(false);
+        var stored = new StoredShipperLocation(location, 12345L);
+        when(values.get("shipper:location:7")).thenReturn(stored);
+        org.assertj.core.api.Assertions.assertThat(repository.getCachedProjection(7L)).isEqualTo(stored);
+        org.assertj.core.api.Assertions.assertThat(repository.getCachedShipperLocation(7L)).isSameAs(location);
+    }
 
-        repository.cacheShipperLocation(7L, location);
+    @Test
+    void coordinateFreeOfflineStillKeepsOrderingMetadata() {
+        var stored = new StoredShipperLocation(null, 12345L);
+        when(values.get("shipper:location:7")).thenReturn(stored);
+        org.assertj.core.api.Assertions.assertThat(repository.getCachedProjection(7L)).isEqualTo(stored);
+        org.assertj.core.api.Assertions.assertThat(repository.getCachedShipperLocation(7L)).isNull();
+    }
 
-        verify(values).set("shipper:location:7", location, 300L, TimeUnit.SECONDS);
-        verify(geo).remove("shippers:geo:locations", "7");
-        verify(sets).remove("shippers:online:set", "7");
+    @Test
+    void legacyDetailsRemainReadableButCannotSeedAnAbsoluteWatermark() {
+        var location = new ShipperLocationResponse();
+        when(values.get("shipper:location:7")).thenReturn(location);
+        org.assertj.core.api.Assertions.assertThat(repository.getCachedShipperLocation(7L)).isSameAs(location);
+        assertThatThrownBy(() -> repository.getCachedProjection(7L))
+                .hasMessage("Cached location has no absolute ordering metadata");
     }
 
     @Test

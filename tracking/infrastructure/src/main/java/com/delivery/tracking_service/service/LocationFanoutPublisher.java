@@ -8,5 +8,5 @@ public class LocationFanoutPublisher {
     public static final String CHANNEL = "tracking:location-fanout";
     private final LocationFanoutUseCase fanout;
     public LocationFanoutPublisher(LocationFanoutUseCase fanout) { this.fanout = fanout; }
-    public void publish(ShipperLocationResponse location) { fanout.publish(FanoutLocationMapper.from(location)); }
+    public void publish(ShipperLocationResponse location, long occurredAt) { fanout.publish(FanoutLocationMapper.from(location, occurredAt)); }
 }

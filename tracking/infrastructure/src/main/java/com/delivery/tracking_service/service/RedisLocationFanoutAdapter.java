@@ -21,7 +21,7 @@ public class RedisLocationFanoutAdapter implements FanoutDeliveryReadPort, Locat
     @Override public Optional<Long> activeDelivery(Long shipperId) { return assignments.activeDelivery(shipperId); }
     @Override public void publish(Long deliveryId, FanoutLocation location) throws Exception {
         redis.convertAndSend(LocationFanoutPublisher.CHANNEL,
-                mapper.writeValueAsString(new LocationFanoutEnvelope(deliveryId, FanoutLocationMapper.toResponse(location))));
+                mapper.writeValueAsString(new LocationFanoutEnvelope(deliveryId, FanoutLocationMapper.toResponse(location), location.occurredAt())));
     }
     @Override public void failed(Long shipperId, Exception failure) {
         log.warn("Cannot publish realtime fanout for shipper {}; subscriber will recover from Redis", shipperId, failure);

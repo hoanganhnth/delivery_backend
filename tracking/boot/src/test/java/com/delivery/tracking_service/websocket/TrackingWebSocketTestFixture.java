@@ -16,7 +16,7 @@ final class TrackingWebSocketTestFixture {
             DeliveryTrackingAccessClient access, PublisherSessionUseCase publishers) {
         if (org.mockito.Mockito.mockingDetails(locations).isMock()) {
             org.mockito.Mockito.lenient().when(locations.cacheIfCurrentPublisher(org.mockito.ArgumentMatchers.any(),
-                    org.mockito.ArgumentMatchers.any())).thenReturn(true);
+                    org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyLong())).thenReturn(true);
         }
         var handler = new AtomicReference<ShipperLocationWebSocketHandler>();
         var rooms = new DeliveryRoomRegistry();
@@ -26,7 +26,7 @@ final class TrackingWebSocketTestFixture {
         };
         var fanoutEvents = new com.delivery.tracking.application.api.LocationFanoutEventPort() {
             public void publish(Long deliveryId, com.delivery.tracking.application.api.FanoutLocation location) {
-                handler.get().broadcastDeliveryLocation(deliveryId, FanoutLocationMapper.toResponse(location));
+                handler.get().broadcastDeliveryLocation(deliveryId, FanoutLocationMapper.toResponse(location), location.occurredAt());
             }
             public void failed(Long shipperId, Exception failure) { throw new AssertionError(failure); }
         };

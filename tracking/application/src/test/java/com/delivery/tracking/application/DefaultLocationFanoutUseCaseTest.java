@@ -8,7 +8,7 @@ class DefaultLocationFanoutUseCaseTest {
     private final Ports ports = new Ports();
     private final DefaultLocationFanoutUseCase core = new DefaultLocationFanoutUseCase(ports, ports);
     private FanoutLocation location(Long shipperId) {
-        return new FanoutLocation(shipperId, 10.77, 106.7, 4.25, 8.5, 180.0, true, "ping", "updated", 1.2);
+        return new FanoutLocation(shipperId, 10.77, 106.7, 4.25, 8.5, 180.0, true, "ping", "updated", 1.2, 12345L);
     }
     @Test void batchPublishesOnlyExactAssignedRoomsWithoutLegacyReadOrChangingFacts() {
         ports.active = new LinkedHashSet<>(List.of(100L, 101L)); var location = location(42L);
@@ -45,7 +45,7 @@ class DefaultLocationFanoutUseCaseTest {
     }
     @Test void offlineIdentityOnlyFactsAreNotDiscardedOrRewritten() {
         ports.legacy=Optional.of(100L);
-        var offline = new FanoutLocation(42L,null,null,null,null,null,false,"ping","updated",null);
+        var offline = new FanoutLocation(42L,null,null,null,null,null,false,"ping","updated",null, 12345L);
         core.publish(offline); assertThat(ports.locations).containsExactly(offline);
     }
     @Test void dependenciesCannotBeMissing() {

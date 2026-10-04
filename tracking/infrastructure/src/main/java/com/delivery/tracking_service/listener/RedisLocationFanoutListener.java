@@ -24,7 +24,8 @@ public class RedisLocationFanoutListener implements MessageListener {
         try {
             LocationFanoutEnvelope envelope = objectMapper.readValue(
                     message.getBody(), LocationFanoutEnvelope.class);
-            handler.broadcastDeliveryLocation(envelope.deliveryId(), envelope.location());
+            if (envelope.occurredAt() <= 0) throw new IllegalArgumentException("positive fanout occurrence time is required");
+            handler.broadcastDeliveryLocation(envelope.deliveryId(), envelope.location(), envelope.occurredAt());
         } catch (Exception exception) {
             throw new IllegalStateException("Cannot dispatch Redis location fanout", exception);
         }

@@ -90,4 +90,20 @@ class DeliveryRoomRegistryTest {
         assertThat(rooms.subscribers(100,43)).containsExactly("new-shipper-session");
     }
 
+    @Test
+    void watermarkResetsOnRejoinAndStaleMembershipCannotAdvanceNewSubscription() {
+        var rooms = new DeliveryRoomRegistry();
+        rooms.subscribe(100, 42, "customer");
+        long old = rooms.membershipVersion(100, 42, "customer");
+        assertThat(rooms.admitLocation(100, 42, "customer", old, 2000)).isTrue();
+        rooms.unsubscribe("customer", 42);
+        rooms.subscribe(100, 42, "customer");
+        long current = rooms.membershipVersion(100, 42, "customer");
+        assertThat(current).isNotEqualTo(old);
+        assertThat(rooms.admitLocation(100, 42, "customer", old, 9000)).isFalse();
+        assertThat(rooms.admitLocation(100, 42, "customer", current, 1000)).isTrue();
+        rooms.end(100, 42);
+        assertThat(rooms.admitLocation(100, 42, "customer", current, 2000)).isFalse();
+    }
+
 }

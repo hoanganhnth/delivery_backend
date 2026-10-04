@@ -54,7 +54,7 @@ class ShipperLocationWebSocketHandlerAuthorizationTest {
                 """));
 
         ArgumentCaptor<ShipperLocationResponse> location = ArgumentCaptor.forClass(ShipperLocationResponse.class);
-        verify(repository).cacheIfCurrentPublisher(argThat(lease -> lease.shipperId() == 42L), location.capture());
+        verify(repository).cacheIfCurrentPublisher(argThat(lease -> lease.shipperId() == 42L), location.capture(), org.mockito.ArgumentMatchers.anyLong());
         verify(publisher).publishLocationUpdate(any(ShipperLocationResponse.class), eq("WEBSOCKET"), org.mockito.ArgumentMatchers.anyLong());
         assertThat(location.getValue().getShipperId()).isEqualTo(42L);
         assertThat(location.getValue().getAccuracy()).isNull();
@@ -80,7 +80,7 @@ class ShipperLocationWebSocketHandlerAuthorizationTest {
         location.setIsOnline(true);
         location.setUpdatedAt("2026-07-28T20:00:00");
 
-        handler.broadcastDeliveryLocation(100L, location);
+        handler.broadcastDeliveryLocation(100L, location, System.currentTimeMillis());
 
         verify(session).sendMessage(argThat((TextMessage message) ->
                 message.getPayload().contains("\"accuracy\":null")
@@ -113,7 +113,7 @@ class ShipperLocationWebSocketHandlerAuthorizationTest {
         handler.handleTextMessage(session, new TextMessage(
                 "{\"action\":\"update_location\",\"latitude\":10.75,\"longitude\":106.67}"));
 
-        verify(repository).cacheIfCurrentPublisher(argThat(lease -> lease.shipperId() == 42L), any(ShipperLocationResponse.class));
+        verify(repository).cacheIfCurrentPublisher(argThat(lease -> lease.shipperId() == 42L), any(ShipperLocationResponse.class), org.mockito.ArgumentMatchers.anyLong());
         verify(session).sendMessage(argThat((TextMessage message) ->
                 message.getPayload().contains("MESSAGE_PROCESSING_FAILED")));
     }
@@ -174,7 +174,7 @@ class ShipperLocationWebSocketHandlerAuthorizationTest {
         latest.setLongitude(106.70);
         latest.setIsOnline(true);
         latest.setUpdatedAt("2026-07-30T04:00:00");
-        when(repository.getCachedShipperLocation(42L)).thenReturn(latest);
+        when(repository.getCachedProjection(42L)).thenReturn(new com.delivery.tracking_service.repository.StoredShipperLocation(latest, 12345L));
         handler.afterConnectionEstablished(session);
 
         handler.handleTextMessage(session, new TextMessage(

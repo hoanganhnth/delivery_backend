@@ -56,7 +56,7 @@ class PublisherWriteFenceRedisIntegrationTest {
             assertThat(redis.opsForSet().isMember("shippers:online:set", "7")).isEqualTo(online);
             assertThat(redis.opsForGeo().position("shippers:geo:locations", "7").get(0) != null).isEqualTo(online);
             var order = inOrder(events, fanout);
-            order.verify(events).publishLocationUpdate(any(), eq("WEBSOCKET"), org.mockito.ArgumentMatchers.anyLong()); order.verify(fanout).publish(any());
+            order.verify(events).publishLocationUpdate(any(), eq("WEBSOCKET"), org.mockito.ArgumentMatchers.anyLong()); order.verify(fanout).publish(any(), org.mockito.ArgumentMatchers.anyLong());
             assertThat(result.online()).isEqualTo(online); clearInvocations(events, fanout);
         }
     }
@@ -122,7 +122,7 @@ class PublisherWriteFenceRedisIntegrationTest {
             assertThat(refreshed.await(10, TimeUnit.SECONDS)).isTrue();
             var replacement = new ShipperPublisherLeaseRepository(strings).acquire(7L, "new", 120);
             var fresh = new ShipperLocationResponse(); fresh.setShipperId(7L); fresh.setIsOnline(true);
-            fresh.setLatitude(10.9); fresh.setLongitude(106.8); locations.cacheShipperLocation(7L, fresh);
+            fresh.setLatitude(10.9); fresh.setLongitude(106.8); locations.cacheShipperLocation(7L, fresh, System.currentTimeMillis());
             resume.countDown(); write.get(10, TimeUnit.SECONDS);
             assertThat(locations.getCachedShipperLocation(7L).getLatitude()).isEqualTo(10.9);
             assertThat(locations.getCachedShipperLocation(7L).getLongitude()).isEqualTo(106.8);

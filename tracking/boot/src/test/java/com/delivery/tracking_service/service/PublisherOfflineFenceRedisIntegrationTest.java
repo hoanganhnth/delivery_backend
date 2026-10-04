@@ -47,7 +47,7 @@ class PublisherOfflineFenceRedisIntegrationTest {
     @AfterEach void close() { if (factory != null) factory.destroy(); }
 
     @Test void currentClaimAtomicallyCachesOfflineAndRemovesSerializedMembershipBeforePublishing() {
-        locations.cacheShipperLocation(7L, online(10.7));
+        locations.cacheShipperLocation(7L, online(10.7), System.currentTimeMillis());
         var claim = expiredClaim();
         assertThat(availability().markOfflineIfExpired(claim)).isTrue();
         var offline = locations.getCachedShipperLocation(7L);
@@ -57,11 +57,11 @@ class PublisherOfflineFenceRedisIntegrationTest {
         assertThat(redis.opsForGeo().position("shippers:geo:locations", "7").get(0)).isNull();
         var order = inOrder(events, fanout);
         order.verify(events).publishLocationUpdate(any(), eq("OFFLINE_TOMBSTONE"), org.mockito.ArgumentMatchers.anyLong());
-        order.verify(fanout).publish(any());
+        order.verify(fanout).publish(any(), org.mockito.ArgumentMatchers.anyLong());
     }
 
     @Test void absentCacheStillRemovesStaleMembershipAndPublishesIdentityOnlyOffline() {
-        locations.cacheShipperLocation(7L, online(10.7)); strings.delete("shipper:location:7");
+        locations.cacheShipperLocation(7L, online(10.7), System.currentTimeMillis()); strings.delete("shipper:location:7");
         assertThat(availability().markOfflineIfExpired(expiredClaim())).isTrue();
         assertThat(locations.getCachedShipperLocation(7L)).isNull();
         assertThat(redis.opsForSet().isMember("shippers:online:set", "7")).isFalse();
@@ -70,11 +70,11 @@ class PublisherOfflineFenceRedisIntegrationTest {
         verify(events).publishLocationUpdate(row.capture(), eq("OFFLINE_TOMBSTONE"), org.mockito.ArgumentMatchers.anyLong());
         assertThat(row.getValue().getShipperId()).isEqualTo(7L);
         assertThat(row.getValue().getLatitude()).isNull(); assertThat(row.getValue().getIsOnline()).isFalse();
-        verify(fanout).publish(any());
+        verify(fanout).publish(any(), org.mockito.ArgumentMatchers.anyLong());
     }
 
     @Test void resumedActiveLeaseOrChangedGenerationFencesAnOtherwiseValidClaim() {
-        var claim = expiredClaim(); locations.cacheShipperLocation(7L, online(10.9));
+        var claim = expiredClaim(); locations.cacheShipperLocation(7L, online(10.9), System.currentTimeMillis());
         strings.opsForValue().set("tracking:publisher:active:7", claim.lease().redisValue());
         assertThat(availability().markOfflineIfExpired(claim)).isFalse();
         strings.delete("tracking:publisher:active:7");
@@ -84,7 +84,7 @@ class PublisherOfflineFenceRedisIntegrationTest {
     }
 
     @Test void expiredOrReclaimedRecoveryClaimCannotMutateOfflineOrCompleteTheNewClaim() {
-        var stale = expiredClaim(); locations.cacheShipperLocation(7L, online(10.9));
+        var stale = expiredClaim(); locations.cacheShipperLocation(7L, online(10.9), System.currentTimeMillis());
         String member = "7:" + stale.lease().redisValue();
         var expired = new PublisherExpiryClaim(stale.lease(), System.currentTimeMillis() - 1000);
         strings.opsForZSet().add("tracking:publisher:deadlines", member, expired.claimUntilEpochMillis());
@@ -102,7 +102,7 @@ class PublisherOfflineFenceRedisIntegrationTest {
     }
 
     @Test void corruptMembershipFailsBeforeAnyCacheOrGeoMutationAndRetainsClaimForRetry() {
-        var claim = expiredClaim(); locations.cacheShipperLocation(7L, online(10.9));
+        var claim = expiredClaim(); locations.cacheShipperLocation(7L, online(10.9), System.currentTimeMillis());
         strings.delete("shippers:online:set"); strings.opsForValue().set("shippers:online:set", "corrupt");
         assertThatThrownBy(() -> availability().markOfflineIfExpired(claim))
                 .hasStackTraceContaining("Invalid shipper membership type");
@@ -140,16 +140,16 @@ class PublisherOfflineFenceRedisIntegrationTest {
                 catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new AssertionError(e); }
                 return cached;
             }
-            public boolean applyOfflineIfExpired(com.delivery.tracking.domain.PublisherExpiryClaim claim, Optional<OfflineShipperLocation> row) {
-                return adapter.applyOfflineIfExpired(claim, row);
+            public boolean applyOfflineIfExpired(com.delivery.tracking.domain.PublisherExpiryClaim claim, Optional<OfflineShipperLocation> row, java.time.Instant occurredAt) {
+                return adapter.applyOfflineIfExpired(claim, row, occurredAt);
             }
             public void saveOffline(Long id, OfflineShipperLocation row) { adapter.saveOffline(id, row); }
-            public void remove(Long id) { adapter.remove(id); }
+            public void remove(Long id, java.time.Instant occurredAt) { adapter.remove(id, occurredAt); }
         };
         var incidents = mock(PublisherLeaseIncidentPort.class);
         var core = new DefaultPublisherSessionUseCase(leases, new DefaultShipperAvailabilityUseCase(paused, adapter),
                 (task, deadline) -> {}, incidents, 0, 30, 30);
-        var old = core.acquire(7L, "old"); locations.cacheShipperLocation(7L, online(10.7));
+        var old = core.acquire(7L, "old"); locations.cacheShipperLocation(7L, online(10.7), System.currentTimeMillis());
         core.disconnected(old);
         String oldMember = "7:" + old.redisValue();
         await().atMost(Duration.ofSeconds(5)).until(() -> strings.opsForZSet().score("tracking:publisher:deadlines", oldMember)
@@ -160,7 +160,7 @@ class PublisherOfflineFenceRedisIntegrationTest {
             assertThat(read.await(10, TimeUnit.SECONDS)).isTrue();
             // Independent lease adapter represents a different publisher instance.
             var replacement = new ShipperPublisherLeaseRepository(strings).acquire(7L, "replacement", 30);
-            locations.cacheShipperLocation(7L, online(10.9));
+            locations.cacheShipperLocation(7L, online(10.9), System.currentTimeMillis());
             resume.countDown(); sweep.get(10, TimeUnit.SECONDS);
             assertThat(locations.getCachedShipperLocation(7L).getIsOnline()).isTrue();
             assertThat(locations.getCachedShipperLocation(7L).getLatitude()).isEqualTo(10.9);

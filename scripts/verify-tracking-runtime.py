@@ -287,7 +287,10 @@ def main():
         a.kill(); a.wait(timeout=10)
         wait_for(lambda: redis_command('SISMEMBER', 'shippers:online:set', json.dumps('7002')) == '0', 'surviving JVM expiry sweep', 20)
         received(10.83, False)
-        # Re-subscribe also recovers the latest cached offline source.
+        # Reconnect creates a new membership and recovers the latest cached source.
+        # Repeating subscribe on the same membership must not replay an equal-time fact.
+        subscriber.close()
+        subscriber, _ = connect(port_b, customer)
         subscriber.send({'action': 'subscribe_shipper', 'deliveryId': 9002, 'shipperId': 7002})
         received(10.83, False)
         wait_for(lambda: int(sql('SELECT count(*) FROM shipper_location_history')) >= 1, 'Kafka PostgreSQL history')

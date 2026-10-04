@@ -54,7 +54,21 @@ lỗi giữ deadline để retry sau restart/process chết trong cửa sổ gra
 Fence này bảo vệ mutation Redis; Kafka/PubSub vẫn là các bước tiếp theo, chưa có
 transaction chung với Redis. Match dùng occurrence timestamp để chặn fact cũ
 publish muộn trong freshness window; cùng millisecond vẫn theo policy hiện tại
-của Match. Thứ tự packet Redis PubSub/WebSocket vẫn đang được audit trong worktree
+của Match. Realtime receiver dùng occurrence epoch millis trong envelope nội bộ và watermark
+theo membership `(deliveryId, shipperId, sessionId, membershipVersion)`: fact cũ
+hoặc cùng millisecond không vào queue; unsubscribe/end/rejoin tạo membership mới.
+Admission và enqueue cùng lock theo shipper, bootstrap đọc cache/register/seed
+cũng cùng lock để không chen một packet cũ sau snapshot mới. Cache là một value
+`StoredShipperLocation(location, occurredAt)`, giữ metadata ngay cả offline không
+có tọa độ; HTTP/WebSocket payload công khai giữ nguyên.
+
+Cutover cache/envelope này cần dừng toàn bộ Tracking writer cũ trước khi bật bản
+mới; chờ cache location cũ hết TTL 300 giây hoặc refresh bằng writer mới. Cache
+cũ vẫn đọc được cho tọa độ offline nhưng không dùng để đoán watermark; subscribe
+với cache thiếu metadata và PubSub envelope thiếu occurrence time fail-closed.
+Rollback cũng dừng writer mới rồi đợi cache hết TTL trước khi chạy bản cũ.
+Không chạy mixed-version Tracking writers. Source-cache write ordering giữa
+request đồng thời và giới hạn mất Redis/TTL vẫn đang được audit trong worktree
 refactor trước khi hợp nhất Tracking vào main.
 
 ## Luồng subscriber

@@ -25,15 +25,15 @@ class LocationPublicationMappingTest {
             var lease = new com.delivery.tracking.domain.PublisherLease(7, "current", 1);
             if (source == LocationUpdateSource.APPLICATION) core.updateLocation(command);
             else {
-                when(cache.cacheIfCurrentPublisher(eq(lease), any())).thenReturn(true);
+                when(cache.cacheIfCurrentPublisher(eq(lease), any(), org.mockito.ArgumentMatchers.anyLong())).thenReturn(true);
                 core.updatePublisherLocation(command, lease);
             }
             var saved = ArgumentCaptor.forClass(ShipperLocationResponse.class);
             var event = ArgumentCaptor.forClass(ShipperLocationResponse.class);
             var broadcast = ArgumentCaptor.forClass(ShipperLocationResponse.class);
-            if (source == LocationUpdateSource.APPLICATION) verify(cache).cacheShipperLocation(eq(7L), saved.capture());
-            else verify(cache).cacheIfCurrentPublisher(eq(lease), saved.capture());
-            verify(kafka).publishLocationUpdate(event.capture(), eq(source.name()), eq(now.toEpochMilli())); verify(fanout).publish(broadcast.capture());
+            if (source == LocationUpdateSource.APPLICATION) verify(cache).cacheShipperLocation(eq(7L), saved.capture(), org.mockito.ArgumentMatchers.anyLong());
+            else verify(cache).cacheIfCurrentPublisher(eq(lease), saved.capture(), org.mockito.ArgumentMatchers.anyLong());
+            verify(kafka).publishLocationUpdate(event.capture(), eq(source.name()), eq(now.toEpochMilli())); verify(fanout).publish(broadcast.capture(), org.mockito.ArgumentMatchers.anyLong());
             var result = saved.getValue();
             assertThat(event.getValue()).usingRecursiveComparison().isEqualTo(result);
             assertThat(broadcast.getValue()).usingRecursiveComparison().isEqualTo(result);

@@ -32,13 +32,13 @@ class LocationFanoutPublisherTest {
         location.setIsOnline(true);
 
         when(assignments.activeDelivery(42L)).thenReturn(Optional.of(100L));
-        publisher.publish(location);
+        publisher.publish(location, System.currentTimeMillis());
         var payload = org.mockito.ArgumentCaptor.forClass(String.class);
         verify(redis).convertAndSend(eq(LocationFanoutPublisher.CHANNEL), payload.capture());
         assertThat(payload.getValue()).contains("\"deliveryId\":100", "\"shipperId\":42");
 
         when(assignments.activeDelivery(42L)).thenReturn(Optional.empty());
-        publisher.publish(location);
+        publisher.publish(location, System.currentTimeMillis());
         verify(redis, times(1)).convertAndSend(
                 eq(LocationFanoutPublisher.CHANNEL), org.mockito.ArgumentMatchers.any());
     }
@@ -49,21 +49,21 @@ class LocationFanoutPublisherTest {
         var mapper = new ObjectMapper();
         var adapter = new RedisLocationFanoutAdapter(redis, assignments, mapper);
         var publisher = new LocationFanoutPublisher(new com.delivery.tracking.application.DefaultLocationFanoutUseCase(adapter, adapter));
-        var facts = new com.delivery.tracking.application.api.FanoutLocation(42L,10.77,106.7,4.25,8.5,180.0,true,"ping","updated",1.2);
+        var facts = new com.delivery.tracking.application.api.FanoutLocation(42L,10.77,106.7,4.25,8.5,180.0,true,"ping","updated",1.2, 12345L);
         when(assignments.activeDeliveries(42L)).thenReturn(java.util.Set.of(100L,101L));
-        publisher.publish(FanoutLocationMapper.toResponse(facts));
+        publisher.publish(FanoutLocationMapper.toResponse(facts), facts.occurredAt());
         var payload = org.mockito.ArgumentCaptor.forClass(String.class);
         verify(redis,times(2)).convertAndSend(eq(LocationFanoutPublisher.CHANNEL),payload.capture());
         var deliveries = new java.util.HashSet<Long>();
         for (String value : payload.getAllValues()) {
             var tree = mapper.readTree(value); deliveries.add(tree.get("deliveryId").asLong());
             var wire = mapper.treeToValue(tree.get("location"),ShipperLocationResponse.class);
-            assertThat(FanoutLocationMapper.from(wire)).isEqualTo(facts);
+            assertThat(FanoutLocationMapper.from(wire, tree.get("occurredAt").asLong())).isEqualTo(facts);
         }
         assertThat(deliveries).containsExactlyInAnyOrder(100L,101L);
-        var offline = new com.delivery.tracking.application.api.FanoutLocation(42L,null,null,null,null,null,false,"ping","updated",null);
-        assertThat(FanoutLocationMapper.from(FanoutLocationMapper.toResponse(offline))).isEqualTo(offline);
-        assertThat(FanoutLocationMapper.from(null)).isNull();
+        var offline = new com.delivery.tracking.application.api.FanoutLocation(42L,null,null,null,null,null,false,"ping","updated",null, 12345L);
+        assertThat(FanoutLocationMapper.from(FanoutLocationMapper.toResponse(offline), 12345L)).isEqualTo(offline);
+        assertThat(FanoutLocationMapper.from(null, 12345L)).isNull();
     }
 
 }

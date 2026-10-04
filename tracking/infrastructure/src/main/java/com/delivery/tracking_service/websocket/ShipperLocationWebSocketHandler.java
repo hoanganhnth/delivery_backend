@@ -203,25 +203,22 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
             sendError(session, "FORBIDDEN", "Not a participant of this active delivery");
             return;
         }
-        String shipperId = shipperIdValue.toString();
-        subscriptions.subscribeAuthorized(deliveryId, shipperIdValue, sessionId);
-
-        log.info("📍 Session {} subscribed to shipper {}", sessionId, shipperId);
-
-            // Gửi phản hồi xác nhận
-        Map<String, Object> response = Map.of(
-                "type", "subscription_confirmed",
-                "shipperId", shipperId,
-                "message", "Subscribed to shipper " + shipperId);
-
-        send(session, response);
-
-        // A coalesced/broker message may have arrived before this subscriber.
-        // Send the Redis realtime source immediately so the last location is not lost.
-        ShipperLocationResponse latest = redisGeoRepository.getCachedShipperLocation(shipperIdValue);
-        if (latest != null) {
-            dispatchLocation(session, deliveryId, latest);
-        }
+        deliveryRooms.withinUpdate(shipperIdValue, () -> {
+            // Source read + membership/bootstrap enqueue are serialized with local fanout admission.
+            var latest = redisGeoRepository.getCachedProjection(shipperIdValue);
+            subscriptions.subscribeAuthorized(deliveryId, shipperIdValue, sessionId);
+            try {
+                send(session, Map.of("type", "subscription_confirmed", "shipperId", shipperIdValue.toString(),
+                        "message", "Subscribed to shipper " + shipperIdValue));
+                if (latest != null) {
+                    if (latest.location() != null) dispatchLocation(session, deliveryId, latest.location(), latest.occurredAt());
+                    else {
+                        Long membership = deliveryRooms.membershipVersion(deliveryId, shipperIdValue, sessionId);
+                        if (membership != null) deliveryRooms.admitLocation(deliveryId, shipperIdValue, sessionId, membership, latest.occurredAt());
+                    }
+                }
+            } catch (Exception failure) { throw new IllegalStateException("Cannot bootstrap location subscription", failure); }
+        });
     }
 
     private void handleUnsubscribeShipper(WebSocketSession session, Map<String, Object> message) throws Exception {
@@ -374,7 +371,7 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
         log.info("❌ WebSocket disconnected: sessionId={}, status={}", sessionId, status);
     }
 
-    public void broadcastDeliveryLocation(Long deliveryId, ShipperLocationResponse location) {
+    public void broadcastDeliveryLocation(Long deliveryId, ShipperLocationResponse location, long occurredAt) {
         Long shipperId = location == null ? null : location.getShipperId();
         var subscribers = deliveryId == null || shipperId == null ? java.util.List.<String>of()
                 : deliveryRooms.subscribers(deliveryId, shipperId);
@@ -385,7 +382,7 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
                     WebSocketSession session = activeSessions.get(sessionId);
                     if (session != null && session.isOpen()) {
                         try {
-                            dispatchLocation(session, deliveryId, location);
+                            dispatchLocation(session, deliveryId, location, occurredAt);
                         } catch (Exception e) {
                             log.error("💥 Error sending location update to session {}: {}", sessionId, e.getMessage());
                         }
@@ -402,7 +399,7 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
     }
 
     private void dispatchLocation(WebSocketSession session, long deliveryId,
-                                  ShipperLocationResponse location) throws Exception {
+                                  ShipperLocationResponse location, long occurredAt) throws Exception {
         Map<String, Object> locationUpdate = new java.util.HashMap<>();
         locationUpdate.put("type", "location_update");
         locationUpdate.put("shipperId", location.getShipperId());
@@ -414,12 +411,15 @@ public class ShipperLocationWebSocketHandler extends TextWebSocketHandler {
         locationUpdate.put("heading", location.getHeading());
         locationUpdate.put("timestamp", location.getUpdatedAt());
         long targetShipper = location.getShipperId();
+        var encoded = new TextMessage(objectMapper.writeValueAsString(locationUpdate));
+        deliveryRooms.withinUpdate(targetShipper, () -> {
         Long membership = deliveryRooms.membershipVersion(deliveryId, targetShipper, session.getId());
-        if (membership == null) return;
+        if (membership == null || !deliveryRooms.admitLocation(deliveryId, targetShipper, session.getId(), membership, occurredAt)) return;
         messageDispatcher.dispatch(session, deliveryId,
-                new TextMessage(objectMapper.writeValueAsString(locationUpdate)),
+                encoded,
                 Boolean.TRUE.equals(location.getIsOnline()),
                 () -> membership.equals(deliveryRooms.membershipVersion(deliveryId, targetShipper, session.getId())));
+        });
     }
 
 }

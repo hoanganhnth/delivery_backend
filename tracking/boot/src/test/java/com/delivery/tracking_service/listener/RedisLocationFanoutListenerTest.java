@@ -17,7 +17,7 @@ class RedisLocationFanoutListenerTest {
     void routesEnvelopeToExactDeliveryRoom() {
         ShipperLocationWebSocketHandler handler = mock(ShipperLocationWebSocketHandler.class);
         Message message = mock(Message.class);
-        when(message.getBody()).thenReturn(("{\"deliveryId\":100,\"location\":{"
+        when(message.getBody()).thenReturn(("{\"deliveryId\":100,\"occurredAt\":12345,\"location\":{"
                 + "\"shipperId\":42,\"latitude\":10.77,\"longitude\":106.7,"
                 + "\"isOnline\":true}}").getBytes(StandardCharsets.UTF_8));
 
@@ -26,6 +26,6 @@ class RedisLocationFanoutListenerTest {
         verify(handler).broadcastDeliveryLocation(
                 org.mockito.ArgumentMatchers.eq(100L),
                 org.mockito.ArgumentMatchers.argThat(location ->
-                        location.getShipperId() == 42L && Boolean.TRUE.equals(location.getIsOnline())));
+                        location.getShipperId() == 42L && Boolean.TRUE.equals(location.getIsOnline())), org.mockito.ArgumentMatchers.eq(12345L));
     }
 }

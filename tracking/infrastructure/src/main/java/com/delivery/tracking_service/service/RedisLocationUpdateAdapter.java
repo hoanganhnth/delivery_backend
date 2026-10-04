@@ -16,15 +16,15 @@ public class RedisLocationUpdateAdapter implements LocationStorePort, LocationEv
         this.locations = locations; this.events = events; this.fanout = fanout;
     }
     @Override public void save(LocationSnapshot location, LocationUpdateSource source) {
-        locations.cacheShipperLocation(location.shipperId(), LocationUpdateMapper.toResponse(location, source));
+        locations.cacheShipperLocation(location.shipperId(), LocationUpdateMapper.toResponse(location, source), location.updatedAt().toEpochMilli());
     }
     @Override public boolean saveIfCurrentPublisher(LocationSnapshot location, com.delivery.tracking.domain.PublisherLease lease) {
-        return locations.cacheIfCurrentPublisher(lease, LocationUpdateMapper.toResponse(location, LocationUpdateSource.WEBSOCKET));
+        return locations.cacheIfCurrentPublisher(lease, LocationUpdateMapper.toResponse(location, LocationUpdateSource.WEBSOCKET), location.updatedAt().toEpochMilli());
     }
     @Override public void publish(LocationSnapshot location, LocationUpdateSource source) {
         events.publishLocationUpdate(LocationUpdateMapper.toResponse(location, source), source.name(), location.updatedAt().toEpochMilli());
     }
     @Override public void broadcast(LocationSnapshot location, LocationUpdateSource source) {
-        fanout.publish(LocationUpdateMapper.toResponse(location, source));
+        fanout.publish(LocationUpdateMapper.toResponse(location, source), location.updatedAt().toEpochMilli());
     }
 }

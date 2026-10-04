@@ -34,7 +34,8 @@ public class DeliveryRoomRegistry implements com.delivery.tracking.application.a
         }
         if (!activeDeliveries(shipperId).contains(deliveryId)) activate(deliveryId, shipperId);
         Room room = rooms.computeIfAbsent(deliveryId, ignored -> new Room(shipperId));
-        room.sessions().putIfAbsent(sessionId, membershipSequence.incrementAndGet());
+        room.sessions().computeIfAbsent(sessionId, ignored -> new Membership(membershipSequence.incrementAndGet(),
+                new com.delivery.tracking.domain.LocationDeliveryOrder()));
         roomsBySession.computeIfAbsent(sessionId, ignored -> ConcurrentHashMap.newKeySet())
                 .add(deliveryId);
     }
@@ -106,7 +107,15 @@ public class DeliveryRoomRegistry implements com.delivery.tracking.application.a
     public Long membershipVersion(long deliveryId, long shipperId, String sessionId) {
         Room room = rooms.get(deliveryId);
         if (room == null || room.shipperId() != shipperId || !activeDeliveries(shipperId).contains(deliveryId)) return null;
-        return room.sessions().get(sessionId);
+        var member = room.sessions().get(sessionId);
+        return member == null ? null : member.version();
+    }
+
+    public synchronized boolean admitLocation(long deliveryId, long shipperId, String sessionId, long membership, long occurredAt) {
+        Room room = rooms.get(deliveryId);
+        if (room == null || room.shipperId() != shipperId || !activeDeliveries(shipperId).contains(deliveryId)) return false;
+        var member = room.sessions().get(sessionId);
+        return member != null && member.version() == membership && member.order().admit(occurredAt);
     }
 
     public Long activeDelivery(long shipperId) {
@@ -143,7 +152,9 @@ public class DeliveryRoomRegistry implements com.delivery.tracking.application.a
         }
     }
 
-    private record Room(long shipperId, Map<String, Long> sessions) {
+    private record Membership(long version, com.delivery.tracking.domain.LocationDeliveryOrder order) {}
+
+    private record Room(long shipperId, Map<String, Membership> sessions) {
         private Room(long shipperId) {
             this(shipperId, new ConcurrentHashMap<>());
         }

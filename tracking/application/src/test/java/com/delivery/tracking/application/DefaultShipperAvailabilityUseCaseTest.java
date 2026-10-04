@@ -95,12 +95,12 @@ class DefaultShipperAvailabilityUseCaseTest {
         void step(String stage) { operations.add(stage); if (stage.equals(failAt)) throw failure; }
         public Optional<CachedShipperLocation> findCached(Long id) { assertThat(id).isEqualTo(7L); step("read"); return Optional.ofNullable(cached); }
         public void saveOffline(Long id, OfflineShipperLocation location) { assertThat(id).isEqualTo(7L); step("save"); saved = location; }
-        public boolean applyOfflineIfExpired(com.delivery.tracking.domain.PublisherExpiryClaim claim, Optional<OfflineShipperLocation> row) {
+        public boolean applyOfflineIfExpired(com.delivery.tracking.domain.PublisherExpiryClaim claim, Optional<OfflineShipperLocation> row, Instant occurredAt) {
             step("conditional"); this.claim = claim;
             if (admitted) saved = row.orElse(null);
             return admitted;
         }
-        public void remove(Long id) { assertThat(id).isEqualTo(7L); step("remove"); }
+        public void remove(Long id, Instant occurredAt) { assertThat(id).isEqualTo(7L); step("remove"); }
         public void publish(OfflineShipperLocation location, String source) { step(source); published = location; }
         public void broadcast(OfflineShipperLocation location) { step("broadcast"); broadcast = location; }
     }
