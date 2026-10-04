@@ -9,6 +9,8 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.UUID;
 
@@ -44,7 +46,7 @@ public class BatchCodHoldTransitionListener {
             JsonNode ids = root.path("holdIds");
             if (!ids.isArray() || ids.isEmpty()) throw new IllegalArgumentException("Batch hold IDs are required");
             for (JsonNode id : ids) holdService.transition(UUID.fromString(id.asText()), status);
-            acknowledgment.acknowledge();
+            acknowledgeAfterCommit(acknowledgment);
         } catch (IllegalArgumentException ex) {
             log.error("Invalid batch COD hold transition: {}", ex.getMessage());
             throw ex;
@@ -52,4 +54,15 @@ public class BatchCodHoldTransitionListener {
             throw new IllegalStateException("Cannot apply batch COD hold transition", ex);
         }
     }
+    private void acknowledgeAfterCommit(Acknowledgment acknowledgment) {
+        if (acknowledgment == null) throw new IllegalArgumentException("Kafka acknowledgment is required");
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            acknowledgment.acknowledge();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override public void afterCommit() { acknowledgment.acknowledge(); }
+        });
+    }
+
 }

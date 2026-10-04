@@ -27,6 +27,7 @@ class CodCapacityHoldIntegrationTest {
     @Autowired TransactionRepository transactions;
     @Autowired SettlementReceiptRepository receipts;
     @Autowired BatchCodHoldTransitionListener listener;
+    @Autowired org.springframework.transaction.PlatformTransactionManager transactionManager;
     @BeforeEach @AfterEach void clear() {
         holds.deleteAll(); receipts.deleteAll(); transactions.deleteAll(); balances.deleteAll();
     }
@@ -75,4 +76,29 @@ class CodCapacityHoldIntegrationTest {
         assertThat(holds.findById(hold.getHoldId()).orElseThrow().getStatus()).isEqualTo(CodCapacityHoldStatus.HELD);
         assertThat(reserved()).isEqualByComparingTo("30"); verifyNoInteractions(acknowledgment);
     }
+    @Test void batchAcknowledgesOnlyAfterTheOuterFinancialTransactionCommits() throws Exception {
+        fund(); var hold = service.hold(request("30")).get(0);
+        var acknowledged = new java.util.concurrent.atomic.AtomicBoolean();
+        Acknowledgment acknowledgment = () -> acknowledged.set(true);
+        String message = new ObjectMapper().writeValueAsString(Map.of("target", "COMMITTED", "holdIds", List.of(hold.getHoldId())));
+        new org.springframework.transaction.support.TransactionTemplate(transactionManager).executeWithoutResult(tx -> {
+            listener.handle(message, acknowledgment);
+            assertThat(acknowledged.get()).as("offset must not get ahead of the database commit").isFalse();
+        });
+        assertThat(acknowledged.get()).isTrue();
+        assertThat(holds.findById(hold.getHoldId()).orElseThrow().getStatus()).isEqualTo(CodCapacityHoldStatus.COMMITTED);
+    }
+    @Test void rolledBackOuterBatchTransactionNeverAcknowledges() throws Exception {
+        fund(); var hold = service.hold(request("30")).get(0);
+        var acknowledged = new java.util.concurrent.atomic.AtomicBoolean();
+        String message = new ObjectMapper().writeValueAsString(Map.of("target", "RELEASED", "holdIds", List.of(hold.getHoldId())));
+        new org.springframework.transaction.support.TransactionTemplate(transactionManager).executeWithoutResult(tx -> {
+            listener.handleRelease(message, () -> acknowledged.set(true));
+            tx.setRollbackOnly();
+        });
+        assertThat(acknowledged.get()).isFalse();
+        assertThat(holds.findById(hold.getHoldId()).orElseThrow().getStatus()).isEqualTo(CodCapacityHoldStatus.HELD);
+        assertThat(reserved()).isEqualByComparingTo("30");
+    }
+
 }
