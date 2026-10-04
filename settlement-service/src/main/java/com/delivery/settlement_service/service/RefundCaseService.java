@@ -1,15 +1,14 @@
 package com.delivery.settlement_service.service;
 
 import com.delivery.settlement.domain.refund.RefundPolicy;
-import com.delivery.settlement_service.adapter.JpaLedgerAdapter;
+import com.delivery.settlement_service.adapter.JpaRefundCaseAdapter;
+import com.delivery.settlement.application.refund.DefaultRefundCaseUseCase;
 import com.delivery.settlement_service.dto.event.OrderCancelledEvent;
 import com.delivery.settlement_service.dto.event.DeliveryExceptionReportedEvent;
 import com.delivery.settlement_service.dto.response.RefundCaseResponse;
 import com.delivery.settlement_service.dto.response.RefundCustomerCaseResponse;
 import com.delivery.settlement_service.entity.RefundCase;
-import com.delivery.settlement_service.entity.RefundCase.RefundComponent;
 import com.delivery.settlement_service.entity.RefundCase.RefundStatus;
-import com.delivery.settlement_service.entity.RefundCase.RefundTrigger;
 import com.delivery.settlement_service.exception.ResourceNotFoundException;
 import com.delivery.settlement_service.repository.RefundCaseRepository;
 import com.delivery.settlement_service.metrics.BusinessMetrics;
@@ -26,17 +25,14 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.time.LocalDateTime;
 import java.util.HexFormat;
 import java.util.List;
-import java.util.Objects;
 import java.util.UUID;
 
 @Service
 @Slf4j
 public class RefundCaseService {
     private static final int ADMIN_LIST_LIMIT = 100;
-
 
     private final RefundCaseRepository repository;
     private final RefundOutboxService outboxService;
@@ -74,198 +70,18 @@ public class RefundCaseService {
 
     @Transactional
     public RefundCase processOrderCancellation(OrderCancelledEvent event) {
-        RefundPolicy.validate(snapshot(event));
-        String fingerprint = fingerprint(event);
-        RefundTrigger trigger = JpaLedgerAdapter.enumValue(RefundPolicy.resolveTrigger(snapshot(event)), RefundTrigger.class);
-        String idempotencyKey = event.getOrderId() + ":" + trigger.name() + ":ORDER_TOTAL";
-
-        RefundCase existing = findExisting(event, trigger, idempotencyKey);
-        if (existing != null) {
-            requireExactReplay(existing, event, fingerprint, idempotencyKey);
-            return existing;
-        }
-
-        var decision = RefundPolicy.decide(snapshot(event), providerProcessingEnabled);
-        RefundStatus status = JpaLedgerAdapter.enumValue(decision.status(), RefundStatus.class);
-
-        RefundCase refundCase = RefundCase.builder()
-                .refundId(UUID.randomUUID())
-                .eventId(event.getEventId())
-                .idempotencyKey(idempotencyKey)
-                .orderId(event.getOrderId())
-                .userId(event.getUserId())
-                .userPrincipalId(event.getUserPrincipalId())
-                .restaurantId(event.getRestaurantId())
-                .previousOrderStatus(event.getPreviousStatus())
-                .currentOrderStatus(event.getCurrentStatus())
-                .paymentMethod(event.getPaymentMethod())
-                .trigger(trigger)
-                .component(RefundComponent.ORDER_TOTAL)
-                .status(status)
-                .currency("VND")
-                .subtotalAmount(event.getSubtotalPrice())
-                .discountAmount(event.getDiscountAmount())
-                .shippingFee(event.getShippingFee())
-                .totalAmount(event.getTotalPrice())
-                .capturedAmount(decision.capturedAmount())
-                .refundAmount(decision.refundAmount())
-                .actorSource(decision.actorSource())
-                .actorId(event.getCancelledBy())
-                .reason(event.getCancelReason())
-                .payloadFingerprint(fingerprint)
-                .attempts(0)
-                .build();
-
-        // A retry from another Kafka partition can arrive before this listener
-        // commits. Let PostgreSQL resolve all refund identity constraints, then
-        // distinguish exact replay from a conflicting event before anything is
-        // sent to the provider outbox.
-        if (insertIfAbsent(refundCase) == 0) {
-            RefundCase concurrent = findExisting(event, trigger, idempotencyKey);
-            if (concurrent == null) {
-                throw new IllegalStateException(
-                        "refund case conflict resolved without a committed refund case");
-            }
-            requireExactReplay(concurrent, event, fingerprint, idempotencyKey);
-            return concurrent;
-        }
-
-        if (status == RefundStatus.REQUESTED) {
-            outboxService.enqueue(refundCase);
-        }
-        log.info("Refund case {} created for order {} with status {}",
-                refundCase.getRefundId(), refundCase.getOrderId(), status);
-        return refundCase;
+        var adapter = new JpaRefundCaseAdapter(repository, outboxService, dataSourceUrl);
+        var core = new DefaultRefundCaseUseCase(adapter, providerProcessingEnabled, UUID::randomUUID);
+        var receipt = core.cancel(snapshot(event), () -> fingerprint(event));
+        return adapter.requireEntity(receipt.refundId());
     }
 
-    /**
-     * A post-pickup exception is deliberately a human-review boundary. It
-     * creates no provider outbox work, regardless of payment method or the
-     * provider-processing feature flag.
-     */
     @Transactional
     public RefundCase processDeliveryException(DeliveryExceptionReportedEvent event) {
-        RefundPolicy.validate(snapshot(event));
-        String fingerprint = fingerprint(event);
-        RefundTrigger trigger = RefundTrigger.DELIVERY_DISPUTE;
-        String idempotencyKey = event.getOrderId() + ":" + trigger.name() + ":ORDER_TOTAL";
-
-        RefundCase existing = findExistingDeliveryException(event, idempotencyKey);
-        if (existing != null) {
-            requireExactDeliveryExceptionReplay(existing, event, fingerprint, idempotencyKey);
-            return existing;
-        }
-
-        var decision = RefundPolicy.decide(snapshot(event));
-        RefundCase refundCase = RefundCase.builder()
-                .refundId(UUID.randomUUID())
-                .eventId(event.getEventId())
-                .idempotencyKey(idempotencyKey)
-                .orderId(event.getOrderId())
-                .userId(event.getUserId())
-                .userPrincipalId(event.getUserPrincipalId())
-                .restaurantId(event.getRestaurantId())
-                // The existing refund schema names these columns after Order;
-                // for this dedicated trigger they preserve the immutable
-                // Delivery state snapshot that placed the case in review.
-                .previousOrderStatus(event.getPreviousDeliveryStatus())
-                .currentOrderStatus(event.getCurrentDeliveryStatus())
-                .paymentMethod(event.getPaymentMethod())
-                .trigger(trigger)
-                .component(RefundComponent.ORDER_TOTAL)
-                .status(RefundStatus.MANUAL_REVIEW)
-                .currency("VND")
-                .subtotalAmount(event.getSubtotalPrice())
-                .discountAmount(event.getDiscountAmount())
-                .shippingFee(event.getShippingFee())
-                .totalAmount(event.getTotalPrice())
-                .capturedAmount(decision.capturedAmount())
-                .refundAmount(decision.refundAmount())
-                .actorSource("SHIPPER")
-                .actorId(event.getShipperId())
-                .reason(event.getReason())
-                .payloadFingerprint(fingerprint)
-                .attempts(0)
-                .build();
-
-        if (insertIfAbsent(refundCase) == 0) {
-            RefundCase concurrent = findExistingDeliveryException(event, idempotencyKey);
-            if (concurrent == null) {
-                throw new IllegalStateException("delivery exception refund conflict resolved without a committed case");
-            }
-            requireExactDeliveryExceptionReplay(concurrent, event, fingerprint, idempotencyKey);
-            return concurrent;
-        }
-        log.info("Manual-review refund case {} created from delivery exception {} for order {}",
-                refundCase.getRefundId(), event.getExceptionId(), event.getOrderId());
-        return refundCase;
-    }
-
-    private RefundCase findExisting(OrderCancelledEvent event, RefundTrigger trigger, String idempotencyKey) {
-        RefundCase byEvent = repository.findByEventId(event.getEventId()).orElse(null);
-        if (byEvent != null) {
-            return byEvent;
-        }
-        RefundCase byKey = repository.findByIdempotencyKey(idempotencyKey).orElse(null);
-        if (byKey != null) {
-            return byKey;
-        }
-        return repository.findByOrderIdAndTriggerAndComponent(
-                event.getOrderId(), trigger, RefundComponent.ORDER_TOTAL).orElse(null);
-    }
-
-    private RefundCase findExistingDeliveryException(DeliveryExceptionReportedEvent event, String idempotencyKey) {
-        RefundCase byEvent = repository.findByEventId(event.getEventId()).orElse(null);
-        if (byEvent != null) return byEvent;
-        RefundCase byKey = repository.findByIdempotencyKey(idempotencyKey).orElse(null);
-        if (byKey != null) return byKey;
-        return repository.findByOrderIdAndTriggerAndComponent(
-                event.getOrderId(), RefundTrigger.DELIVERY_DISPUTE, RefundComponent.ORDER_TOTAL).orElse(null);
-    }
-
-    private int insertIfAbsent(RefundCase refundCase) {
-        if (dataSourceUrl != null && dataSourceUrl.startsWith("jdbc:h2:")) {
-            return insertIfAbsentH2(refundCase);
-        }
-        return insertIfAbsentPostgres(refundCase);
-    }
-
-    private int insertIfAbsentPostgres(RefundCase refundCase) {
-        if (refundCase.getUserPrincipalId() == null) {
-            return repository.insertIfAbsentPostgres(
-                    refundCase.getRefundId(), refundCase.getEventId(), refundCase.getIdempotencyKey(),
-                    refundCase.getOrderId(), refundCase.getUserId(), refundCase.getRestaurantId(),
-                    refundCase.getPreviousOrderStatus(), refundCase.getCurrentOrderStatus(),
-                    refundCase.getPaymentMethod(), refundCase.getTrigger().name(), refundCase.getComponent().name(),
-                    refundCase.getStatus().name(), refundCase.getCurrency(), refundCase.getSubtotalAmount(),
-                    refundCase.getDiscountAmount(), refundCase.getShippingFee(), refundCase.getTotalAmount(),
-                    refundCase.getCapturedAmount(), refundCase.getRefundAmount(), refundCase.getActorSource(),
-                    refundCase.getActorId(), refundCase.getReason(), refundCase.getPayloadFingerprint(),
-                    refundCase.getAttempts());
-        }
-        return repository.insertIfAbsentPostgres(
-                refundCase.getRefundId(), refundCase.getEventId(), refundCase.getIdempotencyKey(),
-                refundCase.getOrderId(), refundCase.getUserId(), refundCase.getUserPrincipalId(), refundCase.getRestaurantId(),
-                refundCase.getPreviousOrderStatus(), refundCase.getCurrentOrderStatus(),
-                refundCase.getPaymentMethod(), refundCase.getTrigger().name(), refundCase.getComponent().name(),
-                refundCase.getStatus().name(), refundCase.getCurrency(), refundCase.getSubtotalAmount(),
-                refundCase.getDiscountAmount(), refundCase.getShippingFee(), refundCase.getTotalAmount(),
-                refundCase.getCapturedAmount(), refundCase.getRefundAmount(), refundCase.getActorSource(),
-                refundCase.getActorId(), refundCase.getReason(), refundCase.getPayloadFingerprint(),
-                refundCase.getAttempts());
-    }
-
-    private int insertIfAbsentH2(RefundCase refundCase) {
-        return repository.insertIfAbsentH2(
-                refundCase.getRefundId(), refundCase.getEventId(), refundCase.getIdempotencyKey(),
-                refundCase.getOrderId(), refundCase.getUserId(), refundCase.getUserPrincipalId(), refundCase.getRestaurantId(),
-                refundCase.getPreviousOrderStatus(), refundCase.getCurrentOrderStatus(),
-                refundCase.getPaymentMethod(), refundCase.getTrigger().name(), refundCase.getComponent().name(),
-                refundCase.getStatus().name(), refundCase.getCurrency(), refundCase.getSubtotalAmount(),
-                refundCase.getDiscountAmount(), refundCase.getShippingFee(), refundCase.getTotalAmount(),
-                refundCase.getCapturedAmount(), refundCase.getRefundAmount(), refundCase.getActorSource(),
-                refundCase.getActorId(), refundCase.getReason(), refundCase.getPayloadFingerprint(),
-                refundCase.getAttempts());
+        var adapter = new JpaRefundCaseAdapter(repository, outboxService, dataSourceUrl);
+        var core = new DefaultRefundCaseUseCase(adapter, providerProcessingEnabled, UUID::randomUUID);
+        var receipt = core.deliveryException(snapshot(event), () -> fingerprint(event));
+        return adapter.requireEntity(receipt.refundId());
     }
 
     @Transactional(readOnly = true)
@@ -379,29 +195,6 @@ public class RefundCaseService {
                 event.getPreviousDeliveryStatus(), event.getCurrentDeliveryStatus(), event.getExceptionStatus(),
                 event.getReason(), event.getPaymentMethod(), event.getSubtotalPrice(), event.getDiscountAmount(),
                 event.getShippingFee(), event.getTotalPrice());
-    }
-
-    private void requireExactReplay(RefundCase existing, OrderCancelledEvent event,
-                                    String fingerprint, String idempotencyKey) {
-        if (!Objects.equals(existing.getIdempotencyKey(), idempotencyKey)
-                || !Objects.equals(existing.getOrderId(), event.getOrderId())
-                || !Objects.equals(existing.getEventId(), event.getEventId())
-                || !Objects.equals(existing.getPayloadFingerprint(), fingerprint)) {
-            throw new IllegalArgumentException("refund event replay has a contradictory payload");
-        }
-    }
-
-    private void requireExactDeliveryExceptionReplay(RefundCase existing,
-                                                     DeliveryExceptionReportedEvent event,
-                                                     String fingerprint,
-                                                     String idempotencyKey) {
-        if (!Objects.equals(existing.getIdempotencyKey(), idempotencyKey)
-                || !Objects.equals(existing.getOrderId(), event.getOrderId())
-                || !Objects.equals(existing.getEventId(), event.getEventId())
-                || existing.getTrigger() != RefundTrigger.DELIVERY_DISPUTE
-                || !Objects.equals(existing.getPayloadFingerprint(), fingerprint)) {
-            throw new IllegalArgumentException("delivery exception refund replay has a contradictory payload");
-        }
     }
 
     private String fingerprint(OrderCancelledEvent event) {

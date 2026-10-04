@@ -131,4 +131,24 @@ class RefundPolicyTest {
             assertEquals(new BigDecimal("110"),online.refundAmount());assertEquals(online.capturedAmount(),online.refundAmount());
         }
     }
+    @Test void immutableDraftsRetainCanonicalSnapshotsAndReceiptsRejectContradictoryIdentity() {
+        var e=cancellation();var id=UUID.randomUUID();
+        var draft=RefundDraft.cancellation(id,e,"hash",true);
+        assertEquals(e.orderId(),draft.orderId());assertEquals(e.userPrincipalId(),draft.userPrincipalId());
+        assertEquals(e.cancelledBy(),draft.actorId());assertEquals(e.cancelReason(),draft.reason());
+        assertEquals("1:ORDER_CANCELLED:ORDER_TOTAL",draft.idempotencyKey());
+        var receipt=draft.receipt();
+        assertDoesNotThrow(()->receipt.requireExact(e.eventId(),e.orderId(),draft.idempotencyKey(),"hash",false));
+        for(var field:new String[]{"eventId","orderId","idempotencyKey","fingerprint"}) {
+            RefundReceipt changed=change(receipt,field,null);
+            assertThrows(IllegalArgumentException.class,()->changed.requireExact(e.eventId(),e.orderId(),draft.idempotencyKey(),"hash",false));
+        }
+        var ex=exception();var dispute=RefundDraft.deliveryException(id,ex,"hash");
+        assertEquals(ex.shipperId(),dispute.actorId());assertEquals(ex.previousDeliveryStatus(),dispute.previousStatus());
+        assertEquals(ex.totalPrice(),dispute.total());assertEquals(ex.reason(),dispute.reason());
+        assertDoesNotThrow(()->dispute.receipt().requireExact(ex.eventId(),ex.orderId(),dispute.idempotencyKey(),"hash",true));
+        assertEquals("delivery exception refund replay has a contradictory payload",assertThrows(IllegalArgumentException.class,
+                ()->change(dispute.receipt(),"trigger",Trigger.ORDER_CANCELLED).requireExact(ex.eventId(),ex.orderId(),dispute.idempotencyKey(),"hash",true)).getMessage());
+    }
+
 }
