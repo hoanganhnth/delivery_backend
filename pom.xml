@@ -58,6 +58,7 @@
         <module>restaurant/boot</module>
         <module>shipper</module>
         <module>search-service</module>
+        <module>dispatch/domain</module>
         <module>saga-orchestrator-service</module>
         <module>tracking/boot</module>
         <module>match/boot</module>
