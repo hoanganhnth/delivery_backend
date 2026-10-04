@@ -3,6 +3,12 @@ package com.delivery.settlement_service.service;
 import com.delivery.settlement.domain.refund.RefundPolicy;
 import com.delivery.settlement_service.adapter.JpaRefundCaseAdapter;
 import com.delivery.settlement.application.refund.DefaultRefundCaseUseCase;
+import com.delivery.settlement.application.refund.DefaultRefundQueryUseCase;
+import com.delivery.settlement.application.refund.RefundCaseMissing;
+import com.delivery.settlement.application.api.refund.AdminRefundCase;
+import com.delivery.settlement.application.api.refund.CustomerRefundCase;
+import com.delivery.settlement_service.adapter.JpaRefundQueryAdapter;
+import com.delivery.settlement_service.adapter.JpaLedgerAdapter;
 import com.delivery.settlement_service.dto.event.OrderCancelledEvent;
 import com.delivery.settlement_service.dto.event.DeliveryExceptionReportedEvent;
 import com.delivery.settlement_service.dto.response.RefundCaseResponse;
@@ -15,10 +21,8 @@ import com.delivery.settlement_service.metrics.BusinessMetrics;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -30,10 +34,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Service
-@Slf4j
 public class RefundCaseService {
-    private static final int ADMIN_LIST_LIMIT = 100;
-
     private final RefundCaseRepository repository;
     private final RefundOutboxService outboxService;
     private final ObjectMapper objectMapper;
@@ -84,100 +85,74 @@ public class RefundCaseService {
         return adapter.requireEntity(receipt.refundId());
     }
 
-    @Transactional(readOnly = true)
-    public List<RefundCaseResponse> listAdminCases(RefundStatus status, int requestedLimit) {
-        int limit = Math.min(Math.max(requestedLimit, 1), ADMIN_LIST_LIMIT);
-        List<RefundCase> cases = status == null
-                ? repository.findAllByOrderByCreatedAtDesc(PageRequest.of(0, limit))
-                : repository.findByStatusOrderByCreatedAtDesc(status, PageRequest.of(0, limit));
-        return cases.stream().map(this::toAdminResponse).toList();
+    private DefaultRefundQueryUseCase queries() {
+        return new DefaultRefundQueryUseCase(new JpaRefundQueryAdapter(repository,businessMetrics),principalOwnershipEnforced);
     }
-
+    @Transactional(readOnly = true)
+    public List<RefundCaseResponse> listAdminCases(RefundStatus status,int requestedLimit) {
+        return queries().adminCases(JpaLedgerAdapter.enumValue(status,RefundPolicy.Status.class),requestedLimit)
+                .stream().map(this::toAdminResponse).toList();
+    }
     @Transactional(readOnly = true)
     public RefundCaseResponse getAdminCase(UUID refundId) {
-        if (refundId == null) {
-            throw new IllegalArgumentException("refundId is required");
-        }
-        return repository.findById(refundId)
-                .map(this::toAdminResponse)
-                .orElseThrow(() -> new ResourceNotFoundException("Refund case", "refundId", refundId));
+        try {return toAdminResponse(queries().adminCase(refundId));}
+        catch (RefundCaseMissing missing) {throw new ResourceNotFoundException("Refund case","refundId",missing.refundId());}
     }
-
     @Transactional(readOnly = true)
-    public List<RefundCustomerCaseResponse> listCustomerCases(Long userId, int requestedLimit) {
-        if (userId == null || userId <= 0) {
-            throw new IllegalArgumentException("userId is required");
-        }
-        int limit = Math.min(Math.max(requestedLimit, 1), ADMIN_LIST_LIMIT);
-        return repository.findByUserIdOrderByCreatedAtDesc(userId, PageRequest.of(0, limit))
-                .stream()
-                .map(this::toCustomerResponse)
-                .toList();
+    public List<RefundCustomerCaseResponse> listCustomerCases(Long userId,int requestedLimit) {
+        return queries().customerCases(userId,requestedLimit).stream().map(this::toCustomerResponse).toList();
     }
-
     @Transactional(readOnly = true)
-    public List<RefundCustomerCaseResponse> listCustomerCases(Long principalId, Long legacyUserId, int requestedLimit) {
-        if (principalId == null || principalId <= 0 || legacyUserId == null || legacyUserId <= 0) {
-            throw new IllegalArgumentException("principalId and legacyUserId are required");
-        }
-        int limit = Math.min(Math.max(requestedLimit, 1), ADMIN_LIST_LIMIT);
-        List<RefundCase> cases = principalOwnershipEnforced
-                ? repository.findByUserPrincipalIdOrderByCreatedAtDesc(principalId, PageRequest.of(0, limit))
-                : repository.findByPrincipalOrUnmigratedLegacyUserOrderByCreatedAtDesc(
-                        principalId, legacyUserId, PageRequest.of(0, limit));
-        if (!principalOwnershipEnforced) {
-            cases.stream().filter(refundCase -> refundCase.getUserPrincipalId() == null)
-                    .forEach(refundCase -> businessMetrics.identityLegacyFallback("customer_refund_list"));
-        }
-        return cases.stream().map(this::toCustomerResponse).toList();
+    public List<RefundCustomerCaseResponse> listCustomerCases(Long principalId,Long legacyUserId,int requestedLimit) {
+        return queries().customerCases(principalId,legacyUserId,requestedLimit).stream().map(this::toCustomerResponse).toList();
     }
 
-    private RefundCaseResponse toAdminResponse(RefundCase refundCase) {
+    private RefundCaseResponse toAdminResponse(AdminRefundCase refundCase) {
         return RefundCaseResponse.builder()
-                .refundId(refundCase.getRefundId())
-                .eventId(refundCase.getEventId())
-                .idempotencyKey(refundCase.getIdempotencyKey())
-                .orderId(refundCase.getOrderId())
-                .userId(refundCase.getUserId())
-                .userPrincipalId(refundCase.getUserPrincipalId())
-                .restaurantId(refundCase.getRestaurantId())
-                .previousOrderStatus(refundCase.getPreviousOrderStatus())
-                .currentOrderStatus(refundCase.getCurrentOrderStatus())
-                .paymentMethod(refundCase.getPaymentMethod())
-                .trigger(refundCase.getTrigger() == null ? null : refundCase.getTrigger().name())
-                .component(refundCase.getComponent() == null ? null : refundCase.getComponent().name())
-                .status(refundCase.getStatus() == null ? null : refundCase.getStatus().name())
-                .currency(refundCase.getCurrency())
-                .subtotalAmount(refundCase.getSubtotalAmount())
-                .discountAmount(refundCase.getDiscountAmount())
-                .shippingFee(refundCase.getShippingFee())
-                .totalAmount(refundCase.getTotalAmount())
-                .capturedAmount(refundCase.getCapturedAmount())
-                .refundAmount(refundCase.getRefundAmount())
-                .actorSource(refundCase.getActorSource())
-                .actorId(refundCase.getActorId())
-                .reason(refundCase.getReason())
-                .providerReference(refundCase.getProviderReference())
-                .lastError(refundCase.getLastError())
-                .attempts(refundCase.getAttempts())
-                .createdAt(refundCase.getCreatedAt())
-                .updatedAt(refundCase.getUpdatedAt())
-                .processedAt(refundCase.getProcessedAt())
+                .refundId(refundCase.refundId())
+                .eventId(refundCase.eventId())
+                .idempotencyKey(refundCase.idempotencyKey())
+                .orderId(refundCase.orderId())
+                .userId(refundCase.userId())
+                .userPrincipalId(refundCase.userPrincipalId())
+                .restaurantId(refundCase.restaurantId())
+                .previousOrderStatus(refundCase.previousOrderStatus())
+                .currentOrderStatus(refundCase.currentOrderStatus())
+                .paymentMethod(refundCase.paymentMethod())
+                .trigger(refundCase.trigger())
+                .component(refundCase.component())
+                .status(refundCase.status())
+                .currency(refundCase.currency())
+                .subtotalAmount(refundCase.subtotalAmount())
+                .discountAmount(refundCase.discountAmount())
+                .shippingFee(refundCase.shippingFee())
+                .totalAmount(refundCase.totalAmount())
+                .capturedAmount(refundCase.capturedAmount())
+                .refundAmount(refundCase.refundAmount())
+                .actorSource(refundCase.actorSource())
+                .actorId(refundCase.actorId())
+                .reason(refundCase.reason())
+                .providerReference(refundCase.providerReference())
+                .lastError(refundCase.lastError())
+                .attempts(refundCase.attempts())
+                .createdAt(refundCase.createdAt())
+                .updatedAt(refundCase.updatedAt())
+                .processedAt(refundCase.processedAt())
                 .build();
     }
 
-    private RefundCustomerCaseResponse toCustomerResponse(RefundCase refundCase) {
+    private RefundCustomerCaseResponse toCustomerResponse(CustomerRefundCase refundCase) {
         return RefundCustomerCaseResponse.builder()
-                .refundId(refundCase.getRefundId())
-                .orderId(refundCase.getOrderId())
-                .paymentMethod(refundCase.getPaymentMethod())
-                .trigger(refundCase.getTrigger() == null ? null : refundCase.getTrigger().name())
-                .status(refundCase.getStatus() == null ? null : refundCase.getStatus().name())
-                .currency(refundCase.getCurrency())
-                .refundAmount(refundCase.getRefundAmount())
-                .createdAt(refundCase.getCreatedAt())
-                .updatedAt(refundCase.getUpdatedAt())
-                .processedAt(refundCase.getProcessedAt())
+                .refundId(refundCase.refundId())
+                .orderId(refundCase.orderId())
+                .paymentMethod(refundCase.paymentMethod())
+                .trigger(refundCase.trigger())
+                .status(refundCase.status())
+                .currency(refundCase.currency())
+                .refundAmount(refundCase.refundAmount())
+                .createdAt(refundCase.createdAt())
+                .updatedAt(refundCase.updatedAt())
+                .processedAt(refundCase.processedAt())
                 .build();
     }
 

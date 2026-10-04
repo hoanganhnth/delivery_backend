@@ -64,4 +64,26 @@ class RefundWorkflowIntegrationTest {
         })).isInstanceOf(IllegalStateException.class).hasMessage("injected after outbox insertion");
         assertThat(cases.count()).isZero();assertThat(events.count()).isZero();
     }
+    @Test void principalAndCompatibilityReadsPreserveOwnershipAcrossMigratedAndLegacyRows() {
+        var tx=new TransactionTemplate(transactions);
+        for(var identity:new Long[][]{{123L,22L,222L},{124L,22L,333L},{125L,22L,null},{126L,99L,null},{127L,99L,222L}}) {
+            var event=event();event.setOrderId(identity[0]);event.setUserId(identity[1]);event.setUserPrincipalId(identity[2]);
+            tx.executeWithoutResult(status->enabledFixture.processOrderCancellation(event));
+        }
+        assertThat(enabledFixture.listCustomerCases(222L,22L,50))
+                .extracting(com.delivery.settlement_service.dto.response.RefundCustomerCaseResponse::getOrderId)
+                .containsExactlyInAnyOrder(123L,125L,127L);
+        ReflectionTestUtils.setField(enabledFixture,"principalOwnershipEnforced",true);
+        assertThat(enabledFixture.listCustomerCases(222L,22L,50))
+                .extracting(com.delivery.settlement_service.dto.response.RefundCustomerCaseResponse::getOrderId)
+                .containsExactlyInAnyOrder(123L,127L);
+        assertThat(enabledFixture.listCustomerCases(22L,50))
+                .extracting(com.delivery.settlement_service.dto.response.RefundCustomerCaseResponse::getOrderId)
+                .containsExactlyInAnyOrder(123L,124L,125L);
+        assertThat(enabledFixture.listAdminCases(com.delivery.settlement_service.entity.RefundCase.RefundStatus.REQUESTED,1000)).hasSize(5);
+        assertThat(enabledFixture.listAdminCases(null,0)).hasSize(1);
+        var stored=cases.findAll().get(0);
+        assertThat(enabledFixture.getAdminCase(stored.getRefundId()).getReason()).isEqualTo("cancelled");
+    }
+
 }
