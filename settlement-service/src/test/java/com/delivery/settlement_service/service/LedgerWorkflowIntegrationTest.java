@@ -25,6 +25,7 @@ import static org.assertj.core.api.Assertions.*;
 @ActiveProfiles("test")
 class LedgerWorkflowIntegrationTest {
     @Autowired TransactionService service;
+    @Autowired BalanceService balanceService;
     @Autowired BalanceRepository balances;
     @Autowired TransactionRepository transactions;
     @Autowired SettlementReceiptRepository receipts;
@@ -34,6 +35,17 @@ class LedgerWorkflowIntegrationTest {
         receipts.deleteAll();
         transactions.deleteAll();
         balances.deleteAll();
+    }
+    @Test void repeatedBalanceCreationAndReadNeverResetExistingWallets() {
+        var first = balanceService.createBalance(22L, EntityType.SHIPPER);
+        assertThat(first.getDepositBalance()).isEqualByComparingTo("0");
+        assertThat(first.getReservedDepositBalance()).isEqualByComparingTo("0");
+        service.topUpDeposit(22L, EntityType.SHIPPER, amount("42"), null);
+        var existing = balanceService.createBalance(22L, EntityType.SHIPPER);
+        assertThat(existing.getId()).isEqualTo(first.getId());
+        assertThat(existing.getDepositBalance()).isEqualByComparingTo("42");
+        assertThat(balanceService.getBalance(22L, EntityType.SHIPPER).getDepositBalance()).isEqualByComparingTo("42");
+        assertThat(balances.count()).isEqualTo(1);
     }
     @Test void topupWithdrawalRejectAndApprovePersistSeparateWalletsAndProcessingMetadata() {
         service.topUpDeposit(22L, EntityType.SHIPPER, amount("100"), "VNPay");

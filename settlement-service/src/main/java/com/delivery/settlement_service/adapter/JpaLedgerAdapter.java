@@ -34,22 +34,15 @@ public final class JpaLedgerAdapter implements LedgerStore {
         });
     }
     @Override public Optional<LedgerAccount> lockAccount(LedgerOwner owner) {
-        return balances.findByEntityIdAndEntityTypeForUpdate(owner.entityId(), enumValue(owner.entityType(), EntityType.class)).map(this::account);
+        return balances.findByEntityIdAndEntityTypeForUpdate(owner.entityId(), enumValue(owner.entityType(), EntityType.class)).map(JpaLedgerAdapter::account);
     }
     @Override public Optional<LedgerAccount> readAccount(LedgerOwner owner) {
-        return balances.findByEntityIdAndEntityType(owner.entityId(), enumValue(owner.entityType(), EntityType.class)).map(this::account);
+        return balances.findByEntityIdAndEntityType(owner.entityId(), enumValue(owner.entityType(), EntityType.class)).map(JpaLedgerAdapter::account);
     }
     @Override public void saveAccount(LedgerAccount account) {
         // The row is already managed and locked in this transaction; findById resolves its identity.
         Balance row = balances.findById(account.id()).orElseThrow(() -> new ResourceNotFoundException("Balance not found"));
-        var value = account.balance();
-        row.setAvailableBalance(value.available());
-        row.setPendingBalance(value.pending());
-        row.setHoldingBalance(value.holding());
-        row.setDepositBalance(value.deposit());
-        row.setReservedDepositBalance(value.reservedDeposit());
-        row.setTotalDeposited(value.totalDeposited());
-        row.setTotalCodCollected(value.totalCodCollected());
+        applyBalance(row, account.balance());
         balances.save(row);
     }
     @Override public Optional<LedgerEntry> findEntry(Long id) { return transactions.findById(id).map(this::entry); }
@@ -73,7 +66,7 @@ public final class JpaLedgerAdapter implements LedgerStore {
     public Transaction requireEntity(Long id) {
         return transactions.findById(id).orElseThrow(() -> new ResourceNotFoundException("Transaction", "id", id));
     }
-    private LedgerAccount account(Balance row) {
+    public static LedgerAccount account(Balance row) {
         return new LedgerAccount(row.getId(), new LedgerOwner(row.getEntityId(),
                 enumValue(row.getEntityType(), com.delivery.settlement.domain.EntityType.class)),
                 new WalletBalance(row.getAvailableBalance(), row.getPendingBalance(), row.getHoldingBalance(),
@@ -85,6 +78,15 @@ public final class JpaLedgerAdapter implements LedgerStore {
                 row.getAmount(), row.getDescription(), enumValue(row.getWalletType(), LedgerPosting.Wallet.class));
         return new LedgerEntry(row.getId(), posting, enumValue(row.getStatus(), LedgerEntry.Status.class),
                 row.getProcessedAt(), row.getProcessedBy(), row.getCreatedAt());
+    }
+    public static void applyBalance(Balance row, WalletBalance value) {
+        row.setAvailableBalance(value.available());
+        row.setPendingBalance(value.pending());
+        row.setHoldingBalance(value.holding());
+        row.setDepositBalance(value.deposit());
+        row.setReservedDepositBalance(value.reservedDeposit());
+        row.setTotalDeposited(value.totalDeposited());
+        row.setTotalCodCollected(value.totalCodCollected());
     }
     public static <T extends Enum<T>> T enumValue(Enum<?> value, Class<T> type) {
         return value == null ? null : Enum.valueOf(type, value.name());

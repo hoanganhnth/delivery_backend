@@ -8,7 +8,12 @@ import com.delivery.settlement_service.mapper.BalanceMapper;
 import com.delivery.settlement_service.repository.BalanceRepository;
 import com.delivery.settlement_service.repository.TransactionRepository;
 import com.delivery.settlement_service.service.BalanceService;
-import lombok.RequiredArgsConstructor;
+import com.delivery.settlement.application.api.ledger.BalanceAccountUseCase;
+import com.delivery.settlement.application.ledger.DefaultBalanceAccountUseCase;
+import com.delivery.settlement.application.ledger.LedgerResourceMissing;
+import com.delivery.settlement.domain.ledger.LedgerOwner;
+import com.delivery.settlement_service.adapter.JpaBalanceAccountAdapter;
+import com.delivery.settlement_service.adapter.JpaLedgerAdapter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.data.domain.PageRequest;
@@ -19,7 +24,6 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class BalanceServiceImpl implements BalanceService {
 
@@ -27,57 +31,42 @@ public class BalanceServiceImpl implements BalanceService {
     private final TransactionRepository transactionRepository;
     private final BalanceMapper balanceMapper;
 
+    private final BalanceAccountUseCase core;
+
+    public BalanceServiceImpl(BalanceRepository balances, TransactionRepository transactions, BalanceMapper mapper) {
+        this.balanceRepository = balances;
+        this.transactionRepository = transactions;
+        this.balanceMapper = mapper;
+        this.core = new DefaultBalanceAccountUseCase(new JpaBalanceAccountAdapter(balances));
+    }
+
     @Override
     @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
     public Balance createBalance(Long entityId, EntityType entityType) {
-        log.info("Creating balance for entity: {} ({})", entityId, entityType);
-
-        Balance existing = balanceRepository.findByEntityIdAndEntityType(entityId, entityType)
-                .orElse(null);
-        if (existing != null) {
-            log.warn("Balance already exists for entity: {} ({})", entityId, entityType);
-            return existing;
-        }
-
-        try {
-            Balance balance = Balance.builder()
-                    .entityId(entityId)
-                    .entityType(entityType)
-                    .availableBalance(BigDecimal.ZERO)
-                    .depositBalance(BigDecimal.ZERO)
-                    .reservedDepositBalance(BigDecimal.ZERO)
-                    .pendingBalance(BigDecimal.ZERO)
-                    .holdingBalance(BigDecimal.ZERO)
-                    .totalDeposited(BigDecimal.ZERO)
-                    .totalCodCollected(BigDecimal.ZERO)
-                    .build();
-
-            Balance saved = balanceRepository.saveAndFlush(balance);
-            log.info("✅ Created balance for entity: {} ({})", entityId, entityType);
-            return saved;
-        } catch (org.springframework.dao.DataIntegrityViolationException e) {
-            log.warn("Balance already created concurrently for entity: {} ({})", entityId, entityType);
-            return balanceRepository.findByEntityIdAndEntityType(entityId, entityType)
-                    .orElseThrow(() -> new ResourceNotFoundException("Balance", "entityId", entityId));
-        }
+        return ensureAccount(entityId, entityType);
     }
 
     @Override
     @Transactional
     public BalanceResponse getBalance(Long entityId, EntityType entityType) {
-        log.info("Getting balance for entity: {} ({})", entityId, entityType);
+        return balanceMapper.toResponse(ensureAccount(entityId, entityType));
+    }
 
-        Balance balance = balanceRepository.findByEntityIdAndEntityType(entityId, entityType)
-                .orElseGet(() -> createBalance(entityId, entityType));
-
-        return balanceMapper.toResponse(balance);
+    private Balance ensureAccount(Long entityId, EntityType entityType) {
+        try {
+            var account = core.ensureAccount(new LedgerOwner(entityId,
+                    JpaLedgerAdapter.enumValue(entityType, com.delivery.settlement.domain.EntityType.class)));
+            return balanceRepository.findById(account.id()).orElseThrow(() -> new ResourceNotFoundException("Balance", "entityId", entityId));
+        } catch (LedgerResourceMissing error) {
+            throw new ResourceNotFoundException(error.getMessage());
+        }
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<BalanceResponse> getAllBalances() {
         log.info("Getting all balances");
-        return balanceRepository.findAll(PageRequest.of(0, 100)).stream()
+        return balanceRepository.findAll(PageRequest.of(0, BalanceAccountUseCase.COMPATIBILITY_LIST_LIMIT)).stream()
                 .map(balanceMapper::toResponse)
                 .collect(Collectors.toList());
     }
