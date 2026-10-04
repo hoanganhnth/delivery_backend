@@ -4,6 +4,7 @@ import com.delivery.dispatch.domain.AssignmentPolicy;
 import com.delivery.dispatch.domain.DeliveryProgressPolicy;
 import com.delivery.dispatch.domain.DispatchStatus;
 import com.delivery.dispatch.domain.FailureCompensation;
+import com.delivery.dispatch.domain.MatchingCommandAssembly;
 import com.delivery.dispatch.domain.MatchingCommandPolicy;
 import com.delivery.dispatch.domain.MatchingRetrySettings;
 import com.delivery.dispatch.domain.MatchingSession;
@@ -32,6 +33,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -1332,31 +1334,22 @@ public class SagaManager {
         if (!(parsedAttempt instanceof ObjectNode)) {
             throw new IllegalArgumentException("Find-shipper payload must be a JSON object");
         }
-        ObjectNode payload = objectMapper.createObjectNode();
-        copyIfPresent(parsedAttempt, payload,
-                "orderId", "deliveryId", "pickupAddress", "pickupLat", "pickupLng",
-                "deliveryAddress", "deliveryLat", "deliveryLng", "totalPrice",
-                "shippingFee", "paymentMethod", "restaurantId", "restaurantName", "matchingDeadlineAt",
-                "simulationContext");
-        copyIfPresent(parsedAttempt, payload, "batchOfferEnabled", "batchWave");
-        payload.put("batchOfferEnabled", batchClientCapabilityEnabled);
-
         String deliveryData = getStepEventData(saga, "DELIVERY_CREATED");
-        if (deliveryData != null) {
-            JsonNode delivery = objectMapper.readTree(deliveryData);
-            copyIfPresent(delivery, payload, "deliveryId", "pickupAddress", "pickupLat", "pickupLng",
-                    "deliveryAddress", "deliveryLat", "deliveryLng");
-        }
-
         String matchingStartData = getStepEventData(saga, "MATCHING_STARTED");
-        if (matchingStartData != null) {
-            JsonNode matchingStart = objectMapper.readTree(matchingStartData);
-            copyIfPresent(matchingStart, payload, "matchingDeadlineAt");
-        }
-
-        JsonNode order = objectMapper.readTree(saga.getPayload());
-        copyIfPresent(order, payload, "orderId", "totalPrice", "shippingFee", "paymentMethod",
-                "restaurantId", "restaurantName", "simulationContext");
+        Map<String, Object> fields = MatchingCommandAssembly.assemble(
+                facts(parsedAttempt),
+                deliveryData == null ? null : facts(objectMapper.readTree(deliveryData)),
+                matchingStartData == null ? null : facts(objectMapper.readTree(matchingStartData)),
+                facts(objectMapper.readTree(saga.getPayload())),
+                batchClientCapabilityEnabled);
+        ObjectNode payload = objectMapper.createObjectNode();
+        fields.forEach((field, value) -> {
+            if (value instanceof JsonNode node) {
+                payload.set(field, node);
+            } else {
+                payload.put(field, (Boolean) value);
+            }
+        });
 
         MatchingCommandPolicy.requireCanonical(payload.hasNonNull("orderId"), payload.hasNonNull("deliveryId"),
                 payload.hasNonNull("paymentMethod") ? payload.get("paymentMethod").asText() : null,
@@ -1364,13 +1357,13 @@ public class SagaManager {
         return payload;
     }
 
-    private void copyIfPresent(JsonNode source, ObjectNode target, String... fields) {
-        if (source == null || !source.isObject()) return;
-        for (String field : fields) {
-            if (source.hasNonNull(field)) {
-                target.set(field, source.get(field));
-            }
-        }
+    /** JSON view used by the domain assembly; a non-object source contributes no facts. */
+    private static MatchingCommandAssembly.Facts facts(JsonNode source) {
+        if (source == null || !source.isObject()) return null;
+        return new MatchingCommandAssembly.Facts() {
+            @Override public boolean hasNonNull(String field) { return source.hasNonNull(field); }
+            @Override public Object get(String field) { return source.get(field); }
+        };
     }
 
     /**
