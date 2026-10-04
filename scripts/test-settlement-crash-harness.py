@@ -79,6 +79,51 @@ class HarnessPreflight(unittest.TestCase):
         self.assertIn('Stale Settlement JAR', result.stderr)
         self.assertFalse((self.root / 'docker.log').exists())
 
+    def test_shared_runtime_source_invalidates_package(self):
+        namespace = 'xmlns="http://maven.apache.org/POM/4.0.0"'
+        boot = self.root / 'settlement-service/pom.xml'
+        boot.parent.mkdir()
+        boot.write_text(f'<project {namespace}><artifactId>settlement-service</artifactId>'
+                        '<dependencies><dependency><groupId>com.delivery</groupId>'
+                        '<artifactId>fixture-shared-starter</artifactId></dependency></dependencies></project>')
+        shared = self.root / 'libs/fixture-shared-starter'
+        shared.mkdir(parents=True)
+        (shared / 'pom.xml').write_text(f'<project {namespace}><artifactId>fixture-shared-starter</artifactId></project>')
+        jar = self.package('settlement-service/target/settlement-service-0.0.1-SNAPSHOT.jar')
+        source = shared / 'src/main/java/Shared.java'
+        source.parent.mkdir(parents=True)
+        source.write_text('class Shared {}')
+        os.utime(source, ns=(jar.stat().st_mtime_ns + 1000000,) * 2)
+        result = self.run_script()
+        self.assertIn('Stale Settlement JAR', result.stderr)
+        self.assertIn('Shared.java', result.stderr)
+        self.assertFalse((self.root / 'docker.log').exists())
+
+    def test_transient_coordinator_failure_is_retried_under_pipefail(self):
+        docker = self.bin / 'docker'
+        docker.write_text('#!/bin/sh\nif [ ! -f "$DOCKER_CALL_LOG" ]; then touch "$DOCKER_CALL_LOG"; exit 1; fi\n'
+                          'echo "group fixture.topic 0 0 0 0 consumer host client"\n')
+        text = SCRIPT.read_text()
+        functions = text[text.index('bounded_command()'):text.index('database_invariants_hold()')]
+        command = ('set -euo pipefail\n' + functions +
+                   '\nKAFKA_CONTAINER=owned TEST_GROUP=group TEST_TOPIC=fixture.topic TIMEOUT_SECONDS=5\n'
+                   'wait_for_group_assignment\ngroup_field 4\n')
+        result = subprocess.run(['bash', '-c', command], text=True, capture_output=True,
+                                env=dict(os.environ, PATH=str(self.bin) + ':' + os.environ['PATH'],
+                                         DOCKER_CALL_LOG=str(self.root / 'docker.log')), timeout=8)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, '0\n')
+
+    def test_command_timeout_is_bounded(self):
+        import time
+        text = SCRIPT.read_text()
+        function = text[text.index('bounded_command()'):text.index('group_field()')]
+        started = time.monotonic()
+        result = subprocess.run(['bash', '-c', function + '\nbounded_command 0.15 python3 -c "import time; time.sleep(30)"'],
+                                capture_output=True, timeout=3)
+        self.assertEqual(result.returncode, 124)
+        self.assertLess(time.monotonic() - started, 3)
+
     def test_callback_check_accepts_host_and_nested_library_rejects_absent(self):
         text = SCRIPT.read_text()
         checker = text.split("<<'PYCLASS'\n", 1)[1].split('\nPYCLASS', 1)[0]

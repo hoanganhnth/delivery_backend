@@ -38,11 +38,53 @@ import pathlib, sys
 jar = pathlib.Path(sys.argv[1]).resolve()
 if not jar.is_file():
     sys.exit(f'Missing {jar}; clean-package the current Settlement service first.')
-# A package older than relevant production sources/configuration is not runtime proof.
-roots = [pathlib.Path('settlement')] if pathlib.Path('settlement/boot/pom.xml').is_file() else [pathlib.Path('settlement-service'), pathlib.Path('modules/settlement')]
-inputs = [pathlib.Path('pom.xml')]
-for root in roots:
-    inputs.extend(p for p in root.rglob('*') if p.is_file() and ('target' not in p.parts) and (p.name == 'pom.xml' or '/src/main/' in str(p)))
+# Walk the actual local Maven runtime dependency graph, including shared starters.
+# Test/provided dependencies are not packaged runtime inputs.
+import xml.etree.ElementTree as ET
+ns = {'m': 'http://maven.apache.org/POM/4.0.0'}
+projects = {}
+for pom in pathlib.Path('.').rglob('pom.xml'):
+    if any(part in {'target', '.git', 'docs'} for part in pom.parts):
+        continue
+    document = ET.parse(pom).getroot()
+    artifact = document.findtext('m:artifactId', namespaces=ns)
+    if artifact:
+        projects.setdefault(artifact, []).append((pom, document))
+boot = pathlib.Path('settlement/boot/pom.xml') if pathlib.Path('settlement/boot/pom.xml').is_file() else pathlib.Path('settlement-service/pom.xml')
+inputs = {pathlib.Path('pom.xml')}
+visited = set()
+def visit(pom):
+    if pom in visited:
+        return
+    visited.add(pom)
+    inputs.add(pom)
+    root = pom.parent
+    inputs.update(p for p in (root / 'src/main').rglob('*') if p.is_file())
+    document = ET.parse(pom).getroot()
+    parent = document.find('m:parent', ns)
+    if parent is not None:
+        relative = parent.findtext('m:relativePath', default='../pom.xml', namespaces=ns)
+        parent_pom = (root / relative).resolve() if relative else None
+        if parent_pom and parent_pom.is_file():
+            visit(parent_pom)
+    dependencies = document.findall('m:dependencies/m:dependency', ns)
+    dependencies += [d for d in document.findall('m:dependencyManagement/m:dependencies/m:dependency', ns)
+                     if d.findtext('m:scope', namespaces=ns) == 'import']
+    for dependency in dependencies:
+        if dependency.findtext('m:scope', default='compile', namespaces=ns) in {'test', 'provided'}:
+            continue
+        group = dependency.findtext('m:groupId', default='', namespaces=ns)
+        artifact = dependency.findtext('m:artifactId', namespaces=ns)
+        if group != 'com.delivery':
+            continue
+        if artifact not in projects:
+            sys.exit(f'Missing local runtime dependency source {artifact}; cannot prove package freshness.')
+        candidates = projects[artifact]
+        if len(candidates) != 1:
+            sys.exit(f'Ambiguous local runtime dependency {artifact}; remove retired duplicate POMs before proof.')
+        visit(candidates[0][0])
+if boot.is_file():
+    visit(boot)
 stale = [str(p) for p in inputs if p.stat().st_mtime_ns > jar.stat().st_mtime_ns]
 if stale:
     sys.exit('Stale Settlement JAR; clean-package current sources first: ' + ', '.join(stale[:5]))
@@ -166,12 +208,45 @@ wait_for_probe_log() {
   return 1
 }
 
+# Killing the local Docker CLI also bounds hangs in daemon/coordinator calls.
+# CLI requests themselves additionally use Kafka's server-side timeout where available.
+bounded_command() {
+  local limit="$1"
+  shift
+  python3 -c '
+import os, signal, subprocess, sys
+process = subprocess.Popen(sys.argv[2:], start_new_session=True)
+try:
+    sys.exit(process.wait(timeout=float(sys.argv[1])))
+except subprocess.TimeoutExpired:
+    os.killpg(process.pid, signal.SIGKILL)
+    process.wait()
+    sys.exit(124)
+' "$limit" "$@"
+}
+
 group_field() {
-  local column="$1"
-  docker exec -i "$KAFKA_CONTAINER" kafka-consumer-groups \
-      --bootstrap-server kafka:9092 --group "$TEST_GROUP" --describe 2>/dev/null \
-    | awk -v topic="$TEST_TOPIC" -v column="$column" \
-        '$2 == topic && $3 == "0" { print $column; exit }'
+  local column="$1" remaining="${2:-10}" output
+  # Coordinator discovery is transient during recovery. An unavailable observation
+  # is empty, never evidence of a committed offset and never aborts the retry loop.
+  if ! output="$(bounded_command "$remaining" docker exec "$KAFKA_CONTAINER" kafka-consumer-groups \
+      --bootstrap-server kafka:9092 --group "$TEST_GROUP" --describe --timeout 5000 2>/dev/null)"; then
+    return 0
+  fi
+  printf '%s\n' "$output" | awk -v topic="$TEST_TOPIC" -v column="$column" \
+      '$2 == topic && $3 == "0" && !found { print $column; found=1 }'
+}
+wait_for_group_assignment() {
+  local deadline=$((SECONDS + TIMEOUT_SECONDS)) offset remaining
+  while (( SECONDS < deadline )); do
+    remaining=$((deadline - SECONDS))
+    (( remaining <= 10 )) || remaining=10
+    offset="$(group_field 5 "$remaining")"
+    [[ "$offset" == '0' ]] && return 0
+    sleep 1
+  done
+  printf '%s\n' 'Consumer group did not acquire the empty fixture topic before deadline.' >&2
+  return 1
 }
 
 database_invariants_hold() {
@@ -202,10 +277,15 @@ wait_for_dependency() {
   local name="$1"
   shift
   local deadline=$((SECONDS + TIMEOUT_SECONDS))
-  until docker exec "$name" "$@" >/dev/null 2>&1; do
-    (( SECONDS < deadline )) || { docker logs --tail 100 "$name" >&2; return 1; }
+  local remaining
+  while (( SECONDS < deadline )); do
+    remaining=$((deadline - SECONDS))
+    (( remaining <= 10 )) || remaining=10
+    bounded_command "$remaining" docker exec "$name" "$@" >/dev/null 2>&1 && return 0
     sleep 1
   done
+  docker logs --tail 100 "$name" >&2
+  return 1
 }
 start_application() {
   local name="$1"
@@ -244,12 +324,13 @@ owned_run "$KAFKA_CONTAINER" --network-alias kafka \
   -e CLUSTER_ID=MkU3OEVBNTcwNTJENDM2Qk confluentinc/cp-kafka:7.4.0
 wait_for_dependency "$POSTGRES_CONTAINER" pg_isready -U postgres
 wait_for_dependency "$KAFKA_CONTAINER" kafka-broker-api-versions --bootstrap-server kafka:9092
-docker exec "$KAFKA_CONTAINER" kafka-topics --bootstrap-server kafka:9092 \
+bounded_command "$TIMEOUT_SECONDS" docker exec "$KAFKA_CONTAINER" kafka-topics --bootstrap-server kafka:9092 \
   --create --topic "$TEST_TOPIC" --partitions 1 --replication-factor 1 >/dev/null
 start_application "$CRASH_CONTAINER" -p 127.0.0.1::5005 \
   -e 'JAVA_TOOL_OPTIONS=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=0.0.0.0:5005'
 readonly DEBUG_PORT="$(docker port "$CRASH_CONTAINER" 5005/tcp | awk -F: '{print $NF}')"
 wait_for_container_log "$CRASH_CONTAINER" 'Started SettlementServiceApplication'
+wait_for_group_assignment
 
 docker exec -i "$POSTGRES_CONTAINER" psql -U postgres -d "$TEST_DATABASE" \
   -v shipper_id="$SHIPPER_ID" -v deposit_amount=120000 \
@@ -263,7 +344,7 @@ wait_for_probe_log 'BREAKPOINT_'
 
 payload="{\"eventId\":\"$EVENT_ID\",\"eventType\":\"DELIVERY_COMPLETED\",\"deliveryId\":$DELIVERY_ID,\"orderId\":$ORDER_ID,\"restaurantId\":$RESTAURANT_ID,\"shipperId\":$SHIPPER_ID,\"totalPrice\":120000,\"restaurantEarnings\":80000,\"restaurantCommission\":20000,\"shippingFee\":20000,\"shipperEarnings\":17000,\"shippingCommission\":3000,\"totalPlatformEarnings\":23000,\"paymentMethod\":\"COD\"}"
 printf '%s:%s\n' "$DELIVERY_ID" "$payload" \
-  | docker exec -i "$KAFKA_CONTAINER" kafka-console-producer \
+  | bounded_command "$TIMEOUT_SECONDS" docker exec -i "$KAFKA_CONTAINER" kafka-console-producer \
       --bootstrap-server kafka:9092 --topic "$TEST_TOPIC" \
       --property parse.key=true --property key.separator=: >/dev/null
 
@@ -274,10 +355,21 @@ database_invariants_hold || {
 }
 
 committed_ledger="$(ledger_snapshot)"
-log_end_offset="$(group_field 5)"
-current_offset="$(group_field 4)"
-[[ "$log_end_offset" == '1' && "$current_offset" != '1' ]] || {
-  printf 'Offset advanced before ACK: current=%s end=%s\n' \
+deadline=$((SECONDS + TIMEOUT_SECONDS))
+current_offset='' log_end_offset=''
+while (( SECONDS < deadline )); do
+  remaining=$((deadline - SECONDS))
+  (( remaining <= 10 )) || remaining=10
+  log_end_offset="$(group_field 5 "$remaining")"
+  (( SECONDS < deadline )) || break
+  remaining=$((deadline - SECONDS))
+  (( remaining <= 10 )) || remaining=10
+  current_offset="$(group_field 4 "$remaining")"
+  [[ "$log_end_offset" == '1' && -n "$current_offset" ]] && break
+  sleep 1
+done
+[[ "$log_end_offset" == '1' && ( "$current_offset" == '-' || "$current_offset" == '0' ) ]] || {
+  printf 'Missing/unexpected offset before ACK: current=%s end=%s\n' \
     "${current_offset:-<none>}" "${log_end_offset:-<none>}" >&2
   exit 1
 }
@@ -294,9 +386,17 @@ wait_for_container_log "$RECOVERY_CONTAINER" \
 
 deadline=$((SECONDS + TIMEOUT_SECONDS))
 while (( SECONDS < deadline )); do
-  current_offset="$(group_field 4)"
-  log_end_offset="$(group_field 5)"
-  lag="$(group_field 6)"
+  remaining=$((deadline - SECONDS))
+  (( remaining <= 10 )) || remaining=10
+  current_offset="$(group_field 4 "$remaining")"
+  (( SECONDS < deadline )) || break
+  remaining=$((deadline - SECONDS))
+  (( remaining <= 10 )) || remaining=10
+  log_end_offset="$(group_field 5 "$remaining")"
+  (( SECONDS < deadline )) || break
+  remaining=$((deadline - SECONDS))
+  (( remaining <= 10 )) || remaining=10
+  lag="$(group_field 6 "$remaining")"
   if [[ "$current_offset" == '1' && "$log_end_offset" == '1' && "$lag" == '0' ]]; then
     break
   fi
