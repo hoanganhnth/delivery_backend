@@ -495,6 +495,68 @@ class SagaManagerConvergenceTest {
     }
 
     @Test
+    void acceptanceThatOvertakesOfferPersistedConvergesToAssigned() {
+        // Delivery accepts only after committing WAIT_SHIPPER_CONFIRM, so this
+        // acceptance proves the offer exists even though offer-persisted is late.
+        SagaInstance saga = saga(7L, SagaInstance.SagaStatus.OFFER_PERSISTING);
+        saga.setDeliveryId(8L);
+        saga.addStep("SHIPPER_FOUND", "shipper.found",
+                "{\"orderId\":7,\"deliveryId\":8,\"availableShippers\":[{\"shipperId\":9}]}");
+        when(repository.findByOrderIdForUpdate(7L)).thenReturn(Optional.of(saga));
+
+        manager.handleShipperAccepted(7L, 8L, 9L,
+                "{\"orderId\":7,\"deliveryId\":8,\"shipperId\":9}");
+
+        assertThat(saga.getStatus()).isEqualTo(SagaInstance.SagaStatus.SHIPPER_ASSIGNED);
+        assertThat(saga.getShipperId()).isEqualTo(9L);
+        ArgumentCaptor<Object> statusPayload = ArgumentCaptor.forClass(Object.class);
+        verify(outboxService).saveCommand(eq("7"), eq(SagaManager.CMD_UPDATE_ORDER_STATUS),
+                eq("7"), statusPayload.capture());
+        assertThat(((JsonNode) statusPayload.getValue()).get("sagaStatus").asText())
+                .isEqualTo("SHIPPER_ASSIGNED");
+    }
+
+    @Test
+    void lateOfferPersistedAfterOvertakingAcceptanceIsIgnored() {
+        SagaInstance saga = saga(7L, SagaInstance.SagaStatus.OFFER_PERSISTING);
+        saga.setDeliveryId(8L);
+        saga.addStep("SHIPPER_FOUND", "shipper.found",
+                "{\"orderId\":7,\"deliveryId\":8,\"availableShippers\":[{\"shipperId\":9}]}");
+        when(repository.findByOrderIdForUpdate(7L)).thenReturn(Optional.of(saga));
+        manager.handleShipperAccepted(7L, 8L, 9L,
+                "{\"orderId\":7,\"deliveryId\":8,\"shipperId\":9}");
+        clearInvocations(outboxService, repository);
+
+        manager.handleOfferPersisted(7L, 8L, "{\"orderId\":7,\"deliveryId\":8,"
+                + "\"sourceCommandEventId\":\"44444444-4444-4444-4444-444444444444\","
+                + "\"matchingSessionId\":\"55555555-5555-5555-5555-555555555555\","
+                + "\"offeredShipperId\":9,\"offerExpiresAt\":\"2026-10-05T10:00:00\"}");
+
+        assertThat(saga.getStatus()).isEqualTo(SagaInstance.SagaStatus.SHIPPER_ASSIGNED);
+        verifyNoInteractions(outboxService);
+    }
+
+    @Test
+    void rejectionThatOvertakesOfferPersistedRematchesWithShipperExcluded() {
+        SagaInstance saga = saga(7L, SagaInstance.SagaStatus.OFFER_PERSISTING);
+        saga.setDeliveryId(8L);
+        saga.setPayload("{\"orderId\":7,\"totalPrice\":120000,\"shippingFee\":20000,\"paymentMethod\":\"COD\"}");
+        saga.addStep("SHIPPER_FOUND", "shipper.found",
+                "{\"orderId\":7,\"deliveryId\":8,\"availableShippers\":[{\"shipperId\":9}]}");
+        when(repository.findByOrderIdForUpdate(7L)).thenReturn(Optional.of(saga));
+
+        manager.handleShipperRejected(7L, 8L, 9L,
+                "{\"orderId\":7,\"deliveryId\":8,\"rejectedShipperId\":9}");
+
+        ArgumentCaptor<Object> findPayload = ArgumentCaptor.forClass(Object.class);
+        verify(outboxService).saveCommand(eq("7"), eq(SagaManager.CMD_FIND_SHIPPER),
+                eq("7"), findPayload.capture());
+        assertThat(((JsonNode) findPayload.getValue()).get("excludedShipperIds").toString())
+                .isEqualTo("[9]");
+        assertThat(saga.getStatus()).isEqualTo(SagaInstance.SagaStatus.FINDING_SHIPPER);
+    }
+
+    @Test
     void crossDeliveryShipperFoundEventIsRejected() {
         SagaInstance saga = saga(7L, SagaInstance.SagaStatus.FINDING_SHIPPER);
         saga.setDeliveryId(8L);

@@ -27,7 +27,7 @@ public final class AssignmentPolicy {
             throw new IllegalStateException("Shipper acceptance conflicts with saga assignment for orderId="
                     + orderId);
         }
-        boolean awaiting = status == DispatchStatus.FINDING_SHIPPER || status == DispatchStatus.SHIPPER_FOUND;
+        boolean awaiting = awaitsShipperDecision(status);
         if (awaiting && shipperPreviouslyRejected) {
             // A delayed acceptance from a rejecting shipper must not resurrect it.
             return Acceptance.IGNORE_REJECTED_SHIPPER;
@@ -38,8 +38,7 @@ public final class AssignmentPolicy {
     /** Rejection or post-accept cancel-assignment is accepted only while awaiting or assigned. */
     public static boolean acceptsRejection(long orderId, DispatchStatus status, Long assignedShipperId,
                                            Long rejectedShipperId) {
-        if (status != DispatchStatus.SHIPPER_FOUND && status != DispatchStatus.FINDING_SHIPPER
-                && status != DispatchStatus.SHIPPER_ASSIGNED) {
+        if (!awaitsShipperDecision(status) && status != DispatchStatus.SHIPPER_ASSIGNED) {
             return false;
         }
         if (status == DispatchStatus.SHIPPER_ASSIGNED
@@ -47,6 +46,17 @@ public final class AssignmentPolicy {
             throw new IllegalStateException("Assigned shipper does not match rejected shipper for orderId=" + orderId);
         }
         return true;
+    }
+
+    /**
+     * Delivery accepts or rejects only after committing WAIT_SHIPPER_CONFIRM, so a
+     * decision arriving while the offer confirmation is still in flight
+     * (OFFER_PERSISTING) proves the offer exists and must not be discarded
+     * (delivery-matching.md C14).
+     */
+    private static boolean awaitsShipperDecision(DispatchStatus status) {
+        return status == DispatchStatus.FINDING_SHIPPER || status == DispatchStatus.OFFER_PERSISTING
+                || status == DispatchStatus.SHIPPER_FOUND;
     }
 
     public enum Cancellation { REPLAY, IGNORE_FAILED, CANCEL_IMMEDIATELY, COMPENSATE_DELIVERY }

@@ -172,8 +172,12 @@ class DispatchPoliciesTest {
                 1, DispatchStatus.FINDING_SHIPPER, 5, null, false, false));
         assertEquals(AssignmentPolicy.Acceptance.IGNORE_REJECTED_SHIPPER, AssignmentPolicy.onAcceptance(
                 1, DispatchStatus.FINDING_SHIPPER, 5, null, false, true));
-        assertEquals(AssignmentPolicy.Acceptance.IGNORE_STATE, AssignmentPolicy.onAcceptance(
+        assertEquals(AssignmentPolicy.Acceptance.ASSIGN, AssignmentPolicy.onAcceptance(
+                1, DispatchStatus.OFFER_PERSISTING, 5, null, false, false));
+        assertEquals(AssignmentPolicy.Acceptance.IGNORE_REJECTED_SHIPPER, AssignmentPolicy.onAcceptance(
                 1, DispatchStatus.OFFER_PERSISTING, 5, null, false, true));
+        assertEquals(AssignmentPolicy.Acceptance.IGNORE_STATE, AssignmentPolicy.onAcceptance(
+                1, DispatchStatus.DELIVERY_CREATED, 5, null, false, false));
         assertEquals(AssignmentPolicy.Acceptance.IGNORE_STATE, AssignmentPolicy.onAcceptance(
                 1, DispatchStatus.CANCELLED, 5, null, false, false));
         for (DispatchStatus assigned : List.of(DispatchStatus.SHIPPER_ASSIGNED, DispatchStatus.PICKING_UP,
@@ -196,6 +200,7 @@ class DispatchPoliciesTest {
     void rejectionIsAcceptedWhileAwaitingOrFromTheAssignedShipper() {
         assertTrue(AssignmentPolicy.acceptsRejection(1, DispatchStatus.SHIPPER_FOUND, null, 3L));
         assertTrue(AssignmentPolicy.acceptsRejection(1, DispatchStatus.FINDING_SHIPPER, null, 3L));
+        assertTrue(AssignmentPolicy.acceptsRejection(1, DispatchStatus.OFFER_PERSISTING, null, 3L));
         assertTrue(AssignmentPolicy.acceptsRejection(1, DispatchStatus.SHIPPER_ASSIGNED, 3L, 3L));
         assertFalse(AssignmentPolicy.acceptsRejection(1, DispatchStatus.PICKING_UP, 3L, 3L));
         assertThrows(IllegalStateException.class,
