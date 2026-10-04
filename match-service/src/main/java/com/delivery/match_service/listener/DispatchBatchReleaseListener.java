@@ -8,6 +8,8 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import lombok.RequiredArgsConstructor;
 
 import java.time.LocalDateTime;
@@ -50,11 +52,22 @@ public class DispatchBatchReleaseListener {
                 item.setUpdatedAt(LocalDateTime.now());
                 poolRepository.save(item);
             }
-            acknowledgment.acknowledge();
+            acknowledgeAfterCommit(acknowledgment);
         } catch (IllegalArgumentException ex) {
             throw ex;
         } catch (Exception ex) {
             throw new IllegalStateException("Cannot requeue released dispatch batch", ex);
         }
+    }
+
+    /** A rolled-back retirement must leave the release offset uncommitted for redelivery. */
+    private static void acknowledgeAfterCommit(Acknowledgment acknowledgment) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            acknowledgment.acknowledge();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override public void afterCommit() { acknowledgment.acknowledge(); }
+        });
     }
 }
