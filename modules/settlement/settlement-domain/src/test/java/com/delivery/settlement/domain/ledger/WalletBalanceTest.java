@@ -51,6 +51,15 @@ class WalletBalanceTest {
         assertEquals(new BigDecimal("160"), funded().apply(posting(ADJUSTMENT_CREDIT, CREDIT, DEPOSIT)).deposit());
         assertEquals(new BigDecimal("140"), funded().apply(posting(ADJUSTMENT_DEBIT, DEBIT, DEPOSIT)).deposit());
     }
+    @Test void codReservationsRespectAvailableCapacityAndReleaseNeverGoesBelowZero() {
+        var reserved = funded().reserveCodCapacity(new BigDecimal("120"));
+        assertEquals(new BigDecimal("150"), reserved.reservedDeposit());
+        assertThrows(InsufficientWalletFunds.class, () -> funded().reserveCodCapacity(new BigDecimal("121")));
+        assertEquals(BigDecimal.ZERO, reserved.releaseCodCapacity(new BigDecimal("151")).reservedDeposit());
+        var legacy = new WalletBalance(BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.TEN, null, BigDecimal.ZERO, BigDecimal.ZERO);
+        assertEquals(BigDecimal.TEN, legacy.reserveCodCapacity(BigDecimal.TEN).reservedDeposit());
+        assertEquals(BigDecimal.ZERO, legacy.releaseCodCapacity(BigDecimal.TEN).reservedDeposit());
+    }
     @Test void eligibilityUsesUnreservedDepositAndNullReservedRetainsExistingZeroDefault() {
         assertTrue(funded().canCoverCod(new BigDecimal("120")));
         assertFalse(funded().canCoverCod(new BigDecimal("121")));

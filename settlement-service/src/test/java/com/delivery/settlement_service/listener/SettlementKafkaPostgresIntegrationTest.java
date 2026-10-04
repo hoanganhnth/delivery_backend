@@ -97,6 +97,8 @@ class SettlementKafkaPostgresIntegrationTest {
         registry.add("spring.kafka.consumer.group-id", () -> REPLICA_GROUP);
     }
 
+    @Autowired private com.delivery.settlement_service.service.CodCapacityHoldService capacity;
+    @Autowired private com.delivery.settlement_service.repository.CodCapacityHoldRepository capacityRepository;
     @Autowired private SettlementReceiptRepository receiptRepository;
     @Autowired private TransactionRepository transactionRepository;
     @Autowired private BalanceRepository balanceRepository;
@@ -109,6 +111,7 @@ class SettlementKafkaPostgresIntegrationTest {
     void prepareBoundary() throws Exception {
         closeReplicas();
         stopPrimaryListeners();
+        capacityRepository.deleteAll();
         transactionRepository.deleteAll();
         receiptRepository.deleteAll();
         balanceRepository.deleteAll();
@@ -122,6 +125,46 @@ class SettlementKafkaPostgresIntegrationTest {
     }
 
     @Test
+    void competingPostgresBatchHoldsCannotReserveBeyondTheLockedDeposit() throws Exception {
+        balanceRepository.saveAndFlush(Balance.builder().entityId(22L).entityType(EntityType.SHIPPER)
+                .depositBalance(java.math.BigDecimal.valueOf(100)).build());
+        var ready = new java.util.concurrent.CountDownLatch(2);
+        var start = new java.util.concurrent.CountDownLatch(1);
+        var workers = java.util.concurrent.Executors.newFixedThreadPool(2);
+        java.util.concurrent.Callable<Integer> contender = () -> {
+            ready.countDown();
+            if (!start.await(10, TimeUnit.SECONDS)) throw new IllegalStateException("hold start gate timed out");
+            try { return capacity.hold(holdRequest(990010L, "30", "40")).size(); }
+            catch (com.delivery.settlement_service.exception.InsufficientBalanceException expected) { return 0; }
+        };
+        try {
+            var first = workers.submit(contender); var second = workers.submit(contender);
+            assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue(); start.countDown();
+            assertThat(List.of(first.get(30, TimeUnit.SECONDS), second.get(30, TimeUnit.SECONDS)))
+                    .containsExactlyInAnyOrder(2, 0);
+            assertThat(capacityRepository.count()).isEqualTo(2);
+            assertThat(balanceRepository.findByEntityIdAndEntityType(22L, EntityType.SHIPPER)).get()
+                    .satisfies(balance -> {
+                        assertThat(balance.getReservedDepositBalance()).isEqualByComparingTo("70");
+                        assertThat(balance.getDepositBalance()).isEqualByComparingTo("100");
+                    });
+        } finally { start.countDown(); workers.shutdownNow(); }
+    }
+
+    private com.delivery.settlement_service.dto.request.CodCapacityHoldRequest holdRequest(Long deliveryId, String... amounts) {
+        var request = new com.delivery.settlement_service.dto.request.CodCapacityHoldRequest();
+        request.setEventId(UUID.randomUUID()); request.setShipperId(22L); request.setMatchingSessionId(UUID.randomUUID());
+        var items = new ArrayList<com.delivery.settlement_service.dto.request.CodCapacityHoldRequest.Item>();
+        for (int i = 0; i < amounts.length; i++) {
+            var item = new com.delivery.settlement_service.dto.request.CodCapacityHoldRequest.Item();
+            item.setOfferId(UUID.randomUUID()); item.setOrderId(deliveryId + i); item.setDeliveryId(deliveryId + i);
+            item.setAmount(new java.math.BigDecimal(amounts[i]));
+            item.setExpiresAt(java.time.LocalDateTime.now().plusMinutes(5)); items.add(item);
+        }
+        request.setOffers(items); return request;
+    }
+
+    @Test
     void kafkaPostgresReplayAndContradictoryReuseConvergeAcrossTwoSettlementReplicas() throws Exception {
         balanceRepository.saveAndFlush(Balance.builder()
                 .entityId(22L)
@@ -132,6 +175,7 @@ class SettlementKafkaPostgresIntegrationTest {
 
         UUID eventId = UUID.randomUUID();
         String payload = payload(eventId, 970_001L, "Restaurant A");
+        capacity.hold(holdRequest(970_001L, "120000"));
 
         // Use the primary test context as one replica to stay within the
         // bounded resource budget while still exercising a true two-member
@@ -176,6 +220,10 @@ class SettlementKafkaPostgresIntegrationTest {
     }
 
     private void assertOneFinancialEffect() {
+        assertThat(capacityRepository.findAll()).hasSize(1).allSatisfy(hold ->
+                assertThat(hold.getStatus()).isEqualTo(com.delivery.settlement_service.entity.CodCapacityHoldStatus.CONSUMED));
+        assertThat(balanceRepository.findByEntityIdAndEntityType(22L, EntityType.SHIPPER)).get()
+                .satisfies(balance -> assertThat(balance.getReservedDepositBalance()).isEqualByComparingTo("0"));
         assertThat(receiptRepository.count()).isEqualTo(1);
         assertThat(transactionRepository.count()).isEqualTo(4);
         assertThat(transactionRepository.findAll())

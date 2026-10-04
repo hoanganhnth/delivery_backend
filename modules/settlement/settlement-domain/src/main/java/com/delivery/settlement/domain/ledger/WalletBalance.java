@@ -63,6 +63,23 @@ public record WalletBalance(BigDecimal available, BigDecimal pending, BigDecimal
         return deposit.subtract(reservedDeposit == null ? BigDecimal.ZERO : reservedDeposit).compareTo(amount) >= 0;
     }
 
+    public BigDecimal reservedCodCapacity() { return reservedDeposit == null ? BigDecimal.ZERO : reservedDeposit; }
+
+    public WalletBalance reserveCodCapacity(BigDecimal requested) {
+        if (deposit.subtract(reservedCodCapacity()).compareTo(requested) < 0) {
+            throw new InsufficientWalletFunds("Insufficient COD capacity for batch hold");
+        }
+        return withReservedCodCapacity(reservedCodCapacity().add(requested));
+    }
+
+    public WalletBalance releaseCodCapacity(BigDecimal amount) {
+        return withReservedCodCapacity(reservedCodCapacity().subtract(amount).max(BigDecimal.ZERO));
+    }
+
+    private WalletBalance withReservedCodCapacity(BigDecimal reserved) {
+        return new WalletBalance(available, pending, holding, deposit, reserved, totalDeposited, totalCodCollected);
+    }
+
     private WalletBalance copy(BigDecimal available, BigDecimal pending, BigDecimal holding,
             BigDecimal deposit, BigDecimal deposited, BigDecimal collected) {
         return new WalletBalance(available, pending, holding, deposit, reservedDeposit, deposited, collected);
