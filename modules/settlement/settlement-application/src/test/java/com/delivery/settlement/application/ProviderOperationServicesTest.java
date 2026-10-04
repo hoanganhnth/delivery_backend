@@ -17,7 +17,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-class DefaultSettlementServiceTest {
+class ProviderOperationServicesTest {
     private static final UUID ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
 
     @Test
@@ -93,28 +93,6 @@ class DefaultSettlementServiceTest {
         assertThat(payoutService.submit(new PayoutRequest(ID, "idem", "merchant", EntityType.SHIPPER, 1L,
                 MoneyAmount.vnd(BigDecimal.ONE), "ledger", null)).status())
                 .isEqualTo(ProviderOperationStatus.UNKNOWN);
-    }
-
-    @Test
-    void unifiedFacadeDelegatesPaymentAndPayoutOperations() {
-        var payments = new RecordingPaymentProvider();
-        var payouts = new PayoutProviderPort() {
-            @Override public String providerName() { return "TEST"; }
-            @Override public ProviderOperationResult submit(PayoutRequest request) {
-                return new ProviderOperationResult(ProviderOperationStatus.PROCESSING, "payout", null, true);
-            }
-            @Override public ProviderOperationResult status(PayoutRequest request) {
-                return new ProviderOperationResult(ProviderOperationStatus.SUCCEEDED, "payout", null, false);
-            }
-        };
-        var service = new DefaultSettlementService(payments, payouts);
-        var request = new PayoutRequest(ID, "idem", "merchant", EntityType.SHIPPER, 1L,
-                MoneyAmount.vnd(BigDecimal.ONE), "ledger", null);
-        assertThat(service.create(payment(PaymentOperation.CREATE))).isNotNull();
-        assertThat(service.refund(payment(PaymentOperation.REFUND))).isNotNull();
-        assertThat(service.status(payment(PaymentOperation.STATUS))).isNotNull();
-        assertThat(service.submit(request).status()).isEqualTo(ProviderOperationStatus.PROCESSING);
-        assertThat(service.status(request).status()).isEqualTo(ProviderOperationStatus.SUCCEEDED);
     }
 
     private static PaymentOperationRequest payment(PaymentOperation operation) {

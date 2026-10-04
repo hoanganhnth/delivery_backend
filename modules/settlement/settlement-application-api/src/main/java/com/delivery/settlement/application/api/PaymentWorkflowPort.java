@@ -10,4 +10,5 @@ public interface PaymentWorkflowPort {
     PaymentWorkflowResult byId(Long paymentId);
     PaymentWorkflowResult byReference(String paymentReference);
     Set<String> availableProviders();
+    PaymentWorkflowResult confirmFake(String paymentReference);
 }
