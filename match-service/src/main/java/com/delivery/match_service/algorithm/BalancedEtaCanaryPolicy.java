@@ -1,17 +1,16 @@
 package com.delivery.match_service.algorithm;
 
+import com.delivery.match.domain.single.CandidatePolicy;
 import com.delivery.match_service.config.MatchingAlgorithmProperties;
 import com.delivery.match_service.dto.response.NearbyShipperResponse;
 import org.springframework.stereotype.Component;
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
-import java.util.ArrayList;
-import java.util.Comparator;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
-/** Stateless, deterministic active-profile selection and candidate ranking. */
+/** Maps host configuration and DTOs into the framework-free candidate policy. */
 @Component
 public class BalancedEtaCanaryPolicy {
     public static final Profile NEAREST_COD = new Profile("nearest-cod", "v1");
@@ -24,36 +23,29 @@ public class BalancedEtaCanaryPolicy {
     }
 
     public Profile select(UUID eventId) {
-        int percent = Math.max(0, Math.min(100, properties.getCanaryPercent()));
-        if (!properties.isEnabled() || percent == 0 || eventId == null) return NEAREST_COD;
-        if (percent == 100 || Math.floorMod(eventId.hashCode(), 100) < percent) return BALANCED_ETA;
-        return NEAREST_COD;
+        CandidatePolicy.Profile selected = CandidatePolicy.select(
+                properties.isEnabled(), properties.getCanaryPercent(), eventId);
+        return new Profile(selected.id(), selected.version());
     }
 
     public List<NearbyShipperResponse> rank(Profile profile, List<NearbyShipperResponse> candidates) {
-        if (candidates == null || candidates.isEmpty()) return candidates == null ? List.of() : candidates;
-        List<NearbyShipperResponse> ranked = new ArrayList<>(candidates);
-        if (!BALANCED_ETA.equals(profile)) return ranked;
-        double speed = properties.getEtaSpeedKmPerMinute();
-        if (!Double.isFinite(speed) || speed <= 0) {
-            throw new IllegalStateException("balanced-eta requires a positive ETA speed");
-        }
-        double penalty = properties.getFairnessPenaltyMinutesPerCompletedDelivery();
-        if (!Double.isFinite(penalty) || penalty < 0) {
-            throw new IllegalStateException("balanced-eta fairness penalty must be non-negative");
-        }
-        ranked.forEach(candidate -> candidate.setCombinedScoreMinutes(score(candidate, speed, penalty)));
-        ranked.sort(Comparator.comparing(NearbyShipperResponse::getCombinedScoreMinutes)
-                .thenComparing(NearbyShipperResponse::getDistanceKm)
-                .thenComparing(NearbyShipperResponse::getShipperId));
-        return ranked;
-    }
-
-    private double score(NearbyShipperResponse candidate, double speed, double penalty) {
-        double distance = candidate.getDistanceKm();
-        long completed = Math.max(0L, candidate.getCompletedDeliveries());
-        return BigDecimal.valueOf(distance / speed + completed * penalty)
-                .setScale(4, RoundingMode.HALF_UP).doubleValue();
+        Map<CandidatePolicy.Candidate, NearbyShipperResponse> sources = new IdentityHashMap<>();
+        List<CandidatePolicy.Candidate> snapshots = candidates == null ? null : candidates.stream()
+                .map(source -> {
+                    CandidatePolicy.Candidate snapshot = new CandidatePolicy.Candidate(
+                            source.getShipperId(), source.getDistanceKm(), source.getCompletedDeliveries());
+                    sources.put(snapshot, source);
+                    return snapshot;
+                }).toList();
+        CandidatePolicy.Profile coreProfile = profile == null ? null
+                : new CandidatePolicy.Profile(profile.id(), profile.version());
+        return CandidatePolicy.rank(coreProfile, snapshots, properties.getEtaSpeedKmPerMinute(),
+                        properties.getFairnessPenaltyMinutesPerCompletedDelivery()).stream()
+                .map(ranked -> {
+                    NearbyShipperResponse source = sources.get(ranked.candidate());
+                    if (ranked.score() != null) source.setCombinedScoreMinutes(ranked.score());
+                    return source;
+                }).collect(java.util.stream.Collectors.toList());
     }
 
     public record Profile(String id, String version) { }

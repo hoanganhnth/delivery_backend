@@ -631,9 +631,8 @@ public class MatchCommandStore {
     private UUID matchingSessionId(FindShipperEvent command) {
         // Existing V1 find commands did not carry a separate session. Their
         // command event ID is the only safe generation identity during rollout.
-        return command.getMatchingSessionId() == null
-                ? command.getEventId()
-                : command.getMatchingSessionId();
+        return com.delivery.match.domain.single.SingleOfferPolicy.sessionId(
+                command.getEventId(), command.getMatchingSessionId());
     }
 
     private void requireStopCommand(

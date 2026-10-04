@@ -1,6 +1,5 @@
 package com.delivery.match_service.service;
 
-import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
 /**
@@ -14,10 +13,6 @@ public final class MatchingOutcomeEventIds {
     }
 
     public static UUID forCommandOutcome(String outcome, UUID commandEventId) {
-        if (outcome == null || outcome.isBlank() || commandEventId == null) {
-            throw new IllegalArgumentException("Match outcome and command eventId are required");
-        }
-        return UUID.nameUUIDFromBytes(
-                ("match:" + outcome + ":" + commandEventId).getBytes(StandardCharsets.UTF_8));
+        return com.delivery.match.domain.single.SingleOfferPolicy.outcomeId(outcome, commandEventId);
     }
 }
