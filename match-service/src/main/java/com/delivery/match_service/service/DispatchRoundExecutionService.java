@@ -1,5 +1,7 @@
 package com.delivery.match_service.service;
 
+import com.delivery.match.domain.batch.BatchPoolPolicy;
+
 import com.delivery.match.application.api.DispatchMatchingPort;
 import com.delivery.match.domain.dispatch.DispatchBundleCandidate;
 import com.delivery.match_service.dto.event.ShipperFoundEvent;
@@ -310,17 +312,21 @@ public class DispatchRoundExecutionService {
         LocalDateTime now = now();
         List<DispatchPoolItem> admissible = new java.util.ArrayList<>();
         for (DispatchPoolItem item : claimed) {
-            if (cancellationTombstoneRepository.existsByDeliveryIdAndMatchingSessionId(
-                    item.getDeliveryId(), item.getMatchingSessionId())) {
-                item.setState(DispatchPoolItem.State.CANCELLED);
-                item.setClaimedRoundId(null);
-                item.setUpdatedAt(now);
-            } else if (!item.getMatchingDeadlineAt().isAfter(now)) {
-                item.setState(DispatchPoolItem.State.WAITING);
-                item.setClaimedRoundId(null);
-                item.setUpdatedAt(now);
-            } else {
-                admissible.add(item);
+            switch (BatchPoolPolicy.admission(
+                    cancellationTombstoneRepository.existsByDeliveryIdAndMatchingSessionId(
+                            item.getDeliveryId(), item.getMatchingSessionId()),
+                    item.getMatchingDeadlineAt(), now)) {
+                case ADMIT -> admissible.add(item);
+                case CANCEL -> {
+                    item.setState(DispatchPoolItem.State.CANCELLED);
+                    item.setClaimedRoundId(null);
+                    item.setUpdatedAt(now);
+                }
+                case RETURN_FOR_EXPIRY -> {
+                    item.setState(DispatchPoolItem.State.WAITING);
+                    item.setClaimedRoundId(null);
+                    item.setUpdatedAt(now);
+                }
             }
         }
         if (admissible.size() != claimed.size()) {
@@ -333,8 +339,8 @@ public class DispatchRoundExecutionService {
         // REQUEUED is an audit outcome, but the same row must become eligible
         // for the next rolling round; the ready query intentionally consumes
         // WAITING only.
-        item.setState(item.getWaveNumber() >= Math.max(1, properties.getMaxWaves())
-                ? DispatchPoolItem.State.EXPIRED : DispatchPoolItem.State.WAITING);
+        item.setState(DispatchPoolItem.State.valueOf(
+                BatchPoolPolicy.requeueState(item.getWaveNumber(), properties.getMaxWaves()).name()));
         item.setClaimedRoundId(null);
         item.setEligibleAt(now.plusSeconds(1));
         item.setUpdatedAt(now);

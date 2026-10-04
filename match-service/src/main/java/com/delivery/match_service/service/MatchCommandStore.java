@@ -1,5 +1,7 @@
 package com.delivery.match_service.service;
 
+import com.delivery.match.domain.batch.BatchPoolPolicy;
+
 import com.delivery.match.domain.command.MatchCommandPolicy;
 import com.delivery.match_service.repository.DispatchPoolItemRepository;
 import com.delivery.match_service.entity.DispatchPoolItem;
@@ -199,8 +201,8 @@ public class MatchCommandStore {
      */
     private void retirePooledGeneration(Long deliveryId, UUID matchingSessionId) {
         poolRepository.findByDeliveryAndSessionForUpdate(deliveryId, matchingSessionId)
-                .filter(item -> item.getState() == DispatchPoolItem.State.WAITING
-                        || item.getState() == DispatchPoolItem.State.CLAIMED)
+                .filter(item -> BatchPoolPolicy.retiredByStop(
+                        BatchPoolPolicy.State.valueOf(item.getState().name())))
                 .ifPresent(item -> {
                     item.setState(DispatchPoolItem.State.CANCELLED);
                     item.setClaimedRoundId(null);

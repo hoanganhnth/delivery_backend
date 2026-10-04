@@ -1,5 +1,7 @@
 package com.delivery.match_service.service;
 
+import com.delivery.match.domain.batch.BatchPoolPolicy;
+
 import com.delivery.match_service.config.MatchingBatchProperties;
 import com.delivery.match_service.dto.event.FindShipperEvent;
 import com.delivery.match_service.entity.DispatchPoolItem;
@@ -29,14 +31,11 @@ public class DispatchPoolService {
 
     @Transactional
     public UUID enqueue(FindShipperEvent event, String pickupH3Cell) {
-        if (event == null || event.getDeliveryId() == null || event.getDeliveryId() <= 0
-                || event.getOrderId() == null || event.getOrderId() <= 0
-                || event.getMatchingSessionId() == null) {
+        if (event == null) {
             throw new IllegalArgumentException("Valid order, delivery and matching session are required");
         }
-        if (!properties.isEnabled()) {
-            throw new IllegalStateException("Rolling batch dispatch is disabled");
-        }
+        BatchPoolPolicy.requireIntake(event.getOrderId(), event.getDeliveryId(), event.getMatchingSessionId(),
+                properties.isEnabled());
 
         DispatchPoolItem existing = poolRepository
                 .findByDeliveryAndSessionForUpdate(event.getDeliveryId(), event.getMatchingSessionId())
@@ -46,9 +45,7 @@ public class DispatchPoolService {
         }
 
         LocalDateTime now = LocalDateTime.now(clock);
-        LocalDateTime deadline = event.getMatchingDeadlineAt() == null
-                ? now.plusMinutes(5)
-                : event.getMatchingDeadlineAt();
+        LocalDateTime deadline = BatchPoolPolicy.deadline(now, event.getMatchingDeadlineAt());
 
         DispatchPoolItem item = new DispatchPoolItem();
         item.setPoolItemId(UUID.randomUUID());
@@ -64,7 +61,7 @@ public class DispatchPoolService {
         item.setDeliveryLng(event.getDeliveryLng());
         item.setTotalPrice(event.getTotalPrice());
         item.setPaymentMethod(event.getPaymentMethod());
-        item.setWaveNumber(event.getBatchWave() == null ? 0 : Math.max(0, event.getBatchWave()));
+        item.setWaveNumber(BatchPoolPolicy.initialWave(event.getBatchWave()));
         item.setEligibleAt(now);
         item.setMatchingDeadlineAt(deadline);
         item.setState(DispatchPoolItem.State.WAITING);

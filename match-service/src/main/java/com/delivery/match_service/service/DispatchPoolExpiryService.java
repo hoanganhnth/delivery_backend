@@ -1,5 +1,7 @@
 package com.delivery.match_service.service;
 
+import com.delivery.match.domain.batch.BatchPoolPolicy;
+
 import com.delivery.match_service.config.MatchingBatchProperties;
 import com.delivery.match_service.dto.event.ShipperNotFoundEvent;
 import com.delivery.match_service.entity.DispatchPoolItem;
@@ -77,9 +79,8 @@ public class DispatchPoolExpiryService {
                 now, PageRequest.of(0, expiryBatchSize));
         int expired = 0;
         for (DispatchPoolItem item : items) {
-            if (item.getMatchingDeadlineAt() == null
-                    || item.getMatchingDeadlineAt().isAfter(now)
-                    || item.getState() != DispatchPoolItem.State.WAITING) {
+            if (!BatchPoolPolicy.expires(BatchPoolPolicy.State.valueOf(item.getState().name()),
+                    item.getMatchingDeadlineAt(), now)) {
                 continue;
             }
 
@@ -115,7 +116,7 @@ public class DispatchPoolExpiryService {
         outcome.setEventId(MatchingOutcomeEventIds
                 .forCommandOutcome("shipper-not-found", command.getEventId()).toString());
         outcome.setMatchingSessionId(command.getMatchingSessionId().toString());
-        outcome.setReason("Matching deadline expired before a batch shipper was assigned");
+        outcome.setReason(BatchPoolPolicy.EXPIRY_REASON);
         outcome.setOccurredAt(now);
         outcome.setSearchRadius(5.0d);
         outcome.setPickupLat(item.getPickupLat());

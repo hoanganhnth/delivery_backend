@@ -1,5 +1,7 @@
 package com.delivery.match_service.listener;
 
+import com.delivery.match.domain.batch.BatchPoolPolicy;
+
 import com.delivery.match_service.entity.DispatchPoolItem;
 import com.delivery.match_service.repository.DispatchPoolItemRepository;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -42,8 +44,8 @@ public class DispatchBatchReleaseListener {
                 UUID sessionId = UUID.fromString(sessionText);
                 DispatchPoolItem item = poolRepository.findByDeliveryAndSessionForUpdate(deliveryId, sessionId)
                         .orElse(null);
-                if (item == null || item.getState() == DispatchPoolItem.State.CANCELLED
-                        || item.getState() == DispatchPoolItem.State.EXPIRED) continue;
+                if (item == null || !BatchPoolPolicy.retiredByBatchRelease(
+                        BatchPoolPolicy.State.valueOf(item.getState().name()))) continue;
                 // Saga receives the same release fact and emits a new matching
                 // generation. Retire this old generation so it cannot race
                 // with the newly enqueued pool item.
