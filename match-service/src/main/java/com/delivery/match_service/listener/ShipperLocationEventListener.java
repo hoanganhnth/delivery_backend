@@ -1,5 +1,7 @@
 package com.delivery.match_service.listener;
 
+import com.delivery.match.domain.availability.ShipperProjectionPolicy;
+
 import com.delivery.match_service.repository.MatchRedisGeoRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -21,7 +23,6 @@ import java.util.UUID;
 @Component
 public class ShipperLocationEventListener {
 
-    private static final long ONLINE_LOCATION_MAX_AGE_MILLIS = 300_000L;
 
     private final MatchRedisGeoRepository matchRedisGeoRepository;
     private final ObjectMapper objectMapper;
@@ -48,26 +49,17 @@ public class ShipperLocationEventListener {
             Boolean isOnline = (Boolean) event.get("isOnline");
             long timestamp = event.get("timestamp") instanceof Number number
                     ? number.longValue() : 0L;
-            if (shipperId <= 0 || timestamp <= 0 || isOnline == null) {
-                throw new IllegalArgumentException("Invalid shipper location event");
-            }
-
-            if (Boolean.TRUE.equals(isOnline)) {
-                if (latitude == null || !Double.isFinite(latitude) || latitude < -90 || latitude > 90
-                        || longitude == null || !Double.isFinite(longitude)
-                        || longitude < -180 || longitude > 180) {
-                    throw new IllegalArgumentException("Online location event requires valid coordinates");
-                }
-                if (timestamp < System.currentTimeMillis() - ONLINE_LOCATION_MAX_AGE_MILLIS) {
+            switch (ShipperProjectionPolicy.onLocation(
+                    shipperId, latitude, longitude, isOnline, timestamp, System.currentTimeMillis())) {
+                case IGNORE_EXPIRED_ONLINE -> {
                     log.info("Ignoring expired online location replay for shipper {} at {}",
                             shipperId, timestamp);
                     acknowledgment.acknowledge();
                     return;
                 }
-                matchRedisGeoRepository.addOrUpdateShipperLocation(
+                case APPLY_ONLINE -> matchRedisGeoRepository.addOrUpdateShipperLocation(
                         shipperId, latitude, longitude, true, timestamp, context(event));
-            } else {
-                matchRedisGeoRepository.markShipperOffline(shipperId, timestamp, context(event));
+                case APPLY_OFFLINE -> matchRedisGeoRepository.markShipperOffline(shipperId, timestamp, context(event));
             }
 
             log.debug("📍 Replicated shipper {} location to local Geo", shipperId);
@@ -119,17 +111,8 @@ public class ShipperLocationEventListener {
             long timestamp = event.get("timestamp") instanceof Number number
                     ? number.longValue() : 0L;
             String eventId = event.get("eventId") instanceof String value ? value : null;
-            if (shipperId <= 0 || deliveryId == null || deliveryId <= 0
-                    || orderId == null || orderId <= 0 || timestamp <= 0 || eventId == null) {
-                throw new IllegalArgumentException(
-                        "Stable eventId and positive shipper/delivery/order/timestamp are required");
-            }
-            java.util.UUID.fromString(eventId);
-            String canonicalStatus = status == null
-                    ? null : status.toUpperCase(java.util.Locale.ROOT);
-            if (!java.util.Set.of("BUSY", "AVAILABLE").contains(canonicalStatus)) {
-                throw new IllegalArgumentException("Unsupported shipper status: " + status);
-            }
+            String canonicalStatus = ShipperProjectionPolicy.canonicalStatus(
+                    shipperId, deliveryId, orderId, timestamp, eventId, status);
 
             log.info("📥 [MatchGeo] Received shipper status: shipper={}, status={}", shipperId, status);
 

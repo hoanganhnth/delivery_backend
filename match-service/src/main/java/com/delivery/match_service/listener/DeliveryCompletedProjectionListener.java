@@ -1,5 +1,7 @@
 package com.delivery.match_service.listener;
 
+import com.delivery.match.domain.availability.ShipperProjectionPolicy;
+
 import com.delivery.identity.contracts.SimulationContext;
 import com.delivery.match_service.service.CompletedDeliveryProjection;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -29,12 +31,9 @@ public class DeliveryCompletedProjectionListener {
         try {
             Map<String, Object> event = objectMapper.readValue(message, Map.class);
             UUID eventId = UUID.fromString(String.valueOf(event.get("eventId")));
-            Object rawShipperId = event.get("shipperId");
-            if (!(rawShipperId instanceof Number number) || number.longValue() <= 0) {
-                throw new IllegalArgumentException("delivery.completed requires a positive shipperId");
-            }
-            boolean recorded = projection.record(eventId, number.longValue(), context(event));
-            log.debug("Projected delivery.completed {} for shipper {} (new={})", eventId, number.longValue(), recorded);
+            long shipperId = ShipperProjectionPolicy.completedDeliveryShipper(event.get("shipperId"));
+            boolean recorded = projection.record(eventId, shipperId, context(event));
+            log.debug("Projected delivery.completed {} for shipper {} (new={})", eventId, shipperId, recorded);
             acknowledgment.acknowledge();
         } catch (Exception exception) {
             throw new IllegalStateException("Failed to project delivery.completed for Match", exception);
