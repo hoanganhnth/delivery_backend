@@ -1,6 +1,7 @@
 package com.delivery.settlement_service.service;
 
 import com.delivery.auth.resourceserver.security.AuthenticatedActor;
+import com.delivery.settlement.domain.payment.CustomerPaymentPolicy;
 import org.springframework.stereotype.Service;
 
 /**
@@ -15,28 +16,25 @@ import org.springframework.stereotype.Service;
 public class CustomerPaymentBoundaryService {
 
     public void createOrderPayment(AuthenticatedActor actor, Long orderId) {
-        requireCustomerIdentity(actor);
-        if (orderId == null || orderId <= 0) {
-            throw new IllegalArgumentException("orderId must be positive");
-        }
-        throw new UnsupportedCustomerPaymentException("CUSTOMER_ORDER_PAYMENT_UNSUPPORTED");
+        execute(() -> CustomerPaymentPolicy.create(identity(actor), orderId));
     }
 
     public void getByReference(AuthenticatedActor actor, String paymentRef) {
-        requireCustomerIdentity(actor);
-        if (paymentRef == null || !paymentRef.matches("PAY-[A-Za-z0-9-]{1,59}")) {
-            throw new IllegalArgumentException("paymentRef is invalid");
-        }
-        throw new UnsupportedCustomerPaymentException("CUSTOMER_PAYMENT_OWNERSHIP_UNSUPPORTED");
+        execute(() -> CustomerPaymentPolicy.byReference(identity(actor), paymentRef));
     }
 
-    private void requireCustomerIdentity(AuthenticatedActor actor) {
-        if (actor == null || !actor.isUser()) {
-            throw new CustomerPaymentAccessException("Only USER can access this endpoint");
-        }
-        if (actor.getPrincipalId() == null || actor.getPrincipalId() <= 0
-                || actor.getLegacyUserId() == null || actor.getLegacyUserId() <= 0) {
-            throw new CustomerPaymentAccessException("Authenticated user identity is required");
+    private CustomerPaymentPolicy.Identity identity(AuthenticatedActor actor) {
+        return actor == null ? null : new CustomerPaymentPolicy.Identity(
+                actor.isUser(), actor.getPrincipalId(), actor.getLegacyUserId());
+    }
+
+    private void execute(Runnable operation) {
+        try {
+            operation.run();
+        } catch (CustomerPaymentPolicy.AccessDenied error) {
+            throw new CustomerPaymentAccessException(error.getMessage());
+        } catch (CustomerPaymentPolicy.Unsupported error) {
+            throw new UnsupportedCustomerPaymentException(error.getMessage());
         }
     }
 
