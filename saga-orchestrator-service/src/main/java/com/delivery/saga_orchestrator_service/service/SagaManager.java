@@ -1,8 +1,9 @@
 package com.delivery.saga_orchestrator_service.service;
 
+import com.delivery.dispatch.application.DefaultDeliveryProgressUseCase;
+import com.delivery.dispatch.application.api.DeliveryProgressUseCase;
 import com.delivery.dispatch.domain.AssignmentPolicy;
 import com.delivery.dispatch.domain.CaseHistory;
-import com.delivery.dispatch.domain.DeliveryProgressPolicy;
 import com.delivery.dispatch.domain.DispatchStatus;
 import com.delivery.dispatch.domain.FailureCompensation;
 import com.delivery.dispatch.domain.MatchingCommandAssembly;
@@ -770,76 +771,25 @@ public class SagaManager {
         SagaInstance saga = findSagaByOrderId(orderId);
         requireDeliveryIdentity(saga, deliveryId, orderId);
 
-        if (DeliveryProgressPolicy.isShipperNotFoundEcho(newStatus)) {
-            handleDeliveryShipperNotFoundStatusEcho(saga, orderId, rawEvent);
-            return;
+        SagaDispatchCase dispatchCase = new SagaDispatchCase(saga, objectMapper);
+        switch (deliveryProgress().apply(dispatchCase, newStatus, rawEvent)) {
+            case REPLAY -> log.info("[Saga] Exact delivery status replay {} for orderId={}, skipping",
+                    newStatus, orderId);
+            case SHIPPER_NOT_FOUND_ECHO_RECORDED ->
+                    log.info("📥 [Saga] Recorded delivery SHIPPER_NOT_FOUND terminal echo for orderId={}", orderId);
+            case CANCELLATION_CONFIRMED -> log.info("[Saga] Recorded delivery cancellation confirmation for "
+                    + "terminal/compensating orderId={} status={}", orderId, saga.getStatus());
+            case APPLIED -> log.info("📤 [Saga] Delivery status={}, forwarded to order for orderId={}",
+                    newStatus, orderId);
         }
-
-        SagaStatus targetStatus = SagaStatus.valueOf(DeliveryProgressPolicy.targetFor(newStatus).name());
-
-        String stepName = "DELIVERY_" + newStatus;
-        String appliedEvent = getStepEventData(saga, stepName);
-        if (appliedEvent != null) {
-            if (sameJson(appliedEvent, rawEvent)) {
-                log.info("[Saga] Exact delivery status replay {} for orderId={}, skipping", newStatus, orderId);
-                return;
-            }
-            throw new IllegalStateException("Conflicting delivery status replay " + newStatus
-                    + " for orderId=" + orderId);
-        }
-        if (targetStatus == SagaStatus.CANCELLED && isCancellationConfirmation(saga)) {
-            if (saga.getStatus() == SagaStatus.COMPENSATING) {
-                saga.setStatus(SagaStatus.CANCELLED);
-                saga.setCompletedAt(LocalDateTime.now());
-            }
-            saga.addStep(stepName, "delivery.status-updated", rawEvent);
-            sagaInstanceRepository.save(saga);
-            log.info("[Saga] Recorded delivery cancellation confirmation for terminal/compensating "
-                    + "orderId={} status={}", orderId, saga.getStatus());
-            return;
-        }
-        if (dispatch(saga).isTerminal()) {
-            throw new IllegalStateException("Terminal saga " + saga.getStatus()
-                    + " cannot apply delivery status " + newStatus + " for orderId=" + orderId);
-        }
-        DeliveryProgressPolicy.requireTransition(dispatch(saga), DispatchStatus.valueOf(targetStatus.name()), orderId);
-        saga.setStatus(targetStatus);
-        if (targetStatus == SagaStatus.COMPLETED || targetStatus == SagaStatus.CANCELLED) {
-            saga.setCompletedAt(LocalDateTime.now());
-        }
-
-        saga.addStep(stepName, "delivery.status-updated", rawEvent);
-        sagaInstanceRepository.save(saga);
-
-        // ✅ PHÁT LỆNH: Cập nhật order status
-        sendOrderStatusCommand(orderId, newStatus, rawEvent);
-
-        log.info("📤 [Saga] Delivery status={}, forwarded to order for orderId={}", newStatus, orderId);
     }
 
-    private void handleDeliveryShipperNotFoundStatusEcho(SagaInstance saga, Long orderId, String rawEvent) {
-        String stepName = "DELIVERY_SHIPPER_NOT_FOUND";
-        String appliedEvent = getStepEventData(saga, stepName);
-        if (appliedEvent != null) {
-            if (sameJson(appliedEvent, rawEvent)) {
-                log.info("[Saga] Exact delivery SHIPPER_NOT_FOUND replay for orderId={}, skipping", orderId);
-                return;
-            }
-            throw new IllegalStateException("Conflicting delivery SHIPPER_NOT_FOUND replay for orderId=" + orderId);
-        }
-
-        if (saga.getStatus() != SagaStatus.FAILED || !hasStep(saga, "SHIPPER_NOT_FOUND")) {
-            throw new IllegalStateException("Delivery SHIPPER_NOT_FOUND status must follow shipper.not-found "
-                    + "for orderId=" + orderId);
-        }
-
-        saga.addStep(stepName, "delivery.status-updated", rawEvent);
-        sagaInstanceRepository.save(saga);
-
-        // Order was already converged by handleShipperNotFound. This downstream
-        // Delivery event exists so Notification can inform the customer; Saga must
-        // ACK it without issuing a duplicate update-order command.
-        log.info("📥 [Saga] Recorded delivery SHIPPER_NOT_FOUND terminal echo for orderId={}", orderId);
+    private DeliveryProgressUseCase deliveryProgress() {
+        return new DefaultDeliveryProgressUseCase(
+                dispatchCase -> sagaInstanceRepository.save(((SagaDispatchCase) dispatchCase).saga()),
+                (dispatchCase, status, cause) -> sendOrderStatusCommand(
+                        ((SagaDispatchCase) dispatchCase).saga(), status, cause),
+                this::sameJson);
     }
 
     /**
@@ -1144,14 +1094,6 @@ public class SagaManager {
         } catch (Exception malformed) {
             return true;
         }
-    }
-
-    private boolean isCancellationConfirmation(SagaInstance saga) {
-        // A late create-delivery result can be cancelled after the generic
-        // STARTED timeout has already marked the Saga failed. Record that
-        // cleanup confirmation rather than sending it to DLT as a contradictory
-        // terminal delivery status.
-        return DeliveryProgressPolicy.isCancellationConfirmation(dispatch(saga), hasStep(saga, "ORDER_CANCELLED"));
     }
 
     private SagaInstance findSagaByOrderId(Long orderId) {
