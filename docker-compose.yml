@@ -478,7 +478,7 @@ services:
     networks: [delivery-network]
 
   match-service:
-    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: match-service } }
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: match/boot } }
     container_name: match-service
     expose: ["8092", "9090"]
     environment:

@@ -1578,7 +1578,7 @@ public ResponseEntity<BaseResponse<List<LivestreamResponse>>> getLivestreamsBySe
 ### `POST` `/api/match/nearby-shippers`
 
 - Handler: `MatchController.findNearbyShippers`
-- Source: [`backend_delivery/match-service/src/main/java/com/delivery/match_service/controller/MatchController.java:35`](../../../../match-service/src/main/java/com/delivery/match_service/controller/MatchController.java)
+- Source: [`backend_delivery/match/infrastructure/src/main/java/com/delivery/match_service/controller/MatchController.java:35`](../../../../match/infrastructure/src/main/java/com/delivery/match_service/controller/MatchController.java)
 - Java return type: `Mono<ResponseEntity<BaseResponse<List<NearbyShipperResponse>>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -6207,7 +6207,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.match_service.dto.request.FindNearbyShippersRequest`
 
 - Kind: `class`
-- Source: [`backend_delivery/match-service/src/main/java/com/delivery/match_service/dto/request/FindNearbyShippersRequest.java:7`](../../../../match-service/src/main/java/com/delivery/match_service/dto/request/FindNearbyShippersRequest.java)
+- Source: [`backend_delivery/match/infrastructure/src/main/java/com/delivery/match_service/dto/request/FindNearbyShippersRequest.java:7`](../../../../match/infrastructure/src/main/java/com/delivery/match_service/dto/request/FindNearbyShippersRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6218,7 +6218,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.match_service.dto.response.NearbyShipperResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/match-service/src/main/java/com/delivery/match_service/dto/response/NearbyShipperResponse.java:14`](../../../../match-service/src/main/java/com/delivery/match_service/dto/response/NearbyShipperResponse.java)
+- Source: [`backend_delivery/match/infrastructure/src/main/java/com/delivery/match_service/dto/response/NearbyShipperResponse.java:14`](../../../../match/infrastructure/src/main/java/com/delivery/match_service/dto/response/NearbyShipperResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6236,7 +6236,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.match_service.payload.BaseResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/match-service/src/main/java/com/delivery/match_service/payload/BaseResponse.java:10`](../../../../match-service/src/main/java/com/delivery/match_service/payload/BaseResponse.java)
+- Source: [`backend_delivery/match/infrastructure/src/main/java/com/delivery/match_service/payload/BaseResponse.java:10`](../../../../match/infrastructure/src/main/java/com/delivery/match_service/payload/BaseResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |

@@ -2967,7 +2967,7 @@
       "path": "/api/match/nearby-shippers",
       "handler": "findNearbyShippers",
       "source": {
-        "file": "backend_delivery/match-service/src/main/java/com/delivery/match_service/controller/MatchController.java",
+        "file": "backend_delivery/match/infrastructure/src/main/java/com/delivery/match_service/controller/MatchController.java",
         "line": 35
       },
       "java": {
@@ -16111,7 +16111,7 @@
     "com.delivery.match_service.dto.request.FindNearbyShippersRequest": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/match-service/src/main/java/com/delivery/match_service/dto/request/FindNearbyShippersRequest.java",
+        "file": "backend_delivery/match/infrastructure/src/main/java/com/delivery/match_service/dto/request/FindNearbyShippersRequest.java",
         "line": 7
       },
       "fields": [
@@ -16138,7 +16138,7 @@
     "com.delivery.match_service.dto.response.NearbyShipperResponse": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/match-service/src/main/java/com/delivery/match_service/dto/response/NearbyShipperResponse.java",
+        "file": "backend_delivery/match/infrastructure/src/main/java/com/delivery/match_service/dto/response/NearbyShipperResponse.java",
         "line": 14
       },
       "fields": [
@@ -16207,7 +16207,7 @@
     "com.delivery.match_service.payload.BaseResponse": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/match-service/src/main/java/com/delivery/match_service/payload/BaseResponse.java",
+        "file": "backend_delivery/match/infrastructure/src/main/java/com/delivery/match_service/payload/BaseResponse.java",
         "line": 10
       },
       "fields": [
