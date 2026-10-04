@@ -55,5 +55,31 @@ class EnvelopeBoundaryGateTest(unittest.TestCase):
         self.assertIn("canonical BaseResponse envelope", result.stderr)
 
 
+class SchedulingCapabilityGateTest(unittest.TestCase):
+    path = Path("tracking/infrastructure/src/main/java/com/delivery/tracking_service/config/PublisherSessionConfig.java")
+    safe = '@ConditionalOnProperty(name = "spring.task.scheduling.enabled", havingValue = "true", matchIfMissing = true)'
+
+    def run_gate(self, source, path=None):
+        start = SCRIPT.index('unsafe_match_if_missing=')
+        end = SCRIPT.index('\nauth_properties=', start)
+        with tempfile.TemporaryDirectory(prefix="tracking-scheduling-gate-") as directory:
+            target = Path(directory) / (path or self.path)
+            target.parent.mkdir(parents=True)
+            target.write_text(source)
+            return subprocess.run(['bash', '-eu', '-c', 'ROOT_DIR="$1"\n' + SCRIPT[start:end], 'gate', directory], text=True, capture_output=True)
+
+    def test_exact_documented_periodic_scheduler_is_allowed(self):
+        self.assertEqual(self.run_gate(self.safe).returncode, 0)
+
+    def test_other_default_enabled_capability_in_same_file_is_rejected(self):
+        self.assertNotEqual(self.run_gate(self.safe + '\n' + self.safe.replace('spring.task.scheduling.enabled', 'app.feature.enabled')).returncode, 0)
+
+    def test_same_annotation_in_another_class_is_rejected(self):
+        self.assertNotEqual(self.run_gate(self.safe, Path('other/src/main/java/Other.java')).returncode, 0)
+
+    def test_changed_property_is_not_allowlisted(self):
+        self.assertNotEqual(self.run_gate(self.safe.replace('spring.task.scheduling.enabled', 'app.optional.enabled')).returncode, 0)
+
+
 if __name__ == "__main__":
     unittest.main()

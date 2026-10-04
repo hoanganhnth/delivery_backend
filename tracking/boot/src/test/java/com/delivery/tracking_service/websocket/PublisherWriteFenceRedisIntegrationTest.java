@@ -1,0 +1,254 @@
+package com.delivery.tracking_service.websocket;
+
+import com.delivery.tracking.application.DefaultPublisherSessionUseCase;
+import com.delivery.tracking.application.DefaultTrackingService;
+import com.delivery.tracking.application.api.*;
+import com.delivery.tracking.domain.PublisherLease;
+import com.delivery.tracking.domain.Coordinate;
+import com.delivery.tracking.domain.LocationUpdateSource;
+import com.delivery.tracking_service.config.RedisConfig;
+import com.delivery.tracking_service.dto.response.ShipperLocationResponse;
+import com.delivery.tracking_service.repository.*;
+import com.delivery.tracking_service.service.*;
+import java.util.*;
+import java.util.concurrent.*;
+import org.junit.jupiter.api.*;
+import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
+import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.web.socket.*;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.junit.jupiter.*;
+import org.testcontainers.utility.DockerImageName;
+import static org.assertj.core.api.Assertions.*;
+import static org.mockito.Mockito.*;
+
+@Testcontainers(disabledWithoutDocker = true)
+class PublisherWriteFenceRedisIntegrationTest {
+    @Container static final GenericContainer<?> REDIS = new GenericContainer<>(DockerImageName.parse("redis:7-alpine"))
+            .withExposedPorts(6379);
+    LettuceConnectionFactory factory;
+    StringRedisTemplate strings;
+    RedisGeoRepository locations;
+    ShipperPublisherLeaseRepository leases;
+    @BeforeEach void setup() {
+        factory = new LettuceConnectionFactory(new RedisStandaloneConfiguration(REDIS.getHost(), REDIS.getMappedPort(6379)));
+        factory.afterPropertiesSet(); factory.start(); strings = new StringRedisTemplate(factory);
+        locations = new RedisGeoRepository(new RedisConfig().redisTemplate(factory), strings);
+        leases = new ShipperPublisherLeaseRepository(strings);
+        try (var connection = factory.getConnection()) { connection.serverCommands().flushDb(); }
+    }
+    @AfterEach void close() { if (factory != null) factory.destroy(); }
+
+    @Test void olderApplicationWriteCannotRegressNewerCacheGeoOrOnlineMembership() {
+        for (boolean newestOnline : new boolean[]{true, false}) {
+            long newestTime = newestOnline ? 2000L : 4000L;
+            locations.cacheShipperLocation(7L, cachedRow(10.9, newestOnline), newestTime);
+            // Earlier request reaches Redis after the newer request has committed.
+            locations.cacheShipperLocation(7L, cachedRow(10.7, !newestOnline), newestTime - 1000L);
+            var current = locations.getCachedProjection(7L);
+            assertThat(current.occurredAt()).isEqualTo(newestTime);
+            assertThat(current.location().getLatitude()).isEqualTo(10.9);
+            assertThat(current.location().getIsOnline()).isEqualTo(newestOnline);
+            var redis = new RedisConfig().redisTemplate(factory);
+            assertThat(redis.opsForSet().isMember("shippers:online:set", "7")).isEqualTo(newestOnline);
+            assertThat(redis.opsForGeo().position("shippers:geo:locations", "7").get(0) != null).isEqualTo(newestOnline);
+        }
+    }
+
+    @Test void equalTimeSourceReplayKeepsFirstProjection() {
+        locations.cacheShipperLocation(7L, cachedRow(10.9, false), 2000L);
+        locations.cacheShipperLocation(7L, cachedRow(10.7, true), 2000L);
+        assertThat(locations.getCachedProjection(7L).location().getIsOnline()).isFalse();
+        assertThat(locations.getCachedProjection(7L).location().getLatitude()).isEqualTo(10.9);
+    }
+
+    @Test void coordinateFreeOfflineMarkerCannotBeReplacedByAnOlderOnlineWrite() {
+        locations.removeShipperLocationCache(7L, 2000L);
+        locations.cacheShipperLocation(7L, cachedRow(10.7, true), 1000L);
+        assertThat(locations.getCachedProjection(7L).occurredAt()).isEqualTo(2000L);
+        assertThat(locations.getCachedShipperLocation(7L)).isNull();
+        var redis = new RedisConfig().redisTemplate(factory);
+        assertThat(redis.opsForSet().isMember("shippers:online:set", "7")).isFalse();
+        assertThat(redis.opsForGeo().position("shippers:geo:locations", "7").get(0)).isNull();
+    }
+
+    @Test void currentLeaseAdmitsAnOlderFactWithoutRegressingSourceOrFakingSupersession() {
+        var lease = leases.acquire(7L, "current", 30);
+        locations.cacheShipperLocation(7L, cachedRow(10.9, true), 2000L);
+        var events = mock(ShipperLocationEventPublisher.class); var fanout = mock(LocationFanoutPublisher.class);
+        var adapter = new RedisLocationUpdateAdapter(locations, events, fanout);
+        var core = new DefaultTrackingService(adapter, adapter,
+                java.time.Clock.fixed(java.time.Instant.ofEpochMilli(1000L), java.time.ZoneOffset.UTC));
+        assertThat(core.updatePublisherLocation(command(10.7, false), lease)).isPresent();
+        assertThat(locations.getCachedProjection(7L).occurredAt()).isEqualTo(2000L);
+        assertThat(locations.getCachedShipperLocation(7L).getIsOnline()).isTrue();
+        verify(events).publishLocationUpdate(any(), eq("WEBSOCKET"), eq(1000L));
+        verify(fanout).publish(any(), eq(1000L));
+        clearInvocations(events, fanout);
+        // A failed lease is not converted into an admitted stale projection no-op.
+        assertThat(core.updatePublisherLocation(command(10.7, false),
+                new PublisherLease(7, "wrong-session", lease.generation()))).isEmpty();
+        verifyNoInteractions(events, fanout);
+    }
+
+    @Test void staleWriteDoesNotRefreshSourceTtl() {
+        locations.cacheShipperLocation(7L, cachedRow(10.9, true), 2000L);
+        strings.expire("shipper:location:7", java.time.Duration.ofSeconds(10));
+        locations.cacheShipperLocation(7L, cachedRow(10.7, false), 1000L);
+        assertThat(strings.getExpire("shipper:location:7", TimeUnit.MILLISECONDS)).isBetween(9000L, 10000L);
+    }
+
+    @Test void recognizedLegacyCacheCanBeReplacedWithoutGuessingItsLocalTimestamp() {
+        var legacy = cachedRow(10.7, false); legacy.setUpdatedAt("2099-01-01T00:00:00");
+        new RedisConfig().redisTemplate(factory).opsForValue().set("shipper:location:7", legacy);
+        locations.cacheShipperLocation(7L, cachedRow(10.9, true), 2000L);
+        assertThat(locations.getCachedProjection(7L).occurredAt()).isEqualTo(2000L);
+        assertThat(locations.getCachedShipperLocation(7L).getLatitude()).isEqualTo(10.9);
+    }
+
+    @Test void malformedOrderingMetadataFailsBeforeCacheGeoOrMembershipMutation() {
+        locations.cacheShipperLocation(7L, cachedRow(10.9, true), 2000L);
+        for (String corrupt : new String[]{"not-json", "{}",
+                "{\"@class\":\"com.delivery.tracking_service.repository.StoredShipperLocation\",\"occurredAt\":-1}"}) {
+            strings.opsForValue().set("shipper:location:7", corrupt);
+            assertThatThrownBy(() -> locations.cacheShipperLocation(7L, cachedRow(10.7, false), 3000L))
+                    .isInstanceOf(IllegalStateException.class);
+            assertThat(strings.opsForValue().get("shipper:location:7")).isEqualTo(corrupt);
+            var redis = new RedisConfig().redisTemplate(factory);
+            assertThat(redis.opsForSet().isMember("shippers:online:set", "7")).isTrue();
+            assertThat(redis.opsForGeo().position("shippers:geo:locations", "7").get(0)).isNotNull();
+        }
+    }
+
+    @Test void redisStateLossFencesOldSessionsAndClaimsEvenWhenGenerationRestarts() {
+        var old = leases.acquire(7L, "old-session", 30);
+        leases.releaseForGraceIfCurrent(old, 1);
+        strings.opsForZSet().add("tracking:publisher:deadlines", "7:" + old.redisValue(), 1);
+        var claim = leases.claimIfExpired(old, 30);
+        assertThat(claim).isNotNull();
+        try (var connection = factory.getConnection()) { connection.serverCommands().flushDb(); }
+        assertThat(locations.cacheIfCurrentPublisher(old, cachedRow(10.7, true), 1000)).isFalse();
+        assertThat(locations.applyOfflineIfExpired(claim, Optional.empty(), 1000)).isFalse();
+        assertThat(leases.completeClaim(claim)).isFalse();
+        assertThat(leases.claimExpired(10, 30)).isEmpty();
+        var current = leases.acquire(7L, "new-session", 30);
+        assertThat(current.generation()).isEqualTo(old.generation());
+        assertThat(leases.refreshIfCurrent(old, 30)).isFalse();
+        assertThat(leases.releaseForGraceIfCurrent(old, 1)).isFalse();
+        assertThat(locations.cacheIfCurrentPublisher(old, cachedRow(10.7, true), 1000)).isFalse();
+        assertThat(locations.cacheIfCurrentPublisher(current, cachedRow(10.9, true), 2000)).isTrue();
+        assertThat(locations.getCachedProjection(7L).occurredAt()).isEqualTo(2000);
+        assertThat(locations.getCachedShipperLocation(7L).getLatitude()).isEqualTo(10.9);
+    }
+
+    @Test void expiredLocationSourceRequiresFreshObservationFromCurrentPublisher() {
+        var lease = leases.acquire(7L, "current", 30);
+        assertThat(locations.cacheIfCurrentPublisher(lease, cachedRow(10.7, true), 1000)).isTrue();
+        strings.expire("shipper:location:7", java.time.Duration.ofMillis(20));
+        org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(5))
+                .until(() -> !Boolean.TRUE.equals(strings.hasKey("shipper:location:7")));
+        assertThat(locations.getCachedProjection(7L)).isNull();
+        assertThat(locations.cacheIfCurrentPublisher(lease, cachedRow(10.9, true), 2000)).isTrue();
+        assertThat(locations.getCachedProjection(7L).occurredAt()).isEqualTo(2000);
+    }
+
+    private ShipperLocationResponse cachedRow(double latitude, boolean online) {
+        var row = new ShipperLocationResponse();
+        row.setShipperId(7L); row.setLatitude(latitude); row.setLongitude(106.7); row.setIsOnline(online);
+        return row;
+    }
+
+    @Test void currentPublisherAtomicallyWritesOnlineAndOfflineWithExistingSerializationAndTtl() {
+        var lease = leases.acquire(7L, "current", 30);
+        var events = mock(ShipperLocationEventPublisher.class); var fanout = mock(LocationFanoutPublisher.class);
+        var adapter = new RedisLocationUpdateAdapter(locations, events, fanout);
+        var core = new DefaultTrackingService(adapter, adapter);
+        for (boolean online : new boolean[]{true, false}) {
+            var result = core.updatePublisherLocation(command(10.9, online), lease).orElseThrow();
+            var cached = locations.getCachedShipperLocation(7L);
+            assertThat(cached.getLatitude()).isEqualTo(10.9); assertThat(cached.getIsOnline()).isEqualTo(online);
+            assertThat(cached.getAccuracy()).isEqualTo(3.5); assertThat(cached.getSpeed()).isEqualTo(12.0);
+            assertThat(cached.getHeading()).isEqualTo(90.0); assertThat(cached.getLastPing()).isNotBlank();
+            assertThat(strings.getExpire("shipper:location:7")).isBetween(295L, 300L);
+            var redis = new RedisConfig().redisTemplate(factory);
+            assertThat(redis.opsForSet().isMember("shippers:online:set", "7")).isEqualTo(online);
+            assertThat(redis.opsForGeo().position("shippers:geo:locations", "7").get(0) != null).isEqualTo(online);
+            var order = inOrder(events, fanout);
+            order.verify(events).publishLocationUpdate(any(), eq("WEBSOCKET"), org.mockito.ArgumentMatchers.anyLong()); order.verify(fanout).publish(any(), org.mockito.ArgumentMatchers.anyLong());
+            assertThat(result.online()).isEqualTo(online); clearInvocations(events, fanout);
+        }
+    }
+
+    @Test void missingActiveLeaseOrWrongSessionCannotWriteOrPublishEvenWhenGenerationMatches() {
+        var lease = leases.acquire(7L, "current", 30);
+        var events = mock(ShipperLocationEventPublisher.class); var fanout = mock(LocationFanoutPublisher.class);
+        var adapter = new RedisLocationUpdateAdapter(locations, events, fanout); var core = new DefaultTrackingService(adapter, adapter);
+        assertThat(core.updatePublisherLocation(command(10.7, true), new PublisherLease(7, "other", lease.generation()))).isEmpty();
+        strings.delete("tracking:publisher:active:7");
+        assertThat(core.updatePublisherLocation(command(10.7, true), lease)).isEmpty();
+        assertThat(locations.getCachedShipperLocation(7L)).isNull(); verifyNoInteractions(events, fanout);
+    }
+
+    @Test void invalidGeoOrCorruptMembershipFailsBeforeWritingCacheAndPublishing() {
+        var lease = leases.acquire(7L, "current", 30);
+        var events = mock(ShipperLocationEventPublisher.class); var fanout = mock(LocationFanoutPublisher.class);
+        var adapter = new RedisLocationUpdateAdapter(locations, events, fanout); var core = new DefaultTrackingService(adapter, adapter);
+        assertThatThrownBy(() -> core.updatePublisherLocation(command(90, true), lease))
+                .hasStackTraceContaining("invalid longitude,latitude pair");
+        assertThat(locations.getCachedShipperLocation(7L)).isNull();
+        assertThat(strings.hasKey("shippers:geo:locations")).isFalse(); assertThat(strings.hasKey("shippers:online:set")).isFalse();
+        strings.opsForValue().set("shippers:online:set", "corrupt");
+        assertThatThrownBy(() -> core.updatePublisherLocation(command(10.9, true), lease))
+                .hasStackTraceContaining("Invalid shipper membership type");
+        assertThat(locations.getCachedShipperLocation(7L)).isNull();
+        assertThat(strings.hasKey("shippers:geo:locations")).isFalse(); verifyNoInteractions(events, fanout);
+    }
+
+    private UpdateLocationCommand command(double latitude, boolean online) {
+        return new UpdateLocationCommand(7, new Coordinate(latitude, 106.7), 3.5, 12.0, 90.0, online, LocationUpdateSource.WEBSOCKET);
+    }
+
+    @Test void replacementAfterSuccessfulRefreshCannotBeOverwrittenByOldWebSocketWriter() throws Exception {
+        var refreshed = new CountDownLatch(1); var resume = new CountDownLatch(1);
+        var core = new DefaultPublisherSessionUseCase(leases, mock(ShipperAvailabilityUseCase.class),
+                (task, deadline) -> {}, mock(PublisherLeaseIncidentPort.class), 30, 120, 30);
+        PublisherSessionUseCase paused = new PublisherSessionUseCase() {
+            public PublisherLease acquire(Long id, String session) { return core.acquire(id, session); }
+            public boolean refreshIfCurrent(PublisherLease lease) {
+                boolean current = core.refreshIfCurrent(lease); refreshed.countDown();
+                try { if (!resume.await(10, TimeUnit.SECONDS)) throw new AssertionError("No replacement"); }
+                catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new AssertionError(e); }
+                return current;
+            }
+            public void disconnected(PublisherLease lease) { core.disconnected(lease); }
+            public void sweepExpired(int size) { core.sweepExpired(size); }
+        };
+        var events = mock(ShipperLocationEventPublisher.class);
+        var handler = TrackingWebSocketTestFixture.create(locations, events, mock(DeliveryTrackingAccessClient.class), paused);
+        var session = mock(WebSocketSession.class);
+        when(session.getId()).thenReturn("old"); when(session.isOpen()).thenReturn(true);
+        when(session.getAttributes()).thenReturn(new HashMap<>(Map.of("authenticatedUserId", 7L,
+                "authenticatedPrincipalId", 1007L, "authenticatedRole", "SHIPPER")));
+        handler.afterConnectionEstablished(session);
+        var executor = Executors.newSingleThreadExecutor();
+        try {
+            var write = executor.submit(() -> {
+                try { handler.handleTextMessage(session, new TextMessage(
+                        "{\"action\":\"update_location\",\"latitude\":10.7,\"longitude\":106.7}")); }
+                catch (Exception e) { throw new AssertionError(e); }
+            });
+            assertThat(refreshed.await(10, TimeUnit.SECONDS)).isTrue();
+            var replacement = new ShipperPublisherLeaseRepository(strings).acquire(7L, "new", 120);
+            var fresh = new ShipperLocationResponse(); fresh.setShipperId(7L); fresh.setIsOnline(true);
+            fresh.setLatitude(10.9); fresh.setLongitude(106.8); locations.cacheShipperLocation(7L, fresh, System.currentTimeMillis());
+            resume.countDown(); write.get(10, TimeUnit.SECONDS);
+            assertThat(locations.getCachedShipperLocation(7L).getLatitude()).isEqualTo(10.9);
+            assertThat(locations.getCachedShipperLocation(7L).getLongitude()).isEqualTo(106.8);
+            assertThat(strings.opsForValue().get("tracking:publisher:active:7")).isEqualTo(replacement.redisValue());
+            verifyNoInteractions(events);
+            verify(session).sendMessage(argThat((TextMessage m) -> m.getPayload().contains("PUBLISHER_SUPERSEDED")));
+            verify(session).close(argThat(status -> status.getCode() == CloseStatus.POLICY_VIOLATION.getCode()));
+        } finally { resume.countDown(); executor.shutdownNow(); }
+    }
+}

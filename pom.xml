@@ -29,10 +29,10 @@
         <module>restaurant/application-api</module>
         <module>restaurant/application</module>
         <module>restaurant/infrastructure</module>
-        <module>modules/tracking/tracking-domain</module>
-        <module>modules/tracking/tracking-application-api</module>
-        <module>modules/tracking/tracking-application</module>
-        <module>modules/tracking/tracking-infrastructure</module>
+        <module>tracking/domain</module>
+        <module>tracking/application-api</module>
+        <module>tracking/application</module>
+        <module>tracking/infrastructure</module>
         <module>modules/settlement/settlement-domain</module>
         <module>modules/settlement/settlement-application-api</module>
         <module>modules/settlement/settlement-application</module>
@@ -59,7 +59,7 @@
         <module>shipper</module>
         <module>search-service</module>
         <module>saga-orchestrator-service</module>
-        <module>tracking-service</module>
+        <module>tracking/boot</module>
         <module>match-service</module>
         <module>routing</module>
         <module>livestream-service</module>
