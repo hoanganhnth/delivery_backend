@@ -72,9 +72,14 @@ mới; chờ cache location cũ hết TTL 300 giây hoặc refresh bằng writer
 cũ vẫn đọc được cho tọa độ offline nhưng không dùng để đoán watermark; subscribe
 với cache thiếu metadata và PubSub envelope thiếu occurrence time fail-closed.
 Rollback cũng dừng writer mới rồi đợi cache hết TTL trước khi chạy bản cũ.
-Không chạy mixed-version Tracking writers. Source-cache write ordering giữa
-request đồng thời và giới hạn mất Redis/TTL vẫn đang được audit trong worktree
-refactor trước khi hợp nhất Tracking vào main.
+Không chạy mixed-version Tracking writers. Mỗi source mutation so occurrence
+metadata trong cùng Lua với cache/GEO/online set; fact cũ hoặc cùng millisecond
+giữ nguyên projection và không refresh TTL. Lease/claim guard vẫn chạy trước;
+no-op của fact cũ không giả thành publisher superseded hoặc claim bị từ chối.
+ACK và pipeline phát fact giữ nguyên, receiver Kafka/realtime dùng watermark để
+bỏ qua fact cũ. Metadata hỏng làm mutation lỗi trước mọi write; chỉ legacy DTO
+đúng type mới được thay bằng record mới mà không đoán timestamp local.
+Giới hạn mất Redis/TTL và audit cuối còn cần hoàn tất trước main.
 
 ## Luồng subscriber
 
@@ -132,7 +137,7 @@ Artifact/DNS vẫn là `tracking-service`. Packaged two-JVM HTTP/WebSocket/JWKS,
 Kafka/Redis/PostgreSQL, hard-kill recovery và restart đã có executable proof tại
 `scripts/verify-tracking-runtime.py`. Generation-check → mutation đã có Lua fence
 và proof reconnect giữa hai bước; realtime watermark/cache metadata cũng có
-proof receiver và reconnect. Source-cache write ordering giữa request đồng thời,
+proof receiver và reconnect. Source-cache ordering đã có Lua compare-and-set trên paired occurrence metadata;
 giới hạn recovery ngoài TTL/mất Redis và audit cuối còn cần hoàn tất trước main. Host `tracking-service/` và `modules/tracking/` đã được thay bằng
 các layer ở gốc trong worktree refactor.
 
@@ -179,6 +184,6 @@ Membership có version riêng: message còn trong queue chỉ gửi nếu versio
 còn hiệu lực ngay trước send. Unsubscribe/rejoin, kết thúc item và authorized
 reassignment vô hiệu queued message cũ; old-owner cleanup không xoá room mới.
 Đây chưa phải distributed transaction với Redis hoặc Delivery authorization.
-Source-cache write ordering và recovery ngoài TTL/mất Redis còn cần audit;
+Recovery ngoài TTL/mất Redis và audit cuối/main integration còn cần hoàn tất;
 chưa coi toàn bộ Tracking hoàn tất. Bằng chứng và tiến độ nằm ở
 `../plans/active/service-architecture-consolidation.md`.

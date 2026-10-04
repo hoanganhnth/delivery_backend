@@ -40,6 +40,93 @@ class PublisherWriteFenceRedisIntegrationTest {
     }
     @AfterEach void close() { if (factory != null) factory.destroy(); }
 
+    @Test void olderApplicationWriteCannotRegressNewerCacheGeoOrOnlineMembership() {
+        for (boolean newestOnline : new boolean[]{true, false}) {
+            long newestTime = newestOnline ? 2000L : 4000L;
+            locations.cacheShipperLocation(7L, cachedRow(10.9, newestOnline), newestTime);
+            // Earlier request reaches Redis after the newer request has committed.
+            locations.cacheShipperLocation(7L, cachedRow(10.7, !newestOnline), newestTime - 1000L);
+            var current = locations.getCachedProjection(7L);
+            assertThat(current.occurredAt()).isEqualTo(newestTime);
+            assertThat(current.location().getLatitude()).isEqualTo(10.9);
+            assertThat(current.location().getIsOnline()).isEqualTo(newestOnline);
+            var redis = new RedisConfig().redisTemplate(factory);
+            assertThat(redis.opsForSet().isMember("shippers:online:set", "7")).isEqualTo(newestOnline);
+            assertThat(redis.opsForGeo().position("shippers:geo:locations", "7").get(0) != null).isEqualTo(newestOnline);
+        }
+    }
+
+    @Test void equalTimeSourceReplayKeepsFirstProjection() {
+        locations.cacheShipperLocation(7L, cachedRow(10.9, false), 2000L);
+        locations.cacheShipperLocation(7L, cachedRow(10.7, true), 2000L);
+        assertThat(locations.getCachedProjection(7L).location().getIsOnline()).isFalse();
+        assertThat(locations.getCachedProjection(7L).location().getLatitude()).isEqualTo(10.9);
+    }
+
+    @Test void coordinateFreeOfflineMarkerCannotBeReplacedByAnOlderOnlineWrite() {
+        locations.removeShipperLocationCache(7L, 2000L);
+        locations.cacheShipperLocation(7L, cachedRow(10.7, true), 1000L);
+        assertThat(locations.getCachedProjection(7L).occurredAt()).isEqualTo(2000L);
+        assertThat(locations.getCachedShipperLocation(7L)).isNull();
+        var redis = new RedisConfig().redisTemplate(factory);
+        assertThat(redis.opsForSet().isMember("shippers:online:set", "7")).isFalse();
+        assertThat(redis.opsForGeo().position("shippers:geo:locations", "7").get(0)).isNull();
+    }
+
+    @Test void currentLeaseAdmitsAnOlderFactWithoutRegressingSourceOrFakingSupersession() {
+        var lease = leases.acquire(7L, "current", 30);
+        locations.cacheShipperLocation(7L, cachedRow(10.9, true), 2000L);
+        var events = mock(ShipperLocationEventPublisher.class); var fanout = mock(LocationFanoutPublisher.class);
+        var adapter = new RedisLocationUpdateAdapter(locations, events, fanout);
+        var core = new DefaultTrackingService(adapter, adapter,
+                java.time.Clock.fixed(java.time.Instant.ofEpochMilli(1000L), java.time.ZoneOffset.UTC));
+        assertThat(core.updatePublisherLocation(command(10.7, false), lease)).isPresent();
+        assertThat(locations.getCachedProjection(7L).occurredAt()).isEqualTo(2000L);
+        assertThat(locations.getCachedShipperLocation(7L).getIsOnline()).isTrue();
+        verify(events).publishLocationUpdate(any(), eq("WEBSOCKET"), eq(1000L));
+        verify(fanout).publish(any(), eq(1000L));
+        clearInvocations(events, fanout);
+        // A failed lease is not converted into an admitted stale projection no-op.
+        assertThat(core.updatePublisherLocation(command(10.7, false),
+                new PublisherLease(7, "wrong-session", lease.generation()))).isEmpty();
+        verifyNoInteractions(events, fanout);
+    }
+
+    @Test void staleWriteDoesNotRefreshSourceTtl() {
+        locations.cacheShipperLocation(7L, cachedRow(10.9, true), 2000L);
+        strings.expire("shipper:location:7", java.time.Duration.ofSeconds(10));
+        locations.cacheShipperLocation(7L, cachedRow(10.7, false), 1000L);
+        assertThat(strings.getExpire("shipper:location:7", TimeUnit.MILLISECONDS)).isBetween(9000L, 10000L);
+    }
+
+    @Test void recognizedLegacyCacheCanBeReplacedWithoutGuessingItsLocalTimestamp() {
+        var legacy = cachedRow(10.7, false); legacy.setUpdatedAt("2099-01-01T00:00:00");
+        new RedisConfig().redisTemplate(factory).opsForValue().set("shipper:location:7", legacy);
+        locations.cacheShipperLocation(7L, cachedRow(10.9, true), 2000L);
+        assertThat(locations.getCachedProjection(7L).occurredAt()).isEqualTo(2000L);
+        assertThat(locations.getCachedShipperLocation(7L).getLatitude()).isEqualTo(10.9);
+    }
+
+    @Test void malformedOrderingMetadataFailsBeforeCacheGeoOrMembershipMutation() {
+        locations.cacheShipperLocation(7L, cachedRow(10.9, true), 2000L);
+        for (String corrupt : new String[]{"not-json", "{}",
+                "{\"@class\":\"com.delivery.tracking_service.repository.StoredShipperLocation\",\"occurredAt\":-1}"}) {
+            strings.opsForValue().set("shipper:location:7", corrupt);
+            assertThatThrownBy(() -> locations.cacheShipperLocation(7L, cachedRow(10.7, false), 3000L))
+                    .isInstanceOf(IllegalStateException.class);
+            assertThat(strings.opsForValue().get("shipper:location:7")).isEqualTo(corrupt);
+            var redis = new RedisConfig().redisTemplate(factory);
+            assertThat(redis.opsForSet().isMember("shippers:online:set", "7")).isTrue();
+            assertThat(redis.opsForGeo().position("shippers:geo:locations", "7").get(0)).isNotNull();
+        }
+    }
+
+    private ShipperLocationResponse cachedRow(double latitude, boolean online) {
+        var row = new ShipperLocationResponse();
+        row.setShipperId(7L); row.setLatitude(latitude); row.setLongitude(106.7); row.setIsOnline(online);
+        return row;
+    }
+
     @Test void currentPublisherAtomicallyWritesOnlineAndOfflineWithExistingSerializationAndTtl() {
         var lease = leases.acquire(7L, "current", 30);
         var events = mock(ShipperLocationEventPublisher.class); var fanout = mock(LocationFanoutPublisher.class);

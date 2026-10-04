@@ -24,7 +24,26 @@ public class RedisGeoRepository implements ShipperLocationRepository {
     private final StringRedisTemplate stringRedisTemplate;
     private static final String GEO_KEY = "shippers:geo:locations";
     private static final String ONLINE_SHIPPERS_SET = "shippers:online:set";
-    private static final DefaultRedisScript<Long> CACHE_IF_CURRENT = new DefaultRedisScript<>("""
+    // Compare the absolute metadata in the same value/transaction as the projection writes.
+    private static final String PROJECTION_ORDER = """
+            local function projectionIsNewer(key, incoming)
+              local raw = redis.call('GET', key)
+              if not raw then return true end
+              local current = cjson.decode(raw)
+              if type(current) ~= 'table' then error('Invalid shipper location projection') end
+              -- A recognized legacy DTO has no absolute metadata; the new writer replaces it.
+              if current['@class'] == 'com.delivery.tracking_service.dto.response.ShipperLocationResponse' then
+                return true
+              end
+              local timestamp = current.occurredAt
+              if current['@class'] ~= 'com.delivery.tracking_service.repository.StoredShipperLocation'
+                  or type(timestamp) ~= 'number' or timestamp <= 0 or timestamp ~= math.floor(timestamp) then
+                error('Invalid shipper location ordering metadata')
+              end
+              return incoming > timestamp
+            end
+            """;
+    private static final DefaultRedisScript<Long> CACHE_IF_CURRENT = new DefaultRedisScript<>(PROJECTION_ORDER + """
             if ARGV[9] == '1' and (redis.call('GET', KEYS[1]) ~= ARGV[1] or redis.call('GET', KEYS[2]) ~= ARGV[2]) then
               return 0
             end
@@ -33,6 +52,7 @@ public class RedisGeoRepository implements ShipperLocationRepository {
             if (geoType ~= 'none' and geoType ~= 'zset') or (onlineType ~= 'none' and onlineType ~= 'set') then
               return redis.error_reply('Invalid shipper membership type')
             end
+            if not projectionIsNewer(KEYS[3], tonumber(ARGV[11])) then return 2 end
             if ARGV[5] == '1' then
               -- GEO validates Redis latitude limits before any projection is changed.
               if ARGV[10] == '1' then
@@ -66,10 +86,11 @@ public class RedisGeoRepository implements ShipperLocationRepository {
                 location == null ? "" : String.valueOf(location.getLongitude()),
                 location == null ? "" : String.valueOf(location.getLatitude()),
                 Long.toString(RedisConstants.SHIPPER_LOCATION_TTL), lease == null ? "0" : "1",
-                location != null && location.getLongitude() != null && location.getLatitude() != null ? "1" : "0");
-        return Long.valueOf(1).equals(result);
+                location != null && location.getLongitude() != null && location.getLatitude() != null ? "1" : "0", Long.toString(occurredAt));
+        // 2 is an admitted stale fact: projection no-op, preserving ACK/publication contracts.
+        return Long.valueOf(1).equals(result) || Long.valueOf(2).equals(result);
     }
-    private static final DefaultRedisScript<Long> OFFLINE_IF_EXPIRED = new DefaultRedisScript<>("""
+    private static final DefaultRedisScript<Long> OFFLINE_IF_EXPIRED = new DefaultRedisScript<>(PROJECTION_ORDER + """
             if redis.call('GET', KEYS[1]) ~= ARGV[1] or redis.call('EXISTS', KEYS[2]) == 1 then
               return 0
             end
@@ -86,6 +107,7 @@ public class RedisGeoRepository implements ShipperLocationRepository {
             if (geoType ~= 'none' and geoType ~= 'zset') or (onlineType ~= 'none' and onlineType ~= 'set') then
               return redis.error_reply('Invalid shipper membership type')
             end
+            if not projectionIsNewer(KEYS[4], tonumber(ARGV[7])) then return 2 end
             redis.call('ZREM', KEYS[5], ARGV[5])
             redis.call('SREM', KEYS[6], ARGV[5])
             redis.call('SET', KEYS[4], ARGV[4], 'EX', ARGV[6])
@@ -105,8 +127,9 @@ public class RedisGeoRepository implements ShipperLocationRepository {
                 RedisConstants.SHIPPER_LOCATION_KEY_PREFIX + id, GEO_KEY, ONLINE_SHIPPERS_SET),
                 Long.toString(lease.generation()), id + ":" + lease.redisValue(),
                 Long.toString(claim.claimUntilEpochMillis()),
-                payload, serialized(id), Long.toString(RedisConstants.SHIPPER_LOCATION_TTL));
-        return Long.valueOf(1).equals(result);
+                payload, serialized(id), Long.toString(RedisConstants.SHIPPER_LOCATION_TTL), Long.toString(occurredAt));
+        // 2 is an admitted stale fact: projection no-op, preserving ACK/publication contracts.
+        return Long.valueOf(1).equals(result) || Long.valueOf(2).equals(result);
     }
 
     @SuppressWarnings("unchecked")

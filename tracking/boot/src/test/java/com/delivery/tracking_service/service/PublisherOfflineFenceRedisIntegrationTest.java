@@ -46,6 +46,31 @@ class PublisherOfflineFenceRedisIntegrationTest {
     }
     @AfterEach void close() { if (factory != null) factory.destroy(); }
 
+    @Test void validExpiryClaimAdmitsOldTombstoneWithoutReplacingNewerApplicationProjection() {
+        var claim = expiredClaim();
+        locations.cacheShipperLocation(7L, online(10.9), 2000L);
+        var adapter = new RedisShipperAvailabilityAdapter(locations, events, fanout);
+        var core = new DefaultShipperAvailabilityUseCase(adapter, adapter,
+                java.time.Clock.fixed(java.time.Instant.ofEpochMilli(1000L), java.time.ZoneOffset.UTC));
+        assertThat(core.markOfflineIfExpired(claim)).isTrue();
+        assertThat(locations.getCachedProjection(7L).occurredAt()).isEqualTo(2000L);
+        assertThat(locations.getCachedShipperLocation(7L).getIsOnline()).isTrue();
+        assertThat(redis.opsForSet().isMember("shippers:online:set", "7")).isTrue();
+        assertThat(redis.opsForGeo().position("shippers:geo:locations", "7").get(0)).isNotNull();
+        verify(events).publishLocationUpdate(any(), eq("OFFLINE_TOMBSTONE"), eq(1000L));
+        verify(fanout).publish(any(), eq(1000L));
+        assertThat(leases.completeClaim(claim)).isTrue();
+    }
+
+    @Test void newerCoordinateFreeTombstoneBlocksOlderClaimProjection() {
+        var claim = expiredClaim();
+        locations.removeShipperLocationCache(7L, 2000L);
+        var olderOffline = online(10.7); olderOffline.setIsOnline(false);
+        assertThat(locations.applyOfflineIfExpired(claim, Optional.of(olderOffline), 1000L)).isTrue();
+        assertThat(locations.getCachedProjection(7L).occurredAt()).isEqualTo(2000L);
+        assertThat(locations.getCachedShipperLocation(7L)).isNull();
+    }
+
     @Test void currentClaimAtomicallyCachesOfflineAndRemovesSerializedMembershipBeforePublishing() {
         locations.cacheShipperLocation(7L, online(10.7), System.currentTimeMillis());
         var claim = expiredClaim();
