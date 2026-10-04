@@ -112,8 +112,8 @@ conflict recovery decision. These are framework-free domain/application code.
 Kafka/JPA adapters retain immutable full-event fingerprint encoding, row locks,
 SQL uniqueness and transaction/after-commit ACK boundaries.
 
-The refactor worktree currently passes 145 tests including owned Kafka/PostgreSQL
+The refactor worktree currently passes 150 tests including owned Kafka/PostgreSQL
 replica/replay/DLT proof and Spring/JPA wallet/rollback tests. This checkpoint
-does not enable the default-off money APIs. COD hold decisions now run through `DefaultCodCapacityUseCase`; batch ACK and
-expiry scheduler wiring repairs, refund/outbox and payment workflow extraction and root-service relocation/legacy retirement are still
+does not enable the default-off money APIs. COD hold decisions now run through `DefaultCodCapacityUseCase`; batch transitions ACK after commit and periodic expiry runs independently of the
+default-off refund relay. Refund/outbox and payment workflow extraction and root-service relocation/legacy retirement are still
 pending; see `../plans/active/service-architecture-consolidation.md`.

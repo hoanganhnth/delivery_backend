@@ -81,5 +81,9 @@ class SchedulingCapabilityGateTest(unittest.TestCase):
         self.assertNotEqual(self.run_gate(self.safe.replace('spring.task.scheduling.enabled', 'app.optional.enabled')).returncode, 0)
 
 
+class CodSchedulingCapabilityGateTest(SchedulingCapabilityGateTest):
+    path = Path("settlement-service/src/main/java/com/delivery/settlement_service/config/CodCapacitySchedulingConfig.java")
+
+
 if __name__ == "__main__":
     unittest.main()

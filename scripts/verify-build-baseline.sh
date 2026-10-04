@@ -404,12 +404,13 @@ if rg -q 'Shipper(SearchController|SearchRepository|Document|SearchResponse)|sea
   exit 1
 fi
 # The documented default-enabled periodic scheduler is a runtime trigger, not
-# an optional business capability. Exempt only this exact annotation at its
+# an optional business capability. Exempt only these exact annotations at their
 # canonical source path; another default-enabled property in that file fails.
 unsafe_match_if_missing="$(rg -n 'matchIfMissing[[:space:]]*=[[:space:]]*true' \
   --glob '**/src/main/java/**/*.java' "${ROOT_DIR}" \
   | rg -v '/(OrderOutboxRelay|RestaurantOutboxRelay|SagaOutboxRelay|OutboxMessageRelay|LivestreamDisabledWebFilter)\.java:[0-9]+:' \
-  | rg -v '/tracking/infrastructure/src/main/java/com/delivery/tracking_service/config/PublisherSessionConfig\.java:[0-9]+:[[:space:]]*@ConditionalOnProperty\(name = "spring.task.scheduling.enabled", havingValue = "true", matchIfMissing = true\)[[:space:]]*$' || true)"
+  | rg -v '/tracking/infrastructure/src/main/java/com/delivery/tracking_service/config/PublisherSessionConfig\.java:[0-9]+:[[:space:]]*@ConditionalOnProperty\(name = "spring.task.scheduling.enabled", havingValue = "true", matchIfMissing = true\)[[:space:]]*$' \
+  | rg -v '/settlement-service/src/main/java/com/delivery/settlement_service/config/CodCapacitySchedulingConfig\.java:[0-9]+:[[:space:]]*@ConditionalOnProperty\(name = "spring.task.scheduling.enabled", havingValue = "true", matchIfMissing = true\)[[:space:]]*$' || true)"
 if [[ -n "${unsafe_match_if_missing}" ]]; then
   echo "Hidden/optional components must not use matchIfMissing=true:" >&2
   printf '%s\n' "${unsafe_match_if_missing}" >&2
