@@ -86,7 +86,7 @@ class PublisherOfflineFenceRedisIntegrationTest {
     @Test void expiredOrReclaimedRecoveryClaimCannotMutateOfflineOrCompleteTheNewClaim() {
         var stale = expiredClaim(); locations.cacheShipperLocation(7L, online(10.9), System.currentTimeMillis());
         String member = "7:" + stale.lease().redisValue();
-        var expired = new PublisherExpiryClaim(stale.lease(), System.currentTimeMillis() - 1000);
+        var expired = new PublisherExpiryClaim(stale.lease(), redisNow() - 1000);
         strings.opsForZSet().add("tracking:publisher:deadlines", member, expired.claimUntilEpochMillis());
         assertThat(availability().markOfflineIfExpired(expired)).isFalse();
         // Rejected expiry must remain reclaimable, even before another worker has claimed it.
@@ -119,7 +119,7 @@ class PublisherOfflineFenceRedisIntegrationTest {
     }
     private PublisherExpiryClaim expiredClaim() {
         var lease = leases.acquire(7L, "expired", 30); leases.releaseForGraceIfCurrent(lease, 0);
-        strings.opsForZSet().add("tracking:publisher:deadlines", "7:" + lease.redisValue(), System.currentTimeMillis() - 1000);
+        strings.opsForZSet().add("tracking:publisher:deadlines", "7:" + lease.redisValue(), redisNow() - 1000);
         return leases.claimIfExpired(lease, 30);
     }
     private void assertOnlineWithoutEvents() {
@@ -153,7 +153,7 @@ class PublisherOfflineFenceRedisIntegrationTest {
         core.disconnected(old);
         String oldMember = "7:" + old.redisValue();
         await().atMost(Duration.ofSeconds(5)).until(() -> strings.opsForZSet().score("tracking:publisher:deadlines", oldMember)
-                <= System.currentTimeMillis());
+                <= redisNow());
         var executor = Executors.newSingleThreadExecutor();
         try {
             var sweep = executor.submit(() -> core.sweepExpired(10));
@@ -171,6 +171,10 @@ class PublisherOfflineFenceRedisIntegrationTest {
             assertThat(strings.opsForZSet().score("tracking:publisher:deadlines", oldMember)).isNull();
             verifyNoInteractions(events, fanout, incidents);
         } finally { resume.countDown(); executor.shutdownNow(); }
+    }
+    private long redisNow() {
+        return strings.execute(new org.springframework.data.redis.core.script.DefaultRedisScript<>(
+                "local t=redis.call('TIME'); return tonumber(t[1])*1000+math.floor(tonumber(t[2])/1000)", Long.class), java.util.List.of());
     }
     private ShipperLocationResponse online(double latitude) {
         var row = new ShipperLocationResponse(); row.setShipperId(7L); row.setLatitude(latitude);

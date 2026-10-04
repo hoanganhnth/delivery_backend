@@ -83,7 +83,7 @@ class PublisherLeaseRedisIntegrationTest {
         var first = core(0, 1, 1); var lease = first.acquire(7L, "retry"); waitInactive(lease);
         boundary.failOffline = true; first.sweepExpired(100);
         assertThat(boundary.attempts).isEqualTo(1); assertThat(boundary.failures).hasSize(1);
-        assertThat(redis.opsForZSet().score(DEADLINES, member(lease))).isGreaterThan((double) System.currentTimeMillis());
+        assertThat(redis.opsForZSet().score(DEADLINES, member(lease))).isGreaterThan((double) redisNow());
         var second = core(0, 1, 1); second.sweepExpired(100); assertThat(boundary.attempts).isEqualTo(1);
         waitExpired(lease); boundary.failOffline = false; second.sweepExpired(100);
         assertThat(boundary.attempts).isEqualTo(2); assertThat(boundary.offline).containsExactly(7L);
@@ -97,6 +97,57 @@ class PublisherLeaseRedisIntegrationTest {
         assertThat(redis.opsForZSet().score(DEADLINES, member(lease))).isEqualTo((double) newer.claimUntilEpochMillis());
         assertThat(leases.completeClaim(newer)).isTrue();
     }
+    @Test void transportDelayCannotSeparateDurableDeadlineFromRedisActiveTtl() {
+        var delayed = delayedTransport();
+        var lease = delayed.acquire(7L, "delayed", 30);
+        long redisNow = redisNow();
+        Long remaining = redis.getExpire("tracking:publisher:active:7", java.util.concurrent.TimeUnit.MILLISECONDS);
+        Double deadline = redis.opsForZSet().score(DEADLINES, member(lease));
+        assertThat(deadline).isCloseTo((double) (redisNow + remaining), within(100.0));
+        assertThat(delayed.refreshIfCurrent(lease, 30)).isTrue();
+        redisNow = redisNow();
+        remaining = redis.getExpire("tracking:publisher:active:7", java.util.concurrent.TimeUnit.MILLISECONDS);
+        assertThat(redis.opsForZSet().score(DEADLINES, member(lease)))
+                .isCloseTo((double) (redisNow + remaining), within(100.0));
+    }
+
+    @Test void transportDelayDoesNotConsumeGraceOrRecoveryClaimDuration() {
+        var delayed = delayedTransport();
+        var lease = delayed.acquire(7L, "delayed-claim", 30);
+        assertThat(delayed.releaseForGraceIfCurrent(lease, 1)).isTrue();
+        assertThat(redis.opsForZSet().score(DEADLINES, member(lease)) - redisNow()).isBetween(900.0, 1000.0);
+        waitExpired(lease);
+        var claim = delayed.claimIfExpired(lease, 1);
+        assertThat(claim).isNotNull();
+        assertThat(claim.claimUntilEpochMillis() - redisNow()).isBetween(900L, 1000L);
+        assertThat(leases.completeClaim(claim)).isTrue();
+        // Sweep returns the exact Redis-created claim deadline, not a separately computed host value.
+        lease = delayed.acquire(8L, "delayed-sweep", 1);
+        waitInactive(lease);
+        var claims = delayed.claimExpired(10, 1);
+        assertThat(claims).hasSize(1);
+        assertThat(claims.get(0).claimUntilEpochMillis() - redisNow()).isBetween(900L, 1000L);
+        assertThat(leases.completeClaim(claims.get(0))).isTrue();
+    }
+
+    private ShipperPublisherLeaseRepository delayedTransport() {
+        var transport = new StringRedisTemplate(redis.getConnectionFactory()) {
+            @Override public <T> T execute(org.springframework.data.redis.core.script.RedisScript<T> script,
+                    List<String> keys, Object... args) {
+                // Deterministic network/queue delay after the client has constructed command arguments.
+                try { Thread.sleep(400); }
+                catch (InterruptedException failure) { Thread.currentThread().interrupt(); throw new AssertionError(failure); }
+                return super.execute(script, keys, args);
+            }
+        };
+        return new ShipperPublisherLeaseRepository(transport);
+    }
+
+    private long redisNow() {
+        return redis.execute(new org.springframework.data.redis.core.script.DefaultRedisScript<>(
+                "local t=redis.call('TIME'); return tonumber(t[1])*1000+math.floor(tonumber(t[2])/1000)", Long.class), List.of());
+    }
+
     private DefaultPublisherSessionUseCase core(long grace, long ttl, long claim) {
         return new DefaultPublisherSessionUseCase(leases, boundary, (task, deadline) -> tasks.add(task), boundary, grace, ttl, claim);
     }
@@ -104,7 +155,7 @@ class PublisherLeaseRedisIntegrationTest {
     private void waitExpired(PublisherLease lease) {
         await().atMost(Duration.ofSeconds(8)).pollInterval(Duration.ofMillis(50)).until(() -> {
             Double score = redis.opsForZSet().score(DEADLINES, member(lease));
-            return score != null && score <= System.currentTimeMillis();
+            return score != null && score <= redisNow();
         });
     }
     private void waitInactive(PublisherLease lease) {

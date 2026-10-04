@@ -26,7 +26,9 @@ public class ShipperPublisherLeaseRepository implements PublisherLeaseStorePort 
             end
             local generation = redis.call('INCR', KEYS[1])
             redis.call('SET', KEYS[2], tostring(generation) .. ':' .. ARGV[1], 'EX', ARGV[2])
-            redis.call('ZADD', KEYS[3], ARGV[4], ARGV[3] .. tostring(generation) .. ':' .. ARGV[1])
+            local now = redis.call('TIME')
+            local deadline = tonumber(now[1]) * 1000 + math.floor(tonumber(now[2]) / 1000) + tonumber(ARGV[2]) * 1000
+            redis.call('ZADD', KEYS[3], deadline, ARGV[3] .. tostring(generation) .. ':' .. ARGV[1])
             return generation
             """, Long.class);
     private static final DefaultRedisScript<Long> REFRESH = new DefaultRedisScript<>("""
@@ -34,7 +36,9 @@ public class ShipperPublisherLeaseRepository implements PublisherLeaseStorePort 
               return 0
             end
             redis.call('EXPIRE', KEYS[1], ARGV[2])
-            redis.call('ZADD', KEYS[2], ARGV[3], ARGV[4])
+            local now = redis.call('TIME')
+            local deadline = tonumber(now[1]) * 1000 + math.floor(tonumber(now[2]) / 1000) + tonumber(ARGV[2]) * 1000
+            redis.call('ZADD', KEYS[2], deadline, ARGV[3])
             return 1
             """, Long.class);
     private static final DefaultRedisScript<Long> RELEASE = new DefaultRedisScript<>("""
@@ -42,7 +46,9 @@ public class ShipperPublisherLeaseRepository implements PublisherLeaseStorePort 
               return 0
             end
             redis.call('DEL', KEYS[1])
-            redis.call('ZADD', KEYS[2], ARGV[3], ARGV[2])
+            local now = redis.call('TIME')
+            local deadline = tonumber(now[1]) * 1000 + math.floor(tonumber(now[2]) / 1000) + tonumber(ARGV[3]) * 1000
+            redis.call('ZADD', KEYS[2], deadline, ARGV[2])
             return 1
             """, Long.class);
     private static final DefaultRedisScript<Long> SHOULD_MARK_OFFLINE = new DefaultRedisScript<>("""
@@ -56,11 +62,17 @@ public class ShipperPublisherLeaseRepository implements PublisherLeaseStorePort 
             """, Long.class);
     @SuppressWarnings("rawtypes")
     private static final DefaultRedisScript<List> CLAIM_EXPIRED = new DefaultRedisScript<>("""
-            local expired = redis.call('ZRANGEBYSCORE', KEYS[1], '-inf', ARGV[1], 'LIMIT', 0, ARGV[2])
+            local time = redis.call('TIME')
+            local now = tonumber(time[1]) * 1000 + math.floor(tonumber(time[2]) / 1000)
+            local expired = redis.call('ZRANGEBYSCORE', KEYS[1], '-inf', now, 'LIMIT', 0, ARGV[1])
+            if #expired == 0 then return {} end
+            local claimUntil = now + tonumber(ARGV[2]) * 1000
+            local claimed = {string.format('%.0f', claimUntil)}
             for _, member in ipairs(expired) do
-              redis.call('ZADD', KEYS[1], ARGV[3], member)
+              redis.call('ZADD', KEYS[1], claimUntil, member)
+              table.insert(claimed, member)
             end
-            return expired
+            return claimed
             """, List.class);
     private static final DefaultRedisScript<Long> COMPLETE_CLAIM = new DefaultRedisScript<>("""
             local score = redis.call('ZSCORE', KEYS[1], ARGV[1])
@@ -75,11 +87,14 @@ public class ShipperPublisherLeaseRepository implements PublisherLeaseStorePort 
             """, Long.class);
     private static final DefaultRedisScript<Long> CLAIM_IF_EXPIRED = new DefaultRedisScript<>("""
             local score = redis.call('ZSCORE', KEYS[1], ARGV[1])
-            if not score or tonumber(score) > tonumber(ARGV[2]) then
+            local time = redis.call('TIME')
+            local now = tonumber(time[1]) * 1000 + math.floor(tonumber(time[2]) / 1000)
+            if not score or tonumber(score) > now then
               return 0
             end
-            redis.call('ZADD', KEYS[1], ARGV[3], ARGV[1])
-            return 1
+            local claimUntil = now + tonumber(ARGV[2]) * 1000
+            redis.call('ZADD', KEYS[1], claimUntil, ARGV[1])
+            return claimUntil
             """, Long.class);
 
     private final StringRedisTemplate redisTemplate;
@@ -90,8 +105,7 @@ public class ShipperPublisherLeaseRepository implements PublisherLeaseStorePort 
                 List.of(generationKey(shipperId), activeKey(shipperId), DEADLINES_KEY),
                 sessionId,
                 Long.toString(Math.max(1, leaseTtlSeconds)),
-                shipperId + ":",
-                Long.toString(deadline(leaseTtlSeconds)));
+                shipperId + ":");
         if (generation == null || generation <= 0) {
             throw new IllegalStateException("Cannot acquire shipper publisher generation");
         }
@@ -104,7 +118,6 @@ public class ShipperPublisherLeaseRepository implements PublisherLeaseStorePort 
                 List.of(activeKey(lease.shipperId()), DEADLINES_KEY),
                 lease.redisValue(),
                 Long.toString(Math.max(1, leaseTtlSeconds)),
-                Long.toString(deadline(leaseTtlSeconds)),
                 deadlineMember(lease));
         return Long.valueOf(1L).equals(refreshed);
     }
@@ -115,7 +128,7 @@ public class ShipperPublisherLeaseRepository implements PublisherLeaseStorePort 
                 List.of(activeKey(lease.shipperId()), DEADLINES_KEY),
                 lease.redisValue(),
                 deadlineMember(lease),
-                Long.toString(deadline(Math.max(0, disconnectGraceSeconds))));
+                Long.toString(Math.max(1, disconnectGraceSeconds)));
         return Long.valueOf(1L).equals(released);
     }
 
@@ -129,18 +142,17 @@ public class ShipperPublisherLeaseRepository implements PublisherLeaseStorePort 
 
     @SuppressWarnings("unchecked")
     public List<PublisherExpiryClaim> claimExpired(int limit, long claimSeconds) {
-        long claimUntil = deadline(Math.max(1, claimSeconds));
         List<String> members = (List<String>) redisTemplate.execute(
                 CLAIM_EXPIRED,
                 List.of(DEADLINES_KEY),
-                Long.toString(System.currentTimeMillis()),
                 Integer.toString(Math.max(1, limit)),
-                Long.toString(claimUntil));
+                Long.toString(Math.max(1, claimSeconds)));
         if (members == null || members.isEmpty()) {
             return List.of();
         }
-        List<PublisherExpiryClaim> claims = new ArrayList<>(members.size());
-        for (String member : members) {
+        long claimUntil = Long.parseLong(members.get(0));
+        List<PublisherExpiryClaim> claims = new ArrayList<>(members.size() - 1);
+        for (String member : members.subList(1, members.size())) {
             String[] parts = member.split(":", 3);
             if (parts.length != 3) {
                 throw new IllegalStateException("Invalid publisher deadline member");
@@ -163,18 +175,12 @@ public class ShipperPublisherLeaseRepository implements PublisherLeaseStorePort 
     }
 
     public PublisherExpiryClaim claimIfExpired(PublisherLease lease, long claimSeconds) {
-        long claimUntil = deadline(Math.max(1, claimSeconds));
         Long claimed = redisTemplate.execute(
                 CLAIM_IF_EXPIRED,
                 List.of(DEADLINES_KEY),
                 deadlineMember(lease),
-                Long.toString(System.currentTimeMillis()),
-                Long.toString(claimUntil));
-        return Long.valueOf(1L).equals(claimed) ? new PublisherExpiryClaim(lease, claimUntil) : null;
-    }
-
-    private long deadline(long seconds) {
-        return System.currentTimeMillis() + Math.max(1, seconds) * 1000L;
+                Long.toString(Math.max(1, claimSeconds)));
+        return claimed != null && claimed > 0 ? new PublisherExpiryClaim(lease, claimed) : null;
     }
 
     private String deadlineMember(PublisherLease lease) {

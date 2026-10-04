@@ -44,7 +44,12 @@ WebSocket update mang nguyên lease qua application core; Lua kiểm generation 
 active lease cùng lúc ghi cache/GEO/online set. Publisher bị thay thế sau refresh
 vẫn không thể ghi đè vị trí mới hoặc phát Kafka/fanout từ attempt bị chặn.
 Clean disconnect lưu deadline grace 30 giây trong Redis; hard crash giữ deadline
-theo lease TTL 120 giây. Sweeper phân tán claim deadline; một Lua operation kiểm
+theo lease TTL 120 giây. Deadline lease/refresh/grace, discovery và claim đều
+tính ngay trong Redis Lua bằng giờ Redis, cùng clock với active-key TTL và
+kiểm tra claim cuối cùng; thời gian trễ gửi lệnh không bị trừ vào duration.
+Claim trả lại nguyên deadline Redis đã ghi. Callback scheduler dùng giờ JVM chỉ
+là trigger; Redis quyết định deadline đã đến hay chưa, sweeper giữ recovery
+khi callback mất hoặc đến sớm. Sweeper phân tán claim deadline; một Lua operation kiểm
 đồng thời generation, không có active lease và claim còn hiệu lực trước khi ghi
 offline vào cache/GEO/online set. Reconnect hoặc worker claim mới chặn mutation
 cũ và không phát tombstone từ attempt bị chặn. Với attempt được chấp nhận,
@@ -125,8 +130,10 @@ Infrastructure giữ toàn bộ HTTP/WebSocket/Redis/Kafka/JPA adapter và Sprin
 composition; boot chỉ giữ entrypoint, runtime properties và integration tests.
 Artifact/DNS vẫn là `tracking-service`. Packaged two-JVM HTTP/WebSocket/JWKS,
 Kafka/Redis/PostgreSQL, hard-kill recovery và restart đã có executable proof tại
-`scripts/verify-tracking-runtime.py`. Audit generation-check → offline mutation,
-race giữa instance và recovery ngoài TTL/mất Redis còn cần hoàn tất trước main. Host `tracking-service/` và `modules/tracking/` đã được thay bằng
+`scripts/verify-tracking-runtime.py`. Generation-check → mutation đã có Lua fence
+và proof reconnect giữa hai bước; realtime watermark/cache metadata cũng có
+proof receiver và reconnect. Source-cache write ordering giữa request đồng thời,
+giới hạn recovery ngoài TTL/mất Redis và audit cuối còn cần hoàn tất trước main. Host `tracking-service/` và `modules/tracking/` đã được thay bằng
 các layer ở gốc trong worktree refactor.
 
 Policy principal/projection identity và identity inbox, offline/tombstone, publication và publisher lease/grace/recovery hiện chạy trong
@@ -172,6 +179,6 @@ Membership có version riêng: message còn trong queue chỉ gửi nếu versio
 còn hiệu lực ngay trước send. Unsubscribe/rejoin, kết thúc item và authorized
 reassignment vô hiệu queued message cũ; old-owner cleanup không xoá room mới.
 Đây chưa phải distributed transaction với Redis hoặc Delivery authorization.
-Race giữa JVM, recovery ngoài TTL/mất Redis và runtime còn cần audit;
+Source-cache write ordering và recovery ngoài TTL/mất Redis còn cần audit;
 chưa coi toàn bộ Tracking hoàn tất. Bằng chứng và tiến độ nằm ở
 `../plans/active/service-architecture-consolidation.md`.
