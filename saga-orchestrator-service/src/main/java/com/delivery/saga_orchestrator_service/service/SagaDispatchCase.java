@@ -49,6 +49,11 @@ final class SagaDispatchCase implements DispatchCase {
     }
 
     @Override
+    public void assignShipper(Long shipperId) {
+        saga.setShipperId(shipperId);
+    }
+
+    @Override
     public void markCompleted() {
         saga.setCompletedAt(LocalDateTime.now());
     }

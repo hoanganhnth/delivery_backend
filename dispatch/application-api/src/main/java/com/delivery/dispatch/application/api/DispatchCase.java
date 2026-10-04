@@ -15,6 +15,9 @@ public interface DispatchCase {
 
     void transitionTo(DispatchStatus status);
 
+    /** Records the shipper holding the assignment (null clears it). */
+    void assignShipper(Long shipperId);
+
     /** Stamps the completion time of a terminal case. */
     void markCompleted();
 

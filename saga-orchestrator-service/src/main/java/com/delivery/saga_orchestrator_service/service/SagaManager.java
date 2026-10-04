@@ -1,7 +1,11 @@
 package com.delivery.saga_orchestrator_service.service;
 
 import com.delivery.dispatch.application.DefaultDeliveryProgressUseCase;
+import com.delivery.dispatch.application.DefaultMatchOutcomeUseCase;
 import com.delivery.dispatch.application.DefaultOrderLifecycleUseCase;
+import com.delivery.dispatch.application.api.DispatchCase;
+import com.delivery.dispatch.application.api.MatchOutcomeUseCase;
+import com.delivery.dispatch.application.api.OfferCommands;
 import com.delivery.dispatch.application.api.OrderLifecycleUseCase;
 import com.delivery.dispatch.application.api.DeliveryProgressUseCase;
 import com.delivery.dispatch.domain.AssignmentPolicy;
@@ -294,31 +298,14 @@ public class SagaManager {
         if (!claimInbound("shipper.found", orderId, rawEvent)) return;
         SagaInstance saga = findSagaByOrderId(orderId);
         requireDeliveryIdentity(saga, deliveryId, orderId);
-        if (!isCurrentMatchingResult(saga, rawEvent)) {
-            log.info("[Saga] Ignoring stale shipper.found generation for orderId={}", orderId);
-            return;
+        switch (matchOutcomes().onShipperFound(new SagaDispatchCase(saga, objectMapper),
+                () -> isCurrentMatchingResult(saga, rawEvent), rawEvent)) {
+            case STALE -> log.info("[Saga] Ignoring stale shipper.found generation for orderId={}", orderId);
+            case IGNORED_STATE -> log.warn("⚠️ [Saga] handleShipperFound - Saga cho orderId={} đang ở {}, bỏ qua event",
+                    orderId, saga.getStatus());
+            default -> log.info("📤 [Saga] Sent cache-shipper command for orderId={}; awaiting Delivery confirmation",
+                    orderId);
         }
-
-        // Idempotency check: chỉ xử lý khi đang FINDING_SHIPPER
-        if (saga.getStatus() != SagaStatus.FINDING_SHIPPER) {
-            log.warn("⚠️ [Saga] handleShipperFound - Saga cho orderId={} đang ở {}, bỏ qua event", orderId, saga.getStatus());
-            return;
-        }
-
-        saga.setStatus(SagaStatus.OFFER_PERSISTING);
-        saga.addStep("SHIPPER_FOUND", "shipper.found", rawEvent);
-        UUID cacheCommandId = sendCommand(CMD_CACHE_SHIPPER_FOUND, orderId.toString(), rawEvent);
-        ObjectNode requested = objectMapper.createObjectNode();
-        requested.put("cacheCommandEventId", cacheCommandId.toString());
-        try {
-            requested.put("matchingSessionId", objectMapper.readTree(rawEvent).path("matchingSessionId").asText());
-        } catch (Exception invalid) {
-            throw new IllegalArgumentException("Invalid shipper.found payload", invalid);
-        }
-        saga.addStep("OFFER_PERSIST_REQUESTED", CMD_CACHE_SHIPPER_FOUND, requested.toString());
-        sagaInstanceRepository.save(saga);
-
-        log.info("📤 [Saga] Sent cache-shipper command for orderId={}; awaiting Delivery confirmation", orderId);
     }
 
     /** Delivery owns the offer. Only this committed confirmation may expose WAIT to Order. */
@@ -327,10 +314,10 @@ public class SagaManager {
         if (!claimInbound("delivery.offer-persisted", orderId, rawEvent)) return;
         SagaInstance saga = findSagaByOrderId(orderId);
         requireDeliveryIdentity(saga, deliveryId, orderId);
-        JsonNode event;
+        UUID sourceCommandId;
         try {
-            event = objectMapper.readTree(rawEvent);
-            UUID.fromString(event.path("sourceCommandEventId").asText());
+            JsonNode event = objectMapper.readTree(rawEvent);
+            sourceCommandId = UUID.fromString(event.path("sourceCommandEventId").asText());
             UUID.fromString(event.path("matchingSessionId").asText());
             if (event.path("offeredShipperId").asLong() <= 0 || !event.hasNonNull("offerExpiresAt")) {
                 throw new IllegalArgumentException("offer-persisted identity is incomplete");
@@ -340,22 +327,13 @@ public class SagaManager {
         } catch (Exception invalid) {
             throw new IllegalArgumentException("Invalid delivery.offer-persisted payload", invalid);
         }
-        if (saga.getStatus() == SagaStatus.SHIPPER_ASSIGNED
-                || saga.getStatus() == SagaStatus.CANCELLED || saga.getStatus() == SagaStatus.FAILED) {
-            log.info("[Saga] Offer confirmation arrived after stronger state {} for orderId={}",
+        switch (matchOutcomes().onOfferPersisted(new SagaDispatchCase(saga, objectMapper), sourceCommandId,
+                () -> isCurrentMatchingResult(saga, rawEvent), rawEvent)) {
+            case STRONGER_STATE -> log.info("[Saga] Offer confirmation arrived after stronger state {} for orderId={}",
                     saga.getStatus(), orderId);
-            return;
+            case STALE -> log.info("[Saga] Ignoring stale/unexpected offer confirmation for orderId={}", orderId);
+            default -> { }
         }
-        if (saga.getStatus() != SagaStatus.OFFER_PERSISTING
-                || !isCurrentMatchingResult(saga, rawEvent)
-                || !isExpectedOfferPersistenceCommand(saga, event.path("sourceCommandEventId").asText())) {
-            log.info("[Saga] Ignoring stale/unexpected offer confirmation for orderId={}", orderId);
-            return;
-        }
-        saga.setStatus(SagaStatus.SHIPPER_FOUND);
-        saga.addStep("OFFER_PERSISTED", "delivery.offer-persisted", rawEvent);
-        sagaInstanceRepository.save(saga);
-        sendOrderStatusCommand(saga, "WAIT_SHIPPER_CONFIRM", rawEvent);
     }
 
     /**
@@ -366,31 +344,13 @@ public class SagaManager {
         if (!claimInbound("shipper.not-found", orderId, rawEvent)) return;
         SagaInstance saga = findSagaByOrderId(orderId);
         requireDeliveryIdentity(saga, deliveryId, orderId);
-        if (!isCurrentMatchingResult(saga, rawEvent)) {
-            log.info("[Saga] Ignoring stale shipper.not-found generation for orderId={}", orderId);
-            return;
+        switch (matchOutcomes().onShipperNotFound(new SagaDispatchCase(saga, objectMapper),
+                () -> isCurrentMatchingResult(saga, rawEvent), rawEvent)) {
+            case STALE -> log.info("[Saga] Ignoring stale shipper.not-found generation for orderId={}", orderId);
+            case IGNORED_STATE -> log.warn("⚠️ [Saga] handleShipperNotFound - Saga cho orderId={} đang ở {}, bỏ qua event",
+                    orderId, saga.getStatus());
+            default -> log.warn("🚨 [Saga] COMPENSATION — shipper not found, orderId={}", orderId);
         }
-
-        // Idempotency check
-        if (saga.getStatus() != SagaStatus.FINDING_SHIPPER) {
-            log.warn("⚠️ [Saga] handleShipperNotFound - Saga cho orderId={} đang ở {}, bỏ qua event", orderId, saga.getStatus());
-            return;
-        }
-
-        saga.setStatus(SagaStatus.FAILED);
-        saga.setCompletedAt(LocalDateTime.now());
-        saga.addStep("SHIPPER_NOT_FOUND", "shipper.not-found", rawEvent);
-        sagaInstanceRepository.save(saga);
-
-        // This is a terminal matching outcome, not an order cancellation.
-        // Keeping the commands distinct prevents Delivery=CANCELLED while
-        // Order=SHIPPER_NOT_FOUND.
-        sendCommand(CMD_MARK_SHIPPER_NOT_FOUND, orderId.toString(), rawEvent);
-
-        // ✅ COMPENSATION: Cập nhật order status → FAILED
-        sendOrderStatusCommand(orderId, "SHIPPER_NOT_FOUND", rawEvent);
-
-        log.warn("🚨 [Saga] COMPENSATION — shipper not found, orderId={}", orderId);
     }
 
     /**
@@ -700,50 +660,15 @@ public class SagaManager {
         Long shipperId = event.hasNonNull("shipperId") ? event.get("shipperId").asLong() : null;
         OfferRetirementPolicy.Decision decision = OfferRetirementPolicy.decide(
                 event.hasNonNull("outcome") ? event.get("outcome").asText() : null, shipperId);
-        if (saga.getStatus() != SagaStatus.OFFER_RETIRING
-                || !isExpectedRetireCommand(saga, sourceCommandId)) {
-            log.info("[Saga] Ignoring stale/unexpected offer retirement for orderId={} status={}",
+        switch (matchOutcomes().onOfferRetired(new SagaDispatchCase(saga, objectMapper), sourceCommandId,
+                decision, shipperId, rawEvent)) {
+            case STALE -> log.info("[Saga] Ignoring stale/unexpected offer retirement for orderId={} status={}",
                     orderId, saga.getStatus());
-            return;
-        }
-        switch (decision) {
-            case REMATCH -> {
-                String prepared = history(saga).latestWithPrefix("SHIPPER_OFFER_TIMEOUT_");
-                if (prepared == null) {
-                    throw new IllegalStateException("Offer retirement has no prepared rematch for orderId=" + orderId);
-                }
-                ObjectNode payload;
-                String findCommand;
-                try {
-                    payload = (ObjectNode) objectMapper.readTree(prepared);
-                    saga.setStatus(SagaStatus.FINDING_SHIPPER);
-                    saga.addStep("OFFER_RETIRED", "delivery.offer-retired", rawEvent);
-                    findCommand = dispatchFindShipperCommand(saga, orderId, payload);
-                } catch (SagaCommandPublishException publishException) {
-                    throw publishException;
-                } catch (Exception malformed) {
-                    throw new IllegalStateException("Prepared rematch is malformed for orderId=" + orderId, malformed);
-                }
-                sagaInstanceRepository.save(saga);
-                sendOrderStatusCommand(saga, "FINDING_SHIPPER", findCommand);
-                log.info("🔄 [Saga] Offer retired, rematching orderId={}", orderId);
-            }
-            case ASSIGN -> {
-                // Delivery committed the acceptance before the expiry; it is authoritative.
-                saga.setStatus(SagaStatus.SHIPPER_ASSIGNED);
-                saga.setShipperId(shipperId);
-                saga.addStep("SHIPPER_ASSIGNED", "delivery.offer-retired", rawEvent);
-                sagaInstanceRepository.save(saga);
-                sendOrderStatusCommand(saga, "SHIPPER_ASSIGNED", rawEvent);
-                log.info("[Saga] Offer retirement reported committed assignment of shipper {} for orderId={}",
-                        shipperId, orderId);
-            }
-            case TERMINAL -> {
-                saga.addStep("OFFER_RETIRED_TERMINAL", "delivery.offer-retired", rawEvent);
-                sagaInstanceRepository.save(saga);
-                log.info("[Saga] Offer retirement found terminal Delivery for orderId={}; awaiting its terminal fact",
-                        orderId);
-            }
+            case REMATCHED -> log.info("🔄 [Saga] Offer retired, rematching orderId={}", orderId);
+            case ASSIGNED -> log.info("[Saga] Offer retirement reported committed assignment of shipper {} for orderId={}",
+                    shipperId, orderId);
+            default -> log.info("[Saga] Offer retirement found terminal Delivery for orderId={}; awaiting its terminal fact",
+                    orderId);
         }
     }
 
@@ -821,6 +746,48 @@ public class SagaManager {
         }
     }
 
+    private MatchOutcomeUseCase matchOutcomes() {
+        return new DefaultMatchOutcomeUseCase(
+                dispatchCase -> sagaInstanceRepository.save(saga(dispatchCase)),
+                new OfferCommands() {
+                    @Override
+                    public void requestOfferPersistence(DispatchCase dispatchCase, String shipperFoundEvent) {
+                        SagaInstance saga = saga(dispatchCase);
+                        UUID cacheCommandId = sendCommand(CMD_CACHE_SHIPPER_FOUND, saga.getOrderId().toString(),
+                                shipperFoundEvent);
+                        ObjectNode requested = objectMapper.createObjectNode();
+                        requested.put("cacheCommandEventId", cacheCommandId.toString());
+                        try {
+                            requested.put("matchingSessionId",
+                                    objectMapper.readTree(shipperFoundEvent).path("matchingSessionId").asText());
+                        } catch (Exception invalid) {
+                            throw new IllegalArgumentException("Invalid shipper.found payload", invalid);
+                        }
+                        saga.addStep("OFFER_PERSIST_REQUESTED", CMD_CACHE_SHIPPER_FOUND, requested.toString());
+                    }
+
+                    @Override
+                    public void markShipperNotFound(DispatchCase dispatchCase, String causeEvent) {
+                        sendCommand(CMD_MARK_SHIPPER_NOT_FOUND, String.valueOf(dispatchCase.orderId()), causeEvent);
+                    }
+
+                    @Override
+                    public String startPreparedRematch(DispatchCase dispatchCase, String preparedCommand) {
+                        SagaInstance saga = saga(dispatchCase);
+                        try {
+                            return dispatchFindShipperCommand(saga, saga.getOrderId(),
+                                    (ObjectNode) objectMapper.readTree(preparedCommand));
+                        } catch (SagaCommandPublishException publishException) {
+                            throw publishException;
+                        } catch (Exception malformed) {
+                            throw new IllegalStateException("Prepared rematch is malformed for orderId="
+                                    + saga.getOrderId(), malformed);
+                        }
+                    }
+                },
+                (dispatchCase, status, cause) -> sendOrderStatusCommand(saga(dispatchCase), status, cause));
+    }
+
     private OrderLifecycleUseCase orderLifecycle() {
         return new DefaultOrderLifecycleUseCase(
                 dispatchCase -> sagaInstanceRepository.save(saga(dispatchCase)),
@@ -832,7 +799,7 @@ public class SagaManager {
                 this::sameJson);
     }
 
-    private static SagaInstance saga(com.delivery.dispatch.application.api.DispatchCase dispatchCase) {
+    private static SagaInstance saga(DispatchCase dispatchCase) {
         return ((SagaDispatchCase) dispatchCase).saga();
     }
 
@@ -1340,26 +1307,6 @@ public class SagaManager {
         } catch (Exception e) {
             log.error("💥 [Saga] Failed to store order status command: {}", e.getMessage(), e);
             throw new SagaCommandPublishException("Failed to store saga order status command", e);
-        }
-    }
-
-    private boolean isExpectedRetireCommand(SagaInstance saga, UUID commandId) {
-        String requested = getStepEventData(saga, "OFFER_RETIRE_REQUESTED");
-        if (requested == null) return false;
-        try {
-            return commandId.toString().equals(objectMapper.readTree(requested).path("expireCommandEventId").asText());
-        } catch (Exception ignored) {
-            return false;
-        }
-    }
-
-    private boolean isExpectedOfferPersistenceCommand(SagaInstance saga, String commandId) {
-        String requested = getStepEventData(saga, "OFFER_PERSIST_REQUESTED");
-        if (requested == null) return false;
-        try {
-            return commandId.equals(objectMapper.readTree(requested).path("cacheCommandEventId").asText());
-        } catch (Exception ignored) {
-            return false;
         }
     }
 

@@ -27,12 +27,14 @@ class DefaultDeliveryProgressUseCaseTest {
         }
 
         Long deliveryId;
+        Long shipperId;
         boolean completionCleared;
         @Override public long orderId() { return 7; }
         @Override public Long deliveryId() { return deliveryId; }
         @Override public void clearCompletion() { completed = false; completionCleared = true; }
         @Override public DispatchStatus status() { return status; }
         @Override public void transitionTo(DispatchStatus status) { this.status = status; }
+        @Override public void assignShipper(Long shipperId) { this.shipperId = shipperId; }
         @Override public void markCompleted() { completed = true; }
         @Override public void record(String stepName, String eventType, String eventData) {
             steps.add(new String[] {stepName, eventData});
@@ -45,13 +47,29 @@ class DefaultDeliveryProgressUseCaseTest {
                     for (String[] s : steps) if (s[0].equals(name) && s[1] != null) data = s[1];
                     return data;
                 }
-                @Override public String latestWithPrefix(String prefix) { throw new UnsupportedOperationException(); }
+                @Override public String latestWithPrefix(String prefix) {
+                    String data = null;
+                    for (String[] s : steps) if (s[0].startsWith(prefix) && s[1] != null) data = s[1];
+                    return data;
+                }
                 @Override public Fact latestFact(String name) { throw new UnsupportedOperationException(); }
-                @Override public long countWithPrefix(String prefix) { throw new UnsupportedOperationException(); }
+                @Override public String latestField(String name, String field) {
+                    String data = latest(name);
+                    if (data == null) return null;
+                    String marker = field + "=";
+                    int i = data.indexOf(marker);
+                    return i < 0 ? null : data.substring(i + marker.length());
+                }
+                @Override public long countWithPrefix(String prefix) {
+                    return steps.stream().filter(s -> s[0].startsWith(prefix)).count();
+                }
                 @Override public long count(String name) { throw new UnsupportedOperationException(); }
                 @Override public List<Long> rejectingShippers() { throw new UnsupportedOperationException(); }
                 @Override public List<Long> recordedRejectedShippers() { throw new UnsupportedOperationException(); }
-                @Override public UUID currentMatchingSession() { throw new UnsupportedOperationException(); }
+                @Override public UUID currentMatchingSession() {
+                    String data = latest("MATCHING_STARTED");
+                    return data == null ? null : UUID.fromString(data);
+                }
             };
         }
     }

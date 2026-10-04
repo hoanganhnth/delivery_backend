@@ -26,6 +26,12 @@ public interface CaseHistory {
     /** Most recent step with exactly this name (even without event data), or null. */
     Fact latestFact(String stepName);
 
+    /**
+     * Text of one field in the latest step with this name; null when the step,
+     * its data or the field is missing, or the data is unreadable.
+     */
+    String latestField(String stepName, String field);
+
     long countWithPrefix(String stepPrefix);
 
     long count(String stepName);

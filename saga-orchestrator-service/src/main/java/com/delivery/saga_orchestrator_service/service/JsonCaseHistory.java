@@ -60,6 +60,18 @@ final class JsonCaseHistory implements CaseHistory {
     }
 
     @Override
+    public String latestField(String stepName, String field) {
+        String data = latest(stepName);
+        if (data == null) return null;
+        try {
+            JsonNode value = objectMapper.readTree(data).path(field);
+            return value.isMissingNode() || value.isNull() ? null : value.asText();
+        } catch (Exception unreadable) {
+            return null;
+        }
+    }
+
+    @Override
     public long countWithPrefix(String stepPrefix) {
         return steps.stream().filter(step -> step.getStepName().startsWith(stepPrefix)).count();
     }
