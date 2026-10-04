@@ -98,6 +98,14 @@ Saga quét offer từ timeout tối thiểu được hỗ trợ nhưng chỉ rem
 deadline canonical `foundAt + waitingTimeoutSeconds` đã tới. Mỗi timeout command
 mang đúng generation `deliveryId + shipperId + offerExpiresAt`; poll sớm là no-op,
 payload không có duy nhất một `shipperId` dương thì fail-closed thay vì rematch.
+Khi offer hết hạn, Saga chuyển `OFFER_RETIRING`, lưu sẵn lệnh rematch và chỉ phát
+`expire-shipper-offer`; rematch chỉ được phát sau khi Delivery xác nhận đúng lệnh
+expire đó qua `delivery.offer-retired`: `RETIRED` → rematch generation mới,
+`ASSIGNED` → hội tụ `SHIPPER_ASSIGNED` theo acceptance đã commit (C14),
+`TERMINAL` → không rematch, chờ fact terminal của Delivery/Order. Acceptance
+hoặc rejection đến khi Saga còn ở `OFFER_PERSISTING`/`OFFER_RETIRING` được áp
+dụng như khi đang chờ shipper, vì Delivery chỉ nhận quyết định sau khi offer đã
+commit.
 
 Match fail-closed nếu command thiếu hoặc có pickup coordinate ngoài Việt Nam;
 không được fallback sang địa chỉ giao hoặc một tọa độ trung tâm mặc định vì có

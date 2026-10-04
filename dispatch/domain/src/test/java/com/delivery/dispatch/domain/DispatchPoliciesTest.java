@@ -239,6 +239,20 @@ class DispatchPoliciesTest {
     }
 
     @Test
+    void offerRetirementOutcomesMapToRematchAssignOrTerminal() {
+        assertEquals(OfferRetirementPolicy.Decision.REMATCH, OfferRetirementPolicy.decide("RETIRED", null));
+        assertEquals(OfferRetirementPolicy.Decision.ASSIGN, OfferRetirementPolicy.decide("ASSIGNED", 9L));
+        assertEquals(OfferRetirementPolicy.Decision.TERMINAL, OfferRetirementPolicy.decide("TERMINAL", null));
+        assertThrows(IllegalArgumentException.class, () -> OfferRetirementPolicy.decide("ASSIGNED", null));
+        assertThrows(IllegalArgumentException.class, () -> OfferRetirementPolicy.decide("ASSIGNED", 0L));
+        assertThrows(IllegalArgumentException.class, () -> OfferRetirementPolicy.decide("EXPIRED", null));
+        assertThrows(IllegalArgumentException.class, () -> OfferRetirementPolicy.decide(null, null));
+        assertEquals(AssignmentPolicy.Acceptance.ASSIGN, AssignmentPolicy.onAcceptance(
+                1, DispatchStatus.OFFER_RETIRING, 5, null, false, false));
+        assertTrue(AssignmentPolicy.acceptsRejection(1, DispatchStatus.OFFER_RETIRING, null, 3L));
+    }
+
+    @Test
     void canonicalMatchingCommandRequiresIdentitiesAndPositiveCod() {
         MatchingCommandPolicy.requireCanonical(true, true, "cod", BigDecimal.ONE);
         assertEquals("Canonical matching payload is missing orderId/deliveryId",

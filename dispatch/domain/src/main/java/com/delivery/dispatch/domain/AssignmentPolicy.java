@@ -51,12 +51,12 @@ public final class AssignmentPolicy {
     /**
      * Delivery accepts or rejects only after committing WAIT_SHIPPER_CONFIRM, so a
      * decision arriving while the offer confirmation is still in flight
-     * (OFFER_PERSISTING) proves the offer exists and must not be discarded
-     * (delivery-matching.md C14).
+     * (OFFER_PERSISTING) or while its expiry is being retired (OFFER_RETIRING)
+     * proves the offer existed and must not be discarded (delivery-matching.md C14).
      */
     private static boolean awaitsShipperDecision(DispatchStatus status) {
         return status == DispatchStatus.FINDING_SHIPPER || status == DispatchStatus.OFFER_PERSISTING
-                || status == DispatchStatus.SHIPPER_FOUND;
+                || status == DispatchStatus.SHIPPER_FOUND || status == DispatchStatus.OFFER_RETIRING;
     }
 
     public enum Cancellation { REPLAY, IGNORE_FAILED, CANCEL_IMMEDIATELY, COMPENSATE_DELIVERY }

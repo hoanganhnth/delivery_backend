@@ -7,6 +7,7 @@ import com.delivery.dispatch.domain.FailureCompensation;
 import com.delivery.dispatch.domain.MatchingCommandPolicy;
 import com.delivery.dispatch.domain.MatchingRetrySettings;
 import com.delivery.dispatch.domain.MatchingSession;
+import com.delivery.dispatch.domain.OfferRetirementPolicy;
 import com.delivery.dispatch.domain.RematchPolicy;
 import com.delivery.dispatch.domain.ShipperOffer;
 import com.delivery.saga_orchestrator_service.entity.SagaInstance;
@@ -677,8 +678,11 @@ public class SagaManager {
             payload.set("excludedShipperIds", excludedArray);
             putRetrySettings(payload, MatchingRetrySettings.REMATCH);
 
+            // The prepared rematch is persisted now but dispatched only after
+            // Delivery acknowledges retirement (delivery.offer-retired), so an
+            // acceptance committed near the deadline cannot race a new offer.
             String rematchEvent = objectMapper.writeValueAsString(payload);
-            saga.setStatus(SagaStatus.FINDING_SHIPPER);
+            saga.setStatus(SagaStatus.OFFER_RETIRING);
             saga.addStep("SHIPPER_OFFER_TIMEOUT_" + rematch.attempt(),
                     "shipper.offer-timeout", rematchEvent);
 
@@ -692,13 +696,14 @@ public class SagaManager {
                 expireCommand.put("matchingSessionId", matchingSessionId.toString());
             }
 
-            sendCommand(CMD_EXPIRE_SHIPPER_OFFER, orderId.toString(),
+            UUID expireCommandId = sendCommand(CMD_EXPIRE_SHIPPER_OFFER, orderId.toString(),
                     objectMapper.writeValueAsString(expireCommand));
-            rematchEvent = dispatchFindShipperCommand(saga, orderId, payload);
+            ObjectNode requested = objectMapper.createObjectNode();
+            requested.put("expireCommandEventId", expireCommandId == null ? null : expireCommandId.toString());
+            saga.addStep("OFFER_RETIRE_REQUESTED", CMD_EXPIRE_SHIPPER_OFFER, requested.toString());
             sagaInstanceRepository.save(saga);
-            sendOrderStatusCommand(orderId, "FINDING_SHIPPER", rematchEvent);
-            log.info("🔄 [Saga] Offer timed out for shipper {}, rematching orderId={} exclusions={}",
-                    timedOutShipperId, orderId, rematch.excludedShipperIds());
+            log.info("🔄 [Saga] Offer timed out for shipper {}, awaiting retirement before rematching "
+                    + "orderId={} exclusions={}", timedOutShipperId, orderId, rematch.excludedShipperIds());
         } catch (Exception e) {
             if (e instanceof SagaCommandPublishException publishException) {
                 throw publishException;
@@ -706,6 +711,73 @@ public class SagaManager {
             log.error("[Saga] Cannot build offer-timeout rematch command for orderId={}", orderId, e);
             handleStepFailedLocked("SHIPPER_OFFER_TIMEOUT", saga,
                     "Cannot build rematch command: " + e.getMessage(), rawTimeoutEvent);
+        }
+    }
+
+    /**
+     * delivery.offer-retired → Delivery acknowledged the expire command. Only
+     * the acknowledgement of the currently requested expiry may advance the case.
+     */
+    @Transactional
+    public void handleOfferRetired(Long orderId, Long deliveryId, String rawEvent) {
+        if (!claimInbound("delivery.offer-retired", orderId, rawEvent)) return;
+        SagaInstance saga = findSagaByOrderId(orderId);
+        requireDeliveryIdentity(saga, deliveryId, orderId);
+        JsonNode event;
+        UUID sourceCommandId;
+        try {
+            event = objectMapper.readTree(rawEvent);
+            sourceCommandId = UUID.fromString(event.path("sourceCommandEventId").asText());
+        } catch (Exception invalid) {
+            throw new IllegalArgumentException("Invalid delivery.offer-retired payload", invalid);
+        }
+        Long shipperId = event.hasNonNull("shipperId") ? event.get("shipperId").asLong() : null;
+        OfferRetirementPolicy.Decision decision = OfferRetirementPolicy.decide(
+                event.hasNonNull("outcome") ? event.get("outcome").asText() : null, shipperId);
+        if (saga.getStatus() != SagaStatus.OFFER_RETIRING
+                || !isExpectedRetireCommand(saga, sourceCommandId)) {
+            log.info("[Saga] Ignoring stale/unexpected offer retirement for orderId={} status={}",
+                    orderId, saga.getStatus());
+            return;
+        }
+        switch (decision) {
+            case REMATCH -> {
+                String prepared = latestStepEventData(saga, "SHIPPER_OFFER_TIMEOUT_");
+                if (prepared == null) {
+                    throw new IllegalStateException("Offer retirement has no prepared rematch for orderId=" + orderId);
+                }
+                ObjectNode payload;
+                String findCommand;
+                try {
+                    payload = (ObjectNode) objectMapper.readTree(prepared);
+                    saga.setStatus(SagaStatus.FINDING_SHIPPER);
+                    saga.addStep("OFFER_RETIRED", "delivery.offer-retired", rawEvent);
+                    findCommand = dispatchFindShipperCommand(saga, orderId, payload);
+                } catch (SagaCommandPublishException publishException) {
+                    throw publishException;
+                } catch (Exception malformed) {
+                    throw new IllegalStateException("Prepared rematch is malformed for orderId=" + orderId, malformed);
+                }
+                sagaInstanceRepository.save(saga);
+                sendOrderStatusCommand(saga, "FINDING_SHIPPER", findCommand);
+                log.info("🔄 [Saga] Offer retired, rematching orderId={}", orderId);
+            }
+            case ASSIGN -> {
+                // Delivery committed the acceptance before the expiry; it is authoritative.
+                saga.setStatus(SagaStatus.SHIPPER_ASSIGNED);
+                saga.setShipperId(shipperId);
+                saga.addStep("SHIPPER_ASSIGNED", "delivery.offer-retired", rawEvent);
+                sagaInstanceRepository.save(saga);
+                sendOrderStatusCommand(saga, "SHIPPER_ASSIGNED", rawEvent);
+                log.info("[Saga] Offer retirement reported committed assignment of shipper {} for orderId={}",
+                        shipperId, orderId);
+            }
+            case TERMINAL -> {
+                saga.addStep("OFFER_RETIRED_TERMINAL", "delivery.offer-retired", rawEvent);
+                sagaInstanceRepository.save(saga);
+                log.info("[Saga] Offer retirement found terminal Delivery for orderId={}; awaiting its terminal fact",
+                        orderId);
+            }
         }
     }
 
@@ -1413,6 +1485,27 @@ public class SagaManager {
             log.error("💥 [Saga] Failed to store order status command: {}", e.getMessage(), e);
             throw new SagaCommandPublishException("Failed to store saga order status command", e);
         }
+    }
+
+    private boolean isExpectedRetireCommand(SagaInstance saga, UUID commandId) {
+        String requested = getStepEventData(saga, "OFFER_RETIRE_REQUESTED");
+        if (requested == null) return false;
+        try {
+            return commandId.toString().equals(objectMapper.readTree(requested).path("expireCommandEventId").asText());
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    /** Event data of the most recent step whose name starts with the prefix. */
+    private String latestStepEventData(SagaInstance saga, String stepPrefix) {
+        String data = null;
+        for (SagaStep step : saga.getSteps()) {
+            if (step.getStepName().startsWith(stepPrefix) && step.getEventData() != null) {
+                data = step.getEventData();
+            }
+        }
+        return data;
     }
 
     private boolean isExpectedOfferPersistenceCommand(SagaInstance saga, String commandId) {

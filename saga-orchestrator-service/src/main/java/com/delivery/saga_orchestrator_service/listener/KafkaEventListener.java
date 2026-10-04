@@ -154,6 +154,21 @@ public class KafkaEventListener {
         }
     }
 
+    @KafkaListener(topics = "${app.kafka.input-topics.offer-retired:delivery.offer-retired}")
+    public void handleOfferRetired(String message, Acknowledgment ack) {
+        try {
+            JsonNode json = objectMapper.readTree(message);
+            extractUuid(json, "eventId");
+            Long orderId = extractLong(json, "orderId");
+            Long deliveryId = extractLong(json, "deliveryId");
+            sagaManager.handleOfferRetired(orderId, deliveryId, message);
+            ack.acknowledge();
+        } catch (Exception e) {
+            log.error("💥 [Saga] Error processing delivery.offer-retired: {}", e.getMessage(), e);
+            throw processingFailure("delivery.offer-retired", e);
+        }
+    }
+
     @KafkaListener(topics = "${app.kafka.input-topics.delivery-status:delivery.status-updated}")
     public void handleDeliveryStatusUpdated(String message, Acknowledgment ack) {
         try {

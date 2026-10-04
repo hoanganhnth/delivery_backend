@@ -11,9 +11,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Optional;
+import java.util.UUID;
 import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
@@ -23,8 +25,9 @@ class SagaManagerOfferTimeoutTest {
     @Mock SagaInstanceRepository repository;
     @Mock SagaOutboxService outboxService;
 
-    @Test
-    void timedOutOfferRematchesAndExcludesThePreviousShipper() {
+    private static final UUID EXPIRE_COMMAND = UUID.fromString("77777777-7777-7777-7777-777777777777");
+
+    private SagaInstance timedOutSaga() {
         SagaInstance saga = new SagaInstance();
         saga.setOrderId(10L);
         saga.setDeliveryId(20L);
@@ -45,21 +48,28 @@ class SagaManagerOfferTimeoutTest {
                  "foundAt":"2026-07-25T13:00:00","waitingTimeoutSeconds":180,
                  "availableShippers":[{"shipperId":30}]}
                 """);
+        return saga;
+    }
+
+    private static String retired(String outcome, UUID source, Long shipperId) {
+        return "{\"eventId\":\"" + UUID.randomUUID() + "\",\"sourceCommandEventId\":\"" + source
+                + "\",\"orderId\":10,\"deliveryId\":20,\"outcome\":\"" + outcome + "\""
+                + (shipperId == null ? "" : ",\"shipperId\":" + shipperId) + "}";
+    }
+
+    @Test
+    void timedOutOfferWaitsForDeliveryRetirementBeforeRematching() {
+        SagaInstance saga = timedOutSaga();
         when(repository.findByOrderIdForUpdate(10L)).thenReturn(Optional.of(saga));
+        when(outboxService.saveCommand(eq("10"), eq(SagaManager.CMD_EXPIRE_SHIPPER_OFFER), eq("10"), any()))
+                .thenReturn(EXPIRE_COMMAND);
         new SagaManager(repository, outboxService).handleShipperOfferTimeout(10L);
 
-        assertThat(saga.getStatus()).isEqualTo(SagaInstance.SagaStatus.FINDING_SHIPPER);
+        assertThat(saga.getStatus()).isEqualTo(SagaInstance.SagaStatus.OFFER_RETIRING);
         assertThat(saga.getSteps()).anyMatch(step -> step.getStepName().startsWith("SHIPPER_OFFER_TIMEOUT_"));
         verify(repository).save(saga);
-
-        ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
-        verify(outboxService).saveCommand(eq("10"), eq(SagaManager.CMD_FIND_SHIPPER),
-                eq("10"), payload.capture());
-        JsonNode command = (JsonNode) payload.getValue();
-        assertThat(command.get("excludedShipperIds").get(0).asLong()).isEqualTo(30L);
-        assertThat(command.get("totalPrice").decimalValue()).isEqualByComparingTo("120000");
-        assertThat(command.get("paymentMethod").asText()).isEqualTo("COD");
-        assertThat(command.get("deliveryLat").asDouble()).isEqualTo(10.76);
+        verify(outboxService, never()).saveCommand(anyString(), eq(SagaManager.CMD_FIND_SHIPPER), anyString(), any());
+        verify(outboxService, never()).saveCommand(anyString(), eq(SagaManager.CMD_UPDATE_ORDER_STATUS), anyString(), any());
 
         ArgumentCaptor<Object> expirePayload = ArgumentCaptor.forClass(Object.class);
         verify(outboxService).saveCommand(eq("10"), eq(SagaManager.CMD_EXPIRE_SHIPPER_OFFER),
@@ -72,31 +82,100 @@ class SagaManagerOfferTimeoutTest {
     }
 
     @Test
-    void timeoutCommandsUseRecoveryTopicOverrides() {
-        SagaInstance saga = new SagaInstance();
-        saga.setOrderId(10L);
-        saga.setDeliveryId(20L);
-        saga.setSagaType("ORDER_CREATION");
-        saga.setStatus(SagaInstance.SagaStatus.SHIPPER_FOUND);
-        saga.setVersion(1L);
-        saga.setUpdatedAt(LocalDateTime.now().minusMinutes(5));
-        saga.setPayload("""
-                {"orderId":10,"totalPrice":120000,"shippingFee":20000,
-                 "paymentMethod":"COD","restaurantId":40}
-                """);
-        saga.addStep("DELIVERY_CREATED", "delivery.created.result",
-                "{\"orderId\":10,\"deliveryId\":20}");
-        saga.addStep("SHIPPER_FOUND", "shipper.found", """
-                {"orderId":10,"deliveryId":20,"foundAt":"2026-07-25T13:00:00",
-                 "waitingTimeoutSeconds":180,"availableShippers":[{"shipperId":30}]}
-                """);
+    void retiredOfferStartsThePreparedRematchExcludingThePreviousShipper() {
+        SagaInstance saga = timedOutSaga();
         when(repository.findByOrderIdForUpdate(10L)).thenReturn(Optional.of(saga));
+        when(outboxService.saveCommand(eq("10"), eq(SagaManager.CMD_EXPIRE_SHIPPER_OFFER), eq("10"), any()))
+                .thenReturn(EXPIRE_COMMAND);
+        SagaManager manager = new SagaManager(repository, outboxService);
+        manager.handleShipperOfferTimeout(10L);
+
+        manager.handleOfferRetired(10L, 20L, retired("RETIRED", EXPIRE_COMMAND, null));
+
+        assertThat(saga.getStatus()).isEqualTo(SagaInstance.SagaStatus.FINDING_SHIPPER);
+        ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
+        verify(outboxService).saveCommand(eq("10"), eq(SagaManager.CMD_FIND_SHIPPER),
+                eq("10"), payload.capture());
+        JsonNode command = (JsonNode) payload.getValue();
+        assertThat(command.get("excludedShipperIds").get(0).asLong()).isEqualTo(30L);
+        assertThat(command.get("totalPrice").decimalValue()).isEqualByComparingTo("120000");
+        assertThat(command.get("paymentMethod").asText()).isEqualTo("COD");
+        assertThat(command.get("deliveryLat").asDouble()).isEqualTo(10.76);
+        assertThat(command.hasNonNull("matchingSessionId")).isTrue();
+        ArgumentCaptor<Object> status = ArgumentCaptor.forClass(Object.class);
+        verify(outboxService).saveCommand(eq("10"), eq(SagaManager.CMD_UPDATE_ORDER_STATUS),
+                eq("10"), status.capture());
+        assertThat(((JsonNode) status.getValue()).get("sagaStatus").asText()).isEqualTo("FINDING_SHIPPER");
+    }
+
+    @Test
+    void retirementReportingCommittedAcceptanceConvergesToAssigned() {
+        SagaInstance saga = timedOutSaga();
+        when(repository.findByOrderIdForUpdate(10L)).thenReturn(Optional.of(saga));
+        when(outboxService.saveCommand(eq("10"), eq(SagaManager.CMD_EXPIRE_SHIPPER_OFFER), eq("10"), any()))
+                .thenReturn(EXPIRE_COMMAND);
+        SagaManager manager = new SagaManager(repository, outboxService);
+        manager.handleShipperOfferTimeout(10L);
+
+        manager.handleOfferRetired(10L, 20L, retired("ASSIGNED", EXPIRE_COMMAND, 30L));
+
+        assertThat(saga.getStatus()).isEqualTo(SagaInstance.SagaStatus.SHIPPER_ASSIGNED);
+        assertThat(saga.getShipperId()).isEqualTo(30L);
+        verify(outboxService, never()).saveCommand(anyString(), eq(SagaManager.CMD_FIND_SHIPPER), anyString(), any());
+        // The separately published acceptance is then an exact replay.
+        clearInvocations(outboxService);
+        manager.handleShipperAccepted(10L, 20L, 30L, "{\"orderId\":10,\"deliveryId\":20,\"shipperId\":30}");
+        verifyNoInteractions(outboxService);
+    }
+
+    @Test
+    void acceptanceDuringRetirementConvergesAndLateRetirementIsIgnored() {
+        SagaInstance saga = timedOutSaga();
+        when(repository.findByOrderIdForUpdate(10L)).thenReturn(Optional.of(saga));
+        when(outboxService.saveCommand(eq("10"), eq(SagaManager.CMD_EXPIRE_SHIPPER_OFFER), eq("10"), any()))
+                .thenReturn(EXPIRE_COMMAND);
+        SagaManager manager = new SagaManager(repository, outboxService);
+        manager.handleShipperOfferTimeout(10L);
+
+        manager.handleShipperAccepted(10L, 20L, 30L, "{\"orderId\":10,\"deliveryId\":20,\"shipperId\":30}");
+        assertThat(saga.getStatus()).isEqualTo(SagaInstance.SagaStatus.SHIPPER_ASSIGNED);
+        clearInvocations(outboxService);
+
+        manager.handleOfferRetired(10L, 20L, retired("ASSIGNED", EXPIRE_COMMAND, 30L));
+        assertThat(saga.getStatus()).isEqualTo(SagaInstance.SagaStatus.SHIPPER_ASSIGNED);
+        verifyNoInteractions(outboxService);
+    }
+
+    @Test
+    void retirementForAnotherExpireCommandIsIgnored() {
+        SagaInstance saga = timedOutSaga();
+        when(repository.findByOrderIdForUpdate(10L)).thenReturn(Optional.of(saga));
+        when(outboxService.saveCommand(eq("10"), eq(SagaManager.CMD_EXPIRE_SHIPPER_OFFER), eq("10"), any()))
+                .thenReturn(EXPIRE_COMMAND);
+        SagaManager manager = new SagaManager(repository, outboxService);
+        manager.handleShipperOfferTimeout(10L);
+        clearInvocations(outboxService);
+
+        manager.handleOfferRetired(10L, 20L, retired("RETIRED", UUID.randomUUID(), null));
+        manager.handleOfferRetired(10L, 20L, retired("TERMINAL", EXPIRE_COMMAND, null));
+
+        assertThat(saga.getStatus()).isEqualTo(SagaInstance.SagaStatus.OFFER_RETIRING);
+        verifyNoInteractions(outboxService);
+    }
+
+    @Test
+    void timeoutCommandsUseRecoveryTopicOverrides() {
+        SagaInstance saga = timedOutSaga();
+        when(repository.findByOrderIdForUpdate(10L)).thenReturn(Optional.of(saga));
+        when(outboxService.saveCommand(eq("10"), eq("b8.delivery.expire"), eq("10"), any()))
+                .thenReturn(EXPIRE_COMMAND);
 
         SagaManager manager = new SagaManager(repository, outboxService);
         ReflectionTestUtils.setField(manager, "expireShipperOfferTopic", "b8.delivery.expire");
         ReflectionTestUtils.setField(manager, "findShipperTopic", "b8.match.find");
         ReflectionTestUtils.setField(manager, "updateOrderStatusTopic", "b8.order.status");
         manager.handleShipperOfferTimeout(10L);
+        manager.handleOfferRetired(10L, 20L, retired("RETIRED", EXPIRE_COMMAND, null));
 
         verify(outboxService).saveCommand(eq("10"), eq("b8.delivery.expire"), eq("10"), any());
         verify(outboxService).saveCommand(eq("10"), eq("b8.match.find"), eq("10"), any());
