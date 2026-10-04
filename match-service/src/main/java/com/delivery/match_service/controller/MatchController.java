@@ -1,11 +1,11 @@
 package com.delivery.match_service.controller;
 
 import com.delivery.match.application.api.FindNearbyShippersPort;
+import com.delivery.match.domain.availability.NearbySearchPolicy;
 import com.delivery.match.application.api.FindNearbyShippersPort.FindNearbyShippersQuery;
 import com.delivery.match.application.api.FindNearbyShippersPort.NearbyShipper;
 import com.delivery.match_service.common.constants.ApiPathConstants;
 import com.delivery.match_service.common.constants.HttpHeaderConstants;
-import com.delivery.match_service.common.util.ValidationUtil;
 import com.delivery.match_service.dto.request.FindNearbyShippersRequest;
 import com.delivery.match_service.dto.response.NearbyShipperResponse;
 import com.delivery.match_service.payload.BaseResponse;
@@ -36,7 +36,10 @@ public class MatchController {
             @RequestBody FindNearbyShippersRequest request,
             @RequestHeader(value = HttpHeaderConstants.X_USER_ID, required = false) Long userId,
             @RequestHeader(value = HttpHeaderConstants.X_ROLE, required = false) String role) {
-        String validationError = ValidationUtil.validateFindNearbyShippersRequest(request);
+        String validationError = request == null
+                ? "Request không được null"
+                : NearbySearchPolicy.validationError(request.getLatitude(), request.getLongitude(),
+                        request.getRadiusKm(), request.getMaxShippers());
         if (validationError != null) {
             return Mono.just(ResponseEntity.badRequest().body(new BaseResponse<>(0, null, validationError)));
         }

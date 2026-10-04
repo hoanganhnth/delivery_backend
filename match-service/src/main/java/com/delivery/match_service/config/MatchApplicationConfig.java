@@ -1,6 +1,7 @@
 package com.delivery.match_service.config;
 
 import com.delivery.match.application.DefaultDispatchMatchingService;
+import com.delivery.match.application.DefaultFindNearbyShippersUseCase;
 import com.delivery.match.application.api.DispatchMatchingPort;
 import com.delivery.match.application.api.FindNearbyShippersPort;
 import com.delivery.match_service.service.MatchService;
@@ -17,6 +18,7 @@ public class MatchApplicationConfig {
 
     @Bean
     FindNearbyShippersPort findNearbyShippersPort(MatchService matchService) {
-        return matchService::findNearbyShippers;
+        // The use case owns search bounds; the host service is only the GEO store adapter.
+        return new DefaultFindNearbyShippersUseCase(matchService::findNearbyShippers);
     }
 }
