@@ -29,6 +29,16 @@ final class SagaDispatchCase implements DispatchCase {
     }
 
     @Override
+    public Long deliveryId() {
+        return saga.getDeliveryId();
+    }
+
+    @Override
+    public void clearCompletion() {
+        saga.setCompletedAt(null);
+    }
+
+    @Override
     public DispatchStatus status() {
         return DispatchStatus.valueOf(saga.getStatus().name());
     }

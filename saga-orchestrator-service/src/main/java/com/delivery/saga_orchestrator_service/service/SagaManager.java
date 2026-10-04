@@ -1,6 +1,8 @@
 package com.delivery.saga_orchestrator_service.service;
 
 import com.delivery.dispatch.application.DefaultDeliveryProgressUseCase;
+import com.delivery.dispatch.application.DefaultOrderLifecycleUseCase;
+import com.delivery.dispatch.application.api.OrderLifecycleUseCase;
 import com.delivery.dispatch.application.api.DeliveryProgressUseCase;
 import com.delivery.dispatch.domain.AssignmentPolicy;
 import com.delivery.dispatch.domain.CaseHistory;
@@ -245,31 +247,14 @@ public class SagaManager {
 
     private void applyRestaurantConfirmedLocked(SagaInstance saga, String rawEvent) {
         Long orderId = saga.getOrderId();
-        boolean alreadyConfirmed = hasStep(saga, "RESTAURANT_CONFIRMED");
-        if (!AssignmentPolicy.acceptsRestaurantConfirmation(dispatch(saga), alreadyConfirmed)) {
-            if (AssignmentPolicy.acceptsRestaurantConfirmation(dispatch(saga), false)) {
-                log.warn("⚠️ [Saga] Nhà hàng đã confirm trước đó cho orderId={}, bỏ qua (idempotent)", orderId);
-            } else {
-                log.warn("⚠️ [Saga] handleRestaurantConfirmed - orderId={} đang ở {}, bỏ qua", orderId, saga.getStatus());
-            }
-            return;
-        }
-
-        saga.addStep("RESTAURANT_CONFIRMED", "restaurant.order-confirmed", rawEvent);
-        sagaInstanceRepository.save(saga);
-
-        if (saga.getStatus() == SagaStatus.DELIVERY_CREATED && saga.getDeliveryId() != null) {
-            // Delivery đã sẵn sàng → tìm shipper ngay, dùng lại payload delivery.created.result.
-            String deliveryEvent = getStepEventData(saga, "DELIVERY_CREATED");
-            if (deliveryEvent == null) {
-                throw new IllegalStateException(
-                        "Saga DELIVERY_CREATED is missing its canonical delivery.created.result payload");
-            }
-            log.info("🍽️ [Saga] Nhà hàng confirm orderId={} → tìm shipper", orderId);
-            triggerFindShipper(saga, orderId, saga.getDeliveryId(), deliveryEvent);
-        } else {
-            // Delivery chưa tạo xong → chỉ ghi nhận; handleDeliveryCreated sẽ tự tìm khi tới.
-            log.info("🍽️ [Saga] Nhà hàng confirm orderId={} nhưng delivery chưa sẵn sàng, sẽ tìm shipper sau", orderId);
+        switch (orderLifecycle().confirmRestaurant(new SagaDispatchCase(saga, objectMapper), rawEvent)) {
+            case ALREADY_CONFIRMED ->
+                    log.warn("⚠️ [Saga] Nhà hàng đã confirm trước đó cho orderId={}, bỏ qua (idempotent)", orderId);
+            case IGNORED_STATE ->
+                    log.warn("⚠️ [Saga] handleRestaurantConfirmed - orderId={} đang ở {}, bỏ qua", orderId, saga.getStatus());
+            case AWAITING_DELIVERY -> log.info(
+                    "🍽️ [Saga] Nhà hàng confirm orderId={} nhưng delivery chưa sẵn sàng, sẽ tìm shipper sau", orderId);
+            case MATCHING_STARTED -> log.info("🍽️ [Saga] Nhà hàng confirm orderId={} → tìm shipper", orderId);
         }
     }
 
@@ -808,59 +793,47 @@ public class SagaManager {
 
     private void applyOrderCancelledLocked(SagaInstance saga, String rawEvent) {
         Long orderId = saga.getOrderId();
-        AssignmentPolicy.Cancellation cancellation = AssignmentPolicy.onOrderCancelled(orderId, dispatch(saga),
-                hasStep(saga, "ORDER_CANCELLED"),
-                sameJson(getStepEventData(saga, "ORDER_CANCELLED"), rawEvent),
-                saga.getDeliveryId() != null);
-        if (cancellation == AssignmentPolicy.Cancellation.REPLAY) {
-            log.info("[Saga] Exact order-cancelled replay for orderId={}, skipping", orderId);
-            return;
+        switch (orderLifecycle().cancelOrder(new SagaDispatchCase(saga, objectMapper), rawEvent)) {
+            case REPLAY -> log.info("[Saga] Exact order-cancelled replay for orderId={}, skipping", orderId);
+            case IGNORED_FAILED -> log.info("Ignoring cancellation consequence for failed Saga orderId={}", orderId);
+            case CANCELLED, COMPENSATING ->
+                    log.warn("🚨 [Saga] COMPENSATION — order cancelled, orderId={}", orderId);
         }
-        if (cancellation == AssignmentPolicy.Cancellation.IGNORE_FAILED) {
-            // A failure compensation can command Order to CANCELLED after Saga has
-            // already recorded FAILED. The resulting order event is a consequence,
-            // not a new compensation request.
-            log.info("Ignoring cancellation consequence for failed Saga orderId={}", orderId);
-            return;
-        }
+    }
 
-        // If a Delivery is known, wait for its durable CANCELLED status event
-        // before declaring Saga cancellation complete. When create-delivery is
-        // still in flight there is nothing to await; a late result is handled
-        // explicitly by handleDeliveryCreated.
-        if (cancellation == AssignmentPolicy.Cancellation.CANCEL_IMMEDIATELY) {
-            saga.setStatus(SagaStatus.CANCELLED);
-            saga.setCompletedAt(LocalDateTime.now());
-        } else {
-            saga.setStatus(SagaStatus.COMPENSATING);
-            saga.setCompletedAt(null);
-        }
-        saga.addStep("ORDER_CANCELLED", "order.cancelled", rawEvent);
-        sagaInstanceRepository.save(saga);
-
+    /** Cancels the Delivery and stops the current matching generation, enriched with deliveryId. */
+    private void cancelDeliveryAndStopMatching(SagaInstance saga, String rawEvent) {
+        Long orderId = saga.getOrderId();
         try {
-            // Enrich payload with deliveryId for Match/Delivery services
             ObjectNode payloadNode = (ObjectNode) objectMapper.readTree(rawEvent);
             if (saga.getDeliveryId() != null) {
                 payloadNode.put("deliveryId", saga.getDeliveryId());
             }
             String enrichedEvent = objectMapper.writeValueAsString(payloadNode);
-
-            // ✅ COMPENSATION: Huỷ delivery
             sendCommand(CMD_CANCEL_DELIVERY, orderId.toString(), enrichedEvent);
-
-            // ✅ COMPENSATION: Dừng đúng matching generation hiện hành.
             sendStopMatchingCommand(saga, orderId, enrichedEvent);
         } catch (Exception e) {
             if (e instanceof SagaCommandPublishException publishException) {
                 throw publishException;
             }
-            // Fallback
             sendCommand(CMD_CANCEL_DELIVERY, orderId.toString(), rawEvent);
             sendStopMatchingCommand(saga, orderId, rawEvent);
         }
+    }
 
-        log.warn("🚨 [Saga] COMPENSATION — order cancelled, orderId={}", orderId);
+    private OrderLifecycleUseCase orderLifecycle() {
+        return new DefaultOrderLifecycleUseCase(
+                dispatchCase -> sagaInstanceRepository.save(saga(dispatchCase)),
+                (dispatchCase, deliveryEvent) -> {
+                    SagaInstance saga = saga(dispatchCase);
+                    triggerFindShipper(saga, saga.getOrderId(), saga.getDeliveryId(), deliveryEvent);
+                },
+                (dispatchCase, cause) -> cancelDeliveryAndStopMatching(saga(dispatchCase), cause),
+                this::sameJson);
+    }
+
+    private static SagaInstance saga(com.delivery.dispatch.application.api.DispatchCase dispatchCase) {
+        return ((SagaDispatchCase) dispatchCase).saga();
     }
 
     // ==================== FAILURE HANDLERS ====================

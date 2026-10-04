@@ -26,7 +26,11 @@ class DefaultDeliveryProgressUseCaseTest {
             for (int i = 0; i < steps.length; i += 2) this.steps.add(new String[] {steps[i], steps[i + 1]});
         }
 
+        Long deliveryId;
+        boolean completionCleared;
         @Override public long orderId() { return 7; }
+        @Override public Long deliveryId() { return deliveryId; }
+        @Override public void clearCompletion() { completed = false; completionCleared = true; }
         @Override public DispatchStatus status() { return status; }
         @Override public void transitionTo(DispatchStatus status) { this.status = status; }
         @Override public void markCompleted() { completed = true; }

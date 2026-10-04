@@ -8,12 +8,18 @@ public interface DispatchCase {
 
     long orderId();
 
+    /** Delivery identity once Delivery confirmed creation; null before. */
+    Long deliveryId();
+
     DispatchStatus status();
 
     void transitionTo(DispatchStatus status);
 
     /** Stamps the completion time of a terminal case. */
     void markCompleted();
+
+    /** Clears completion while compensation is still awaited. */
+    void clearCompletion();
 
     CaseHistory history();
 
