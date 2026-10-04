@@ -7,21 +7,36 @@
         <groupId>com.delivery</groupId>
         <artifactId>delivery-build-parent</artifactId>
         <version>1.0.0-SNAPSHOT</version>
-        <relativePath>../../../platform/delivery-build-parent/pom.xml</relativePath>
+        <relativePath>../../platform/delivery-build-parent/pom.xml</relativePath>
     </parent>
     <groupId>com.delivery</groupId>
-    <artifactId>settlement-domain</artifactId>
+    <artifactId>settlement-application</artifactId>
     <version>1.0.0-SNAPSHOT</version>
-    <name>settlement-domain</name>
-    <description>Framework-independent settlement value objects and invariants.</description>
+    <name>settlement-application</name>
+    <description>Framework-independent settlement payment and payout use cases.</description>
     <properties>
         <delivery.coverage.line.minimum>0.85</delivery.coverage.line.minimum>
         <delivery.coverage.branch.minimum>0.85</delivery.coverage.branch.minimum>
     </properties>
     <dependencies>
         <dependency>
+            <groupId>com.delivery</groupId>
+            <artifactId>settlement-domain</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.delivery</groupId>
+            <artifactId>settlement-application-api</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>

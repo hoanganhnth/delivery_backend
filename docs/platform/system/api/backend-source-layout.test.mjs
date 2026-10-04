@@ -30,6 +30,31 @@ test('HTTP adapters remain discoverable with the same service identity after rel
   }
 });
 
+test('Settlement adapters retain settlement-service identity in the root layout', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'backend-layout-'));
+  try {
+    fs.mkdirSync(path.join(root, 'order-service/src/main/java'), { recursive: true });
+    fs.mkdirSync(path.join(root, 'settlement/boot/src/main/java'), { recursive: true });
+    fs.mkdirSync(path.join(root, 'settlement/infrastructure/src/main/java'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'settlement/boot/pom.xml'),
+      '<project><parent><artifactId>spring-boot-starter-parent</artifactId></parent>'
+      + '<artifactId>settlement-service</artifactId></project>');
+    fs.mkdirSync(path.join(root, 'docs/reference/src/main/java'), { recursive: true });
+    assert.deepEqual(serviceSourceRoots(root).map(({ service, directory }) =>
+      [service, path.relative(root, directory)]).sort(), [
+      ['order-service', 'order-service/src/main/java'],
+      ['settlement-service', 'settlement/boot/src/main/java'],
+      ['settlement-service', 'settlement/infrastructure/src/main/java'],
+    ]);
+    assert.equal(serviceForSource(root,
+      path.join(root, 'settlement/infrastructure/src/main/java/SettlementController.java')), 'settlement-service');
+    assert.equal(serviceForSource(root,
+      path.join(root, 'order-service/src/main/java/OrderController.java')), 'order-service');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('a boot POM without an artifact identity fails instead of omitting handlers', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'backend-layout-'));
   try {

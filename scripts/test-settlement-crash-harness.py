@@ -63,6 +63,31 @@ class HarnessPreflight(unittest.TestCase):
         self.assertIn('settlement/boot/target', result.stderr)
         self.assertFalse((self.root / 'docker.log').exists())
 
+    def test_relocated_runtime_dependency_source_invalidates_package(self):
+        namespace = 'xmlns="http://maven.apache.org/POM/4.0.0"'
+        boot = self.root / 'settlement/boot/pom.xml'
+        boot.parent.mkdir(parents=True)
+        boot.write_text(f'<project {namespace}><artifactId>settlement-service</artifactId>'
+                        '<dependencies><dependency><groupId>com.delivery</groupId>'
+                        '<artifactId>settlement-infrastructure</artifactId></dependency></dependencies></project>')
+        infrastructure = self.root / 'settlement/infrastructure'
+        infrastructure.mkdir()
+        (infrastructure / 'pom.xml').write_text(
+            f'<project {namespace}><artifactId>settlement-infrastructure</artifactId></project>')
+        jar = self.package('settlement/boot/target/settlement-service-0.0.1-SNAPSHOT.jar', nested=True)
+        result = self.run_script()
+        self.assertIn('Docker daemon is unavailable', result.stderr)
+        self.assertEqual((self.root / 'docker.log').read_text(), 'info\n')
+        (self.root / 'docker.log').unlink()
+        source = infrastructure / 'src/main/java/Adapter.java'
+        source.parent.mkdir(parents=True)
+        source.write_text('class Adapter {}')
+        os.utime(source, ns=(jar.stat().st_mtime_ns + 1000000,) * 2)
+        result = self.run_script()
+        self.assertIn('Stale Settlement JAR', result.stderr)
+        self.assertIn('Adapter.java', result.stderr)
+        self.assertFalse((self.root / 'docker.log').exists())
+
     def test_explicit_current_package_reaches_only_readonly_docker_preflight(self):
         jar = self.package('custom/current.jar')
         result = self.run_script(SETTLEMENT_CRASH_JAR=str(jar))

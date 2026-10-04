@@ -33,10 +33,10 @@
         <module>tracking/application-api</module>
         <module>tracking/application</module>
         <module>tracking/infrastructure</module>
-        <module>modules/settlement/settlement-domain</module>
-        <module>modules/settlement/settlement-application-api</module>
-        <module>modules/settlement/settlement-application</module>
-        <module>modules/settlement/settlement-infrastructure</module>
+        <module>settlement/domain</module>
+        <module>settlement/application-api</module>
+        <module>settlement/application</module>
+        <module>settlement/infrastructure</module>
         <module>modules/delivery/delivery-domain</module>
         <module>modules/delivery/delivery-application-api</module>
         <module>modules/delivery/delivery-application</module>
@@ -63,7 +63,7 @@
         <module>match-service</module>
         <module>routing</module>
         <module>livestream-service</module>
-        <module>settlement-service</module>
+        <module>settlement/boot</module>
         <module>flashsale-service</module>
         <module>analytics-service</module>
         <module>promotion-service</module>

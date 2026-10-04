@@ -19,7 +19,7 @@ Settlement là sổ cái của luồng COD. MVP chỉ mở:
 ### Provider-neutral payment/refund/payout boundary
 
 Settlement now owns a contract-only adapter seam under
-`settlement-service/payment/contract`:
+`settlement/infrastructure/src/main/java/com/delivery/settlement_service/payment/contract`:
 
 - payment/refund requests carry a stable operation ID, durable idempotency key,
   immutable order reference and canonical money value;

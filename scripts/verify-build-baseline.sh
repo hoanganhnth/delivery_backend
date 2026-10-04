@@ -33,7 +33,7 @@ modules=(
   routing/boot
   web-bff/boot
   livestream-service
-  settlement-service
+  settlement/boot
   flashsale-service
   analytics-service
   promotion-service
@@ -266,7 +266,7 @@ fi
 if rg -n 'new BaseResponse<>' \
     --glob '!**/BaseResponse.java' \
     "${ROOT_DIR}/auth/infrastructure/src/main/java" \
-    "${ROOT_DIR}/settlement-service/src/main/java" \
+    "${ROOT_DIR}/settlement/infrastructure/src/main/java" \
     "${ROOT_DIR}/flashsale-service/src/main/java" >/dev/null; then
   echo "Auth, Settlement and Flash Sale must use BaseResponse named factories at call sites." >&2
   exit 1
@@ -339,12 +339,12 @@ hidden_capability_defaults=(
   'order-service/src/main/resources/application.properties|app.order.voucher-checkout-enabled=${ORDER_VOUCHER_CHECKOUT_ENABLED:false}'
   'order-service/src/main/resources/application.properties|app.order.flashsale-checkout-enabled=${ORDER_FLASHSALE_CHECKOUT_ENABLED:false}'
   'order-service/src/main/resources/application.properties|app.order.livestream-checkout-enabled=${ORDER_LIVESTREAM_CHECKOUT_ENABLED:false}'
-  'settlement-service/src/main/resources/application.properties|app.payment.processing-enabled=${PAYMENT_PROCESSING_ENABLED:false}'
-  'settlement-service/src/main/resources/application.properties|app.payment.fake-provider-enabled=${FAKE_PAYMENT_PROVIDER_ENABLED:false}'
-  'settlement-service/src/main/resources/application.properties|app.payout.processing-enabled=${PAYOUT_PROCESSING_ENABLED:false}'
-  'settlement-service/src/main/resources/application.properties|app.payout.provider=${PAYOUT_PROVIDER:PAYOS}'
-  'settlement-service/src/main/resources/application.properties|app.settlement.self-service-api-enabled=${SETTLEMENT_SELF_SERVICE_API_ENABLED:false}'
-  'settlement-service/src/main/resources/application.properties|app.settlement.admin-mutation-api-enabled=${SETTLEMENT_ADMIN_MUTATION_API_ENABLED:false}'
+  'settlement/boot/src/main/resources/application.properties|app.payment.processing-enabled=${PAYMENT_PROCESSING_ENABLED:false}'
+  'settlement/boot/src/main/resources/application.properties|app.payment.fake-provider-enabled=${FAKE_PAYMENT_PROVIDER_ENABLED:false}'
+  'settlement/boot/src/main/resources/application.properties|app.payout.processing-enabled=${PAYOUT_PROCESSING_ENABLED:false}'
+  'settlement/boot/src/main/resources/application.properties|app.payout.provider=${PAYOUT_PROVIDER:PAYOS}'
+  'settlement/boot/src/main/resources/application.properties|app.settlement.self-service-api-enabled=${SETTLEMENT_SELF_SERVICE_API_ENABLED:false}'
+  'settlement/boot/src/main/resources/application.properties|app.settlement.admin-mutation-api-enabled=${SETTLEMENT_ADMIN_MUTATION_API_ENABLED:false}'
   'notification-service/src/main/resources/application.properties|app.notification.preferences-enabled=${NOTIFICATION_PREFERENCES_ENABLED:false}'
   'shipper/boot/src/main/resources/application.properties|app.shipper.legacy-rating-write-api-enabled=${SHIPPER_LEGACY_RATING_WRITE_API_ENABLED:false}'
   'shipper/boot/src/main/resources/application.properties|app.shipper.legacy-delete-api-enabled=${SHIPPER_LEGACY_DELETE_API_ENABLED:false}'
@@ -362,8 +362,8 @@ for entry in "${hidden_capability_defaults[@]}"; do
 done
 
 for fake_payment_source in \
-  "${ROOT_DIR}/settlement-service/src/main/java/com/delivery/settlement_service/controller/FakePaymentController.java" \
-  "${ROOT_DIR}/settlement-service/src/main/java/com/delivery/settlement_service/payment/provider/FakePaymentProvider.java"; do
+  "${ROOT_DIR}/settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/FakePaymentController.java" \
+  "${ROOT_DIR}/settlement/infrastructure/src/main/java/com/delivery/settlement_service/payment/provider/FakePaymentProvider.java"; do
   if ! rg -Fq '@Profile({"dev", "test"})' "${fake_payment_source}"; then
     echo "Settlement fake-payment beans must remain isolated to dev/test profiles." >&2
     exit 1
@@ -410,7 +410,7 @@ unsafe_match_if_missing="$(rg -n 'matchIfMissing[[:space:]]*=[[:space:]]*true' \
   --glob '**/src/main/java/**/*.java' "${ROOT_DIR}" \
   | rg -v '/(OrderOutboxRelay|RestaurantOutboxRelay|SagaOutboxRelay|OutboxMessageRelay|LivestreamDisabledWebFilter)\.java:[0-9]+:' \
   | rg -v '/tracking/infrastructure/src/main/java/com/delivery/tracking_service/config/PublisherSessionConfig\.java:[0-9]+:[[:space:]]*@ConditionalOnProperty\(name = "spring.task.scheduling.enabled", havingValue = "true", matchIfMissing = true\)[[:space:]]*$' \
-  | rg -v '/settlement-service/src/main/java/com/delivery/settlement_service/config/CodCapacitySchedulingConfig\.java:[0-9]+:[[:space:]]*@ConditionalOnProperty\(name = "spring.task.scheduling.enabled", havingValue = "true", matchIfMissing = true\)[[:space:]]*$' || true)"
+  | rg -v '/settlement/infrastructure/src/main/java/com/delivery/settlement_service/config/CodCapacitySchedulingConfig\.java:[0-9]+:[[:space:]]*@ConditionalOnProperty\(name = "spring.task.scheduling.enabled", havingValue = "true", matchIfMissing = true\)[[:space:]]*$' || true)"
 if [[ -n "${unsafe_match_if_missing}" ]]; then
   echo "Hidden/optional components must not use matchIfMissing=true:" >&2
   printf '%s\n' "${unsafe_match_if_missing}" >&2
@@ -567,7 +567,7 @@ if ! rg -Fq 'record.topic() + ".DLT"' "${match_kafka_config}" \
 fi
 
 for core_kafka_config in \
-  "${ROOT_DIR}/settlement-service/src/main/java/com/delivery/settlement_service/config/KafkaConsumerConfig.java"; do
+  "${ROOT_DIR}/settlement/infrastructure/src/main/java/com/delivery/settlement_service/config/KafkaConsumerConfig.java"; do
   if ! rg -Fq 'record.topic() + ".DLT"' "${core_kafka_config}" \
       || ! rg -Fq 'new FixedBackOff(1000L, 2)' "${core_kafka_config}" \
       || ! rg -Fq 'recoverer.setFailIfSendResultIsError(true)' "${core_kafka_config}"; then
@@ -587,7 +587,7 @@ if [[ "$(rg -c 'Pageable pageable' "${livestream_repository}")" -ne 3 ]] \
 fi
 if [[ -e "${ROOT_DIR}/livestream-service/src/main/java/com/delivery/livestream_service/repository/LivestreamEventRepository.java" ]] \
     || rg -q 'findByEntityIdAndEntityTypeOrderByCreatedAtDesc' \
-      "${ROOT_DIR}/settlement-service/src/main/java/com/delivery/settlement_service/repository/PaymentOrderRepository.java" \
+      "${ROOT_DIR}/settlement/infrastructure/src/main/java/com/delivery/settlement_service/repository/PaymentOrderRepository.java" \
     || rg -q 'findByRoomId|countActiveDeliveriesByShipper' \
       "${livestream_repository}" \
       "${ROOT_DIR}/delivery-service/src/main/java/com/delivery/delivery_service/repository/DeliveryRepository.java" \
@@ -648,28 +648,28 @@ for manual_dlt_consumer in delivery-service saga-orchestrator-service match-serv
   fi
 done
 if rg -q '@KafkaListener\([^)]*groupId\s*=\s*"settlement-service-group"' \
-    "${ROOT_DIR}/settlement-service/src/main/java"; then
+    "${ROOT_DIR}/settlement/infrastructure/src/main/java"; then
   echo "settlement-service: consumer group must come from spring.kafka.consumer.group-id for isolated recovery." >&2
   exit 1
 fi
 if ! rg -Fq '@KafkaListener(topics = "${app.kafka.topics.delivery-completed:delivery.completed}")' \
-    "${ROOT_DIR}/settlement-service/src/main/java/com/delivery/settlement_service/listener/DeliveryCompletedEventListener.java"; then
+    "${ROOT_DIR}/settlement/infrastructure/src/main/java/com/delivery/settlement_service/listener/DeliveryCompletedEventListener.java"; then
   echo "settlement-service: delivery.completed topic must keep an overridable recovery boundary." >&2
   exit 1
 fi
-settlement_receipt_repository="${ROOT_DIR}/settlement-service/src/main/java/com/delivery/settlement_service/repository/SettlementReceiptRepository.java"
-settlement_completed_listener="${ROOT_DIR}/settlement-service/src/main/java/com/delivery/settlement_service/listener/DeliveryCompletedEventListener.java"
+settlement_receipt_repository="${ROOT_DIR}/settlement/infrastructure/src/main/java/com/delivery/settlement_service/repository/SettlementReceiptRepository.java"
+settlement_completed_adapter="${ROOT_DIR}/settlement/infrastructure/src/main/java/com/delivery/settlement_service/adapter/JpaCodSettlementAdapter.java"
 if ! rg -Fq 'ON CONFLICT (event_id) DO NOTHING' "${settlement_receipt_repository}" \
-    || ! rg -Fq 'insertIfAbsentPostgres' "${settlement_completed_listener}" \
-    || rg -Fq 'saveAndFlush(SettlementReceipt.builder()' "${settlement_completed_listener}"; then
+    || ! rg -Fq 'insertIfAbsentPostgres' "${settlement_completed_adapter}" \
+    || rg -Fq 'saveAndFlush(SettlementReceipt.builder()' "${settlement_completed_adapter}"; then
   echo "settlement-service: delivery.completed must use an atomic receipt claim before financial postings." >&2
   exit 1
 fi
-refund_case_repository="${ROOT_DIR}/settlement-service/src/main/java/com/delivery/settlement_service/repository/RefundCaseRepository.java"
-refund_case_service="${ROOT_DIR}/settlement-service/src/main/java/com/delivery/settlement_service/service/RefundCaseService.java"
+refund_case_repository="${ROOT_DIR}/settlement/infrastructure/src/main/java/com/delivery/settlement_service/repository/RefundCaseRepository.java"
+refund_case_adapter="${ROOT_DIR}/settlement/infrastructure/src/main/java/com/delivery/settlement_service/adapter/JpaRefundCaseAdapter.java"
 if ! rg -Fq 'ON CONFLICT DO NOTHING' "${refund_case_repository}" \
-    || ! rg -Fq 'insertIfAbsentPostgres' "${refund_case_service}" \
-    || rg -Fq 'saveAndFlush(refundCase)' "${refund_case_service}"; then
+    || ! rg -Fq 'insertIfAbsentPostgres' "${refund_case_adapter}" \
+    || rg -Fq 'saveAndFlush(refundCase)' "${refund_case_adapter}"; then
   echo "settlement-service: feature-gated refund intake must atomically claim its durable case before an outbox handoff." >&2
   exit 1
 fi

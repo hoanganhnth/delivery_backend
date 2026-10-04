@@ -421,7 +421,7 @@ services:
     networks: [delivery-network]
 
   settlement-service:
-    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: settlement-service } }
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: settlement/boot } }
     container_name: settlement-service
     expose: ["8090", "9090"]
     environment:

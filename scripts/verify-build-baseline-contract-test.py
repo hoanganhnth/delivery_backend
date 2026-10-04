@@ -82,7 +82,7 @@ class SchedulingCapabilityGateTest(unittest.TestCase):
 
 
 class CodSchedulingCapabilityGateTest(SchedulingCapabilityGateTest):
-    path = Path("settlement-service/src/main/java/com/delivery/settlement_service/config/CodCapacitySchedulingConfig.java")
+    path = Path("settlement/infrastructure/src/main/java/com/delivery/settlement_service/config/CodCapacitySchedulingConfig.java")
 
 
 if __name__ == "__main__":

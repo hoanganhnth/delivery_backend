@@ -3421,7 +3421,7 @@ public ResponseEntity<BaseResponse<PageResponse<RestaurantSearchResponse>>> sear
 ### `GET` `/api/settlement/admin/balances`
 
 - Handler: `AdminController.getAllBalances`
-- Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/AdminController.java:29`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/controller/AdminController.java)
+- Source: [`backend_delivery/settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/AdminController.java:29`](../../../../settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/AdminController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<BalanceResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -3440,7 +3440,7 @@ public ResponseEntity<BaseResponse<List<BalanceResponse>>> getAllBalances( @Auth
 ### `GET` `/api/settlement/admin/refunds`
 
 - Handler: `RefundAdminController.list`
-- Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/RefundAdminController.java:30`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/controller/RefundAdminController.java)
+- Source: [`backend_delivery/settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/RefundAdminController.java:30`](../../../../settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/RefundAdminController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<RefundCaseResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -3461,7 +3461,7 @@ public ResponseEntity<BaseResponse<List<RefundCaseResponse>>> list( @Authenticat
 ### `GET` `/api/settlement/admin/refunds/{refundId}`
 
 - Handler: `RefundAdminController.get`
-- Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/RefundAdminController.java:50`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/controller/RefundAdminController.java)
+- Source: [`backend_delivery/settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/RefundAdminController.java:50`](../../../../settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/RefundAdminController.java)
 - Java return type: `ResponseEntity<BaseResponse<RefundCaseResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -3481,7 +3481,7 @@ public ResponseEntity<BaseResponse<RefundCaseResponse>> get( @AuthenticationPrin
 ### `GET` `/api/settlement/admin/revenue`
 
 - Handler: `AdminController.getPlatformRevenue`
-- Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/AdminController.java:68`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/controller/AdminController.java)
+- Source: [`backend_delivery/settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/AdminController.java:68`](../../../../settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/AdminController.java)
 - Java return type: `ResponseEntity<BaseResponse<BigDecimal>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -3500,7 +3500,7 @@ public ResponseEntity<BaseResponse<BigDecimal>> getPlatformRevenue( @Authenticat
 ### `GET` `/api/settlement/admin/transactions`
 
 - Handler: `AdminController.getAllTransactions`
-- Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/AdminController.java:42`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/controller/AdminController.java)
+- Source: [`backend_delivery/settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/AdminController.java:42`](../../../../settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/AdminController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<TransactionResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -3519,7 +3519,7 @@ public ResponseEntity<BaseResponse<List<TransactionResponse>>> getAllTransaction
 ### `GET` `/api/settlement/admin/transactions/pending`
 
 - Handler: `AdminController.getPendingWithdrawals`
-- Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/AdminController.java:55`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/controller/AdminController.java)
+- Source: [`backend_delivery/settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/AdminController.java:55`](../../../../settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/AdminController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<TransactionResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -3538,7 +3538,7 @@ public ResponseEntity<BaseResponse<List<TransactionResponse>>> getPendingWithdra
 ### `GET` `/api/settlement/balances/restaurant/{entityId}`
 
 - Handler: `BalanceController.getRestaurantBalance`
-- Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/BalanceController.java:36`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/controller/BalanceController.java)
+- Source: [`backend_delivery/settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/BalanceController.java:36`](../../../../settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/BalanceController.java)
 - Java return type: `ResponseEntity<BaseResponse<BalanceResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -3557,7 +3557,7 @@ public ResponseEntity<BaseResponse<BalanceResponse>> getRestaurantBalance(@PathV
 ### `GET` `/api/settlement/balances/restaurant/{entityId}/earnings`
 
 - Handler: `BalanceController.getRestaurantEarnings`
-- Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/BalanceController.java:48`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/controller/BalanceController.java)
+- Source: [`backend_delivery/settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/BalanceController.java:48`](../../../../settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/BalanceController.java)
 - Java return type: `ResponseEntity<BaseResponse<BigDecimal>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -3576,7 +3576,7 @@ public ResponseEntity<BaseResponse<BigDecimal>> getRestaurantEarnings(@PathVaria
 ### `POST` `/api/settlement/balances/restaurant/{entityId}/withdraw`
 
 - Handler: `BalanceController.requestRestaurantWithdrawal`
-- Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/BalanceController.java:60`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/controller/BalanceController.java)
+- Source: [`backend_delivery/settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/BalanceController.java:60`](../../../../settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/BalanceController.java)
 - Java return type: `ResponseEntity<BaseResponse<TransactionResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -3597,7 +3597,7 @@ public ResponseEntity<BaseResponse<TransactionResponse>> requestRestaurantWithdr
 ### `GET` `/api/settlement/balances/shipper/{entityId}`
 
 - Handler: `BalanceController.getShipperBalance`
-- Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/BalanceController.java:42`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/controller/BalanceController.java)
+- Source: [`backend_delivery/settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/BalanceController.java:42`](../../../../settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/BalanceController.java)
 - Java return type: `ResponseEntity<BaseResponse<BalanceResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -3616,7 +3616,7 @@ public ResponseEntity<BaseResponse<BalanceResponse>> getShipperBalance(@PathVari
 ### `GET` `/api/settlement/balances/shipper/{entityId}/cod-eligibility`
 
 - Handler: `BalanceController.checkCodEligibility`
-- Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/BalanceController.java:124`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/controller/BalanceController.java)
+- Source: [`backend_delivery/settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/BalanceController.java:124`](../../../../settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/BalanceController.java)
 - Java return type: `ResponseEntity<BaseResponse<Boolean>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -3636,7 +3636,7 @@ public ResponseEntity<BaseResponse<Boolean>> checkCodEligibility( @PathVariable 
 ### `POST` `/api/settlement/balances/shipper/{entityId}/deposit`
 
 - Handler: `BalanceController.topUpDeposit`
-- Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/BalanceController.java:112`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/controller/BalanceController.java)
+- Source: [`backend_delivery/settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/BalanceController.java:112`](../../../../settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/BalanceController.java)
 - Java return type: `ResponseEntity<BaseResponse<TransactionResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -3656,7 +3656,7 @@ public ResponseEntity<BaseResponse<TransactionResponse>> topUpDeposit( @PathVari
 ### `GET` `/api/settlement/balances/shipper/{entityId}/earnings`
 
 - Handler: `BalanceController.getShipperEarnings`
-- Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/BalanceController.java:54`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/controller/BalanceController.java)
+- Source: [`backend_delivery/settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/BalanceController.java:54`](../../../../settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/BalanceController.java)
 - Java return type: `ResponseEntity<BaseResponse<BigDecimal>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -3675,7 +3675,7 @@ public ResponseEntity<BaseResponse<BigDecimal>> getShipperEarnings(@PathVariable
 ### `POST` `/api/settlement/balances/shipper/{entityId}/hold`
 
 - Handler: `BalanceController.holdShipperBalance`
-- Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/BalanceController.java:88`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/controller/BalanceController.java)
+- Source: [`backend_delivery/settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/BalanceController.java:88`](../../../../settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/BalanceController.java)
 - Java return type: `ResponseEntity<BaseResponse<TransactionResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -3695,7 +3695,7 @@ public ResponseEntity<BaseResponse<TransactionResponse>> holdShipperBalance( @Pa
 ### `POST` `/api/settlement/balances/shipper/{entityId}/release`
 
 - Handler: `BalanceController.releaseShipperBalance`
-- Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/BalanceController.java:100`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/controller/BalanceController.java)
+- Source: [`backend_delivery/settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/BalanceController.java:100`](../../../../settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/BalanceController.java)
 - Java return type: `ResponseEntity<BaseResponse<TransactionResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -3715,7 +3715,7 @@ public ResponseEntity<BaseResponse<TransactionResponse>> releaseShipperBalance( 
 ### `POST` `/api/settlement/balances/shipper/{entityId}/withdraw`
 
 - Handler: `BalanceController.requestShipperWithdrawal`
-- Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/BalanceController.java:74`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/controller/BalanceController.java)
+- Source: [`backend_delivery/settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/BalanceController.java:74`](../../../../settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/BalanceController.java)
 - Java return type: `ResponseEntity<BaseResponse<TransactionResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -3736,7 +3736,7 @@ public ResponseEntity<BaseResponse<TransactionResponse>> requestShipperWithdrawa
 ### `POST` `/api/settlement/internal/cod-capacity/holds`
 
 - Handler: `InternalSettlementController.createCodCapacityHolds`
-- Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/InternalSettlementController.java:67`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/controller/InternalSettlementController.java)
+- Source: [`backend_delivery/settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/InternalSettlementController.java:67`](../../../../settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/InternalSettlementController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<CodCapacityHold>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -3756,7 +3756,7 @@ public ResponseEntity<BaseResponse<List<CodCapacityHold>>> createCodCapacityHold
 ### `POST` `/api/settlement/internal/cod-capacity/holds/{holdId}/commit`
 
 - Handler: `InternalSettlementController.commitCodCapacityHold`
-- Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/InternalSettlementController.java:76`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/controller/InternalSettlementController.java)
+- Source: [`backend_delivery/settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/InternalSettlementController.java:76`](../../../../settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/InternalSettlementController.java)
 - Java return type: `ResponseEntity<BaseResponse<CodCapacityHold>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -3776,7 +3776,7 @@ public ResponseEntity<BaseResponse<CodCapacityHold>> commitCodCapacityHold( @Pat
 ### `POST` `/api/settlement/internal/cod-capacity/holds/{holdId}/release`
 
 - Handler: `InternalSettlementController.releaseCodCapacityHold`
-- Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/InternalSettlementController.java:86`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/controller/InternalSettlementController.java)
+- Source: [`backend_delivery/settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/InternalSettlementController.java:86`](../../../../settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/InternalSettlementController.java)
 - Java return type: `ResponseEntity<BaseResponse<CodCapacityHold>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -3796,7 +3796,7 @@ public ResponseEntity<BaseResponse<CodCapacityHold>> releaseCodCapacityHold( @Pa
 ### `GET` `/api/settlement/internal/shippers/{shipperId}/cod-eligibility`
 
 - Handler: `InternalSettlementController.isCodEligible`
-- Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/InternalSettlementController.java:49`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/controller/InternalSettlementController.java)
+- Source: [`backend_delivery/settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/InternalSettlementController.java:49`](../../../../settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/InternalSettlementController.java)
 - Java return type: `ResponseEntity<BaseResponse<Boolean>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -3817,7 +3817,7 @@ public ResponseEntity<BaseResponse<Boolean>> isCodEligible( @PathVariable Long s
 ### `POST` `/api/settlement/payments/create`
 
 - Handler: `CustomerPaymentController.create`
-- Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/CustomerPaymentController.java:30`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/controller/CustomerPaymentController.java)
+- Source: [`backend_delivery/settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/CustomerPaymentController.java:30`](../../../../settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/CustomerPaymentController.java)
 - Java return type: `ResponseEntity<BaseResponse<Void>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -3837,7 +3837,7 @@ public ResponseEntity<BaseResponse<Void>> create( @AuthenticationPrincipal Authe
 ### `GET` `/api/settlement/payments/fake-confirm/{paymentRef}`
 
 - Handler: `FakePaymentController.fakeConfirm`
-- Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/FakePaymentController.java:27`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/controller/FakePaymentController.java)
+- Source: [`backend_delivery/settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/FakePaymentController.java:27`](../../../../settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/FakePaymentController.java)
 - Java return type: `ResponseEntity<BaseResponse<PaymentOrderResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -3856,7 +3856,7 @@ public ResponseEntity<BaseResponse<PaymentOrderResponse>> fakeConfirm( @PathVari
 ### `GET` `/api/settlement/payments/internal/{paymentId}`
 
 - Handler: `PaymentController.getPaymentStatus`
-- Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/PaymentController.java:111`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/controller/PaymentController.java)
+- Source: [`backend_delivery/settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/PaymentController.java:111`](../../../../settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/PaymentController.java)
 - Java return type: `ic ResponseEntity<BaseResponse<PaymentOrderResponse>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -3875,7 +3875,7 @@ public ResponseEntity<BaseResponse<PaymentOrderResponse>> getPaymentStatus( @Pat
 ### `POST` `/api/settlement/payments/internal/create`
 
 - Handler: `PaymentController.createPayment`
-- Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/PaymentController.java:41`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/controller/PaymentController.java)
+- Source: [`backend_delivery/settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/PaymentController.java:41`](../../../../settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/PaymentController.java)
 - Java return type: `ResponseEntity<BaseResponse<PaymentOrderResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -3895,7 +3895,7 @@ public ResponseEntity<BaseResponse<PaymentOrderResponse>> createPayment( @Valid 
 ### `GET` `/api/settlement/payments/internal/providers`
 
 - Handler: `PaymentController.getAvailableProviders`
-- Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/PaymentController.java:133`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/controller/PaymentController.java)
+- Source: [`backend_delivery/settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/PaymentController.java:133`](../../../../settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/PaymentController.java)
 - Java return type: `ic ResponseEntity<BaseResponse<Set<String>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -3914,7 +3914,7 @@ public ResponseEntity<BaseResponse<Set<String>>> getAvailableProviders()
 ### `GET` `/api/settlement/payments/internal/ref/{paymentRef}`
 
 - Handler: `PaymentController.getPaymentByRef`
-- Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/PaymentController.java:122`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/controller/PaymentController.java)
+- Source: [`backend_delivery/settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/PaymentController.java:122`](../../../../settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/PaymentController.java)
 - Java return type: `ic ResponseEntity<BaseResponse<PaymentOrderResponse>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -3933,7 +3933,7 @@ public ResponseEntity<BaseResponse<PaymentOrderResponse>> getPaymentByRef( @Path
 ### `GET` `/api/settlement/payments/ref/{paymentRef}`
 
 - Handler: `CustomerPaymentController.getByReference`
-- Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/CustomerPaymentController.java:47`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/controller/CustomerPaymentController.java)
+- Source: [`backend_delivery/settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/CustomerPaymentController.java:47`](../../../../settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/CustomerPaymentController.java)
 - Java return type: `ResponseEntity<BaseResponse<Void>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -3953,7 +3953,7 @@ public ResponseEntity<BaseResponse<Void>> getByReference( @AuthenticationPrincip
 ### `GET` `/api/settlement/payments/vnpay-callback`
 
 - Handler: `PaymentController.vnpayCallback`
-- Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/PaymentController.java:64`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/controller/PaymentController.java)
+- Source: [`backend_delivery/settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/PaymentController.java:64`](../../../../settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/PaymentController.java)
 - Java return type: `ResponseEntity<BaseResponse<PaymentOrderResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -3972,7 +3972,7 @@ public ResponseEntity<BaseResponse<PaymentOrderResponse>> vnpayCallback( @Reques
 ### `GET + POST` `/api/settlement/payments/vnpay-ipn`
 
 - Handler: `PaymentController.vnpayIpn`
-- Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/PaymentController.java:84`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/controller/PaymentController.java)
+- Source: [`backend_delivery/settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/PaymentController.java:84`](../../../../settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/PaymentController.java)
 - Java return type: `c ResponseEntity<Map<String, String>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -3991,7 +3991,7 @@ public ResponseEntity<Map<String, String>> vnpayIpn(@RequestParam Map<String, St
 ### `GET` `/api/settlement/refunds/my`
 
 - Handler: `RefundCustomerController.list`
-- Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/RefundCustomerController.java:26`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/controller/RefundCustomerController.java)
+- Source: [`backend_delivery/settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/RefundCustomerController.java:26`](../../../../settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/RefundCustomerController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<RefundCustomerCaseResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -4011,7 +4011,7 @@ public ResponseEntity<BaseResponse<List<RefundCustomerCaseResponse>>> list( @Aut
 ### `GET` `/api/settlement/transactions/{id}`
 
 - Handler: `TransactionController.getTransactionById`
-- Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/TransactionController.java:48`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/controller/TransactionController.java)
+- Source: [`backend_delivery/settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/TransactionController.java:48`](../../../../settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/TransactionController.java)
 - Java return type: `ResponseEntity<BaseResponse<TransactionResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -4030,7 +4030,7 @@ public ResponseEntity<BaseResponse<TransactionResponse>> getTransactionById(@Pat
 ### `GET` `/api/settlement/transactions/restaurant/{entityId}`
 
 - Handler: `TransactionController.getRestaurantTransactions`
-- Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/TransactionController.java:26`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/controller/TransactionController.java)
+- Source: [`backend_delivery/settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/TransactionController.java:26`](../../../../settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/TransactionController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<TransactionResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -4049,7 +4049,7 @@ public ResponseEntity<BaseResponse<List<TransactionResponse>>> getRestaurantTran
 ### `GET` `/api/settlement/transactions/shipper/{entityId}`
 
 - Handler: `TransactionController.getShipperTransactions`
-- Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/TransactionController.java:37`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/controller/TransactionController.java)
+- Source: [`backend_delivery/settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/TransactionController.java:37`](../../../../settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/TransactionController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<TransactionResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -8004,7 +8004,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.settlement_service.controller.CustomerPaymentController.CustomerPaymentCreateRequest`
 
 - Kind: `record`
-- Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/controller/CustomerPaymentController.java:63`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/controller/CustomerPaymentController.java)
+- Source: [`backend_delivery/settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/CustomerPaymentController.java:63`](../../../../settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/CustomerPaymentController.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -8013,7 +8013,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.settlement_service.dto.request.CodCapacityHoldRequest`
 
 - Kind: `class`
-- Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/dto/request/CodCapacityHoldRequest.java:15`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/dto/request/CodCapacityHoldRequest.java)
+- Source: [`backend_delivery/settlement/infrastructure/src/main/java/com/delivery/settlement_service/dto/request/CodCapacityHoldRequest.java:15`](../../../../settlement/infrastructure/src/main/java/com/delivery/settlement_service/dto/request/CodCapacityHoldRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -8026,7 +8026,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 #### `com.delivery.settlement_service.dto.request.CodCapacityHoldRequest.Item`
 
 - Kind: `class`
-- Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/dto/request/CodCapacityHoldRequest.java:25`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/dto/request/CodCapacityHoldRequest.java)
+- Source: [`backend_delivery/settlement/infrastructure/src/main/java/com/delivery/settlement_service/dto/request/CodCapacityHoldRequest.java:25`](../../../../settlement/infrastructure/src/main/java/com/delivery/settlement_service/dto/request/CodCapacityHoldRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -8040,7 +8040,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.settlement_service.dto.request.CodCapacityHoldRequest.Item`
 
 - Kind: `class`
-- Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/dto/request/CodCapacityHoldRequest.java:25`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/dto/request/CodCapacityHoldRequest.java)
+- Source: [`backend_delivery/settlement/infrastructure/src/main/java/com/delivery/settlement_service/dto/request/CodCapacityHoldRequest.java:25`](../../../../settlement/infrastructure/src/main/java/com/delivery/settlement_service/dto/request/CodCapacityHoldRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -8054,7 +8054,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.settlement_service.dto.request.CreatePaymentRequest`
 
 - Kind: `class`
-- Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/dto/request/CreatePaymentRequest.java:18`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/dto/request/CreatePaymentRequest.java)
+- Source: [`backend_delivery/settlement/infrastructure/src/main/java/com/delivery/settlement_service/dto/request/CreatePaymentRequest.java:18`](../../../../settlement/infrastructure/src/main/java/com/delivery/settlement_service/dto/request/CreatePaymentRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -8066,7 +8066,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.settlement_service.dto.request.HoldBalanceRequest`
 
 - Kind: `class`
-- Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/dto/request/HoldBalanceRequest.java:16`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/dto/request/HoldBalanceRequest.java)
+- Source: [`backend_delivery/settlement/infrastructure/src/main/java/com/delivery/settlement_service/dto/request/HoldBalanceRequest.java:16`](../../../../settlement/infrastructure/src/main/java/com/delivery/settlement_service/dto/request/HoldBalanceRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -8076,7 +8076,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.settlement_service.dto.request.TopUpDepositRequest`
 
 - Kind: `class`
-- Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/dto/request/TopUpDepositRequest.java:17`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/dto/request/TopUpDepositRequest.java)
+- Source: [`backend_delivery/settlement/infrastructure/src/main/java/com/delivery/settlement_service/dto/request/TopUpDepositRequest.java:17`](../../../../settlement/infrastructure/src/main/java/com/delivery/settlement_service/dto/request/TopUpDepositRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -8086,7 +8086,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.settlement_service.dto.request.WithdrawalRequest`
 
 - Kind: `class`
-- Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/dto/request/WithdrawalRequest.java:16`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/dto/request/WithdrawalRequest.java)
+- Source: [`backend_delivery/settlement/infrastructure/src/main/java/com/delivery/settlement_service/dto/request/WithdrawalRequest.java:16`](../../../../settlement/infrastructure/src/main/java/com/delivery/settlement_service/dto/request/WithdrawalRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -8096,7 +8096,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.settlement_service.dto.response.BalanceResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/dto/response/BalanceResponse.java:15`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/dto/response/BalanceResponse.java)
+- Source: [`backend_delivery/settlement/infrastructure/src/main/java/com/delivery/settlement_service/dto/response/BalanceResponse.java:15`](../../../../settlement/infrastructure/src/main/java/com/delivery/settlement_service/dto/response/BalanceResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -8115,7 +8115,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.settlement_service.dto.response.PaymentOrderResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/dto/response/PaymentOrderResponse.java:18`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/dto/response/PaymentOrderResponse.java)
+- Source: [`backend_delivery/settlement/infrastructure/src/main/java/com/delivery/settlement_service/dto/response/PaymentOrderResponse.java:18`](../../../../settlement/infrastructure/src/main/java/com/delivery/settlement_service/dto/response/PaymentOrderResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -8137,7 +8137,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.settlement_service.dto.response.RefundCaseResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/dto/response/RefundCaseResponse.java:22`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/dto/response/RefundCaseResponse.java)
+- Source: [`backend_delivery/settlement/infrastructure/src/main/java/com/delivery/settlement_service/dto/response/RefundCaseResponse.java:22`](../../../../settlement/infrastructure/src/main/java/com/delivery/settlement_service/dto/response/RefundCaseResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -8174,7 +8174,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.settlement_service.dto.response.RefundCustomerCaseResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/dto/response/RefundCustomerCaseResponse.java:23`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/dto/response/RefundCustomerCaseResponse.java)
+- Source: [`backend_delivery/settlement/infrastructure/src/main/java/com/delivery/settlement_service/dto/response/RefundCustomerCaseResponse.java:23`](../../../../settlement/infrastructure/src/main/java/com/delivery/settlement_service/dto/response/RefundCustomerCaseResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -8192,7 +8192,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.settlement_service.dto.response.TransactionResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/dto/response/TransactionResponse.java:15`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/dto/response/TransactionResponse.java)
+- Source: [`backend_delivery/settlement/infrastructure/src/main/java/com/delivery/settlement_service/dto/response/TransactionResponse.java:15`](../../../../settlement/infrastructure/src/main/java/com/delivery/settlement_service/dto/response/TransactionResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -8213,7 +8213,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.settlement_service.entity.CodCapacityHold`
 
 - Kind: `class`
-- Source: [`backend_delivery/modules/settlement/settlement-infrastructure/src/main/java/com/delivery/settlement_service/entity/CodCapacityHold.java:26`](../../../../modules/settlement/settlement-infrastructure/src/main/java/com/delivery/settlement_service/entity/CodCapacityHold.java)
+- Source: [`backend_delivery/settlement/infrastructure/src/main/java/com/delivery/settlement_service/entity/CodCapacityHold.java:26`](../../../../settlement/infrastructure/src/main/java/com/delivery/settlement_service/entity/CodCapacityHold.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -8237,7 +8237,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.settlement_service.entity.CodCapacityHoldStatus`
 
 - Kind: `enum`
-- Source: [`backend_delivery/modules/settlement/settlement-infrastructure/src/main/java/com/delivery/settlement_service/entity/CodCapacityHoldStatus.java:3`](../../../../modules/settlement/settlement-infrastructure/src/main/java/com/delivery/settlement_service/entity/CodCapacityHoldStatus.java)
+- Source: [`backend_delivery/settlement/infrastructure/src/main/java/com/delivery/settlement_service/entity/CodCapacityHoldStatus.java:3`](../../../../settlement/infrastructure/src/main/java/com/delivery/settlement_service/entity/CodCapacityHoldStatus.java)
 - Enum values: `HELD`, `COMMITTED`, `RELEASED`, `EXPIRED`, `CONSUMED`
 
 | Field | Java type | Required | Validation/annotations |
@@ -8247,7 +8247,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.settlement_service.payload.BaseResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/settlement-service/src/main/java/com/delivery/settlement_service/payload/BaseResponse.java:5`](../../../../settlement-service/src/main/java/com/delivery/settlement_service/payload/BaseResponse.java)
+- Source: [`backend_delivery/settlement/infrastructure/src/main/java/com/delivery/settlement_service/payload/BaseResponse.java:5`](../../../../settlement/infrastructure/src/main/java/com/delivery/settlement_service/payload/BaseResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
