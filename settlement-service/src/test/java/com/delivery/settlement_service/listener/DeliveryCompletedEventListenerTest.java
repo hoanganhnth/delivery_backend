@@ -53,6 +53,43 @@ class DeliveryCompletedEventListenerTest {
     }
 
     @Test
+    void simulationCompletionNeedsCanonicalIdentityButNeverTouchesRealFinancialState() throws Exception {
+        var holds = mock(com.delivery.settlement_service.service.CodCapacityHoldService.class);
+        var metrics = mock(com.delivery.settlement_service.metrics.BusinessMetrics.class);
+        listener = new DeliveryCompletedEventListener(new com.delivery.settlement.application.ledger.DefaultCodSettlementUseCase(
+                new com.delivery.settlement_service.adapter.JpaCodSettlementAdapter(transactionService,
+                        transactionRepository, settlementReceiptRepository, holds, "")), metrics);
+        DeliveryCompletedEvent event = validEvent("COD");
+        event.setSimulationContext(new com.delivery.identity.contracts.SimulationContext(
+                com.delivery.identity.contracts.SimulationContext.ExecutionMode.SIMULATION,
+                UUID.randomUUID(), UUID.randomUUID(), 1L));
+        // Simulation must skip real money validation as well as receipt/ledger mutation.
+        event.setRestaurantEarnings(null);
+        event.setTotalPrice(null);
+        listener.handleDeliveryCompleted(new ObjectMapper().findAndRegisterModules().writeValueAsString(event),
+                "delivery.completed", 0, 1L, acknowledgment);
+        verify(acknowledgment).acknowledge();
+        verifyNoInteractions(transactionService, transactionRepository, settlementReceiptRepository, holds, metrics);
+        event.setDeliveryId(0L);
+        assertThrows(IllegalArgumentException.class, () -> listener.handleDeliveryCompleted(
+                new ObjectMapper().findAndRegisterModules().writeValueAsString(event),
+                "delivery.completed", 0, 2L, acknowledgment));
+        verify(acknowledgment, times(1)).acknowledge();
+    }
+
+    @Test
+    void incompleteSimulationContextCannotMutateOrAcknowledgeRealLedger() throws Exception {
+        DeliveryCompletedEvent event = validEvent("COD");
+        event.setSimulationContext(new com.delivery.identity.contracts.SimulationContext(
+                com.delivery.identity.contracts.SimulationContext.ExecutionMode.SIMULATION,
+                UUID.randomUUID(), null, 1L));
+        assertThrows(IllegalArgumentException.class, () -> listener.handleDeliveryCompleted(
+                new ObjectMapper().findAndRegisterModules().writeValueAsString(event),
+                "delivery.completed", 0, 1L, acknowledgment));
+        verifyNoInteractions(transactionService, transactionRepository, settlementReceiptRepository, acknowledgment);
+    }
+
+    @Test
     void codDeliveryPostsBalancedEntriesExactlyOnceAtCompletion() throws Exception {
         DeliveryCompletedEvent event = validEvent("COD");
         when(transactionRepository.existsByOrderIdAndEntityIdAndEntityTypeAndReason(

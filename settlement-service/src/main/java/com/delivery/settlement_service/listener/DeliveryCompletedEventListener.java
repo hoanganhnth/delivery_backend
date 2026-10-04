@@ -1,12 +1,11 @@
 package com.delivery.settlement_service.listener;
 
 import com.delivery.settlement_service.dto.event.DeliveryCompletedEvent;
+import com.delivery.settlement.domain.ledger.CompletedCodDelivery;
+import com.delivery.settlement.application.api.ledger.CodSettlementUseCase;
+import com.delivery.settlement.application.ledger.DefaultCodSettlementUseCase;
+import com.delivery.settlement_service.adapter.JpaCodSettlementAdapter;
 import com.delivery.identity.contracts.SimulationContext;
-import com.delivery.settlement_service.entity.EntityType;
-import com.delivery.settlement_service.entity.SettlementReceipt;
-import com.delivery.settlement_service.entity.Transaction.TransactionDirection;
-import com.delivery.settlement_service.entity.Transaction.TransactionReason;
-import com.delivery.settlement_service.entity.Transaction.WalletType;
 import com.delivery.settlement_service.repository.TransactionRepository;
 import com.delivery.settlement_service.repository.SettlementReceiptRepository;
 import com.delivery.settlement_service.service.TransactionService;
@@ -22,12 +21,10 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.springframework.stereotype.Component;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
-import java.math.BigDecimal;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
@@ -47,37 +44,22 @@ import com.delivery.settlement_service.metrics.BusinessMetrics;
 @Component
 public class DeliveryCompletedEventListener {
 
-    private final TransactionService transactionService;
-    private final TransactionRepository transactionRepository;
-    private final SettlementReceiptRepository settlementReceiptRepository;
+    private final CodSettlementUseCase settlement;
     private final BusinessMetrics businessMetrics;
-    private final com.delivery.settlement_service.service.CodCapacityHoldService codCapacityHoldService;
     private final ObjectMapper objectMapper = new ObjectMapper()
             .registerModule(new JavaTimeModule());
 
-    @Value("${spring.datasource.url:}")
-    private String dataSourceUrl;
-
     @Autowired
-    public DeliveryCompletedEventListener(TransactionService transactionService,
-                                          TransactionRepository transactionRepository,
-                                          SettlementReceiptRepository settlementReceiptRepository,
-                                          BusinessMetrics businessMetrics,
-                                          com.delivery.settlement_service.service.CodCapacityHoldService codCapacityHoldService) {
-        this.transactionService = transactionService;
-        this.transactionRepository = transactionRepository;
-        this.settlementReceiptRepository = settlementReceiptRepository;
+    public DeliveryCompletedEventListener(CodSettlementUseCase settlement, BusinessMetrics businessMetrics) {
+        this.settlement = settlement;
         this.businessMetrics = businessMetrics;
-        this.codCapacityHoldService = codCapacityHoldService;
     }
 
-    // Retains the focused listener-test seam while production injection uses
-    // the MeterRegistry-backed BusinessMetrics bean.
-    DeliveryCompletedEventListener(TransactionService transactionService,
-                                   TransactionRepository transactionRepository,
-                                   SettlementReceiptRepository settlementReceiptRepository) {
-        this(transactionService, transactionRepository, settlementReceiptRepository,
-                new BusinessMetrics(new io.micrometer.core.instrument.simple.SimpleMeterRegistry()), null);
+    // Focused adapter test seam; production composition lives in configuration.
+    DeliveryCompletedEventListener(TransactionService transactions, TransactionRepository ledger,
+            SettlementReceiptRepository receipts) {
+        this(new DefaultCodSettlementUseCase(new JpaCodSettlementAdapter(transactions, ledger, receipts, null, "")),
+                new BusinessMetrics(new io.micrometer.core.instrument.simple.SimpleMeterRegistry()));
     }
 
     @RetryableTopic(
@@ -106,16 +88,8 @@ public class DeliveryCompletedEventListener {
                     event.getDeliveryId(), event.getOrderId(), event.getRestaurantId(), event.getShipperId(),
                     event.getRestaurantEarnings(), event.getShipperEarnings(), event.getPaymentMethod());
 
-            // ── Validate ──────────────────────────────────────────
-            if (event.getEventId() == null || !"DELIVERY_COMPLETED".equals(event.getEventType())
-                    || !positive(event.getDeliveryId()) || !positive(event.getOrderId())
-                    || !positive(event.getRestaurantId()) || !positive(event.getShipperId())) {
-                throw new IllegalArgumentException("canonical event type and identity fields are required");
-            }
-
-            if (!"COD".equals(event.getPaymentMethod())) {
-                throw new IllegalArgumentException("MVP settlement only accepts COD");
-            }
+            CompletedCodDelivery completion = completion(event);
+            completion.requireCanonicalIdentity();
 
             // Simulation completions are acknowledged into the isolated
             // simulator ledger by the Control Plane; never touch real balance,
@@ -129,168 +103,16 @@ public class DeliveryCompletedEventListener {
                 return;
             }
 
-            if (event.getRestaurantEarnings() == null || event.getRestaurantEarnings().compareTo(BigDecimal.ZERO) <= 0) {
-                throw new IllegalArgumentException("restaurantEarnings is null or <= 0");
-            }
-
-            if (event.getShipperEarnings() == null || event.getShipperEarnings().compareTo(BigDecimal.ZERO) <= 0) {
-                throw new IllegalArgumentException("shipperEarnings is null or <= 0");
-            }
-
-            if (!positive(event.getShippingFee())
-                    || !nonNegative(event.getRestaurantCommission())
-                    || !nonNegative(event.getShippingCommission())
-                    || !positive(event.getTotalPlatformEarnings())) {
-                throw new IllegalArgumentException("canonical fee/commission fields are missing or invalid");
-            }
-
-            BigDecimal calculatedPlatformEarnings = event.getRestaurantCommission()
-                    .add(event.getShippingCommission());
-            if (event.getTotalPlatformEarnings().compareTo(calculatedPlatformEarnings) != 0) {
-                throw new IllegalArgumentException("totalPlatformEarnings does not match commissions");
-            }
-
-            // The delivery producer splits the canonical shipping fee into the
-            // shipper's earnings and the platform's shipping commission. Without
-            // this check a malformed event could keep the platform total correct
-            // while crediting the shipper with an amount unrelated to the fee.
-            BigDecimal calculatedShippingFee = event.getShipperEarnings()
-                    .add(event.getShippingCommission());
-            if (event.getShippingFee().compareTo(calculatedShippingFee) != 0) {
-                throw new IllegalArgumentException("shippingFee does not match shipper earnings and commission");
-            }
-
-            BigDecimal grossShippingFee = event.getGrossShippingFee() == null
-                    ? event.getShippingFee() : event.getGrossShippingFee();
-            BigDecimal platformSubsidy = event.getPlatformSubsidy() == null
-                    ? BigDecimal.ZERO : event.getPlatformSubsidy();
-            BigDecimal reconciledOrderTotal;
-            if (event.getSubtotalPrice() != null && event.getCustomerShippingFee() != null) {
-                if (!nonNegative(event.getShopDiscount()) || !nonNegative(event.getShippingDiscount())
-                        || platformSubsidy.compareTo(event.getShippingDiscount()) < 0) {
-                    throw new IllegalArgumentException("promotion attribution fields are invalid");
-                }
-                reconciledOrderTotal = event.getRestaurantEarnings()
-                        .add(event.getRestaurantCommission()).add(grossShippingFee)
-                        .subtract(platformSubsidy);
-            } else {
-                reconciledOrderTotal = event.getRestaurantEarnings()
-                        .add(event.getRestaurantCommission()).add(event.getShippingFee());
-            }
-            if (!positive(event.getTotalPrice()) || event.getTotalPrice().compareTo(reconciledOrderTotal) != 0) {
-                throw new IllegalArgumentException("totalPrice does not reconcile with restaurant and shipping amounts");
-            }
-
-            if (registerReceiptOrIdentifyExactReplay(event)) {
-                log.info("[Idempotent] Settlement event {} already applied, skipping", event.getEventId());
-                acknowledgeAfterCommit(acknowledgment);
-                return;
-            }
-
-            // Refuse to bless ledger data created before durable event receipts existed.
-            if (transactionRepository.existsByOrderIdAndEntityIdAndEntityTypeAndReason(
-                    event.getOrderId(), 0L, EntityType.SYSTEM, TransactionReason.PLATFORM_COMMISSION)) {
-                throw new IllegalStateException("settlement ledger exists without a durable event receipt");
-            }
-
-            BigDecimal platformEarnings = calculatedPlatformEarnings;
-            if (platformEarnings.compareTo(BigDecimal.ZERO) <= 0) {
-                throw new IllegalArgumentException("total platform earnings must be greater than zero");
-            }
-
-            // ══════════════════════════════════════════════════
-            // 1. RESTAURANT — credit the already-net earnings.
-            // ══════════════════════════════════════════════════
-
-            transactionService.createTransaction(
-                    event.getRestaurantId(),
-                    EntityType.RESTAURANT,
-                    event.getOrderId(),
-                    TransactionDirection.CREDIT,
-                    TransactionReason.ORDER_EARNING,
-                    event.getRestaurantEarnings(),
-                    "Doanh thu đơn #" + event.getOrderId() + " (đã trừ hoa hồng)",
-                    WalletType.EARNINGS
-            );
-
-            if (platformSubsidy.compareTo(BigDecimal.ZERO) > 0) {
-                transactionService.createTransaction(
-                        0L,
-                        EntityType.SYSTEM,
-                        event.getOrderId(),
-                        TransactionDirection.DEBIT,
-                        TransactionReason.PROMOTION_SUBSIDY,
-                        platformSubsidy,
-                        "Chi phí voucher nền tảng đơn #" + event.getOrderId(),
-                        WalletType.EARNINGS
-                );
-            }
-
-            log.info("✅ Restaurant {} credited {} for order {}",
-                    event.getRestaurantId(), event.getRestaurantEarnings(), event.getOrderId());
-
-            // ══════════════════════════════════════════════════
-            // 2. SHIPPER — delivery earnings.
-            // ══════════════════════════════════════════════════
-
-            transactionService.createTransaction(
-                    event.getShipperId(),
-                    EntityType.SHIPPER,
-                    event.getOrderId(),
-                    TransactionDirection.CREDIT,
-                    TransactionReason.DELIVERY_FEE,
-                    event.getShipperEarnings(),
-                    "Tiền công giao đơn #" + event.getOrderId(),
-                    WalletType.EARNINGS
-            );
-
-            log.info("✅ Shipper {} credited {} to Earnings for order {}",
-                    event.getShipperId(), event.getShipperEarnings(), event.getOrderId());
-
-            // ══════════════════════════════════════════════════
-            // 3. COD — shipper collected the whole customer total in cash.
-            // Debit that total from deposit exactly once, at completion.
-            // ══════════════════════════════════════════════════
-
-            BigDecimal totalCollected = event.getTotalPrice();
-
-            transactionService.createTransaction(
-                    event.getShipperId(),
-                    EntityType.SHIPPER,
-                    event.getOrderId(),
-                    TransactionDirection.DEBIT,
-                    TransactionReason.COD_SETTLEMENT,
-                    totalCollected,
-                    "Đối trừ COD đơn #" + event.getOrderId() + " (shipper đã thu " + totalCollected + " tiền mặt)",
-                    WalletType.DEPOSIT
-            );
-
-            log.info("💵 Shipper {} COD settlement: -{} from Deposit for order {}",
-                    event.getShipperId(), totalCollected, event.getOrderId());
-
-            if (codCapacityHoldService != null) {
-                codCapacityHoldService.consumeForDelivery(event.getDeliveryId());
-            }
-
-            // ══════════════════════════════════════════════════
-            // 4. PLATFORM — record commission as its own credit. The durable
-            // receipt above owns replay identity; this remains the final ledger entry.
-            // ══════════════════════════════════════════════════
-            transactionService.createTransaction(
-                    0L,
-                    EntityType.SYSTEM,
-                    event.getOrderId(),
-                    TransactionDirection.CREDIT,
-                    TransactionReason.PLATFORM_COMMISSION,
-                    platformEarnings,
-                    "Hoa hồng nền tảng đơn #" + event.getOrderId(),
-                    WalletType.EARNINGS
-            );
-
-            // Acknowledge after successful processing
+            // Validate before serializing the existing immutable receipt fingerprint.
+            completion.plan();
+            CodSettlementUseCase.Outcome outcome = settlement.settle(completion, fingerprint(event));
             acknowledgeAfterCommit(acknowledgment);
-            businessMetrics.record("settlement_completed");
-            log.info("✅ Successfully processed DeliveryCompletedEvent for delivery {}", event.getDeliveryId());
+            if (outcome == CodSettlementUseCase.Outcome.POSTED) {
+                businessMetrics.record("settlement_completed");
+                log.info("Successfully settled delivery {}", event.getDeliveryId());
+            } else {
+                log.info("[Idempotent] Settlement event {} already applied, skipping", event.getEventId());
+            }
 
         } catch (IllegalArgumentException e) {
             log.error("💥 Invalid DeliveryCompletedEvent for delivery: {} - Error: {}",
@@ -308,55 +130,13 @@ public class DeliveryCompletedEventListener {
         }
     }
 
-    private boolean positive(Long value) {
-        return value != null && value > 0;
-    }
-
-    private boolean registerReceiptOrIdentifyExactReplay(DeliveryCompletedEvent event)
-            throws JsonProcessingException {
-        String fingerprint = fingerprint(event);
-        SettlementReceipt byEvent = settlementReceiptRepository.findById(event.getEventId()).orElse(null);
-        if (byEvent != null) {
-            requireMatchingReceipt(byEvent, event, fingerprint);
-            return true;
-        }
-
-        SettlementReceipt byOrder = settlementReceiptRepository.findByOrderId(event.getOrderId()).orElse(null);
-        if (byOrder != null) {
-            throw new IllegalArgumentException("order already settled by a different event: " + byOrder.getEventId());
-        }
-
-        // The receipt and all financial postings share this listener
-        // transaction. PostgreSQL blocks a competing event-id claimant until
-        // this transaction commits, then returns zero for the exact replay;
-        // the loser can ACK rather than spending a Kafka retry on a harmless
-        // duplicate-key exception.
-        if (insertIfAbsent(event, fingerprint) == 1) {
-            return false;
-        }
-
-        SettlementReceipt concurrentReceipt = settlementReceiptRepository.findById(event.getEventId())
-                .orElseThrow(() -> new IllegalStateException(
-                        "settlement receipt conflict resolved without a committed receipt"));
-        requireMatchingReceipt(concurrentReceipt, event, fingerprint);
-        return true;
-    }
-
-    private int insertIfAbsent(DeliveryCompletedEvent event, String fingerprint) {
-        if (dataSourceUrl != null && dataSourceUrl.startsWith("jdbc:h2:")) {
-            return settlementReceiptRepository.insertIfAbsentH2(
-                    event.getEventId(), event.getOrderId(), event.getDeliveryId(), fingerprint);
-        }
-        return settlementReceiptRepository.insertIfAbsentPostgres(
-                event.getEventId(), event.getOrderId(), event.getDeliveryId(), fingerprint);
-    }
-
-    private void requireMatchingReceipt(SettlementReceipt receipt, DeliveryCompletedEvent event, String fingerprint) {
-        if (!receipt.getOrderId().equals(event.getOrderId())
-                || !receipt.getDeliveryId().equals(event.getDeliveryId())
-                || !receipt.getPayloadFingerprint().equals(fingerprint)) {
-            throw new IllegalArgumentException("eventId replay has a contradictory settlement payload");
-        }
+    private CompletedCodDelivery completion(DeliveryCompletedEvent event) {
+        return new CompletedCodDelivery(event.getEventId(), event.getEventType(), event.getDeliveryId(),
+                event.getOrderId(), event.getRestaurantId(), event.getShipperId(), event.getPaymentMethod(),
+                event.getRestaurantEarnings(), event.getShipperEarnings(), event.getRestaurantCommission(),
+                event.getShippingCommission(), event.getTotalPlatformEarnings(), event.getShippingFee(),
+                event.getGrossShippingFee(), event.getCustomerShippingFee(), event.getSubtotalPrice(),
+                event.getShopDiscount(), event.getPlatformSubsidy(), event.getShippingDiscount(), event.getTotalPrice());
     }
 
     private String fingerprint(DeliveryCompletedEvent event) throws JsonProcessingException {
@@ -366,14 +146,6 @@ public class DeliveryCompletedEventListener {
         } catch (NoSuchAlgorithmException impossible) {
             throw new IllegalStateException("SHA-256 is unavailable", impossible);
         }
-    }
-
-    private boolean positive(BigDecimal value) {
-        return value != null && value.compareTo(BigDecimal.ZERO) > 0;
-    }
-
-    private boolean nonNegative(BigDecimal value) {
-        return value != null && value.compareTo(BigDecimal.ZERO) >= 0;
     }
 
     /**
