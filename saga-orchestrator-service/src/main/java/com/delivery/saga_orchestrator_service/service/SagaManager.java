@@ -1,6 +1,7 @@
 package com.delivery.saga_orchestrator_service.service;
 
 import com.delivery.dispatch.domain.AssignmentPolicy;
+import com.delivery.dispatch.domain.CaseHistory;
 import com.delivery.dispatch.domain.DeliveryProgressPolicy;
 import com.delivery.dispatch.domain.DispatchStatus;
 import com.delivery.dispatch.domain.FailureCompensation;
@@ -13,7 +14,6 @@ import com.delivery.dispatch.domain.RematchPolicy;
 import com.delivery.dispatch.domain.ShipperOffer;
 import com.delivery.saga_orchestrator_service.entity.SagaInstance;
 import com.delivery.saga_orchestrator_service.entity.SagaInstance.SagaStatus;
-import com.delivery.saga_orchestrator_service.entity.SagaStep;
 import com.delivery.saga_orchestrator_service.entity.SagaEarlyEvent;
 import com.delivery.saga_orchestrator_service.repository.SagaInstanceRepository;
 import com.delivery.saga_orchestrator_service.repository.SagaInboundReceiptRepository;
@@ -31,7 +31,6 @@ import java.time.LocalDateTime;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -475,11 +474,10 @@ public class SagaManager {
             return;
         }
 
-        long previousRejectionSteps = saga.getSteps().stream()
-                .filter(s -> s.getStepName().startsWith("SHIPPER_REJECTED"))
-                .count();
+        CaseHistory history = history(saga);
+        long previousRejectionSteps = history.countWithPrefix("SHIPPER_REJECTED");
         RematchPolicy.Decision decision = RematchPolicy.onRejection(
-                rejectedShipperId, previouslyRejectedShipperIds(saga), previousRejectionSteps);
+                rejectedShipperId, history.rejectingShippers(), previousRejectionSteps);
         if (decision instanceof RematchPolicy.Duplicate) {
             log.info("[Saga] Duplicate rejection from shipper {} for orderId={}, skipping",
                     rejectedShipperId, orderId);
@@ -605,24 +603,16 @@ public class SagaManager {
     private void handleShipperOfferTimeoutLocked(SagaInstance saga, String rawTimeoutEvent) {
         Long orderId = saga.getOrderId();
 
-        SagaStep foundStep = null;
-        for (int i = saga.getSteps().size() - 1; i >= 0; i--) {
-            SagaStep step = saga.getSteps().get(i);
-            if ("SHIPPER_FOUND".equals(step.getStepName())) {
-                foundStep = step;
-                break;
-            }
-        }
-        if (foundStep == null || foundStep.getEventData() == null) {
+        CaseHistory history = history(saga);
+        CaseHistory.Fact foundStep = history.latestFact("SHIPPER_FOUND");
+        if (foundStep == null || foundStep.eventData() == null) {
             handleStepFailedLocked("SHIPPER_OFFER_TIMEOUT", saga,
                     "Missing shipper offer payload", rawTimeoutEvent);
             return;
         }
 
-        long previousFailedOffers = saga.getSteps().stream()
-                .filter(step -> step.getStepName().startsWith("SHIPPER_REJECTED")
-                        || step.getStepName().startsWith("SHIPPER_OFFER_TIMEOUT"))
-                .count();
+        long previousFailedOffers = history.countWithPrefix("SHIPPER_REJECTED")
+                + history.countWithPrefix("SHIPPER_OFFER_TIMEOUT");
         // The shared limit is checked before parsing so an exhausted case with a
         // malformed offer still compensates as exhausted.
         if (previousFailedOffers >= RematchPolicy.MAX_FAILED_OFFERS) {
@@ -632,8 +622,8 @@ public class SagaManager {
         }
 
         try {
-            ObjectNode payload = buildFindShipperPayload(saga, foundStep.getEventData());
-            JsonNode foundPayload = objectMapper.readTree(foundStep.getEventData());
+            ObjectNode payload = buildFindShipperPayload(saga, foundStep.eventData());
+            JsonNode foundPayload = objectMapper.readTree(foundStep.eventData());
             if (!foundPayload.has("availableShippers")
                     || !foundPayload.get("availableShippers").isArray()
                     || foundPayload.get("availableShippers").size() != 1
@@ -648,7 +638,7 @@ public class SagaManager {
             ShipperOffer offer = new ShipperOffer(timedOutShipperId,
                     foundPayload.hasNonNull("foundAt")
                             ? LocalDateTime.parse(foundPayload.get("foundAt").asText())
-                            : foundStep.getExecutedAt(),
+                            : foundStep.executedAt(),
                     foundPayload.hasNonNull("waitingTimeoutSeconds")
                             ? foundPayload.get("waitingTimeoutSeconds").asInt()
                             : null);
@@ -659,20 +649,8 @@ public class SagaManager {
                 return;
             }
 
-            List<Long> recordedRejected = new ArrayList<>();
-            for (SagaStep step : saga.getSteps()) {
-                if (step.getEventData() == null) continue;
-                try {
-                    JsonNode stepData = objectMapper.readTree(step.getEventData());
-                    if (stepData.hasNonNull("rejectedShipperId")) {
-                        recordedRejected.add(stepData.get("rejectedShipperId").asLong());
-                    }
-                } catch (Exception ignored) {
-                    // A malformed historic step must not erase valid exclusions.
-                }
-            }
             RematchPolicy.Rematch rematch = (RematchPolicy.Rematch) RematchPolicy.onOfferTimeout(
-                    timedOutShipperId, recordedRejected, previousFailedOffers);
+                    timedOutShipperId, history.recordedRejectedShippers(), previousFailedOffers);
             payload.put("rejectedShipperId", timedOutShipperId);
 
             var excludedArray = objectMapper.createArrayNode();
@@ -744,7 +722,7 @@ public class SagaManager {
         }
         switch (decision) {
             case REMATCH -> {
-                String prepared = latestStepEventData(saga, "SHIPPER_OFFER_TIMEOUT_");
+                String prepared = history(saga).latestWithPrefix("SHIPPER_OFFER_TIMEOUT_");
                 if (prepared == null) {
                     throw new IllegalStateException("Offer retirement has no prepared rematch for orderId=" + orderId);
                 }
@@ -1150,25 +1128,18 @@ public class SagaManager {
      * invisible in the scheduler forever.
      */
     private boolean isShipperOfferTimeoutDue(SagaInstance saga) {
-        SagaStep foundStep = null;
-        for (int i = saga.getSteps().size() - 1; i >= 0; i--) {
-            SagaStep step = saga.getSteps().get(i);
-            if ("SHIPPER_FOUND".equals(step.getStepName())) {
-                foundStep = step;
-                break;
-            }
-        }
-        if (foundStep == null || foundStep.getEventData() == null) {
+        CaseHistory.Fact foundStep = history(saga).latestFact("SHIPPER_FOUND");
+        if (foundStep == null || foundStep.eventData() == null) {
             return true;
         }
         try {
-            JsonNode foundPayload = objectMapper.readTree(foundStep.getEventData());
+            JsonNode foundPayload = objectMapper.readTree(foundStep.eventData());
             Integer waitingTimeoutSeconds = foundPayload.hasNonNull("waitingTimeoutSeconds")
                     ? foundPayload.get("waitingTimeoutSeconds").asInt()
                     : null;
             LocalDateTime offerFoundAt = foundPayload.hasNonNull("foundAt")
                     ? LocalDateTime.parse(foundPayload.get("foundAt").asText())
-                    : foundStep.getExecutedAt();
+                    : foundStep.executedAt();
             return ShipperOffer.isDue(offerFoundAt, waitingTimeoutSeconds, LocalDateTime.now());
         } catch (Exception malformed) {
             return true;
@@ -1192,7 +1163,7 @@ public class SagaManager {
     }
 
     private boolean hasRejectedShipper(SagaInstance saga, Long shipperId) {
-        return previouslyRejectedShipperIds(saga).contains(shipperId);
+        return history(saga).rejectingShippers().contains(shipperId);
     }
 
     private boolean sameJson(String left, String right) {
@@ -1216,20 +1187,12 @@ public class SagaManager {
 
     /** Kiểm tra saga đã có một step theo tên chưa. */
     private boolean hasStep(SagaInstance saga, String stepName) {
-        return saga.getSteps() != null && saga.getSteps().stream()
-                .anyMatch(s -> stepName.equals(s.getStepName()));
+        return history(saga).has(stepName);
     }
 
     /** Lấy eventData của step gần nhất theo tên (null nếu không có). */
     private String getStepEventData(SagaInstance saga, String stepName) {
-        if (saga.getSteps() == null) return null;
-        String data = null;
-        for (SagaStep s : saga.getSteps()) {
-            if (stepName.equals(s.getStepName()) && s.getEventData() != null) {
-                data = s.getEventData();
-            }
-        }
-        return data;
+        return history(saga).latest(stepName);
     }
 
     /**
@@ -1250,28 +1213,13 @@ public class SagaManager {
     }
 
     private UUID nextMatchingSessionId(SagaInstance saga) {
-        long started = saga.getSteps() == null ? 0L : saga.getSteps().stream()
-                .filter(step -> "MATCHING_STARTED".equals(step.getStepName()))
-                .count();
+        long started = history(saga).count("MATCHING_STARTED");
         return MatchingSession.next(MatchingSession.caseIdentity(saga.getId(), saga.getOrderId()), started);
     }
 
     private UUID currentMatchingSessionId(SagaInstance saga) {
-        String matchingStart = getStepEventData(saga, "MATCHING_STARTED");
-        if (matchingStart == null) {
-            return null;
-        }
-        try {
-            JsonNode payload = objectMapper.readTree(matchingStart);
-            if (!payload.hasNonNull("matchingSessionId")) {
-                // Pre-contract active Sagas cannot safely target a generation.
-                // Do not emit a broad stop that could cancel a later rematch.
-                return null;
-            }
-            return UUID.fromString(payload.get("matchingSessionId").asText());
-        } catch (Exception malformed) {
-            throw new IllegalStateException("Persisted matching session identity is malformed", malformed);
-        }
+        // Pre-contract cases yield null so no broad stop can cancel a later rematch.
+        return history(saga).currentMatchingSession();
     }
 
     private boolean isCurrentMatchingResult(SagaInstance saga, String rawEvent) {
@@ -1490,17 +1438,6 @@ public class SagaManager {
         }
     }
 
-    /** Event data of the most recent step whose name starts with the prefix. */
-    private String latestStepEventData(SagaInstance saga, String stepPrefix) {
-        String data = null;
-        for (SagaStep step : saga.getSteps()) {
-            if (step.getStepName().startsWith(stepPrefix) && step.getEventData() != null) {
-                data = step.getEventData();
-            }
-        }
-        return data;
-    }
-
     private boolean isExpectedOfferPersistenceCommand(SagaInstance saga, String commandId) {
         String requested = getStepEventData(saga, "OFFER_PERSIST_REQUESTED");
         if (requested == null) return false;
@@ -1536,23 +1473,8 @@ public class SagaManager {
         payload.put("backoffMultiplier", settings.backoffMultiplier());
     }
 
-    /** Shippers recorded by earlier rejection steps, in history order. */
-    private List<Long> previouslyRejectedShipperIds(SagaInstance saga) {
-        List<Long> rejected = new ArrayList<>();
-        for (SagaStep step : saga.getSteps()) {
-            if (!step.getStepName().startsWith("SHIPPER_REJECTED") || step.getEventData() == null) {
-                continue;
-            }
-            try {
-                JsonNode event = objectMapper.readTree(step.getEventData());
-                if (event.hasNonNull("rejectedShipperId")) {
-                    rejected.add(event.get("rejectedShipperId").asLong());
-                }
-            } catch (Exception ignored) {
-                // Historic malformed steps remain visible but cannot prove a duplicate.
-            }
-        }
-        return rejected;
+    private CaseHistory history(SagaInstance saga) {
+        return new JsonCaseHistory(saga, objectMapper);
     }
 
     private static final class SagaCommandPublishException extends RuntimeException {
