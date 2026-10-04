@@ -1,5 +1,7 @@
 package com.delivery.settlement_service.service;
 
+import com.delivery.settlement.domain.refund.RefundPolicy;
+import com.delivery.settlement_service.adapter.JpaLedgerAdapter;
 import com.delivery.settlement_service.dto.event.OrderCancelledEvent;
 import com.delivery.settlement_service.dto.event.DeliveryExceptionReportedEvent;
 import com.delivery.settlement_service.dto.response.RefundCaseResponse;
@@ -22,7 +24,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
-import java.math.BigDecimal;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
@@ -35,11 +36,7 @@ import java.util.UUID;
 @Slf4j
 public class RefundCaseService {
     private static final int ADMIN_LIST_LIMIT = 100;
-    private static final String COD = "COD";
-    private static final String ONLINE = "ONLINE";
-    private static final String CANCELLED = "CANCELLED";
-    private static final String SHIPPER_NOT_FOUND = "SHIPPER_NOT_FOUND";
-    private static final String REFUND_ELIGIBLE = "REFUND_ELIGIBLE";
+
 
     private final RefundCaseRepository repository;
     private final RefundOutboxService outboxService;
@@ -77,9 +74,9 @@ public class RefundCaseService {
 
     @Transactional
     public RefundCase processOrderCancellation(OrderCancelledEvent event) {
-        validate(event);
+        RefundPolicy.validate(snapshot(event));
         String fingerprint = fingerprint(event);
-        RefundTrigger trigger = resolveTrigger(event);
+        RefundTrigger trigger = JpaLedgerAdapter.enumValue(RefundPolicy.resolveTrigger(snapshot(event)), RefundTrigger.class);
         String idempotencyKey = event.getOrderId() + ":" + trigger.name() + ":ORDER_TOTAL";
 
         RefundCase existing = findExisting(event, trigger, idempotencyKey);
@@ -88,14 +85,8 @@ public class RefundCaseService {
             return existing;
         }
 
-        RefundStatus status = decideStatus(event, trigger);
-        BigDecimal capturedAmount = COD.equals(event.getPaymentMethod())
-                ? BigDecimal.ZERO : event.getTotalPrice();
-        BigDecimal refundAmount = COD.equals(event.getPaymentMethod())
-                ? BigDecimal.ZERO : event.getTotalPrice();
-        if (status == RefundStatus.NO_REFUND_REQUIRED) {
-            refundAmount = BigDecimal.ZERO;
-        }
+        var decision = RefundPolicy.decide(snapshot(event), providerProcessingEnabled);
+        RefundStatus status = JpaLedgerAdapter.enumValue(decision.status(), RefundStatus.class);
 
         RefundCase refundCase = RefundCase.builder()
                 .refundId(UUID.randomUUID())
@@ -116,9 +107,9 @@ public class RefundCaseService {
                 .discountAmount(event.getDiscountAmount())
                 .shippingFee(event.getShippingFee())
                 .totalAmount(event.getTotalPrice())
-                .capturedAmount(capturedAmount)
-                .refundAmount(refundAmount)
-                .actorSource(actorSource(event))
+                .capturedAmount(decision.capturedAmount())
+                .refundAmount(decision.refundAmount())
+                .actorSource(decision.actorSource())
                 .actorId(event.getCancelledBy())
                 .reason(event.getCancelReason())
                 .payloadFingerprint(fingerprint)
@@ -154,7 +145,7 @@ public class RefundCaseService {
      */
     @Transactional
     public RefundCase processDeliveryException(DeliveryExceptionReportedEvent event) {
-        validateDeliveryException(event);
+        RefundPolicy.validate(snapshot(event));
         String fingerprint = fingerprint(event);
         RefundTrigger trigger = RefundTrigger.DELIVERY_DISPUTE;
         String idempotencyKey = event.getOrderId() + ":" + trigger.name() + ":ORDER_TOTAL";
@@ -165,8 +156,7 @@ public class RefundCaseService {
             return existing;
         }
 
-        BigDecimal capturedAmount = ONLINE.equals(event.getPaymentMethod())
-                ? event.getTotalPrice() : BigDecimal.ZERO;
+        var decision = RefundPolicy.decide(snapshot(event));
         RefundCase refundCase = RefundCase.builder()
                 .refundId(UUID.randomUUID())
                 .eventId(event.getEventId())
@@ -189,8 +179,8 @@ public class RefundCaseService {
                 .discountAmount(event.getDiscountAmount())
                 .shippingFee(event.getShippingFee())
                 .totalAmount(event.getTotalPrice())
-                .capturedAmount(capturedAmount)
-                .refundAmount(capturedAmount)
+                .capturedAmount(decision.capturedAmount())
+                .refundAmount(decision.refundAmount())
                 .actorSource("SHIPPER")
                 .actorId(event.getShipperId())
                 .reason(event.getReason())
@@ -375,136 +365,20 @@ public class RefundCaseService {
                 .build();
     }
 
-    private RefundStatus decideStatus(OrderCancelledEvent event, RefundTrigger trigger) {
-        if (COD.equals(event.getPaymentMethod()) && isBeforePickup(event.getPreviousStatus())) {
-            return RefundStatus.NO_REFUND_REQUIRED;
-        }
-        if (!isAutoEligible(event, trigger)) {
-            return RefundStatus.MANUAL_REVIEW;
-        }
-        if (ONLINE.equals(event.getPaymentMethod()) && !providerProcessingEnabled) {
-            return RefundStatus.MANUAL_REVIEW;
-        }
-        return RefundStatus.REQUESTED;
+    private RefundPolicy.Cancellation snapshot(OrderCancelledEvent event) {
+        return event == null ? null : new RefundPolicy.Cancellation(event.getEventId(), event.getEventType(),
+                event.getOrderId(), event.getUserId(), event.getUserPrincipalId(), event.getRestaurantId(),
+                event.getPreviousStatus(), event.getCurrentStatus(), event.getCancelReason(), event.getCancelledBy(),
+                event.getCancelledBySource(), event.getCancelReasonCode(), event.getPaymentMethod(),
+                event.getSubtotalPrice(), event.getDiscountAmount(), event.getShippingFee(), event.getTotalPrice());
     }
-
-    private boolean isAutoEligible(OrderCancelledEvent event, RefundTrigger trigger) {
-        if (!isBeforePickup(event.getPreviousStatus())) {
-            return false;
-        }
-        return switch (trigger) {
-            case SHIPPER_NOT_FOUND -> "SYSTEM".equals(actorSource(event));
-            case PAYMENT_FAILED -> ONLINE.equals(event.getPaymentMethod())
-                    && "SYSTEM".equals(actorSource(event));
-            case ORDER_CANCELLED -> switch (actorSource(event)) {
-                case "CUSTOMER" -> "PENDING".equals(event.getPreviousStatus())
-                        && "CUSTOMER_CANCELLED".equals(event.getCancelReasonCode());
-                case "RESTAURANT" -> "RESTAURANT_REJECTED".equals(event.getCancelReasonCode());
-                case "SYSTEM" -> "SYSTEM_CANCELLED".equals(event.getCancelReasonCode());
-                default -> false;
-            };
-            case DELIVERY_DISPUTE -> false;
-        };
-    }
-
-    private boolean isBeforePickup(String status) {
-        return List.of("PENDING", "CONFIRMED", "FINDING_SHIPPER", "WAIT_SHIPPER_CONFIRM", "ASSIGNED")
-                .contains(status);
-    }
-
-    private void validate(OrderCancelledEvent event) {
-        if (event == null || event.getEventId() == null || event.getOrderId() == null || event.getOrderId() <= 0
-                || event.getUserId() == null || event.getUserId() <= 0
-                || event.getRestaurantId() == null || event.getRestaurantId() <= 0) {
-            throw new IllegalArgumentException("refund cancellation event identity is required");
-        }
-        if (!"ORDER_CANCELLED".equals(event.getEventType())
-                && !REFUND_ELIGIBLE.equals(event.getEventType())) {
-            throw new IllegalArgumentException("refund event type is invalid");
-        }
-        if (event.getPreviousStatus() == null || event.getPreviousStatus().isBlank()
-                || event.getCancelReason() == null || event.getCancelReason().isBlank()) {
-            throw new IllegalArgumentException("previous status and cancellation reason are required");
-        }
-        if (!COD.equals(event.getPaymentMethod()) && !ONLINE.equals(event.getPaymentMethod())) {
-            throw new IllegalArgumentException("refund payment method must be COD or ONLINE");
-        }
-        RefundTrigger trigger = resolveTrigger(event);
-        if (trigger == RefundTrigger.SHIPPER_NOT_FOUND
-                && !SHIPPER_NOT_FOUND.equals(event.getCurrentStatus())) {
-            throw new IllegalArgumentException("shipper-not-found refund requires SHIPPER_NOT_FOUND status");
-        }
-        if (trigger != RefundTrigger.SHIPPER_NOT_FOUND
-                && !CANCELLED.equals(event.getCurrentStatus())) {
-            throw new IllegalArgumentException("refund cancellation requires CANCELLED status");
-        }
-        if (trigger == RefundTrigger.SHIPPER_NOT_FOUND && !"SYSTEM".equals(actorSource(event))) {
-            throw new IllegalArgumentException("shipper-not-found refund must be system sourced");
-        }
-        if (trigger == RefundTrigger.PAYMENT_FAILED && !ONLINE.equals(event.getPaymentMethod())) {
-            throw new IllegalArgumentException("payment failure refund must be ONLINE");
-        }
-        requireNonNegative(event.getSubtotalPrice(), "subtotalPrice");
-        requireNonNegative(event.getDiscountAmount(), "discountAmount");
-        requireNonNegative(event.getShippingFee(), "shippingFee");
-        requirePositive(event.getTotalPrice(), "totalPrice");
-        BigDecimal calculatedTotal = event.getSubtotalPrice().add(event.getShippingFee())
-                .subtract(event.getDiscountAmount());
-        if (calculatedTotal.compareTo(event.getTotalPrice()) != 0) {
-            throw new IllegalArgumentException("order monetary snapshot does not reconcile");
-        }
-    }
-
-    private void validateDeliveryException(DeliveryExceptionReportedEvent event) {
-        if (event == null || event.getEventId() == null || event.getExceptionId() == null
-                || event.getDeliveryId() == null || event.getDeliveryId() <= 0
-                || event.getOrderId() == null || event.getOrderId() <= 0
-                || event.getUserId() == null || event.getUserId() <= 0
-                || event.getRestaurantId() == null || event.getRestaurantId() <= 0
-                || event.getShipperId() == null || event.getShipperId() <= 0) {
-            throw new IllegalArgumentException("delivery exception refund identity is required");
-        }
-        if (!"DELIVERY_EXCEPTION_REPORTED".equals(event.getEventType())
-                || !"RETRY_AVAILABLE".equals(event.getExceptionStatus())) {
-            throw new IllegalArgumentException("delivery exception refund event type is invalid");
-        }
-        if (!isPostPickupDeliveryStatus(event.getPreviousDeliveryStatus())
-                || !Objects.equals(event.getPreviousDeliveryStatus(), event.getCurrentDeliveryStatus())
-                || event.getReason() == null || event.getReason().isBlank()) {
-            throw new IllegalArgumentException("delivery exception must preserve one post-pickup status and a reason");
-        }
-        if (!COD.equals(event.getPaymentMethod()) && !ONLINE.equals(event.getPaymentMethod())) {
-            throw new IllegalArgumentException("delivery exception payment method must be COD or ONLINE");
-        }
-        requireNonNegative(event.getSubtotalPrice(), "subtotalPrice");
-        requireNonNegative(event.getDiscountAmount(), "discountAmount");
-        requireNonNegative(event.getShippingFee(), "shippingFee");
-        requirePositive(event.getTotalPrice(), "totalPrice");
-        BigDecimal calculatedTotal = event.getSubtotalPrice().add(event.getShippingFee())
-                .subtract(event.getDiscountAmount());
-        if (calculatedTotal.compareTo(event.getTotalPrice()) != 0) {
-            throw new IllegalArgumentException("delivery exception monetary snapshot does not reconcile");
-        }
-    }
-
-    private RefundTrigger resolveTrigger(OrderCancelledEvent event) {
-        if (REFUND_ELIGIBLE.equals(event.getEventType())
-                || SHIPPER_NOT_FOUND.equals(event.getCancelReasonCode())) {
-            return RefundTrigger.SHIPPER_NOT_FOUND;
-        }
-        if ("PAYMENT_FAILED".equals(event.getCancelReasonCode())) {
-            return RefundTrigger.PAYMENT_FAILED;
-        }
-        return RefundTrigger.ORDER_CANCELLED;
-    }
-
-    private String actorSource(OrderCancelledEvent event) {
-        if (event.getCancelledBySource() != null && !event.getCancelledBySource().isBlank()) {
-            return event.getCancelledBySource().trim().toUpperCase(java.util.Locale.ROOT);
-        }
-        // Legacy events remain readable but are never auto-eligible when an
-        // online provider is eventually enabled.
-        return event.getCancelledBy() == null ? "SYSTEM" : "LEGACY_ACTOR";
+    private RefundPolicy.DeliveryException snapshot(DeliveryExceptionReportedEvent event) {
+        return event == null ? null : new RefundPolicy.DeliveryException(event.getEventId(), event.getEventType(),
+                event.getExceptionId(), event.getDeliveryId(), event.getOrderId(), event.getUserId(),
+                event.getUserPrincipalId(), event.getRestaurantId(), event.getShipperId(),
+                event.getPreviousDeliveryStatus(), event.getCurrentDeliveryStatus(), event.getExceptionStatus(),
+                event.getReason(), event.getPaymentMethod(), event.getSubtotalPrice(), event.getDiscountAmount(),
+                event.getShippingFee(), event.getTotalPrice());
     }
 
     private void requireExactReplay(RefundCase existing, OrderCancelledEvent event,
@@ -552,19 +426,4 @@ public class RefundCaseService {
         }
     }
 
-    private boolean isPostPickupDeliveryStatus(String status) {
-        return "PICKED_UP".equals(status) || "DELIVERING".equals(status);
-    }
-
-    private void requirePositive(BigDecimal value, String field) {
-        if (value == null || value.signum() <= 0) {
-            throw new IllegalArgumentException(field + " must be positive");
-        }
-    }
-
-    private void requireNonNegative(BigDecimal value, String field) {
-        if (value == null || value.signum() < 0) {
-            throw new IllegalArgumentException(field + " must be non-negative");
-        }
-    }
 }
