@@ -176,10 +176,22 @@ public class ShipperDeliveryAssignmentStore implements com.delivery.tracking.app
     public Set<Long> activeDeliveries(long shipperId) {
         Set<String> members = redis.opsForSet() == null ? null : redis.opsForSet().members(batchKey(shipperId));
         Set<Long> result = new HashSet<>();
-        if (members != null) {
-            members.forEach(member -> {
-                try { result.add(Long.parseLong(member)); } catch (NumberFormatException ignored) { }
-            });
+        if (members != null && !members.isEmpty()) {
+            var batchIds = new java.util.ArrayList<Long>(members.size());
+            for (String member : members) {
+                try { batchIds.add(Long.parseLong(member)); } catch (NumberFormatException ignored) { }
+            }
+            if (!batchIds.isEmpty()) {
+                // A sibling renews the shared set, but only an item's own fence retains its routing lifetime.
+                var fences = redis.opsForValue().multiGet(batchIds.stream()
+                        .map(deliveryId -> batchFenceKey(shipperId, deliveryId)).toList());
+                if (fences == null || fences.size() != batchIds.size()) {
+                    throw new IllegalStateException("Cannot read batch assignment fences");
+                }
+                for (int index = 0; index < batchIds.size(); index++) {
+                    if (fences.get(index) != null) result.add(batchIds.get(index));
+                }
+            }
         }
         read(shipperId).map(Assignment::deliveryId).ifPresent(result::add);
         return result;

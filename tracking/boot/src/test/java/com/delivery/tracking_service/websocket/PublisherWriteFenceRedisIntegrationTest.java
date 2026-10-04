@@ -121,6 +121,38 @@ class PublisherWriteFenceRedisIntegrationTest {
         }
     }
 
+    @Test void redisStateLossFencesOldSessionsAndClaimsEvenWhenGenerationRestarts() {
+        var old = leases.acquire(7L, "old-session", 30);
+        leases.releaseForGraceIfCurrent(old, 1);
+        strings.opsForZSet().add("tracking:publisher:deadlines", "7:" + old.redisValue(), 1);
+        var claim = leases.claimIfExpired(old, 30);
+        assertThat(claim).isNotNull();
+        try (var connection = factory.getConnection()) { connection.serverCommands().flushDb(); }
+        assertThat(locations.cacheIfCurrentPublisher(old, cachedRow(10.7, true), 1000)).isFalse();
+        assertThat(locations.applyOfflineIfExpired(claim, Optional.empty(), 1000)).isFalse();
+        assertThat(leases.completeClaim(claim)).isFalse();
+        assertThat(leases.claimExpired(10, 30)).isEmpty();
+        var current = leases.acquire(7L, "new-session", 30);
+        assertThat(current.generation()).isEqualTo(old.generation());
+        assertThat(leases.refreshIfCurrent(old, 30)).isFalse();
+        assertThat(leases.releaseForGraceIfCurrent(old, 1)).isFalse();
+        assertThat(locations.cacheIfCurrentPublisher(old, cachedRow(10.7, true), 1000)).isFalse();
+        assertThat(locations.cacheIfCurrentPublisher(current, cachedRow(10.9, true), 2000)).isTrue();
+        assertThat(locations.getCachedProjection(7L).occurredAt()).isEqualTo(2000);
+        assertThat(locations.getCachedShipperLocation(7L).getLatitude()).isEqualTo(10.9);
+    }
+
+    @Test void expiredLocationSourceRequiresFreshObservationFromCurrentPublisher() {
+        var lease = leases.acquire(7L, "current", 30);
+        assertThat(locations.cacheIfCurrentPublisher(lease, cachedRow(10.7, true), 1000)).isTrue();
+        strings.expire("shipper:location:7", java.time.Duration.ofMillis(20));
+        org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(5))
+                .until(() -> !Boolean.TRUE.equals(strings.hasKey("shipper:location:7")));
+        assertThat(locations.getCachedProjection(7L)).isNull();
+        assertThat(locations.cacheIfCurrentPublisher(lease, cachedRow(10.9, true), 2000)).isTrue();
+        assertThat(locations.getCachedProjection(7L).occurredAt()).isEqualTo(2000);
+    }
+
     private ShipperLocationResponse cachedRow(double latitude, boolean online) {
         var row = new ShipperLocationResponse();
         row.setShipperId(7L); row.setLatitude(latitude); row.setLongitude(106.7); row.setIsOnline(online);

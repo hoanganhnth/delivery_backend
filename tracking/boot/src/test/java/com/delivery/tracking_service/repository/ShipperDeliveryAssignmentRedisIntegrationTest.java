@@ -37,6 +37,51 @@ class ShipperDeliveryAssignmentRedisIntegrationTest {
     }
 
     @Test
+    void expiredBatchItemFenceCannotKeepRoutingThroughSiblingRenewedSet() {
+        assignments.busyBatch(42, 100, 1000, "expired-item");
+        assignments.busyBatch(42, 101, 2000, "live-sibling");
+        redis.expire("tracking:shipper:active-delivery-fence:42:100", java.time.Duration.ofMillis(20));
+        org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(5))
+                .until(() -> !Boolean.TRUE.equals(redis.hasKey("tracking:shipper:active-delivery-fence:42:100")));
+        assertThat(redis.opsForSet().members("tracking:shipper:active-deliveries:42"))
+                .containsExactlyInAnyOrder("100", "101");
+        assertThat(assignments.activeDeliveries(42)).containsExactly(101L);
+        assertThat(assignments.activeDelivery(42)).contains(101L);
+    }
+
+    @Test
+    void lostRoutingProjectionRequiresCurrentDeliveryFactsAndFreshLocalMembership() {
+        assignments.busyBatch(42, 100, 1000, "old-item");
+        assignments.availableBatch(42, 100, 2000);
+        try (var connection = redis.getConnectionFactory().getConnection()) { connection.serverCommands().flushDb(); }
+        var restored = new ShipperDeliveryAssignmentStore(redis);
+        assertThat(restored.activeDeliveries(42)).isEmpty();
+        var rooms = new com.delivery.tracking_service.websocket.DeliveryRoomRegistry();
+        var core = new com.delivery.tracking.application.DefaultDeliveryRoomAssignmentUseCase(restored, rooms);
+        var id = "00000000-0000-0000-0000-000000000001";
+        core.apply(new com.delivery.tracking.application.api.DeliveryRoomAssignmentCommand(42, 200, 7, 3000, id, "BUSY", false));
+        rooms.subscribe(200, 42, "fresh-authorized-session");
+        core.apply(new com.delivery.tracking.application.api.DeliveryRoomAssignmentCommand(42, 100, 7, 1500, id, "BUSY", false));
+        assertThat(restored.activeDeliveries(42)).containsExactly(200L);
+        assertThat(rooms.subscribers(100, 42)).isEmpty();
+        assertThat(rooms.subscribers(200, 42)).containsExactly("fresh-authorized-session");
+    }
+
+    @Test
+    void expiredTerminalFenceNeedsCurrentAssignmentToRestoreTheOrderingBasis() {
+        assignments.available(42, 100, 2000);
+        String terminal = "tracking:shipper:assignment-terminal:42";
+        redis.expire(terminal, java.time.Duration.ofMillis(20));
+        org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(5))
+                .until(() -> !Boolean.TRUE.equals(redis.hasKey(terminal)));
+        assertThat(assignments.activeDeliveries(42)).isEmpty();
+        assignments.busy(42, 200, 3000, "current-delivery-fact");
+        assignments.busy(42, 100, 1500, "late-old-busy");
+        assignments.available(42, 100, 3500);
+        assertThat(assignments.activeDeliveries(42)).containsExactly(200L);
+    }
+
+    @Test
     void staleAndContradictoryBusyEventsCannotOverwriteNewerAssignment() {
         assignments.busy(42L, 100L, 2_000L, "first");
         assignments.busy(42L, 99L, 1_000L, "stale");

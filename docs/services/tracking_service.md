@@ -79,7 +79,9 @@ no-op của fact cũ không giả thành publisher superseded hoặc claim bị 
 ACK và pipeline phát fact giữ nguyên, receiver Kafka/realtime dùng watermark để
 bỏ qua fact cũ. Metadata hỏng làm mutation lỗi trước mọi write; chỉ legacy DTO
 đúng type mới được thay bằng record mới mà không đoán timestamp local.
-Giới hạn mất Redis/TTL và audit cuối còn cần hoàn tất trước main.
+Cache/ordering không phải state bền vững: mất Redis hoặc hết TTL làm mất basis
+cũ, nên không có bảo đảm chống replay vô hạn. Quy trình cold recovery ở dưới
+giữ giới hạn MVP này; không thêm PostgreSQL vào hot path.
 
 ## Luồng subscriber
 
@@ -98,11 +100,35 @@ AVAILABLE giữ terminal timestamp riêng trong cùng Lua transaction xoá activ
 assignment. Trong TTL projection 24 giờ, BUSY cũ hoặc cùng timestamp không
 khôi phục assignment đã kết thúc; AVAILABLE đến trước BUSY cũng giữ fence.
 Batch fence scope theo shipper/delivery nên kết thúc một item không chặn sibling.
+Hàm đọc routing kiểm fence từng item bằng một MGET: shared set được sibling
+gia hạn không làm item hết fence tiếp tục được route.
 Active key giữ format cũ. Các writer cần cùng phiên bản fence mới để bảo vệ này
 có hiệu lực; writer phiên bản cũ bỏ qua terminal key. Redis mất dữ liệu hoặc
-terminal key hết TTL vẫn cần recovery/replay audit riêng.
+terminal key hết TTL làm mất basis chống replay cũ; phải khôi phục từ current
+Delivery facts theo quy trình dưới trước khi mở lại traffic.
 Slow session dùng bounded coalescing queue và subscribe/reconnect luôn đọc
 location cuối từ Redis nên không mất final state.
+
+## Cold recovery khi Redis mất state
+
+1. Dừng toàn bộ Tracking writer/consumer đang dùng state cũ; close socket cũ và
+   khởi động instance với local room/membership rỗng. Không rolling-mix phiên bản.
+2. Khôi phục routing bằng current BUSY/AVAILABLE facts đã đối chiếu trạng thái
+   Delivery, gồm từng item trong batch. Không replay riêng một BUSY lịch sử khi
+   terminal/freshness fence đã mất. Replay/reset Kafka offset phải được lập plan
+   vận hành riêng và chạy lúc quiesced; hiện không có job tự rebuild toàn bộ Redis.
+3. Shipper reconnect để lấy lease/session mới và gửi observation vị trí mới;
+   subscriber xác thực lại participant rồi đọc source hiện có. Generation có
+   thể reset sau mất Redis, nhưng session value khác vẫn fence publisher cũ;
+   claim/deadline cũ thiếu state không được mutation/completion.
+4. Chỉ mở traffic sau khi current routing/source và reconnect đã được kiểm tra.
+   Nếu projection trống, fanout không có assigned room để gửi; Delivery-authorized
+   subscribe fallback chỉ tạo local membership, không tự tạo shared assignment.
+
+Executable boundary proof dùng real Redis flush/expiry rồi apply current facts,
+không giả lập rằng có thể dựng lại history đã mất. Location source hết TTL cần
+observation mới; per-membership watermark chỉ bảo vệ lifetime của membership đó.
+PostgreSQL support history không được dùng tự suy đoán current assignment/lease.
 
 ## Location history support
 
