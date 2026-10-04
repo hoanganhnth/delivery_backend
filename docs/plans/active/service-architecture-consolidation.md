@@ -7,7 +7,7 @@ Date: 2026-10-02
 Active. User approved the root-level service layout and completing one service
 before starting the next. Worktree: `.worktrees/backend-service-architecture`
 at workspace root, branch `refactor/service-architecture`, base `71218d7`.
-Auth tranche is integrated on `main` at `047ccb2`; Restaurant tranche is integrated on `main` at `2c0eaaa`; Tracking is now in progress. The
+Auth tranche is integrated on `main` at `047ccb2`; Restaurant tranche is integrated on `main` at `2c0eaaa`; Tracking is integrated on `main` at `0c41101`; Settlement is next. The
 retired Auth source paths have no tracked files. Ignored local build outputs
 and operator PEM files may still remain in a developer checkout under the old
 directory; do not delete or package those PEM files as part of source cleanup.
@@ -48,7 +48,7 @@ from the earlier conversation, not implicitly authorized by this structural plan
   identity, session/token, lifecycle and security rules.
 - [x] Restaurant: close decision/rating/serviceability/inventory use cases in
   addition to catalogue; retain transaction, concurrency and event guarantees.
-- [ ] Tracking: close REST/WebSocket/publication/lease/recovery use cases;
+- [x] Tracking: close REST/WebSocket/publication/lease/recovery use cases;
   preserve location ordering and reconnect fences.
 - [ ] Settlement: move actual COD ledger/refund/payment/payout workflows;
   retain provider gating, receipts, locks and financial compensation guarantees.
@@ -1014,3 +1014,13 @@ services or the earlier Saga-to-Dispatch migration are complete.
 - Automatic-review quota recovered on continuation; final packaging was approved and exited 0 (`/tmp/tracking-final-audit-package.log`). Final image build `delivery-tracking-final-proof:local` exited 0 with freshness checksum enforced (`/tmp/tracking-final-audit-image.log`). Owned image probe passed UID10001/read-only filesystem/no-network and exact SHA256 equality between `/app/app.jar` and the runtime-verified host JAR. This is an image/platform/artifact proof, not container application readiness.
 - Final packaged two-JVM run exited 0 (`/tmp/tracking-final-audit-packaged-runtime.log`): 10 events, 4 history points, 3 JVM lifetimes and hard-kill recovery PASS. HTTP/JWKS/WS/Redis/Kafka/PostgreSQL, participant denial/identity, current-publisher supersession, grace, survivor sweep, reconnect source bootstrap, history restart/replay and identity ACK pass. Generated fixture key removed. JWKS/Delivery participant endpoints remain HTTP fixtures; not a whole deployed platform claim.
 - Final review: domain/application API/application own actual location/offline, occurrence/order, identity/inbox, support history/sampling/retention, publisher lease/recovery, fanout selection and single/batch room orchestration; imports remain framework-free and resolved core dependencies point inward. Infrastructure owns transport/mapping/security/JPA/Redis/Kafka/composition; boot contains only entrypoint/config. Root layout/POM/Compose/catalog/scripts refer to canonical layers, package retains DNS/artifact/wire/schema, all older guards and 85% coverage gates retained. The old host is replaced, not concurrently supported. Finite TTL and Redis-loss recovery are explicitly bounded by existing MVP policy, with executable boundary proof and operational steps, not an unimplemented durable-rebuild promise. Ready for main integration; Tracking checkbox remains pending until actual merge and main verification.
+
+
+## Tracking main integration closure
+
+- Merged verified tranche into main at `0c41101`. Root `tracking/` owns all five layers; old host and module paths are absent. Removed only audited regenerable ignored old-host output and empty directories; operator material and unrelated product/reference changes remain untouched.
+- Main full clean verify exited 0 (`/tmp/tracking-main-integration-final-verify.log`): domain 8/application 64/infrastructure 5/boot 147 = 224 tests, zero failures/errors/skips. Initial main run had one lease-refresh assertion failure; precise active value/TTL assertion context was added without changing expectations. Targeted diagnostic run and full verification then passed; root cause of the initial non-reproduced failure remains unconfirmed.
+- Main package exited 0 (`/tmp/tracking-main-integration-package.log`). Recursive executable-JAR payload comparison, including nested dependencies and ignoring only ZIP timestamps, matched the final worktree runtime/image-verified artifact across 68,633 entries. Final worktree owned image runs as UID 10001 and contains the exact runtime-verified JAR; two-JVM packaged rehearsal passed including hard kill and restart. This is not a whole-platform readiness claim.
+- Main module/context/baseline-contract/HTTP-inventory/Actuator checks passed. Whole-backend baseline is not green: main has stale Surefire reports for other service/retired paths (`/tmp/tracking-main-final-build-baseline.log`), while the fresh worktree baseline identifies the existing Settlement default-enabled application API annotation. Neither reports nor gate rules were altered to mask these findings.
+- Changed Match Kafka/PostgreSQL/Redis integration class passed on main: seven tests, zero failures/errors/skips, Maven exit 0 (`/tmp/tracking-main-match-proof.log`). This covers location occurrence ordering without claiming all Match architecture work is finished.
+- Tracking architecture checkbox is closed; overall plan remains active. Settlement is the next complete-service tranche; Saga-to-Dispatch ownership and other service work remain open.

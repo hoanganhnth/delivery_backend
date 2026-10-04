@@ -154,7 +154,7 @@ B8 vẫn cần token revocation, Redis reorder/failure matrix và các race fulf
 khác trước contract freeze.
 
 
-## Kiến trúc đang hợp nhất
+## Kiến trúc đã hợp nhất
 
 Source nằm tại `tracking/{domain,application-api,application,infrastructure,boot}`.
 Infrastructure giữ toàn bộ HTTP/WebSocket/Redis/Kafka/JPA adapter và Spring
@@ -164,8 +164,9 @@ Kafka/Redis/PostgreSQL, hard-kill recovery và restart đã có executable proof
 `scripts/verify-tracking-runtime.py`. Generation-check → mutation đã có Lua fence
 và proof reconnect giữa hai bước; realtime watermark/cache metadata cũng có
 proof receiver và reconnect. Source-cache ordering đã có Lua compare-and-set trên paired occurrence metadata;
-giới hạn recovery ngoài TTL/mất Redis và audit cuối còn cần hoàn tất trước main. Host `tracking-service/` và `modules/tracking/` đã được thay bằng
-các layer ở gốc trong worktree refactor.
+giới hạn recovery ngoài TTL/mất Redis đã được kiểm chứng và ghi rõ ở phần recovery.
+Host `tracking-service/` và `modules/tracking/` đã được thay bằng các layer ở gốc
+trên main tại commit `0c41101`.
 
 Policy principal/projection identity và identity inbox, offline/tombstone, publication và publisher lease/grace/recovery hiện chạy trong
 `tracking-application`; adapter JPA/Redis/Kafka/HTTP giữ mapping và transport.
@@ -210,6 +211,7 @@ Membership có version riêng: message còn trong queue chỉ gửi nếu versio
 còn hiệu lực ngay trước send. Unsubscribe/rejoin, kết thúc item và authorized
 reassignment vô hiệu queued message cũ; old-owner cleanup không xoá room mới.
 Đây chưa phải distributed transaction với Redis hoặc Delivery authorization.
-Recovery ngoài TTL/mất Redis và audit cuối/main integration còn cần hoàn tất;
-chưa coi toàn bộ Tracking hoàn tất. Bằng chứng và tiến độ nằm ở
+Phần hợp nhất kiến trúc Tracking đã hoàn tất trên main: 224 test, không có
+failure/error/skip; package tại `tracking/boot` có cùng payload với JAR đã chạy
+proof hai JVM. Các yêu cầu production Gate B8 vẫn theo roadmap. Bằng chứng và tiến độ nằm ở
 `../plans/active/service-architecture-consolidation.md`.

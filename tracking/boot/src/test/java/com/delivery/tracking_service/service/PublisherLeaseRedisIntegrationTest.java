@@ -104,7 +104,11 @@ class PublisherLeaseRedisIntegrationTest {
         Long remaining = redis.getExpire("tracking:publisher:active:7", java.util.concurrent.TimeUnit.MILLISECONDS);
         Double deadline = redis.opsForZSet().score(DEADLINES, member(lease));
         assertThat(deadline).isCloseTo((double) (redisNow + remaining), within(100.0));
-        assertThat(delayed.refreshIfCurrent(lease, 30)).isTrue();
+        String activeBeforeRefresh = redis.opsForValue().get("tracking:publisher:active:7");
+        long ttlBeforeRefresh = redis.getExpire("tracking:publisher:active:7", java.util.concurrent.TimeUnit.MILLISECONDS);
+        assertThat(delayed.refreshIfCurrent(lease, 30))
+                .as("active before refresh=%s, expected=%s, TTL=%s ms", activeBeforeRefresh, lease.redisValue(), ttlBeforeRefresh)
+                .isTrue();
         redisNow = redisNow();
         remaining = redis.getExpire("tracking:publisher:active:7", java.util.concurrent.TimeUnit.MILLISECONDS);
         assertThat(redis.opsForZSet().score(DEADLINES, member(lease)))
