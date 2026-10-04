@@ -11,13 +11,13 @@ import com.delivery.match_service.repository.DispatchRoundRepository;
 import com.delivery.match_service.repository.MatchOutboxEventRepository;
 import com.delivery.match_service.repository.MatchRedisGeoRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.delivery.match.domain.batch.BatchBundlePolicy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -83,8 +83,8 @@ public class DispatchRoundExecutionService {
         int assigned = 0;
         Set<UUID> assignedPoolItemIds = new HashSet<>();
         for (DispatchBundleCandidate candidate : selected) {
-            UUID batchId = UUID.nameUUIDFromBytes(("dispatch-batch:" + round.getDispatchRoundId()
-                    + ":" + candidate.shipperId() + ":" + candidate.bundleId()).getBytes(StandardCharsets.UTF_8));
+            UUID batchId = BatchBundlePolicy.batchId(round.getDispatchRoundId(), candidate.shipperId(),
+                    candidate.bundleId());
             List<DispatchPoolItem> batchItems = candidate.poolItemIds().stream()
                     .map(id -> items.stream().filter(item -> item.getPoolItemId().equals(id)).findFirst().orElse(null))
                     .filter(java.util.Objects::nonNull).toList();
@@ -95,7 +95,7 @@ public class DispatchRoundExecutionService {
             }
             if (!geoRepository.tryReserveShipperBatchOffer(candidate.shipperId(),
                     batchItems.stream().map(DispatchPoolItem::getDeliveryId).toList(),
-                    batchId, batchItems.get(0).getMatchingSessionId(), 180)) {
+                    batchId, batchItems.get(0).getMatchingSessionId(), BatchBundlePolicy.OFFER_TTL_SECONDS)) {
                 releaseHolds(holds);
                 batchItems.forEach(item -> requeue(item, now()));
                 continue;
@@ -137,12 +137,11 @@ public class DispatchRoundExecutionService {
         Map<UUID, DispatchPoolItem> itemsById = items.stream()
                 .collect(java.util.stream.Collectors.toMap(DispatchPoolItem::getPoolItemId, item -> item));
         for (DispatchPoolItem item : items) {
-            if (item.getWaveNumber() >= Math.max(1, properties.getMaxWaves())) continue;
-            if (!"COD".equalsIgnoreCase(item.getPaymentMethod())
-                    || item.getPickupLat() == null || item.getPickupLng() == null
-                    || item.getDeliveryLat() == null || item.getDeliveryLng() == null) continue;
+            if (!BatchBundlePolicy.admits(item.getWaveNumber(), properties.getMaxWaves(),
+                    item.getPaymentMethod(), pickup(item), dropoff(item))) continue;
             List<MatchRedisGeoRepository.NearbyShipperResult> nearby = geoRepository.findNearbyShippers(
-                    item.getPickupLat(), item.getPickupLng(), 5.0, properties.getMaxShippersPerRound());
+                    item.getPickupLat(), item.getPickupLng(), BatchBundlePolicy.SEARCH_RADIUS_KM,
+                    properties.getMaxShippersPerRound());
             for (MatchRedisGeoRepository.NearbyShipperResult shipper : nearby) {
                 if (!codEligible(shipper.shipperId, item.getTotalPrice())) continue;
                 locations.putIfAbsent(shipper.shipperId, shipper);
@@ -154,35 +153,30 @@ public class DispatchRoundExecutionService {
         for (Map.Entry<Long, Set<UUID>> entry : shipperOrders.entrySet()) {
             List<UUID> orderIds = entry.getValue().stream().sorted().toList();
             MatchRedisGeoRepository.NearbyShipperResult shipper = locations.get(entry.getKey());
-            List<UUID> seedOrderIds = orderIds.stream()
-                    .sorted(Comparator.comparingDouble((UUID id) -> distanceKm(shipper.latitude, shipper.longitude,
-                            itemsById.get(id).getPickupLat(), itemsById.get(id).getPickupLng()))
-                            .thenComparing(UUID::toString))
-                    .limit(Math.max(1, properties.getBundleSeedOrdersPerShipper()))
-                    .toList();
+            BatchBundlePolicy.Point shipperPoint = new BatchBundlePolicy.Point(shipper.latitude, shipper.longitude);
+            List<UUID> seedOrderIds = BatchBundlePolicy.seeds(orderIds,
+                    id -> BatchBundlePolicy.distanceKm(shipperPoint, pickup(itemsById.get(id))),
+                    properties.getBundleSeedOrdersPerShipper());
             int[] emitted = {0};
-            for (int size = 1; size <= Math.min(3, orderIds.size()); size++) {
-                List<UUID> source = size == 1 ? orderIds : seedOrderIds;
-                combinations(source, size, 0, new ArrayList<>(), combo -> {
-                    if (emitted[0] >= Math.max(1, properties.getMaxBundleCandidatesPerShipper())) return;
-                    List<DispatchPoolItem> comboItems = combo.stream()
-                            .map(itemsById::get)
-                            .filter(java.util.Objects::nonNull).toList();
-                    if (!feasible(comboItems)) return;
-                    RoutingClient.RoutePlan routePlan = routingClient.planRoute(
-                            shipper.latitude, shipper.longitude, comboItems);
-                    long routeSeconds = routePlan.durationSeconds();
-                    long incremental = Math.max(0, routeSeconds - soloRouteSeconds(locations.get(entry.getKey()), comboItems));
-                    if (incremental > properties.getMaxEtaDetourSeconds()) return;
-                    List<UUID> orderedPoolItemIds = routePlan.orderedItems().stream()
-                            .map(DispatchPoolItem::getPoolItemId).toList();
-                    result.add(new DispatchBundleCandidate(UUID.nameUUIDFromBytes(
-                            ("bundle:" + entry.getKey() + ":" + combo).getBytes(StandardCharsets.UTF_8)),
-                            entry.getKey(), combo, orderedPoolItemIds, routeSeconds, incremental,
-                            routeSeconds * 1_000L + incremental * 100L));
-                    emitted[0]++;
-                });
-            }
+            BatchBundlePolicy.bundles(orderIds, seedOrderIds, combo -> {
+                if (emitted[0] >= Math.max(1, properties.getMaxBundleCandidatesPerShipper())) return;
+                List<DispatchPoolItem> comboItems = combo.stream()
+                        .map(itemsById::get)
+                        .filter(java.util.Objects::nonNull).toList();
+                if (!BatchBundlePolicy.pickupsFeasible(comboItems.stream().map(this::pickup).toList())) return;
+                RoutingClient.RoutePlan routePlan = routingClient.planRoute(
+                        shipper.latitude, shipper.longitude, comboItems);
+                long routeSeconds = routePlan.durationSeconds();
+                long incremental = BatchBundlePolicy.incrementalSeconds(routeSeconds,
+                        soloRouteSeconds(locations.get(entry.getKey()), comboItems));
+                if (!BatchBundlePolicy.withinDetour(incremental, properties.getMaxEtaDetourSeconds())) return;
+                List<UUID> orderedPoolItemIds = routePlan.orderedItems().stream()
+                        .map(DispatchPoolItem::getPoolItemId).toList();
+                result.add(new DispatchBundleCandidate(BatchBundlePolicy.bundleId(entry.getKey(), combo),
+                        entry.getKey(), combo, orderedPoolItemIds, routeSeconds, incremental,
+                        BatchBundlePolicy.score(routeSeconds, incremental)));
+                emitted[0]++;
+            });
         }
         return result;
     }
@@ -201,13 +195,11 @@ public class DispatchRoundExecutionService {
     private List<SettlementEligibilityClient.CodCapacityHoldRef> createHolds(
             UUID batchId, Long shipperId, List<DispatchPoolItem> items) {
         try {
-            LocalDateTime expiresAt = now().plusSeconds(180);
+            LocalDateTime expiresAt = now().plusSeconds(BatchBundlePolicy.OFFER_TTL_SECONDS);
             List<SettlementEligibilityClient.CodCapacityHoldRequestItem> requests = items.stream()
                     .map(item -> new SettlementEligibilityClient.CodCapacityHoldRequestItem(
-                            UUID.nameUUIDFromBytes(("cod-hold:" + batchId + ":" + item.getDeliveryId())
-                                    .getBytes(StandardCharsets.UTF_8)),
-                            UUID.nameUUIDFromBytes(("cod-offer:" + batchId + ":" + item.getDeliveryId())
-                                    .getBytes(StandardCharsets.UTF_8)),
+                            BatchBundlePolicy.codHoldId(batchId, item.getDeliveryId()),
+                            BatchBundlePolicy.codOfferId(batchId, item.getDeliveryId()),
                             item.getOrderId(), item.getDeliveryId(), item.getTotalPrice(), expiresAt))
                     .toList();
             List<SettlementEligibilityClient.CodCapacityHoldRef> holds =
@@ -236,14 +228,12 @@ public class DispatchRoundExecutionService {
         });
     }
 
-    private boolean feasible(List<DispatchPoolItem> items) {
-        for (int i = 0; i < items.size(); i++) {
-            for (int j = i + 1; j < items.size(); j++) {
-                if (distanceKm(items.get(i).getPickupLat(), items.get(i).getPickupLng(),
-                        items.get(j).getPickupLat(), items.get(j).getPickupLng()) > 2.0) return false;
-            }
-        }
-        return true;
+    private BatchBundlePolicy.Point pickup(DispatchPoolItem item) {
+        return new BatchBundlePolicy.Point(item.getPickupLat(), item.getPickupLng());
+    }
+
+    private BatchBundlePolicy.Point dropoff(DispatchPoolItem item) {
+        return new BatchBundlePolicy.Point(item.getDeliveryLat(), item.getDeliveryLng());
     }
 
     private long routeSeconds(MatchRedisGeoRepository.NearbyShipperResult shipper, List<DispatchPoolItem> items) {
@@ -261,11 +251,10 @@ public class DispatchRoundExecutionService {
         return items.stream().map(primary -> {
         ShipperFoundEvent event = new ShipperFoundEvent(primary.getDeliveryId(), primary.getOrderId(), List.of(
                 new ShipperFoundEvent.ShipperMatchResult(shipperId, null, null, null, null, null, null, true)));
-        event.setEventId(UUID.nameUUIDFromBytes(("shipper-found:" + batchId + ":" + primary.getDeliveryId())
-                .getBytes(StandardCharsets.UTF_8)).toString());
+        event.setEventId(BatchBundlePolicy.shipperFoundEventId(batchId, primary.getDeliveryId()).toString());
         event.setMatchingSessionId(primary.getMatchingSessionId().toString());
         event.setFoundAt(LocalDateTime.now(clock));
-        event.setWaitingTimeoutSeconds(Math.max(1, Math.min(properties.getWaveTimeoutSeconds(), 180)));
+        event.setWaitingTimeoutSeconds(BatchBundlePolicy.waitingTimeoutSeconds(properties.getWaveTimeoutSeconds()));
         event.setBatchOffer(true);
         event.setBatchId(batchId);
         event.setBatchWave(items.stream().mapToInt(DispatchPoolItem::getWaveNumber).max().orElse(0));
@@ -280,15 +269,12 @@ public class DispatchRoundExecutionService {
         }
         final List<DispatchPoolItem> orderedItems = orderedItemsCandidate;
         int itemCount = orderedItems.size();
-        // The route contract uses global stop positions. Keep pickups in the
-        // first contiguous half and the matching drop-offs in the second half;
-        // this guarantees pickupSequence < dropoffSequence for every item and
-        // gives Delivery a deterministic 0..(2*n-1) snapshot.
         event.setBatchItems(java.util.stream.IntStream.range(0, itemCount)
                 .mapToObj(index -> {
                     DispatchPoolItem item = orderedItems.get(index);
+                    BatchBundlePolicy.StopSequence stops = BatchBundlePolicy.stopSequence(index, itemCount);
                     return new ShipperFoundEvent.BatchItem(item.getDeliveryId(), item.getOrderId(),
-                            index, itemCount + index, item.getTotalPrice(), item.getMatchingSessionId());
+                            stops.pickup(), stops.dropoff(), item.getTotalPrice(), item.getMatchingSessionId());
                 }).toList());
         return event;
         }).toList();
@@ -362,24 +348,4 @@ public class DispatchRoundExecutionService {
     }
 
     private LocalDateTime now() { return LocalDateTime.now(clock); }
-
-    private double distanceKm(Double aLat, Double aLng, Double bLat, Double bLng) {
-        if (aLat == null || aLng == null || bLat == null || bLng == null) return Double.MAX_VALUE;
-        double dLat = Math.toRadians(bLat - aLat), dLng = Math.toRadians(bLng - aLng);
-        double h = Math.sin(dLat / 2) * Math.sin(dLat / 2)
-                + Math.cos(Math.toRadians(aLat)) * Math.cos(Math.toRadians(bLat))
-                * Math.sin(dLng / 2) * Math.sin(dLng / 2);
-        return 6371.0 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
-    }
-
-    private interface CombinationConsumer { void accept(List<UUID> ids); }
-
-    private void combinations(List<UUID> values, int size, int start, List<UUID> current, CombinationConsumer consumer) {
-        if (current.size() == size) { consumer.accept(List.copyOf(current)); return; }
-        for (int i = start; i <= values.size() - (size - current.size()); i++) {
-            current.add(values.get(i));
-            combinations(values, size, i + 1, current, consumer);
-            current.remove(current.size() - 1);
-        }
-    }
 }
