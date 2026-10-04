@@ -1,5 +1,6 @@
 package com.delivery.match_service.service;
 
+import com.delivery.match.domain.command.MatchCommandPolicy;
 import com.delivery.match_service.repository.DispatchPoolItemRepository;
 import com.delivery.match_service.entity.DispatchPoolItem;
 import com.delivery.match_service.dto.event.FindShipperEvent;
@@ -113,10 +114,7 @@ public class MatchCommandStore {
             MatchCommand generationOwner = commandRepository
                     .findByDeliveryAndSessionForUpdate(command.getDeliveryId(), matchingSessionId)
                     .orElse(null);
-            if (generationOwner != null) {
-                throw new IllegalArgumentException(
-                        "Match matchingSessionId is already owned by a different command eventId");
-            }
+            MatchCommandPolicy.requireUnownedGeneration(generationOwner != null);
             MatchCommand created = new MatchCommand(
                     commandId,
                     topic,
@@ -142,10 +140,10 @@ public class MatchCommandStore {
         }
 
         assertExactCommandReplay(existing, topic, command, fingerprint, matchingSessionId);
-        return switch (existing.getStatus()) {
-            case PENDING -> CommandDecision.process();
-            case CANDIDATE_STAGED -> CommandDecision.resume(readCandidate(existing));
-            case RESULT_STAGED, CANCELLED -> CommandDecision.terminal();
+        return switch (MatchCommandPolicy.next(status(existing))) {
+            case PROCESS -> CommandDecision.process();
+            case RESUME -> CommandDecision.resume(readCandidate(existing));
+            case TERMINAL -> CommandDecision.terminal();
         };
     }
 
@@ -388,24 +386,21 @@ public class MatchCommandStore {
     }
 
     private void cancelIfUnpublished(MatchCommand command) {
-        if (command.getStatus() == MatchCommand.Status.CANCELLED) {
-            return;
-        }
+        boolean cancelledUnsentResult = false;
         if (command.getStatus() == MatchCommand.Status.RESULT_STAGED) {
             List<MatchOutboxEvent> outboxEvents =
                     outboxRepository.findByCommandEventIdForUpdate(command.getEventId());
-            boolean cancelledUnsentResult = false;
             for (MatchOutboxEvent event : outboxEvents) {
-                if (event.getStatus() == MatchOutboxEvent.Status.PENDING
-                        || event.getStatus() == MatchOutboxEvent.Status.DEAD) {
+                if (MatchCommandPolicy.suppressible(
+                        MatchCommandPolicy.OutboxStatus.valueOf(event.getStatus().name()))) {
                     event.setStatus(MatchOutboxEvent.Status.CANCELLED);
                     event.setLastError("Cancelled before Match result relay");
                     cancelledUnsentResult = true;
                 }
             }
-            if (!cancelledUnsentResult) {
-                return;
-            }
+        }
+        if (!MatchCommandPolicy.cancels(status(command), cancelledUnsentResult)) {
+            return;
         }
         markCancelled(command);
         commandRepository.save(command);
@@ -495,13 +490,11 @@ public class MatchCommandStore {
             FindShipperEvent command,
             String fingerprint,
             UUID matchingSessionId) {
-        if (!Objects.equals(existing.getTopic(), topic)
-                || !Objects.equals(existing.getOrderId(), command.getOrderId())
-                || !Objects.equals(existing.getDeliveryId(), command.getDeliveryId())
-                || !Objects.equals(existing.getMatchingSessionId(), matchingSessionId)
-                || !Objects.equals(existing.getPayloadFingerprint(), fingerprint)) {
-            throw new IllegalArgumentException("Match command eventId replay has a contradictory payload");
-        }
+        MatchCommandPolicy.requireExactReplay(
+                new MatchCommandPolicy.CommandIdentity(existing.getTopic(), existing.getOrderId(),
+                        existing.getDeliveryId(), existing.getMatchingSessionId(), existing.getPayloadFingerprint()),
+                new MatchCommandPolicy.CommandIdentity(topic, command.getOrderId(), command.getDeliveryId(),
+                        matchingSessionId, fingerprint));
     }
 
     private void assertTombstoneTarget(
@@ -516,12 +509,8 @@ public class MatchCommandStore {
             Long orderId,
             Long deliveryId,
             UUID matchingSessionId) {
-        if (!Objects.equals(tombstone.getOrderId(), orderId)
-                || !Objects.equals(tombstone.getDeliveryId(), deliveryId)
-                || !Objects.equals(tombstone.getMatchingSessionId(), matchingSessionId)) {
-            throw new IllegalArgumentException(
-                    "Match cancellation tombstone conflicts with order, delivery or matching session identity");
-        }
+        MatchCommandPolicy.requireTombstoneIdentity(tombstone.getOrderId(), tombstone.getDeliveryId(),
+                tombstone.getMatchingSessionId(), orderId, deliveryId, matchingSessionId);
     }
 
     private void assertExactStopReplay(
@@ -531,9 +520,7 @@ public class MatchCommandStore {
             UUID matchingSessionId,
             String fingerprint) {
         assertTombstoneIdentity(tombstone, orderId, deliveryId, matchingSessionId);
-        if (!Objects.equals(tombstone.getPayloadFingerprint(), fingerprint)) {
-            throw new IllegalArgumentException("stop-matching eventId replay has a contradictory payload");
-        }
+        MatchCommandPolicy.requireExactStopReplay(tombstone.getPayloadFingerprint(), fingerprint);
     }
 
     private ShipperFoundEvent readCandidate(MatchCommand command) {
@@ -661,11 +648,10 @@ public class MatchCommandStore {
             Long deliveryId,
             UUID matchingSessionId,
             String rawPayload) {
-        if (stopEventId == null || orderId == null || orderId <= 0
-                || deliveryId == null || deliveryId <= 0 || matchingSessionId == null) {
-            throw new IllegalArgumentException(
-                    "stop-matching eventId, orderId, deliveryId and matchingSessionId are required");
-        }
-        requireText(rawPayload, "raw payload");
+        MatchCommandPolicy.requireStopCommand(stopEventId, orderId, deliveryId, matchingSessionId, rawPayload);
+    }
+
+    private static MatchCommandPolicy.Status status(MatchCommand command) {
+        return MatchCommandPolicy.Status.valueOf(command.getStatus().name());
     }
 }
