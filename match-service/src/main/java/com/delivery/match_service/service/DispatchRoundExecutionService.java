@@ -38,6 +38,7 @@ public class DispatchRoundExecutionService {
 
     private final DispatchRoundRepository roundRepository;
     private final DispatchPoolItemRepository poolRepository;
+    private final com.delivery.match_service.repository.MatchCancellationTombstoneRepository cancellationTombstoneRepository;
     private final MatchRedisGeoRepository geoRepository;
     private final MatchOutboxEventRepository outboxRepository;
     private final SettlementEligibilityClient settlementEligibilityClient;
@@ -58,7 +59,8 @@ public class DispatchRoundExecutionService {
     @Transactional
     public void execute(DispatchRound round) {
         if (round == null || round.getState() != DispatchRound.State.OPEN) return;
-        List<DispatchPoolItem> items = poolRepository.findByClaimedRoundId(round.getDispatchRoundId());
+        List<DispatchPoolItem> items = admissibleItems(
+                poolRepository.findByClaimedRoundIdForUpdate(round.getDispatchRoundId()));
         if (items.isEmpty()) {
             close(round, DispatchRound.State.EXPIRED);
             return;
@@ -310,6 +312,35 @@ public class DispatchRoundExecutionService {
         } catch (Exception ex) {
             throw new IllegalStateException("Cannot serialize batch shipper proposal", ex);
         }
+    }
+
+    /**
+     * Applies the generation and absolute-deadline fences before any hold or
+     * reservation: a stopped generation is retired, and an item past its
+     * deadline returns to WAITING so the expiry sweep stages its deterministic
+     * not-found result.
+     */
+    private List<DispatchPoolItem> admissibleItems(List<DispatchPoolItem> claimed) {
+        LocalDateTime now = now();
+        List<DispatchPoolItem> admissible = new java.util.ArrayList<>();
+        for (DispatchPoolItem item : claimed) {
+            if (cancellationTombstoneRepository.existsByDeliveryIdAndMatchingSessionId(
+                    item.getDeliveryId(), item.getMatchingSessionId())) {
+                item.setState(DispatchPoolItem.State.CANCELLED);
+                item.setClaimedRoundId(null);
+                item.setUpdatedAt(now);
+            } else if (!item.getMatchingDeadlineAt().isAfter(now)) {
+                item.setState(DispatchPoolItem.State.WAITING);
+                item.setClaimedRoundId(null);
+                item.setUpdatedAt(now);
+            } else {
+                admissible.add(item);
+            }
+        }
+        if (admissible.size() != claimed.size()) {
+            poolRepository.saveAll(claimed);
+        }
+        return admissible;
     }
 
     private void requeue(DispatchPoolItem item, LocalDateTime now) {

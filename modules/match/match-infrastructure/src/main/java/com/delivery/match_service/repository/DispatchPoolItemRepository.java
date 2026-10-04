@@ -79,4 +79,9 @@ public interface DispatchPoolItemRepository extends JpaRepository<DispatchPoolIt
 
     @Query("select item from DispatchPoolItem item where item.claimedRoundId = :roundId order by item.matchingDeadlineAt asc, item.poolItemId asc")
     List<DispatchPoolItem> findByClaimedRoundId(@Param("roundId") UUID roundId);
+
+    /** Locks the claimed items so a concurrent stop-matching waits for the round decision. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select item from DispatchPoolItem item where item.claimedRoundId = :roundId order by item.matchingDeadlineAt asc, item.poolItemId asc")
+    List<DispatchPoolItem> findByClaimedRoundIdForUpdate(@Param("roundId") UUID roundId);
 }

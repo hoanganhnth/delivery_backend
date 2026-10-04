@@ -40,4 +40,6 @@ public interface MatchCancellationTombstoneRepository
             """, nativeQuery = true)
     List<MatchCancellationTombstone> lockNextPendingProjectionBatch(
             @Param("batchSize") int batchSize);
+
+    boolean existsByDeliveryIdAndMatchingSessionId(Long deliveryId, UUID matchingSessionId);
 }

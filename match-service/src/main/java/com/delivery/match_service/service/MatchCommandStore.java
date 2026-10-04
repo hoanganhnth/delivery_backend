@@ -1,5 +1,7 @@
 package com.delivery.match_service.service;
 
+import com.delivery.match_service.repository.DispatchPoolItemRepository;
+import com.delivery.match_service.entity.DispatchPoolItem;
 import com.delivery.match_service.dto.event.FindShipperEvent;
 import com.delivery.match_service.dto.event.MatchingDecisionTraceEvent;
 import com.delivery.match_service.dto.event.ShipperFoundEvent;
@@ -79,6 +81,7 @@ public class MatchCommandStore {
     private final MatchOutboxEventRepository outboxRepository;
     private final ObjectMapper objectMapper;
     private final Tracer tracer;
+    private final DispatchPoolItemRepository poolRepository;
 
     /**
      * Persists/validates the command before Match reads Redis or calls
@@ -189,6 +192,23 @@ public class MatchCommandStore {
             }
             cancelIfUnpublished(command);
         }
+        retirePooledGeneration(deliveryId, matchingSessionId);
+    }
+
+    /**
+     * A stopped generation must leave the batch pool too. An ASSIGNED item was
+     * already offered as part of a batch; Delivery's cancellation owns it.
+     */
+    private void retirePooledGeneration(Long deliveryId, UUID matchingSessionId) {
+        poolRepository.findByDeliveryAndSessionForUpdate(deliveryId, matchingSessionId)
+                .filter(item -> item.getState() == DispatchPoolItem.State.WAITING
+                        || item.getState() == DispatchPoolItem.State.CLAIMED)
+                .ifPresent(item -> {
+                    item.setState(DispatchPoolItem.State.CANCELLED);
+                    item.setClaimedRoundId(null);
+                    item.setUpdatedAt(LocalDateTime.now());
+                    poolRepository.save(item);
+                });
     }
 
     private CommandDecision acceptFindAfterCancellation(
