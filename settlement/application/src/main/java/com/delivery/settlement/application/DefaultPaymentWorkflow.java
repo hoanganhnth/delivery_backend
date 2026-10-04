@@ -28,6 +28,7 @@ public final class DefaultPaymentWorkflow implements PaymentWorkflowPort {
     }
     @Override public PaymentWorkflowResult create(PaymentWorkflowCommand command) {
         String name = command.provider() == null ? defaultProvider : command.provider();
+        effects.creating(command, name);
         Provider provider = providers.get(name);
         WorkflowPayment payment = new WorkflowPayment();
         payment.setPaymentRef(references.get()); payment.setEntityId(command.entityId());
@@ -49,14 +50,21 @@ public final class DefaultPaymentWorkflow implements PaymentWorkflowPort {
         }
         payment.setPaymentUrl(result.paymentUrl()); payment.setProviderTransactionId(result.transactionId());
         store.save(payment);
+        effects.created(payment);
         return result(payment);
     }
     @Override public PaymentWorkflowResult callback(String provider, Map<String, String> parameters) {
+        effects.callbackStarted(provider);
         Verification verification = providers.get(provider).verify(parameters);
-        if (!verification.verified()) throw new SecurityException("Invalid payment callback signature");
-        WorkflowPayment payment = find(verification.reference());
-        if (!payment.isPending()) return result(payment);
+        if (!verification.verified()) {
+            effects.signatureRejected(provider, verification.message());
+            throw new SecurityException("Invalid payment callback signature");
+        }
+        // Lock before the pending check so a concurrent duplicate observes the committed outcome.
+        WorkflowPayment payment = claim(verification.reference());
+        if (!payment.isPending()) { effects.replayed(payment); return result(payment); }
         if (!payment.matchesAmount(verification.amount())) {
+            effects.amountMismatch(payment, verification.amount());
             payment.setStatus("FAILED"); payment.setCallbackPayload("Amount mismatch: " + verification.amount());
             store.save(payment);
             throw new SecurityException("Payment amount mismatch");
@@ -69,8 +77,9 @@ public final class DefaultPaymentWorkflow implements PaymentWorkflowPort {
         return result(payment);
     }
     @Override public PaymentWorkflowResult confirmFake(String reference) {
-        WorkflowPayment payment = find(reference); payment.requireFake();
-        if (!payment.isPending()) return result(payment);
+        effects.confirmingFake(reference);
+        WorkflowPayment payment = claim(reference); payment.requireFake();
+        if (!payment.isPending()) { effects.replayed(payment); return result(payment); }
         payment.setCallbackPayload("{\"provider\":\"FAKE\",\"status\":\"SUCCESS\"}");
         return succeed(payment);
     }
@@ -79,6 +88,10 @@ public final class DefaultPaymentWorkflow implements PaymentWorkflowPort {
     }
     @Override public PaymentWorkflowResult byReference(String reference) { return result(find(reference)); }
     @Override public Set<String> availableProviders() { return providers.available(); }
+    private WorkflowPayment claim(String reference) {
+        return store.byReferenceForUpdate(reference)
+                .orElseThrow(() -> new RuntimeException("Payment order not found: " + reference));
+    }
     private WorkflowPayment find(String reference) {
         return store.byReference(reference).orElseThrow(() -> new RuntimeException("Payment order not found: " + reference));
     }

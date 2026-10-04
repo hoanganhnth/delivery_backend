@@ -34,7 +34,7 @@ class PaymentCallbackIdempotencyTest {
         PaymentEventPublisher events = mock(PaymentEventPublisher.class);
         when(registry.getProvider("VNPAY")).thenReturn(provider);
         when(provider.verifyPayment(Map.of())).thenReturn(verifiedSuccess);
-        when(repository.findByPaymentRef("PAY-success")).thenReturn(Optional.of(order));
+        when(repository.findByPaymentRefForUpdate("PAY-success")).thenReturn(Optional.of(order));
 
         PaymentServiceImpl service = new PaymentServiceImpl(
                 repository, registry, mock(TransactionService.class), events);
@@ -56,7 +56,7 @@ class PaymentCallbackIdempotencyTest {
         PaymentEventPublisher events = mock(PaymentEventPublisher.class);
         when(registry.getProvider("VNPAY")).thenReturn(provider);
         when(provider.verifyPayment(Map.of())).thenReturn(cancelled);
-        when(repository.findByPaymentRef("PAY-cancel")).thenReturn(Optional.of(order));
+        when(repository.findByPaymentRefForUpdate("PAY-cancel")).thenReturn(Optional.of(order));
 
         PaymentServiceImpl service = new PaymentServiceImpl(
                 repository, registry, mock(TransactionService.class), events);
@@ -80,6 +80,36 @@ class PaymentCallbackIdempotencyTest {
                 .returnUrl("delivery://payments/vnpay-return")
                 .build()).isSuccess()).isFalse();
         assertThat(provider.verifyPayment(Map.of()).isVerified()).isFalse();
+    }
+
+    @Test
+    void amountMismatchAndTerminalReplayKeepOriginalLogMessagesAndLevels() {
+        var logger = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(PaymentWorkflowAdapters.class);
+        var appender = new ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent>();
+        appender.start(); logger.addAppender(appender);
+        try {
+            var order = pendingOrder("PAY-logs");
+            var repository = mock(PaymentOrderRepository.class);
+            var registry = mock(PaymentProviderRegistry.class);
+            var provider = mock(PaymentProvider.class);
+            when(registry.getProvider("VNPAY")).thenReturn(provider);
+            when(repository.findByPaymentRefForUpdate("PAY-logs")).thenReturn(Optional.of(order));
+            var result = PaymentVerifyResult.success("PAY-logs", "tx", "raw");
+            result.setAmount(1L);
+            when(provider.verifyPayment(Map.of())).thenReturn(result);
+            var service = new PaymentServiceImpl(repository, registry, mock(TransactionService.class), mock(PaymentEventPublisher.class));
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.handleCallback("VNPAY", Map.of()))
+                    .isInstanceOf(SecurityException.class);
+            order.setStatus(PaymentStatus.SUCCESS);
+            service.handleCallback("VNPAY", Map.of());
+            assertThat(appender.list).anySatisfy(event -> {
+                assertThat(event.getLevel()).isEqualTo(ch.qos.logback.classic.Level.ERROR);
+                assertThat(event.getFormattedMessage()).isEqualTo("🚨 Amount mismatch! ref=PAY-logs, expected=10000000, received=1");
+            }).anySatisfy(event -> {
+                assertThat(event.getLevel()).isEqualTo(ch.qos.logback.classic.Level.INFO);
+                assertThat(event.getFormattedMessage()).isEqualTo("⏭️ Payment already processed: ref=PAY-logs, status=SUCCESS");
+            });
+        } finally { logger.detachAppender(appender); appender.stop(); }
     }
 
     private PaymentOrder pendingOrder(String paymentRef) {

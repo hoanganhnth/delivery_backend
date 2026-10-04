@@ -26,6 +26,7 @@ class PaymentWorkflowTransactionIntegrationTest {
     @Autowired BalanceRepository balances;
     @MockBean PaymentProviderRegistry registry;
     @MockBean PaymentEventPublisher events;
+    @org.springframework.boot.test.mock.mockito.SpyBean TransactionService ledger;
     PaymentProvider provider;
     @BeforeEach void setup() {
         payments.deleteAll(); transactions.deleteAll(); balances.deleteAll();
@@ -84,6 +85,40 @@ class PaymentWorkflowTransactionIntegrationTest {
         assertThat(transactions.count()).isEqualTo(1);
         assertThat(balances.findByEntityIdAndEntityType(22L, EntityType.SHIPPER).orElseThrow().getDepositBalance()).isEqualByComparingTo("100.99");
         workflow.callback("VNPAY", Map.of()); assertThat(transactions.count()).isEqualTo(1);
+    }
+    @Test void topUpFailureBeforePublicationRollsBackOriginalPaymentMetadata() {
+        var created = workflow.create(command("DEPOSIT_TOPUP"));
+        callbackResult(created.paymentReference(), true, null);
+        doThrow(new IllegalStateException("ledger unavailable")).when(ledger).topUpDeposit(anyLong(), any(), any(), any());
+        assertThatThrownBy(() -> workflow.callback("VNPAY", Map.of())).hasMessage("ledger unavailable");
+        assertOriginalPending(created.id());
+        assertThat(transactions.count()).isZero(); verifyNoInteractions(events);
+    }
+    @Test void failedPublicationRollsBackFailureMetadata() {
+        var created = workflow.create(command("ORDER_PAYMENT"));
+        callbackResult(created.paymentReference(), false, null);
+        doThrow(new IllegalStateException("failed publication")).when(events).publishPaymentFailed(any(), any());
+        assertThatThrownBy(() -> workflow.callback("VNPAY", Map.of())).hasMessage("failed publication");
+        assertOriginalPending(created.id()); assertThat(transactions.count()).isZero();
+    }
+    @Test void fakeTopUpCommitsExactlyOnceAndReplayHasNoEffects() {
+        var created = workflow.create(new PaymentWorkflowCommand(22L, null, "SHIPPER", BigDecimal.TEN,
+                "FAKE", "DEPOSIT_TOPUP", null, null));
+        var success = workflow.confirmFake(created.paymentReference());
+        assertThat(success.status()).isEqualTo("SUCCESS");
+        assertThat(success.settlementTransactionId()).isNotNull();
+        assertThat(workflow.confirmFake(created.paymentReference())).isEqualTo(success);
+        assertThat(transactions.count()).isEqualTo(1);
+        assertThat(balances.findByEntityIdAndEntityType(22L, EntityType.SHIPPER).orElseThrow().getDepositBalance())
+                .isEqualByComparingTo("10");
+        verify(events, times(1)).publishPaymentSuccess(any()); verify(events, never()).publishPaymentFailed(any(), any());
+    }
+    private void assertOriginalPending(Long id) {
+        var persisted = payments.findById(id).orElseThrow();
+        assertThat(persisted.getStatus()).isEqualTo(PaymentOrder.PaymentStatus.PENDING);
+        assertThat(persisted.getCallbackPayload()).isNull();
+        assertThat(persisted.getProviderTransactionId()).isEqualTo("create-id");
+        assertThat(persisted.getSettlementTransactionId()).isNull();
     }
     @Test void verifiedCancellationCommitsAndFakeEndpointRetainsProviderRestriction() {
         var created = workflow.create(command("ORDER_PAYMENT")); callbackResult(created.paymentReference(), false, null);

@@ -71,29 +71,29 @@ class DefaultPaymentWorkflowTest {
         assertThat(result.settlementTransactionId()).isEqualTo(88L);
         assertThat(result.providerTransactionId()).isEqualTo("callback-id");
         assertThat(fixture.payment.getCallbackPayload()).isEqualTo("raw");
-        assertThat(fixture.calls).containsExactly("get:VNPAY", "verify", "read:PAY-1", "topup", "success", "save:SUCCESS");
+        assertThat(fixture.calls).containsExactly("get:VNPAY", "verify", "lock:PAY-1", "topup", "success", "save:SUCCESS");
         fixture.calls.clear(); fixture.verification = new Verification(true, false, "PAY-1", null, null, 1L, "later");
         assertThat(core.callback("VNPAY", Map.of())).isEqualTo(result);
-        assertThat(fixture.calls).containsExactly("get:VNPAY", "verify", "read:PAY-1");
+        assertThat(fixture.calls).containsExactly("get:VNPAY", "verify", "lock:PAY-1");
     }
     @Test void failureSavesBeforeEventAndMismatchWritesThenThrowsWithoutEffects() {
         core.create(command(null, "ORDER_PAYMENT", null, null, null)); fixture.calls.clear();
         fixture.verification = new Verification(true, false, "PAY-1", null, "cancelled", null, "cancel");
         assertThat(core.callback("VNPAY", Map.of()).status()).isEqualTo("FAILED");
-        assertThat(fixture.calls).containsExactly("get:VNPAY", "verify", "read:PAY-1", "save:FAILED", "failed:cancel");
+        assertThat(fixture.calls).containsExactly("get:VNPAY", "verify", "lock:PAY-1", "save:FAILED", "failed:cancel");
         core.create(command(null, "ORDER_PAYMENT", null, null, null)); fixture.calls.clear();
         fixture.verification = new Verification(true, true, "PAY-1", null, "raw", 10099L, "ok");
         assertThatThrownBy(() -> core.callback("VNPAY", Map.of())).isInstanceOf(SecurityException.class).hasMessage("Payment amount mismatch");
-        assertThat(fixture.calls).containsExactly("get:VNPAY", "verify", "read:PAY-1", "save:FAILED");
+        assertThat(fixture.calls).containsExactly("get:VNPAY", "verify", "lock:PAY-1", "save:FAILED");
         assertThat(fixture.payment.getCallbackPayload()).isEqualTo("Amount mismatch: 10099");
     }
     @Test void fakeRequiresProviderEvenOnTerminalPaymentsAndDoesNotInventOrderOrWithdrawalLedgerEffects() {
         core.create(command("shipper", "order_payment", "FAKE", null, null)); fixture.calls.clear();
         assertThat(core.confirmFake("PAY-1").status()).isEqualTo("SUCCESS");
-        assertThat(fixture.calls).containsExactly("read:PAY-1", "success", "save:SUCCESS");
+        assertThat(fixture.calls).containsExactly("lock:PAY-1", "success", "save:SUCCESS");
         assertThat(fixture.payment.getCallbackPayload()).isEqualTo("{\"provider\":\"FAKE\",\"status\":\"SUCCESS\"}");
         fixture.calls.clear(); core.confirmFake("PAY-1");
-        assertThat(fixture.calls).containsExactly("read:PAY-1");
+        assertThat(fixture.calls).containsExactly("lock:PAY-1");
         fixture.payment.setProvider("VNPAY");
         assertThatThrownBy(() -> core.confirmFake("PAY-1")).isInstanceOf(IllegalArgumentException.class);
         core.create(command("system", "withdrawal", "FAKE", null, null)); fixture.calls.clear();
@@ -108,6 +108,7 @@ class DefaultPaymentWorkflowTest {
         final List<String> calls = new ArrayList<>();
         public Optional<WorkflowPayment> byId(Long id) { return Optional.ofNullable(payment).filter(p -> id.equals(p.getId())); }
         public Optional<WorkflowPayment> byReference(String ref) { calls.add("read:" + ref); return Optional.ofNullable(payment).filter(p -> ref.equals(p.getPaymentRef())); }
+        public Optional<WorkflowPayment> byReferenceForUpdate(String ref) { calls.add("lock:" + ref); return Optional.ofNullable(payment).filter(p -> ref.equals(p.getPaymentRef())); }
         public void save(WorkflowPayment value) { calls.add("save:" + value.getStatus()); payment = value; value.setId(1L); value.setCreatedAt(LocalDateTime.of(2026, 1, 2, 3, 4)); }
         public Provider get(String name) { calls.add("get:" + name); return this; }
         public Set<String> available() { return new LinkedHashSet<>(List.of("VNPAY", "FAKE")); }

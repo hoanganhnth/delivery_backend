@@ -1,6 +1,8 @@
 package com.delivery.settlement_service.payment;
 
 import com.delivery.settlement.application.api.PaymentWorkflowDependencies.*;
+import com.delivery.settlement.application.api.PaymentWorkflowCommand;
+import lombok.extern.slf4j.Slf4j;
 import com.delivery.settlement.domain.payment.WorkflowPayment;
 import com.delivery.settlement_service.entity.*;
 import com.delivery.settlement_service.payment.dto.*;
@@ -9,6 +11,7 @@ import com.delivery.settlement_service.service.*;
 import java.util.*;
 
 /** JPA/provider/ledger/event operations for the framework-free payment workflow. */
+@Slf4j
 public final class PaymentWorkflowAdapters implements Store, Providers, Effects {
     // One adapter is created for each host invocation; retain the original managed JPA object.
     private final Map<WorkflowPayment, PaymentOrder> managed = new IdentityHashMap<>();
@@ -16,12 +19,16 @@ public final class PaymentWorkflowAdapters implements Store, Providers, Effects 
     private final PaymentProviderRegistry registry;
     private final TransactionService transactions;
     private final PaymentEventPublisher events;
+    private String responseCode;
     public PaymentWorkflowAdapters(PaymentOrderRepository repository, PaymentProviderRegistry registry,
             TransactionService transactions, PaymentEventPublisher events) {
         this.repository = repository; this.registry = registry; this.transactions = transactions; this.events = events;
     }
     @Override public Optional<WorkflowPayment> byId(Long id) { return repository.findById(id).map(this::state); }
     @Override public Optional<WorkflowPayment> byReference(String ref) { return repository.findByPaymentRef(ref).map(this::state); }
+    @Override public Optional<WorkflowPayment> byReferenceForUpdate(String ref) {
+        return repository.findByPaymentRefForUpdate(ref).map(this::state);
+    }
     @Override public void save(WorkflowPayment payment) {
         PaymentOrder saved = repository.save(entity(payment));
         if (saved != null) {
@@ -40,6 +47,7 @@ public final class PaymentWorkflowAdapters implements Store, Providers, Effects 
             }
             @Override public Verification verify(Map<String, String> parameters) {
                 PaymentVerifyResult result = provider.verifyPayment(parameters);
+                responseCode = result.getResponseCode();
                 return new Verification(result.isVerified(), result.isPaymentSuccess(), result.getPaymentRef(),
                         result.getProviderTransactionId(), result.getRawPayload(), result.getAmount(), result.getMessage());
             }
@@ -47,11 +55,36 @@ public final class PaymentWorkflowAdapters implements Store, Providers, Effects 
     }
     @Override public Set<String> available() { return registry.getAvailableProviders(); }
     @Override public Long topUp(WorkflowPayment payment) {
-        return transactions.topUpDeposit(payment.getEntityId(), EntityType.valueOf(payment.getEntityType()),
+        Long id = transactions.topUpDeposit(payment.getEntityId(), EntityType.valueOf(payment.getEntityType()),
                 payment.getAmount(), payment.getProvider()).getId();
+        log.info("✅ Payment SUCCESS → Deposit topped up: ref={}, txId={}", payment.getPaymentRef(), id);
+        return id;
     }
-    @Override public void success(WorkflowPayment payment) { events.publishPaymentSuccess(entity(payment)); }
-    @Override public void failed(WorkflowPayment payment, String reason) { events.publishPaymentFailed(entity(payment), reason); }
+    @Override public void success(WorkflowPayment payment) {
+        if ("ORDER_PAYMENT".equals(payment.getPurpose())) log.info("✅ Payment SUCCESS for Order ID: {}", payment.getEntityId());
+        events.publishPaymentSuccess(entity(payment));
+    }
+    @Override public void failed(WorkflowPayment payment, String reason) {
+        log.info("❌ Payment failed: ref={}, code={}", payment.getPaymentRef(), responseCode);
+        events.publishPaymentFailed(entity(payment), reason);
+    }
+    @Override public void creating(PaymentWorkflowCommand command, String provider) {
+        log.info("💳 Creating payment: entityId={}, amount={}, provider={}", command.entityId(), command.amount(), provider);
+    }
+    @Override public void created(WorkflowPayment payment) {
+        log.info("✅ Payment created: ref={}, url={}", payment.getPaymentRef(), payment.getPaymentUrl());
+    }
+    @Override public void callbackStarted(String provider) { log.info("📨 Handling callback from provider: {}", provider); }
+    @Override public void signatureRejected(String provider, String message) {
+        log.warn("⚠️ Invalid signature from {}: {}", provider, message);
+    }
+    @Override public void replayed(WorkflowPayment payment) {
+        log.info("⏭️ Payment already processed: ref={}, status={}", payment.getPaymentRef(), payment.getStatus());
+    }
+    @Override public void amountMismatch(WorkflowPayment payment, Long received) {
+        log.error("🚨 Amount mismatch! ref={}, expected={}, received={}", payment.getPaymentRef(), payment.getAmount().longValue() * 100, received);
+    }
+    @Override public void confirmingFake(String reference) { log.info("🎭 Confirming fake payment: ref={}", reference); }
     private PaymentOrder entity(WorkflowPayment value) {
         PaymentOrder target = managed.computeIfAbsent(value, ignored -> new PaymentOrder());
         target.setId(value.getId());

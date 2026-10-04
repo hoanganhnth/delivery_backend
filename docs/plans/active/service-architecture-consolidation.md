@@ -50,7 +50,7 @@ from the earlier conversation, not implicitly authorized by this structural plan
   addition to catalogue; retain transaction, concurrency and event guarantees.
 - [x] Tracking: close REST/WebSocket/publication/lease/recovery use cases;
   preserve location ordering and reconnect fences.
-- [ ] Settlement: move actual COD ledger/refund/payment/payout workflows;
+- [x] Settlement: move actual COD ledger/refund/payment/payout workflows;
   retain provider gating, receipts, locks and financial compensation guarantees.
 - [ ] Match: complete single/batch dispatch runtime, expiry, cancellation,
   availability and COD holds behind core use cases.
@@ -1145,3 +1145,17 @@ Tracking closure is committed at `44b25a0`; refactor worktree fast-forwarded to 
 - Crash harness unit tests (8, later 9 after relocation fixtures) pass. Actual packaged crash-window rehearsal on owned disposable PostgreSQL/Kafka passed before and after relocation: SIGKILL after DB commit and before ACK, uncommitted offset, exact redelivery, unchanged ledger, lag 0 (`/tmp/settlement-crash-window-rehearsal.log`, `/tmp/settlement-crash-window-reloc.log`).
 - Relocated to `settlement/{domain,application-api,application,infrastructure,boot}` mirroring Tracking `9cecfe7`: 225 byte-identical renames; boot keeps only `SettlementServiceApplication`, runtime properties and host tests; infrastructure owns HTTP/Kafka/JPA/scheduler/security/composition and all production dependencies. Artifact `settlement-service:0.0.1-SNAPSHOT`, packages, flags, migrations and contracts unchanged; only infrastructure test properties gained config-server/discovery/Kafka/scheduling isolation. Compose `SERVICE_PATH=settlement/boot`; baseline gate rules only re-pathed; HTTP catalog 244 operations/229 schemas with only source paths changed. Old `settlement-service/` and `modules/settlement/` removed.
 - Post-relocation owned clean verify exited 0 (`/tmp/settlement-relocated-verify.log`): domain 42/application 43/infrastructure 1/boot 113, zero failures/errors/skips. Independent gpt-6.1-sol review: no blocker/major; two stale doc links fixed. Generated mirror under `docs/platform/system/reference/` is left to its generator. Remaining before checking Settlement: payment hardening follow-up and main integration.
+
+### User decisions for the next tranches (2026-10-04)
+
+- Source: read-only Match inventory (gpt-6.1-sol, snapshot `eda1778`) and the user's answers in the coordinating chat.
+- Settlement payment: if the concurrent DEPOSIT_TOPUP callback proof shows a double top-up, fix it in Settlement before main integration (red test first).
+- Match: fix the documented contract defects inside the Match tranche, each as a separate red-first commit, never folded into equivalence refactors: (1) `DispatchBatchReleaseListener` ACK before commit; (2) batch reservation ignores cancellation tombstones/deadline and stop does not retire pool items (authority `delivery-matching.md`); (3) feasibility ETA route order (per-order pickup→dropoff) differs from the emitted snapshot (all pickups then dropoffs) — canonical order still needs to be pinned to `delivery-matching.md`/`production-matching-v1.md` before the fix. Runtime greedy optimizer is retained; min-cost flow is separate algorithm work, not authorized here.
+- Saga → Dispatch: user chose option C — Dispatch becomes the delivery-coordination owner and the current Saga orchestrator is retired or repurposed. This changes ownership and likely Kafka topics/consumers, so it requires its own plan (cross-repo if any app/web consumer is affected) with migration, dual-run/cutover and rollback before implementation. It does not change Match slices M1–M6, which preserve current ownership.
+- Ordered tranches: Settlement → Match (M1 single-dispatch domain policy, M2 batch domain policy, M3 single use cases, M4 batch use cases + COD hold orchestration, M5 adapters/composition, M6 relocation/packaged recovery; contract fixes interleaved) → Delivery → Order/Notification → Saga→Dispatch (option C) → Phase 8/9 services → remove `modules/`.
+
+### Settlement payment hardening and concurrent top-up fix (2026-10-05)
+
+- gpt-6.1-sol hardening restored workflow logs through observation-only `Effects` hooks in infrastructure (application stays framework-free) and added proofs: full context with processing on/application-api off, signed VNPay IPN through MVC (00/99/97 and DB state), real KafkaTemplate publisher payload/failure swallowing, top-up/publish failure rollback and fake replay.
+- Real PostgreSQL concurrency proof reproduced a pre-existing double top-up (two identical callbacks: ledger=2, wallet +200 for 100, two success events). Per user decision it is fixed: callback and fake confirmation load the payment through `findByPaymentRefForUpdate` (PESSIMISTIC_WRITE) before the pending check, so a duplicate waits and replays the committed SUCCESS. Red `/tmp/payment-double-topup-red.log`; green full clean verify `/tmp/settlement-payment-lock-verify.log`: domain 42/application 43/infrastructure 1/boot 125, zero failures/errors/skips; observed ledger=1, wallet +100, events=1.
+- Settlement checkbox closed after this commit is fast-forwarded to main.
