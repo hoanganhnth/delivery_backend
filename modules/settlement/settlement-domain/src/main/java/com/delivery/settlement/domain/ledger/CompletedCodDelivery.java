@@ -6,7 +6,8 @@ import java.util.ArrayList;
 import java.util.UUID;
 import static com.delivery.settlement.domain.ledger.LedgerPosting.Direction.*;
 import static com.delivery.settlement.domain.ledger.LedgerPosting.Reason.*;
-import static com.delivery.settlement.domain.ledger.LedgerPosting.Wallet.*;
+import static com.delivery.settlement.domain.ledger.LedgerPosting.Wallet.EARNINGS;
+import static com.delivery.settlement.domain.ledger.LedgerPosting.Wallet.DEPOSIT;
 
 /** Canonical completion snapshot. Preserves the existing COD reconciliation policy. */
 public record CompletedCodDelivery(UUID eventId, String eventType, Long deliveryId, Long orderId,

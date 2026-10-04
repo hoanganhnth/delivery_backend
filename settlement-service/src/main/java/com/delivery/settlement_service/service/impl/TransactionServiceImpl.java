@@ -1,8 +1,12 @@
 package com.delivery.settlement_service.service.impl;
 
+import com.delivery.settlement.application.ledger.LedgerResourceMissing;
+import com.delivery.settlement.application.api.ledger.LedgerUseCase;
+import com.delivery.settlement.application.ledger.DefaultLedgerUseCase;
+import com.delivery.settlement.domain.ledger.*;
+import com.delivery.settlement_service.adapter.JpaLedgerAdapter;
 import com.delivery.settlement_service.dto.request.RejectWithdrawalRequest;
 import com.delivery.settlement_service.dto.response.TransactionResponse;
-import com.delivery.settlement_service.entity.Balance;
 import com.delivery.settlement_service.entity.EntityType;
 import com.delivery.settlement_service.entity.Transaction;
 import com.delivery.settlement_service.entity.Transaction.TransactionDirection;
@@ -16,362 +20,82 @@ import com.delivery.settlement_service.repository.BalanceRepository;
 import com.delivery.settlement_service.repository.TransactionRepository;
 import com.delivery.settlement_service.service.BalanceService;
 import com.delivery.settlement_service.service.TransactionService;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.transaction.annotation.Transactional;
-
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Clock;
 import java.util.List;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import static com.delivery.settlement_service.adapter.JpaLedgerAdapter.enumValue;
 
+/** Transaction/API mapping facade. Actual financial workflows run in LedgerUseCase. */
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class TransactionServiceImpl implements TransactionService {
-
-    private static final int COMPATIBILITY_LIST_LIMIT = 100;
-
     private final TransactionRepository transactionRepository;
-    private final BalanceRepository balanceRepository;
-    private final BalanceService balanceService;
     private final TransactionMapper transactionMapper;
+    private final JpaLedgerAdapter adapter;
+    private final LedgerUseCase core;
 
-    // ═══════════════════════════════════════════════════════════════
-    // Core Transaction Methods
-    // ═══════════════════════════════════════════════════════════════
-
-    @Override
-    @Transactional
+    public TransactionServiceImpl(TransactionRepository transactions, BalanceRepository balances,
+            BalanceService balanceService, TransactionMapper mapper) {
+        this.transactionRepository = transactions;
+        this.transactionMapper = mapper;
+        this.adapter = new JpaLedgerAdapter(transactions, balances, balanceService);
+        this.core = new DefaultLedgerUseCase(adapter, Clock.systemDefaultZone());
+    }
+    @Override @Transactional
     public Transaction createTransaction(Long entityId, EntityType entityType, Long orderId,
-                                        TransactionDirection direction, TransactionReason reason,
-                                        BigDecimal amount, String description) {
-        // Default: EARNINGS wallet
-        return createTransaction(entityId, entityType, orderId, direction, reason,
-                amount, description, WalletType.EARNINGS);
+            TransactionDirection direction, TransactionReason reason, BigDecimal amount, String description) {
+        return createTransaction(entityId, entityType, orderId, direction, reason, amount, description, WalletType.EARNINGS);
     }
-
-    @Override
-    @Transactional
+    @Override @Transactional
     public Transaction createTransaction(Long entityId, EntityType entityType, Long orderId,
-                                        TransactionDirection direction, TransactionReason reason,
-                                        BigDecimal amount, String description, WalletType walletType) {
-        log.info("Creating transaction: entity={} ({}), wallet={}, direction={}, reason={}, amount={}",
-                entityId, entityType, walletType, direction, reason, amount);
-
-        // Validate amount
-        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("Amount must be greater than zero");
-        }
-
-        // Get or create balance
-        Balance balance = getOrCreateBalanceForUpdate(entityId, entityType);
-
-        // Create transaction (append-only, immutable)
-        Transaction transaction = Transaction.builder()
-                .entityId(entityId)
-                .entityType(entityType)
-                .orderId(orderId)
-                .direction(direction)
-                .reason(reason)
-                .amount(amount)
-                .description(description)
-                .status(TransactionStatus.COMPLETED)
-                .walletType(walletType)
-                .build();
-
-        Transaction saved = transactionRepository.save(transaction);
-
-        // Update balance based on transaction and wallet type
-        updateBalanceFromTransaction(balance, saved);
-
-        log.info("✅ Created transaction ID: {} for entity: {} ({}) on wallet: {}",
-                saved.getId(), entityId, entityType, walletType);
-        return saved;
+            TransactionDirection direction, TransactionReason reason, BigDecimal amount, String description, WalletType wallet) {
+        return execute(() -> core.create(new LedgerPosting(entityId, enumValue(entityType, com.delivery.settlement.domain.EntityType.class),
+                orderId, enumValue(direction, LedgerPosting.Direction.class), enumValue(reason, LedgerPosting.Reason.class),
+                amount, description, enumValue(wallet, LedgerPosting.Wallet.class))));
     }
-
-    // ═══════════════════════════════════════════════════════════════
-    // Deposit Wallet Methods (Ví Ký quỹ)
-    // ═══════════════════════════════════════════════════════════════
-
-    @Override
-    @Transactional
-    public Transaction topUpDeposit(Long entityId, EntityType entityType, BigDecimal amount, String paymentMethod) {
-        log.info("💰 {} {} topping up deposit wallet: {} via {}", entityType, entityId, amount, paymentMethod);
-
-        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("Top-up amount must be greater than zero");
-        }
-
-        Balance balance = getOrCreateBalanceForUpdate(entityId, entityType);
-
-        // Create CREDIT transaction on DEPOSIT wallet
-        Transaction transaction = Transaction.builder()
-                .entityId(entityId)
-                .entityType(entityType)
-                .direction(TransactionDirection.CREDIT)
-                .reason(TransactionReason.DEPOSIT_TOPUP)
-                .amount(amount)
-                .description("Deposit top-up via " + (paymentMethod != null ? paymentMethod : "UNKNOWN"))
-                .status(TransactionStatus.COMPLETED)
-                .walletType(WalletType.DEPOSIT)
-                .build();
-
-        Transaction saved = transactionRepository.save(transaction);
-
-        // Update deposit balance
-        balance.setDepositBalance(balance.getDepositBalance().add(amount));
-        balance.setTotalDeposited(balance.getTotalDeposited().add(amount));
-        balanceRepository.save(balance);
-
-        log.info("✅ {} {} deposit topped up. New deposit balance: {}, Total deposited: {}",
-                entityType, entityId, balance.getDepositBalance(), balance.getTotalDeposited());
-
-        return saved;
+    @Override @Transactional
+    public Transaction topUpDeposit(Long entityId, EntityType type, BigDecimal amount, String method) {
+        return execute(() -> core.topUp(owner(entityId, type), amount, method));
     }
-
-    @Override
-    @Transactional(readOnly = true)
-    public boolean checkCodEligibility(Long shipperId, BigDecimal codAmount) {
-        if (shipperId == null || shipperId <= 0 || codAmount == null || codAmount.signum() <= 0) {
-            throw new IllegalArgumentException("Shipper ID and COD amount must be positive");
-        }
-        Balance balance = balanceRepository.findByEntityIdAndEntityType(shipperId, EntityType.SHIPPER)
-                .orElse(null);
-
-        if (balance == null) {
-            log.warn("⚠️ Shipper {} has no balance record. COD not eligible.", shipperId);
-            return false;
-        }
-
-        BigDecimal reserved = balance.getReservedDepositBalance() == null
-                ? BigDecimal.ZERO : balance.getReservedDepositBalance();
-        boolean eligible = balance.getDepositBalance().subtract(reserved).compareTo(codAmount) >= 0;
-        log.info("🔍 COD eligibility check for shipper {}: deposit={}, codAmount={}, eligible={}",
-                shipperId, balance.getDepositBalance().subtract(reserved), codAmount, eligible);
-
-        return eligible;
+    @Override @Transactional(readOnly = true)
+    public boolean checkCodEligibility(Long shipperId, BigDecimal amount) { return core.checkCodEligibility(shipperId, amount); }
+    @Override @Transactional
+    public Transaction requestWithdrawal(Long entityId, EntityType type, BigDecimal amount, Long requestedBy) {
+        return execute(() -> core.requestWithdrawal(owner(entityId, type), amount));
     }
-
-    // ═══════════════════════════════════════════════════════════════
-    // Withdrawal Methods (Rút tiền từ Ví Thu nhập)
-    // ═══════════════════════════════════════════════════════════════
-
-    @Override
-    @Transactional
-    public Transaction requestWithdrawal(Long entityId, EntityType entityType,
-                                        BigDecimal amount, Long requestedBy) {
-        log.info("Processing withdrawal request: entity={} ({}), amount={}", entityId, entityType, amount);
-
-        // Validate amount
-        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("Withdrawal amount must be greater than zero");
-        }
-
-        // Get balance
-        Balance balance = balanceRepository.findByEntityIdAndEntityTypeForUpdate(entityId, entityType)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Balance not found for entity: " + entityId + " (" + entityType + ")"));
-
-        // ✅ Chỉ cho phép rút từ Ví Thu nhập (availableBalance)
-        if (balance.getAvailableBalance().compareTo(amount) < 0) {
-            throw new InsufficientBalanceException(
-                    String.format("Insufficient earnings balance. Available: %s, Requested: %s",
-                            balance.getAvailableBalance(), amount));
-        }
-
-        // Create PENDING withdrawal transaction
-        Transaction transaction = Transaction.builder()
-                .entityId(entityId)
-                .entityType(entityType)
-                .direction(TransactionDirection.DEBIT)
-                .reason(TransactionReason.WITHDRAW)
-                .amount(amount)
-                .description("Withdrawal request")
-                .status(TransactionStatus.PENDING)
-                .walletType(WalletType.EARNINGS)
-                .build();
-
-        Transaction saved = transactionRepository.save(transaction);
-
-        // Move money from available to pending
-        balance.setAvailableBalance(balance.getAvailableBalance().subtract(amount));
-        balance.setPendingBalance(balance.getPendingBalance().add(amount));
-        balanceRepository.save(balance);
-
-        log.info("✅ Withdrawal request created. Transaction ID: {}, Available: {}, Pending: {}",
-                saved.getId(), balance.getAvailableBalance(), balance.getPendingBalance());
-
-        return saved;
+    @Override @Transactional
+    public Transaction approveWithdrawal(Long id, Long adminId) { return execute(() -> core.approveWithdrawal(id, adminId)); }
+    @Override @Transactional
+    public Transaction rejectWithdrawal(Long id, Long adminId, RejectWithdrawalRequest request) {
+        return execute(() -> core.rejectWithdrawal(id, adminId, request == null ? null : request.getReason()));
     }
-
-    @Override
-    @Transactional
-    public Transaction approveWithdrawal(Long transactionId, Long adminId) {
-        log.info("Approving withdrawal: transactionId={}, adminId={}", transactionId, adminId);
-
-        Transaction transaction = transactionRepository.findById(transactionId)
-                .orElseThrow(() -> new ResourceNotFoundException("Transaction", "id", transactionId));
-
-        if (transaction.getStatus() != TransactionStatus.PENDING) {
-            throw new IllegalStateException("Transaction is not pending: " + transaction.getStatus());
-        }
-
-        if (transaction.getReason() != TransactionReason.WITHDRAW) {
-            throw new IllegalStateException("Transaction is not a withdrawal: " + transaction.getReason());
-        }
-
-        // Update transaction status
-        transaction.setStatus(TransactionStatus.COMPLETED);
-        transaction.setProcessedAt(LocalDateTime.now());
-        transaction.setProcessedBy(adminId);
-        Transaction saved = transactionRepository.save(transaction);
-
-        // Update balance: remove from pending (money already deducted from available when request was created)
-        Balance balance = balanceRepository.findByEntityIdAndEntityTypeForUpdate(
-                        transaction.getEntityId(), transaction.getEntityType())
-                .orElseThrow(() -> new ResourceNotFoundException("Balance not found"));
-
-        balance.setPendingBalance(balance.getPendingBalance().subtract(transaction.getAmount()));
-        balanceRepository.save(balance);
-
-        log.info("✅ Withdrawal approved. Transaction ID: {}, Pending balance: {}",
-                transactionId, balance.getPendingBalance());
-
-        return saved;
+    @Override @Transactional
+    public Transaction reverseTransaction(Long id, Long adminId, String reason) { return execute(() -> core.reverse(id, adminId, reason)); }
+    @Override @Transactional
+    public Transaction holdBalance(Long entityId, BigDecimal amount, String description) { return execute(() -> core.hold(entityId, amount, description)); }
+    @Override @Transactional
+    public Transaction releaseBalance(Long entityId, BigDecimal amount, String description) { return execute(() -> core.release(entityId, amount, description)); }
+    private LedgerOwner owner(Long id, EntityType type) {
+        return new LedgerOwner(id, enumValue(type, com.delivery.settlement.domain.EntityType.class));
     }
-
-    @Override
-    @Transactional
-    public Transaction rejectWithdrawal(Long transactionId, Long adminId, RejectWithdrawalRequest request) {
-        log.info("Rejecting withdrawal: transactionId={}, adminId={}", transactionId, adminId);
-
-        Transaction transaction = transactionRepository.findById(transactionId)
-                .orElseThrow(() -> new ResourceNotFoundException("Transaction", "id", transactionId));
-
-        if (transaction.getStatus() != TransactionStatus.PENDING) {
-            throw new IllegalStateException("Transaction is not pending: " + transaction.getStatus());
-        }
-
-        if (transaction.getReason() != TransactionReason.WITHDRAW) {
-            throw new IllegalStateException("Transaction is not a withdrawal: " + transaction.getReason());
-        }
-
-        // Update transaction status
-        transaction.setStatus(TransactionStatus.FAILED);
-        transaction.setProcessedAt(LocalDateTime.now());
-        transaction.setProcessedBy(adminId);
-        if (request != null && request.getReason() != null) {
-            transaction.setDescription(transaction.getDescription() + " - Rejected: " + request.getReason());
-        }
-        Transaction saved = transactionRepository.save(transaction);
-
-        // Restore balance: move from pending back to available (Ví Thu nhập)
-        Balance balance = balanceRepository.findByEntityIdAndEntityTypeForUpdate(
-                        transaction.getEntityId(), transaction.getEntityType())
-                .orElseThrow(() -> new ResourceNotFoundException("Balance not found"));
-
-        balance.setAvailableBalance(balance.getAvailableBalance().add(transaction.getAmount()));
-        balance.setPendingBalance(balance.getPendingBalance().subtract(transaction.getAmount()));
-        balanceRepository.save(balance);
-
-        log.info("✅ Withdrawal rejected. Transaction ID: {}, Available: {}, Pending: {}",
-                transactionId, balance.getAvailableBalance(), balance.getPendingBalance());
-
-        return saved;
+    private Transaction execute(Supplier<LedgerEntry> operation) {
+        try { return adapter.requireEntity(operation.get().id()); }
+        catch (InsufficientWalletFunds error) { throw new InsufficientBalanceException(error.getMessage()); }
+        catch (LedgerResourceMissing error) { throw new ResourceNotFoundException(error.getMessage()); }
     }
-
-    // ═══════════════════════════════════════════════════════════════
-    // Other Methods
-    // ═══════════════════════════════════════════════════════════════
-
-    @Override
-    @Transactional
-    public Transaction reverseTransaction(Long transactionId, Long adminId, String reason) {
-        log.info("Reversing transaction: transactionId={}, adminId={}", transactionId, adminId);
-
-        Transaction original = transactionRepository.findById(transactionId)
-                .orElseThrow(() -> new ResourceNotFoundException("Transaction", "id", transactionId));
-
-        if (original.getStatus() != TransactionStatus.COMPLETED) {
-            throw new IllegalStateException("Can only reverse completed transactions");
-        }
-
-        // Create opposite transaction on the same wallet
-        TransactionDirection oppositeDirection = original.getDirection() == TransactionDirection.CREDIT
-                ? TransactionDirection.DEBIT
-                : TransactionDirection.CREDIT;
-
-        Transaction reversal = Transaction.builder()
-                .entityId(original.getEntityId())
-                .entityType(original.getEntityType())
-                .orderId(original.getOrderId())
-                .direction(oppositeDirection)
-                .reason(original.getReason())
-                .amount(original.getAmount())
-                .description("Reversal of transaction #" + transactionId + 
-                           (reason != null ? " - " + reason : ""))
-                .status(TransactionStatus.COMPLETED)
-                .walletType(original.getWalletType())
-                .processedBy(adminId)
-                .build();
-
-        Transaction saved = transactionRepository.save(reversal);
-
-        // Update original transaction status
-        original.setStatus(TransactionStatus.REVERSED);
-        transactionRepository.save(original);
-
-        // Update balance
-        Balance balance = balanceRepository.findByEntityIdAndEntityTypeForUpdate(
-                        original.getEntityId(), original.getEntityType())
-                .orElseThrow(() -> new ResourceNotFoundException("Balance not found"));
-
-        updateBalanceFromTransaction(balance, saved);
-
-        log.info("✅ Transaction reversed. Original ID: {}, Reversal ID: {}", transactionId, saved.getId());
-
-        return saved;
-    }
-
-    @Override
-    @Transactional
-    public Transaction holdBalance(Long entityId, BigDecimal amount, String description) {
-        return createTransaction(entityId, EntityType.SHIPPER, null,
-                TransactionDirection.DEBIT, TransactionReason.HOLD, amount,
-                description != null ? description : "Hold balance", WalletType.EARNINGS);
-    }
-
-    @Override
-    @Transactional
-    public Transaction releaseBalance(Long entityId, BigDecimal amount, String description) {
-        // Get balance to check holding balance
-        Balance balance = balanceRepository.findByEntityIdAndEntityTypeForUpdate(entityId, EntityType.SHIPPER)
-                .orElseThrow(() -> new ResourceNotFoundException("Balance not found for shipper: " + entityId));
-
-        if (balance.getHoldingBalance().compareTo(amount) < 0) {
-            throw new InsufficientBalanceException(
-                    String.format("Insufficient holding balance. Holding: %s, Requested: %s",
-                            balance.getHoldingBalance(), amount));
-        }
-
-        return createTransaction(entityId, EntityType.SHIPPER, null,
-                TransactionDirection.CREDIT, TransactionReason.RELEASE, amount,
-                description != null ? description : "Release balance", WalletType.EARNINGS);
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    // Query Methods
-    // ═══════════════════════════════════════════════════════════════
 
     @Override
     @Transactional(readOnly = true)
     public List<TransactionResponse> getTransactions(Long entityId, EntityType entityType) {
         log.info("Getting transactions for entity: {} ({})", entityId, entityType);
         return transactionRepository.findByEntityIdAndEntityTypeOrderByCreatedAtDesc(
-                        entityId, entityType, PageRequest.of(0, COMPATIBILITY_LIST_LIMIT))
+                        entityId, entityType, PageRequest.of(0, LedgerUseCase.COMPATIBILITY_LIST_LIMIT))
                 .stream()
                 .map(transactionMapper::toResponse)
                 .collect(Collectors.toList());
@@ -391,7 +115,7 @@ public class TransactionServiceImpl implements TransactionService {
         log.info("Getting pending withdrawals");
         return transactionRepository.findByStatusAndReasonOrderByCreatedAtDesc(
                         TransactionStatus.PENDING, TransactionReason.WITHDRAW,
-                        PageRequest.of(0, COMPATIBILITY_LIST_LIMIT))
+                        PageRequest.of(0, LedgerUseCase.COMPATIBILITY_LIST_LIMIT))
                 .stream()
                 .map(transactionMapper::toResponse)
                 .collect(Collectors.toList());
@@ -402,82 +126,10 @@ public class TransactionServiceImpl implements TransactionService {
     public List<TransactionResponse> getAllTransactions() {
         log.info("Getting all transactions");
         return transactionRepository.findAllByOrderByCreatedAtDesc(
-                        PageRequest.of(0, COMPATIBILITY_LIST_LIMIT))
+                        PageRequest.of(0, LedgerUseCase.COMPATIBILITY_LIST_LIMIT))
                 .stream()
                 .map(transactionMapper::toResponse)
                 .collect(Collectors.toList());
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // Balance Update Logic (Dual Wallet)
-    // ═══════════════════════════════════════════════════════════════
-
-    /**
-     * ✅ Update balance based on completed transaction — phân biệt Ví Thu nhập vs Ví Ký quỹ
-     */
-    private void updateBalanceFromTransaction(Balance balance, Transaction transaction) {
-        if (transaction.getStatus() != TransactionStatus.COMPLETED) {
-            return; // Only update balance for completed transactions
-        }
-
-        switch (transaction.getReason()) {
-            case WITHDRAW:
-                // Withdrawal already handled in requestWithdrawal and approveWithdrawal
-                break;
-            case HOLD:
-                // Move from available (Earnings) to holding
-                balance.setAvailableBalance(balance.getAvailableBalance().subtract(transaction.getAmount()));
-                balance.setHoldingBalance(balance.getHoldingBalance().add(transaction.getAmount()));
-                break;
-            case RELEASE:
-                // Move from holding to available (Earnings)
-                balance.setHoldingBalance(balance.getHoldingBalance().subtract(transaction.getAmount()));
-                balance.setAvailableBalance(balance.getAvailableBalance().add(transaction.getAmount()));
-                break;
-            case DEPOSIT_TOPUP:
-                // Handled directly in topUpDeposit()
-                break;
-            case COD_SETTLEMENT:
-                // ✅ Đối trừ COD — trừ từ Ví Ký quỹ
-                if (transaction.getDirection() == TransactionDirection.DEBIT) {
-                    if (balance.getDepositBalance().compareTo(transaction.getAmount()) < 0) {
-                        throw new InsufficientBalanceException(
-                                String.format("Insufficient COD deposit. Available: %s, Required: %s",
-                                        balance.getDepositBalance(), transaction.getAmount()));
-                    }
-                    balance.setDepositBalance(balance.getDepositBalance().subtract(transaction.getAmount()));
-                    balance.setTotalCodCollected(balance.getTotalCodCollected().add(transaction.getAmount()));
-                }
-                break;
-            default:
-                // Normal CREDIT/DEBIT based on wallet type
-                if (transaction.getWalletType() == WalletType.DEPOSIT) {
-                    // Operations on Deposit wallet
-                    if (transaction.getDirection() == TransactionDirection.CREDIT) {
-                        balance.setDepositBalance(balance.getDepositBalance().add(transaction.getAmount()));
-                    } else {
-                        balance.setDepositBalance(balance.getDepositBalance().subtract(transaction.getAmount()));
-                    }
-                } else {
-                    // Operations on Earnings wallet (default)
-                    if (transaction.getDirection() == TransactionDirection.CREDIT) {
-                        balance.setAvailableBalance(balance.getAvailableBalance().add(transaction.getAmount()));
-                    } else {
-                        balance.setAvailableBalance(balance.getAvailableBalance().subtract(transaction.getAmount()));
-                    }
-                }
-        }
-
-        balanceRepository.save(balance);
-    }
-
-    private Balance getOrCreateBalanceForUpdate(Long entityId, EntityType entityType) {
-        return balanceRepository.findByEntityIdAndEntityTypeForUpdate(entityId, entityType)
-                .orElseGet(() -> {
-                    balanceService.createBalance(entityId, entityType);
-                    return balanceRepository.findByEntityIdAndEntityTypeForUpdate(entityId, entityType)
-                            .orElseThrow(() -> new ResourceNotFoundException(
-                                    "Balance not found after creation for entity: " + entityId + " (" + entityType + ")"));
-                });
-    }
 }
