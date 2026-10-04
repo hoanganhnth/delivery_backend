@@ -49,6 +49,11 @@ final class SagaDispatchCase implements DispatchCase {
     }
 
     @Override
+    public Long assignedShipper() {
+        return saga.getShipperId();
+    }
+
+    @Override
     public void assignShipper(Long shipperId) {
         saga.setShipperId(shipperId);
     }

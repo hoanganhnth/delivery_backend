@@ -15,6 +15,9 @@ public interface DispatchCase {
 
     void transitionTo(DispatchStatus status);
 
+    /** Shipper currently holding the assignment, or null. */
+    Long assignedShipper();
+
     /** Records the shipper holding the assignment (null clears it). */
     void assignShipper(Long shipperId);
 

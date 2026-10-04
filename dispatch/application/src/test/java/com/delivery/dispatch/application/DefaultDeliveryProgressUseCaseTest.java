@@ -34,6 +34,7 @@ class DefaultDeliveryProgressUseCaseTest {
         @Override public void clearCompletion() { completed = false; completionCleared = true; }
         @Override public DispatchStatus status() { return status; }
         @Override public void transitionTo(DispatchStatus status) { this.status = status; }
+        @Override public Long assignedShipper() { return shipperId; }
         @Override public void assignShipper(Long shipperId) { this.shipperId = shipperId; }
         @Override public void markCompleted() { completed = true; }
         @Override public void record(String stepName, String eventType, String eventData) {
@@ -64,7 +65,11 @@ class DefaultDeliveryProgressUseCaseTest {
                     return steps.stream().filter(s -> s[0].startsWith(prefix)).count();
                 }
                 @Override public long count(String name) { throw new UnsupportedOperationException(); }
-                @Override public List<Long> rejectingShippers() { throw new UnsupportedOperationException(); }
+                @Override public List<Long> rejectingShippers() {
+                    List<Long> ids = new ArrayList<>();
+                    for (String[] s : steps) if (s[0].startsWith("SHIPPER_REJECTED") && s[1] != null) ids.add(Long.valueOf(s[1]));
+                    return ids;
+                }
                 @Override public List<Long> recordedRejectedShippers() { throw new UnsupportedOperationException(); }
                 @Override public UUID currentMatchingSession() {
                     String data = latest("MATCHING_STARTED");
