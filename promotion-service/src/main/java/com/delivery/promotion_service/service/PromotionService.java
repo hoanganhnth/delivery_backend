@@ -1,5 +1,14 @@
 package com.delivery.promotion_service.service;
 
+import com.delivery.promotion.application.CalculateVouchersUseCase;
+import com.delivery.promotion.application.CollectVoucherUseCase;
+import com.delivery.promotion.application.ReserveVouchersUseCase;
+import com.delivery.promotion.application.ReservationTransitionUseCase;
+import com.delivery.promotion.application.api.CollectionPort;
+import com.delivery.promotion.application.api.PricingPort;
+import com.delivery.promotion.application.api.PromotionCommands;
+import com.delivery.promotion.application.api.ReservationPort;
+import com.delivery.promotion.application.api.ReservationTransitionPort;
 import com.delivery.promotion.domain.ReservationPolicy;
 import com.delivery.promotion.domain.ReservationReplayPolicy;
 
@@ -17,7 +26,6 @@ import com.delivery.promotion_service.repository.VoucherGroupRepository;
 import com.delivery.promotion_service.repository.VoucherRepository;
 import com.delivery.promotion_service.repository.VoucherReservationRepository;
 import com.delivery.promotion_service.dto.VoucherReservationResponse;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -48,6 +56,7 @@ import com.delivery.promotion_service.repository.PromotionReservationLineReposit
 public class PromotionService {
 
     private static final int COMPATIBILITY_LIST_LIMIT = 100;
+    private final ReservationTransitionUseCase transitions = new ReservationTransitionUseCase();
 
     private final VoucherRepository voucherRepository;
     private final UserVoucherRepository userVoucherRepository;
@@ -164,116 +173,141 @@ public class PromotionService {
 
     @Transactional
     public void collectVoucher(Long principalId, Long userId, String voucherCode) {
-        validatePositiveId(principalId, "principalId");
-        validatePositiveId(userId, "userId");
-        Voucher voucher = collectableVoucher(voucherCode);
-
-        Optional<UserVoucher> existing = principalOwnershipEnforced
-                ? userVoucherRepository.findByUserPrincipalIdAndVoucherId(principalId, voucher.getId())
-                : userVoucherRepository.findByPrincipalOrUnbackfilledLegacyAndVoucherId(principalId, userId, voucher.getId());
-        if (WalletClaimPolicy.collectionFailure(existing.isPresent()) != null) {
-            if (!principalOwnershipEnforced && existing.get().getUserPrincipalId() == null) {
-                legacyWalletFallback().increment();
+        new CollectVoucherUseCase().collect(new CollectionPort<Voucher>() {
+            private Optional<UserVoucher> existing;
+            public void validateIdentity() {
+                validatePositiveId(principalId, "principalId");
+                validatePositiveId(userId, "userId");
             }
-            throw new PromotionConflictException(WalletClaimPolicy.collectionFailure(true));
-        }
-
-        UserVoucher userVoucher = UserVoucher.builder()
-                .userId(userId)
-                .userPrincipalId(principalId)
-                .voucherId(voucher.getId())
-                .status(UserVoucher.Status.SAVED)
-                .build();
-        
-        try {
-            userVoucherRepository.saveAndFlush(userVoucher);
-        } catch (DataIntegrityViolationException ex) {
-            throw new PromotionConflictException(WalletClaimPolicy.collectionFailure(true), ex);
-        }
+            public Voucher findVoucher() {
+                if (voucherCode == null || voucherCode.isBlank()) throw new IllegalArgumentException("Voucher code is required");
+                return voucherRepository.findByCode(normalizeCode(voucherCode))
+                        .orElseThrow(() -> new IllegalArgumentException("Voucher not found"));
+            }
+            public com.delivery.promotion.domain.Voucher snapshot(Voucher voucher) { return VoucherDomainMapper.snapshot(voucher); }
+            public LocalDateTime now() { return LocalDateTime.now(); }
+            public boolean alreadyCollected(Voucher voucher) {
+                existing = principalOwnershipEnforced
+                        ? userVoucherRepository.findByUserPrincipalIdAndVoucherId(principalId, voucher.getId())
+                        : userVoucherRepository.findByPrincipalOrUnbackfilledLegacyAndVoucherId(principalId, userId, voucher.getId());
+                return existing.isPresent();
+            }
+            public RuntimeException duplicate(Voucher voucher, String message) {
+                if (!principalOwnershipEnforced && existing.get().getUserPrincipalId() == null) {
+                    legacyWalletFallback().increment();
+                }
+                return new PromotionConflictException(message);
+            }
+            public void save(Voucher voucher) {
+                try {
+                    userVoucherRepository.saveAndFlush(UserVoucher.builder().userId(userId).userPrincipalId(principalId)
+                            .voucherId(voucher.getId()).status(UserVoucher.Status.SAVED).build());
+                } catch (DataIntegrityViolationException ex) {
+                    throw new PromotionConflictException("Voucher already collected", ex);
+                }
+            }
+        });
     }
 
     /** Legacy compatibility rail for internal callers that do not yet carry principalId. */
     @Transactional
     public void collectVoucher(Long userId, String voucherCode) {
-        validatePositiveId(userId, "userId");
-        Voucher voucher = collectableVoucher(voucherCode);
-        if (WalletClaimPolicy.collectionFailure(
-                userVoucherRepository.findByUserIdAndVoucherId(userId, voucher.getId()).isPresent()) != null) {
-            throw new PromotionConflictException(WalletClaimPolicy.collectionFailure(true));
-        }
-        try {
-            userVoucherRepository.saveAndFlush(UserVoucher.builder()
-                    .userId(userId).voucherId(voucher.getId()).status(UserVoucher.Status.SAVED).build());
-        } catch (DataIntegrityViolationException ex) {
-            throw new PromotionConflictException(WalletClaimPolicy.collectionFailure(true), ex);
-        }
-    }
+        new CollectVoucherUseCase().collect(new CollectionPort<Voucher>() {
+            private Optional<UserVoucher> existing;
+            public void validateIdentity() { validatePositiveId(userId, "userId"); }
+            public Voucher findVoucher() {
+                if (voucherCode == null || voucherCode.isBlank()) throw new IllegalArgumentException("Voucher code is required");
+                return voucherRepository.findByCode(normalizeCode(voucherCode))
+                        .orElseThrow(() -> new IllegalArgumentException("Voucher not found"));
+            }
+            public com.delivery.promotion.domain.Voucher snapshot(Voucher voucher) { return VoucherDomainMapper.snapshot(voucher); }
+            public LocalDateTime now() { return LocalDateTime.now(); }
+            public boolean alreadyCollected(Voucher voucher) {
+                existing = userVoucherRepository.findByUserIdAndVoucherId(userId, voucher.getId());
+                return existing.isPresent();
+            }
+            public RuntimeException duplicate(Voucher voucher, String message) {
 
-    private Voucher collectableVoucher(String voucherCode) {
-        if (voucherCode == null || voucherCode.isBlank()) {
-            throw new IllegalArgumentException("Voucher code is required");
-        }
-        Voucher voucher = voucherRepository.findByCode(normalizeCode(voucherCode))
-                .orElseThrow(() -> new IllegalArgumentException("Voucher not found"));
-        WalletVoucherPolicy.requireCollectable(voucher, LocalDateTime.now());
-        return voucher;
+                return new PromotionConflictException(message);
+            }
+            public void save(Voucher voucher) {
+                try {
+                    userVoucherRepository.saveAndFlush(UserVoucher.builder().userId(userId)
+                            .voucherId(voucher.getId()).status(UserVoucher.Status.SAVED).build());
+                } catch (DataIntegrityViolationException ex) {
+                    throw new PromotionConflictException("Voucher already collected", ex);
+                }
+            }
+        });
     }
 
     @Transactional(readOnly = true)
     public CalculateResponse calculate(CartContextRequest request) {
-        validateCalculateRequest(request);
-        List<UserVoucher> savedVouchers = walletVouchers(request.getUserPrincipalId(), request.getUserId(),
-                UserVoucher.Status.SAVED);
-        Map<Long, Voucher> vouchersById = voucherRepository.findAllById(savedVouchers.stream()
-                        .map(UserVoucher::getVoucherId)
-                        .distinct()
-                        .toList())
-                .stream()
-                .collect(Collectors.toMap(Voucher::getId, voucher -> voucher));
-        
-        List<Long> selectedIds = normalizedSelectedVoucherIds(request);
-        VoucherSelectionMode mode = request.getSelectionMode();
-        if (mode == null) mode = selectedIds.isEmpty() ? VoucherSelectionMode.AUTO : VoucherSelectionMode.MANUAL;
-        VoucherStackingCalculator.Calculation calculation = stackingCalculator.calculate(
-                vouchersById.values(), request.getShopId(), request.getSubTotal(), request.getShippingFee(),
-                selectedIds, mode, LocalDateTime.now());
+        return new CalculateVouchersUseCase().calculate(new PricingPort<Map<Long, Voucher>, CalculateResponse>() {
+            public void validate() { validateCalculateRequest(request); }
+            public Map<Long, Voucher> loadWalletVouchers() {
+                List<UserVoucher> savedVouchers = walletVouchers(request.getUserPrincipalId(), request.getUserId(),
+                        UserVoucher.Status.SAVED);
+                Map<Long, Voucher> vouchersById = voucherRepository.findAllById(savedVouchers.stream()
+                                .map(UserVoucher::getVoucherId)
+                                .distinct()
+                                .toList())
+                        .stream()
+                        .collect(Collectors.toMap(Voucher::getId, voucher -> voucher));
 
-        List<CalculateResponse.VoucherInfo> available = new ArrayList<>();
-        for (Voucher voucher : vouchersById.values()) {
-            if (calculation.unavailableVouchers().stream().noneMatch(item -> voucher.getId().equals(item.voucherId()))) {
-                available.add(CalculateResponse.VoucherInfo.builder()
-                        .id(voucher.getId()).code(voucher.getCode()).name(voucher.getName())
-                        .rewardType(voucher.getRewardType()).discountValue(voucher.getDiscountValue())
-                        .voucherGroupId(voucher.getVoucherGroupId()).build());
+                return vouchersById;
             }
-        }
-        List<CalculateResponse.UnavailableVoucherInfo> unavailable = calculation.unavailableVouchers().stream()
-                .map(item -> {
-                    Voucher voucher = vouchersById.get(item.voucherId());
-                    return CalculateResponse.UnavailableVoucherInfo.builder()
-                            .id(item.voucherId()).code(item.code())
-                            .name(voucher == null ? null : voucher.getName()).reason(item.reason()).build();
-                }).toList();
-        List<CalculateResponse.AppliedVoucherInfo> applied = calculation.appliedVouchers().stream()
-                .map(item -> CalculateResponse.AppliedVoucherInfo.builder()
-                        .id(item.voucherId()).code(item.code()).layer(item.layer())
-                        .discountAmount(item.discountAmount()).discountBase(item.discountBase())
-                        .fundingSource(item.fundingSource()).build())
-                .toList();
-        return CalculateResponse.builder()
-                .availableVouchers(available)
-                .unavailableVouchers(unavailable)
-                .finalSubTotal(request.getSubTotal())
-                .finalShippingFee(request.getShippingFee())
-                .totalDiscount(calculation.totalDiscount())
-                .totalAmount(calculation.totalAmount())
-                .itemDiscount(calculation.itemDiscount())
-                .shippingDiscount(calculation.shippingDiscount())
-                .customerShippingFee(calculation.customerShippingFee())
-                .selectedVoucherIds(calculation.appliedVouchers().stream()
-                        .map(VoucherStackingCalculator.AppliedVoucher::voucherId).toList())
-                .appliedVouchers(applied)
-                .build();
+            public PromotionCommands.Pricing pricing(Map<Long, Voucher> vouchersById) {
+                List<Long> selectedIds = normalizedSelectedVoucherIds(request);
+                VoucherSelectionMode mode = request.getSelectionMode();
+                if (mode == null) mode = selectedIds.isEmpty() ? VoucherSelectionMode.AUTO : VoucherSelectionMode.MANUAL;
+
+                LocalDateTime now = LocalDateTime.now();
+                return new PromotionCommands.Pricing(vouchersById.values().stream().map(VoucherDomainMapper::snapshot).toList(),
+                        request.getShopId(), request.getSubTotal(), request.getShippingFee(), selectedIds,
+                        com.delivery.promotion.domain.VoucherSelectionMode.valueOf(mode.name()), now);
+            }
+            public CalculateResponse result(Map<Long, Voucher> vouchersById,
+                    com.delivery.promotion.domain.VoucherStackingCalculator.Calculation quote) {
+                VoucherStackingCalculator.Calculation calculation = VoucherStackingCalculator.from(quote);
+                List<CalculateResponse.VoucherInfo> available = new ArrayList<>();
+                for (Voucher voucher : vouchersById.values()) {
+                    if (calculation.unavailableVouchers().stream().noneMatch(item -> voucher.getId().equals(item.voucherId()))) {
+                        available.add(CalculateResponse.VoucherInfo.builder()
+                                .id(voucher.getId()).code(voucher.getCode()).name(voucher.getName())
+                                .rewardType(voucher.getRewardType()).discountValue(voucher.getDiscountValue())
+                                .voucherGroupId(voucher.getVoucherGroupId()).build());
+                    }
+                }
+                List<CalculateResponse.UnavailableVoucherInfo> unavailable = calculation.unavailableVouchers().stream()
+                        .map(item -> {
+                            Voucher voucher = vouchersById.get(item.voucherId());
+                            return CalculateResponse.UnavailableVoucherInfo.builder()
+                                    .id(item.voucherId()).code(item.code())
+                                    .name(voucher == null ? null : voucher.getName()).reason(item.reason()).build();
+                        }).toList();
+                List<CalculateResponse.AppliedVoucherInfo> applied = calculation.appliedVouchers().stream()
+                        .map(item -> CalculateResponse.AppliedVoucherInfo.builder()
+                                .id(item.voucherId()).code(item.code()).layer(item.layer())
+                                .discountAmount(item.discountAmount()).discountBase(item.discountBase())
+                                .fundingSource(item.fundingSource()).build())
+                        .toList();
+                return CalculateResponse.builder()
+                        .availableVouchers(available)
+                        .unavailableVouchers(unavailable)
+                        .finalSubTotal(request.getSubTotal())
+                        .finalShippingFee(request.getShippingFee())
+                        .totalDiscount(calculation.totalDiscount())
+                        .totalAmount(calculation.totalAmount())
+                        .itemDiscount(calculation.itemDiscount())
+                        .shippingDiscount(calculation.shippingDiscount())
+                        .customerShippingFee(calculation.customerShippingFee())
+                        .selectedVoucherIds(calculation.appliedVouchers().stream()
+                                .map(VoucherStackingCalculator.AppliedVoucher::voucherId).toList())
+                        .appliedVouchers(applied)
+                        .build();
+            }
+        });
     }
 
     private List<Long> normalizedSelectedVoucherIds(CartContextRequest request) {
@@ -296,98 +330,95 @@ public class PromotionService {
      */
     @Transactional
     public PromotionReservationResponse reserveVouchers(BulkReserveRequest request) {
-        requireBulkRepositories();
-        validateBulkReserveRequest(request);
-        List<Long> voucherIds = request.getVoucherIds().stream().sorted().toList();
-
-        Optional<PromotionReservation> sameId = promotionReservationRepository.findById(request.getReservationId());
-        if (sameId.isPresent()) {
-            requireSameBulkReservation(sameId.get(), request, voucherIds);
-            return bulkResponse(sameId.get());
-        }
-        Optional<PromotionReservation> sameOrder = promotionReservationRepository.findByOrderId(request.getOrderId());
-        if (sameOrder.isPresent()) {
-            requireSameBulkReservation(sameOrder.get(), request, voucherIds);
-            return bulkResponse(sameOrder.get());
-        }
-
-        Map<Long, UserVoucher> wallets = new LinkedHashMap<>();
-        Map<Long, Voucher> vouchers = new LinkedHashMap<>();
-        for (Long voucherId : voucherIds) {
-            UserVoucher wallet = walletVoucherForUpdate(
-                    request.getUserPrincipalId(), request.getUserId(), voucherId);
-            if (claimFailure(wallet) != null) {
-                throw new PromotionConflictException(claimFailure(wallet));
+        return new ReserveVouchersUseCase().reserve(new ReservationPort<PromotionReservation, PromotionReservationResponse, UserVoucher, Voucher, VoucherStackingCalculator.Calculation>() {
+            public PromotionCommands.Reserve prepare() {
+                requireBulkRepositories();
+                validateBulkReserveRequest(request);
+                return new PromotionCommands.Reserve(request.getReservationId(), request.getOrderId(), request.getVoucherIds().stream().sorted().toList());
             }
-            Voucher voucher = voucherRepository.findByIdForUpdate(voucherId)
-                    .orElseThrow(() -> new IllegalArgumentException("Voucher not found: " + voucherId));
-            ensureWalletCapacity(wallet, voucher);
-            wallets.put(voucherId, wallet);
-            vouchers.put(voucherId, voucher);
-        }
+            public Optional<PromotionReservation> findById() { return promotionReservationRepository.findById(request.getReservationId()); }
+            public Optional<PromotionReservation> findByOrder() { return promotionReservationRepository.findByOrderId(request.getOrderId()); }
+            public void requireExactReplay(PromotionReservation reservation, PromotionCommands.Reserve command) { requireSameBulkReservation(reservation, request, command.voucherIds()); }
+            public PromotionReservationResponse replayResult(PromotionReservation reservation) { return bulkResponse(reservation); }
+            public UserVoucher lockWallet(Long voucherId) {
+                return walletVoucherForUpdate(request.getUserPrincipalId(), request.getUserId(), voucherId);
+            }
+            public String walletStatus(UserVoucher wallet) { return wallet.getStatus() == null ? null : wallet.getStatus().name(); }
+            public Voucher lockVoucher(Long voucherId) {
+                return voucherRepository.findByIdForUpdate(voucherId)
+                        .orElseThrow(() -> new IllegalArgumentException("Voucher not found: " + voucherId));
+            }
+            public void requireCapacity(UserVoucher wallet, Voucher voucher) { ensureWalletCapacity(wallet, voucher); }
+            public VoucherStackingCalculator.Calculation quote(Map<Long, Voucher> vouchers, PromotionCommands.Reserve command) {
+                VoucherStackingCalculator.Calculation calculation = stackingCalculator.calculate(
+                        vouchers.values(), request.getRestaurantId(), request.getSubtotal(),
+                        request.getGrossShippingFee(), command.voucherIds(), VoucherSelectionMode.MANUAL, LocalDateTime.now());
+                Set<Long> appliedIds = calculation.appliedVouchers().stream()
+                        .map(VoucherStackingCalculator.AppliedVoucher::voucherId).collect(Collectors.toSet());
+                if (!appliedIds.equals(new HashSet<>(command.voucherIds()))) {
+                    throw new PromotionConflictException("Voucher selection is no longer eligible");
+                }
 
-        VoucherStackingCalculator.Calculation calculation = stackingCalculator.calculate(
-                vouchers.values(), request.getRestaurantId(), request.getSubtotal(),
-                request.getGrossShippingFee(), voucherIds, VoucherSelectionMode.MANUAL, LocalDateTime.now());
-        Set<Long> appliedIds = calculation.appliedVouchers().stream()
-                .map(VoucherStackingCalculator.AppliedVoucher::voucherId).collect(Collectors.toSet());
-        if (!appliedIds.equals(new HashSet<>(voucherIds))) {
-            throw new PromotionConflictException("Voucher selection is no longer eligible");
-        }
+                return calculation;
+            }
+            public RuntimeException conflict(String message) { return new PromotionConflictException(message); }
+            public PromotionReservationResponse persist(Map<Long, UserVoucher> wallets, Map<Long, Voucher> vouchers,
+                    VoucherStackingCalculator.Calculation calculation, PromotionCommands.Reserve command) {
+                LocalDateTime now = LocalDateTime.now();
+                PromotionReservation reservation = PromotionReservation.builder()
+                        .reservationId(request.getReservationId())
+                        .orderId(request.getOrderId())
+                        .userId(request.getUserId())
+                        .userPrincipalId(request.getUserPrincipalId())
+                        .restaurantId(request.getRestaurantId())
+                        .subtotal(request.getSubtotal().setScale(2, java.math.RoundingMode.HALF_UP))
+                        .grossShippingFee(request.getGrossShippingFee().setScale(2, java.math.RoundingMode.HALF_UP))
+                        .itemDiscount(calculation.itemDiscount())
+                        .shippingDiscount(calculation.shippingDiscount())
+                        .totalDiscount(calculation.totalDiscount())
+                        .customerShippingFee(calculation.customerShippingFee())
+                        .state(PromotionReservation.State.RESERVED)
+                        .expiresAt(now.plus(15, ChronoUnit.MINUTES))
+                        .createdAt(now)
+                        .updatedAt(now)
+                        .build();
 
-        LocalDateTime now = LocalDateTime.now();
-        PromotionReservation reservation = PromotionReservation.builder()
-                .reservationId(request.getReservationId())
-                .orderId(request.getOrderId())
-                .userId(request.getUserId())
-                .userPrincipalId(request.getUserPrincipalId())
-                .restaurantId(request.getRestaurantId())
-                .subtotal(request.getSubtotal().setScale(2, java.math.RoundingMode.HALF_UP))
-                .grossShippingFee(request.getGrossShippingFee().setScale(2, java.math.RoundingMode.HALF_UP))
-                .itemDiscount(calculation.itemDiscount())
-                .shippingDiscount(calculation.shippingDiscount())
-                .totalDiscount(calculation.totalDiscount())
-                .customerShippingFee(calculation.customerShippingFee())
-                .state(PromotionReservation.State.RESERVED)
-                .expiresAt(now.plus(15, ChronoUnit.MINUTES))
-                .createdAt(now)
-                .updatedAt(now)
-                .build();
-
-        List<PromotionReservationLine> lines = new ArrayList<>();
-        Map<Long, VoucherStackingCalculator.AppliedVoucher> appliedById = calculation.appliedVouchers().stream()
-                .collect(Collectors.toMap(VoucherStackingCalculator.AppliedVoucher::voucherId,
-                        item -> item));
-        for (Long voucherId : voucherIds) {
-            VoucherStackingCalculator.AppliedVoucher applied = appliedById.get(voucherId);
-            UserVoucher wallet = wallets.get(voucherId);
-            Voucher voucher = vouchers.get(voucherId);
-            ReservationPolicy.Counters counters = ReservationPolicy.reserve(voucher.getUsedQuantity(),
-                    wallet.getReservedCount(), wallet.getUsedCount(), true);
-            wallet.setReservedCount(counters.reserved());
-            wallet.setStatus(UserVoucher.Status.RESERVED);
-            wallet.setOrderId(request.getOrderId());
-            voucher.setUsedQuantity(counters.global());
-            lines.add(PromotionReservationLine.builder()
-                    .reservationId(reservation.getReservationId())
-                    .voucherId(voucherId)
-                    .voucherCode(voucher.getCode())
-                    .layer(applied.layer().name())
-                    .fundingSource(applied.fundingSource())
-                    .discountBase(applied.discountBase())
-                    .discountAmount(applied.discountAmount())
-                    .state(PromotionReservationLine.State.RESERVED)
-                    .build());
-        }
-        try {
-            promotionReservationRepository.saveAndFlush(reservation);
-            promotionReservationLineRepository.saveAll(lines);
-            promotionReservationLineRepository.flush();
-        } catch (DataIntegrityViolationException ex) {
-            throw new PromotionConflictException("Conflicting promotion reservation", ex);
-        }
-        outboxService.enqueue(reservation, lines);
-        return PromotionReservationResponse.from(reservation, lines);
+                List<PromotionReservationLine> lines = new ArrayList<>();
+                Map<Long, VoucherStackingCalculator.AppliedVoucher> appliedById = calculation.appliedVouchers().stream()
+                        .collect(Collectors.toMap(VoucherStackingCalculator.AppliedVoucher::voucherId,
+                                item -> item));
+                for (Long voucherId : command.voucherIds()) {
+                    VoucherStackingCalculator.AppliedVoucher applied = appliedById.get(voucherId);
+                    UserVoucher wallet = wallets.get(voucherId);
+                    Voucher voucher = vouchers.get(voucherId);
+                    ReservationPolicy.Counters counters = ReservationPolicy.reserve(voucher.getUsedQuantity(),
+                            wallet.getReservedCount(), wallet.getUsedCount(), true);
+                    wallet.setReservedCount(counters.reserved());
+                    wallet.setStatus(UserVoucher.Status.RESERVED);
+                    wallet.setOrderId(request.getOrderId());
+                    voucher.setUsedQuantity(counters.global());
+                    lines.add(PromotionReservationLine.builder()
+                            .reservationId(reservation.getReservationId())
+                            .voucherId(voucherId)
+                            .voucherCode(voucher.getCode())
+                            .layer(applied.layer().name())
+                            .fundingSource(applied.fundingSource())
+                            .discountBase(applied.discountBase())
+                            .discountAmount(applied.discountAmount())
+                            .state(PromotionReservationLine.State.RESERVED)
+                            .build());
+                }
+                try {
+                    promotionReservationRepository.saveAndFlush(reservation);
+                    promotionReservationLineRepository.saveAll(lines);
+                    promotionReservationLineRepository.flush();
+                } catch (DataIntegrityViolationException ex) {
+                    throw new PromotionConflictException("Conflicting promotion reservation", ex);
+                }
+                outboxService.enqueue(reservation, lines);
+                return PromotionReservationResponse.from(reservation, lines);
+            }
+        });
     }
 
     @Transactional
@@ -405,17 +436,8 @@ public class PromotionService {
     private PromotionReservationResponse commitPromotionReservationInternal(UUID reservationId, Long orderId,
                                                                               Long userPrincipalId,
                                                                               boolean enforcePrincipal) {
-        requireBulkRepositories();
-        PromotionReservation reservation = lockedBulkReservation(reservationId, orderId);
-        if (enforcePrincipal) requireBulkReservationPrincipal(reservation, userPrincipalId);
-        List<PromotionReservationLine> lines = promotionReservationLineRepository
-                .findByReservationIdForUpdateOrderByVoucherIdAsc(reservationId);
-        ReservationPolicy.Transition decision = ReservationPolicy.commit(
-                reservation.getState() == null ? null : reservation.getState().name(),
-                reservation.getExpiresAt(), LocalDateTime.now(), true);
-        if (decision.failure() != null) throw new PromotionConflictException(decision.failure());
-        if (decision.apply()) transitionBulkReservation(reservation, lines, PromotionReservation.State.COMMITTED);
-        return PromotionReservationResponse.from(reservation, lines);
+        return transitions.transition(new PromotionCommands.Transition(true, true),
+                bulkTransitionPort(reservationId, orderId, userPrincipalId, enforcePrincipal));
     }
 
     @Transactional
@@ -433,15 +455,8 @@ public class PromotionService {
     private PromotionReservationResponse releasePromotionReservationInternal(UUID reservationId, Long orderId,
                                                                                Long userPrincipalId,
                                                                                boolean enforcePrincipal) {
-        requireBulkRepositories();
-        PromotionReservation reservation = lockedBulkReservation(reservationId, orderId);
-        if (enforcePrincipal) requireBulkReservationPrincipal(reservation, userPrincipalId);
-        List<PromotionReservationLine> lines = promotionReservationLineRepository
-                .findByReservationIdForUpdateOrderByVoucherIdAsc(reservationId);
-        if (ReservationPolicy.release(reservation.getState() == null ? null : reservation.getState().name())) {
-            transitionBulkReservation(reservation, lines, PromotionReservation.State.RELEASED);
-        }
-        return PromotionReservationResponse.from(reservation, lines);
+        return transitions.transition(new PromotionCommands.Transition(true, false),
+                bulkTransitionPort(reservationId, orderId, userPrincipalId, enforcePrincipal));
     }
 
     private void requireBulkReservationPrincipal(PromotionReservation reservation, Long userPrincipalId) {
@@ -452,24 +467,7 @@ public class PromotionService {
 
     @Transactional
     public int expirePromotionReservations() {
-        requireBulkRepositories();
-        List<PromotionReservation> candidates = promotionReservationRepository
-                .findTop100ByStateAndExpiresAtLessThanEqualOrderByExpiresAtAsc(
-                        PromotionReservation.State.RESERVED, LocalDateTime.now());
-        int count = 0;
-        for (PromotionReservation candidate : candidates) {
-            PromotionReservation reservation = promotionReservationRepository
-                    .findByIdForUpdate(candidate.getReservationId()).orElse(null);
-            if (reservation != null && ReservationPolicy.expire(
-                    reservation.getState() == null ? null : reservation.getState().name(),
-                    reservation.getExpiresAt(), LocalDateTime.now())) {
-                List<PromotionReservationLine> lines = promotionReservationLineRepository
-                        .findByReservationIdForUpdateOrderByVoucherIdAsc(reservation.getReservationId());
-                transitionBulkReservation(reservation, lines, PromotionReservation.State.EXPIRED);
-                count++;
-            }
-        }
-        return count;
+        return transitions.expire(bulkTransitionPort(null, null, null, false));
     }
 
     private void transitionBulkReservation(PromotionReservation reservation,
@@ -550,11 +548,6 @@ public class PromotionService {
         }
     }
 
-    private String claimFailure(UserVoucher wallet) {
-        return WalletClaimPolicy.claimFailure(
-                wallet.getStatus() == null ? null : wallet.getStatus().name());
-    }
-
     private void ensureWalletCapacity(UserVoucher wallet, Voucher voucher) {
         String failure = WalletClaimPolicy.capacityFailure(
                 wallet.getUsedCount(), wallet.getReservedCount(), voucher.getUsageLimitPerUser());
@@ -577,86 +570,78 @@ public class PromotionService {
 
     @Transactional
     public VoucherReservationResponse reserveVoucher(ReserveRequest request) {
-        validateReserveRequest(request);
-        Optional<VoucherReservation> sameId = voucherReservationRepository.findById(request.getReservationId());
-        if (sameId.isPresent()) {
-            requireSameReservation(sameId.get(), request);
-            return legacyReservationResponse(sameId.get());
-        }
-        Optional<VoucherReservation> sameOrder = voucherReservationRepository.findByOrderId(request.getOrderId());
-        if (sameOrder.isPresent()) {
-            requireSameReservation(sameOrder.get(), request);
-            return legacyReservationResponse(sameOrder.get());
-        }
+        return new ReserveVouchersUseCase().reserve(new ReservationPort<VoucherReservation, VoucherReservationResponse, UserVoucher, Voucher, BigDecimal>() {
+            public PromotionCommands.Reserve prepare() {
+                validateReserveRequest(request);
+                return new PromotionCommands.Reserve(request.getReservationId(), request.getOrderId(), List.of(request.getVoucherId()));
+            }
+            public Optional<VoucherReservation> findById() { return voucherReservationRepository.findById(request.getReservationId()); }
+            public Optional<VoucherReservation> findByOrder() { return voucherReservationRepository.findByOrderId(request.getOrderId()); }
+            public void requireExactReplay(VoucherReservation reservation, PromotionCommands.Reserve command) { requireSameReservation(reservation, request); }
+            public VoucherReservationResponse replayResult(VoucherReservation reservation) { return legacyReservationResponse(reservation); }
+            public UserVoucher lockWallet(Long voucherId) {
+                return walletVoucherForUpdate(request.getUserPrincipalId(), request.getUserId(), voucherId);
+            }
+            public String walletStatus(UserVoucher wallet) { return wallet.getStatus() == null ? null : wallet.getStatus().name(); }
+            public Voucher lockVoucher(Long voucherId) {
+                return voucherRepository.findByIdForUpdate(voucherId)
+                        .orElseThrow(() -> new IllegalArgumentException("Voucher not found"));
+            }
+            public void requireCapacity(UserVoucher wallet, Voucher voucher) {  }
+            public BigDecimal quote(Map<Long, Voucher> vouchers, PromotionCommands.Reserve command) {
+                Voucher voucher = vouchers.get(request.getVoucherId());
+                String unavailable = WalletVoucherPolicy.reservationUnavailableReason(voucher,
+                        request.getRestaurantId(), request.getSubtotal(), LocalDateTime.now());
+                if (unavailable != null) throw new IllegalArgumentException(unavailable);
+                return calculateDiscount(voucher, request.getSubtotal(), request.getShippingFee());
+            }
+            public RuntimeException conflict(String message) { return new PromotionConflictException(message); }
+            public VoucherReservationResponse persist(Map<Long, UserVoucher> wallets, Map<Long, Voucher> vouchers,
+                    BigDecimal discount, PromotionCommands.Reserve command) {
+                UserVoucher userVoucher = wallets.get(request.getVoucherId());
+                Voucher voucher = vouchers.get(request.getVoucherId());
+                LocalDateTime now = LocalDateTime.now();
+                VoucherReservation reservation = VoucherReservation.builder()
+                        .reservationId(request.getReservationId())
+                        .orderId(request.getOrderId())
+                        .userId(request.getUserId())
+                        .userPrincipalId(request.getUserPrincipalId())
+                        .voucherId(request.getVoucherId())
+                        .restaurantId(request.getRestaurantId())
+                        .subtotal(request.getSubtotal())
+                        .shippingFee(request.getShippingFee())
+                        .discountAmount(discount)
+                        .state(VoucherReservation.State.RESERVED)
+                        .expiresAt(now.plus(15, ChronoUnit.MINUTES))
+                        .createdAt(now)
+                        .updatedAt(now)
+                        .build();
 
-        UserVoucher userVoucher = walletVoucherForUpdate(
-                request.getUserPrincipalId(), request.getUserId(), request.getVoucherId());
-        if (claimFailure(userVoucher) != null) {
-            throw new PromotionConflictException(claimFailure(userVoucher));
-        }
-
-        Voucher voucher = voucherRepository.findByIdForUpdate(request.getVoucherId())
-                .orElseThrow(() -> new IllegalArgumentException("Voucher not found"));
-        String unavailable = WalletVoucherPolicy.reservationUnavailableReason(voucher,
-                request.getRestaurantId(), request.getSubtotal(), LocalDateTime.now());
-        if (unavailable != null) throw new IllegalArgumentException(unavailable);
-
-        BigDecimal discount = calculateDiscount(voucher, request.getSubtotal(), request.getShippingFee());
-        LocalDateTime now = LocalDateTime.now();
-        VoucherReservation reservation = VoucherReservation.builder()
-                .reservationId(request.getReservationId())
-                .orderId(request.getOrderId())
-                .userId(request.getUserId())
-                .userPrincipalId(request.getUserPrincipalId())
-                .voucherId(request.getVoucherId())
-                .restaurantId(request.getRestaurantId())
-                .subtotal(request.getSubtotal())
-                .shippingFee(request.getShippingFee())
-                .discountAmount(discount)
-                .state(VoucherReservation.State.RESERVED)
-                .expiresAt(now.plus(15, ChronoUnit.MINUTES))
-                .createdAt(now)
-                .updatedAt(now)
-                .build();
-
-        userVoucher.setStatus(UserVoucher.Status.RESERVED);
-        userVoucher.setOrderId(request.getOrderId());
-        userVoucher.setUsedAt(null);
-        voucher.setUsedQuantity(ReservationPolicy.reserve(voucher.getUsedQuantity(), null, null, false).global());
-        try {
-            voucherReservationRepository.saveAndFlush(reservation);
-        } catch (DataIntegrityViolationException ex) {
-            throw new PromotionConflictException("Conflicting voucher reservation", ex);
-        }
-        outboxService.enqueue(reservation);
-        return legacyReservationResponse(reservation, voucher);
+                userVoucher.setStatus(UserVoucher.Status.RESERVED);
+                userVoucher.setOrderId(request.getOrderId());
+                userVoucher.setUsedAt(null);
+                voucher.setUsedQuantity(ReservationPolicy.reserve(voucher.getUsedQuantity(), null, null, false).global());
+                try {
+                    voucherReservationRepository.saveAndFlush(reservation);
+                } catch (DataIntegrityViolationException ex) {
+                    throw new PromotionConflictException("Conflicting voucher reservation", ex);
+                }
+                outboxService.enqueue(reservation);
+                return legacyReservationResponse(reservation, voucher);
+            }
+        });
     }
 
     @Transactional
     public VoucherReservationResponse commitReservation(UUID reservationId, Long orderId) {
-        VoucherReservation reservation = lockedReservation(reservationId, orderId);
-        ReservationPolicy.Transition decision = ReservationPolicy.commit(
-                reservation.getState() == null ? null : reservation.getState().name(),
-                reservation.getExpiresAt(), LocalDateTime.now(), false);
-        if (decision.failure() != null) throw new PromotionConflictException(decision.failure());
-        if (decision.apply()) {
-            UserVoucher userVoucher = walletVoucherForUpdate(reservation.getUserPrincipalId(), reservation.getUserId(),
-                    reservation.getVoucherId());
-            userVoucher.setStatus(UserVoucher.Status.USED);
-            userVoucher.setUsedAt(LocalDateTime.now());
-            reservation.setState(VoucherReservation.State.COMMITTED);
-            outboxService.enqueue(reservation);
-        }
-        return legacyReservationResponse(reservation);
+        return transitions.transition(new PromotionCommands.Transition(false, true),
+                legacyTransitionPort(reservationId, orderId));
     }
 
     @Transactional
     public VoucherReservationResponse releaseReservation(UUID reservationId, Long orderId) {
-        VoucherReservation reservation = lockedReservation(reservationId, orderId);
-        if (ReservationPolicy.release(reservation.getState() == null ? null : reservation.getState().name())) {
-            releaseCapacity(reservation, VoucherReservation.State.RELEASED);
-        }
-        return legacyReservationResponse(reservation);
+        return transitions.transition(new PromotionCommands.Transition(false, false),
+                legacyTransitionPort(reservationId, orderId));
     }
 
     private VoucherReservationResponse legacyReservationResponse(VoucherReservation reservation) {
@@ -670,21 +655,7 @@ public class PromotionService {
 
     @Transactional
     public int expireReservations() {
-        List<VoucherReservation> expired = voucherReservationRepository
-                .findTop100ByStateAndExpiresAtLessThanEqualOrderByExpiresAtAsc(
-                        VoucherReservation.State.RESERVED, LocalDateTime.now());
-        int count = 0;
-        for (VoucherReservation candidate : expired) {
-            VoucherReservation reservation = voucherReservationRepository
-                    .findByIdForUpdate(candidate.getReservationId()).orElse(null);
-            if (reservation != null && ReservationPolicy.expire(
-                    reservation.getState() == null ? null : reservation.getState().name(),
-                    reservation.getExpiresAt(), LocalDateTime.now())) {
-                expireReservation(reservation);
-                count++;
-            }
-        }
-        return count;
+        return transitions.expire(legacyTransitionPort(null, null));
     }
 
     private VoucherReservation lockedReservation(UUID reservationId, Long orderId) {
@@ -695,10 +666,6 @@ public class PromotionService {
         String failure = ReservationReplayPolicy.orderFailure(reservation.getOrderId(), orderId, false);
         if (failure != null) throw new PromotionConflictException(failure);
         return reservation;
-    }
-
-    private void expireReservation(VoucherReservation reservation) {
-        releaseCapacity(reservation, VoucherReservation.State.EXPIRED);
     }
 
     private void releaseCapacity(VoucherReservation reservation, VoucherReservation.State state) {
@@ -919,5 +886,78 @@ public class PromotionService {
     private String normalizeCode(String code) {
         if (code == null || code.isBlank()) throw new IllegalArgumentException("Voucher code is required");
         return code.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private ReservationTransitionPort<PromotionReservation, PromotionReservationResponse> bulkTransitionPort(
+            UUID reservationId, Long orderId, Long principalId, boolean enforcePrincipal) {
+        return new ReservationTransitionPort<>() {
+            private List<PromotionReservationLine> lines;
+
+            public PromotionReservation lock() {
+                requireBulkRepositories();
+                PromotionReservation reservation = lockedBulkReservation(reservationId, orderId);
+                if (enforcePrincipal) requireBulkReservationPrincipal(reservation, principalId);
+                lines = promotionReservationLineRepository.findByReservationIdForUpdateOrderByVoucherIdAsc(reservationId);
+                return reservation;
+            }
+            public PromotionCommands.ReservationState state(PromotionReservation reservation) {
+                return new PromotionCommands.ReservationState(reservation.getState() == null ? null : reservation.getState().name(), reservation.getExpiresAt());
+            }
+            public LocalDateTime now() { return LocalDateTime.now(); }
+            public void transition(PromotionReservation reservation, String target) {
+                if (lines == null) {
+                    lines = promotionReservationLineRepository
+                            .findByReservationIdForUpdateOrderByVoucherIdAsc(reservation.getReservationId());
+                }
+                transitionBulkReservation(reservation, lines, PromotionReservation.State.valueOf(target));
+            }
+            public PromotionReservationResponse result(PromotionReservation reservation) {
+                return PromotionReservationResponse.from(reservation, lines);
+            }
+            public RuntimeException conflict(String message) { return new PromotionConflictException(message); }
+            public List<PromotionReservation> expiryCandidates() {
+                requireBulkRepositories();
+                return promotionReservationRepository.findTop100ByStateAndExpiresAtLessThanEqualOrderByExpiresAtAsc(
+                        PromotionReservation.State.RESERVED, LocalDateTime.now());
+            }
+            public PromotionReservation lockCandidate(PromotionReservation candidate) {
+                lines = null;
+                return promotionReservationRepository.findByIdForUpdate(candidate.getReservationId()).orElse(null);
+            }
+        };
+    }
+
+    private ReservationTransitionPort<VoucherReservation, VoucherReservationResponse> legacyTransitionPort(
+            UUID reservationId, Long orderId) {
+        return new ReservationTransitionPort<>() {
+
+            public VoucherReservation lock() { return lockedReservation(reservationId, orderId); }
+            public PromotionCommands.ReservationState state(VoucherReservation reservation) {
+                return new PromotionCommands.ReservationState(reservation.getState() == null ? null : reservation.getState().name(), reservation.getExpiresAt());
+            }
+            public LocalDateTime now() { return LocalDateTime.now(); }
+            public void transition(VoucherReservation reservation, String target) {
+                if ("COMMITTED".equals(target)) {
+                    UserVoucher wallet = walletVoucherForUpdate(reservation.getUserPrincipalId(), reservation.getUserId(), reservation.getVoucherId());
+                    wallet.setStatus(UserVoucher.Status.USED);
+                    wallet.setUsedAt(LocalDateTime.now());
+                    reservation.setState(VoucherReservation.State.COMMITTED);
+                    outboxService.enqueue(reservation);
+                } else {
+                    releaseCapacity(reservation, VoucherReservation.State.valueOf(target));
+                }
+            }
+            public VoucherReservationResponse result(VoucherReservation reservation) {
+                return legacyReservationResponse(reservation);
+            }
+            public RuntimeException conflict(String message) { return new PromotionConflictException(message); }
+            public List<VoucherReservation> expiryCandidates() {
+                return voucherReservationRepository.findTop100ByStateAndExpiresAtLessThanEqualOrderByExpiresAtAsc(
+                        VoucherReservation.State.RESERVED, LocalDateTime.now());
+            }
+            public VoucherReservation lockCandidate(VoucherReservation candidate) {
+                return voucherReservationRepository.findByIdForUpdate(candidate.getReservationId()).orElse(null);
+            }
+        };
     }
 }

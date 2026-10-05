@@ -1,4 +1,4 @@
-# Promotion tranche: inventory and domain policy extraction
+# Promotion tranche: domain policies and application orchestration
 
 Inventory inspected before extraction on `refactor/promotion`, 2026-10-05.
 Paths below are repository-root-relative and refer to the extracted tree unless
@@ -36,8 +36,9 @@ and ownership authority remains `docs/workflows/promotion_voucher_flow.md:3`.
 3. **Completed slice 3:** legacy and bulk reservation transition/counter/replay
    policies, Order receipt/event routing and refund compensation outcomes now
    live in domain; host retains locks, transactions and persistence.
-4. Introduce application-api/application for collection, pricing, reservations
-   and consumed Order events; preserve transaction/ACK/receipt/outbox boundaries.
+4. **Completed slice 4:** application-api/application for collection, pricing,
+   reservations and consumed Order events; transaction/ACK/receipt/outbox
+   boundaries stay in host adapters. See slice 4 evidence below.
 5. Move transport, persistence, scheduling, ownership client and composition
    into infrastructure/boot, keeping `promotion-service` artifact/DNS and flags.
 6. Rehearse packaged restart/replay, competing consumers, expiry and outbox
@@ -208,3 +209,92 @@ Additional pre-existing inconsistencies retained:
 
 Remaining work: slice 4 application contracts/use cases, slice 5
 infrastructure/boot consolidation, and slice 6 packaged recovery rehearsals.
+
+## Slice 4: application contracts and use cases
+
+Authority remains the existing host behavior at `3a8e195` and
+`docs/workflows/promotion_voucher_flow.md`; this slice introduces no commercial
+policy or rollout flag changes.
+
+- `promotion/application-api` defines operation-specific collection, pricing,
+  reservation, transition/expiry and Order receipt ports, command records and
+  reservation-state views. Pricing returns the domain's immutable calculation
+  result; host adapters project it to the existing HTTP DTO. Generic reservation,
+  wallet and voucher handles are opaque to application code: there are no host,
+  JPA, Spring, Kafka or Jackson imports in either application module.
+- `promotion/application` owns collection eligibility/duplicate orchestration,
+  wallet-read/pricing/projection order, ID-then-order replay checks, ordered
+  wallet/voucher lock pairs, claim fences, quote-before-persist, reservation
+  commit/release/expiry decisions, receipt replay and consumed-event routing.
+  Every effect goes through an operation-scoped port inside the caller's existing
+  transaction. Both modules inherit executable 85% line and branch gates from
+  `delivery-build-parent`, with no coverage exclusions, and are registered
+  immediately after domain and before `promotion-service` in the root reactor.
+- `PromotionService`, `PromotionOrderReservationEventProcessor` and the pricing
+  mapping facade implement the ports and delegate to these use cases. Request
+  validation/principal configuration, DTO/entity mapping, mutation application,
+  audit timestamps, counter application, repository calls, duplicate-race
+  translation and outbox enqueue remain host adapter operations. Campaign/admin
+  lifecycle facades remain the slice 2 implementation. All existing transaction
+  annotations, SQL/JPA entities/migrations, Kafka listeners/topics/ACK boundaries,
+  outbox implementation, locks and rollout flags are retained. Host physical
+  relocation is deliberately deferred to slice 5.
+
+### Equivalence evidence
+
+- Application fake-port tests assert the complete reserve effect sequence:
+  validation -> ID replay -> order replay -> each wallet lock/claim fence ->
+  voucher lock/capacity check -> quote -> persistence. Exact replay and failing
+  claim/capacity/quote paths never invoke later effects; persistence failures
+  propagate without retry. Collection verifies identity -> lookup -> eligibility
+  -> duplicate lookup -> flush, including concurrent duplicate failure.
+- Commit/release tests retain the two rails' exact failure labels, terminal
+  no-ops and expired-hold boundary. Expiry re-locks candidates and rejects missing,
+  terminal and extended holds before transition. Host
+  `VoucherReservationServiceTest` additionally proves actual repository lock,
+  counter mutation and outbox ordering, including bulk line locks and legacy
+  counter preservation. These existing tests were not weakened or replaced.
+- Order event tests cover receipt-first routing, exact/contradictory replay,
+  bulk precedence, all four commit/release operations, null/uncommitted commit
+  responses and post-fulfilment compensation suppression. Host receipt claim SQL,
+  SHA-256 raw-payload fingerprinting, H2/PostgreSQL selection, parsing and
+  exception classes/messages remain intact; listener tests prove ACK only after
+  successful processor return.
+- Pricing tests compare the use-case result to the domain calculator with exact
+  money assertions. Existing host mapper/pricing/HTTP/security/migration tests
+  continue to exercise the same wire projection and persistence schema.
+- Source-boundary tests in both application modules reject imports outside the
+  JDK and Promotion domain/application packages.
+
+### Slice 4 validation
+
+`mvn -B -pl :promotion-service -am clean verify` completed with **BUILD SUCCESS**
+on 2026-10-06: 312 tests discovered, 302 executed, zero failures/errors and 10
+Docker skips. Breakdown: domain 133, application-api 2, application 16, host 130,
+upstream starters/contracts 31. Both application module coverage checks passed:
+
+| Module | Lines | Branches | Configured gates |
+| --- | --- | --- | --- |
+| promotion-application-api | 5/5 (100%) | No executable branches | 85% line + branch |
+| promotion-application | 81/81 (100%) | 37/38 (97.37%) | 85% line + branch |
+
+The skipped cases are four in `VoucherReservationPostgresConcurrencyTest`,
+three in `PromotionOrderReservationReceiptPostgresConcurrencyTest`, and three
+in `PromotionReservationKafkaPostgresIntegrationTest`. Testcontainers reported
+that it could not find a valid Docker environment; this slice does not claim
+PostgreSQL/Kafka runtime race proof from the passing in-process tests. Complete
+log: `/tmp/promotion-slice4-clean-verify.log`; JaCoCo XML and Surefire XML are in
+each module's `target/` directory. Source diffs were reviewed against temporary
+pre-edit copies; changed-source whitespace/conflict-marker checks passed. No git
+commands or `docs/plans/` edits were performed.
+
+### Slice 5 plan
+
+Move HTTP/security, Kafka listeners, ownership HTTP, JPA repositories/entities,
+Flyway migrations, outbox, expiry scheduling and these port implementations to
+`promotion/infrastructure`. Move the Spring entrypoint/config and composition to
+`promotion/boot`, preserving artifact/DNS `promotion-service`, existing bean
+wiring, transaction proxy boundaries and default-off flags. Keep domain and
+application contracts independent of framework types. Re-run this reactor proof
+and Docker reservation/receipt/Kafka races after relocation; packaged
+restart/replay and outbox publish-before-mark crash rehearsal remain slice 6.

@@ -1,6 +1,9 @@
 package com.delivery.promotion_service.service;
 
 import com.delivery.promotion.domain.OrderReservationEventPolicy;
+import com.delivery.promotion.application.ProcessOrderReservationEventUseCase;
+import com.delivery.promotion.application.api.OrderReservationEventPort;
+import com.delivery.promotion.application.api.PromotionCommands;
 
 import com.delivery.promotion_service.dto.PromotionReservationResponse;
 import com.delivery.promotion_service.dto.VoucherReservationResponse;
@@ -66,34 +69,33 @@ public class PromotionOrderReservationEventProcessor {
         UUID promotionReservationId = optionalUuid(event, "promotionReservationId");
         String fingerprint = fingerprint(payload);
 
-        if (insertIfAbsent(eventId, sourceTopic, action, orderId, reservationId, fingerprint) == 0) {
-            PromotionOrderReservationReceipt existing = receipts.findById(eventId)
-                    .orElseThrow(() -> new IllegalStateException(
-                            "promotion receipt conflict resolved without a committed receipt"));
-            requireExactReplay(existing, sourceTopic, action, orderId, reservationId, fingerprint);
-            return;
-        }
-
-        OrderReservationEventPolicy.Operation operation = OrderReservationEventPolicy.operation(
-                action, reservationId, promotionReservationId, event.path("previousStatus").asText(""));
-        switch (operation) {
-            case NONE -> { }
-            case COMMIT_BULK -> {
-                PromotionReservationResponse response =
-                        promotionService.commitPromotionReservation(promotionReservationId, orderId);
-                String failure = OrderReservationEventPolicy.commitFailure(
-                        response == null || response.state() == null ? null : response.state().name(), true);
-                if (failure != null) throw new PromotionConflictException(failure);
+        new ProcessOrderReservationEventUseCase().process(new PromotionCommands.OrderEvent(
+                eventId, sourceTopic, action, orderId, reservationId, promotionReservationId,
+                event.path("previousStatus").asText(""), fingerprint), new OrderReservationEventPort() {
+            public boolean claim(PromotionCommands.OrderEvent command) {
+                return insertIfAbsent(eventId, sourceTopic, action, orderId, reservationId, fingerprint) != 0;
             }
-            case COMMIT_LEGACY -> {
-                VoucherReservationResponse response = promotionService.commitReservation(reservationId, orderId);
-                String failure = OrderReservationEventPolicy.commitFailure(
-                        response == null || response.getState() == null ? null : response.getState().name(), false);
-                if (failure != null) throw new PromotionConflictException(failure);
+            public OrderReservationEventPolicy.Receipt existing(UUID id) {
+                PromotionOrderReservationReceipt receipt = receipts.findById(id)
+                        .orElseThrow(() -> new IllegalStateException(
+                                "promotion receipt conflict resolved without a committed receipt"));
+                return new OrderReservationEventPolicy.Receipt(receipt.getSourceTopic(), receipt.getAction(),
+                        receipt.getOrderId(), receipt.getReservationId(), receipt.getPayloadFingerprint());
             }
-            case RELEASE_BULK -> promotionService.releasePromotionReservation(promotionReservationId, orderId);
-            case RELEASE_LEGACY -> promotionService.releaseReservation(reservationId, orderId);
-        }
+            public String commit(UUID id, Long order, boolean bulk) {
+                if (bulk) {
+                    PromotionReservationResponse response = promotionService.commitPromotionReservation(id, order);
+                    return response == null || response.state() == null ? null : response.state().name();
+                }
+                VoucherReservationResponse response = promotionService.commitReservation(id, order);
+                return response == null || response.getState() == null ? null : response.getState().name();
+            }
+            public void release(UUID id, Long order, boolean bulk) {
+                if (bulk) promotionService.releasePromotionReservation(id, order);
+                else promotionService.releaseReservation(id, order);
+            }
+            public RuntimeException conflict(String message) { return new PromotionConflictException(message); }
+        });
     }
 
     private int insertIfAbsent(UUID eventId, String sourceTopic, String action, long orderId,
@@ -148,12 +150,4 @@ public class PromotionOrderReservationEventProcessor {
         }
     }
 
-    private void requireExactReplay(PromotionOrderReservationReceipt receipt, String sourceTopic,
-                                    String action, long orderId, UUID reservationId, String fingerprint) {
-        String failure = OrderReservationEventPolicy.replayFailure(
-                new OrderReservationEventPolicy.Receipt(receipt.getSourceTopic(), receipt.getAction(),
-                        receipt.getOrderId(), receipt.getReservationId(), receipt.getPayloadFingerprint()),
-                new OrderReservationEventPolicy.Receipt(sourceTopic, action, orderId, reservationId, fingerprint));
-        if (failure != null) throw new IllegalArgumentException(failure);
-    }
 }
