@@ -1,5 +1,7 @@
 package com.delivery.delivery_service.service;
 
+import com.delivery.delivery.domain.OfferDecisionRejected;
+import com.delivery.delivery.domain.ProofOfDeliveryPolicy;
 import com.delivery.delivery_service.common.constants.RoleConstants;
 import com.delivery.delivery_service.dto.request.CreateProofUploadIntentRequest;
 import com.delivery.delivery_service.dto.response.ProofAccessResponse;
@@ -23,7 +25,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.UUID;
 
 /** Private signed-upload/read workflow and 90-day evidence retention boundary. */
@@ -31,8 +32,8 @@ import java.util.UUID;
 @Service
 public class DeliveryProofOfDeliveryService {
 
-    static final long MAX_PROOF_BYTES = 10L * 1024L * 1024L;
-    static final int RETENTION_DAYS = 90;
+    static final long MAX_PROOF_BYTES = ProofOfDeliveryPolicy.MAX_PROOF_BYTES;
+    static final int RETENTION_DAYS = ProofOfDeliveryPolicy.RETENTION_DAYS;
     private static final int SWEEP_LIMIT = 100;
 
     private final DeliveryRepository deliveryRepository;
@@ -63,17 +64,14 @@ public class DeliveryProofOfDeliveryService {
         validateUploadRequest(request);
         Delivery delivery = findDeliveryForUpdate(deliveryId);
         Long shipperId = requireAssignedShipper(delivery, principalId, legacyUserId, role);
-        if (delivery.getStatus() != DeliveryStatus.PICKED_UP
-                && delivery.getStatus() != DeliveryStatus.DELIVERING) {
-            throw new InvalidStatusException("Chỉ có thể tạo bằng chứng sau khi đã lấy hàng");
-        }
-        if (proofRepository.existsByDeliveryIdAndStatus(deliveryId, DeliveryProofStatus.CONFIRMED)) {
-            throw new InvalidStatusException("Đơn hàng đã có bằng chứng giao được xác nhận");
-        }
+        DeliveryStatus status = delivery.getStatus();
+        policy(() -> ProofOfDeliveryPolicy.requireUploadable(domain(status),
+                (status == DeliveryStatus.PICKED_UP || status == DeliveryStatus.DELIVERING)
+                        && proofRepository.existsByDeliveryIdAndStatus(deliveryId, DeliveryProofStatus.CONFIRMED)));
 
         ProofObjectStorage storage = storageRegistry.requireConfiguredProvider();
         UUID proofId = UUID.randomUUID();
-        String objectKey = "delivery-pod/" + deliveryId + "/" + proofId;
+        String objectKey = ProofOfDeliveryPolicy.objectKey(deliveryId, proofId);
         ProofObjectStorage.SignedUpload signedUpload = storage.createSignedUpload(
                 new ProofObjectStorage.UploadRequest(objectKey, request.getContentType(), request.getContentLengthBytes()));
         validateSignedUpload(signedUpload);
@@ -111,21 +109,22 @@ public class DeliveryProofOfDeliveryService {
         Delivery delivery = findDeliveryForUpdate(deliveryId);
         Long shipperId = requireAssignedShipper(delivery, principalId, legacyUserId, role);
         DeliveryProofOfDelivery proof = findProofForUpdate(proofId, deliveryId);
-        if (!shipperId.equals(proof.getShipperId())) {
-            throw new AccessDeniedException("Bằng chứng không thuộc shipper hiện tại");
+        LocalDateTime now = LocalDateTime.now();
+        ProofOfDeliveryPolicy.Confirmation confirmation;
+        try {
+            confirmation = ProofOfDeliveryPolicy.onConfirm(shipperId, proof.getShipperId(),
+                    com.delivery.delivery.domain.DeliveryProofStatus.valueOf(proof.getStatus().name()),
+                    proof.getUploadExpiresAt(), now);
+        } catch (OfferDecisionRejected rejected) {
+            throw failure(rejected);
         }
-        if (proof.getStatus() == DeliveryProofStatus.CONFIRMED) {
+        if (confirmation == ProofOfDeliveryPolicy.Confirmation.REPLAY) {
             return toProofResponse(proof);
         }
-        if (proof.getStatus() != DeliveryProofStatus.UPLOAD_PENDING) {
-            throw new InvalidStatusException("Bằng chứng không còn ở trạng thái chờ xác nhận");
-        }
-
-        LocalDateTime now = LocalDateTime.now();
-        if (!proof.getUploadExpiresAt().isAfter(now)) {
+        if (confirmation == ProofOfDeliveryPolicy.Confirmation.EXPIRED) {
             proof.setStatus(DeliveryProofStatus.EXPIRED);
             proofRepository.save(proof);
-            throw new InvalidStatusException("URL tải bằng chứng đã hết hạn");
+            throw new InvalidStatusException(ProofOfDeliveryPolicy.UPLOAD_EXPIRED_MESSAGE);
         }
 
         ProofObjectStorage.StoredObjectMetadata metadata = storageRegistry
@@ -138,7 +137,7 @@ public class DeliveryProofOfDeliveryService {
         proof.setContentType(metadata.contentType());
         proof.setStatus(DeliveryProofStatus.CONFIRMED);
         proof.setConfirmedAt(now);
-        proof.setRetentionExpiresAt(now.plusDays(RETENTION_DAYS));
+        proof.setRetentionExpiresAt(ProofOfDeliveryPolicy.retentionExpiresAt(now));
         proofRepository.save(proof);
         return toProofResponse(proof);
     }
@@ -158,11 +157,9 @@ public class DeliveryProofOfDeliveryService {
         if (!deliveryId.equals(proof.getDeliveryId())) {
             throw new ResourceNotFoundException("Không tìm thấy bằng chứng giao hàng");
         }
-        if (proof.getStatus() != DeliveryProofStatus.CONFIRMED
-                || proof.getRetentionExpiresAt() == null
-                || !proof.getRetentionExpiresAt().isAfter(LocalDateTime.now())) {
-            throw new InvalidStatusException("Bằng chứng giao hàng không còn khả dụng");
-        }
+        policy(() -> ProofOfDeliveryPolicy.requireReadable(
+                com.delivery.delivery.domain.DeliveryProofStatus.valueOf(proof.getStatus().name()),
+                proof.getRetentionExpiresAt(), LocalDateTime.now()));
 
         ProofObjectStorage.SignedRead signedRead = storageRegistry
                 .requireProvider(proof.getStorageProvider())
@@ -227,39 +224,28 @@ public class DeliveryProofOfDeliveryService {
 
     private Long requireAssignedShipper(Delivery delivery, Long principalId, Long legacyUserId, String role) {
         Long shipperId = shipperIdentityResolver.resolveShipperId(principalId, legacyUserId, role);
-        if (!Objects.equals(shipperId, delivery.getShipperId())) {
-            throw new AccessDeniedException("Chỉ shipper được phân công mới có thể thao tác bằng chứng");
-        }
+        policy(() -> ProofOfDeliveryPolicy.requireAssignedShipper(shipperId, delivery.getShipperId()));
         return shipperId;
     }
 
     private void requireViewer(Delivery delivery, Long principalId, Long legacyUserId, String role) {
-        if (RoleConstants.ADMIN.equals(role)) return;
-        if (RoleConstants.SHIPPER.equals(role)) {
-            requireAssignedShipper(delivery, principalId, legacyUserId, role);
-            return;
-        }
-        if (RoleConstants.USER.equals(role)
-                && ((delivery.getCustomerPrincipalId() != null && delivery.getCustomerPrincipalId().equals(principalId))
-                    || (delivery.getCustomerPrincipalId() == null && delivery.getCreatorId().equals(legacyUserId)))) {
-            return;
-        }
-        if (RoleConstants.RESTAURANT_OWNER.equals(role)
-                && ((delivery.getRestaurantOwnerPrincipalId() != null
-                        && delivery.getRestaurantOwnerPrincipalId().equals(principalId))
-                    || (delivery.getRestaurantOwnerPrincipalId() == null
-                        && delivery.getRestaurantOwnerId() != null
-                        && delivery.getRestaurantOwnerId().equals(legacyUserId)))) {
-            return;
-        }
-        throw new AccessDeniedException("Bạn không có quyền xem bằng chứng giao hàng");
+        ProofOfDeliveryPolicy.Viewer viewer = RoleConstants.ADMIN.equals(role) ? ProofOfDeliveryPolicy.Viewer.ADMIN
+                : RoleConstants.SHIPPER.equals(role) ? ProofOfDeliveryPolicy.Viewer.SHIPPER
+                : RoleConstants.USER.equals(role) ? ProofOfDeliveryPolicy.Viewer.CUSTOMER
+                : RoleConstants.RESTAURANT_OWNER.equals(role) ? ProofOfDeliveryPolicy.Viewer.RESTAURANT_OWNER
+                : ProofOfDeliveryPolicy.Viewer.OTHER;
+        policy(() -> ProofOfDeliveryPolicy.requireViewer(viewer, principalId, legacyUserId,
+                delivery.getCustomerPrincipalId(), delivery.getCreatorId(),
+                delivery.getRestaurantOwnerPrincipalId(), delivery.getRestaurantOwnerId(),
+                () -> requireAssignedShipper(delivery, principalId, legacyUserId, role)));
     }
 
     private void validateUploadRequest(CreateProofUploadIntentRequest request) {
-        if (request == null || request.getContentType() == null || !isAllowedImageType(request.getContentType())
-                || request.getContentLengthBytes() <= 0 || request.getContentLengthBytes() > MAX_PROOF_BYTES) {
+        if (request == null) {
             throw new InvalidStatusException("Ảnh bằng chứng phải là JPEG, PNG hoặc WebP và không quá 10 MB");
         }
+        policy(() -> ProofOfDeliveryPolicy.requireUploadRequest(request.getContentType(),
+                request.getContentLengthBytes()));
     }
 
     private void validateSignedUpload(ProofObjectStorage.SignedUpload signedUpload) {
@@ -271,19 +257,30 @@ public class DeliveryProofOfDeliveryService {
 
     private void validateStoredObject(DeliveryProofOfDelivery proof,
                                       ProofObjectStorage.StoredObjectMetadata metadata) {
-        if (metadata == null || metadata.contentLengthBytes() <= 0
-                || metadata.contentLengthBytes() > MAX_PROOF_BYTES
-                || metadata.contentLengthBytes() > proof.getDeclaredSizeBytes()
-                || !isAllowedImageType(metadata.contentType())
-                || !proof.getContentType().equals(metadata.contentType())) {
+        if (metadata == null) {
             throw new InvalidStatusException("Đối tượng bằng chứng không đúng ràng buộc đã ký");
+        }
+        policy(() -> ProofOfDeliveryPolicy.requireStoredObject(proof.getDeclaredSizeBytes(), proof.getContentType(),
+                metadata.contentLengthBytes(), metadata.contentType()));
+    }
+
+    /** Runs a domain rule and maps its refusal to the unchanged HTTP-facing exceptions. */
+    private static void policy(Runnable rule) {
+        try {
+            rule.run();
+        } catch (OfferDecisionRejected rejected) {
+            throw failure(rejected);
         }
     }
 
-    private boolean isAllowedImageType(String contentType) {
-        return "image/jpeg".equals(contentType)
-                || "image/png".equals(contentType)
-                || "image/webp".equals(contentType);
+    private static RuntimeException failure(OfferDecisionRejected rejected) {
+        return rejected.kind() == OfferDecisionRejected.Kind.ACCESS_DENIED
+                ? new AccessDeniedException(rejected.getMessage())
+                : new InvalidStatusException(rejected.getMessage());
+    }
+
+    private static com.delivery.delivery.domain.DeliveryStatus domain(DeliveryStatus status) {
+        return com.delivery.delivery.domain.DeliveryStatus.valueOf(status.name());
     }
 
     private ProofOfDeliveryResponse toProofResponse(DeliveryProofOfDelivery proof) {
