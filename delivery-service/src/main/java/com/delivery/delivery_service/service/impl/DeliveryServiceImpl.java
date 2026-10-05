@@ -2,6 +2,7 @@ package com.delivery.delivery_service.service.impl;
 
 import com.delivery.delivery.domain.OfferDecisionPolicy;
 import com.delivery.delivery.domain.OfferDecisionRejected;
+import com.delivery.delivery.domain.OfferPersistencePolicy;
 import com.delivery.delivery_service.common.constants.KafkaTopicConstants;
 import com.delivery.delivery_service.common.constants.RoleConstants;
 import com.delivery.delivery_service.dto.event.ShipperAcceptedEvent;
@@ -431,8 +432,7 @@ public class DeliveryServiceImpl implements DeliveryService {
             throw new InvalidStatusException("Delivery ID does not match order ID");
         }
         String matchingSessionId = event.getMatchingSessionId() == null || event.getMatchingSessionId().isBlank()
-                ? UUID.nameUUIDFromBytes(("legacy-offer:" + event.getEventId())
-                        .getBytes(StandardCharsets.UTF_8)).toString()
+                ? OfferPersistencePolicy.legacySession(event.getEventId())
                 : requireMatchingSession(event.getMatchingSessionId());
         if (isRetiredSession(delivery.getId(), matchingSessionId)) {
             log.info("Ignoring delayed cache command for retired delivery/session {}/{}",
@@ -441,35 +441,19 @@ public class DeliveryServiceImpl implements DeliveryService {
         }
         Long offeredShipperId = event.getAvailableShippers().get(0).getShipperId();
         LocalDateTime now = LocalDateTime.now();
-        int timeoutSeconds = event.getWaitingTimeoutSeconds() == null
-                ? 180
-                : Math.max(1, Math.min(event.getWaitingTimeoutSeconds(), 180));
-        LocalDateTime foundAt = event.getFoundAt() == null ? now : event.getFoundAt();
-        LocalDateTime expiresAt = foundAt.plusSeconds(timeoutSeconds);
-        if (!expiresAt.isAfter(now)) {
-            throw new InvalidStatusException("Shipper offer already expired");
+        LocalDateTime expiresAt;
+        OfferPersistencePolicy.CacheDecision decision;
+        try {
+            expiresAt = OfferPersistencePolicy.expiresAt(event.getFoundAt(), event.getWaitingTimeoutSeconds(), now);
+            decision = OfferPersistencePolicy.onShipperFound(domainStatus(delivery), delivery.getOfferedShipperId(),
+                    delivery.getOfferExpiresAt(), offeredShipperId, expiresAt, now);
+        } catch (OfferDecisionRejected rejected) {
+            throw offerDecisionFailure(rejected);
         }
-
-        boolean replacingExpiredOffer = DeliveryStatus.WAIT_SHIPPER_CONFIRM.equals(delivery.getStatus())
-                && delivery.getOfferExpiresAt() != null
-                && !delivery.getOfferExpiresAt().isAfter(now);
-        if (delivery.getOfferedShipperId() != null
-                && !delivery.getOfferedShipperId().equals(offeredShipperId)
-                && delivery.getOfferExpiresAt() != null
-                && delivery.getOfferExpiresAt().isAfter(now)) {
-            throw new InvalidStatusException("Delivery already has an active shipper offer");
-        }
-        if (offeredShipperId.equals(delivery.getOfferedShipperId())
-                && sameOfferDeadline(expiresAt, delivery.getOfferExpiresAt())) {
-            if (!DeliveryStatus.WAIT_SHIPPER_CONFIRM.equals(delivery.getStatus())) {
-                throw new InvalidStatusException("Persisted offer has contradictory delivery status");
-            }
+        if (decision == OfferPersistencePolicy.CacheDecision.REPLAY) {
             publishOfferPersisted(event, delivery, matchingSessionId);
             log.info("Shipper offer already applied for delivery {}, confirming replay", delivery.getId());
             return;
-        }
-        if (!DeliveryStatus.FINDING_SHIPPER.equals(delivery.getStatus()) && !replacingExpiredOffer) {
-            throw new InvalidStatusException("Delivery is no longer finding a shipper");
         }
 
         delivery.setOfferedShipperId(offeredShipperId);
@@ -511,31 +495,20 @@ public class DeliveryServiceImpl implements DeliveryService {
             retireSession(delivery.getId(), matchingSessionId);
         }
 
-        String outcome = "RETIRED";
-        if (DeliveryStatus.ASSIGNED.equals(delivery.getStatus())) {
-            outcome = "ASSIGNED";
-        } else if (DeliveryStatus.CANCELLED.equals(delivery.getStatus())
-                || DeliveryStatus.SHIPPER_NOT_FOUND.equals(delivery.getStatus())) {
-            outcome = "TERMINAL";
-        } else if (matchingSessionId != null && !matchingSessionId.isBlank()
-                && delivery.getOfferedMatchingSessionId() != null
-                && !matchingSessionId.equals(delivery.getOfferedMatchingSessionId())) {
-            // A delayed old timeout has fenced its own session but cannot clear
-            // a newer offer.
-            outcome = "RETIRED";
-        } else if (DeliveryStatus.FINDING_SHIPPER.equals(delivery.getStatus())
-                && delivery.getOfferedShipperId() == null && delivery.getOfferExpiresAt() == null) {
-            log.info("Offer timeout already applied for delivery {}, confirming retirement", delivery.getId());
-        } else {
-            // A delayed timeout must never clear an accepted or newer offer.
-            if (!DeliveryStatus.WAIT_SHIPPER_CONFIRM.equals(delivery.getStatus())
-                    || !command.getTimedOutShipperId().equals(delivery.getOfferedShipperId())
-                    || !sameOfferDeadline(command.getExpectedOfferExpiresAt(), delivery.getOfferExpiresAt())) {
-                log.info("Skipping stale offer-timeout command for delivery {}", delivery.getId());
-            } else {
-                if (delivery.getOfferExpiresAt().isAfter(LocalDateTime.now())) {
-                    throw new InvalidStatusException("Cannot expire a shipper offer before its deadline");
-                }
+        OfferPersistencePolicy.ExpiryDecision decision;
+        try {
+            decision = OfferPersistencePolicy.onExpire(domainStatus(delivery), matchingSessionId,
+                    delivery.getOfferedMatchingSessionId(), delivery.getOfferedShipperId(),
+                    delivery.getOfferExpiresAt(), command.getTimedOutShipperId(),
+                    command.getExpectedOfferExpiresAt(), LocalDateTime.now());
+        } catch (OfferDecisionRejected rejected) {
+            throw offerDecisionFailure(rejected);
+        }
+        switch (decision) {
+            case ALREADY_RETIRED ->
+                    log.info("Offer timeout already applied for delivery {}, confirming retirement", delivery.getId());
+            case STALE_COMMAND -> log.info("Skipping stale offer-timeout command for delivery {}", delivery.getId());
+            case EXPIRE -> {
                 delivery.setOfferedShipperId(null);
                 delivery.setOfferExpiresAt(null);
                 delivery.setOfferedMatchingSessionId(null);
@@ -544,7 +517,11 @@ public class DeliveryServiceImpl implements DeliveryService {
                 deliveryRepository.save(delivery);
                 log.info("Expired shipper offer for delivery {}, Saga may rematch", delivery.getId());
             }
+            default -> {
+                // ASSIGNED/TERMINAL report the stronger state; a stale session fenced only itself.
+            }
         }
+        String outcome = OfferPersistencePolicy.retirementOutcome(decision);
         publishOfferRetired(command, delivery, matchingSessionId, outcome);
     }
 
@@ -1193,11 +1170,11 @@ public class DeliveryServiceImpl implements DeliveryService {
     }
 
     private boolean sameOfferDeadline(LocalDateTime first, LocalDateTime second) {
-        if (first == null || second == null) {
-            return first == second;
-        }
-        // PostgreSQL timestamps can round or truncate sub-millisecond precision.
-        return Math.abs(java.time.Duration.between(first, second).toNanos()) <= 1_000_000L;
+        return OfferPersistencePolicy.sameDeadline(first, second);
+    }
+
+    private static com.delivery.delivery.domain.DeliveryStatus domainStatus(Delivery delivery) {
+        return com.delivery.delivery.domain.DeliveryStatus.valueOf(delivery.getStatus().name());
     }
 
     @Override
