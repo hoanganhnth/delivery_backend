@@ -1,6 +1,8 @@
 package com.delivery.delivery_service.service.impl;
 
 import com.delivery.delivery.domain.CancellationPolicy;
+import com.delivery.delivery.domain.DeliveryCreationPolicy;
+import com.delivery.delivery.domain.DeliveryReadPolicy;
 import com.delivery.delivery.domain.OfferDecisionPolicy;
 import com.delivery.delivery.domain.OfferDecisionRejected;
 import com.delivery.delivery.domain.OfferPersistencePolicy;
@@ -120,7 +122,12 @@ public class DeliveryServiceImpl implements DeliveryService {
     @Override
     @Transactional
     public DeliveryResponse createDeliveryFromOrderEvent(OrderCreatedEvent event) {
-        validateCreateDeliveryEvent(event);
+        try {
+            DeliveryCreationPolicy.requireEvent(createOf(event));
+        } catch (OfferDecisionRejected rejected) {
+            // Create identity admission historically fails before the persistence error wrapper.
+            throw new IllegalArgumentException(rejected.getMessage());
+        }
         try {
             Delivery existing = deliveryRepository.findByOrderId(event.getOrderId()).orElse(null);
             if (existing != null) {
@@ -156,13 +163,14 @@ public class DeliveryServiceImpl implements DeliveryService {
             // Shipping fee is server-owned by Order and validated at the Kafka boundary.
             // Delivery must never invent a financial fallback.
             delivery.setShippingFee(event.getShippingFee());
-            delivery.setGrossShippingFee(event.getGrossShippingFee() == null
-                    ? event.getShippingFee() : event.getGrossShippingFee());
-            delivery.setCustomerShippingFee(event.getCustomerShippingFee() == null
-                    ? event.getShippingFee() : event.getCustomerShippingFee());
+            DeliveryCreationPolicy.Money money = DeliveryCreationPolicy.money(event.getShippingFee(),
+                    event.getGrossShippingFee(), event.getCustomerShippingFee(), event.getDiscountAmount(),
+                    event.getItemDiscount(), event.getShopDiscount());
+            delivery.setGrossShippingFee(money.grossShippingFee());
+            delivery.setCustomerShippingFee(money.customerShippingFee());
             delivery.setSubtotalPrice(event.getSubtotalPrice());
-            delivery.setItemDiscount(event.getItemDiscount() == null ? event.getDiscountAmount() : event.getItemDiscount());
-            delivery.setShopDiscount(event.getShopDiscount() == null ? event.getDiscountAmount() : event.getShopDiscount());
+            delivery.setItemDiscount(money.itemDiscount());
+            delivery.setShopDiscount(money.shopDiscount());
             delivery.setShippingDiscount(event.getShippingDiscount());
             delivery.setPlatformSubsidy(event.getPlatformSubsidy());
             delivery.setPromotionReservationId(event.getPromotionReservationId());
@@ -176,7 +184,7 @@ public class DeliveryServiceImpl implements DeliveryService {
             delivery.setNotes(event.getNotes());
 
             // Set initial status - FINDING_SHIPPER (tự động tìm shipper)
-            delivery.setStatus(DeliveryStatus.FINDING_SHIPPER);
+            delivery.setStatus(DeliveryStatus.valueOf(DeliveryCreationPolicy.initialStatus().name()));
 
             // Set timestamps
             delivery.setCreatedAt(LocalDateTime.now());
@@ -232,32 +240,25 @@ public class DeliveryServiceImpl implements DeliveryService {
     }
 
     private void requireMatchingCreateCommand(Delivery existing, OrderCreatedEvent event) {
-        boolean matches = Objects.equals(existing.getCreateEventId(), event.getEventId())
-                && Objects.equals(existing.getCreatorId(), event.getUserId())
-                && Objects.equals(existing.getRestaurantId(), event.getRestaurantId())
-                && Objects.equals(existing.getRestaurantOwnerId(), event.getCreatorId())
-                && Objects.equals(existing.getPickupAddress(), event.getRestaurantAddress())
-                && Objects.equals(existing.getPickupLat(), event.getPickupLat())
-                && Objects.equals(existing.getPickupLng(), event.getPickupLng())
-                && Objects.equals(existing.getDeliveryAddress(), event.getDeliveryAddress())
-                && Objects.equals(existing.getDeliveryLat(), event.getDeliveryLat())
-                && Objects.equals(existing.getDeliveryLng(), event.getDeliveryLng())
-                && sameAmount(existing.getShippingFee(), event.getShippingFee())
-                && sameAmount(existing.getTotalPrice(), event.getTotalPrice())
-                && sameAmount(existing.getGrossShippingFee() == null
-                                ? existing.getShippingFee() : existing.getGrossShippingFee(),
-                        event.getGrossShippingFee() == null
-                                ? event.getShippingFee() : event.getGrossShippingFee())
-                && Objects.equals(existing.getPromotionReservationId(), event.getPromotionReservationId())
-                && Objects.equals(existing.getPaymentMethod(), event.getPaymentMethod());
-        if (!matches) {
-            throw new InvalidStatusException("Create-delivery replay conflicts with existing delivery "
-                    + existing.getId() + " for order " + event.getOrderId());
+        try {
+            DeliveryCreationPolicy.requireReplay(existing.getId(), new DeliveryCreationPolicy.Create(
+                    existing.getOrderId(), existing.getCreateEventId(), existing.getCreatorId(),
+                    existing.getRestaurantId(), existing.getRestaurantOwnerId(), existing.getPickupAddress(),
+                    existing.getPickupLat(), existing.getPickupLng(), existing.getDeliveryAddress(),
+                    existing.getDeliveryLat(), existing.getDeliveryLng(), existing.getShippingFee(),
+                    existing.getTotalPrice(), existing.getGrossShippingFee(), existing.getPromotionReservationId(),
+                    existing.getPaymentMethod()), createOf(event));
+        } catch (OfferDecisionRejected rejected) {
+            throw offerDecisionFailure(rejected);
         }
     }
 
-    private boolean sameAmount(BigDecimal left, BigDecimal right) {
-        return left != null && right != null && left.compareTo(right) == 0;
+    private DeliveryCreationPolicy.Create createOf(OrderCreatedEvent event) {
+        return event == null ? null : new DeliveryCreationPolicy.Create(
+                event.getOrderId(), event.getEventId(), event.getUserId(), event.getRestaurantId(), event.getCreatorId(),
+                event.getRestaurantAddress(), event.getPickupLat(), event.getPickupLng(), event.getDeliveryAddress(),
+                event.getDeliveryLat(), event.getDeliveryLng(), event.getShippingFee(), event.getTotalPrice(),
+                event.getGrossShippingFee(), event.getPromotionReservationId(), event.getPaymentMethod());
     }
 
     @Override
@@ -817,7 +818,7 @@ public class DeliveryServiceImpl implements DeliveryService {
     @Override
     @Transactional(readOnly = true)
     public List<DeliveryResponse> getDeliveriesByShipper(Long shipperId, Long principalId, Long legacyUserId, String role) {
-        Long actorId = RoleConstants.SHIPPER.equals(role) ? resolveShipperId(principalId, legacyUserId, role) : legacyUserId;
+        Long actorId = DeliveryReadPolicy.listActor(role, legacyUserId, () -> resolveShipperId(principalId, legacyUserId, role));
         return getDeliveriesByShipper(shipperId, actorId, role);
     }
 
@@ -848,24 +849,25 @@ public class DeliveryServiceImpl implements DeliveryService {
     @Override
     @Transactional(readOnly = true)
     public List<DeliveryResponse> getActiveDeliveriesByShipper(Long shipperId, Long principalId, Long legacyUserId, String role) {
-        Long actorId = RoleConstants.SHIPPER.equals(role) ? resolveShipperId(principalId, legacyUserId, role) : legacyUserId;
+        Long actorId = DeliveryReadPolicy.listActor(role, legacyUserId, () -> resolveShipperId(principalId, legacyUserId, role));
         return getActiveDeliveriesByShipper(shipperId, actorId, role);
     }
 
     @Override
     @Transactional(readOnly = true)
     public DeliveryOfferResponse getCurrentOffer(Long shipperId, String role) {
-        if (!RoleConstants.SHIPPER.equals(role)) {
-            throw new AccessDeniedException("Chỉ shipper mới có thể xem offer hiện tại");
-        }
-        if (!positive(shipperId)) {
-            throw new InvalidStatusException("Shipper ID is required");
+        try {
+            DeliveryReadPolicy.requireCurrentOffer(shipperId, role);
+        } catch (OfferDecisionRejected rejected) {
+            throw offerDecisionFailure(rejected);
         }
 
         List<Delivery> offers = deliveryRepository.findCurrentOffersByShipper(
                 shipperId, LocalDateTime.now(), org.springframework.data.domain.PageRequest.of(0, 2));
-        if (offers.size() > 1) {
-            throw new InvalidStatusException("Shipper has multiple active offers");
+        try {
+            DeliveryReadPolicy.requireSingleOffer(offers.size());
+        } catch (OfferDecisionRejected rejected) {
+            throw offerDecisionFailure(rejected);
         }
         return offers.isEmpty() ? null : deliveryMapper.deliveryToOfferResponse(offers.get(0));
     }
@@ -887,51 +889,23 @@ public class DeliveryServiceImpl implements DeliveryService {
     }
 
     private void validateViewPermission(Delivery delivery, Long principalId, Long legacyUserId, String role) {
-        if (RoleConstants.ADMIN.equals(role)) {
-            return; // Admin có thể xem tất cả
+        try {
+            String fallback = DeliveryReadPolicy.requireView(role, principalId, legacyUserId,
+                    delivery.getCustomerPrincipalId(), delivery.getCreatorId(),
+                    delivery.getRestaurantOwnerPrincipalId(), delivery.getRestaurantOwnerId(), delivery.getShipperId(),
+                    () -> resolveShipperId(principalId, legacyUserId, role));
+            if (fallback != null) businessMetrics.identityLegacyFallback(fallback);
+        } catch (OfferDecisionRejected rejected) {
+            throw offerDecisionFailure(rejected);
         }
-
-        // Shipper có thể xem delivery của mình
-        if (RoleConstants.SHIPPER.equals(role)
-                && resolveShipperId(principalId, legacyUserId, role).equals(delivery.getShipperId())) {
-            return;
-        }
-
-        // creatorId stores the canonical order userId, so users can only read
-        // the delivery belonging to their own order.
-        if (RoleConstants.USER.equals(role)
-                && ((delivery.getCustomerPrincipalId() != null && principalId != null
-                        && principalId.equals(delivery.getCustomerPrincipalId()))
-                    || (delivery.getCustomerPrincipalId() == null && legacyUserId != null
-                        && legacyUserId.equals(delivery.getCreatorId())))) {
-            if (delivery.getCustomerPrincipalId() == null) businessMetrics.identityLegacyFallback("customer_read");
-            return;
-        }
-
-        // Restaurant owner identity is copied from the server-validated order
-        // event. Legacy rows without this field remain fail-closed.
-        if (RoleConstants.RESTAURANT_OWNER.equals(role)
-                && ((delivery.getRestaurantOwnerPrincipalId() != null && principalId != null
-                        && principalId.equals(delivery.getRestaurantOwnerPrincipalId()))
-                    || (delivery.getRestaurantOwnerPrincipalId() == null && legacyUserId != null
-                        && legacyUserId.equals(delivery.getRestaurantOwnerId())))) {
-            if (delivery.getRestaurantOwnerPrincipalId() == null) businessMetrics.identityLegacyFallback("restaurant_owner_read");
-            return;
-        }
-
-        throw new AccessDeniedException("Bạn không có quyền xem thông tin giao hàng này");
     }
 
     private void validateShipperListPermission(Long shipperId, Long userId, String role) {
-        if (RoleConstants.ADMIN.equals(role)) {
-            return;
+        try {
+            DeliveryReadPolicy.requireShipperList(shipperId, userId, role);
+        } catch (OfferDecisionRejected rejected) {
+            throw offerDecisionFailure(rejected);
         }
-        if (RoleConstants.SHIPPER.equals(role)
-                && shipperId != null
-                && shipperId.equals(userId)) {
-            return;
-        }
-        throw new AccessDeniedException("Bạn không có quyền xem danh sách delivery này");
     }
 
     private void applyShipperStatusTransition(Delivery delivery, DeliveryStatus status) {
@@ -1092,27 +1066,6 @@ public class DeliveryServiceImpl implements DeliveryService {
             return new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(lines);
         } catch (Exception ignored) {
             return null;
-        }
-    }
-
-    private void validateCreateDeliveryEvent(OrderCreatedEvent event) {
-        if (event == null) {
-            throw new IllegalArgumentException("OrderCreatedEvent is required");
-        }
-        if (event.getEventId() == null) {
-            throw new IllegalArgumentException("Create-delivery eventId is required");
-        }
-        if (!positive(event.getOrderId())) {
-            throw new IllegalArgumentException("Create-delivery orderId must be positive");
-        }
-        if (!positive(event.getUserId())) {
-            throw new IllegalArgumentException("Create-delivery userId must be positive");
-        }
-        if (!positive(event.getRestaurantId())) {
-            throw new IllegalArgumentException("Create-delivery restaurantId must be positive");
-        }
-        if (!positive(event.getCreatorId())) {
-            throw new IllegalArgumentException("Create-delivery creatorId must be positive");
         }
     }
 

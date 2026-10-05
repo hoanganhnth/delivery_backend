@@ -57,6 +57,63 @@ class DeliveryShipperOfferTest {
     }
 
     @Test
+    void creationMapsSnapshotDefaultsAndAddressesWithoutInventingFallbacks() {
+        OrderCreatedEvent event = exactCreateEvent();
+        event.setDiscountAmount(new BigDecimal("3"));
+        event.setUserPrincipalId(400L);
+        event.setCreatorPrincipalId(500L);
+        when(repository.save(any(Delivery.class))).thenAnswer(invocation -> {
+            Delivery delivery = invocation.getArgument(0);
+            delivery.setId(1L);
+            return delivery;
+        });
+        service.createDeliveryFromOrderEvent(event);
+        ArgumentCaptor<Delivery> snapshot = ArgumentCaptor.forClass(Delivery.class);
+        verify(repository).save(snapshot.capture());
+        Delivery delivery = snapshot.getValue();
+        assertThat(delivery.getStatus()).isEqualTo(DeliveryStatus.FINDING_SHIPPER);
+        assertThat(delivery.getGrossShippingFee()).isEqualTo(event.getShippingFee());
+        assertThat(delivery.getCustomerShippingFee()).isEqualTo(event.getShippingFee());
+        assertThat(delivery.getItemDiscount()).isEqualTo(event.getDiscountAmount());
+        assertThat(delivery.getShopDiscount()).isEqualTo(event.getDiscountAmount());
+        assertThat(delivery.getPickupAddress()).isEqualTo(event.getRestaurantAddress());
+        assertThat(delivery.getDeliveryAddress()).isEqualTo(event.getDeliveryAddress());
+        assertThat(delivery.getPickupLat()).isEqualTo(event.getPickupLat());
+        assertThat(delivery.getDeliveryLng()).isEqualTo(event.getDeliveryLng());
+        assertThat(delivery.getCustomerPrincipalId()).isEqualTo(400L);
+        assertThat(delivery.getRestaurantOwnerPrincipalId()).isEqualTo(500L);
+        verify(outboxService).saveEvent(eq("DELIVERY"), eq("1"), eq("DELIVERY_CREATED_RESULT"),
+                eq("delivery.created.result"), eq("20"), any());
+    }
+
+    @Test
+    void readDeniesMissingOwnersAndKeepsNotFoundBeforePermissionCheck() {
+        Delivery delivery = new Delivery();
+        when(repository.findById(1L)).thenReturn(Optional.of(delivery));
+        assertThatThrownBy(() -> service.getDeliveryById(1L, 40L, 40L, "USER"))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessage("Bạn không có quyền xem thông tin giao hàng này");
+        assertThatThrownBy(() -> service.getDeliveryByOrderId(20L, null, null, "OTHER"))
+                .isInstanceOf(com.delivery.delivery_service.exception.ResourceNotFoundException.class)
+                .hasMessage("Không tìm thấy thông tin giao hàng cho đơn hàng: 20");
+        verifyNoInteractions(mapper, businessMetrics);
+    }
+
+    @Test
+    void readPrincipalWinsAndLegacyFallbackMetricOnlyFollowsSuccessfulOwnership() {
+        Delivery delivery = waitingDelivery();
+        delivery.setCustomerPrincipalId(400L);
+        when(repository.findById(1L)).thenReturn(Optional.of(delivery));
+        service.getDeliveryById(1L, 400L, 999L, "USER");
+        assertThatThrownBy(() -> service.getDeliveryById(1L, 401L, 40L, "USER"))
+                .isInstanceOf(AccessDeniedException.class);
+        verifyNoInteractions(businessMetrics);
+        delivery.setCustomerPrincipalId(null);
+        service.getDeliveryById(1L, 400L, 40L, "USER");
+        verify(businessMetrics).identityLegacyFallback("customer_read");
+    }
+
+    @Test
     void persistsExactlyOneOfferBeforePublishingNotificationEvent() {
         Delivery delivery = waitingDelivery();
         when(repository.findByOrderIdForUpdate(20L)).thenReturn(Optional.of(delivery));
