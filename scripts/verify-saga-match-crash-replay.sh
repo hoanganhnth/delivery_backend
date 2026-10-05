@@ -226,7 +226,7 @@ create_and_confirm_cod_order() {
   local order_response created_order_id
   order_response="$(curl --fail-with-body --silent --show-error -X POST "$BASE/api/orders" \
     -H "Authorization: Bearer $customer_token" -H 'Content-Type: application/json' \
-    -d "{\"restaurantId\":$restaurant_id,\"deliveryAddress\":\"Crash rehearsal address\",\"deliveryLat\":10.7740,\"deliveryLng\":106.7040,\"customerName\":\"Crash Rehearsal Customer\",\"customerPhone\":\"0900000009\",\"paymentMethod\":\"COD\",\"items\":[{\"menuItemId\":$menu_item_id,\"quantity\":1}]}")"
+    -d "{\"restaurantId\":$restaurant_id,\"deliveryAddress\":\"Crash rehearsal address\",\"deliveryLat\":20.9760,\"deliveryLng\":105.7750,\"customerName\":\"Crash Rehearsal Customer\",\"customerPhone\":\"0900000009\",\"paymentMethod\":\"COD\",\"items\":[{\"menuItemId\":$menu_item_id,\"quantity\":1}]}")"
   created_order_id="$(jq -er '.data.id // .id' <<<"$order_response")"
   [[ "$created_order_id" =~ ^[0-9]+$ ]] || {
     printf '%s\n' 'Order response lacked a numeric id.' >&2
@@ -442,10 +442,28 @@ fi
   exit 1
 }
 
+step 'republish the shipper location lost with the non-persistent fixture Redis'
+# The global Redis outage above restarts a Redis without persistence, so the
+# Match GEO projection is empty until the shipper app reports again. Seed puts
+# shipper 1 at 20.9730,105.7790 next to the restaurant.
+curl --fail-with-body --silent --show-error -X PATCH "$BASE/api/shippers/online-status?isOnline=true" \
+  -H "Authorization: Bearer $shipper_token" >/dev/null
+curl --fail-with-body --silent --show-error -X POST "$BASE/api/tracking/shipper-locations/update" \
+  -H "Authorization: Bearer $shipper_token" -H 'Content-Type: application/json' \
+  -d '{"latitude":20.9730,"longitude":105.7790,"isOnline":true}' >/dev/null
+
+match_geo_has_shipper() {
+  local count
+  count="$(compose exec -T redis sh -c \
+    "redis-cli --scan --pattern 'match:shippers:geo*' | head -n 1 | xargs -r redis-cli zcard" 2>/dev/null)"
+  [[ "$count" =~ ^[0-9]+$ && "$count" -gt 0 ]]
+}
+wait_for 'shipper location projected into Match GEO' match_geo_has_shipper
+
 step 'create and confirm a COD order until Match stages a PENDING result outbox'
 order_response="$(curl --fail-with-body --silent --show-error -X POST "$BASE/api/orders" \
   -H "Authorization: Bearer $customer_token" -H 'Content-Type: application/json' \
-  -d "{\"restaurantId\":$restaurant_id,\"deliveryAddress\":\"Crash rehearsal address\",\"deliveryLat\":10.7740,\"deliveryLng\":106.7040,\"customerName\":\"Crash Rehearsal Customer\",\"customerPhone\":\"0900000009\",\"paymentMethod\":\"COD\",\"items\":[{\"menuItemId\":$menu_item_id,\"quantity\":1}]}")"
+  -d "{\"restaurantId\":$restaurant_id,\"deliveryAddress\":\"Crash rehearsal address\",\"deliveryLat\":20.9760,\"deliveryLng\":105.7750,\"customerName\":\"Crash Rehearsal Customer\",\"customerPhone\":\"0900000009\",\"paymentMethod\":\"COD\",\"items\":[{\"menuItemId\":$menu_item_id,\"quantity\":1}]}")"
 order_id="$(jq -er '.data.id // .id' <<<"$order_response")"
 [[ "$order_id" =~ ^[0-9]+$ ]] || { printf '%s\n' 'Order response lacked a numeric id.' >&2; exit 1; }
 
