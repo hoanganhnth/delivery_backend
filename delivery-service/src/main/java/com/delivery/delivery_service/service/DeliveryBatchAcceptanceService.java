@@ -1,5 +1,8 @@
 package com.delivery.delivery_service.service;
 
+import com.delivery.delivery.domain.BatchDecisionPolicy;
+import static com.delivery.delivery_service.service.DeliveryPolicyAdapter.*;
+
 import com.delivery.delivery_service.common.constants.RoleConstants;
 import com.delivery.delivery_service.common.constants.ShipperActionConstants;
 import com.delivery.delivery_service.dto.event.ShipperAcceptedEvent;
@@ -80,34 +83,22 @@ public class DeliveryBatchAcceptanceService {
 
     @Transactional
     public DeliveryResponse accept(AcceptBatchRequest request, Long shipperId, String role) {
-        if (!batchEnabled) throw new InvalidStatusException("Delivery batch dispatch is disabled");
-        if (!RoleConstants.SHIPPER.equals(role)) throw new AccessDeniedException("Chỉ shipper mới có thể nhận batch");
-        if (request == null || request.getBatchId() == null || shipperId == null || shipperId <= 0) {
-            throw new InvalidStatusException("Batch ID and shipper are required");
-        }
+        policy(() -> BatchDecisionPolicy.requireEnabled(batchEnabled));
+        policy(() -> BatchDecisionPolicy.requireAcceptActor(RoleConstants.SHIPPER.equals(role)));
+        policy(() -> BatchDecisionPolicy.requireAcceptRequest(request != null,
+                request == null ? null : request.getBatchId(), shipperId));
         DeliveryBatch batch = batchRepository.findByIdForUpdate(request.getBatchId())
                 .orElseThrow(() -> new InvalidStatusException("Không tìm thấy batch offer"));
-        if (!shipperId.equals(batch.getShipperId())) throw new AccessDeniedException("Batch không thuộc shipper này");
-        if (batch.getStatus() == DeliveryBatchStatus.ACCEPTED) {
-            return firstResponse(request.getBatchId());
-        }
-        if (batch.getStatus() != DeliveryBatchStatus.OFFERED
-                || batch.getOfferExpiresAt() == null
-                || !batch.getOfferExpiresAt().isAfter(LocalDateTime.now())) {
-            throw new InvalidStatusException("Batch offer đã hết hạn hoặc không còn hợp lệ");
-        }
+        policy(() -> BatchDecisionPolicy.requireOwner(shipperId, batch.getShipperId()));
+        if (decision(() -> BatchDecisionPolicy.onAccept(domain(batch.getStatus()), batch.getOfferExpiresAt(), LocalDateTime.now()))
+                == BatchDecisionPolicy.Accept.REPLAY) return firstResponse(request.getBatchId());
         List<DeliveryBatchItem> items = itemRepository.findByBatchIdOrderByPickupSequenceAsc(request.getBatchId());
         DeliveryBatchRouteValidator.validatePersisted(items);
         List<Delivery> deliveries = items.stream().map(item -> deliveryRepository.findByIdForUpdate(item.getDeliveryId())
                 .orElseThrow(() -> new InvalidStatusException("Batch delivery không tồn tại"))).toList();
-        if (deliveries.stream().map(Delivery::getOrderId).distinct().count() != deliveries.size()) {
-            throw new InvalidStatusException("Batch không được chứa duplicate order");
-        }
+        policy(() -> BatchDecisionPolicy.requireUniqueOrders(deliveries.stream().map(Delivery::getOrderId).toList()));
         for (Delivery delivery : deliveries) {
-            if (!DeliveryStatus.WAIT_SHIPPER_CONFIRM.equals(delivery.getStatus())
-                    || !shipperId.equals(delivery.getOfferedShipperId())) {
-                throw new InvalidStatusException("Batch có delivery không còn ở trạng thái offer");
-            }
+            policy(() -> BatchDecisionPolicy.requireOffered(domain(delivery.getStatus()), shipperId, delivery.getOfferedShipperId()));
         }
         LocalDateTime now = LocalDateTime.now();
         for (Delivery delivery : deliveries) {
@@ -116,7 +107,7 @@ public class DeliveryBatchAcceptanceService {
             delivery.setAssignedAt(now);
             delivery.setOfferExpiresAt(null);
             delivery.setUpdatedAt(now);
-            if (request.getCurrentLat() != null && request.getCurrentLng() != null) {
+            if (BatchDecisionPolicy.updatePosition(request.getCurrentLat(), request.getCurrentLng())) {
                 delivery.setShipperCurrentLat(request.getCurrentLat());
                 delivery.setShipperCurrentLng(request.getCurrentLng());
             }
@@ -144,10 +135,7 @@ public class DeliveryBatchAcceptanceService {
     @Transactional(readOnly = true)
     public DeliveryBatchOfferResponse currentOffer(Long shipperId, String role) {
         if (!batchEnabled) return null;
-        if (!com.delivery.delivery_service.common.constants.RoleConstants.SHIPPER.equals(role)
-                || shipperId == null || shipperId <= 0) {
-            throw new com.delivery.delivery_service.exception.AccessDeniedException("Chỉ shipper mới có thể xem batch offer");
-        }
+        policy(() -> BatchDecisionPolicy.requireViewActor(RoleConstants.SHIPPER.equals(role), shipperId));
         DeliveryBatch batch = batchRepository.findCurrentOffersByShipper(shipperId, LocalDateTime.now(),
                 org.springframework.data.domain.PageRequest.of(0, 1)).stream().findFirst().orElse(null);
         if (batch == null) return null;

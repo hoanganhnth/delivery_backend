@@ -1,5 +1,8 @@
 package com.delivery.delivery_service.service;
 
+import com.delivery.delivery.domain.BatchDecisionPolicy;
+import static com.delivery.delivery_service.service.DeliveryPolicyAdapter.*;
+
 import com.delivery.delivery_service.common.constants.KafkaTopicConstants;
 import com.delivery.delivery_service.dto.event.ShipperFoundEvent;
 import com.delivery.delivery_service.dto.event.OfferPersistedEvent;
@@ -52,18 +55,14 @@ public class DeliveryBatchOfferService {
 
     @Transactional
     public void apply(ShipperFoundEvent event) {
-        if (!batchEnabled) throw new InvalidStatusException("Delivery batch dispatch is disabled");
-        if (event == null || !Boolean.TRUE.equals(event.getBatchOffer()) || event.getBatchId() == null
-                || event.getBatchItems() == null || event.getBatchItems().isEmpty()
-                || event.getBatchItems().size() > 3 || event.getAvailableShippers() == null
-                || event.getAvailableShippers().size() != 1
-                || event.getAvailableShippers().get(0).getShipperId() == null) {
-            throw new InvalidStatusException("Invalid batch shipper offer event");
-        }
+        policy(() -> BatchDecisionPolicy.requireEnabled(batchEnabled));
+        policy(() -> BatchDecisionPolicy.requireOffer(event != null, event == null ? null : event.getBatchOffer(),
+                event == null ? null : event.getBatchId(),
+                event == null || event.getBatchItems() == null ? null : event.getBatchItems().size(),
+                event == null || event.getAvailableShippers() == null ? null : event.getAvailableShippers().size(),
+                () -> event.getAvailableShippers().get(0).getShipperId()));
         for (ShipperFoundEvent.BatchItem item : event.getBatchItems()) {
-            if (item == null || item.getMatchingSessionId() == null) {
-                throw new InvalidStatusException("Batch delivery IDs must be unique and complete");
-            }
+            policy(() -> BatchDecisionPolicy.requireSession(item != null, item == null ? null : item.getMatchingSessionId()));
         }
         DeliveryBatchRouteValidator.validate(event.getBatchItems());
         List<ShipperFoundEvent.BatchItem> orderedItems = event.getBatchItems().stream()
@@ -72,17 +71,13 @@ public class DeliveryBatchOfferService {
                 .toList();
         Long shipperId = event.getAvailableShippers().get(0).getShipperId();
         LocalDateTime now = LocalDateTime.now(clock);
-        LocalDateTime foundAt = event.getFoundAt() == null ? now : event.getFoundAt();
-        int timeout = event.getWaitingTimeoutSeconds() == null ? 180
-                : Math.max(1, Math.min(event.getWaitingTimeoutSeconds(), 180));
-        LocalDateTime expiresAt = foundAt.plusSeconds(timeout);
-        if (!expiresAt.isAfter(now)) throw new InvalidStatusException("Batch shipper offer already expired");
+        LocalDateTime expiresAt = decision(() -> BatchDecisionPolicy.expiresAt(
+                event.getFoundAt(), event.getWaitingTimeoutSeconds(), now));
 
         DeliveryBatch batch = batchRepository.findByIdForUpdate(event.getBatchId()).orElse(null);
         if (batch != null) {
-            if (!shipperId.equals(batch.getShipperId()) || batch.getStatus() != DeliveryBatchStatus.OFFERED) {
-                throw new InvalidStatusException("Batch offer replay conflicts with existing batch");
-            }
+            DeliveryBatch existing = batch;
+            policy(() -> BatchDecisionPolicy.requireReplay(shipperId, existing.getShipperId(), domain(existing.getStatus())));
             publishOfferPersisted(event, shipperId, expiresAt);
             return;
         }
@@ -94,10 +89,9 @@ public class DeliveryBatchOfferService {
         batch.setOfferExpiresAt(expiresAt);
         batch.setRouteVersion(1);
         batch.setTotalCodAmount(BigDecimal.ZERO);
-        batch.setWaveNumber(event.getBatchWave() == null ? 0 : Math.max(0, event.getBatchWave()));
-        if (event.getCodHoldIds() == null || event.getCodHoldIds().size() != event.getBatchItems().size()) {
-            throw new InvalidStatusException("Batch COD holds are incomplete");
-        }
+        batch.setWaveNumber(BatchDecisionPolicy.wave(event.getBatchWave()));
+        policy(() -> BatchDecisionPolicy.requireHolds(event.getCodHoldIds() == null ? null : event.getCodHoldIds().size(),
+                event.getBatchItems().size()));
         batch.setCodHoldIds(event.getCodHoldIds().stream().map(UUID::toString).collect(java.util.stream.Collectors.joining(",")));
         batch.setCreatedAt(now);
         batch.setUpdatedAt(now);
@@ -106,13 +100,8 @@ public class DeliveryBatchOfferService {
         for (ShipperFoundEvent.BatchItem item : orderedItems) {
             Delivery delivery = deliveryRepository.findByIdForUpdate(item.getDeliveryId())
                     .orElseThrow(() -> new InvalidStatusException("Delivery is missing from batch"));
-            if (!item.getOrderId().equals(delivery.getOrderId())) {
-                throw new InvalidStatusException("Batch order does not match delivery");
-            }
-            if (delivery.getBatchId() != null || (!DeliveryStatus.FINDING_SHIPPER.equals(delivery.getStatus())
-                    && !DeliveryStatus.WAIT_SHIPPER_CONFIRM.equals(delivery.getStatus()))) {
-                throw new InvalidStatusException("Delivery is not available for batch assignment");
-            }
+            policy(() -> BatchDecisionPolicy.requireOrder(item.getOrderId(), delivery.getOrderId()));
+            policy(() -> BatchDecisionPolicy.requireAvailable(delivery.getBatchId(), domain(delivery.getStatus())));
             delivery.setBatchId(event.getBatchId());
             delivery.setBatchSequence(item.getPickupSequence());
             delivery.setOfferedShipperId(shipperId);
@@ -133,7 +122,7 @@ public class DeliveryBatchOfferService {
             batchItem.setUpdatedAt(now);
             itemRepository.save(batchItem);
             batch.setTotalCodAmount(batch.getTotalCodAmount().add(
-                    item.getTotalPrice() == null ? BigDecimal.ZERO : item.getTotalPrice()));
+                    BatchDecisionPolicy.cod(item.getTotalPrice())));
         }
         batch.setUpdatedAt(now);
         batchRepository.saveAndFlush(batch);

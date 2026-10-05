@@ -7,8 +7,6 @@ import com.delivery.delivery_service.entity.Delivery;
 import com.delivery.delivery_service.entity.DeliveryException;
 import com.delivery.delivery_service.entity.DeliveryExceptionStatus;
 import com.delivery.delivery_service.entity.DeliveryStatus;
-import com.delivery.delivery_service.exception.AccessDeniedException;
-import com.delivery.delivery_service.exception.InvalidStatusException;
 import com.delivery.delivery_service.exception.ResourceNotFoundException;
 import com.delivery.delivery_service.repository.DeliveryExceptionRepository;
 import com.delivery.delivery_service.repository.DeliveryRepository;
@@ -21,7 +19,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Objects;
+import com.delivery.delivery.domain.DeliveryExceptionPolicy;
+import com.delivery.delivery.domain.DeliveryAccessPolicy;
+import static com.delivery.delivery_service.service.DeliveryPolicyAdapter.*;
 import java.util.UUID;
 
 /**
@@ -32,7 +32,7 @@ import java.util.UUID;
 @Service
 public class DeliveryExceptionService {
 
-    static final int RETRY_WINDOW_MINUTES = 15;
+    static final int RETRY_WINDOW_MINUTES = DeliveryExceptionPolicy.RETRY_WINDOW_MINUTES;
     private static final int SWEEP_LIMIT = 100;
 
     private final DeliveryRepository deliveryRepository;
@@ -67,20 +67,11 @@ public class DeliveryExceptionService {
         Delivery delivery = findDeliveryForUpdate(deliveryId);
         Long shipperId = requireAssignedShipper(delivery, principalId, legacyUserId, role);
         DeliveryException existing = exceptionRepository.findByDeliveryIdForUpdate(deliveryId).orElse(null);
-        if (existing != null) {
-            if (!Objects.equals(existing.getReason(), normalizedReason)) {
-                throw new InvalidStatusException("Sự cố giao hàng đã tồn tại với lý do khác");
-            }
-            return switch (existing.getStatus()) {
-                case RETRY_AVAILABLE -> existing.getRetryDeadlineAt() != null
-                        && !existing.getRetryDeadlineAt().isAfter(LocalDateTime.now())
-                        ? toResponse(beginReturn(delivery, existing))
-                        : toResponse(existing);
-                case RETRY_USED -> toResponse(beginReturn(delivery, existing));
-                case RETURNING, RETURNED -> toResponse(existing);
-                case RESOLVED -> throw new InvalidStatusException("Đơn đã được giao thành công sau lần retry");
-            };
-        }
+        DeliveryExceptionPolicy.Report report = decision(() -> DeliveryExceptionPolicy.onReport(existing != null,
+                existing == null ? null : domain(existing.getStatus()), existing == null ? null : existing.getReason(),
+                existing == null ? null : existing.getRetryDeadlineAt(), normalizedReason, LocalDateTime.now()));
+        if (report == DeliveryExceptionPolicy.Report.RETURN_EXISTING) return toResponse(existing);
+        if (report == DeliveryExceptionPolicy.Report.BEGIN_RETURN) return toResponse(beginReturn(delivery, existing));
         requirePostPickup(delivery);
 
         LocalDateTime now = LocalDateTime.now();
@@ -95,7 +86,7 @@ public class DeliveryExceptionService {
         exceptionCase.setReason(normalizedReason);
         exceptionCase.setStatus(DeliveryExceptionStatus.RETRY_AVAILABLE);
         exceptionCase.setReportedAt(now);
-        exceptionCase.setRetryDeadlineAt(now.plusMinutes(RETRY_WINDOW_MINUTES));
+        exceptionCase.setRetryDeadlineAt(DeliveryExceptionPolicy.retryDeadline(now));
         exceptionRepository.save(exceptionCase);
         eventPublisher.publishDeliveryExceptionReported(toReportedEvent(delivery, exceptionCase));
         return toResponse(exceptionCase);
@@ -111,17 +102,10 @@ public class DeliveryExceptionService {
         requireAssignedShipper(delivery, principalId, legacyUserId, role);
         DeliveryException exceptionCase = exceptionRepository.findByDeliveryIdForUpdate(deliveryId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sự cố giao hàng"));
-        if (exceptionCase.getStatus() == DeliveryExceptionStatus.RETRY_USED) return toResponse(exceptionCase);
-        if (exceptionCase.getStatus() == DeliveryExceptionStatus.RETURNING
-                || exceptionCase.getStatus() == DeliveryExceptionStatus.RETURNED) {
-            throw new InvalidStatusException("Đơn hàng đang hoặc đã được hoàn về nhà hàng");
-        }
-        if (exceptionCase.getStatus() == DeliveryExceptionStatus.RESOLVED) {
-            throw new InvalidStatusException("Đơn đã được giao thành công sau lần retry");
-        }
-        if (!exceptionCase.getRetryDeadlineAt().isAfter(LocalDateTime.now())) {
-            return toResponse(beginReturn(delivery, exceptionCase));
-        }
+        DeliveryExceptionPolicy.Retry retry = decision(() -> DeliveryExceptionPolicy.onUseRetry(
+                domain(exceptionCase.getStatus()), exceptionCase.getRetryDeadlineAt(), LocalDateTime.now()));
+        if (retry == DeliveryExceptionPolicy.Retry.REPLAY) return toResponse(exceptionCase);
+        if (retry == DeliveryExceptionPolicy.Retry.BEGIN_RETURN) return toResponse(beginReturn(delivery, exceptionCase));
         requirePostPickup(delivery);
         exceptionCase.setStatus(DeliveryExceptionStatus.RETRY_USED);
         exceptionCase.setRetryUsedAt(LocalDateTime.now());
@@ -140,11 +124,8 @@ public class DeliveryExceptionService {
         requireRestaurantOwner(delivery, principalId, legacyUserId, role);
         DeliveryException exceptionCase = exceptionRepository.findByDeliveryIdForUpdate(deliveryId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sự cố giao hàng"));
-        if (exceptionCase.getStatus() == DeliveryExceptionStatus.RETURNED) return toResponse(exceptionCase);
-        if (exceptionCase.getStatus() != DeliveryExceptionStatus.RETURNING
-                || delivery.getStatus() != DeliveryStatus.RETURNING) {
-            throw new InvalidStatusException("Đơn hàng chưa ở trạng thái chờ xác nhận hoàn trả");
-        }
+        if (decision(() -> DeliveryExceptionPolicy.onConfirmReturn(domain(exceptionCase.getStatus()),
+                domain(delivery.getStatus()))) == DeliveryExceptionPolicy.ConfirmReturn.REPLAY) return toResponse(exceptionCase);
 
         LocalDateTime now = LocalDateTime.now();
         exceptionCase.setStatus(DeliveryExceptionStatus.RETURNED);
@@ -158,7 +139,7 @@ public class DeliveryExceptionService {
 
         boolean routeTerminal = batchProgressService == null
                 || batchProgressService.applyExceptionReturn(delivery, true);
-        if (routeTerminal && delivery.getShipperId() != null) {
+        if (DeliveryExceptionPolicy.releaseShipper(routeTerminal, delivery.getShipperId())) {
             if (delivery.getBatchId() == null) {
                 publishShipperStatusChange(
                         delivery.getShipperId(), "AVAILABLE", delivery.getId(), delivery.getOrderId(),
@@ -178,7 +159,7 @@ public class DeliveryExceptionService {
                                                   Long legacyUserId,
                                                   String role) {
         requireEnabled();
-        if (deliveryId == null || deliveryId <= 0) throw new InvalidStatusException("Delivery ID is required");
+        policy(() -> DeliveryExceptionPolicy.requireDeliveryId(deliveryId));
         Delivery delivery = deliveryRepository.findById(deliveryId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thông tin giao hàng với ID: " + deliveryId));
         requireViewer(delivery, principalId, legacyUserId, role);
@@ -205,12 +186,10 @@ public class DeliveryExceptionService {
                         .orElseThrow(() -> new IllegalStateException("Exception delivery is missing"));
                 DeliveryException exceptionCase = exceptionRepository.findByIdForUpdate(candidate.getExceptionId())
                         .orElseThrow(() -> new IllegalStateException("Delivery exception disappeared"));
-                if (exceptionCase.getStatus() != DeliveryExceptionStatus.RETRY_AVAILABLE
-                        || exceptionCase.getRetryDeadlineAt() == null
-                        || exceptionCase.getRetryDeadlineAt().isAfter(now)) {
-                    continue;
-                }
-                if (delivery.getStatus() == DeliveryStatus.DELIVERED) {
+                DeliveryExceptionPolicy.Sweep sweep = DeliveryExceptionPolicy.onRetryWindowSweep(
+                        domain(exceptionCase.getStatus()), exceptionCase.getRetryDeadlineAt(), domain(delivery.getStatus()), now);
+                if (sweep == DeliveryExceptionPolicy.Sweep.SKIP) continue;
+                if (sweep == DeliveryExceptionPolicy.Sweep.RESOLVE) {
                     exceptionCase.setStatus(DeliveryExceptionStatus.RESOLVED);
                     exceptionRepository.save(exceptionCase);
                     continue;
@@ -232,28 +211,17 @@ public class DeliveryExceptionService {
     public void markResolvedAfterSuccessfulDelivery(Delivery delivery) {
         if (!exceptionEnabled || delivery == null || delivery.getId() == null) return;
         DeliveryException exceptionCase = exceptionRepository.findByDeliveryIdForUpdate(delivery.getId()).orElse(null);
-        if (exceptionCase == null) return;
-        if (exceptionCase.getStatus() == DeliveryExceptionStatus.RETRY_AVAILABLE
-                || exceptionCase.getStatus() == DeliveryExceptionStatus.RETRY_USED) {
+        if (decision(() -> DeliveryExceptionPolicy.onSuccessfulDelivery(
+                exceptionCase == null ? null : domain(exceptionCase.getStatus()))) == DeliveryExceptionPolicy.Delivered.RESOLVE) {
             exceptionCase.setStatus(DeliveryExceptionStatus.RESOLVED);
             exceptionRepository.save(exceptionCase);
             publishExceptionUpdate(delivery, exceptionCase);
-            return;
-        }
-        if (exceptionCase.getStatus() == DeliveryExceptionStatus.RETURNING
-                || exceptionCase.getStatus() == DeliveryExceptionStatus.RETURNED) {
-            throw new InvalidStatusException("Không thể hoàn tất đơn đang trong luồng hoàn trả");
         }
     }
 
     private DeliveryException beginReturn(Delivery delivery, DeliveryException exceptionCase) {
-        if (exceptionCase.getStatus() == DeliveryExceptionStatus.RETURNING
-                || exceptionCase.getStatus() == DeliveryExceptionStatus.RETURNED) {
-            return exceptionCase;
-        }
-        if (exceptionCase.getStatus() == DeliveryExceptionStatus.RESOLVED) {
-            throw new InvalidStatusException("Đơn đã được giao thành công sau lần retry");
-        }
+        if (decision(() -> DeliveryExceptionPolicy.onBeginReturn(domain(exceptionCase.getStatus())))
+                == DeliveryExceptionPolicy.BeginReturn.ALREADY_RETURNING) return exceptionCase;
         requirePostPickup(delivery);
         LocalDateTime now = LocalDateTime.now();
         exceptionCase.setStatus(DeliveryExceptionStatus.RETURNING);
@@ -270,67 +238,39 @@ public class DeliveryExceptionService {
     }
 
     private Delivery findDeliveryForUpdate(Long deliveryId) {
-        if (deliveryId == null || deliveryId <= 0) throw new InvalidStatusException("Delivery ID is required");
+        policy(() -> DeliveryExceptionPolicy.requireDeliveryId(deliveryId));
         return deliveryRepository.findByIdForUpdate(deliveryId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thông tin giao hàng với ID: " + deliveryId));
     }
 
     private Long requireAssignedShipper(Delivery delivery, Long principalId, Long legacyUserId, String role) {
         Long shipperId = shipperIdentityResolver.resolveShipperId(principalId, legacyUserId, role);
-        if (!Objects.equals(shipperId, delivery.getShipperId())) {
-            throw new AccessDeniedException("Chỉ shipper được phân công mới có thể báo sự cố giao hàng");
-        }
+        policy(() -> DeliveryExceptionPolicy.requireAssignedShipper(shipperId, delivery.getShipperId()));
         return shipperId;
     }
 
     private void requireRestaurantOwner(Delivery delivery, Long principalId, Long legacyUserId, String role) {
-        if (!RoleConstants.RESTAURANT_OWNER.equals(role)
-                || !((delivery.getRestaurantOwnerPrincipalId() != null
-                        && delivery.getRestaurantOwnerPrincipalId().equals(principalId))
-                    || (delivery.getRestaurantOwnerPrincipalId() == null
-                        && delivery.getRestaurantOwnerId() != null
-                        && delivery.getRestaurantOwnerId().equals(legacyUserId)))) {
-            throw new AccessDeniedException("Chỉ chủ nhà hàng của đơn mới có thể xác nhận hoàn trả");
-        }
+        policy(() -> DeliveryExceptionPolicy.requireRestaurantOwner(RoleConstants.RESTAURANT_OWNER.equals(role),
+                principalId, legacyUserId, delivery.getRestaurantOwnerPrincipalId(), delivery.getRestaurantOwnerId()));
     }
 
     private void requireViewer(Delivery delivery, Long principalId, Long legacyUserId, String role) {
-        if (RoleConstants.ADMIN.equals(role)) return;
-        if (RoleConstants.SHIPPER.equals(role)) {
-            requireAssignedShipper(delivery, principalId, legacyUserId, role);
-            return;
-        }
-        if (RoleConstants.USER.equals(role)
-                && ((delivery.getCustomerPrincipalId() != null && delivery.getCustomerPrincipalId().equals(principalId))
-                    || (delivery.getCustomerPrincipalId() == null && delivery.getCreatorId().equals(legacyUserId)))) {
-            return;
-        }
-        if (RoleConstants.RESTAURANT_OWNER.equals(role)
-                && ((delivery.getRestaurantOwnerPrincipalId() != null
-                        && delivery.getRestaurantOwnerPrincipalId().equals(principalId))
-                    || (delivery.getRestaurantOwnerPrincipalId() == null
-                        && delivery.getRestaurantOwnerId() != null
-                        && delivery.getRestaurantOwnerId().equals(legacyUserId)))) {
-            return;
-        }
-        throw new AccessDeniedException("Bạn không có quyền xem sự cố giao hàng");
+        policy(() -> DeliveryAccessPolicy.requireViewer(viewer(role), principalId, legacyUserId,
+                delivery.getCustomerPrincipalId(), delivery.getCreatorId(), delivery.getRestaurantOwnerPrincipalId(),
+                delivery.getRestaurantOwnerId(), () -> requireAssignedShipper(delivery, principalId, legacyUserId, role),
+                "Bạn không có quyền xem sự cố giao hàng"));
     }
 
     private void requirePostPickup(Delivery delivery) {
-        if (delivery.getStatus() != DeliveryStatus.PICKED_UP && delivery.getStatus() != DeliveryStatus.DELIVERING) {
-            throw new InvalidStatusException("Chỉ có thể báo sự cố sau khi đã lấy hàng");
-        }
+        policy(() -> DeliveryExceptionPolicy.requirePostPickup(domain(delivery.getStatus())));
     }
 
     private String requireReason(String reason) {
-        if (reason == null || reason.trim().isEmpty() || reason.trim().length() > 500) {
-            throw new InvalidStatusException("Lý do sự cố là bắt buộc và không quá 500 ký tự");
-        }
-        return reason.trim();
+        return decision(() -> DeliveryExceptionPolicy.requireReason(reason));
     }
 
     private void requireEnabled() {
-        if (!exceptionEnabled) throw new InvalidStatusException("Luồng sự cố giao hàng chưa được bật");
+        policy(() -> DeliveryExceptionPolicy.requireEnabled(exceptionEnabled));
     }
 
     private DeliveryExceptionReportedEvent toReportedEvent(Delivery delivery, DeliveryException exceptionCase) {
@@ -339,16 +279,9 @@ public class DeliveryExceptionService {
         // discount delta. customerShippingFee is already net of freeship and
         // itemDiscount already includes shop-funded item discounts, so using
         // either together with their component discounts double-counts them.
-        BigDecimal shipping = delivery.getGrossShippingFee() == null
-                ? delivery.getShippingFee() : delivery.getGrossShippingFee();
+        BigDecimal shipping = DeliveryExceptionPolicy.shippingSnapshot(delivery.getGrossShippingFee(), delivery.getShippingFee());
         BigDecimal total = delivery.getTotalPrice();
-        BigDecimal discount = subtotal == null || shipping == null || total == null
-                ? null : subtotal.add(shipping).subtract(total);
-        if (subtotal == null || shipping == null || total == null
-                || subtotal.signum() < 0 || shipping.signum() < 0 || total.signum() <= 0
-                || discount.signum() < 0) {
-            throw new InvalidStatusException("Sự cố giao hàng cần snapshot tiền tệ bất biến hợp lệ");
-        }
+        BigDecimal discount = decision(() -> DeliveryExceptionPolicy.requireMoneySnapshot(subtotal, shipping, total));
         UUID eventId = UUID.nameUUIDFromBytes(("delivery-exception-reported:" + exceptionCase.getExceptionId())
                 .getBytes(java.nio.charset.StandardCharsets.UTF_8));
         return DeliveryExceptionReportedEvent.builder()

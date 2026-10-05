@@ -1,5 +1,8 @@
 package com.delivery.delivery_service.service;
 
+import com.delivery.delivery.domain.BatchDecisionPolicy;
+import static com.delivery.delivery_service.service.DeliveryPolicyAdapter.*;
+
 import com.delivery.delivery_service.common.constants.KafkaTopicConstants;
 import com.delivery.delivery_service.common.constants.RoleConstants;
 import com.delivery.delivery_service.entity.Delivery;
@@ -79,7 +82,7 @@ public class DeliveryBatchLifecycleService {
 
     @Transactional
     public void retire(DeliveryBatch batch) {
-        if (batch == null || batch.getStatus() != DeliveryBatchStatus.OFFERED) return;
+        if (!BatchDecisionPolicy.retire(batch != null, batch == null ? null : domain(batch.getStatus()))) return;
         List<DeliveryBatchItem> items = itemRepository.findByBatchIdOrderByPickupSequenceAsc(batch.getBatchId());
         List<Long> deliveryIds = new java.util.ArrayList<>();
         List<String> sessions = new java.util.ArrayList<>();
@@ -88,7 +91,7 @@ public class DeliveryBatchLifecycleService {
                     .orElseThrow(() -> new InvalidStatusException("Batch delivery disappeared"));
             deliveryIds.add(delivery.getId());
             sessions.add(delivery.getOfferedMatchingSessionId() == null ? "" : delivery.getOfferedMatchingSessionId());
-            if (delivery.getBatchId() != null && delivery.getBatchId().equals(batch.getBatchId())) {
+            if (BatchDecisionPolicy.belongsToBatch(delivery.getBatchId(), batch.getBatchId())) {
                 delivery.setBatchId(null);
                 delivery.setBatchSequence(null);
                 delivery.setOfferedShipperId(null);
@@ -112,17 +115,13 @@ public class DeliveryBatchLifecycleService {
 
     @Transactional
     public void reject(UUID batchId, Long shipperId, String role, String reason) {
-        if (!batchEnabled) throw new InvalidStatusException("Delivery batch dispatch is disabled");
-        if (!RoleConstants.SHIPPER.equals(role) || shipperId == null || shipperId <= 0 || batchId == null) {
-            throw new com.delivery.delivery_service.exception.AccessDeniedException("Chỉ shipper mới có thể từ chối batch");
-        }
-        if (reason == null || reason.isBlank()) throw new InvalidStatusException("Batch reject reason is required");
+        policy(() -> BatchDecisionPolicy.requireEnabled(batchEnabled));
+        policy(() -> BatchDecisionPolicy.requireRejectActor(RoleConstants.SHIPPER.equals(role), shipperId, batchId));
+        policy(() -> BatchDecisionPolicy.requireRejectReason(reason));
         DeliveryBatch batch = batchRepository.findByIdForUpdate(batchId)
                 .orElseThrow(() -> new InvalidStatusException("Không tìm thấy batch offer"));
-        if (!shipperId.equals(batch.getShipperId())) {
-            throw new com.delivery.delivery_service.exception.AccessDeniedException("Batch không thuộc shipper này");
-        }
-        if (batch.getStatus() != DeliveryBatchStatus.OFFERED) return;
+        policy(() -> BatchDecisionPolicy.requireOwner(shipperId, batch.getShipperId()));
+        if (!BatchDecisionPolicy.retire(true, domain(batch.getStatus()))) return;
         retire(batch);
     }
 
@@ -133,27 +132,18 @@ public class DeliveryBatchLifecycleService {
      */
     @Transactional
     public Delivery cancelAcceptedBatch(UUID batchId, Long shipperId, String reason) {
-        if (!batchEnabled) throw new InvalidStatusException("Delivery batch dispatch is disabled");
-        if (batchId == null || shipperId == null || shipperId <= 0) {
-            throw new InvalidStatusException("Batch and shipper are required");
-        }
+        policy(() -> BatchDecisionPolicy.requireEnabled(batchEnabled));
+        policy(() -> BatchDecisionPolicy.requireCancelRequest(batchId, shipperId));
         DeliveryBatch batch = batchRepository.findByIdForUpdate(batchId)
                 .orElseThrow(() -> new InvalidStatusException("Không tìm thấy batch đang hoạt động"));
-        if (!shipperId.equals(batch.getShipperId())) {
-            throw new com.delivery.delivery_service.exception.AccessDeniedException("Batch không thuộc shipper này");
-        }
-        if (batch.getStatus() != DeliveryBatchStatus.ACCEPTED) {
-            throw new InvalidStatusException("Chỉ có thể huỷ batch trước khi pickup");
-        }
+        policy(() -> BatchDecisionPolicy.requireOwner(shipperId, batch.getShipperId()));
+        policy(() -> BatchDecisionPolicy.requireAccepted(domain(batch.getStatus())));
 
         List<DeliveryBatchItem> items = itemRepository.findByBatchIdOrderByPickupSequenceAsc(batchId);
         List<Delivery> deliveries = items.stream().map(item -> deliveryRepository.findByIdForUpdate(item.getDeliveryId())
                 .orElseThrow(() -> new InvalidStatusException("Batch delivery không tồn tại"))).toList();
-        if (deliveries.isEmpty() || deliveries.stream().anyMatch(delivery ->
-                !DeliveryStatus.ASSIGNED.equals(delivery.getStatus())
-                        || !shipperId.equals(delivery.getShipperId()))) {
-            throw new InvalidStatusException("Batch chỉ có thể huỷ trước khi pickup toàn bộ item");
-        }
+        policy(() -> BatchDecisionPolicy.requireCancellable(deliveries.stream().map(delivery ->
+                new BatchDecisionPolicy.Assignment(domain(delivery.getStatus()), delivery.getShipperId())).toList(), shipperId));
 
         LocalDateTime now = LocalDateTime.now();
         List<Long> deliveryIds = new java.util.ArrayList<>();
@@ -167,7 +157,7 @@ public class DeliveryBatchLifecycleService {
             delivery.setOfferedShipperId(shipperId);
             delivery.setOfferExpiresAt(null);
             delivery.setStatus(DeliveryStatus.FINDING_SHIPPER);
-            delivery.setRejectReason(reason == null || reason.isBlank() ? "Batch cancelled by shipper" : reason);
+            delivery.setRejectReason(BatchDecisionPolicy.cancellationReason(reason));
             delivery.setUpdatedAt(now);
             deliveryRepository.save(delivery);
             eventPublisher.publishShipperStatusChange(shipperId, "AVAILABLE", delivery.getId(),
@@ -223,6 +213,6 @@ public class DeliveryBatchLifecycleService {
     }
 
     private int batchWaveForNext(DeliveryBatch batch) {
-        return Math.max(1, batch.getWaveNumber() + 1);
+        return BatchDecisionPolicy.nextWave(batch.getWaveNumber());
     }
 }

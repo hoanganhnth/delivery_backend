@@ -1,7 +1,7 @@
 package com.delivery.delivery.domain;
 
 import com.delivery.delivery.domain.ProofOfDeliveryPolicy.Confirmation;
-import com.delivery.delivery.domain.ProofOfDeliveryPolicy.Viewer;
+import com.delivery.delivery.domain.DeliveryAccessPolicy.Viewer;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;

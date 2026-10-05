@@ -1,5 +1,6 @@
 package com.delivery.delivery_service.service;
 
+import com.delivery.delivery.domain.DeliveryAccessPolicy;
 import com.delivery.delivery.domain.OfferDecisionRejected;
 import com.delivery.delivery.domain.ProofOfDeliveryPolicy;
 import com.delivery.delivery_service.common.constants.RoleConstants;
@@ -229,11 +230,11 @@ public class DeliveryProofOfDeliveryService {
     }
 
     private void requireViewer(Delivery delivery, Long principalId, Long legacyUserId, String role) {
-        ProofOfDeliveryPolicy.Viewer viewer = RoleConstants.ADMIN.equals(role) ? ProofOfDeliveryPolicy.Viewer.ADMIN
-                : RoleConstants.SHIPPER.equals(role) ? ProofOfDeliveryPolicy.Viewer.SHIPPER
-                : RoleConstants.USER.equals(role) ? ProofOfDeliveryPolicy.Viewer.CUSTOMER
-                : RoleConstants.RESTAURANT_OWNER.equals(role) ? ProofOfDeliveryPolicy.Viewer.RESTAURANT_OWNER
-                : ProofOfDeliveryPolicy.Viewer.OTHER;
+        DeliveryAccessPolicy.Viewer viewer = RoleConstants.ADMIN.equals(role) ? DeliveryAccessPolicy.Viewer.ADMIN
+                : RoleConstants.SHIPPER.equals(role) ? DeliveryAccessPolicy.Viewer.SHIPPER
+                : RoleConstants.USER.equals(role) ? DeliveryAccessPolicy.Viewer.CUSTOMER
+                : RoleConstants.RESTAURANT_OWNER.equals(role) ? DeliveryAccessPolicy.Viewer.RESTAURANT_OWNER
+                : DeliveryAccessPolicy.Viewer.OTHER;
         policy(() -> ProofOfDeliveryPolicy.requireViewer(viewer, principalId, legacyUserId,
                 delivery.getCustomerPrincipalId(), delivery.getCreatorId(),
                 delivery.getRestaurantOwnerPrincipalId(), delivery.getRestaurantOwnerId(),

@@ -1,5 +1,8 @@
 package com.delivery.delivery_service.service;
 
+import com.delivery.delivery.domain.BatchProgressPolicy;
+import static com.delivery.delivery_service.service.DeliveryPolicyAdapter.domain;
+
 import com.delivery.delivery_service.entity.Delivery;
 import com.delivery.delivery_service.entity.DeliveryBatch;
 import com.delivery.delivery_service.entity.DeliveryBatchItem;
@@ -35,12 +38,11 @@ public class DeliveryBatchProgressService {
 
     @Transactional
     public boolean apply(Delivery delivery, DeliveryStatus deliveryStatus) {
-        if (delivery == null || delivery.getBatchId() == null || delivery.getId() == null
-                || deliveryStatus == null) return true;
+        if (BatchProgressPolicy.unscoped(delivery != null, delivery == null ? null : delivery.getBatchId(),
+                delivery == null ? null : delivery.getId(), deliveryStatus != null)) return true;
 
         DeliveryBatch batch = batchRepository.findByIdForUpdate(delivery.getBatchId()).orElse(null);
-        if (batch == null || batch.getStatus() == DeliveryBatchStatus.RETIRED
-                || batch.getStatus() == DeliveryBatchStatus.CANCELLED) return true;
+        if (BatchProgressPolicy.inactive(batch != null, batch == null ? null : domain(batch.getStatus()))) return true;
         DeliveryBatchItem item = itemRepository.findByBatchIdAndDeliveryIdForUpdate(
                 delivery.getBatchId(), delivery.getId()).orElse(null);
         if (item == null) return true;
@@ -53,52 +55,47 @@ public class DeliveryBatchProgressService {
 
         java.util.List<DeliveryBatchItem> items = itemRepository
                 .findByBatchIdOrderByPickupSequenceAsc(delivery.getBatchId());
-        boolean allTerminal = !items.isEmpty() && items.stream()
-                .allMatch(candidate -> candidate.getItemStatus() == DeliveryBatchItemStatus.DELIVERED
-                        || candidate.getItemStatus() == DeliveryBatchItemStatus.RETURNED);
-        boolean newlyCompleted = allTerminal && batch.getStatus() != DeliveryBatchStatus.COMPLETED;
-        if (allTerminal) {
+        BatchProgressPolicy.Progress progress = BatchProgressPolicy.onProgress(
+                items.stream().map(candidate -> domain(candidate.getItemStatus())).toList(), domain(batch.getStatus()), domain(deliveryStatus));
+        boolean terminal = progress.allTerminal();
+        boolean newlyCompleted = progress.newlyCompleted();
+        if (terminal) {
             batch.setStatus(DeliveryBatchStatus.COMPLETED);
             batch.setCompletedAt(LocalDateTime.now());
-        } else if (deliveryStatus == DeliveryStatus.DELIVERING
-                || deliveryStatus == DeliveryStatus.DELIVERED) {
-            batch.setStatus(DeliveryBatchStatus.DELIVERING);
-        } else if (deliveryStatus == DeliveryStatus.PICKED_UP) {
-            batch.setStatus(DeliveryBatchStatus.PICKED_UP);
+        } else {
+            batch.setStatus(progress.nextStatus() == null ? null : DeliveryBatchStatus.valueOf(progress.nextStatus().name()));
         }
         batch.setUpdatedAt(LocalDateTime.now());
         batchRepository.save(batch);
         if (newlyCompleted) publishBatchCompleted(batch, items);
-        return allTerminal;
+        return terminal;
     }
 
     /** Keeps a batch route reserved while one post-pickup item is returning. */
     @Transactional
     public boolean applyExceptionReturn(Delivery delivery, boolean returned) {
-        if (delivery == null || delivery.getBatchId() == null || delivery.getId() == null) return true;
+        if (BatchProgressPolicy.unscoped(delivery != null, delivery == null ? null : delivery.getBatchId(),
+                delivery == null ? null : delivery.getId(), true)) return true;
         DeliveryBatch batch = batchRepository.findByIdForUpdate(delivery.getBatchId()).orElse(null);
-        if (batch == null || batch.getStatus() == DeliveryBatchStatus.RETIRED
-                || batch.getStatus() == DeliveryBatchStatus.CANCELLED) return true;
+        if (BatchProgressPolicy.inactive(batch != null, batch == null ? null : domain(batch.getStatus()))) return true;
         DeliveryBatchItem item = itemRepository.findByBatchIdAndDeliveryIdForUpdate(
                 delivery.getBatchId(), delivery.getId()).orElse(null);
         if (item == null) return true;
-        item.setItemStatus(returned ? DeliveryBatchItemStatus.RETURNED : DeliveryBatchItemStatus.RETURNING);
+        item.setItemStatus(DeliveryBatchItemStatus.valueOf(BatchProgressPolicy.returnStatus(returned).name()));
         item.setUpdatedAt(LocalDateTime.now());
         itemRepository.save(item);
 
         java.util.List<DeliveryBatchItem> items = itemRepository
                 .findByBatchIdOrderByPickupSequenceAsc(delivery.getBatchId());
-        boolean allTerminal = !items.isEmpty() && items.stream()
-                .allMatch(candidate -> candidate.getItemStatus() == DeliveryBatchItemStatus.DELIVERED
-                        || candidate.getItemStatus() == DeliveryBatchItemStatus.RETURNED);
-        boolean newlyCompleted = allTerminal && batch.getStatus() != DeliveryBatchStatus.COMPLETED;
+        BatchProgressPolicy.Progress progress = BatchProgressPolicy.onReturn(
+                items.stream().map(candidate -> domain(candidate.getItemStatus())).toList(), domain(batch.getStatus()), returned);
+        boolean allTerminal = progress.allTerminal();
+        boolean newlyCompleted = progress.newlyCompleted();
         if (allTerminal) {
             batch.setStatus(DeliveryBatchStatus.COMPLETED);
             batch.setCompletedAt(LocalDateTime.now());
-        } else if (!returned) {
-            // The batch aggregate stays active; its item projection carries the
-            // explicit RETURNING fact without introducing a legacy batch status.
-            batch.setStatus(DeliveryBatchStatus.DELIVERING);
+        } else {
+            batch.setStatus(progress.nextStatus() == null ? null : DeliveryBatchStatus.valueOf(progress.nextStatus().name()));
         }
         batch.setUpdatedAt(LocalDateTime.now());
         batchRepository.save(batch);
@@ -128,14 +125,7 @@ public class DeliveryBatchProgressService {
     }
 
     private DeliveryBatchItemStatus itemStatusFor(DeliveryStatus status) {
-        return switch (status) {
-            case PICKED_UP -> DeliveryBatchItemStatus.PICKED_UP;
-            case DELIVERING -> DeliveryBatchItemStatus.DELIVERING;
-            case DELIVERED -> DeliveryBatchItemStatus.DELIVERED;
-            case RETURNING -> DeliveryBatchItemStatus.RETURNING;
-            case RETURNED -> DeliveryBatchItemStatus.RETURNED;
-            case CANCELLED -> DeliveryBatchItemStatus.CANCELLED;
-            default -> null;
-        };
+        var next = BatchProgressPolicy.itemStatusFor(domain(status));
+        return next == null ? null : DeliveryBatchItemStatus.valueOf(next.name());
     }
 }

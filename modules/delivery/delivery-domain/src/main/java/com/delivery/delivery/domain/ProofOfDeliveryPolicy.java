@@ -88,37 +88,10 @@ public final class ProofOfDeliveryPolicy {
         }
     }
 
-    public enum Viewer { ADMIN, SHIPPER, CUSTOMER, RESTAURANT_OWNER, OTHER }
-
-    /**
-     * @param assignedShipperCheck evaluated only for a SHIPPER viewer; must throw when not assigned
-     */
-    public static void requireViewer(Viewer viewer, Long principalId, Long legacyUserId,
+    public static void requireViewer(DeliveryAccessPolicy.Viewer viewer, Long principalId, Long legacyUserId,
                                      Long customerPrincipalId, Long creatorId,
                                      Long ownerPrincipalId, Long ownerLegacyId, Runnable assignedShipperCheck) {
-        switch (viewer) {
-            case ADMIN -> {
-                return;
-            }
-            case SHIPPER -> {
-                assignedShipperCheck.run();
-                return;
-            }
-            case CUSTOMER -> {
-                if ((customerPrincipalId != null && customerPrincipalId.equals(principalId))
-                        || (customerPrincipalId == null && creatorId.equals(legacyUserId))) {
-                    return;
-                }
-            }
-            case RESTAURANT_OWNER -> {
-                if ((ownerPrincipalId != null && ownerPrincipalId.equals(principalId))
-                        || (ownerPrincipalId == null && ownerLegacyId != null && ownerLegacyId.equals(legacyUserId))) {
-                    return;
-                }
-            }
-            default -> {
-            }
-        }
-        throw new OfferDecisionRejected(ACCESS_DENIED, "Bạn không có quyền xem bằng chứng giao hàng");
+        DeliveryAccessPolicy.requireViewer(viewer, principalId, legacyUserId, customerPrincipalId, creatorId,
+                ownerPrincipalId, ownerLegacyId, assignedShipperCheck, "Bạn không có quyền xem bằng chứng giao hàng");
     }
 }
