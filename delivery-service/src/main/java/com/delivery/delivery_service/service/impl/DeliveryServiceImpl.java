@@ -4,6 +4,7 @@ import com.delivery.delivery.domain.CancellationPolicy;
 import com.delivery.delivery.domain.OfferDecisionPolicy;
 import com.delivery.delivery.domain.OfferDecisionRejected;
 import com.delivery.delivery.domain.OfferPersistencePolicy;
+import com.delivery.delivery.domain.ShipperProgressPolicy;
 import com.delivery.delivery_service.common.constants.KafkaTopicConstants;
 import com.delivery.delivery_service.common.constants.RoleConstants;
 import com.delivery.delivery_service.dto.event.ShipperAcceptedEvent;
@@ -711,18 +712,26 @@ public class DeliveryServiceImpl implements DeliveryService {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Không tìm thấy thông tin giao hàng với ID: " + deliveryId));
 
-        validateShipperStatusUpdatePermission(delivery, userId, role);
-        requireShipperStatusTarget(status);
-
+        com.delivery.delivery.domain.DeliveryStatus requested = status == null
+                ? null : com.delivery.delivery.domain.DeliveryStatus.valueOf(status.name());
+        ShipperProgressPolicy.Progress progress;
+        try {
+            ShipperProgressPolicy.requireAssignedShipper(RoleConstants.SHIPPER.equals(role), userId,
+                    delivery.getShipperId());
+            ShipperProgressPolicy.requireShipperTarget(requested);
+            progress = ShipperProgressPolicy.decide(domainStatus(delivery), requested,
+                    value -> DeliveryStatus.valueOf(value.name()).getDescription());
+        } catch (OfferDecisionRejected rejected) {
+            throw offerDecisionFailure(rejected);
+        }
         // A client may retry after the first transaction committed but before it
         // received the response. Return the persisted state without duplicating
         // status/completion outbox events.
-        if (status.equals(delivery.getStatus())) {
+        if (progress == ShipperProgressPolicy.Progress.REPLAY) {
             return deliveryMapper.deliveryToDeliveryResponse(delivery);
         }
 
-        requireNextShipperStatus(delivery.getStatus(), status);
-        if (status == DeliveryStatus.DELIVERED && deliveryProofGate != null) {
+        if (ShipperProgressPolicy.requiresProofGate(requested) && deliveryProofGate != null) {
             deliveryProofGate.assertTerminalHandoffAllowed(delivery.getId());
         }
 
@@ -737,7 +746,7 @@ public class DeliveryServiceImpl implements DeliveryService {
         }
         boolean batchCompleted = batchProgressService == null
                 || batchProgressService.apply(updatedDelivery, status);
-        if (status == DeliveryStatus.DELIVERED && updatedDelivery.getShipperId() != null && batchCompleted) {
+        if (ShipperProgressPolicy.releasesShipper(requested, updatedDelivery.getShipperId() != null, batchCompleted)) {
             if (updatedDelivery.getBatchId() == null) {
                 publishShipperStatusChange(
                         updatedDelivery.getShipperId(), "AVAILABLE", updatedDelivery.getId(), updatedDelivery.getOrderId(),
@@ -923,38 +932,6 @@ public class DeliveryServiceImpl implements DeliveryService {
             return;
         }
         throw new AccessDeniedException("Bạn không có quyền xem danh sách delivery này");
-    }
-
-    private void validateShipperStatusUpdatePermission(Delivery delivery, Long userId, String role) {
-        if (RoleConstants.SHIPPER.equals(role)
-                && userId != null
-                && userId.equals(delivery.getShipperId())) {
-            return;
-        }
-
-        throw new AccessDeniedException("Chỉ shipper được phân công mới có thể cập nhật trạng thái giao hàng");
-    }
-
-    private void requireShipperStatusTarget(DeliveryStatus status) {
-        if (status != DeliveryStatus.PICKED_UP
-                && status != DeliveryStatus.DELIVERING
-                && status != DeliveryStatus.DELIVERED) {
-            throw new InvalidStatusException(
-                    "Shipper chỉ có thể cập nhật PICKED_UP, DELIVERING hoặc DELIVERED");
-        }
-    }
-
-    private void requireNextShipperStatus(DeliveryStatus currentStatus, DeliveryStatus requestedStatus) {
-        DeliveryStatus expectedStatus = switch (currentStatus) {
-            case ASSIGNED -> DeliveryStatus.PICKED_UP;
-            case PICKED_UP -> DeliveryStatus.DELIVERING;
-            case DELIVERING -> DeliveryStatus.DELIVERED;
-            default -> null;
-        };
-        if (expectedStatus != requestedStatus) {
-            throw new InvalidStatusException("Không thể chuyển từ trạng thái " + currentStatus.getDescription()
-                    + " sang " + requestedStatus.getDescription());
-        }
     }
 
     private void applyShipperStatusTransition(Delivery delivery, DeliveryStatus status) {
