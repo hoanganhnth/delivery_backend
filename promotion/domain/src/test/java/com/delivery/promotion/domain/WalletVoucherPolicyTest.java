@@ -55,6 +55,26 @@ class WalletVoucherPolicyTest {
                 .isEqualTo("Voucher is not checkout-eligible");
     }
 
+    @Test
+    void collectionOutcomeRetainsShapeApprovalTimeAndGlobalQuotaPrecedence() {
+        var voucher = voucher();
+        voucher.setUsedQuantity(10); voucher.setStartTime(NOW.plusSeconds(1));
+        voucher.setActive(false); voucher.setDeletedAt(NOW);
+        assertThat(WalletVoucherPolicy.collectionUnavailableReason(voucher, NOW)).isEqualTo("Voucher is not checkout-eligible");
+        voucher.setDeletedAt(null);
+        assertThat(WalletVoucherPolicy.collectionUnavailableReason(voucher, NOW)).isEqualTo("Voucher is expired or inactive");
+        voucher.setActive(true); voucher.setApprovalStatus("PENDING");
+        assertThat(WalletVoucherPolicy.collectionUnavailableReason(voucher, NOW)).isEqualTo("Voucher is expired or inactive");
+        voucher.setApprovalStatus("APPROVED"); voucher.setEndTime(NOW.minusSeconds(1));
+        assertThat(WalletVoucherPolicy.collectionUnavailableReason(voucher, NOW)).isEqualTo("Voucher is expired or inactive");
+        voucher.setEndTime(NOW);
+        assertThat(WalletVoucherPolicy.collectionUnavailableReason(voucher, NOW)).isEqualTo("Voucher is not active yet");
+        voucher.setStartTime(null);
+        assertThat(WalletVoucherPolicy.collectionUnavailableReason(voucher, NOW)).isEqualTo("Voucher is out of stock");
+        voucher.setUsedQuantity(9);
+        assertThat(WalletVoucherPolicy.collectionUnavailableReason(voucher, NOW)).isNull();
+    }
+
     private TestVoucher voucher() {
         return TestVoucher.builder().id(11L).creatorType(TestVoucher.CreatorType.PLATFORM)
                 .rewardType(TestVoucher.RewardType.FIXED).discountValue(BigDecimal.ONE)

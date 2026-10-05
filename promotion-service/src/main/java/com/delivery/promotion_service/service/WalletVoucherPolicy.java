@@ -16,7 +16,9 @@ final class WalletVoucherPolicy {
     }
 
     static void requireCollectable(Voucher voucher, LocalDateTime now) {
-        com.delivery.promotion.domain.WalletVoucherPolicy.requireCollectable(VoucherDomainMapper.snapshot(voucher), now);
+        String failure = com.delivery.promotion.domain.WalletVoucherPolicy.collectionUnavailableReason(
+                VoucherDomainMapper.snapshot(voucher), now);
+        if (failure != null) throw new IllegalArgumentException(failure);
     }
 
     static String reservationUnavailableReason(Voucher voucher, Long restaurantId,

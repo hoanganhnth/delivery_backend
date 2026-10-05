@@ -44,18 +44,24 @@ public final class WalletVoucherPolicy {
     }
 
     public static void requireCollectable(Voucher voucher, LocalDateTime now) {
+        String failure = collectionUnavailableReason(voucher, now);
+        if (failure != null) throw new IllegalArgumentException(failure);
+    }
+
+    public static String collectionUnavailableReason(Voucher voucher, LocalDateTime now) {
         if (!isCheckoutEligible(voucher)) {
-            throw new IllegalArgumentException("Voucher is not checkout-eligible");
+            return "Voucher is not checkout-eligible";
         }
         if (!isApproved(voucher) || !Boolean.TRUE.equals(voucher.getActive()) || voucher.getEndTime().isBefore(now)) {
-            throw new IllegalArgumentException("Voucher is expired or inactive");
+            return "Voucher is expired or inactive";
         }
         if (voucher.getStartTime() != null && now.isBefore(voucher.getStartTime())) {
-            throw new IllegalArgumentException("Voucher is not active yet");
+            return "Voucher is not active yet";
         }
         if (voucher.getUsedQuantity() >= voucher.getTotalQuantity()) {
-            throw new IllegalArgumentException("Voucher is out of stock");
+            return "Voucher is out of stock";
         }
+        return null;
     }
 
     public static String reservationUnavailableReason(Voucher voucher, Long restaurantId,

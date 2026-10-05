@@ -9,59 +9,44 @@ final class VoucherLifecyclePolicy {
     private VoucherLifecyclePolicy() {}
 
     static void approve(Voucher voucher, Long actor, LocalDateTime now) {
-        requirePendingShop(voucher);
-        voucher.setApprovalStatus("APPROVED");
+        var outcome = checked(com.delivery.promotion.domain.VoucherLifecyclePolicy.approve(VoucherDomainMapper.snapshot(voucher)));
+        voucher.setApprovalStatus(outcome.approvalStatus());
         voucher.setApprovedByPrincipalId(actor);
         voucher.setApprovedAt(now);
         voucher.setRejectionReason(null);
-        voucher.setActive(true);
+        voucher.setActive(outcome.active());
     }
 
     static void reject(Voucher voucher, Long actor, String reason, LocalDateTime now) {
-        requirePendingShop(voucher);
-        voucher.setApprovalStatus("REJECTED");
+        var outcome = checked(com.delivery.promotion.domain.VoucherLifecyclePolicy.reject(VoucherDomainMapper.snapshot(voucher), reason));
+        voucher.setApprovalStatus(outcome.approvalStatus());
         voucher.setApprovedByPrincipalId(actor);
         voucher.setApprovedAt(now);
-        voucher.setRejectionReason(normalizedReason(reason, "Rejected by admin"));
-        voucher.setActive(false);
+        voucher.setRejectionReason(outcome.reason());
+        voucher.setActive(outcome.active());
     }
 
     static void setActive(Voucher voucher, boolean active) {
-        if (active) {
-            requireNotDeleted(voucher);
-            if (!WalletVoucherPolicy.isApproved(voucher)) {
-                throw new PromotionConflictException("Voucher is not approved");
-            }
-        }
-        voucher.setActive(active);
+        var outcome = checked(com.delivery.promotion.domain.VoucherLifecyclePolicy.setActive(VoucherDomainMapper.snapshot(voucher), active));
+        voucher.setActive(outcome.active());
     }
 
     static boolean retire(Voucher voucher, Long actor, String reason, LocalDateTime now) {
-        if (voucher.getDeletedAt() != null) return false;
-        voucher.setActive(false);
+        var outcome = checked(com.delivery.promotion.domain.VoucherLifecyclePolicy.retire(VoucherDomainMapper.snapshot(voucher), reason));
+        if (!outcome.changed()) return false;
+        voucher.setActive(outcome.active());
         voucher.setDeletedAt(now);
         voucher.setDeletedByPrincipalId(actor);
-        voucher.setDeletionReason(normalizedReason(reason, "deleted_by_request"));
+        voucher.setDeletionReason(outcome.reason());
         return true;
     }
 
-    private static void requirePendingShop(Voucher voucher) {
-        requireNotDeleted(voucher);
-        if (voucher.getCreatorType() != Voucher.CreatorType.SHOP) {
-            throw new IllegalArgumentException("Only shop vouchers require approval");
+    private static com.delivery.promotion.domain.VoucherLifecyclePolicy.Outcome checked(
+            com.delivery.promotion.domain.VoucherLifecyclePolicy.Outcome outcome) {
+        if (outcome.failure() != null) {
+            if (outcome.conflict()) throw new PromotionConflictException(outcome.failure());
+            throw new IllegalArgumentException(outcome.failure());
         }
-        if (!"PENDING".equalsIgnoreCase(voucher.getApprovalStatus())) {
-            throw new PromotionConflictException("Voucher is not pending approval");
-        }
-    }
-
-    private static void requireNotDeleted(Voucher voucher) {
-        if (voucher.getDeletedAt() != null) {
-            throw new PromotionConflictException("Deleted voucher cannot be activated");
-        }
-    }
-
-    private static String normalizedReason(String reason, String fallback) {
-        return reason == null || reason.isBlank() ? fallback : reason.trim();
+        return outcome;
     }
 }

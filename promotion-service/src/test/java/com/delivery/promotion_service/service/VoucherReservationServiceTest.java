@@ -87,6 +87,50 @@ class VoucherReservationServiceTest {
     }
 
     @Test
+    void legacyClaimPreservesStatusOnlyFenceAndIgnoresBulkCounters() {
+        var request = request(); var wallet = wallet(); var voucher = voucher();
+        wallet.setUsedCount(5); wallet.setReservedCount(5); voucher.setUsageLimitPerUser(1);
+        when(userVoucherRepository.findByUserIdAndVoucherIdForUpdate(7L, 11L)).thenReturn(Optional.of(wallet));
+        when(voucherRepository.findByIdForUpdate(11L)).thenReturn(Optional.of(voucher));
+        when(reservationRepository.saveAndFlush(any())).thenAnswer(call -> call.getArgument(0));
+        service.reserveVoucher(request);
+        var order = org.mockito.Mockito.inOrder(reservationRepository, userVoucherRepository, voucherRepository, outboxService);
+        order.verify(reservationRepository).findById(request.getReservationId());
+        order.verify(reservationRepository).findByOrderId(request.getOrderId());
+        order.verify(userVoucherRepository).findByUserIdAndVoucherIdForUpdate(7L, 11L);
+        order.verify(voucherRepository).findByIdForUpdate(11L);
+        order.verify(reservationRepository).saveAndFlush(any()); order.verify(outboxService).enqueue(any(VoucherReservation.class));
+        assertThat(wallet.getUsedCount()).isEqualTo(5); assertThat(wallet.getReservedCount()).isEqualTo(5);
+        assertThat(voucher.getUsedQuantity()).isEqualTo(1);
+    }
+
+    @Test
+    void bulkClaimChecksWalletStatusBeforeVoucherLockAndCapacityBeforeGlobalEligibility() {
+        var wallet = wallet(); var voucher = voucher();
+        var request = BulkReserveRequest.builder().reservationId(UUID.randomUUID()).orderId(101L)
+                .userId(7L).restaurantId(9L).subtotal(BigDecimal.TEN).grossShippingFee(BigDecimal.ZERO)
+                .voucherIds(List.of(11L)).build();
+        when(userVoucherRepository.findByUserIdAndVoucherIdForUpdate(7L, 11L)).thenReturn(Optional.of(wallet));
+        wallet.setStatus(UserVoucher.Status.USED);
+        assertThatThrownBy(() -> service.reserveVouchers(request)).isExactlyInstanceOf(PromotionConflictException.class)
+                .hasMessage("Voucher is already reserved or used");
+        verify(voucherRepository, never()).findByIdForUpdate(any());
+        org.mockito.Mockito.clearInvocations(userVoucherRepository, promotionReservationRepository);
+        wallet.setStatus(UserVoucher.Status.SAVED); wallet.setUsedCount(1); wallet.setReservedCount(1);
+        voucher.setUsageLimitPerUser(2); voucher.setUsedQuantity(voucher.getTotalQuantity()); voucher.setActive(false);
+        when(voucherRepository.findByIdForUpdate(11L)).thenReturn(Optional.of(voucher));
+        assertThatThrownBy(() -> service.reserveVouchers(request)).isExactlyInstanceOf(PromotionConflictException.class)
+                .hasMessage("Voucher usage limit has been reached");
+        var order = org.mockito.Mockito.inOrder(promotionReservationRepository, userVoucherRepository, voucherRepository);
+        order.verify(promotionReservationRepository).findById(request.getReservationId());
+        order.verify(promotionReservationRepository).findByOrderId(101L);
+        order.verify(userVoucherRepository).findByUserIdAndVoucherIdForUpdate(7L,11L);
+        order.verify(voucherRepository).findByIdForUpdate(11L);
+        verify(promotionReservationRepository, never()).saveAndFlush(any());
+        org.mockito.Mockito.verifyNoInteractions(outboxService, promotionReservationLineRepository);
+    }
+
+    @Test
     void exactReplayIsNoOpButChangedPayloadIsRejected() {
         ReserveRequest request = request();
         VoucherReservation existing = reservation(request);

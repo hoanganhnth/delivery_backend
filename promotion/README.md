@@ -24,13 +24,15 @@ and ownership authority remains `docs/workflows/promotion_voucher_flow.md:3`.
 
 ## Ordered slices
 
-1. **Completed here:** standalone `promotion/domain` reactor before host; plain
+1. **Completed slice 1:** standalone `promotion/domain` reactor before host; plain
    voucher view/immutable snapshot, wallet eligibility, layer resolution,
    three-layer selection/pricing and separate legacy pricing; host mapping-only
    facades. No application-api/application is justified by this policy-only slice.
-2. Extract campaign creation and lifecycle decisions with explicit mutation
-   results; leave ownership HTTP, principal resolution and locked persistence
-   in the host. Do not reinterpret approval policy.
+2. **Completed slice 2:** campaign creation validation/defaults, lifecycle
+   outcomes, collection availability/duplicate decisions and claim status/per-user
+   limits now live in domain. Ownership HTTP, principal resolution, clocks,
+   audit mutation and locked persistence remain in the host. Approval policy is
+   unchanged.
 3. Extract legacy and bulk reservation transition/counter/replay policies with
    concurrency regressions before introducing transaction/use-case ports.
 4. Introduce application-api/application for collection, pricing, reservations
@@ -99,3 +101,57 @@ and ownership authority remains `docs/workflows/promotion_voucher_flow.md:3`.
   failure, and holds locks while waiting on Kafka. This existing recovery concern
   belongs to later runtime work, not the pricing extraction:
   `promotion-service/src/main/java/com/delivery/promotion_service/service/PromotionOutboxRelay.java:35`.
+
+## Slice 2 equivalence evidence
+
+Authority is the pre-extraction host behavior at `8774caa`,
+`docs/workflows/promotion_voucher_flow.md` and accepted decision 0004. No new
+commercial rules are introduced. `CampaignPolicy`, `VoucherLifecyclePolicy`
+and `WalletClaimPolicy` use only JDK production imports and return outcomes.
+Existing collection eligibility now also exposes an unavailable-reason outcome;
+its throwing domain compatibility method is retained. Host facades map outcomes
+to the existing exceptions and apply mutations.
+
+| Moved decision | Equivalence proof |
+| --- | --- |
+| Campaign request validation and defaults | `CampaignPolicyTest` covers every validation branch/message, compound-invalid check order, platform/shop/freeship defaults and untrimmed uppercase layer storage. Host test proves validation precedes code lookup, then normalized-code lookup precedes `saveAndFlush`; invalid-layer exception cause retains the host enum class name. |
+| Approval/rejection, activation and retirement | Domain tests cover every outcome branch, exact guard order (deleted, creator, pending), legacy null approval, reason normalization and retirement no-op. Existing host lifecycle tests retain audit/mutation assertions; added host tests prove locked lookup before save and no save on rejected outcomes. Activation deliberately adds no time/quota guard. Ownership-verified creation still saves PENDING first, then auto-approves and flushes again, without an admin actor. |
+| Collection availability and duplicate claims | Outcome tests preserve shape, approval/active/expiry, start, global-stock check order and inclusive collection end boundary. Both principal/legacy query rails, fallback metrics and unique-violation handling remain in host. Host regression proves voucher lookup, wallet lookup, flush order and duplicate no-save with identical conflict message. |
+| Claim status and per-user limit | Domain tests cover SAVED-only claim, null/negative counter normalization, null limit default of one, exact limit message and integer arithmetic. Host regression proves wallet status check before voucher lock, per-user capacity before global eligibility, replay lookups before wallet/voucher locks, and reservation flush before outbox. Legacy rail still uses status/global stock without the bulk per-user counters. |
+
+Validation for slice 2:
+
+- `mvn -B -pl :promotion-service -am clean verify`: BUILD SUCCESS; 275 tests
+  across the reactor (domain 123, host 121, upstream 31), zero failures/errors.
+  Log: `/tmp/promotion-slice2-final-verify.log`.
+- Ten Docker-only tests skipped because Testcontainers could not access a valid
+  Docker environment: `VoucherReservationPostgresConcurrencyTest` (4),
+  `PromotionOrderReservationReceiptPostgresConcurrencyTest` (3),
+  `PromotionReservationKafkaPostgresIntegrationTest` (3). No Docker proof is
+  claimed for this slice.
+- Domain JaCoCo: 383/394 lines (97.21%), 460/480 branches (95.83%); both 85%
+  gates pass unchanged. All three new policies have 100% line/branch coverage.
+- Temporary baseline oracle compiled pre-extraction host/domain sources beside
+  current classes: seed 20261005, 22,672 matching creation, lifecycle
+  result/mutation, capacity and collection outcomes, including exception
+  classes/messages/causes. Sources and result are at
+  `/tmp/promotion-slice2-oracle/`; no oracle code is shipped in production.
+- `git diff --check` passes. No git writes or plan edits.
+
+Slice 3 remains unimplemented: reservation transition/counter compatibility
+state, reservation fingerprint replay, Order receipt/event replay and refund
+compensation decisions remain in the host. Transactions, locks, repositories,
+outbox, Kafka, topics, flags and database code are unchanged. Slices 4–6 also
+remain as listed above.
+
+Additional pre-existing observations, preserved by regression tests:
+
+- The legacy reservation rail does not enforce bulk used/reserved counters or
+  the bulk per-user capacity limit. A SAVED row with exhausted bulk counters can
+  still reserve on that rail. This extraction does not align the two contracts.
+- Per-user capacity uses Java `int` addition; extreme counters can overflow the
+  sum and bypass the limit. Null/negative normalization and overflow behavior
+  are preserved rather than introducing a new data-repair policy.
+- Creation validates a trimmed layer but stores its untrimmed uppercase text;
+  this normalization asymmetry is retained. The existing end-time and stacking
+  payable-guard inconsistencies remain unchanged and regression-tested.
