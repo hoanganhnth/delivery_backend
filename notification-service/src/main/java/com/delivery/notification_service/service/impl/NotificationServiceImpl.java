@@ -2,7 +2,7 @@ package com.delivery.notification_service.service.impl;
 
 import com.delivery.notification_service.common.constants.NotificationConstants;
 import com.delivery.notification.domain.NotificationIntent;
-import com.delivery.notification.domain.NotificationMapping;
+import com.delivery.notification.application.EventNotifications;
 import com.delivery.notification.domain.ReplayPayload;
 import com.delivery.notification.application.DurableSend;
 import com.delivery.notification.application.Inbox;
@@ -258,8 +258,7 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Override
     public void sendOrderCreatedNotification(UUID eventId, Long userId, Long userPrincipalId, Long orderId, String restaurantName) {
-        sendNotification(toRequest(NotificationMapping.orderCreated(
-                eventId, userId, userPrincipalId, orderId, restaurantName)));
+        events().orderCreated(eventId, userId, userPrincipalId, orderId, restaurantName);
     }
 
     @Override
@@ -269,17 +268,20 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Override
     public void sendDeliveryStatusNotification(UUID eventId, Long userId, Long userPrincipalId, Long deliveryId, String status, String shipperName) {
-        sendNotification(toRequest(NotificationMapping.deliveryStatus(
-                eventId, userId, userPrincipalId, deliveryId, status, shipperName)));
+        events().deliveryStatus(eventId, userId, userPrincipalId, deliveryId, status, shipperName);
     }
 
     @Override
     public void sendShipperMatchFoundNotification(Long shipperId, Long orderId, String restaurantName,
             String pickupAddress, String deliveryAddress,
             Double distance, String offerEventId) {
-        sendNotification(toRequest(NotificationMapping.shipperOffer(shipperId, orderId, restaurantName,
-                pickupAddress, deliveryAddress, distance, offerEventId)));
+        events().shipperOffer(shipperId, orderId, restaurantName,
+                pickupAddress, deliveryAddress, distance, offerEventId);
         log.info("🎯 Sent match found notification to shipper {}", shipperId);
+    }
+
+    private EventNotifications events() {
+        return new EventNotifications(intent -> sendNotification(toRequest(intent)));
     }
 
     private SendNotificationRequest toRequest(NotificationIntent intent) {

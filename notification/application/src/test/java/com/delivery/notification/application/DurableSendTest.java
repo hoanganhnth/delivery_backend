@@ -53,6 +53,14 @@ class DurableSendTest {
             assertEquals(lookup ? List.of("find:key") : List.of("find:key", "commit"), f.calls);
         }
     }
+    @Test void pendingReplayCanChangePushChoiceWithoutChangingReplayIdentity() {
+        var f = new Fixture(); f.existing = Fixture.row("PENDING", PAYLOAD);
+        f.deliveryFailure = new IllegalStateException("retry");
+        assertThrows(IllegalStateException.class, () -> f.send("key", false));
+        f.deliveryFailure = null;
+        assertSame(f.existing.response(), f.send("key", true));
+        assertEquals(List.of("find:key", "deliver:9:false", "find:key", "deliver:9:true", "response"), f.calls);
+    }
     @Test void concurrentSentClaimStillPassesThroughCoordinator() {
         var f = new Fixture(); f.created = Fixture.row("SENT", PAYLOAD); f.send("key", true);
         assertEquals(List.of("find:key", "commit", "deliver:9:true", "response"), f.calls);

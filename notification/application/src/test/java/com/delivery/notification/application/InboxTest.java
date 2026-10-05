@@ -85,6 +85,23 @@ class InboxTest {
             f.rows.forEach(row -> {assertTrue(row.read); assertEquals(NOW,row.at);});
         }
     }
+    @Test void principalMarkAllStillLeavesThe101stUnreadWhileLegacyCanUpdateAll() {
+        var f = new Fixture() {
+            public List<Row> list(InboxActor actor, boolean unread, int limit) {
+                return rows.stream().filter(row -> !Boolean.TRUE.equals(row.read)).limit(limit).toList();
+            }
+            public long unreadCount(InboxActor actor) {
+                return rows.stream().filter(row -> !Boolean.TRUE.equals(row.read)).count();
+            }
+        };
+        for (int i = 0; i < 101; i++) f.rows.add(new Row(false));
+        assertEquals(101, f.inbox().unreadCount(PRINCIPAL));
+        assertEquals(100, f.inbox().markAllRead(PRINCIPAL));
+        assertEquals(1, f.inbox().unreadCount(PRINCIPAL));
+        assertFalse(f.rows.get(100).read);
+        // The existing legacy port uses unbounded SQL, rather than this capped list.
+        assertEquals(101, new Fixture().inbox().markAllRead(LEGACY));
+    }
     @Test void deleteAndMissingOwnershipStopAtCorrectBoundary() {
         for(InboxActor actor : List.of(LEGACY,PRINCIPAL,FALLBACK)) {
             var f=new Fixture(); f.inbox().delete(9L,actor);

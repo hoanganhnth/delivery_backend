@@ -2,6 +2,9 @@ package com.delivery.notification_service.listener;
 
 import com.delivery.notification_service.exception.NotificationConflictException;
 import com.delivery.notification_service.service.NotificationService;
+import com.delivery.notification.domain.EventIdentity;
+import com.delivery.notification.application.IncomingOffer;
+import com.delivery.notification.application.api.OfferEventPort;
 import com.delivery.delivery.contracts.ShipperFoundEvent;
 import com.delivery.identity.contracts.SimulationContext;
 import lombok.extern.slf4j.Slf4j;
@@ -48,59 +51,34 @@ public class MatchEventListener {
             Acknowledgment acknowledgment) {
 
         try {
-            if (event == null || event.availableShippers() == null || event.availableShippers().size() != 1) {
-                throw new IllegalArgumentException("Invalid single-shipper offer for delivery: "
-                        + (event == null ? null : event.deliveryId()));
-            }
-            if (event.eventId() == null) {
-                throw new IllegalArgumentException("Persisted shipper offer is missing eventId");
-            }
-            if (event.deliveryId() == null || event.deliveryId() <= 0
-                    || event.orderId() == null || event.orderId() <= 0) {
-                throw new IllegalArgumentException("Persisted shipper offer requires positive delivery/order IDs");
-            }
-            if (!hasText(event.restaurantName()) || !hasText(event.pickupAddress())
-                    || !hasText(event.deliveryAddress())) {
-                throw new IllegalArgumentException(
-                        "Persisted shipper offer requires canonical restaurant and address text");
-            }
-            ShipperFoundEvent.ShipperMatchResult selected = event.availableShippers().get(0);
-            if (selected.shipperId() == null || selected.shipperId() <= 0
-                    || selected.distanceKm() == null || !Double.isFinite(selected.distanceKm())
-                    || selected.distanceKm() < 0) {
-                throw new IllegalArgumentException("Persisted shipper offer has invalid shipper/distance identity");
-            }
-
-            SimulationContext context = SimulationContext.orReal(event.simulationContext());
-            context.requireValid();
-            if (context.isSimulation()) {
-                log.info("Skipping external shipper notification for simulation run {} delivery {}",
-                        context.runId(), event.deliveryId());
-                acknowledgment.acknowledge();
-                return;
-            }
-
-            log.info("📥 Received persisted shipper offer from topic '{}': deliveryId={}, orderId={}",
-                    topic, event.deliveryId(), event.orderId());
-
-            // The persisted-offer contract contains exactly one shipper.
-            for (ShipperFoundEvent.ShipperMatchResult shipper : event.availableShippers()) {
-                notificationService.sendShipperMatchFoundNotification(
-                            shipper.shipperId(),
-                            event.orderId(),
-                            event.restaurantName(),
-                            event.pickupAddress(),
-                            event.deliveryAddress(),
-                            shipper.distanceKm(),
-                            event.eventId().toString()
-                    );
-
-                log.info("✅ Sent notification to shipper: {} for order: {} (distance: {}km)",
-                        shipper.shipperId(), event.orderId(), shipper.distanceKm());
-            }
-
-            log.info("✅ Successfully processed ShipperFoundEvent for delivery: {} - notified {} shippers", 
-                    event.deliveryId(), event.availableShippers().size());
+            var offer = event == null ? null : new EventIdentity.Offer(
+                    event.eventId(), event.deliveryId(), event.orderId(), event.restaurantName(),
+                    event.pickupAddress(), event.deliveryAddress(), event.availableShippers() == null ? null
+                            : event.availableShippers().stream().map(shipper -> shipper == null ? null
+                                    : new EventIdentity.SelectedShipper(shipper.shipperId(), shipper.distanceKm())).toList());
+            new IncomingOffer(new OfferEventPort() {
+                private SimulationContext context;
+                public void validateSimulationContext() {
+                    context = SimulationContext.orReal(event.simulationContext());
+                    context.requireValid();
+                }
+                public boolean isSimulation() {
+                    if (context.isSimulation()) log.info("Skipping external shipper notification for simulation run {} delivery {}",
+                            context.runId(), event.deliveryId());
+                    return context.isSimulation();
+                }
+                public void send(EventIdentity.Offer incoming, EventIdentity.SelectedShipper selected) {
+                    log.info("📥 Received persisted shipper offer from topic '{}': deliveryId={}, orderId={}",
+                            topic, incoming.deliveryId(), incoming.orderId());
+                    notificationService.sendShipperMatchFoundNotification(selected.shipperId(), incoming.orderId(),
+                            incoming.restaurantName(), incoming.pickupAddress(), incoming.deliveryAddress(),
+                            selected.distanceKm(), incoming.eventId().toString());
+                    log.info("✅ Sent notification to shipper: {} for order: {} (distance: {}km)",
+                            selected.shipperId(), incoming.orderId(), selected.distanceKm());
+                    log.info("✅ Successfully processed ShipperFoundEvent for delivery: {} - notified {} shippers",
+                            incoming.deliveryId(), incoming.shippers().size());
+                }
+            }).handle(offer);
 
             acknowledgment.acknowledge();
 
@@ -115,8 +93,4 @@ public class MatchEventListener {
         }
     }
 
-    private boolean hasText(String value) {
-        return value != null && !value.isBlank();
-    }
-    
 }

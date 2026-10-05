@@ -15,7 +15,9 @@ import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
-import java.util.Set;
+import com.delivery.notification.domain.EventIdentity;
+import com.delivery.notification.application.IncomingStatus;
+import com.delivery.notification.application.api.StatusEventPort;
 
 /**
  * ✅ Delivery Event Listener — nhận events từ Delivery Service qua Kafka
@@ -25,10 +27,6 @@ import java.util.Set;
 @Slf4j
 @Component
 public class DeliveryEventListener {
-
-    private static final Set<String> CANONICAL_STATUSES = Set.of(
-            "PENDING", "FINDING_SHIPPER", "WAIT_SHIPPER_CONFIRM", "SHIPPER_NOT_FOUND",
-            "ASSIGNED", "PICKED_UP", "DELIVERING", "DELIVERED", "RETURNING", "RETURNED", "CANCELLED");
 
     private final NotificationService notificationService;
     private final ObjectMapper objectMapper;
@@ -62,28 +60,18 @@ public class DeliveryEventListener {
 
         try {
             DeliveryStatusUpdatedEvent event = objectMapper.readValue(message, DeliveryStatusUpdatedEvent.class);
-            if (event.eventId() == null || event.deliveryId() == null || event.deliveryId() <= 0
-                    || event.orderId() == null || event.orderId() <= 0
-                    || event.userId() == null || event.userId() <= 0
-                    || event.status() == null || !CANONICAL_STATUSES.contains(event.status())) {
-                    throw new IllegalArgumentException(
-                        "stable eventId, positive delivery/order/user IDs and status are required");
-            }
-            SimulationContext.orReal(event.simulationContext()).requireValid();
-
-            log.info("📥 Received DeliveryStatusUpdatedEvent from topic '{}': deliveryId={}, orderId={}, userId={}, status={}",
-                    topic, event.deliveryId(), event.orderId(), event.userId(), event.status());
-
-            // Validate required fields
-            // Send delivery status notification to customer
-            notificationService.sendDeliveryStatusNotification(
-                    event.eventId(),
-                    event.userId(),
-                    event.userPrincipalId(),
-                    event.deliveryId(),
-                    event.status(),
-                    hasText(event.shipperName()) ? event.shipperName() : null
-            );
+            new IncomingStatus(new StatusEventPort() {
+                public void validateSimulationContext() {
+                    SimulationContext.orReal(event.simulationContext()).requireValid();
+                }
+                public void send(EventIdentity.Status status) {
+                    log.info("📥 Received DeliveryStatusUpdatedEvent from topic '{}': deliveryId={}, orderId={}, userId={}, status={}",
+                            topic, status.deliveryId(), status.orderId(), status.userId(), status.status());
+                    notificationService.sendDeliveryStatusNotification(status.eventId(), status.userId(),
+                            status.principalId(), status.deliveryId(), status.status(), status.shipperName());
+                }
+            }).handle(new EventIdentity.Status(event.eventId(), event.deliveryId(), event.orderId(), event.userId(),
+                    event.userPrincipalId(), event.status(), event.shipperName()));
 
             log.info("✅ Successfully processed DeliveryStatusUpdatedEvent for delivery: {}", event.deliveryId());
             acknowledgment.acknowledge();
@@ -99,7 +87,4 @@ public class DeliveryEventListener {
         }
     }
 
-    private boolean hasText(String value) {
-        return value != null && !value.isBlank();
-    }
 }

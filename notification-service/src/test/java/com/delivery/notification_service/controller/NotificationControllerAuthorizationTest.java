@@ -115,6 +115,22 @@ class NotificationControllerAuthorizationTest {
         verifyNoInteractions(preferences);
     }
 
+    @Test
+    void disabledOrAbsentPreferenceCapabilityStillAuthorizesActorBeforeIgnoringMalformedUpdate() {
+        var actor = new AuthenticatedActor(77L, 42L, "user@example.com", Set.of("USER"));
+        var preferences = mock(NotificationPreferenceService.class);
+        for (boolean present : new boolean[]{false, true}) {
+            var facade = new NotificationController(notificationService, "secret", present ? preferences : null, false);
+            assertThat(facade.updateMarketingPreference(null, actor).getStatusCode().value()).isEqualTo(503);
+            assertThrows(NotificationAccessDeniedException.class, () -> facade.getPreferences(null));
+            assertThrows(NotificationAccessDeniedException.class, () -> facade.updateMarketingPreference(null, null));
+        }
+        var absent = new NotificationController(notificationService, "secret", null, true);
+        assertThat(absent.getPreferences(actor).getStatusCode().value()).isEqualTo(503);
+        assertThat(absent.updateMarketingPreference(null, actor).getStatusCode().value()).isEqualTo(503);
+        verifyNoInteractions(preferences, notificationService);
+    }
+
     private SendNotificationRequest validRequest() {
         SendNotificationRequest request = new SendNotificationRequest();
         request.setUserId(42L);

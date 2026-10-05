@@ -19,7 +19,8 @@ import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
 
 import java.util.List;
-import com.delivery.notification.domain.NotificationPreferences;
+import com.delivery.notification.application.PreferenceAccess;
+import com.delivery.notification.application.api.PreferenceAccessPort;
 
 @Slf4j
 @RestController
@@ -134,9 +135,10 @@ public class NotificationController {
     public ResponseEntity<BaseResponse<NotificationPreferenceResponse>> getPreferences(
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireActor(actor);
-        if (!preferencesAvailable()) return preferenceCapabilityUnavailable();
+        var result = preferenceAccess().get(actor.getPrincipalId());
+        if (!result.available()) return preferenceCapabilityUnavailable();
         return ResponseEntity.ok(new BaseResponse<>(1,
-                notificationPreferenceService.getPreferences(actor.getPrincipalId()),
+                result.response(),
                 "Lấy cài đặt thông báo thành công"));
     }
 
@@ -145,15 +147,23 @@ public class NotificationController {
             @Valid @RequestBody UpdateMarketingNotificationPreferenceRequest request,
             @AuthenticationPrincipal AuthenticatedActor actor) {
         requireActor(actor);
-        if (!preferencesAvailable()) return preferenceCapabilityUnavailable();
+        var result = preferenceAccess().update(actor.getPrincipalId(), () -> request.getMarketingNotificationsEnabled());
+        if (!result.available()) return preferenceCapabilityUnavailable();
         return ResponseEntity.ok(new BaseResponse<>(1,
-                notificationPreferenceService.updateMarketingNotifications(
-                        actor.getPrincipalId(), request.getMarketingNotificationsEnabled()),
+                result.response(),
                 "Cập nhật cài đặt marketing thành công"));
     }
 
-    private boolean preferencesAvailable() {
-        return NotificationPreferences.capabilityAvailable(preferencesEnabled, notificationPreferenceService != null);
+    private PreferenceAccess<NotificationPreferenceResponse> preferenceAccess() {
+        return new PreferenceAccess<>(preferencesEnabled, notificationPreferenceService == null ? null
+                : new PreferenceAccessPort<NotificationPreferenceResponse>() {
+                    public NotificationPreferenceResponse get(Long id) {
+                        return notificationPreferenceService.getPreferences(id);
+                    }
+                    public NotificationPreferenceResponse update(Long id, boolean enabled) {
+                        return notificationPreferenceService.updateMarketingNotifications(id, enabled);
+                    }
+                });
     }
 
     private ResponseEntity<BaseResponse<NotificationPreferenceResponse>> preferenceCapabilityUnavailable() {
