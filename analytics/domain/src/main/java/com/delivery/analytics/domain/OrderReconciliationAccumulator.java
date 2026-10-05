@@ -1,16 +1,16 @@
-package com.delivery.analytics_service.scheduler;
+package com.delivery.analytics.domain;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 
 /** Pure order-event reduction, independent of persistence and scheduling. */
-final class OrderReconciliationAccumulator {
+public final class OrderReconciliationAccumulator {
     private long created;
     private long delivered;
     private long cancelled;
     private BigDecimal revenue = BigDecimal.ZERO;
 
-    void accept(String eventType, BigDecimal amount) {
+    public void accept(String eventType, BigDecimal amount) {
         switch (eventType) {
             case "ORDER_CREATED" -> created++;
             case "ORDER_DELIVERED" -> {
@@ -24,7 +24,7 @@ final class OrderReconciliationAccumulator {
         }
     }
 
-    Snapshot snapshot() {
+    public Snapshot snapshot() {
         return new Snapshot(created, delivered, cancelled,
                 Math.max(0, created - delivered - cancelled), revenue,
                 delivered > 0
@@ -32,6 +32,6 @@ final class OrderReconciliationAccumulator {
                         : BigDecimal.ZERO);
     }
 
-    record Snapshot(long created, long delivered, long cancelled, long pending,
+    public record Snapshot(long created, long delivered, long cancelled, long pending,
                     BigDecimal revenue, BigDecimal averageOrderValue) { }
 }

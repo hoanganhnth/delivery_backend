@@ -1,5 +1,6 @@
 package com.delivery.analytics_service.scheduler;
 
+import com.delivery.analytics.domain.OrderReconciliationAccumulator;
 import com.delivery.analytics_service.entity.AnalyticsEvent;
 import com.delivery.analytics_service.entity.DailyOrderStats;
 import com.delivery.analytics_service.repository.AnalyticsEventRepository;
