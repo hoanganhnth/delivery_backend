@@ -1,6 +1,6 @@
 # Order tranche inventory (2026-10-05)
 
-Scope: first equivalence slice on `refactor/order-core`. References below are
+Scope: domain equivalence slices on `refactor/order-core`. References below are
 pre-extraction host line numbers. Authority: `docs/platform/product/features/order-lifecycle.md`,
 `docs/workflows/order_lifecycle_flow.md`, consolidation plan, and executable host behavior.
 No plan, topic, schema, flag or business-policy changes are authorized.
@@ -24,7 +24,7 @@ No plan, topic, schema, flag or business-policy changes are authorized.
 ## Ordered remaining slices
 
 1. Complete Saga status application orchestration through transaction/store/receipt ports; preserve receipt-before-order locking, stale receipt commit, gap rollback and ACK proof.
-2. Extract restaurant/payment lifecycle use cases and restaurant receipt decisions with cross-topic convergence/replay integration proof.
+2. Extract restaurant/payment transaction/store orchestration through application ports; domain lifecycle/receipt decisions and cross-topic convergence/replay integration proof are now extracted (slice 2 below).
 3. Extract ownership/read and cancellation/refund-intent policies/use cases, preserving principal fallback and exception precedence.
 4. Extract canonical checkout admission/pricing, preview, shipping/ETA and quote policies through fact/client ports.
 5. Extract create/quote/idempotency/reservation orchestration and compensation/lease recovery with DB race and remote ambiguous-failure proof.
@@ -64,7 +64,7 @@ No plan, topic, schema, flag or business-policy changes are authorized.
   acceptance before fencing/rejection after fencing. Original listener, event,
   receipt, converter and PostgreSQL concurrency assertions are retained.
 
-## Validation result / parent handoff
+## Slice 1 validation result / historical parent handoff
 
 Branch `refactor/order-core` already existed; HEAD and main both pointed to
 `3bcf2c7e7f6407a222e1cc820a6819a8f88e57cd`. No git write commands or docs/plans edits.
@@ -98,7 +98,87 @@ Branch `refactor/order-core` already existed; HEAD and main both pointed to
 - `git diff --check` passes; source inspection finds no Spring, Jakarta, Jackson
   or Lombok imports in domain production code.
 
-**NEEDS_CONTEXT:** implementation and focused equivalence proof are complete,
+**Historical NEEDS_CONTEXT (fixture repair authorized and handled in slice 2 below):** implementation and focused equivalence proof are complete,
 but full zero-error acceptance cannot be met while preserving known defects.
 Parent must authorize a separate repair of Kafka test/composition wiring, or
 handle the baseline acceptance decision. This task does not fix that defect.
+
+## Slice 2: restaurant/payment lifecycle and receipt decisions
+
+- `RestaurantPaymentPolicy` in domain owns restaurant event admission in the
+  original validation order, every confirmation/rejection state decision,
+  cancellation reason defaults, non-COD payment compatibility decisions and
+  exact restaurant receipt replay binding/conflict rules. Host
+  `OrderEventServiceImpl` delegates these rules directly. No application module
+  is needed for this domain slice; transaction/store orchestration remains in
+  the host and is still required before the service consolidation is complete.
+- Pessimistic order lock before admission/receipt lookup, serialized DTO SHA-256,
+  event-before-order receipt lookup, insert/flush before status decisions,
+  transactional rollback, timestamps/notes, immutable compensation snapshots,
+  outbox enqueue and listener ACK order are retained. No production defaults,
+  flags, topics, schema or wire contracts change.
+- Domain tests enumerate every status for restaurant confirmation/rejection and
+  every status across COD/online/unknown/empty/null payment methods; admission
+  precedence, every receipt identity field, null/empty reason semantics and
+  the existing payment-failure transition table are covered.
+- Real proxied H2/JPA integration tests prove both restaurant/Saga topic arrival
+  orders converge, exact replay preserves timestamps/notes, changed payload and
+  opposite/new-event decisions fail closed, rejection writes one immutable
+  compensation snapshot, ineligible decisions roll back receipts, receipt +
+  cancellation + outbox roll back together and retry, COD no-ops, online
+  completion replay, system cancellation and post-pickup failure rollback.
+
+### Kafka fixture repair and newly observable pre-existing discrepancy
+
+- The old test injection at
+  `order-service/src/test/java/com/delivery/order_service/listener/SagaOrderKafkaPostgresIntegrationTest.java:100`
+  requested `KafkaTemplate<String,String>` named `retryKafkaTemplate`. Order's
+  shared production configuration exposes only `commonKafkaTemplate` /
+  `kafkaTemplate` with `KafkaTemplate<String,Object>`
+  (`platform/kafka-starter/src/main/java/com/delivery/platform/kafka/CommonKafkaProducerConfig.java:55`).
+  Its producer uses JsonSerializer (line 47). This is a stale test dependency,
+  not a missing profile/property or a defect requiring new production beans.
+- The test now injects the existing shared template, sends the same command text
+  through its real JSON transport, and decodes the JSON-encoded DLT string before
+  comparing the entire original payload. No bean/serializer replacement or
+  production configuration modification is introduced.
+- Docker execution also exposed a stale DLT assertion: Order has no enabled
+  RetryableTopic infrastructure, so the active shared factory's error handler
+  recovers to the default `.DLT`, not the annotation's `.order.DLT`
+  (`CommonKafkaConsumerConfig.java:97`, `CommonKafkaErrorHandler.java:22`).
+  The fixture creates/asserts the actual `.DLT` with both source partitions.
+  The annotation/runtime retry and owner-DLT discrepancy is preserved for a
+  separately authorized platform/runtime decision; this slice does not enable
+  nonblocking retries or change poison-message retry classification.
+- Initial raw-string fixture experiment failed before any receipt: shared JSON
+  deserialization did not deliver the expected String command. Switching to the
+  existing shared producer proved receipt/replay convergence; that run then
+  failed only waiting for the stale `.order.DLT` expectation. Logs:
+  `/tmp/order-slice2-clean-verify.log`, `/tmp/order-kafka-wiring-focused.log`.
+
+### Slice 2 final validation
+
+- Required `mvn -B -pl :order-service -am clean verify`: exit 0, BUILD SUCCESS;
+  completed 2026-10-05 22:30:49 +07:00. Log:
+  `/tmp/order-slice2-final-clean-verify.log`.
+- Domain: 12 tests, zero failures/errors/skips. JaCoCo LINE 107/107 (100%) and
+  BRANCH 132/132 (100%); both 85% gates passed. Host: 168 tests, zero
+  failures/errors/skips; executable Spring Boot JAR packaged successfully.
+- Docker-only skips: **none**. Actual
+  `SagaOrderKafkaPostgresIntegrationTest` (1 test),
+  `OrderCreateIdempotencyPostgresConcurrencyTest` (1 test), and
+  `SagaOrderCommandPostgresConcurrencyTest` (1 test) all passed. PostgreSQL
+  migrations, two Kafka replica groups, historical replay, contradictory
+  command recovery to the actual DLT and source-offset recovery all ran.
+- Initial focused domain/lifecycle validation passed: 4 new domain tests and
+  25 host tests (19 existing + 6 initial transaction cases), zero
+  failures/errors/skips; `/tmp/order-slice2-focused.log`. The final clean run
+  includes the seventh transaction case for post-pickup payment failure.
+- `git diff --check` passes; domain production remains framework-independent.
+  All edits are under `order/` and `order-service/`; no git writes,
+  `docs/plans/` changes or production-default changes.
+
+**Complete for the authorized domain slice and fixture repair.** Remaining
+application port/transaction orchestration and the observed inactive
+RetryableTopic/owner-DLT discrepancy are explicitly retained, not repaired by
+this equivalence slice.

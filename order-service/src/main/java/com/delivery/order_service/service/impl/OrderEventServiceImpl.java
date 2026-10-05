@@ -1,5 +1,6 @@
 package com.delivery.order_service.service.impl;
 
+import com.delivery.order.domain.RestaurantPaymentPolicy;
 import com.delivery.order_service.dto.event.DeliveryStatusUpdatedEvent;
 import com.delivery.order_service.dto.event.PaymentEvent;
 import com.delivery.order_service.dto.event.RestaurantEvent;
@@ -100,7 +101,8 @@ public class OrderEventServiceImpl implements OrderEventService {
 
         Order order = findOrderById(event.getOrderId());
 
-        if (!"COD".equals(order.getPaymentMethod()) && order.getStatus() == OrderStatus.PENDING) {
+        if (RestaurantPaymentPolicy.paymentCompletionChangesState(
+                order.getPaymentMethod(), order.getStatus() == null ? null : order.getStatus().toDomain())) {
             transition(order, OrderStatus.CONFIRMED);
             order.setUpdatedAt(LocalDateTime.now());
             appendNotes(order, "Payment completed: " + event.getAmount());
@@ -119,14 +121,14 @@ public class OrderEventServiceImpl implements OrderEventService {
 
         Order order = findOrderById(event.getOrderId());
 
-        if ("COD".equals(order.getPaymentMethod())) {
+        if (RestaurantPaymentPolicy.ignoresPaymentFailure(order.getPaymentMethod())) {
             log.warn("Ignoring payment failure for COD order {}", order.getId());
             return;
         }
         String previousStatus = order.getStatus().name();
         transition(order, OrderStatus.CANCELLED);
         order.setUpdatedAt(LocalDateTime.now());
-        order.setCancelReason(event.getFailureReason() == null ? "Payment failed" : event.getFailureReason());
+        order.setCancelReason(RestaurantPaymentPolicy.paymentFailureReason(event.getFailureReason()));
         order.setCancelledBy(order.getUserId());
         if (event.getFailureReason() != null) {
             appendNotes(order, "Payment failed: " + event.getFailureReason());
@@ -153,14 +155,11 @@ public class OrderEventServiceImpl implements OrderEventService {
                     event.getEventId(), order.getId());
             return;
         }
-        if (isPostRestaurantConfirmationState(order.getStatus())) {
+        if (!RestaurantPaymentPolicy.restaurantConfirmationChangesState(order.getStatus().toDomain())) {
             log.info("Restaurant confirmation event {} arrived after order {} advanced to {}; "
                             + "receipt recorded without regressing status",
                     event.getEventId(), order.getId(), order.getStatus());
             return;
-        }
-        if (order.getStatus() != OrderStatus.PENDING) {
-            throw new IllegalStateException("Không thể xác nhận đơn ở trạng thái " + order.getStatus());
         }
 
         transition(order, OrderStatus.CONFIRMED);
@@ -189,15 +188,8 @@ public class OrderEventServiceImpl implements OrderEventService {
                     event.getEventId(), order.getId());
             return;
         }
-        String reason = event.getRejectionReason() != null
-                ? event.getRejectionReason() : "Nhà hàng từ chối đơn";
-        String canonicalCancelReason = "Rejected by restaurant: " + reason;
-        if (order.getStatus() == OrderStatus.CANCELLED) {
-            throw new IllegalStateException("Restaurant rejection conflicts with existing cancellation");
-        }
-        if (order.getStatus() != OrderStatus.PENDING) {
-            throw new IllegalStateException("Không thể từ chối đơn ở trạng thái " + order.getStatus());
-        }
+        String canonicalCancelReason = RestaurantPaymentPolicy.restaurantRejectionReason(
+                order.getStatus() == null ? null : order.getStatus().toDomain(), event.getRejectionReason());
 
         String previousStatus = order.getStatus().name();
         transition(order, OrderStatus.CANCELLED);
@@ -264,15 +256,8 @@ public class OrderEventServiceImpl implements OrderEventService {
     }
 
     private void validateRestaurantEvent(Order order, RestaurantEvent event) {
-        if (event.getEventId() == null) {
-            throw new IllegalArgumentException("restaurant decision eventId is required");
-        }
-        if (event.getActorUserId() == null || event.getActorUserId() <= 0) {
-            throw new IllegalArgumentException("restaurant decision actorUserId must be positive");
-        }
-        if (event.getRestaurantId() == null || !event.getRestaurantId().equals(order.getRestaurantId())) {
-            throw new IllegalArgumentException("restaurantId trong event không khớp đơn hàng");
-        }
+        RestaurantPaymentPolicy.admitRestaurantDecision(event.getEventId(), event.getActorUserId(),
+                event.getRestaurantId(), order.getRestaurantId());
     }
 
     private boolean registerDecisionReceiptOrIdentifyExactReplay(RestaurantEvent event, String decision) {
@@ -289,8 +274,7 @@ public class OrderEventServiceImpl implements OrderEventService {
                 .findByOrderId(event.getOrderId())
                 .orElse(null);
         if (byOrder != null) {
-            throw new IllegalStateException(
-                    "order already has a restaurant decision from event " + byOrder.getEventId());
+            RestaurantPaymentPolicy.requireNoPreviousDecision(byOrder.getEventId());
         }
 
         restaurantDecisionReceiptRepository.saveAndFlush(RestaurantDecisionReceipt.builder()
@@ -309,13 +293,10 @@ public class OrderEventServiceImpl implements OrderEventService {
             RestaurantEvent event,
             String decision,
             String fingerprint) {
-        if (!receipt.getOrderId().equals(event.getOrderId())
-                || !receipt.getRestaurantId().equals(event.getRestaurantId())
-                || !receipt.getDecision().equals(decision)
-                || !receipt.getPayloadFingerprint().equals(fingerprint)) {
-            throw new IllegalArgumentException(
-                    "restaurant decision eventId replay has a contradictory payload");
-        }
+        new RestaurantPaymentPolicy.Receipt(receipt.getOrderId(), receipt.getRestaurantId(),
+                receipt.getDecision(), receipt.getPayloadFingerprint()).requireExactReplay(
+                        new RestaurantPaymentPolicy.Receipt(event.getOrderId(), event.getRestaurantId(),
+                                decision, fingerprint));
     }
 
     private String fingerprint(RestaurantEvent event) {
@@ -350,11 +331,4 @@ public class OrderEventServiceImpl implements OrderEventService {
         order.setStatus(target);
     }
 
-    private boolean isPostRestaurantConfirmationState(OrderStatus status) {
-        return switch (status) {
-            case CONFIRMED, FINDING_SHIPPER, WAIT_SHIPPER_CONFIRM, ASSIGNED,
-                    PICKED_UP, DELIVERING, DELIVERED, SHIPPER_NOT_FOUND -> true;
-            case PENDING, CANCELLED -> false;
-        };
-    }
 }
