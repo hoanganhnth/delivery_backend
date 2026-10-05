@@ -1,5 +1,7 @@
 package com.delivery.order_service.service;
 
+import com.delivery.order.domain.CheckoutPricingPolicy;
+
 import com.delivery.order_service.dto.request.CheckoutPreviewRequest;
 import com.delivery.order_service.dto.response.CheckoutPreviewResponse;
 import com.delivery.order_service.dto.response.CheckoutPreviewResponse.PreviewItemDetail;
@@ -229,16 +231,17 @@ public class CheckoutPreviewService {
                 continue;
             }
 
-            BigDecimal unitPrice = livestreamPrices.getOrDefault(reqItem.getMenuItemId(), serverItem.price());
+            BigDecimal unitPrice = CheckoutPricingPolicy.regularOrLivestream(reqItem.getMenuItemId(), id -> serverItem.price(), livestreamPrices);
             if (reqItem.getFlashSaleItemId() != null) {
                 CheckoutReservationClient.FlashLine line = flashQuote.byFlashSaleItemId()
                         .get(reqItem.getFlashSaleItemId());
-                if (line == null || !reqItem.getMenuItemId().equals(line.menuItemId())
-                        || !reqItem.getQuantity().equals(line.quantity()))
+                if (!CheckoutPricingPolicy.flashMatches(reqItem.getMenuItemId(), reqItem.getQuantity(),
+                        line == null ? null : new CheckoutPricingPolicy.FlashPrice(
+                                line.menuItemId(), line.quantity(), line.unitPrice())))
                     throw new ValidationException("Flash-sale quote does not match checkout item");
                 unitPrice = line.unitPrice();
             }
-            BigDecimal lineTotal = unitPrice.multiply(BigDecimal.valueOf(reqItem.getQuantity()));
+            BigDecimal lineTotal = CheckoutPricingPolicy.lineTotal(unitPrice, reqItem.getQuantity());
             subtotal = subtotal.add(lineTotal);
 
             previewItems.add(PreviewItemDetail.builder()
@@ -280,7 +283,7 @@ public class CheckoutPreviewService {
                     subtotal, shippingFee, selectedVoucherIds, request.getSelectionMode());
             discountAmount = promotionQuote.totalDiscount();
         }
-        if (discountAmount.signum() < 0 || discountAmount.compareTo(subtotal.add(shippingFee)) > 0)
+        if (!CheckoutPricingPolicy.validDiscount(discountAmount, subtotal, shippingFee))
             throw new ValidationException("Voucher quote returned an invalid discount");
 
         BigDecimal itemDiscount = promotionQuote != null ? promotionQuote.itemDiscount()
@@ -289,15 +292,15 @@ public class CheckoutPreviewService {
                 : legacyQuote != null ? legacyQuote.shippingDiscount() : BigDecimal.ZERO;
         BigDecimal customerShippingFee = promotionQuote != null
                 ? promotionQuote.customerShippingFee()
-                : legacyQuote != null && legacyQuote.customerShippingFee() != null
-                ? legacyQuote.customerShippingFee() : shippingFee.subtract(shippingDiscount).max(BigDecimal.ZERO);
+                : CheckoutPricingPolicy.customerShipping(shippingFee, shippingDiscount,
+                        legacyQuote == null ? null : legacyQuote.customerShippingFee());
         BigDecimal grossShippingFee = shippingFee;
         BigDecimal platformSubsidy = promotionQuote != null ? promotionQuote.platformSubsidy()
                 : legacyQuote != null ? legacyQuote.platformSubsidy() : BigDecimal.ZERO;
         BigDecimal shopDiscount = promotionQuote != null ? promotionQuote.shopDiscount()
                 : legacyQuote != null ? legacyQuote.shopDiscount() : BigDecimal.ZERO;
-        BigDecimal totalPrice = subtotal.subtract(itemDiscount).add(customerShippingFee);
-        if (totalPrice.compareTo(grossShippingFee) <= 0) {
+        BigDecimal totalPrice = CheckoutPricingPolicy.total(subtotal, itemDiscount, customerShippingFee);
+        if (!CheckoutPricingPolicy.positivePayableFood(totalPrice, grossShippingFee)) {
             throw new ValidationException("Voucher phải để lại số tiền món dương cho đơn hàng");
         }
 

@@ -26,7 +26,10 @@ No plan, topic, schema, flag or business-policy changes are authorized.
 1. Complete Saga status application orchestration through transaction/store/receipt ports; preserve receipt-before-order locking, stale receipt commit, gap rollback and ACK proof.
 2. Extract restaurant/payment transaction/store orchestration through application ports; domain lifecycle/receipt decisions and cross-topic convergence/replay integration proof are now extracted (slice 2 below).
 3. Ownership/read and cancellation/refund-intent domain policies are extracted (slice 3 below), preserving principal fallback and exception precedence; application transaction/store orchestration remains for later consolidation.
-4. Extract canonical checkout admission/pricing, preview, shipping/ETA and quote policies through fact/client ports.
+4. Create admission, canonical fact checks, common pricing arithmetic and shipping
+   distance/rounding are extracted (slice 4 below). Complete preview-specific
+   admission/catalog availability/serviceability/ETA and quote lifecycle policies
+   through fact/client ports; preserve their distinct error precedence.
 5. Extract create/quote/idempotency/reservation orchestration and compensation/lease recovery with DB race and remote ambiguous-failure proof.
 6. Extract outbox lease/retry application orchestration; relocate adapters/composition to infrastructure and entrypoint/config to boot; remove host only after packaged HTTP/Kafka/Postgres recovery proof and inventories/packaging updates (outside this slice).
 
@@ -246,3 +249,84 @@ this equivalence slice.
 **Complete for slice 3 domain policy extraction.** No observed pre-existing
 business discrepancy was fixed; future application/adapter consolidation and
 separate policy/runtime decisions remain outside this slice.
+
+## Slice 4: create admission, canonical pricing and shipping policies
+
+- Completed the authorized admission/pricing fallback, plus shipping distance
+  and fee decisions. Framework-free `CheckoutAdmissionPolicy` owns USER create
+  admission before the concurrency permit, required fields, COD-only payment,
+  item/quantity/duplicate limits, phone/coordinate checks, voucher feature gates,
+  selection rules and livestream/flash/voucher incompatibilities. Host maps HTTP
+  selections to domain facts without including client money; the stacking
+  capability port is evaluated lazily at the original validation point.
+- `CheckoutPricingPolicy` owns canonical restaurant/item acceptance, regular vs
+  livestream price resolution through `MenuPricePort`, flash identity/quantity
+  binding, exact BigDecimal line/subtotal/discount/customer-shipping/total and
+  payable-food checks. Create and preview delegate common arithmetic. Streamed
+  subtotal resolution retains interleaved lookup/arithmetic exception precedence;
+  regular facts are still required even for livestream price overrides. Host
+  retains transport decoding, price-fact adapters, flash selection mapping,
+  wire-specific errors, reservation rails and immutable persistence snapshots.
+- `ShippingPolicy` owns Vietnam finite-coordinate admission, the unchanged
+  Haversine calculation, 12,000 base for two km, 4,500 per extra km, surcharge
+  `UP` to integer VND, 12,000–50,000 clamp and final 500-VND `HALF_UP` rounding.
+  The host facade retains its API (including the unused subtotal parameter) and
+  original ValidationException message. No monetary scale normalization was
+  introduced; ordinary checkout money remains unrounded exactly as before.
+- Domain regressions cover required-field boundaries, null/invalid items,
+  duplicate and quantity limits, voucher-mode/count/capability combinations,
+  feature incompatibilities and accumulated error order; canonical missing,
+  nonpositive/nonfinite facts; livestream lookup precedence, flash binding,
+  fractional money, discount limits, payable threshold and legacy shipping
+  fallback; every invalid coordinate position, Haversine and both rounding
+  stages/base/cap boundaries. Host regressions prove exact accumulated errors
+  before remote access and unrounded canonical item/subtotal/total snapshots
+  despite an unrelated client price. Existing preview/reservation/quote and
+  transaction/compensation regressions remain in the full run.
+
+### Preserved discrepancies observed in slice 4
+
+- Create admission accepts NaN delivery coordinates because it uses only range
+  comparisons. Canonical pickup and shipping validation reject nonfinite values;
+  the later shipping failure can occur after an Order shell/reservation. Domain
+  tests retain that admission behavior rather than silently changing precedence.
+- Shipping subtracts double distance before `BigDecimal.valueOf` and ceiling.
+  At `2 + 249.0 / 4500` km the nominal 249-VND surcharge drifts upward, ceilings
+  to 250 and rounds to a 500-VND surcharge. `Math.nextDown` of that distance rounds
+  to zero surcharge. Tests preserve both observed results; no numerical-policy
+  repair was made.
+- Existing distinct create/preview voucher-mode admission and quote validation
+  versus consume error precedence are retained. They must not be unified by a
+  future extraction without a separately authorized behavior change.
+
+### Slice 4 final validation and remaining work
+
+- Required `mvn -B -pl :order-service -am clean verify`, escalated for local
+  server/Docker access: exit 0, **BUILD SUCCESS**, finished
+  2026-10-05T23:19:34+07:00. Log: `/tmp/order-slice4-clean-verify.log`.
+- Domain: 30 tests; host: 178 tests; zero failures/errors/skips in both.
+  Domain JaCoCo LINE 290/290 (100%), BRANCH 421/422 (99.76%); unchanged 85%
+  LINE/BRANCH checks passed. Admission has one unreachable private phone-helper
+  null branch because its caller checks non-null before invocation. Pricing and
+  shipping production policies have 100% LINE and BRANCH coverage.
+- Docker-only skips: **none**. `OrderCreateIdempotencyPostgresConcurrencyTest`,
+  `SagaOrderKafkaPostgresIntegrationTest` and
+  `SagaOrderCommandPostgresConcurrencyTest` each ran and passed (one test each).
+  Executable Spring Boot JAR packaged successfully.
+- Focused `mvn -B -pl :order-domain -am clean verify`: exit 0, 30 tests and both
+  85% gates passed; `/tmp/order-slice4-domain.log`. The first domain iteration
+  exposed the double rounding boundary above; its assertion was corrected to the
+  existing behavior and the final full run includes that regression.
+- Reviewed filesystem diffs against pre-edit copies and inspected source/whitespace;
+  domain has no framework imports. All source edits are under `order/` and
+  `order-service/`; no git commands, POM changes, docs/plans edits, coverage-gate
+  reductions, production defaults, transaction or schema changes.
+
+**Complete for the authorized admission/pricing fallback and shipping policy.**
+Slice 4 remains partial: preview-specific admission, canonical catalog parsing /
+line availability, serviceability and ETA response/prep-time policy remain in
+`CheckoutPreviewService`; quote owner/input/expiry/used/reprice and consume
+policies remain in `CheckoutQuoteService`, with fingerprint/TTL issuance in the
+host. Host HTTP clients, transaction/store orchestration, reservation and
+compensation/lease recovery remain for slice 5 and adapter consolidation for
+slice 6. No new application modules or empty layers were introduced.

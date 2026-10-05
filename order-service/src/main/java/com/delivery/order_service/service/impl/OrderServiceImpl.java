@@ -1,5 +1,8 @@
 package com.delivery.order_service.service.impl;
 
+import com.delivery.order.domain.CheckoutAdmissionPolicy;
+import com.delivery.order.domain.CheckoutPricingPolicy;
+
 import com.delivery.order_service.common.constants.RoleConstants;
 import com.delivery.order.domain.OrderOwnershipPolicy;
 import com.delivery.order.domain.OrderCancellationPolicy;
@@ -152,7 +155,7 @@ public class OrderServiceImpl implements OrderService {
                                      Long principalId, Long userId, String role,
                                      SimulationContext simulationContext) {
         // Reject unauthorized traffic before consuming an admission permit.
-        if (!RoleConstants.USER.equals(role)) {
+        if (!CheckoutAdmissionPolicy.customerAllowed(role)) {
             throw new AccessDeniedException("Chỉ khách hàng được tạo đơn hàng");
         }
         if (createAdmission == null) {
@@ -167,7 +170,7 @@ public class OrderServiceImpl implements OrderService {
     private OrderResponse createOrderInternal(CreateOrderRequest request, UUID idempotencyKey,
                                               Long principalId, Long userId, String role,
                                               SimulationContext simulationContext) {
-        if (!RoleConstants.USER.equals(role)) {
+        if (!CheckoutAdmissionPolicy.customerAllowed(role)) {
             throw new AccessDeniedException("Chỉ khách hàng được tạo đơn hàng");
         }
         if (request == null) {
@@ -357,19 +360,20 @@ public class OrderServiceImpl implements OrderService {
             }
 
             CheckoutReservationClient.FlashQuote canonicalFlashQuote = flashQuote;
-            BigDecimal subtotal = request.getItems().stream().map(item -> {
-                BigDecimal unitPrice = livestreamPrices.getOrDefault(item.getMenuItemId(),
-                        requireCanonicalItem(canonicalItems, item.getMenuItemId()).price());
+            BigDecimal subtotal = CheckoutPricingPolicy.subtotal(request.getItems().stream().map(item -> {
+                BigDecimal unitPrice = CheckoutPricingPolicy.regularOrLivestream(item.getMenuItemId(),
+                        id -> requireCanonicalItem(canonicalItems, id).price(), livestreamPrices);
                 if (item.getFlashSaleItemId() != null) {
                     CheckoutReservationClient.FlashLine line = canonicalFlashQuote.byFlashSaleItemId()
                             .get(item.getFlashSaleItemId());
-                    if (line == null || !item.getMenuItemId().equals(line.menuItemId())
-                            || !item.getQuantity().equals(line.quantity()))
+                    if (!CheckoutPricingPolicy.flashMatches(item.getMenuItemId(), item.getQuantity(),
+                            line == null ? null : new CheckoutPricingPolicy.FlashPrice(
+                                    line.menuItemId(), line.quantity(), line.unitPrice())))
                         throw new IllegalStateException("Flash-sale canonical item mismatch");
                     unitPrice = line.unitPrice();
                 }
-                return unitPrice.multiply(BigDecimal.valueOf(item.getQuantity()));
-            }).reduce(BigDecimal.ZERO, BigDecimal::add);
+                return new CheckoutPricingPolicy.Line(unitPrice, item.getQuantity());
+            }));
 
             BigDecimal shippingFee = shippingFeeCalculationService.calculateShippingFee(
                     validated.pickupLat(), validated.pickupLng(), request.getDeliveryLat(),
@@ -411,15 +415,14 @@ public class OrderServiceImpl implements OrderService {
                 savedOrder.setVoucherReservationId(voucherReservationId);
                 savedOrder.setItemDiscount(legacyQuote.itemDiscount());
                 savedOrder.setShippingDiscount(legacyQuote.shippingDiscount());
-                savedOrder.setCustomerShippingFee(legacyQuote.customerShippingFee() == null
-                        ? shippingFee.subtract(legacyQuote.shippingDiscount()).max(BigDecimal.ZERO)
-                        : legacyQuote.customerShippingFee());
+                savedOrder.setCustomerShippingFee(CheckoutPricingPolicy.customerShipping(shippingFee, legacyQuote.shippingDiscount(),
+                        legacyQuote.customerShippingFee()));
                 savedOrder.setGrossShippingFee(shippingFee);
                 savedOrder.setPlatformSubsidy(legacyQuote.platformSubsidy());
                 savedOrder.setShopDiscount(legacyQuote.shopDiscount());
                 savedOrder.setPromotionBreakdown(legacyQuote.breakdownJson());
             }
-            if (discount.signum() < 0 || discount.compareTo(subtotal.add(shippingFee)) > 0)
+            if (!CheckoutPricingPolicy.validDiscount(discount, subtotal, shippingFee))
                 throw new IllegalStateException("Reservation service returned an invalid discount");
 
             savedOrder.setSubtotalPrice(subtotal);
@@ -434,9 +437,9 @@ public class OrderServiceImpl implements OrderService {
                 savedOrder.setPlatformSubsidy(BigDecimal.ZERO);
                 savedOrder.setShopDiscount(BigDecimal.ZERO);
             }
-            savedOrder.setTotalPrice(subtotal.subtract(savedOrder.getItemDiscount()).add(
+            savedOrder.setTotalPrice(CheckoutPricingPolicy.total(subtotal, savedOrder.getItemDiscount(),
                     savedOrder.getCustomerShippingFee()));
-            if (savedOrder.getTotalPrice().compareTo(shippingFee) <= 0) {
+            if (!CheckoutPricingPolicy.positivePayableFood(savedOrder.getTotalPrice(), shippingFee)) {
                 throw new IllegalStateException("Voucher must leave a positive payable food amount");
             }
 
@@ -446,7 +449,7 @@ public class OrderServiceImpl implements OrderService {
                 OrderItem item = orderMapper.orderItemRequestToOrderItem(itemRequest);
                 item.setMenuItemName(canonical.menuItemName());
                 item.setPrice(itemRequest.getFlashSaleItemId() == null
-                        ? livestreamPrices.getOrDefault(itemRequest.getMenuItemId(), canonical.price())
+                        ? CheckoutPricingPolicy.regularOrLivestream(itemRequest.getMenuItemId(), id -> canonical.price(), livestreamPrices)
                         : canonicalFlashQuote.byFlashSaleItemId().get(itemRequest.getFlashSaleItemId()).unitPrice());
                 item.setOrder(savedOrder);
                 return item;

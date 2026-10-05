@@ -97,6 +97,25 @@ class OrderValidationMvpPolicyTest {
         verifyNoInteractions(webClient);
     }
 
+    @Test
+    void admissionAccumulatesExactErrorsBeforeAnyRemoteLookup() {
+        CreateOrderRequest request = validCodRequest();
+        request.setRestaurantId(null);
+        request.setPaymentMethod("ONLINE");
+        request.setItems(java.util.Arrays.asList(null, request.getItems().get(0), request.getItems().get(0)));
+        request.setDeliveryLat(null);
+        OrderValidationService service = new OrderValidationService(webClient,
+                "http://restaurant-service:8083", "test-secret", circuitBreaker());
+
+        ValidationException failure = assertThrows(ValidationException.class,
+                () -> service.validateCreateOrderRequest(request, null));
+        org.junit.jupiter.api.Assertions.assertEquals("Dữ liệu đơn hàng không hợp lệ: "
+                + "Restaurant ID không được để trống, MVP hiện chỉ hỗ trợ thanh toán COD, "
+                + "Sản phẩm 1: dữ liệu sản phẩm không hợp lệ, Sản phẩm 3: Menu Item ID bị trùng, "
+                + "Tọa độ giao hàng (latitude và longitude) là bắt buộc, User ID không hợp lệ", failure.getMessage());
+        verifyNoInteractions(webClient);
+    }
+
     private OrderRestaurantCircuitBreaker circuitBreaker() {
         return new OrderRestaurantCircuitBreaker(new RestaurantCallResilienceProperties(), new SimpleMeterRegistry());
     }

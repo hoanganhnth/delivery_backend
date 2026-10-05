@@ -400,6 +400,30 @@ class OrderServiceCanonicalPricingTest {
         verify(reservationClient).releaseVoucher(reservationId.getValue(), 101L);
     }
 
+    @Test
+    void fractionalCanonicalMoneyIsNotRoundedAndClientPriceIsIgnored() {
+        CreateOrderRequest request = baseRequest();
+        request.getItems().get(0).setQuantity(3);
+        request.getItems().get(0).setPrice(new BigDecimal("999999"));
+        BigDecimal unitPrice = new BigDecimal("12345.67891");
+        BigDecimal subtotal = new BigDecimal("37037.03673");
+        when(orderValidationService.validateCreateOrderRequest(request, 21L, 21L))
+                .thenReturn(validatedItem(unitPrice));
+        Order order = persistedMappedOrder(request);
+        when(shippingFeeCalculationService.calculateShippingFee(10.75,106.66,10.8,106.7,subtotal))
+                .thenReturn(new BigDecimal("15000"));
+        OrderItem item = new OrderItem();
+        when(orderMapper.orderItemRequestToOrderItem(request.getItems().get(0))).thenReturn(item);
+        when(orderMapper.orderToOrderResponse(order)).thenReturn(new OrderResponse());
+
+        service().createOrder(request, 21L, "USER");
+
+        assertEquals(subtotal, order.getSubtotalPrice());
+        assertEquals(new BigDecimal("52037.03673"), order.getTotalPrice());
+        assertEquals(unitPrice, item.getPrice());
+        verify(orderEventPublisher).publishOrderCreatedEvent(order);
+    }
+
     private CreateOrderRequest baseRequest() {
         CreateOrderRequest request = new CreateOrderRequest();
         request.setRestaurantId(7L); request.setDeliveryLat(10.8); request.setDeliveryLng(106.7);
