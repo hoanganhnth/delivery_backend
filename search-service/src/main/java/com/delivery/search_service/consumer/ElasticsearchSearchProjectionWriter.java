@@ -1,6 +1,7 @@
 package com.delivery.search_service.consumer;
 
 import com.delivery.search.contracts.EntitySyncEvent;
+import com.delivery.search.domain.EntitySyncRules;
 import com.delivery.search_service.document.DishDocument;
 import com.delivery.search_service.document.RestaurantDocument;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -16,7 +17,6 @@ import org.springframework.stereotype.Component;
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.time.ZoneOffset;
 import java.util.Locale;
 
 /**
@@ -39,7 +39,7 @@ public class ElasticsearchSearchProjectionWriter implements SearchProjectionWrit
             case "DISH" -> "dish";
             default -> throw new IllegalArgumentException("Unsupported entity type: " + event.getEntityType());
         };
-        long version = projectionVersion(event);
+        long version = EntitySyncRules.projectionVersion(event.getOccurredAt(), event.getAggregateVersion());
         if (version <= 0) {
             throw new IllegalArgumentException("entity-sync occurredAt must be after the Unix epoch");
         }
@@ -71,19 +71,6 @@ public class ElasticsearchSearchProjectionWriter implements SearchProjectionWrit
             throw new IllegalStateException("Elasticsearch projection write failed", exception);
         } catch (IOException exception) {
             throw new IllegalStateException("Elasticsearch projection is unavailable", exception);
-        }
-    }
-
-    private long projectionVersion(EntitySyncEvent event) {
-        if (event.getAggregateVersion() != null) {
-            return event.getAggregateVersion();
-        }
-        try {
-            return Math.addExact(
-                    Math.multiplyExact(event.getOccurredAt().toEpochSecond(ZoneOffset.UTC), 1_000_000_000L),
-                    event.getOccurredAt().getNano());
-        } catch (ArithmeticException exception) {
-            throw new IllegalArgumentException("entity-sync occurredAt cannot be represented as a version", exception);
         }
     }
 

@@ -41,4 +41,40 @@ class SearchProjectionVersionTest {
         verify(restClient).performRequest(request.capture());
         assertThat(request.getValue().getParameters().get("version")).isEqualTo("42");
     }
+    @Test
+    void legacyNanosecondsReachTheRequestUnchanged() throws Exception {
+        RestClient restClient = mock(RestClient.class);
+        when(restClient.performRequest(org.mockito.ArgumentMatchers.any(Request.class)))
+                .thenReturn(mock(Response.class));
+        ElasticsearchSearchProjectionWriter writer = new ElasticsearchSearchProjectionWriter(restClient, new ObjectMapper());
+        EntitySyncEvent event = EntitySyncEvent.builder().entityType("DISH").entityId("7")
+                .action("DELETE").occurredAt(LocalDateTime.of(1970, 1, 1, 0, 0, 1, 123)).build();
+        writer.apply(event);
+        ArgumentCaptor<Request> request = ArgumentCaptor.forClass(Request.class);
+        verify(restClient).performRequest(request.capture());
+        assertThat(request.getValue().getParameters()).containsEntry("version", "1000000123")
+                .containsEntry("version_type", "external_gte");
+        assertThat(request.getValue().getMethod()).isEqualTo("DELETE");
+    }
+
+    @Test
+    void invalidVersionsKeepAdapterErrorsAndDoNotWrite() {
+        RestClient restClient = mock(RestClient.class);
+        ElasticsearchSearchProjectionWriter writer = new ElasticsearchSearchProjectionWriter(restClient, new ObjectMapper());
+        for (LocalDateTime time : new LocalDateTime[]{LocalDateTime.of(1970, 1, 1, 0, 0),
+                LocalDateTime.of(1969, 12, 31, 23, 59, 59), LocalDateTime.MAX}) {
+            EntitySyncEvent event = EntitySyncEvent.builder().entityType("DISH").entityId("7")
+                    .action("DELETE").occurredAt(time).build();
+            String expected = time.equals(LocalDateTime.MAX)
+                    ? "entity-sync occurredAt cannot be represented as a version"
+                    : "entity-sync occurredAt must be after the Unix epoch";
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> writer.apply(event))
+                    .isExactlyInstanceOf(IllegalArgumentException.class).hasMessage(expected);
+        }
+        EntitySyncEvent unknown = EntitySyncEvent.builder().entityType("SHIPPER").build();
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> writer.apply(unknown))
+                .isExactlyInstanceOf(IllegalArgumentException.class).hasMessage("Unsupported entity type: SHIPPER");
+        org.mockito.Mockito.verifyNoInteractions(restClient);
+    }
+
 }

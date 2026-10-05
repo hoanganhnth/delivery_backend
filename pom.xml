@@ -65,6 +65,7 @@
         <module>order/boot</module>
         <module>restaurant/boot</module>
         <module>shipper</module>
+        <module>search/domain</module>
         <module>search-service</module>
         <module>dispatch/domain</module>
         <module>dispatch/application-api</module>

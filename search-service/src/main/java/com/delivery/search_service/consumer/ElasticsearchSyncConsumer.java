@@ -1,6 +1,7 @@
 package com.delivery.search_service.consumer;
 
 import com.delivery.search.contracts.EntitySyncEvent;
+import com.delivery.search.domain.EntitySyncRules;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.delivery.observability.Phase8Metrics;
@@ -92,31 +93,10 @@ public class ElasticsearchSyncConsumer {
     }
 
     private void validateEvent(EntitySyncEvent event) {
-        if (event == null || event.getEventId() == null || event.getOccurredAt() == null
-                || event.getEntityType() == null || event.getEntityType().isBlank()
-                || event.getAction() == null || event.getAction().isBlank()
-                || event.getEntityId() == null || event.getEntityId().isBlank()) {
-            throw new IllegalArgumentException(
-                    "stable eventId, occurredAt, entityType, action and entityId are required");
-        }
-        if (!java.util.Set.of("CREATE", "UPDATE", "DELETE")
-                .contains(event.getAction().toUpperCase(java.util.Locale.ROOT))) {
-            throw new IllegalArgumentException("Unsupported entity action: " + event.getAction());
-        }
-        String entityType = event.getEntityType().toUpperCase(java.util.Locale.ROOT);
-        if (!java.util.Set.of("RESTAURANT", "DISH").contains(entityType)) {
-            throw new IllegalArgumentException("Unsupported entity type: " + event.getEntityType());
-        }
-        if (!"DELETE".equalsIgnoreCase(event.getAction()) && event.getPayload() == null) {
-            throw new IllegalArgumentException("payload is required for create/update");
-        }
-        if (event.getAggregateVersion() != null && event.getAggregateVersion() < 1) {
-            throw new IllegalArgumentException("aggregateVersion must be positive");
-        }
-        if ("DELETE".equalsIgnoreCase(event.getAction()) && event.getDeletedAt() != null
-                && event.getDeletedAt().isAfter(event.getOccurredAt())) {
-            throw new IllegalArgumentException("deletedAt cannot be after occurredAt");
-        }
+        EntitySyncRules.validate(event == null ? null : new EntitySyncRules.Metadata(
+                event.getEventId(), event.getOccurredAt(), event.getEntityType(),
+                event.getAction(), event.getEntityId(), event.getPayload() != null,
+                event.getAggregateVersion(), event.getDeletedAt()));
     }
 
 }
