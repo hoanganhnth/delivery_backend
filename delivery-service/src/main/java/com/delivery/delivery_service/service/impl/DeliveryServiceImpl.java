@@ -1,5 +1,6 @@
 package com.delivery.delivery_service.service.impl;
 
+import com.delivery.delivery.domain.CancellationPolicy;
 import com.delivery.delivery.domain.OfferDecisionPolicy;
 import com.delivery.delivery.domain.OfferDecisionRejected;
 import com.delivery.delivery.domain.OfferPersistencePolicy;
@@ -577,12 +578,10 @@ public class DeliveryServiceImpl implements DeliveryService {
     public DeliveryResponse cancelAssignedDelivery(Long orderId, Long shipperId, String role, String reason) {
         log.info("🔄 Shipper {} requesting to cancel assigned order {}", shipperId, orderId);
 
-        // ✅ Chỉ shipper mới được huỷ đơn của mình
-        if (!RoleConstants.SHIPPER.equals(role)) {
-            throw new AccessDeniedException("Chỉ shipper mới có thể huỷ đơn đã nhận");
-        }
-        if (orderId == null) {
-            throw new InvalidStatusException("Order ID is required");
+        try {
+            CancellationPolicy.requireShipperCancelRequest(RoleConstants.SHIPPER.equals(role), orderId);
+        } catch (OfferDecisionRejected rejected) {
+            throw offerDecisionFailure(rejected);
         }
 
         // Serialize against pickup/status transitions and competing cancellation.
@@ -590,32 +589,28 @@ public class DeliveryServiceImpl implements DeliveryService {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Không tìm thấy thông tin giao hàng cho đơn hàng: " + orderId));
 
-        String cancelNote = canonicalCancelAssignmentReason(reason);
-        if (OfferDecisionPolicy.isRejectReplay(offerOf(delivery), shipperId, cancelNote)) {
+        String cancelNote = CancellationPolicy.shipperCancelReason(reason);
+        CancellationPolicy.ShipperCancel decision;
+        try {
+            // Pickup moves the goods to the shipper; afterwards another process applies
+            // (docs/product/features/delivery-matching.md §11).
+            decision = CancellationPolicy.onShipperCancel(domainStatus(delivery), delivery.getBatchId() != null,
+                    delivery.getShipperId(), shipperId,
+                    OfferDecisionPolicy.isRejectReplay(offerOf(delivery), shipperId, cancelNote));
+        } catch (OfferDecisionRejected rejected) {
+            throw offerDecisionFailure(rejected);
+        }
+        if (decision == CancellationPolicy.ShipperCancel.REPLAY) {
             log.info("Shipper cancellation already applied for order {}, skipping duplicate", orderId);
             return deliveryMapper.deliveryToDeliveryResponse(delivery);
         }
-
-        if (delivery.getBatchId() != null && DeliveryStatus.ASSIGNED.equals(delivery.getStatus())) {
+        if (decision == CancellationPolicy.ShipperCancel.CANCEL_BATCH) {
             if (batchLifecycleService == null) {
                 throw new InvalidStatusException("Batch cancellation support is unavailable");
             }
             Delivery cancelled = batchLifecycleService.cancelAcceptedBatch(
                     delivery.getBatchId(), shipperId, cancelNote);
             return deliveryMapper.deliveryToDeliveryResponse(cancelled);
-        }
-
-        // ✅ Chỉ shipper đang được gán mới được huỷ
-        if (delivery.getShipperId() == null || !delivery.getShipperId().equals(shipperId)) {
-            throw new AccessDeniedException("Bạn không phải shipper được gán cho đơn này");
-        }
-
-        // ✅ Chỉ cho huỷ TRƯỚC khi lấy hàng (ASSIGNED). Sau PICKED_UP hàng đã ở shipper
-        //    → cần quy trình khác (xem docs/product/features/delivery-matching.md §11).
-        if (!DeliveryStatus.ASSIGNED.equals(delivery.getStatus())) {
-            throw new InvalidStatusException(
-                    "Chỉ có thể huỷ đơn khi chưa lấy hàng (trạng thái ASSIGNED). Hiện tại: "
-                            + delivery.getStatus());
         }
 
         // ✅ Reset đơn về tìm shipper mới, giải phóng shipper hiện tại
@@ -707,10 +702,6 @@ public class DeliveryServiceImpl implements DeliveryService {
         return rejected.kind() == OfferDecisionRejected.Kind.ACCESS_DENIED
                 ? new AccessDeniedException(rejected.getMessage())
                 : new InvalidStatusException(rejected.getMessage());
-    }
-
-    private String canonicalCancelAssignmentReason(String reason) {
-        return reason != null && !reason.trim().isEmpty() ? reason : "Shipper huỷ sau khi nhận";
     }
 
     @Override
@@ -1196,18 +1187,20 @@ public class DeliveryServiceImpl implements DeliveryService {
             log.info("📦 Found delivery {} for cancelled order: {}, current status: {}",
                     delivery.getId(), event.getOrderId(), delivery.getStatus());
 
-            if (delivery.getStatus() == DeliveryStatus.CANCELLED) {
+            CancellationPolicy.OrderCancel cancel;
+            try {
+                cancel = CancellationPolicy.onOrderCancelled(delivery.getId(), domainStatus(delivery));
+            } catch (OfferDecisionRejected rejected) {
+                // A correlated Saga command must receive an explicit failure after pickup.
+                throw offerDecisionFailure(rejected);
+            }
+            if (cancel == CancellationPolicy.OrderCancel.ALREADY_CANCELLED) {
                 log.info("Cancellation already applied for delivery {}, skipping duplicate", delivery.getId());
                 return;
             }
 
-            // Cancel is allowed until pickup. Include every matching state so Saga
-            // compensation cannot leave an orphan delivery behind.
-            if (delivery.getStatus() == DeliveryStatus.PENDING ||
-                    delivery.getStatus() == DeliveryStatus.FINDING_SHIPPER ||
-                    delivery.getStatus() == DeliveryStatus.WAIT_SHIPPER_CONFIRM ||
-                    delivery.getStatus() == DeliveryStatus.SHIPPER_NOT_FOUND ||
-                    delivery.getStatus() == DeliveryStatus.ASSIGNED) {
+            // Cancel is allowed until pickup so Saga compensation cannot leave an orphan delivery.
+            {
 
                 DeliveryStatus previousStatus = delivery.getStatus();
 
@@ -1251,12 +1244,6 @@ public class DeliveryServiceImpl implements DeliveryService {
                 log.info("✅ Successfully cancelled delivery {} for order: {}",
                         delivery.getId(), event.getOrderId());
 
-            } else {
-                // A correlated Saga command must receive an explicit failure. Silent
-                // success would let Order/Saga converge to CANCELLED while Delivery
-                // remains PICKED_UP, DELIVERING or DELIVERED.
-                throw new InvalidStatusException(
-                        "Cannot cancel delivery " + delivery.getId() + " in status " + delivery.getStatus());
             }
 
         } catch (IllegalArgumentException | InvalidStatusException businessFailure) {
@@ -1289,24 +1276,20 @@ public class DeliveryServiceImpl implements DeliveryService {
                 throw new InvalidStatusException("ShipperNotFound orderId does not match delivery");
             }
 
-            if (delivery.getStatus() == DeliveryStatus.SHIPPER_NOT_FOUND) {
+            CancellationPolicy.NotFound notFound;
+            try {
+                notFound = CancellationPolicy.onShipperNotFound(domainStatus(delivery));
+            } catch (OfferDecisionRejected rejected) {
+                throw offerDecisionFailure(rejected);
+            }
+            if (notFound == CancellationPolicy.NotFound.ALREADY_APPLIED) {
                 log.info("Shipper-not-found already applied for delivery {}, skipping duplicate", delivery.getId());
                 return;
             }
-
-            // Chỉ cập nhật nếu delivery đang ở trạng thái FINDING_SHIPPER
-            if (delivery.getStatus() != DeliveryStatus.FINDING_SHIPPER) {
-                if (delivery.getStatus() == DeliveryStatus.ASSIGNED
-                        || delivery.getStatus() == DeliveryStatus.PICKED_UP
-                        || delivery.getStatus() == DeliveryStatus.DELIVERING
-                        || delivery.getStatus() == DeliveryStatus.DELIVERED
-                        || delivery.getStatus() == DeliveryStatus.CANCELLED) {
-                    log.info("Ignoring stale shipper-not-found for delivery {} already in {}",
-                            delivery.getId(), delivery.getStatus());
-                    return;
-                }
-                throw new InvalidStatusException("Contradictory shipper-not-found event in status "
-                        + delivery.getStatus());
+            if (notFound == CancellationPolicy.NotFound.IGNORE_STALE) {
+                log.info("Ignoring stale shipper-not-found for delivery {} already in {}",
+                        delivery.getId(), delivery.getStatus());
+                return;
             }
 
             // Cập nhật status thành SHIPPER_NOT_FOUND
