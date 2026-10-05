@@ -2052,7 +2052,7 @@ public ResponseEntity<BaseResponse<PageResponse<OrderResponse>>> getOrdersByStat
 ### `DELETE` `/api/promotions/{id}`
 
 - Handler: `PromotionController.deleteVoucher`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:187`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:187`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
 - Java return type: `ResponseEntity<BaseResponse<Void>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -2072,7 +2072,7 @@ public ResponseEntity<BaseResponse<Void>> deleteVoucher( @PathVariable Long id, 
 ### `GET` `/api/promotions/admin`
 
 - Handler: `PromotionController.listAllVouchers`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:134`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:134`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<VoucherResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -2091,7 +2091,7 @@ public ResponseEntity<BaseResponse<List<VoucherResponse>>> listAllVouchers( @Aut
 ### `POST` `/api/promotions/admin/{id}/approve`
 
 - Handler: `PromotionController.approveShopVoucher`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:148`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:148`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
 - Java return type: `ResponseEntity<BaseResponse<VoucherResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -2111,7 +2111,7 @@ public ResponseEntity<BaseResponse<VoucherResponse>> approveShopVoucher( @PathVa
 ### `POST` `/api/promotions/admin/{id}/pause`
 
 - Handler: `PromotionController.pauseVoucher`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:169`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:169`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
 - Java return type: `ResponseEntity<BaseResponse<VoucherResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -2131,7 +2131,7 @@ public ResponseEntity<BaseResponse<VoucherResponse>> pauseVoucher( @PathVariable
 ### `POST` `/api/promotions/admin/{id}/reject`
 
 - Handler: `PromotionController.rejectShopVoucher`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:158`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:158`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
 - Java return type: `ResponseEntity<BaseResponse<VoucherResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -2152,7 +2152,7 @@ public ResponseEntity<BaseResponse<VoucherResponse>> rejectShopVoucher( @PathVar
 ### `POST` `/api/promotions/admin/{id}/resume`
 
 - Handler: `PromotionController.resumeVoucher`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:178`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:178`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
 - Java return type: `ResponseEntity<BaseResponse<VoucherResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -2172,7 +2172,7 @@ public ResponseEntity<BaseResponse<VoucherResponse>> resumeVoucher( @PathVariabl
 ### `GET` `/api/promotions/admin/pending-shop`
 
 - Handler: `PromotionController.listPendingShopVouchers`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:141`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:141`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<VoucherResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -2191,7 +2191,7 @@ public ResponseEntity<BaseResponse<List<VoucherResponse>>> listPendingShopVouche
 ### `GET` `/api/promotions/capability`
 
 - Handler: `PromotionController.capability`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:53`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:53`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
 - Java return type: `ResponseEntity<BaseResponse<VoucherCapabilityResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -2210,7 +2210,7 @@ public ResponseEntity<BaseResponse<VoucherCapabilityResponse>> capability( @Auth
 ### `POST` `/api/promotions/collect/{code}`
 
 - Handler: `PromotionController.collectVoucher`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:93`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:93`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
 - Java return type: `ResponseEntity<BaseResponse<String>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -2230,7 +2230,7 @@ public ResponseEntity<BaseResponse<String>> collectVoucher( @PathVariable String
 ### `POST` `/api/promotions/internal/calculate`
 
 - Handler: `PromotionController.calculate`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:197`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:197`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
 - Java return type: `ResponseEntity<BaseResponse<CalculateResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -2250,7 +2250,7 @@ public ResponseEntity<BaseResponse<CalculateResponse>> calculate( @RequestBody C
 ### `POST` `/api/promotions/internal/promotion-reservations/{reservationId}/commit`
 
 - Handler: `PromotionController.commitBulk`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:260`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:260`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
 - Java return type: `ResponseEntity<BaseResponse<PromotionReservationResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -2272,7 +2272,7 @@ public ResponseEntity<BaseResponse<PromotionReservationResponse>> commitBulk( @P
 ### `POST` `/api/promotions/internal/promotion-reservations/{reservationId}/release`
 
 - Handler: `PromotionController.releaseBulk`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:271`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:271`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
 - Java return type: `ResponseEntity<BaseResponse<PromotionReservationResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -2294,7 +2294,7 @@ public ResponseEntity<BaseResponse<PromotionReservationResponse>> releaseBulk( @
 ### `POST` `/api/promotions/internal/reservations`
 
 - Handler: `PromotionController.reserveBulk`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:232`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:232`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
 - Java return type: `ResponseEntity<BaseResponse<PromotionReservationResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -2314,7 +2314,7 @@ public ResponseEntity<BaseResponse<PromotionReservationResponse>> reserveBulk( @
 ### `POST` `/api/promotions/internal/reservations/{reservationId}/commit`
 
 - Handler: `PromotionController.commit`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:240`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:240`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
 - Java return type: `ResponseEntity<BaseResponse<VoucherReservationResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -2335,7 +2335,7 @@ public ResponseEntity<BaseResponse<VoucherReservationResponse>> commit( @PathVar
 ### `POST` `/api/promotions/internal/reservations/{reservationId}/release`
 
 - Handler: `PromotionController.release`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:250`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:250`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
 - Java return type: `ResponseEntity<BaseResponse<VoucherReservationResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -2356,7 +2356,7 @@ public ResponseEntity<BaseResponse<VoucherReservationResponse>> release( @PathVa
 ### `POST` `/api/promotions/internal/reserve`
 
 - Handler: `PromotionController.reserve`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:213`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:213`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
 - Java return type: `ResponseEntity<BaseResponse<VoucherReservationResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -2376,7 +2376,7 @@ public ResponseEntity<BaseResponse<VoucherReservationResponse>> reserve( @Reques
 ### `GET` `/api/promotions/merchant`
 
 - Handler: `PromotionController.listMerchantVouchers`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:118`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:118`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<VoucherResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -2395,7 +2395,7 @@ public ResponseEntity<BaseResponse<List<VoucherResponse>>> listMerchantVouchers(
 ### `GET` `/api/promotions/my-vouchers`
 
 - Handler: `PromotionController.getMyVouchers`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:106`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:106`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<VoucherResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -2414,7 +2414,7 @@ public ResponseEntity<BaseResponse<List<VoucherResponse>>> getMyVouchers( @Authe
 ### `POST` `/api/promotions/platform`
 
 - Handler: `PromotionController.createPlatformVoucher`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:66`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:66`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
 - Java return type: `ResponseEntity<BaseResponse<VoucherResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -2434,7 +2434,7 @@ public ResponseEntity<BaseResponse<VoucherResponse>> createPlatformVoucher( @Req
 ### `GET` `/api/promotions/shop`
 
 - Handler: `PromotionController.listShopVouchers`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:125`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:125`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<VoucherResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -2453,7 +2453,7 @@ public ResponseEntity<BaseResponse<List<VoucherResponse>>> listShopVouchers( @Au
 ### `POST` `/api/promotions/shop`
 
 - Handler: `PromotionController.createShopVoucher`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:77`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java:77`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java)
 - Java return type: `ResponseEntity<BaseResponse<VoucherResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -6663,7 +6663,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.promotion_service.dto.BulkReserveRequest`
 
 - Kind: `class`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/dto/BulkReserveRequest.java:21`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/dto/BulkReserveRequest.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/dto/BulkReserveRequest.java:21`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/dto/BulkReserveRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6679,7 +6679,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.promotion_service.dto.CalculateResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/dto/CalculateResponse.java:17`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/dto/CalculateResponse.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/dto/CalculateResponse.java:17`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/dto/CalculateResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6698,7 +6698,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 #### `com.delivery.promotion_service.dto.CalculateResponse.AppliedVoucherInfo`
 
 - Kind: `class`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/dto/CalculateResponse.java:58`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/dto/CalculateResponse.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/dto/CalculateResponse.java:58`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/dto/CalculateResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6712,7 +6712,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 #### `com.delivery.promotion_service.dto.CalculateResponse.UnavailableVoucherInfo`
 
 - Kind: `class`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/dto/CalculateResponse.java:47`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/dto/CalculateResponse.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/dto/CalculateResponse.java:47`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/dto/CalculateResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6724,7 +6724,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 #### `com.delivery.promotion_service.dto.CalculateResponse.VoucherInfo`
 
 - Kind: `class`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/dto/CalculateResponse.java:34`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/dto/CalculateResponse.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/dto/CalculateResponse.java:34`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/dto/CalculateResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6738,7 +6738,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.promotion_service.dto.CalculateResponse.AppliedVoucherInfo`
 
 - Kind: `class`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/dto/CalculateResponse.java:58`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/dto/CalculateResponse.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/dto/CalculateResponse.java:58`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/dto/CalculateResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6752,7 +6752,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.promotion_service.dto.CalculateResponse.UnavailableVoucherInfo`
 
 - Kind: `class`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/dto/CalculateResponse.java:47`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/dto/CalculateResponse.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/dto/CalculateResponse.java:47`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/dto/CalculateResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6764,7 +6764,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.promotion_service.dto.CalculateResponse.VoucherInfo`
 
 - Kind: `class`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/dto/CalculateResponse.java:34`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/dto/CalculateResponse.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/dto/CalculateResponse.java:34`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/dto/CalculateResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6778,7 +6778,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.promotion_service.dto.CartContextRequest`
 
 - Kind: `class`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/dto/CartContextRequest.java:18`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/dto/CartContextRequest.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/dto/CartContextRequest.java:18`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/dto/CartContextRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6794,7 +6794,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.promotion_service.dto.CreateVoucherRequest`
 
 - Kind: `class`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/dto/CreateVoucherRequest.java:14`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/dto/CreateVoucherRequest.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/dto/CreateVoucherRequest.java:14`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/dto/CreateVoucherRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6823,7 +6823,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.promotion_service.dto.PromotionReservationResponse`
 
 - Kind: `record`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/dto/PromotionReservationResponse.java:13`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/dto/PromotionReservationResponse.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/dto/PromotionReservationResponse.java:13`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/dto/PromotionReservationResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6840,7 +6840,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 #### `com.delivery.promotion_service.dto.PromotionReservationResponse.Line`
 
 - Kind: `record`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/dto/PromotionReservationResponse.java:34`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/dto/PromotionReservationResponse.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/dto/PromotionReservationResponse.java:34`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/dto/PromotionReservationResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6855,7 +6855,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.promotion_service.dto.PromotionReservationResponse.Line`
 
 - Kind: `record`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/dto/PromotionReservationResponse.java:34`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/dto/PromotionReservationResponse.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/dto/PromotionReservationResponse.java:34`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/dto/PromotionReservationResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6870,7 +6870,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.promotion_service.dto.ReserveRequest`
 
 - Kind: `class`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/dto/ReserveRequest.java:18`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/dto/ReserveRequest.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/dto/ReserveRequest.java:18`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/dto/ReserveRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6886,7 +6886,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.promotion_service.dto.VoucherCapabilityResponse`
 
 - Kind: `record`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/dto/VoucherCapabilityResponse.java:5`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/dto/VoucherCapabilityResponse.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/dto/VoucherCapabilityResponse.java:5`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/dto/VoucherCapabilityResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6899,7 +6899,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.promotion_service.dto.VoucherReservationResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/dto/VoucherReservationResponse.java:16`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/dto/VoucherReservationResponse.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/dto/VoucherReservationResponse.java:16`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/dto/VoucherReservationResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6922,7 +6922,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.promotion_service.dto.VoucherResponse`
 
 - Kind: `record`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/dto/VoucherResponse.java:9`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/dto/VoucherResponse.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/dto/VoucherResponse.java:9`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/dto/VoucherResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6960,7 +6960,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.promotion_service.dto.VoucherSelectionMode`
 
 - Kind: `enum`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/dto/VoucherSelectionMode.java:9`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/dto/VoucherSelectionMode.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/dto/VoucherSelectionMode.java:9`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/dto/VoucherSelectionMode.java)
 - Enum values: `AUTO`, `MANUAL`
 
 | Field | Java type | Required | Validation/annotations |
@@ -6970,7 +6970,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.promotion_service.entity.PromotionReservation`
 
 - Kind: `class`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/entity/PromotionReservation.java:30`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/entity/PromotionReservation.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/entity/PromotionReservation.java:30`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/entity/PromotionReservation.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6993,7 +6993,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 #### `com.delivery.promotion_service.entity.PromotionReservation.State`
 
 - Kind: `enum`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/entity/PromotionReservation.java:90`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/entity/PromotionReservation.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/entity/PromotionReservation.java:90`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/entity/PromotionReservation.java)
 - Enum values: `RESERVED`, `COMMITTED`, `RELEASED`, `EXPIRED`
 
 | Field | Java type | Required | Validation/annotations |
@@ -7003,7 +7003,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.promotion_service.entity.PromotionReservation.State`
 
 - Kind: `enum`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/entity/PromotionReservation.java:90`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/entity/PromotionReservation.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/entity/PromotionReservation.java:90`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/entity/PromotionReservation.java)
 - Enum values: `RESERVED`, `COMMITTED`, `RELEASED`, `EXPIRED`
 
 | Field | Java type | Required | Validation/annotations |
@@ -7013,7 +7013,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.promotion_service.entity.PromotionReservationLine`
 
 - Kind: `class`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/entity/PromotionReservationLine.java:30`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/entity/PromotionReservationLine.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/entity/PromotionReservationLine.java:30`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/entity/PromotionReservationLine.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -7030,7 +7030,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 #### `com.delivery.promotion_service.entity.PromotionReservationLine.State`
 
 - Kind: `enum`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/entity/PromotionReservationLine.java:60`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/entity/PromotionReservationLine.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/entity/PromotionReservationLine.java:60`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/entity/PromotionReservationLine.java)
 - Enum values: `RESERVED`, `COMMITTED`, `RELEASED`, `EXPIRED`
 
 | Field | Java type | Required | Validation/annotations |
@@ -7040,7 +7040,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.promotion_service.entity.PromotionReservationLine.State`
 
 - Kind: `enum`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/entity/PromotionReservationLine.java:60`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/entity/PromotionReservationLine.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/entity/PromotionReservationLine.java:60`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/entity/PromotionReservationLine.java)
 - Enum values: `RESERVED`, `COMMITTED`, `RELEASED`, `EXPIRED`
 
 | Field | Java type | Required | Validation/annotations |
@@ -7050,7 +7050,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.promotion_service.entity.Voucher`
 
 - Kind: `class`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/entity/Voucher.java:18`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/entity/Voucher.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/entity/Voucher.java:18`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/entity/Voucher.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -7091,7 +7091,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 #### `com.delivery.promotion_service.entity.Voucher.CreatorType`
 
 - Kind: `enum`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/entity/Voucher.java:132`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/entity/Voucher.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/entity/Voucher.java:132`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/entity/Voucher.java)
 - Enum values: `PLATFORM`, `MERCHANT`, `SHOP`
 
 | Field | Java type | Required | Validation/annotations |
@@ -7101,7 +7101,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 #### `com.delivery.promotion_service.entity.Voucher.RewardType`
 
 - Kind: `enum`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/entity/Voucher.java:136`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/entity/Voucher.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/entity/Voucher.java:136`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/entity/Voucher.java)
 - Enum values: `FIXED`, `PERCENTAGE`, `FREESHIP`
 
 | Field | Java type | Required | Validation/annotations |
@@ -7111,7 +7111,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 #### `com.delivery.promotion_service.entity.Voucher.ScopeType`
 
 - Kind: `enum`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/entity/Voucher.java:140`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/entity/Voucher.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/entity/Voucher.java:140`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/entity/Voucher.java)
 - Enum values: `ALL`, `SHOP`, `CATEGORY`
 
 | Field | Java type | Required | Validation/annotations |
@@ -7121,7 +7121,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.promotion_service.entity.Voucher.CreatorType`
 
 - Kind: `enum`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/entity/Voucher.java:132`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/entity/Voucher.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/entity/Voucher.java:132`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/entity/Voucher.java)
 - Enum values: `PLATFORM`, `MERCHANT`, `SHOP`
 
 | Field | Java type | Required | Validation/annotations |
@@ -7131,7 +7131,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.promotion_service.entity.Voucher.RewardType`
 
 - Kind: `enum`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/entity/Voucher.java:136`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/entity/Voucher.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/entity/Voucher.java:136`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/entity/Voucher.java)
 - Enum values: `FIXED`, `PERCENTAGE`, `FREESHIP`
 
 | Field | Java type | Required | Validation/annotations |
@@ -7141,7 +7141,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.promotion_service.entity.Voucher.ScopeType`
 
 - Kind: `enum`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/entity/Voucher.java:140`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/entity/Voucher.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/entity/Voucher.java:140`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/entity/Voucher.java)
 - Enum values: `ALL`, `SHOP`, `CATEGORY`
 
 | Field | Java type | Required | Validation/annotations |
@@ -7151,7 +7151,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.promotion_service.entity.VoucherReservation`
 
 - Kind: `class`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/entity/VoucherReservation.java:33`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/entity/VoucherReservation.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/entity/VoucherReservation.java:33`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/entity/VoucherReservation.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -7172,7 +7172,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 #### `com.delivery.promotion_service.entity.VoucherReservation.State`
 
 - Kind: `enum`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/entity/VoucherReservation.java:87`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/entity/VoucherReservation.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/entity/VoucherReservation.java:87`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/entity/VoucherReservation.java)
 - Enum values: `RESERVED`, `COMMITTED`, `RELEASED`, `EXPIRED`
 
 | Field | Java type | Required | Validation/annotations |
@@ -7182,7 +7182,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.promotion_service.entity.VoucherReservation.State`
 
 - Kind: `enum`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/entity/VoucherReservation.java:87`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/entity/VoucherReservation.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/entity/VoucherReservation.java:87`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/entity/VoucherReservation.java)
 - Enum values: `RESERVED`, `COMMITTED`, `RELEASED`, `EXPIRED`
 
 | Field | Java type | Required | Validation/annotations |
@@ -7192,7 +7192,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.promotion_service.payload.BaseResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/payload/BaseResponse.java:3`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/payload/BaseResponse.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/payload/BaseResponse.java:3`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/payload/BaseResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -7203,7 +7203,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.promotion_service.service.VoucherLayer`
 
 - Kind: `enum`
-- Source: [`backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/service/VoucherLayer.java:4`](../../../../promotion-service/src/main/java/com/delivery/promotion_service/service/VoucherLayer.java)
+- Source: [`backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/service/VoucherLayer.java:4`](../../../../promotion/infrastructure/src/main/java/com/delivery/promotion_service/service/VoucherLayer.java)
 - Enum values: `SHOP_DISCOUNT`, `PLATFORM_DISCOUNT`, `FREESHIP`
 
 | Field | Java type | Required | Validation/annotations |

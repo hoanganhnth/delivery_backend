@@ -55,6 +55,31 @@ test('Settlement adapters retain settlement-service identity in the root layout'
   }
 });
 
+test('Promotion adapters retain promotion-service identity in the root layout', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'backend-layout-'));
+  try {
+    fs.mkdirSync(path.join(root, 'order-service/src/main/java'), { recursive: true });
+    fs.mkdirSync(path.join(root, 'promotion/boot/src/main/java'), { recursive: true });
+    fs.mkdirSync(path.join(root, 'promotion/infrastructure/src/main/java'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'promotion/boot/pom.xml'),
+      '<project><parent><artifactId>spring-boot-starter-parent</artifactId></parent>'
+      + '<artifactId>promotion-service</artifactId></project>');
+    fs.mkdirSync(path.join(root, 'docs/reference/src/main/java'), { recursive: true });
+    assert.deepEqual(serviceSourceRoots(root).map(({ service, directory }) =>
+      [service, path.relative(root, directory)]).sort(), [
+      ['order-service', 'order-service/src/main/java'],
+      ['promotion-service', 'promotion/boot/src/main/java'],
+      ['promotion-service', 'promotion/infrastructure/src/main/java'],
+    ]);
+    assert.equal(serviceForSource(root,
+      path.join(root, 'promotion/infrastructure/src/main/java/PromotionController.java')), 'promotion-service');
+    assert.equal(serviceForSource(root,
+      path.join(root, 'order-service/src/main/java/OrderController.java')), 'order-service');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('a boot POM without an artifact identity fails instead of omitting handlers', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'backend-layout-'));
   try {

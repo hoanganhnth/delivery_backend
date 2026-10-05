@@ -73,7 +73,8 @@
         <module>promotion/domain</module>
         <module>promotion/application-api</module>
         <module>promotion/application</module>
-        <module>promotion-service</module>
+        <module>promotion/infrastructure</module>
+        <module>promotion/boot</module>
         <module>simulator-service</module>
     </modules>
 
