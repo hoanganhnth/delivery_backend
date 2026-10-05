@@ -20,10 +20,13 @@ fi
 
 service_paths=()
 for service in "${services[@]}"; do
+  canonical="${service%-service}"
+  # The Saga orchestrator was repurposed in place as Dispatch; its artifact name is unchanged.
+  [[ "$service" == "saga-orchestrator-service" ]] && canonical="dispatch"
   if [[ -f "${service}/pom.xml" && -d "${service}/src" ]]; then
     service_paths+=("$service")
-  elif [[ -f "${service%-service}/boot/pom.xml" && -d "${service%-service}/boot/src" ]]; then
-    service_paths+=("${service%-service}/boot")
+  elif [[ -f "${canonical}/boot/pom.xml" && -d "${canonical}/boot/src" ]]; then
+    service_paths+=("${canonical}/boot")
   else
     die "Unknown or non-packageable service: ${service}"
   fi

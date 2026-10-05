@@ -61,7 +61,8 @@
         <module>dispatch/domain</module>
         <module>dispatch/application-api</module>
         <module>dispatch/application</module>
-        <module>saga-orchestrator-service</module>
+        <module>dispatch/infrastructure</module>
+        <module>dispatch/boot</module>
         <module>tracking/boot</module>
         <module>match/boot</module>
         <module>routing</module>

@@ -7,6 +7,8 @@ CLOUD_VERSION="2025.0.3"
 
 service_directory() {
   local service="$1" canonical="${1%-service}"
+  # The Saga orchestrator was repurposed in place as Dispatch; its artifact name is unchanged.
+  [[ "$service" == "saga-orchestrator-service" ]] && canonical="dispatch"
   if [[ -f "${ROOT_DIR}/${canonical}/boot/pom.xml" ]]; then
     printf '%s' "${ROOT_DIR}/${canonical}/boot"
   else
@@ -27,7 +29,7 @@ modules=(
   restaurant/boot
   shipper/boot
   search-service
-  saga-orchestrator-service
+  dispatch/boot
   tracking/boot
   match/boot
   routing/boot
@@ -540,7 +542,7 @@ if ! rg -Fq 'ON CONFLICT (deduplication_key) DO NOTHING' "${notification_reposit
   exit 1
 fi
 
-saga_kafka_config="${ROOT_DIR}/saga-orchestrator-service/src/main/java/com/delivery/saga_orchestrator_service/config/KafkaConfig.java"
+saga_kafka_config="${ROOT_DIR}/dispatch/infrastructure/src/main/java/com/delivery/saga_orchestrator_service/config/KafkaConfig.java"
 if ! rg -Fq 'ownerDltTopic(record.topic())' "${saga_kafka_config}" \
     || ! rg -Fq 'replaceFirst("-retry-saga-\\d+$", "") + ".saga.DLT"' "${saga_kafka_config}" \
     || ! rg -Fq 'new FixedBackOff(1000L, 2)' "${saga_kafka_config}" \
@@ -618,7 +620,7 @@ if ! rg -Fq 'publishers.sweepExpired(batchSize)' "${tracking_expiry_sweeper}" \
   echo "tracking-service: publisher fencing, disconnect grace and crash-expiry reconciliation are required." >&2
   exit 1
 fi
-for core_consumer in delivery-service saga-orchestrator-service match/boot match/infrastructure; do
+for core_consumer in delivery-service dispatch/boot dispatch/infrastructure match/boot match/infrastructure; do
   if rg -q 'AUTO_OFFSET_RESET_CONFIG, "latest"|auto-offset-reset=latest' \
       "${ROOT_DIR}/${core_consumer}/src/main"; then
     echo "${core_consumer}: durable core consumers must replay from earliest when group state is absent." >&2
@@ -640,7 +642,7 @@ if ! rg -Fq 'DLT_REPLAY_CONFIRMATION must exactly equal' \
   echo "Kafka DLT recovery must remain coordinate-confirmed, dry-run by default, and single-record only." >&2
   exit 1
 fi
-for manual_dlt_consumer in delivery-service saga-orchestrator-service match/infrastructure order-service notification-service promotion-service; do
+for manual_dlt_consumer in delivery-service dispatch/infrastructure match/infrastructure order-service notification-service promotion-service; do
   if ! rg -Fq 'setCommitRecovered(true)' \
       "${ROOT_DIR}/${manual_dlt_consumer}/src/main/java"; then
     echo "${manual_dlt_consumer}: manual-immediate DLT recovery must commit the recovered source offset." >&2

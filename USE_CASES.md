@@ -156,7 +156,7 @@
 | Backend | Phát hiện shipper offline (Redis + WebSocket) | 🔧 |
 | Backend | Re-assign cho shipper khác | ✅ |
 | Customer App | Thông báo khi đơn bị auto-cancel (qua notification/websocket) | ✅ |
-> 📌 Design doc: `saga-orchestrator-service/SAGA_DESIGN.md`
+> 📌 Design doc: `dispatch/boot/SAGA_DESIGN.md`
 
 ---
 
@@ -268,7 +268,7 @@
 | Kafka Listeners cho existing topics | ✅ |
 | Order Creation Saga Logic | ✅ |
 | Compensation (Rollback) Logic | ✅ |
-> 📌 Design doc: `saga-orchestrator-service/SAGA_DESIGN.md`
+> 📌 Design doc: `dispatch/boot/SAGA_DESIGN.md`
 
 ---
 

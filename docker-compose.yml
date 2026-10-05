@@ -589,7 +589,7 @@ services:
     networks: [delivery-network]
 
   saga-orchestrator-service:
-    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: saga-orchestrator-service } }
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: dispatch/boot } }
     container_name: saga-orchestrator-service
     expose: ["8095", "9090"]
     environment:
