@@ -1,12 +1,18 @@
 package com.delivery.notification_service.listener;
 
 import com.delivery.notification_service.NotificationServiceApplication;
-import com.delivery.notification_service.entity.Notification;
+import com.delivery.order.contracts.OrderCreatedEvent;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.kafka.support.JacksonUtils;
+import org.springframework.kafka.support.serializer.JsonSerializer;
 import com.delivery.notification_service.repository.NotificationRepository;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.admin.ConsumerGroupDescription;
 import org.apache.kafka.clients.admin.NewTopic;
+import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.common.serialization.StringSerializer;
+import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
@@ -16,7 +22,6 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -95,13 +100,28 @@ class NotificationKafkaPostgresIntegrationTest {
     }
 
     @Autowired private NotificationRepository notificationRepository;
-    @Autowired @Qualifier("retryKafkaTemplate") private KafkaTemplate<String, String> rawKafka;
+    private final ObjectMapper wireMapper = JacksonUtils.enhancedObjectMapper();
+    private DefaultKafkaProducerFactory<String, Object> relayProducerFactory;
+    private KafkaTemplate<String, Object> relayKafka;
+    // Retain header-less JSON coverage alongside the real relay wire formats.
+    private DefaultKafkaProducerFactory<String, String> rawProducerFactory;
+    private KafkaTemplate<String, String> rawKafka;
     @Autowired private KafkaListenerEndpointRegistry primaryListenerRegistry;
 
     private final List<ConfigurableApplicationContext> replicas = new ArrayList<>();
 
     @BeforeEach
     void prepareBoundary() throws Exception {
+        rawProducerFactory = new DefaultKafkaProducerFactory<>(Map.of(
+                ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, KAFKA.getBootstrapServers(),
+                ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class,
+                ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class));
+        rawKafka = new KafkaTemplate<>(rawProducerFactory);
+        relayProducerFactory = new DefaultKafkaProducerFactory<>(Map.of(
+                ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, KAFKA.getBootstrapServers(),
+                ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class,
+                ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class));
+        relayKafka = new KafkaTemplate<>(relayProducerFactory);
         closeReplicas();
         stopPrimaryListeners();
         notificationRepository.deleteAll();
@@ -112,6 +132,8 @@ class NotificationKafkaPostgresIntegrationTest {
     void stopReplicas() {
         closeReplicas();
         stopPrimaryListeners();
+        if (rawProducerFactory != null) rawProducerFactory.destroy();
+        if (relayProducerFactory != null) relayProducerFactory.destroy();
     }
 
     @Test
@@ -191,14 +213,16 @@ class NotificationKafkaPostgresIntegrationTest {
     private void rehearseReplayAndContradiction(String topic, String eventId, String key, String payload,
                                                 String contradictory, Consumer<String> assertOneNotification)
             throws Exception {
+        payload = relayPayloadJson(topic, payload);
+        contradictory = relayPayloadJson(topic, contradictory);
         String dltTopic = topic + ".notification.DLT";
         startPrimaryReplica(topic);
         startReplica(REPLICA_GROUP, topic);
         await("two Notification replicas to own both " + topic + " source partitions", () ->
                 targetPartitionOwners(REPLICA_GROUP, topic).equals(Set.of(0, 1)));
 
-        rawKafka.send(topic, 0, key, payload).get(10, TimeUnit.SECONDS);
-        rawKafka.send(topic, 1, key, payload).get(10, TimeUnit.SECONDS);
+        publishRelayRecord(topic, 0, key, payload);
+        publishRelayRecord(topic, 1, key, payload);
 
         await("one committed " + topic + " notification before both source offsets", () ->
                 notificationRepository.count() == 1
@@ -218,7 +242,7 @@ class NotificationKafkaPostgresIntegrationTest {
         assertOneNotification.accept(eventId);
 
         try (KafkaConsumer<String, String> dltConsumer = freshConsumer(dltTopic)) {
-            rawKafka.send(topic, 1, key, contradictory).get(10, TimeUnit.SECONDS);
+            publishRelayRecord(topic, 1, key, contradictory);
 
             ConsumerRecord<String, String> dlt = awaitRecord(
                     dltConsumer, dltTopic, "contradictory " + topic + " reuse to reach the owner DLT");
@@ -227,6 +251,22 @@ class NotificationKafkaPostgresIntegrationTest {
                     committedOffsetsAtLeast(REPLAY_GROUP, topic, 2, 2));
         }
         assertOneNotification.accept(eventId);
+    }
+
+    private Object relayPayload(String topic, String payload) throws Exception {
+        // OrderOutboxRelay rehydrates its contract; Delivery OutboxMessageRelay
+        // sends readTree(), so JsonSerializer emits an ObjectNode __TypeId__.
+        return ORDER_TOPIC.equals(topic)
+                ? wireMapper.readValue(payload, OrderCreatedEvent.class)
+                : wireMapper.readTree(payload);
+    }
+
+    private String relayPayloadJson(String topic, String payload) throws Exception {
+        return wireMapper.writeValueAsString(relayPayload(topic, payload));
+    }
+
+    private void publishRelayRecord(String topic, int partition, String key, String payload) throws Exception {
+        relayKafka.send(topic, partition, key, relayPayload(topic, payload)).get(10, TimeUnit.SECONDS);
     }
 
     private void startPrimaryReplica(String topic) {
