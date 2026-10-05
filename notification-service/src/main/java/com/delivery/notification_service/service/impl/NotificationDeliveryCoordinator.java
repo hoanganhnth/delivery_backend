@@ -1,6 +1,10 @@
 package com.delivery.notification_service.service.impl;
 
 import com.delivery.notification_service.common.constants.NotificationConstants;
+import com.delivery.notification.application.CompleteDelivery;
+import com.delivery.notification.application.api.DeliveryPort;
+import com.delivery.notification.application.api.StoredNotification;
+import java.util.Optional;
 import com.delivery.notification_service.dto.request.SendNotificationRequest;
 import com.delivery.notification_service.dto.response.NotificationResponse;
 import com.delivery.notification_service.entity.Notification;
@@ -10,7 +14,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.HashMap;
 import java.util.Map;
 
 @Component
@@ -27,37 +30,27 @@ public class NotificationDeliveryCoordinator {
 
     @Transactional
     public void deliverPending(SendNotificationRequest request, NotificationResponse snapshot) {
-        Notification notification = notificationRepository.findByIdForUpdate(snapshot.getId())
-                .orElseThrow(() -> new IllegalStateException("Notification not found: " + snapshot.getId()));
-        if (NotificationConstants.STATUS_SENT.equals(notification.getStatus())) {
-            return;
-        }
-        if (!NotificationConstants.STATUS_PENDING.equals(notification.getStatus())) {
-            throw new IllegalStateException("Notification " + notification.getId()
-                    + " is not deliverable from status " + notification.getStatus());
-        }
+        new CompleteDelivery(
+                new DeliveryPort() {
+                    private Notification locked;
 
-        if (Boolean.TRUE.equals(request.getSendPush())) {
-            firebaseService.sendPushNotificationToUser(
-                    notification.getUserId(),
-                    notification.getTitle(),
-                    notification.getMessage(),
-                    pushData(notification));
-        }
+                    public Optional<StoredNotification<Void>> lock(Long id) {
+                        return notificationRepository.findByIdForUpdate(id).map(n -> {
+                            locked = n;
+                            return new StoredNotification<Void>(
+                                    n.getId(), NotificationServiceImpl.payload(n), n.getStatus(), null);
+                        });
+                    }
 
-        notification.setStatus(NotificationConstants.STATUS_SENT);
-        notification.setSentAt(LocalDateTime.now());
-        notificationRepository.save(notification);
-    }
+                    public void push(Long userId, String title, String message, Map<String, String> data) {
+                        firebaseService.sendPushNotificationToUser(userId, title, message, data);
+                    }
 
-    private Map<String, String> pushData(Notification notification) {
-        Map<String, String> data = new HashMap<>();
-        data.put("notificationId", notification.getId().toString());
-        data.put("type", notification.getType());
-        if (notification.getRelatedEntityId() != null) {
-            data.put("relatedEntityId", notification.getRelatedEntityId().toString());
-            data.put("relatedEntityType", notification.getRelatedEntityType());
-        }
-        return data;
+                    public void saveSent(Long id, LocalDateTime sentAt) {
+                        locked.setStatus(NotificationConstants.STATUS_SENT);
+                        locked.setSentAt(sentAt);
+                        notificationRepository.save(locked);
+                    }
+                }, LocalDateTime::now).deliver(snapshot.getId(), request.getSendPush());
     }
 }

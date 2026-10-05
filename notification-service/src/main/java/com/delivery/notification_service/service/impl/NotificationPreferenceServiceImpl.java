@@ -1,8 +1,9 @@
 package com.delivery.notification_service.service.impl;
 
 import com.delivery.notification_service.dto.response.NotificationPreferenceResponse;
-import com.delivery.notification.domain.NotificationPreferences;
-import com.delivery.notification_service.entity.NotificationPreference;
+import com.delivery.notification.application.Preferences;
+import com.delivery.notification.application.api.PreferencePort;
+import java.util.Optional;
 import com.delivery.notification_service.repository.NotificationPreferenceRepository;
 import com.delivery.notification_service.service.NotificationPreferenceService;
 import org.springframework.beans.factory.annotation.Value;
@@ -29,54 +30,35 @@ public class NotificationPreferenceServiceImpl implements NotificationPreference
     @Override
     @Transactional(readOnly = true)
     public NotificationPreferenceResponse getPreferences(Long principalId) {
-        requirePrincipal(principalId);
-        return repository.findById(principalId).map(this::response)
-                .orElseGet(NotificationPreferenceServiceImpl::defaultResponse);
+        return response(preferences().get(principalId));
     }
 
     @Override
     @Transactional
     public NotificationPreferenceResponse updateMarketingNotifications(Long principalId, boolean enabled) {
-        requirePrincipal(principalId);
-        int changed = isH2()
-                ? repository.upsertH2(principalId, enabled)
-                : repository.upsertPostgres(principalId, enabled);
-        if (changed != 1) {
-            throw new IllegalStateException("notification preference update did not affect one principal");
-        }
-        NotificationPreference preference = repository.findById(principalId)
-                .orElseThrow(() -> new IllegalStateException(
-                        "notification preference upsert resolved without a committed row"));
-        return response(preference);
+        return response(preferences().update(principalId, enabled));
     }
 
-    private boolean isH2() {
-        return dataSourceUrl != null && dataSourceUrl.startsWith("jdbc:h2:");
+    private Preferences preferences() {
+        return new Preferences(
+                new PreferencePort() {
+                    public Optional<Stored> find(Long id) {
+                        return repository.findById(id).map(p -> new Stored(p.isMarketingNotificationsEnabled(), p.getUpdatedAt()));
+                    }
+                    public int upsert(Long id, boolean enabled) {
+                        return dataSourceUrl != null && dataSourceUrl.startsWith("jdbc:h2:")
+                                ? repository.upsertH2(id, enabled) : repository.upsertPostgres(id, enabled);
+                    }
+                });
     }
 
-    private static NotificationPreferenceResponse defaultResponse() {
-        NotificationPreferences defaults = NotificationPreferences.fromStoredMarketing(null);
+    private NotificationPreferenceResponse response(Preferences.Result result) {
+        var preferences = result.preferences();
         return NotificationPreferenceResponse.builder()
-                .transactionalNotificationsEnabled(defaults.transactionalNotificationsEnabled())
-                .marketingNotificationsEnabled(defaults.marketingNotificationsEnabled())
-                .configured(defaults.configured())
-                .updatedAt(null)
+                .transactionalNotificationsEnabled(preferences.transactionalNotificationsEnabled())
+                .marketingNotificationsEnabled(preferences.marketingNotificationsEnabled())
+                .configured(preferences.configured())
+                .updatedAt(result.updatedAt())
                 .build();
-    }
-
-    private NotificationPreferenceResponse response(NotificationPreference preference) {
-        NotificationPreferences stored = NotificationPreferences.fromStoredMarketing(preference.isMarketingNotificationsEnabled());
-        return NotificationPreferenceResponse.builder()
-                .transactionalNotificationsEnabled(stored.transactionalNotificationsEnabled())
-                .marketingNotificationsEnabled(stored.marketingNotificationsEnabled())
-                .configured(stored.configured())
-                .updatedAt(preference.getUpdatedAt())
-                .build();
-    }
-
-    private void requirePrincipal(Long principalId) {
-        if (principalId == null || principalId <= 0) {
-            throw new IllegalArgumentException("principalId must be positive");
-        }
     }
 }

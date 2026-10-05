@@ -4,10 +4,15 @@ import com.delivery.notification_service.common.constants.NotificationConstants;
 import com.delivery.notification.domain.NotificationIntent;
 import com.delivery.notification.domain.NotificationMapping;
 import com.delivery.notification.domain.ReplayPayload;
+import com.delivery.notification.application.DurableSend;
+import com.delivery.notification.application.Inbox;
+import com.delivery.notification.domain.InboxActor;
+import com.delivery.notification.application.ReplayConflictException;
+import com.delivery.notification.application.api.*;
+import java.util.Optional;
 import com.delivery.notification_service.dto.request.SendNotificationRequest;
 import com.delivery.notification_service.dto.response.NotificationResponse;
 import com.delivery.notification_service.entity.Notification;
-import com.delivery.notification_service.exception.NotificationNotFoundException;
 import com.delivery.notification_service.exception.NotificationConflictException;
 import com.delivery.notification_service.mapper.NotificationMapper;
 import com.delivery.notification_service.repository.NotificationRepository;
@@ -18,9 +23,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.transaction.annotation.Transactional;
-import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
@@ -75,43 +78,29 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Override
     public NotificationResponse sendNotification(SendNotificationRequest request) {
-        validateSendNotificationRequest(request);
-        if (request.getDeduplicationKey() != null && !request.getDeduplicationKey().isBlank()) {
-            Notification existing = notificationRepository
-                    .findByDeduplicationKey(request.getDeduplicationKey())
-                    .orElse(null);
-            if (existing != null) {
-                assertReplayMatches(existing, request);
-                NotificationResponse stored = notificationMapper.toResponse(existing);
-                if (NotificationConstants.STATUS_PENDING.equals(existing.getStatus())) {
-                    log.info("Retrying pending notification event {} with stable id {}",
-                            request.getDeduplicationKey(), existing.getId());
-                    deliverAndMarkSent(request, stored);
-                } else {
-                    log.info("Skipping completed duplicate notification event {}",
-                            request.getDeduplicationKey());
+        SendCommand command = request == null ? null : new SendCommand(payload(request),
+                request.getDeduplicationKey(), request.getSendPush());
+        try {
+            return new DurableSend<>(new DurableSendPort<NotificationResponse>() {
+                public Optional<StoredNotification<NotificationResponse>> findByKey(String key) {
+                    return notificationRepository.findByDeduplicationKey(key).map(NotificationServiceImpl.this::stored);
                 }
-                return stored;
-            }
+                public StoredNotification<NotificationResponse> createCommitted(SendCommand ignored) {
+                    return createNotification(request);
+                }
+                public void deliver(SendCommand ignored, StoredNotification<NotificationResponse> notification) {
+                    deliveryCoordinator.deliverPending(request, notification.response());
+                }
+                public void markResponseSent(NotificationResponse response) {
+                    response.setStatus(NotificationConstants.STATUS_SENT);
+                }
+            }).send(command);
+        } catch (ReplayConflictException conflict) {
+            throw new NotificationConflictException(conflict.getMessage());
         }
-
-        // The PENDING row must commit before external I/O. The atomic insert
-        // also makes parallel Kafka partitions converge to one stable delivery
-        // record; the coordinator below owns the later PENDING -> SENT lock.
-        NotificationResponse notification = createNotification(request);
-
-        deliverAndMarkSent(request, notification);
-
-        log.info("📤 Successfully sent notification {} to user {}", notification.getId(), notification.getUserId());
-        return notification;
     }
 
-    private void deliverAndMarkSent(SendNotificationRequest request, NotificationResponse notification) {
-        deliveryCoordinator.deliverPending(request, notification);
-        notification.setStatus(NotificationConstants.STATUS_SENT);
-    }
-
-    private NotificationResponse createNotification(SendNotificationRequest request) {
+    private StoredNotification<NotificationResponse> createNotification(SendNotificationRequest request) {
         Notification notification = new Notification();
         notification.setUserId(request.getUserId());
         notification.setUserPrincipalId(request.getUserPrincipalId());
@@ -128,19 +117,18 @@ public class NotificationServiceImpl implements NotificationService {
         if (request.getDeduplicationKey() == null || request.getDeduplicationKey().isBlank()) {
             Notification saved = notificationRepository.saveAndFlush(notification);
             log.info("✅ Created notification {} for user {}", saved.getId(), saved.getUserId());
-            return notificationMapper.toResponse(saved);
+            return stored(saved);
         }
 
         int inserted = insertIfAbsent(notification);
         Notification saved = notificationRepository.findByDeduplicationKey(request.getDeduplicationKey())
                 .orElseThrow(() -> new IllegalStateException(
                         "notification deduplication claim resolved without a committed row"));
-        assertReplayMatches(saved, request);
 
         if (inserted == 1) {
             log.info("✅ Created notification {} for user {}", saved.getId(), saved.getUserId());
         }
-        return notificationMapper.toResponse(saved);
+        return stored(saved);
     }
 
     private int insertIfAbsent(Notification notification) {
@@ -160,196 +148,107 @@ public class NotificationServiceImpl implements NotificationService {
                 notification.getDeduplicationKey());
     }
 
-    private void assertReplayMatches(Notification existing, SendNotificationRequest request) {
-        ReplayPayload stored = new ReplayPayload(
-                existing.getUserId(), existing.getUserPrincipalId(), existing.getTitle(), existing.getMessage(),
-                existing.getType(), existing.getPriority(), existing.getRelatedEntityId(),
-                existing.getRelatedEntityType(), existing.getData());
-        ReplayPayload incoming = new ReplayPayload(
-                request.getUserId(), request.getUserPrincipalId(), request.getTitle(), request.getMessage(),
-                request.getType(), request.getPriority(), request.getRelatedEntityId(),
-                request.getRelatedEntityType(), request.getData());
-        boolean samePayload = stored.matches(incoming);
-        if (!samePayload) {
-            throw new NotificationConflictException(
-                    "Deduplication key is already bound to a different notification payload");
-        }
+    private StoredNotification<NotificationResponse> stored(Notification n) {
+        return new StoredNotification<>(n.getId(), payload(n), n.getStatus(), notificationMapper.toResponse(n));
+    }
+
+    static ReplayPayload payload(Notification n) {
+        return new ReplayPayload(n.getUserId(), n.getUserPrincipalId(), n.getTitle(), n.getMessage(),
+                n.getType(), n.getPriority(), n.getRelatedEntityId(), n.getRelatedEntityType(), n.getData());
+    }
+
+    private static ReplayPayload payload(SendNotificationRequest r) {
+        return new ReplayPayload(r.getUserId(), r.getUserPrincipalId(), r.getTitle(), r.getMessage(),
+                r.getType(), r.getPriority(), r.getRelatedEntityId(), r.getRelatedEntityType(), r.getData());
+    }
+
+    private Inbox<Notification, NotificationResponse> inbox() {
+        return new Inbox<>(
+                new NotificationInboxAdapter(notificationRepository, notificationMapper, meterRegistry), LocalDateTime::now);
+    }
+
+    private InboxActor actor(Long userId) {
+        return new InboxActor(null, userId, true, false);
+    }
+
+    private InboxActor actor(Long principalId, Long legacyUserId) {
+        return new InboxActor(principalId, legacyUserId, false, principalOwnershipEnforced);
     }
 
     @Override
     public List<NotificationResponse> getUserNotifications(Long userId) {
-        requirePositiveId(userId, "userId");
-        List<Notification> notifications = notificationRepository.findByUserIdOrderByCreatedAtDesc(
-                userId, PageRequest.of(0, 100));
-        return notificationMapper.toResponseList(notifications);
+        return inbox().list(actor(userId), false);
     }
 
     @Override
     public List<NotificationResponse> getUserNotifications(Long principalId, Long legacyUserId) {
-        requireIdentity(principalId, legacyUserId);
-        List<Notification> notifications = principalOwnershipEnforced
-                ? notificationRepository.findByUserPrincipalIdOrderByCreatedAtDesc(principalId, PageRequest.of(0, 100))
-                : notificationRepository.findByPrincipalOrUnmigratedLegacyUser(
-                        principalId, legacyUserId, PageRequest.of(0, 100));
-        if (!principalOwnershipEnforced) recordLegacyFallback(notifications, "inbox_list");
-        return notificationMapper.toResponseList(notifications);
+        return inbox().list(actor(principalId, legacyUserId), false);
     }
 
     @Override
     public List<NotificationResponse> getUnreadNotifications(Long userId) {
-        requirePositiveId(userId, "userId");
-        List<Notification> notifications = notificationRepository.findByUserIdAndIsReadOrderByCreatedAtDesc(
-                userId, false, PageRequest.of(0, 100));
-        return notificationMapper.toResponseList(notifications);
+        return inbox().list(actor(userId), true);
     }
 
     @Override
     public List<NotificationResponse> getUnreadNotifications(Long principalId, Long legacyUserId) {
-        requireIdentity(principalId, legacyUserId);
-        List<Notification> notifications = principalOwnershipEnforced
-                ? notificationRepository.findByUserPrincipalIdAndIsReadOrderByCreatedAtDesc(
-                        principalId, false, PageRequest.of(0, 100))
-                : notificationRepository.findUnreadByPrincipalOrUnmigratedLegacyUser(
-                        principalId, legacyUserId, false, PageRequest.of(0, 100));
-        if (!principalOwnershipEnforced) recordLegacyFallback(notifications, "inbox_unread_list");
-        return notificationMapper.toResponseList(notifications);
+        return inbox().list(actor(principalId, legacyUserId), true);
     }
 
     @Override
     @Transactional
     public NotificationResponse markAsRead(Long notificationId, Long userId) {
-        requirePositiveId(notificationId, "notificationId");
-        requirePositiveId(userId, "userId");
-        LocalDateTime readAt = LocalDateTime.now();
-        int updated = notificationRepository.markAsRead(notificationId, userId, readAt);
-
-        if (updated > 0) {
-            Notification notification = notificationRepository.findByIdAndUserId(notificationId, userId)
-                    .orElseThrow(() -> new NotificationNotFoundException(notificationId));
-
-            log.info("👁️ Marked notification {} as read", notificationId);
-            return notificationMapper.toResponse(notification);
-        }
-
-        Notification existing = notificationRepository.findByIdAndUserId(notificationId, userId)
-                .orElseThrow(() -> new NotificationNotFoundException(notificationId));
-        return notificationMapper.toResponse(existing);
+        return inbox().markRead(notificationId, actor(userId));
     }
 
     @Override
     @Transactional
     public NotificationResponse markAsRead(Long notificationId, Long principalId, Long legacyUserId) {
-        requirePositiveId(notificationId, "notificationId"); requireIdentity(principalId, legacyUserId);
-        Notification notification = findOwnedNotification(notificationId, principalId, legacyUserId);
-        if (!principalOwnershipEnforced) recordLegacyFallback(notification, "inbox_mark_read");
-        if (!Boolean.TRUE.equals(notification.getIsRead())) {
-            notification.setIsRead(true); notification.setReadAt(LocalDateTime.now()); notificationRepository.save(notification);
-        }
-        return notificationMapper.toResponse(notification);
+        return inbox().markRead(notificationId, actor(principalId, legacyUserId));
     }
 
     @Override
     @Transactional
     public int markAllAsRead(Long userId) {
-        requirePositiveId(userId, "userId");
-        LocalDateTime readAt = LocalDateTime.now();
-        int updated = notificationRepository.markAllAsReadByUser(userId, readAt);
-
-        log.info("👁️ Marked {} notifications as read for user {}", updated, userId);
-        return updated;
+        return inbox().markAllRead(actor(userId));
     }
 
     @Override
     @Transactional
     public int markAllAsRead(Long principalId, Long legacyUserId) {
-        requireIdentity(principalId, legacyUserId);
-        List<Notification> unread = principalOwnershipEnforced
-                ? notificationRepository.findByUserPrincipalIdAndIsReadOrderByCreatedAtDesc(
-                        principalId, false, PageRequest.of(0, 100))
-                : notificationRepository.findUnreadByPrincipalOrUnmigratedLegacyUser(
-                        principalId, legacyUserId, false, PageRequest.of(0, 100));
-        if (!principalOwnershipEnforced) recordLegacyFallback(unread, "inbox_mark_all_read");
-        LocalDateTime now = LocalDateTime.now(); unread.forEach(n -> { n.setIsRead(true); n.setReadAt(now); });
-        notificationRepository.saveAll(unread); return unread.size();
+        return inbox().markAllRead(actor(principalId, legacyUserId));
     }
 
     @Override
     public long getUnreadCount(Long userId) {
-        requirePositiveId(userId, "userId");
-        return notificationRepository.countByUserIdAndIsRead(userId, false);
+        return inbox().unreadCount(actor(userId));
     }
 
     @Override
     public long getUnreadCount(Long principalId, Long legacyUserId) {
-        requireIdentity(principalId, legacyUserId);
-        return principalOwnershipEnforced
-                ? notificationRepository.countByUserPrincipalIdAndIsRead(principalId, false)
-                : notificationRepository.countByPrincipalOrUnmigratedLegacyUserAndIsRead(principalId, legacyUserId, false);
+        return inbox().unreadCount(actor(principalId, legacyUserId));
     }
 
     @Override
     public NotificationResponse getNotificationById(Long id, Long userId) {
-        requirePositiveId(id, "notificationId");
-        requirePositiveId(userId, "userId");
-        Notification notification = notificationRepository.findByIdAndUserId(id, userId)
-                .orElseThrow(() -> new NotificationNotFoundException(id));
-        return notificationMapper.toResponse(notification);
+        return inbox().get(id, actor(userId));
     }
 
     @Override
     public NotificationResponse getNotificationById(Long id, Long principalId, Long legacyUserId) {
-        requirePositiveId(id, "notificationId"); requireIdentity(principalId, legacyUserId);
-        Notification notification = findOwnedNotification(id, principalId, legacyUserId);
-        if (!principalOwnershipEnforced) recordLegacyFallback(notification, "inbox_read");
-        return notificationMapper.toResponse(notification);
+        return inbox().get(id, actor(principalId, legacyUserId));
     }
 
     @Override
     @Transactional
     public void deleteNotification(Long id, Long userId) {
-        requirePositiveId(id, "notificationId");
-        requirePositiveId(userId, "userId");
-        long deleted = notificationRepository.deleteByIdAndUserId(id, userId);
-        if (deleted == 0) {
-            throw new NotificationNotFoundException(id);
-        }
-        log.info("🗑️ Deleted notification {}", id);
+        inbox().delete(id, actor(userId));
     }
 
     @Override
     @Transactional
     public void deleteNotification(Long id, Long principalId, Long legacyUserId) {
-        requirePositiveId(id, "notificationId"); requireIdentity(principalId, legacyUserId);
-        Notification notification = findOwnedNotification(id, principalId, legacyUserId);
-        if (!principalOwnershipEnforced) recordLegacyFallback(notification, "inbox_delete");
-        notificationRepository.delete(notification);
-    }
-
-    private void requireIdentity(Long principalId, Long legacyUserId) {
-        requirePositiveId(principalId, "principalId"); requirePositiveId(legacyUserId, "legacyUserId");
-    }
-
-    private Notification findOwnedNotification(Long id, Long principalId, Long legacyUserId) {
-        return (principalOwnershipEnforced
-                ? notificationRepository.findByIdAndUserPrincipalId(id, principalId)
-                : notificationRepository.findByIdAndPrincipalOrUnmigratedLegacyUser(id, principalId, legacyUserId))
-                .orElseThrow(() -> new NotificationNotFoundException(id));
-    }
-
-    private void recordLegacyFallback(Notification notification, String surface) {
-        if (notification != null && notification.getUserPrincipalId() == null) {
-            legacyFallbackCounter(surface).increment();
-        }
-    }
-
-    private void recordLegacyFallback(List<Notification> notifications, String surface) {
-        long count = notifications.stream().filter(notification -> notification.getUserPrincipalId() == null).count();
-        if (count > 0) legacyFallbackCounter(surface).increment(count);
-    }
-
-    private Counter legacyFallbackCounter(String surface) {
-        return Counter.builder("delivery.identity.legacy.fallback")
-                .tag("service", "notification").tag("surface", surface).register(meterRegistry);
+        inbox().delete(id, actor(principalId, legacyUserId));
     }
 
     @Override
@@ -381,31 +280,6 @@ public class NotificationServiceImpl implements NotificationService {
         sendNotification(toRequest(NotificationMapping.shipperOffer(shipperId, orderId, restaurantName,
                 pickupAddress, deliveryAddress, distance, offerEventId)));
         log.info("🎯 Sent match found notification to shipper {}", shipperId);
-    }
-
-    private void validateSendNotificationRequest(SendNotificationRequest request) {
-        if (request == null) {
-            throw new IllegalArgumentException("Send notification request is required");
-        }
-        requirePositiveId(request.getUserId(), "userId");
-        if (request.getTitle() == null || request.getTitle().isBlank()) {
-            throw new IllegalArgumentException("title is required");
-        }
-        if (request.getMessage() == null || request.getMessage().isBlank()) {
-            throw new IllegalArgumentException("message is required");
-        }
-        if (request.getType() == null || request.getType().isBlank()) {
-            throw new IllegalArgumentException("type is required");
-        }
-        if (request.getPriority() == null || request.getPriority().isBlank()) {
-            throw new IllegalArgumentException("priority is required");
-        }
-    }
-
-    private void requirePositiveId(Long value, String fieldName) {
-        if (value == null || value <= 0) {
-            throw new IllegalArgumentException(fieldName + " must be positive");
-        }
     }
 
     private SendNotificationRequest toRequest(NotificationIntent intent) {
