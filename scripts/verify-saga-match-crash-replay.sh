@@ -1,96 +1,124 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Rehearses two Match replicas across the crash window after Match has
-# atomically staged a result but before its outbox relay can publish it. It
-# also delivers a real Saga stop before a paused Find is consumed. Everything
-# runs in an isolated Compose project with fresh PostgreSQL/Kafka volumes; it
-# never attaches to or stops the developer's canonical backend_delivery project.
+cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 readonly RUN_ID="${SAGA_MATCH_CRASH_RUN_ID:-$(date +%Y%m%d%H%M%S)-$$}"
-readonly PROJECT_NAME="delivery_saga_match_crash_${RUN_ID//-/_}"
-readonly POSTGRES_VOLUME="delivery_saga_match_crash_${RUN_ID}_postgres_data"
-readonly KAFKA_VOLUME="delivery_saga_match_crash_${RUN_ID}_kafka_data"
+readonly OWNER="saga-match-crash-$(date +%s)-$$-${RANDOM}"
+readonly PROJECT_NAME="$OWNER"
+readonly OWNERSHIP_KEY='delivery.saga-match-crash.owner'
+readonly OWNERSHIP_LABEL="$OWNERSHIP_KEY=$OWNER"
 readonly TIMEOUT_SECONDS="${SAGA_MATCH_CRASH_TIMEOUT_SECONDS:-240}"
 readonly POLL_SECONDS=2
-readonly -a COMPOSE_FILES=(
-  -f docker-compose.yml
-  -f docker-compose.secrets.yml
-  -f docker-compose.isolated-e2e.yml
-)
-readonly COMPOSE_FILE_VALUE="docker-compose.yml:docker-compose.secrets.yml:docker-compose.isolated-e2e.yml"
-
-command -v docker >/dev/null
-command -v curl >/dev/null
-command -v jq >/dev/null
-command -v mvn >/dev/null
-
-if [[ ! "$RUN_ID" =~ ^[a-zA-Z0-9][a-zA-Z0-9_-]*$ ]]; then
+if (( $# != 0 )); then
+  printf '%s\n' 'No positional arguments are supported; use SAGA_MATCH_CRASH_RUN_ID and SAGA_MATCH_CRASH_TIMEOUT_SECONDS.' >&2
+  exit 2
+fi
+if [[ ! "$RUN_ID" =~ ^[a-zA-Z0-9][a-zA-Z0-9-]{0,39}$ ]]; then
   printf 'SAGA_MATCH_CRASH_RUN_ID contains unsupported characters: %s\n' "$RUN_ID" >&2
   exit 2
 fi
-if [[ "$PROJECT_NAME" == "backend_delivery" ]]; then
-  printf '%s\n' 'Crash rehearsal must never use the canonical Compose project.' >&2
+if [[ ! "$TIMEOUT_SECONDS" =~ ^[1-9][0-9]*$ ]]; then
+  printf '%s\n' 'SAGA_MATCH_CRASH_TIMEOUT_SECONDS must be a positive integer.' >&2
   exit 2
 fi
+if (( ${#TIMEOUT_SECONDS} > 5 )) || (( TIMEOUT_SECONDS > 86400 )); then
+  printf '%s\n' 'SAGA_MATCH_CRASH_TIMEOUT_SECONDS must not exceed 86400.' >&2
+  exit 2
+fi
+for dependency in python3 docker curl jq; do
+  command -v "$dependency" >/dev/null
+done
+python3 scripts/saga_match_crash_fixture.py jars
+
+bounded_command() {
+  local limit="$1"
+  shift
+  python3 -c '
+import os, signal, subprocess, sys
+process = subprocess.Popen(sys.argv[2:], start_new_session=True)
+try:
+    sys.exit(process.wait(timeout=float(sys.argv[1])))
+except subprocess.TimeoutExpired:
+    os.killpg(process.pid, signal.SIGKILL)
+    process.wait()
+    sys.exit(124)
+' "$limit" "$@"
+}
+
+docker() {
+  local limit="$TIMEOUT_SECONDS"
+  if [[ -n "${OBSERVATION_DEADLINE:-}" ]]; then
+    limit=$((OBSERVATION_DEADLINE - SECONDS))
+    (( limit > 0 )) || return 124
+    (( limit <= 10 )) || limit=10
+  fi
+  bounded_command "$limit" docker "$@"
+}
+
+curl() {
+  local limit=10
+  if [[ -n "${OBSERVATION_DEADLINE:-}" ]]; then
+    limit=$((OBSERVATION_DEADLINE - SECONDS))
+    (( limit > 0 )) || return 124
+    (( limit <= 10 )) || limit=10
+  fi
+  bounded_command "$limit" curl --connect-timeout 5 --max-time "$limit" "$@"
+}
+
 if ! docker info >/dev/null 2>&1; then
   printf '%s\n' 'Docker daemon is unavailable; crash rehearsal was not executed.' >&2
   exit 1
 fi
 
-compose() {
-  COMPOSE_PROJECT_NAME="$PROJECT_NAME" \
-  POSTGRES_VOLUME_NAME="$POSTGRES_VOLUME" \
-  KAFKA_VOLUME_NAME="$KAFKA_VOLUME" \
-    docker compose "${COMPOSE_FILES[@]}" "$@"
-}
-
-if docker volume inspect "$POSTGRES_VOLUME" >/dev/null 2>&1 \
-    || docker volume inspect "$KAFKA_VOLUME" >/dev/null 2>&1; then
-  printf 'Refusing to reuse crash-rehearsal volumes for %s.\n' "$RUN_ID" >&2
-  exit 2
-fi
-if [[ -n "$(compose ps -aq)" ]]; then
-  printf 'Refusing to reuse existing crash-rehearsal project %s.\n' "$PROJECT_NAME" >&2
-  exit 2
-fi
-
-isolated_config="$(compose config --format json)"
-printf '%s' "$isolated_config" | jq -e '
-  . as $root
-  | (["postgres", "redis", "kafka", "api-gateway", "match-service", "saga-orchestrator-service",
-      "delivery-service", "notification-service"]
-     | all(. as $service | ($root.services[$service].container_name // null) == null))
-  and (($root.services["api-gateway"].ports // []) | length) == 1
-  and $root.services["api-gateway"].ports[0].target == 8079
-  and $root.services["api-gateway"].ports[0].host_ip == "127.0.0.1"
-' >/dev/null || {
-  printf '%s\n' 'Isolated Compose crash-rehearsal configuration is unsafe.' >&2
-  exit 2
-}
-
+fixture_dir="$(mktemp -d)"
+readonly COMPOSE_FILE_VALUE="$fixture_dir/compose.json"
+seed_result="$fixture_dir/seed.json"
 started=false
-seed_result=""
 cleanup() {
-  local exit_code=$?
+  local exit_code=$? resource label kind list_flag
   trap - EXIT INT TERM
-  [[ -z "$seed_result" ]] || rm -f "$seed_result"
+  unset OBSERVATION_DEADLINE
   if [[ "$started" == "true" ]]; then
-    if (( exit_code != 0 )); then
-      printf '%s\n' 'Crash rehearsal failed; capturing disposable service logs...' >&2
-      compose logs --no-color --tail=180 \
-        saga-orchestrator-service match-service delivery-service notification-service >&2 || true
-    fi
-    compose down -v --remove-orphans >/dev/null 2>&1 || true
+    for kind in container volume network image; do
+      list_flag=-q
+      [[ "$kind" != container ]] || list_flag=-aq
+      while IFS= read -r resource; do
+        [[ -n "$resource" ]] || continue
+        if [[ "$kind" == container || "$kind" == image ]]; then
+          label="$(bounded_command 10 docker "$kind" inspect --format "{{index .Config.Labels \"$OWNERSHIP_KEY\"}}" "$resource" 2>/dev/null || true)"
+        else
+          label="$(bounded_command 10 docker "$kind" inspect --format "{{index .Labels \"$OWNERSHIP_KEY\"}}" "$resource" 2>/dev/null || true)"
+        fi
+        [[ "$label" == "$OWNER" ]] || continue
+        if [[ "$kind" == container ]]; then
+          if (( exit_code != 0 )); then
+            bounded_command 10 docker logs --tail=180 "$resource" >&2 || true
+          fi
+          bounded_command 10 docker container rm -fv "$resource" >/dev/null 2>&1 || true
+        else
+          bounded_command 10 docker "$kind" rm "$resource" >/dev/null 2>&1 || true
+        fi
+      done <<< "$(bounded_command 10 docker "$kind" ls "$list_flag" --filter "label=$OWNERSHIP_LABEL" 2>/dev/null || true)"
+    done
   fi
+  rm -rf "$fixture_dir"
   exit "$exit_code"
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+compose() {
+  python3 scripts/saga_match_crash_fixture.py match "$COMPOSE_FILE_VALUE"
+  docker compose --project-name "$PROJECT_NAME" -f "$COMPOSE_FILE_VALUE" "$@"
+}
 
 wait_for() {
   local description="$1"
   shift
   local deadline=$((SECONDS + TIMEOUT_SECONDS))
+  local OBSERVATION_DEADLINE="$deadline"
   while (( SECONDS < deadline )); do
     if "$@"; then
       return 0
@@ -104,7 +132,7 @@ wait_for() {
 psql_value() {
   local database="$1"
   local query="$2"
-  compose exec -T postgres psql -U postgres -d "$database" -At -c "$query"
+  compose exec -T postgres psql -U postgres -d "$database" -v ON_ERROR_STOP=1 -At -c "$query"
 }
 
 wait_for_service_healthy() {
@@ -127,28 +155,31 @@ step() {
   printf '[SAGA-MATCH-CRASH] %s\n' "$1"
 }
 
-step 'package service artifacts for the disposable stack'
-bash scripts/verify-build-baseline.sh
-mvn -q -DskipTests package
+step 'construct uniquely owned fixture from read-only Compose configuration'
+docker compose -f docker-compose.yml -f docker-compose.secrets.yml config --format json \
+  | python3 scripts/saga_match_crash_fixture.py fixture "$OWNER" > "$COMPOSE_FILE_VALUE"
 
 step 'start isolated stack with the Match result relay disabled and Find listener paused'
 started=true
+compose build
+compose up -d tracing-collector config-server discovery-server postgres redis kafka elasticsearch
+for service in config-server discovery-server postgres redis kafka elasticsearch; do
+  wait_for "$service readiness" wait_for_service_healthy "$service"
+done
+compose up -d --no-deps auth-service
+wait_for 'Auth readiness before JWKS resource services' wait_for_service_healthy auth-service
 MATCH_OUTBOX_RELAY_ENABLED=false \
 MATCH_CANCELLATION_PROJECTION_RELAY_ENABLED=true \
 MATCH_REDIS_HOST=redis \
 MATCH_REDIS_TIMEOUT=1000ms \
 MATCH_KAFKA_FIND_LISTENER_AUTO_STARTUP=false \
 MATCH_KAFKA_STOP_LISTENER_AUTO_STARTUP=true \
-COMPOSE_PROJECT_NAME="$PROJECT_NAME" \
-POSTGRES_VOLUME_NAME="$POSTGRES_VOLUME" \
-KAFKA_VOLUME_NAME="$KAFKA_VOLUME" \
-RUNTIME_ISOLATED=true \
-RUNTIME_REBUILD_IMAGES=true \
-MATCHING_INITIAL_MAX_RETRY_ATTEMPTS=2 \
-MATCHING_INITIAL_DELAY_SECONDS=1 \
-MATCHING_INITIAL_MAX_DELAY_SECONDS=2 \
-MATCHING_INITIAL_BACKOFF_MULTIPLIER=1.0 \
-  bash scripts/verify-runtime-startup.sh
+  compose up -d --no-deps --scale match-service=2
+while IFS= read -r service; do
+  replicas=1
+  [[ "$service" != match-service ]] || replicas=2
+  wait_for "$service readiness" wait_for_service_healthy "$service" "$replicas"
+done <<< "$(compose config --services)"
 
 step 'scale Match to two replicas with Find paused and Stop active'
 MATCH_OUTBOX_RELAY_ENABLED=false \
@@ -169,14 +200,21 @@ if [[ ! "$gateway_port" =~ ^[0-9]+$ ]]; then
 fi
 BASE="http://127.0.0.1:${gateway_port}"
 
-seed_result="$(mktemp)"
+# Seed derives shipper idCard/phone from RUN_ID; CreateShipperRequest caps idCard
+# at 20 chars, so the seed id must stay short (ID-<seed id>-<n> <= 20).
+seed_run_id="m$(date +%s)"
+bounded_command "$TIMEOUT_SECONDS" env \
 COMPOSE_FILE="$COMPOSE_FILE_VALUE" \
 COMPOSE_PROJECT_NAME="$PROJECT_NAME" \
-POSTGRES_VOLUME_NAME="$POSTGRES_VOLUME" \
-KAFKA_VOLUME_NAME="$KAFKA_VOLUME" \
+RUN_ID="$seed_run_id" \
 SEED_OUTPUT_FILE="$seed_result" \
 SEED_LOCAL_FIXTURE_EMAIL_VERIFIED=true \
-BASE="$BASE" bash scripts/seed.sh >/dev/null
+BASE="$BASE" bash scripts/seed.sh > "$fixture_dir/seed.log" 2>&1 || {
+  status=$?
+  printf 'Seed failed (exit %s); last seed output:\n' "$status" >&2
+  tail -n 40 "$fixture_dir/seed.log" >&2
+  exit "$status"
+}
 
 customer_token="$(jq -er '.customerToken' "$seed_result")"
 owner_token="$(jq -er '.ownerToken' "$seed_result")"
@@ -305,14 +343,15 @@ stop_tombstone_projection_is_pending() {
 stop_source_offset_is_committed() {
   local group_description
   group_description="$(compose exec -T kafka kafka-consumer-groups \
-    --bootstrap-server kafka:9092 --describe --group match-service 2>/dev/null || true)"
-  awk '$2 == "saga.command.stop-matching" && $3 == "0" && $4 == $5 { found = 1 }
+    --bootstrap-server kafka:9092 --describe --group match-service --timeout 5000 2>/dev/null || true)"
+  awk '$2 == "saga.command.stop-matching" && $3 == "0" && $4 ~ /^[0-9]+$/ && $5 > 0 && $4 == $5 { found = 1 }
        END { exit found ? 0 : 1 }' <<<"$group_description"
 }
 
 stop_dlt_is_empty() {
-  if ! compose exec -T kafka kafka-topics --bootstrap-server kafka:9092 \
-      --describe --topic saga.command.stop-matching.DLT >/dev/null 2>&1; then
+  local topics
+  topics="$(compose exec -T kafka kafka-topics --bootstrap-server kafka:9092 --list)" || return 1
+  if ! grep -Fx 'saga.command.stop-matching.DLT' <<< "$topics" >/dev/null; then
     return 0
   fi
   compose exec -T kafka kafka-run-class kafka.tools.GetOffsetShell \
@@ -471,7 +510,23 @@ step 'replay the original find command after the Match restart'
 printf '%s:%s\n' "$delivery_id" "$find_payload" | compose exec -T kafka \
   kafka-console-producer --bootstrap-server kafka:9092 --topic saga.command.find-shipper \
   --property parse.key=true --property key.separator=: >/dev/null
-sleep 5
+find_source_offset_is_committed() {
+  local description
+  description="$(compose exec -T kafka kafka-consumer-groups --bootstrap-server kafka:9092 \
+    --describe --group match-service --timeout 5000 2>/dev/null)" || return 1
+  awk '$2 == "saga.command.find-shipper" {
+         found = 1
+         if ($4 !~ /^[0-9]+$/ || $5 !~ /^[0-9]+$/ || $4 != $5 || $6 != 0) bad = 1
+       } END { exit found && !bad ? 0 : 1 }' <<< "$description"
+}
+wait_for 'replayed Find source offsets to converge' find_source_offset_is_committed
+
+durable_effects_have_converged() {
+  [[ "$(psql_value delivery_db "SELECT count(*) FROM deliveries WHERE order_id = $order_id AND status = 'WAIT_SHIPPER_CONFIRM';")" == '1' ]] \
+    && [[ "$(psql_value notification_service_db "SELECT count(*) FROM notifications WHERE related_entity_id = $order_id AND type = 'MATCH_FOUND';")" == '1' ]] \
+    && [[ "$(psql_value saga_db "SELECT count(*) FROM saga_outbox_events WHERE aggregate_id = '$order_id' AND topic = 'saga.command.cache-shipper-found';")" == '1' ]]
+}
+wait_for 'one durable offer, notification and Saga cache command' durable_effects_have_converged
 
 match_snapshot_after="$(match_snapshot)"
 delivery_count="$(psql_value delivery_db "SELECT count(*) FROM deliveries WHERE order_id = $order_id;")"
@@ -499,8 +554,3 @@ saga_cache_commands="$(psql_value saga_db "SELECT count(*) FROM saga_outbox_even
 
 printf 'Saga/Match two-replica crash/replay rehearsal passed: order=%s delivery=%s command=%s, one Match result/outbox, one Delivery offer, one notification and one Saga cache command.\n' \
   "$order_id" "$delivery_id" "$command_event_id"
-
-compose down -v --remove-orphans
-started=false
-trap - EXIT INT TERM
-rm -f "$seed_result"
