@@ -70,6 +70,7 @@
         <module>settlement/boot</module>
         <module>flashsale-service</module>
         <module>analytics-service</module>
+        <module>promotion/domain</module>
         <module>promotion-service</module>
         <module>simulator-service</module>
     </modules>
