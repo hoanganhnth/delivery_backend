@@ -1,5 +1,6 @@
 package com.delivery.order_service.listener;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.delivery.order_service.OrderServiceApplication;
 import com.delivery.order_service.entity.Order;
 import com.delivery.order_service.entity.OrderStatus;
@@ -9,22 +10,26 @@ import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.admin.ConsumerGroupDescription;
 import org.apache.kafka.clients.admin.NewTopic;
+import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.StringDeserializer;
+import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.core.DefaultKafkaProducerFactory;
+import org.springframework.kafka.support.JacksonUtils;
+import org.springframework.kafka.support.serializer.JsonSerializer;
 import org.springframework.kafka.listener.MessageListenerContainer;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -57,6 +62,9 @@ import static org.junit.jupiter.api.Assertions.fail;
 @SpringBootTest(classes = OrderServiceApplication.class, properties = {
         "spring.kafka.listener.auto-startup=false",
         "spring.kafka.admin.auto-create=false",
+        // The shared fallback defaults to .DLT; this owner-DLT fixture opts in
+        // explicitly, preserving the production .DLT vs .order.DLT discrepancy.
+        "platform.kafka.dlt.suffix=.order.DLT",
         "app.outbox.relay-enabled=false",
         "spring.task.scheduling.enabled=false",
         "spring.cloud.discovery.enabled=false",
@@ -97,13 +105,20 @@ class SagaOrderKafkaPostgresIntegrationTest {
 
     @Autowired private OrderRepository orderRepository;
     @Autowired private SagaCommandReceiptRepository receiptRepository;
-    @Autowired @Qualifier("retryKafkaTemplate") private KafkaTemplate<String, String> rawKafka;
+    private final ObjectMapper wireMapper = JacksonUtils.enhancedObjectMapper();
+    private DefaultKafkaProducerFactory<String, Object> relayProducerFactory;
+    private KafkaTemplate<String, Object> relayKafka;
     @Autowired private KafkaListenerEndpointRegistry primaryListenerRegistry;
 
     private final List<ConfigurableApplicationContext> replicas = new ArrayList<>();
 
     @BeforeEach
     void prepareBoundary() throws Exception {
+        relayProducerFactory = new DefaultKafkaProducerFactory<>(Map.of(
+                ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, KAFKA.getBootstrapServers(),
+                ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class,
+                ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class));
+        relayKafka = new KafkaTemplate<>(relayProducerFactory);
         closeReplicas();
         stopPrimaryListeners();
         receiptRepository.deleteAll();
@@ -113,6 +128,7 @@ class SagaOrderKafkaPostgresIntegrationTest {
 
     @AfterEach
     void stopReplicas() {
+        if (relayProducerFactory != null) relayProducerFactory.destroy();
         closeReplicas();
         stopPrimaryListeners();
     }
@@ -133,8 +149,8 @@ class SagaOrderKafkaPostgresIntegrationTest {
         await("two Order replicas to own the two command partitions", () ->
                 targetPartitionOwners(REPLICA_GROUP).equals(Set.of(0, 1)));
 
-        rawKafka.send(TOPIC, 0, Long.toString(order.getId()), payload).get(10, TimeUnit.SECONDS);
-        rawKafka.send(TOPIC, 1, Long.toString(order.getId()), payload).get(10, TimeUnit.SECONDS);
+        publishRelay(0, order.getId(), payload);
+        publishRelay(1, order.getId(), payload);
 
         long persistedOrderId = order.getId();
         await("one committed Order receipt/transition before both source offsets", () ->
@@ -145,7 +161,7 @@ class SagaOrderKafkaPostgresIntegrationTest {
                         && committedOffsetsAtLeast(REPLICA_GROUP, 1, 1));
         assertOneFindingShipperEffect(persistedOrderId);
 
-        rawKafka.send(TOPIC, 0, Long.toString(order.getId()), payload).get(10, TimeUnit.SECONDS);
+        publishRelay(0, order.getId(), payload);
         await("same-group exact replay to commit as an Order no-op", () ->
                 committedOffsetsAtLeast(REPLICA_GROUP, 2, 1));
         assertOneFindingShipperEffect(persistedOrderId);
@@ -159,8 +175,7 @@ class SagaOrderKafkaPostgresIntegrationTest {
 
         try (KafkaConsumer<String, String> dltConsumer = freshConsumer(DLT_TOPIC)) {
             String contradictory = payload(eventId, order.getId(), "contradictory-reuse");
-            rawKafka.send(TOPIC, 1, Long.toString(order.getId()), contradictory)
-                    .get(10, TimeUnit.SECONDS);
+            publishRelay(1, order.getId(), contradictory);
 
             ConsumerRecord<String, String> dlt = awaitRecord(
                     dltConsumer, "contradictory Order receipt reuse to reach the owner DLT");
@@ -169,6 +184,13 @@ class SagaOrderKafkaPostgresIntegrationTest {
                     committedOffsetsAtLeast(REPLAY_GROUP, 2, 2));
         }
         assertOneFindingShipperEffect(persistedOrderId);
+    }
+
+    private void publishRelay(int partition, long orderId, String payload) throws Exception {
+        // Dispatch SagaOutboxRelay publishes readTree(): JsonSerializer adds
+        // the ObjectNode type header rejected by the former shared consumer.
+        relayKafka.send(TOPIC, partition, Long.toString(orderId), wireMapper.readTree(payload))
+                .get(10, TimeUnit.SECONDS);
     }
 
     private void assertOneFindingShipperEffect(long orderId) {
@@ -219,6 +241,7 @@ class SagaOrderKafkaPostgresIntegrationTest {
                 Map.entry("spring.kafka.consumer.group-id", groupId),
                 Map.entry("spring.kafka.listener.auto-startup", "false"),
                 Map.entry("spring.kafka.admin.auto-create", "false"),
+                Map.entry("platform.kafka.dlt.suffix", ".order.DLT"),
                 Map.entry("spring.datasource.url", POSTGRES.getJdbcUrl()),
                 Map.entry("spring.datasource.username", POSTGRES.getUsername()),
                 Map.entry("spring.datasource.password", POSTGRES.getPassword()),
