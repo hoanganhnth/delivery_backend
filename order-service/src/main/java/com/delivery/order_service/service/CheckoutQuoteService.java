@@ -1,5 +1,7 @@
 package com.delivery.order_service.service;
 
+import com.delivery.order.domain.CheckoutQuotePolicy;
+
 import com.delivery.order_service.dto.request.CheckoutPreviewRequest;
 import com.delivery.order_service.dto.request.CreateOrderRequest;
 import com.delivery.order_service.dto.response.CheckoutPreviewResponse;
@@ -44,44 +46,24 @@ public class CheckoutQuoteService {
      */
     public CheckoutPreviewResponse validateAndReprice(CreateOrderRequest request, Long principalId, Long userId) {
         UUID quoteId = request.getQuoteId();
-        if (quoteId == null) {
-            throw new OrderApiException("QUOTE_REQUIRED", "Cần báo giá hợp lệ trước khi đặt đơn");
-        }
-        CheckoutQuote quote = repository.findById(quoteId).orElseThrow(() ->
-                new OrderApiException("QUOTE_EXPIRED", "Báo giá không còn hiệu lực"));
-        if (!quote.getPrincipalId().equals(principalId)) {
-            throw new OrderApiException("QUOTE_MISMATCH", "Báo giá không thuộc khách hàng hiện tại");
-        }
-        if (!quote.getExpiresAt().isAfter(clock.instant())) {
-            throw new OrderApiException("QUOTE_EXPIRED", "Báo giá đã hết hạn, vui lòng xem giá lại");
-        }
-        if (quote.getConsumedOrderId() != null) {
-            throw new OrderApiException("QUOTE_ALREADY_USED", "Báo giá này đã được sử dụng");
-        }
-        if (!quote.getPricingInputFingerprint().equals(fingerprints.pricingInput(request))) {
-            throw new OrderApiException("QUOTE_MISMATCH", "Giỏ hàng hoặc địa điểm giao không khớp báo giá");
-        }
+        CheckoutQuote quote = repositoryQuote(quoteId, false);
+        decide(() -> CheckoutQuotePolicy.validate(facts(quote), principalId, clock::instant,
+                () -> fingerprints.pricingInput(request)));
 
         CheckoutPreviewRequest previewRequest = toPreviewRequest(request);
         CheckoutPreviewResponse current = previewService.calculatePreview(previewRequest, principalId, userId);
-        if (!quote.getPricingFingerprint().equals(fingerprints.pricingSnapshot(current))) {
-            current = issuer.persist(previewRequest, current, principalId);
+        if (CheckoutQuotePolicy.priceChanged(facts(quote), () -> fingerprints.pricingSnapshot(current))) {
+            CheckoutPreviewResponse replacement = issuer.persist(previewRequest, current, principalId);
             throw new OrderApiException("PRICE_CHANGED", "Giá đơn hàng đã thay đổi, vui lòng xác nhận lại",
-                    Map.of("quote", current));
+                    Map.of("quote", replacement));
         }
         return current;
     }
 
     @Transactional
     public void consume(UUID quoteId, Long principalId, Long orderId) {
-        CheckoutQuote quote = repository.findByIdForUpdate(quoteId).orElseThrow(() ->
-                new OrderApiException("QUOTE_EXPIRED", "Báo giá không còn hiệu lực"));
-        if (!quote.getPrincipalId().equals(principalId) || !quote.getExpiresAt().isAfter(clock.instant())) {
-            throw new OrderApiException("QUOTE_EXPIRED", "Báo giá không còn hiệu lực");
-        }
-        if (quote.getConsumedOrderId() != null) {
-            throw new OrderApiException("QUOTE_ALREADY_USED", "Báo giá này đã được sử dụng");
-        }
+        CheckoutQuote quote = repositoryQuote(quoteId, true);
+        decide(() -> CheckoutQuotePolicy.consume(facts(quote), principalId, clock::instant));
         quote.consume(orderId);
     }
 
@@ -91,13 +73,10 @@ public class CheckoutQuoteService {
         preview.setRestaurantId(request.getRestaurantId());
         preview.setDeliveryLat(request.getDeliveryLat());
         preview.setDeliveryLng(request.getDeliveryLng());
-        if (request.getVoucherIds() != null && request.getVoucherIds().size() == 1) {
-            preview.setVoucherId(request.getVoucherIds().get(0));
-        }
-        if (request.getSelectionMode() != null
-                || request.getVoucherIds() == null || request.getVoucherIds().size() != 1) {
-            preview.setSelectedVoucherIds(request.getVoucherIds());
-        }
+        CheckoutQuotePolicy.VoucherSelection selection = CheckoutQuotePolicy.previewSelection(
+                request.getVoucherIds(), request.getSelectionMode());
+        preview.setVoucherId(selection.voucherId());
+        if (selection.includeSelectedIds()) preview.setSelectedVoucherIds(request.getVoucherIds());
         preview.setSelectionMode(request.getSelectionMode());
         preview.setItems((request.getItems() == null ? List.<CreateOrderRequest.OrderItemRequest>of() : request.getItems())
                 .stream().map(item -> {
@@ -108,5 +87,22 @@ public class CheckoutQuoteService {
                     return mapped;
                 }).toList());
         return preview;
+    }
+
+    private CheckoutQuote repositoryQuote(UUID id, boolean lock) {
+        if (!lock) decide(() -> CheckoutQuotePolicy.requireId(id));
+        CheckoutQuote quote = (lock ? repository.findByIdForUpdate(id) : repository.findById(id)).orElse(null);
+        decide(() -> CheckoutQuotePolicy.requireFound(quote == null ? null : facts(quote)));
+        return quote;
+    }
+    private CheckoutQuotePolicy.Quote facts(CheckoutQuote quote) {
+        return new CheckoutQuotePolicy.Quote(quote.getPrincipalId(), quote.getExpiresAt(), quote.getConsumedOrderId(),
+                quote.getPricingInputFingerprint(), quote.getPricingFingerprint());
+    }
+    private void decide(Runnable decision) {
+        try { decision.run(); }
+        catch (CheckoutQuotePolicy.Rejected failure) {
+            throw new OrderApiException(failure.code(), failure.getMessage());
+        }
     }
 }

@@ -68,7 +68,7 @@ public class CheckoutQuoteIssuer {
                                                   Long principalId) {
         Instant now = clock.instant();
         UUID quoteId = UUID.randomUUID();
-        Instant expiresAt = now.plus(ttl);
+        Instant expiresAt = com.delivery.order.domain.CheckoutQuotePolicy.expiresAt(now, ttl);
         repository.save(new CheckoutQuote(quoteId, principalId,
                 fingerprints.pricingInput(request), fingerprints.pricingSnapshot(response), expiresAt, now));
         response.setQuoteId(quoteId);

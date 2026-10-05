@@ -26,10 +26,10 @@ No plan, topic, schema, flag or business-policy changes are authorized.
 1. Complete Saga status application orchestration through transaction/store/receipt ports; preserve receipt-before-order locking, stale receipt commit, gap rollback and ACK proof.
 2. Extract restaurant/payment transaction/store orchestration through application ports; domain lifecycle/receipt decisions and cross-topic convergence/replay integration proof are now extracted (slice 2 below).
 3. Ownership/read and cancellation/refund-intent domain policies are extracted (slice 3 below), preserving principal fallback and exception precedence; application transaction/store orchestration remains for later consolidation.
-4. Create admission, canonical fact checks, common pricing arithmetic and shipping
-   distance/rounding are extracted (slice 4 below). Complete preview-specific
-   admission/catalog availability/serviceability/ETA and quote lifecycle policies
-   through fact/client ports; preserve their distinct error precedence.
+4. Create/preview admission, canonical fact checks and availability, pricing,
+   shipping distance/rounding, serviceability/ETA and quote lifecycle decisions
+   are extracted (slice 4 and remainder below), preserving distinct error
+   precedence. HTTP/transaction/store orchestration remains for slices 5–6.
 5. Extract create/quote/idempotency/reservation orchestration and compensation/lease recovery with DB race and remote ambiguous-failure proof.
 6. Extract outbox lease/retry application orchestration; relocate adapters/composition to infrastructure and entrypoint/config to boot; remove host only after packaged HTTP/Kafka/Postgres recovery proof and inventories/packaging updates (outside this slice).
 
@@ -330,3 +330,74 @@ policies remain in `CheckoutQuoteService`, with fingerprint/TTL issuance in the
 host. Host HTTP clients, transaction/store orchestration, reservation and
 compensation/lease recovery remain for slice 5 and adapter consolidation for
 slice 6. No new application modules or empty layers were introduced.
+
+
+## Slice 4 remainder: preview catalog/admission/ETA and quote lifecycle
+
+- Framework-free `CheckoutPreviewPolicy` owns preview's distinct first-error
+  admission, item/quantity/duplicate checks, voucher selection/mode and capability
+  gating, flash/livestream incompatibilities, canonical restaurant acceptance,
+  raw fact coercion, menu line availability and ordered unavailable IDs.
+  `CatalogFactsPort` supplies decoded canonical facts; `EtaClient` supplies
+  typed min/max/source facts; stacking capability remains lazy. Host DTOs and
+  HTTP clients do not enter domain dependencies.
+- Canonical checks retain name → latitude → longitude → gated serviceability →
+  prep-time → item parsing order. Missing/unparseable prep still defaults to 30;
+  the 1–240 bound remains ETA-gated. Boolean string coercion, malformed numeric
+  nulls, last duplicate catalog ID winning and exact BigDecimal scale remain
+  unchanged. ETA empty/invalid responses retain their IllegalStateException
+  cause and host retryable dependency exception mapping; no fallback is added.
+- `CheckoutQuotePolicy` owns required/missing quote, owner/expiry/used/input
+  validation, consume admission, price comparison, TTL arithmetic and the
+  legacy single-voucher repricing selection. Clock and fingerprint suppliers
+  preserve short-circuit evaluation. Validate still reports wrong owner as
+  QUOTE_MISMATCH before expiry; consume reports wrong owner/expiry as
+  QUOTE_EXPIRED before used. Expiry equality is invalid in both paths.
+- Host keeps remote pricing before the write transaction, fingerprint encoding,
+  replacement persistence before PRICE_CHANGED details, quote UUID generation,
+  pessimistic consume lock, entity mutation and independent quote persistence.
+  Existing common pricing/shipping arithmetic and rounding are unchanged.
+- New domain tests cover admission boundaries/error precedence and feature
+  combinations, the catalog price/name/availability/stock matrix, malformed
+  facts, coordinate endpoints/nonfinite/adjacent doubles, canonical check order,
+  serviceability combinations and eager fact decoding before rejection,
+  prep/ETA boundaries and unchanged client causes;
+  quote tests enumerate owner × expiry × used × input outcomes, lazy supplier
+  precedence, exact nanosecond expiry, TTL and legacy voucher selection.
+  Host regressions additionally assert API exception codes/messages, no remote
+  pricing for rejected quotes and no mutation of already-consumed quotes.
+
+### Remainder validation
+
+- Definitive `mvn -B -pl :order-service -am clean verify`, escalated for local
+  server/Docker access: exit 0, **BUILD SUCCESS**, finished
+  2026-10-06T00:45:54+07:00. Log:
+  `/tmp/order-slice4-remainder-definitive-clean-verify.log`.
+- Domain: 40 tests; host: 182 tests; entire reactor: 279 tests. Zero
+  failures/errors/skips. The three Docker tests
+  `OrderCreateIdempotencyPostgresConcurrencyTest`,
+  `SagaOrderKafkaPostgresIntegrationTest` and
+  `SagaOrderCommandPostgresConcurrencyTest` each ran and passed (one test each).
+  The executable Spring Boot JAR packaged successfully.
+- Domain JaCoCo LINE 477/477 (100%), BRANCH 666/668 (99.70%). Existing 85%
+  LINE/BRANCH gates passed unchanged. Quote policy: 100% LINE/BRANCH.
+  Preview policy: LINE 152/152 (100%), BRANCH 217/218 (99.54%); its one
+  unreachable branch is the trailing non-null legacy voucher check after
+  selected IDs/mode checks (a valid legacy voucher already makes IDs nonempty).
+  The other unreachable branch is the previously documented create phone null
+  helper branch. No reachable policy branch remains uncovered.
+- Initial focused preview/quote host run: 22 tests, zero failures/errors/skips,
+  `/tmp/order-slice4-remainder-focused.log`. Initial domain verification: 39
+  tests, zero failures/errors/skips and unchanged gates passed,
+  `/tmp/order-slice4-remainder-domain.log`. Two earlier complete clean runs
+  also passed; the definitive run includes the final canonical-port and eager
+  serviceability-decoding regressions.
+- Reviewed host filesystem diffs against pre-edit copies and inspected final
+  source/test whitespace. No framework imports in domain production code.
+  Edits stay under `order/` and `order-service/`; no git commands, POM changes,
+  docs/plans edits, Kafka consumer configuration, rollout defaults, transaction
+  boundaries, schema, monetary arithmetic or rounding changes.
+
+**Slice 4 domain extraction is complete.** Remaining HTTP/transaction/store,
+create/reservation/idempotency/compensation orchestration and adapter/boot
+consolidation stay in slices 5–6; no empty application modules are introduced.

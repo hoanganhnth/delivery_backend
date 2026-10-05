@@ -167,6 +167,73 @@ class CheckoutQuoteServiceTest {
         assertThat(repriced.getValue().getLivestreamId()).isEqualTo(request.getLivestreamId());
     }
 
+    @Test
+    void missingAndUnknownQuoteKeepApiErrorsAndAvoidPricing() {
+        CreateOrderRequest request = createRequest();
+        request.setQuoteId(null);
+        assertThatThrownBy(() -> service.validateAndReprice(request, PRINCIPAL_ID, LEGACY_USER_ID))
+                .isInstanceOfSatisfying(OrderApiException.class, error -> {
+                    assertThat(error.getCode()).isEqualTo("QUOTE_REQUIRED");
+                    assertThat(error.getMessage()).isEqualTo("Cần báo giá hợp lệ trước khi đặt đơn");
+                });
+        verifyNoInteractions(repository, previewService, issuer);
+        request.setQuoteId(UUID.randomUUID());
+        when(repository.findById(request.getQuoteId())).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> service.validateAndReprice(request, PRINCIPAL_ID, LEGACY_USER_ID))
+                .isInstanceOfSatisfying(OrderApiException.class, error -> assertThat(error.getCode()).isEqualTo("QUOTE_EXPIRED"));
+        verifyNoInteractions(previewService, issuer);
+    }
+
+    @Test
+    void wrongOwnerWinsOverExpiryUsedAndInputButConsumeReportsExpired() {
+        CreateOrderRequest request = createRequest();
+        CheckoutQuote quote = quote(request.getQuoteId(), previewRequest(), preview("115000"), NOW);
+        quote.consume(99L);
+        when(repository.findById(request.getQuoteId())).thenReturn(Optional.of(quote));
+        when(repository.findByIdForUpdate(request.getQuoteId())).thenReturn(Optional.of(quote));
+        assertThatThrownBy(() -> service.validateAndReprice(request, 999L, LEGACY_USER_ID))
+                .isInstanceOfSatisfying(OrderApiException.class, error -> {
+                    assertThat(error.getCode()).isEqualTo("QUOTE_MISMATCH");
+                    assertThat(error.getMessage()).isEqualTo("Báo giá không thuộc khách hàng hiện tại");
+                });
+        assertThatThrownBy(() -> service.consume(request.getQuoteId(), 999L, 100L))
+                .isInstanceOfSatisfying(OrderApiException.class, error -> {
+                    assertThat(error.getCode()).isEqualTo("QUOTE_EXPIRED");
+                    assertThat(error.getMessage()).isEqualTo("Báo giá không còn hiệu lực");
+                });
+        assertThat(quote.getConsumedOrderId()).isEqualTo(99L);
+        verifyNoInteractions(previewService, issuer);
+    }
+
+    @Test
+    void usedQuoteWinsOverInputMismatchAndRemainsLinkedToOriginalOrder() {
+        CreateOrderRequest request = createRequest();
+        CheckoutQuote quote = quote(request.getQuoteId(), previewRequest(), preview("115000"), NOW.plusSeconds(1));
+        quote.consume(99L); request.setDeliveryLat(11.0);
+        when(repository.findById(request.getQuoteId())).thenReturn(Optional.of(quote));
+        when(repository.findByIdForUpdate(request.getQuoteId())).thenReturn(Optional.of(quote));
+        assertThatThrownBy(() -> service.validateAndReprice(request, PRINCIPAL_ID, LEGACY_USER_ID))
+                .isInstanceOfSatisfying(OrderApiException.class, error -> assertThat(error.getCode()).isEqualTo("QUOTE_ALREADY_USED"));
+        assertThatThrownBy(() -> service.consume(request.getQuoteId(), PRINCIPAL_ID, 100L))
+                .isInstanceOfSatisfying(OrderApiException.class, error -> assertThat(error.getCode()).isEqualTo("QUOTE_ALREADY_USED"));
+        assertThat(quote.getConsumedOrderId()).isEqualTo(99L);
+        verifyNoInteractions(previewService, issuer);
+    }
+
+    @Test
+    void inputMismatchFailsBeforeRemotePricing() {
+        CreateOrderRequest request = createRequest();
+        CheckoutQuote quote = quote(request.getQuoteId(), previewRequest(), preview("115000"), NOW.plusSeconds(1));
+        request.setDeliveryLat(11.0);
+        when(repository.findById(request.getQuoteId())).thenReturn(Optional.of(quote));
+        assertThatThrownBy(() -> service.validateAndReprice(request, PRINCIPAL_ID, LEGACY_USER_ID))
+                .isInstanceOfSatisfying(OrderApiException.class, error -> {
+                    assertThat(error.getCode()).isEqualTo("QUOTE_MISMATCH");
+                    assertThat(error.getMessage()).isEqualTo("Giỏ hàng hoặc địa điểm giao không khớp báo giá");
+                });
+        verifyNoInteractions(previewService, issuer);
+    }
+
     private CheckoutQuote quote(UUID quoteId, CheckoutPreviewRequest request,
                                 CheckoutPreviewResponse response, Instant expiresAt) {
         return new CheckoutQuote(quoteId, PRINCIPAL_ID, fingerprints.pricingInput(request),

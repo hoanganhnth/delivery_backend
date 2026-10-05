@@ -1,6 +1,9 @@
 package com.delivery.order_service.service;
 
 import com.delivery.order.domain.CheckoutPricingPolicy;
+import com.delivery.order.domain.CheckoutPreviewPolicy;
+import com.delivery.order.domain.CheckoutPreviewPolicy.*;
+import static com.delivery.order.domain.CheckoutPreviewPolicy.*;
 
 import com.delivery.order_service.dto.request.CheckoutPreviewRequest;
 import com.delivery.order_service.dto.response.CheckoutPreviewResponse;
@@ -107,62 +110,25 @@ public class CheckoutPreviewService {
      */
     @SuppressWarnings("unchecked")
     public CheckoutPreviewResponse calculatePreview(CheckoutPreviewRequest request, Long principalId, Long userId) {
-        if (request == null) {
-            throw new ValidationException("Dữ liệu checkout không được để trống");
-        }
-        if (request.getItems() == null || request.getItems().isEmpty()) {
-            throw new ValidationException("Checkout phải có ít nhất một sản phẩm");
-        }
-        if (request.getItems().size() > 50) {
-            throw new ValidationException("Checkout không được vượt quá 50 sản phẩm");
-        }
-        validateDuplicateItems(request);
-        log.info("📋 Calculating checkout preview for user={}, restaurant={}", userId, request.getRestaurantId());
+        try { return calculatePreviewLocal(request, principalId, userId); }
+        catch (CheckoutPreviewPolicy.ValidationException failure) { throw new ValidationException(failure.getMessage()); }
+    }
 
-        // Coupon codes are collected through Promotion first; the checkout
-        // quote only accepts stable wallet IDs and never trusts a client code.
-        if (request.getCouponCode() != null && !request.getCouponCode().isBlank()) {
-            throw new ValidationException("Hãy lưu mã voucher vào ví trước khi báo giá checkout");
-        }
-        boolean hasFlashSale = request.getItems().stream().anyMatch(item -> item.getFlashSaleItemId() != null);
-        List<Long> selectedVoucherIds = selectedVoucherIds(request);
-        if (request.getVoucherId() != null && request.getSelectedVoucherIds() != null) {
-            throw new ValidationException("Không được gửi đồng thời voucherId và selectedVoucherIds");
-        }
-        if (request.getSelectionMode() != null && !request.getSelectionMode().isBlank()
-                && !"AUTO".equalsIgnoreCase(request.getSelectionMode())
-                && !"MANUAL".equalsIgnoreCase(request.getSelectionMode())) {
-            throw new ValidationException("Selection mode chỉ hỗ trợ AUTO hoặc MANUAL");
-        }
-        if (request.getSelectedVoucherIds() != null
-                && request.getSelectedVoucherIds().size() == 1
-                && (request.getSelectionMode() == null || request.getSelectionMode().isBlank())) {
-            throw new ValidationException(
-                    "Một voucher trong selectedVoucherIds phải đi kèm selectionMode rõ ràng");
-        }
-        if ("MANUAL".equalsIgnoreCase(request.getSelectionMode()) && selectedVoucherIds.isEmpty()) {
-            throw new ValidationException("Manual voucher mode requires selected voucher IDs");
-        }
-        boolean hasVoucherSelection = !selectedVoucherIds.isEmpty()
-                || request.getSelectionMode() != null || request.getVoucherId() != null;
-        boolean stackedSelection = (request.getSelectionMode() != null && !request.getSelectionMode().isBlank())
-                || (request.getSelectedVoucherIds() != null && !request.getSelectedVoucherIds().isEmpty());
-        if (hasVoucherSelection && stackedSelection && !voucherCheckoutCapability.isEnabled(principalId))
-            throw new ValidationException("Voucher stacking checkout is not enabled for this account");
-        if (hasVoucherSelection && !stackedSelection && !voucherCheckoutEnabled)
-            throw new ValidationException("Voucher checkout is disabled");
-        if (hasFlashSale && !flashSaleCheckoutEnabled)
-            throw new ValidationException("Flash-sale checkout is disabled");
-        if (request.getLivestreamId() != null && hasFlashSale)
-            throw new ValidationException("Livestream và Flash Sale không được áp dụng cùng một đơn");
-        if (hasVoucherSelection && hasFlashSale)
-            throw new ValidationException("Voucher và Flash Sale không được áp dụng cùng một đơn");
-        if ((hasVoucherSelection || hasFlashSale) && reservationClient == null)
-            throw new ValidationException("Checkout reservation capability is unavailable");
+    private CheckoutPreviewResponse calculatePreviewLocal(CheckoutPreviewRequest request, Long principalId, Long userId) {
+        CheckoutPreviewPolicy.Admission admission = CheckoutPreviewPolicy.admit(
+                request == null ? null : new CheckoutPreviewPolicy.Input(
+                        request.getItems() == null ? null : request.getItems().stream().map(item -> item == null ? null
+                                : new CheckoutPreviewPolicy.Item(item.getMenuItemId(), item.getQuantity(), item.getFlashSaleItemId())).toList(),
+                        request.getCouponCode(), request.getVoucherId(), request.getSelectedVoucherIds(),
+                        request.getSelectionMode(), request.getLivestreamId()),
+                new CheckoutPreviewPolicy.Capabilities(voucherCheckoutEnabled, flashSaleCheckoutEnabled,
+                        reservationClient != null, livestreamPriceClient != null,
+                        () -> voucherCheckoutCapability.isEnabled(principalId)));
+        boolean hasFlashSale = admission.hasFlashSale();
+        boolean hasVoucherSelection = admission.hasVoucherSelection();
+        List<Long> selectedVoucherIds = admission.selectedVoucherIds();
         Map<Long, BigDecimal> livestreamPrices = Map.of();
         if (request.getLivestreamId() != null) {
-            if (livestreamPriceClient == null)
-                throw new ValidationException("Livestream checkout capability is unavailable");
             livestreamPrices = livestreamPriceClient.resolve(request.getLivestreamId(), request.getRestaurantId(),
                     request.getItems().stream().map(CheckoutPreviewRequest.PreviewItem::getMenuItemId).toList());
         }
@@ -170,38 +136,14 @@ public class CheckoutPreviewService {
         // 1. Lấy canonical restaurant + menu item facts qua cùng internal
         // validation contract với create-order. Preview không được gọi public
         // catalog endpoint rồi tự suy luận vì path đó yếu hơn checkout boundary.
-        Map<String, Object> validationData = fetchValidatedCheckoutFacts(request);
-        Map<String, Object> restaurantInfo = requireMap(
-                validationData.get("restaurantInfo"),
-                "Restaurant service không trả restaurantInfo canonical");
-
-        String restaurantName = requireNonBlankString(
-                restaurantInfo.get("restaurantName"),
-                "Restaurant service thiếu tên nhà hàng canonical");
-        Double pickupLat = requireCoordinate(
-                restaurantInfo.get("latitude"),
-                8.0,
-                24.0,
-                "Restaurant service thiếu tọa độ pickup latitude canonical");
-        Double pickupLng = requireCoordinate(
-                restaurantInfo.get("longitude"),
-                102.0,
-                110.0,
-                "Restaurant service thiếu tọa độ pickup longitude canonical");
-
-        if (serviceabilityEnforcementEnabled) {
-            Boolean serviceabilityEnabled = getBooleanValue(restaurantInfo.get("serviceabilityEnabled"));
-            Boolean serviceable = getBooleanValue(restaurantInfo.get("serviceable"));
-            if (!Boolean.TRUE.equals(serviceabilityEnabled) || !Boolean.TRUE.equals(serviceable)) {
-                throw new ValidationException("Địa chỉ giao hàng hiện nằm ngoài vùng phục vụ");
-            }
-        }
-
-        Integer prepMinutes = getIntegerValue(restaurantInfo.get("defaultPrepTimeMinutes"));
-        if (prepMinutes == null) prepMinutes = 30;
-        if (etaWindowEnabled && (prepMinutes < 1 || prepMinutes > 240)) {
-            throw new ValidationException("Restaurant service thiếu prep time canonical");
-        }
+        CheckoutPreviewPolicy.Catalog catalog = CheckoutPreviewPolicy.catalog(
+                () -> fetchValidatedCheckoutFacts(request), serviceabilityEnforcementEnabled, etaWindowEnabled);
+        Map<String, Object> validationData = catalog.data();
+        Map<String, Object> restaurantInfo = catalog.restaurant();
+        String restaurantName = catalog.name();
+        double pickupLat = catalog.pickupLat();
+        double pickupLng = catalog.pickupLng();
+        int prepMinutes = catalog.prepMinutes();
 
         Map<Long, ValidatedPreviewItem> menuItemMap = parseValidatedItems(validationData);
         CheckoutReservationClient.FlashQuote flashQuote = hasFlashSale
@@ -221,12 +163,7 @@ public class CheckoutPreviewService {
         for (CheckoutPreviewRequest.PreviewItem reqItem : request.getItems()) {
             ValidatedPreviewItem serverItem = menuItemMap.get(reqItem.getMenuItemId());
 
-            if (serverItem == null) {
-                unavailableIds.add(reqItem.getMenuItemId());
-                continue;
-            }
-
-            if (!serverItem.available()) {
+            if (CheckoutPreviewPolicy.unavailable(serverItem)) {
                 unavailableIds.add(reqItem.getMenuItemId());
                 continue;
             }
@@ -254,9 +191,7 @@ public class CheckoutPreviewService {
                     .build());
         }
 
-        if (!unavailableIds.isEmpty()) {
-            throw new ValidationException("Checkout chứa món không khả dụng: " + unavailableIds);
-        }
+        CheckoutPreviewPolicy.requireAvailable(unavailableIds);
 
         // 4. Tính shipping fee
         BigDecimal shippingFee = shippingFeeService.calculateShippingFee(
@@ -368,34 +303,16 @@ public class CheckoutPreviewService {
                     "Order/routing internal credential chưa được cấu hình", null, 30);
         }
         try {
-            EtaWindowResponse response = routingClient.getEtaWindow(new EtaWindowRequest(
-                    new Coordinate(pickupLat, pickupLng),
-                    new Coordinate(deliveryLat, deliveryLng),
-                    prepMinutes));
-            if (response == null) throw new IllegalStateException("empty ETA response");
-            int min = response.minMinutes();
-            int max = response.maxMinutes();
-            String source = response.source();
-            if (min < 1 || max < min || source == null || source.isBlank()) {
-                throw new IllegalStateException("invalid ETA response");
-            }
-            return new EtaWindow(min, max, source);
+            return CheckoutPreviewPolicy.eta(() -> {
+                EtaWindowResponse response = routingClient.getEtaWindow(new EtaWindowRequest(
+                        new Coordinate(pickupLat, pickupLng), new Coordinate(deliveryLat, deliveryLng), prepMinutes));
+                return response == null ? null : new EtaWindow(response.minMinutes(), response.maxMinutes(), response.source());
+            });
         } catch (Exception failure) {
             if (failure instanceof OrderDependencyUnavailableException dependency) throw dependency;
             throw new OrderDependencyUnavailableException("routing-service",
                     "Routing service tạm thời không khả dụng", failure, 30);
         }
-    }
-
-    private List<Long> selectedVoucherIds(CheckoutPreviewRequest request) {
-        List<Long> ids = request.getSelectedVoucherIds() == null
-                ? new ArrayList<>() : new ArrayList<>(request.getSelectedVoucherIds());
-        if (request.getVoucherId() != null && ids.isEmpty()) ids.add(request.getVoucherId());
-        if (ids.size() > 3 || ids.stream().anyMatch(id -> id == null || id <= 0)
-                || ids.stream().distinct().count() != ids.size()) {
-            throw new ValidationException("Tối đa 3 voucher khác nhau, mỗi lớp một voucher");
-        }
-        return ids;
     }
 
     private List<CheckoutPreviewResponse.AppliedVoucherInfo> toAppliedVouchers(
@@ -479,13 +396,13 @@ public class CheckoutPreviewService {
                 throw new OrderDependencyUnavailableException("restaurant-service",
                         "Restaurant service trả status không hợp lệ");
             }
-            if (status == null || status != 1) {
-                throw new ValidationException("Dữ liệu checkout không hợp lệ: "
-                        + validationMessage(data));
-            }
+            CheckoutPreviewPolicy.requireCatalogAccepted(status, data);
 
             return data;
         } catch (Exception e) {
+            if (e instanceof CheckoutPreviewPolicy.ValidationException failure) {
+                throw new ValidationException(failure.getMessage());
+            }
             if (e instanceof ValidationException validationException) {
                 throw validationException;
             }
@@ -503,137 +420,4 @@ public class CheckoutPreviewService {
         }
     }
 
-    @SuppressWarnings("unchecked")
-    private Map<Long, ValidatedPreviewItem> parseValidatedItems(Map<String, Object> validationData) {
-        Object rawItems = validationData.get("itemValidations");
-        if (!(rawItems instanceof List<?> itemValidations)) {
-            throw new ValidationException("Restaurant service không trả dữ liệu canonical của món ăn");
-        }
-
-        Map<Long, ValidatedPreviewItem> items = new HashMap<>();
-        for (Object rawItem : itemValidations) {
-            if (!(rawItem instanceof Map<?, ?> item)) {
-                throw new ValidationException("Restaurant service trả item validation không hợp lệ");
-            }
-            Long menuItemId = getLongValue(item.get("menuItemId"));
-            String name = getStringValue(item.get("menuItemName"));
-            BigDecimal price = getBigDecimalValue(item.get("actualPrice"));
-            boolean available = Boolean.TRUE.equals(getBooleanValue(item.get("isAvailable")))
-                    && !Boolean.FALSE.equals(getBooleanValue(item.get("hasEnoughStock")))
-                    && name != null
-                    && !name.isBlank()
-                    && price != null
-                    && price.signum() > 0;
-            if (menuItemId != null) {
-                items.put(menuItemId, new ValidatedPreviewItem(menuItemId, name, price, available));
-            }
-        }
-        return items;
-    }
-
-    private void validateDuplicateItems(CheckoutPreviewRequest request) {
-        Set<Long> menuItemIds = new HashSet<>();
-        Set<Long> flashSaleItemIds = new HashSet<>();
-        for (CheckoutPreviewRequest.PreviewItem item : request.getItems()) {
-            if (item == null || item.getMenuItemId() == null) {
-                throw new ValidationException("Checkout chứa sản phẩm không hợp lệ");
-            }
-            if (item.getQuantity() == null || item.getQuantity() < 1 || item.getQuantity() > 99
-                    || (item.getFlashSaleItemId() != null && item.getFlashSaleItemId() <= 0)) {
-                throw new ValidationException("Checkout chứa số lượng hoặc flash-sale item không hợp lệ");
-            }
-            if (!menuItemIds.add(item.getMenuItemId())) {
-                throw new ValidationException("Menu Item ID bị trùng trong checkout preview");
-            }
-            if (item.getFlashSaleItemId() != null && !flashSaleItemIds.add(item.getFlashSaleItemId()))
-                throw new ValidationException("Flash Sale Item ID bị trùng trong checkout preview");
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> requireMap(Object value, String message) {
-        if (!(value instanceof Map<?, ?> map)) {
-            throw new ValidationException(message);
-        }
-        return (Map<String, Object>) map;
-    }
-
-    private String requireNonBlankString(Object value, String message) {
-        String result = getStringValue(value);
-        if (result == null || result.isBlank()) {
-            throw new ValidationException(message);
-        }
-        return result;
-    }
-
-    private Double requireCoordinate(Object value, double min, double max, String message) {
-        Double result = getDoubleValue(value);
-        if (result == null || !Double.isFinite(result) || result < min || result > max) {
-            throw new ValidationException(message);
-        }
-        return result;
-    }
-
-    private String validationMessage(Map<String, Object> data) {
-        Object errors = data.get("errors");
-        if (!(errors instanceof List<?> validationErrors) || validationErrors.isEmpty()) {
-            return "Restaurant/menu item validation thất bại";
-        }
-        List<String> messages = new ArrayList<>();
-        for (Object rawError : validationErrors) {
-            if (rawError instanceof Map<?, ?> error) {
-                String message = getStringValue(error.get("message"));
-                if (message != null && !message.isBlank()) {
-                    messages.add(message);
-                }
-            }
-        }
-        return messages.isEmpty()
-                ? "Restaurant/menu item validation thất bại"
-                : String.join(", ", messages);
-    }
-
-    private String getStringValue(Object val) {
-        return val != null ? val.toString() : null;
-    }
-
-    private Double getDoubleValue(Object val) {
-        if (val == null) return null;
-        try { return Double.valueOf(val.toString()); }
-        catch (NumberFormatException e) { return null; }
-    }
-
-    private Integer getIntegerValue(Object val) {
-        if (val == null) return null;
-        try { return Integer.valueOf(val.toString()); }
-        catch (NumberFormatException e) { return null; }
-    }
-
-    private Long getLongValue(Object val) {
-        if (val == null) return null;
-        try { return Long.valueOf(val.toString()); }
-        catch (NumberFormatException e) { return null; }
-    }
-
-    private BigDecimal getBigDecimalValue(Object val) {
-        if (val == null) return null;
-        try { return new BigDecimal(val.toString()); }
-        catch (NumberFormatException e) { return null; }
-    }
-
-    private record EtaWindow(int minMinutes, int maxMinutes, String source) {
-    }
-
-    private Boolean getBooleanValue(Object val) {
-        if (val == null) return null;
-        if (val instanceof Boolean bool) return bool;
-        return Boolean.valueOf(val.toString());
-    }
-
-    private record ValidatedPreviewItem(
-            Long menuItemId,
-            String name,
-            BigDecimal price,
-            boolean available) {
-    }
 }
