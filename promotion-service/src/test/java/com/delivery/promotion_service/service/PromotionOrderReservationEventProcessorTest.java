@@ -121,6 +121,71 @@ class PromotionOrderReservationEventProcessorTest {
         verifyNoInteractions(promotionService);
     }
 
+    @Test
+    void refundAndCancellationClaimReceiptBeforeCompensationAndRetainUsageAfterPickup() throws Exception {
+        UUID eventId = UUID.randomUUID(), legacy = UUID.randomUUID(), bulk = UUID.randomUUID();
+        when(receipts.insertIfAbsentPostgres(any(), any(), any(), anyLong(), any(), anyString())).thenReturn(1);
+        String base = payload(eventId, 91L, legacy);
+        String both = base.substring(0, base.length() - 1) + ",\"promotionReservationId\":\"" + bulk + "\"}";
+        processor.process(both, "order.refund-eligible-retry-promotion-2");
+        var order = inOrder(receipts, promotionService);
+        order.verify(receipts).insertIfAbsentPostgres(eq(eventId), eq("order.refund-eligible"), eq("RELEASE"),
+                eq(91L), eq(legacy), anyString());
+        order.verify(promotionService).releasePromotionReservation(bulk, 91L);
+        verify(promotionService, never()).releaseReservation(any(), any());
+        clearInvocations(promotionService, receipts);
+        for (String status : new String[]{"picked_up", "DELIVERING", "DELIVERED", "COMPLETED"}) {
+            processor.process(base.substring(0, base.length() - 1) + ",\"previousStatus\":\"" + status + "\"}", "order.cancelled");
+        }
+        verifyNoInteractions(promotionService);
+        verify(receipts, times(4)).insertIfAbsentPostgres(eq(eventId), eq("order.cancelled"), eq("RELEASE"),
+                eq(91L), eq(legacy), anyString());
+        processor.process(base, "order.cancelled");
+        verify(promotionService).releaseReservation(legacy, 91L);
+    }
+
+    @Test
+    void validationOrderStillPrecedesReceiptClaimAndAnyReservationMutation() {
+        UUID eventId = UUID.randomUUID();
+        String[] payloads = {"{}", "{\"eventId\":\"" + eventId + "\"}",
+                "{\"eventId\":\"" + eventId + "\",\"orderId\":91,\"voucherReservationId\":\"bad\"}"};
+        String[] messages = {"eventId is required", "orderId must be positive",
+                "Unexpected voucher reservation source topic: unknown"};
+        for (int i = 0; i < payloads.length; i++) {
+            String payload = payloads[i], message = messages[i];
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> processor.process(payload, "unknown"))
+                    .isExactlyInstanceOf(IllegalArgumentException.class).hasMessage(message);
+        }
+        verifyNoInteractions(receipts, promotionService);
+    }
+
+    @Test
+    void bulkReceiptKeepsLegacyIdentityColumnAndRejectsChangedBulkIdentityViaRawFingerprint() throws Exception {
+        UUID eventId = UUID.randomUUID(), bulk = UUID.randomUUID();
+        String original = promotionPayload(eventId, 91L, bulk);
+        when(receipts.findById(eventId)).thenReturn(Optional.of(receipt(
+                eventId, "order.created", "COMMIT", 91L, null, original)));
+        processor.process(original, "order.created-retry-promotion-1");
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> processor.process(
+                promotionPayload(eventId, 91L, UUID.randomUUID()), "order.created"))
+                .isExactlyInstanceOf(IllegalArgumentException.class)
+                .hasMessage("eventId replay has a contradictory voucher reservation payload");
+        verify(receipts, times(2)).insertIfAbsentPostgres(eq(eventId), eq("order.created"), eq("COMMIT"),
+                eq(91L), isNull(), anyString());
+        verifyNoInteractions(promotionService);
+    }
+
+    @Test
+    void rawPayloadWhitespaceRemainsContradictoryOnRetryEvenWithSameJsonIdentity() throws Exception {
+        UUID eventId = UUID.randomUUID(), reservationId = UUID.randomUUID();
+        String payload = payload(eventId, 91L, reservationId);
+        when(receipts.findById(eventId)).thenReturn(Optional.of(receipt(eventId, "order.created", "COMMIT", 91L, reservationId, payload)));
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> processor.process(payload + " ", "order.created-retry-promotion-1"))
+                .isExactlyInstanceOf(IllegalArgumentException.class)
+                .hasMessage("eventId replay has a contradictory voucher reservation payload");
+        verifyNoInteractions(promotionService);
+    }
+
     private PromotionOrderReservationReceipt receipt(UUID eventId, String sourceTopic, String action,
                                                       long orderId, UUID reservationId, String payload)
             throws Exception {

@@ -1,5 +1,8 @@
 package com.delivery.promotion_service.service;
 
+import com.delivery.promotion.domain.ReservationPolicy;
+import com.delivery.promotion.domain.ReservationReplayPolicy;
+
 import com.delivery.promotion.domain.CampaignPolicy;
 import com.delivery.promotion.domain.WalletClaimPolicy;
 import com.delivery.promotion_service.dto.CalculateResponse;
@@ -359,10 +362,12 @@ public class PromotionService {
             VoucherStackingCalculator.AppliedVoucher applied = appliedById.get(voucherId);
             UserVoucher wallet = wallets.get(voucherId);
             Voucher voucher = vouchers.get(voucherId);
-            wallet.setReservedCount(safeCount(wallet.getReservedCount()) + 1);
+            ReservationPolicy.Counters counters = ReservationPolicy.reserve(voucher.getUsedQuantity(),
+                    wallet.getReservedCount(), wallet.getUsedCount(), true);
+            wallet.setReservedCount(counters.reserved());
             wallet.setStatus(UserVoucher.Status.RESERVED);
             wallet.setOrderId(request.getOrderId());
-            voucher.setUsedQuantity(safeCount(voucher.getUsedQuantity()) + 1);
+            voucher.setUsedQuantity(counters.global());
             lines.add(PromotionReservationLine.builder()
                     .reservationId(reservation.getReservationId())
                     .voucherId(voucherId)
@@ -405,18 +410,11 @@ public class PromotionService {
         if (enforcePrincipal) requireBulkReservationPrincipal(reservation, userPrincipalId);
         List<PromotionReservationLine> lines = promotionReservationLineRepository
                 .findByReservationIdForUpdateOrderByVoucherIdAsc(reservationId);
-        if (reservation.getState() == PromotionReservation.State.RESERVED
-                && !LocalDateTime.now().isBefore(reservation.getExpiresAt())) {
-            // Expiry is owned by the scheduled recovery job. A late order.created
-            // must never look successful: otherwise Order keeps the discount while
-            // the expiry path has already returned the quota to the wallet.
-            throw new PromotionConflictException("Promotion reservation expired before commit");
-        } else if (reservation.getState() == PromotionReservation.State.RESERVED) {
-            transitionBulkReservation(reservation, lines, PromotionReservation.State.COMMITTED);
-        } else if (reservation.getState() != PromotionReservation.State.COMMITTED) {
-            throw new PromotionConflictException(
-                    "Promotion reservation cannot be committed from state " + reservation.getState());
-        }
+        ReservationPolicy.Transition decision = ReservationPolicy.commit(
+                reservation.getState() == null ? null : reservation.getState().name(),
+                reservation.getExpiresAt(), LocalDateTime.now(), true);
+        if (decision.failure() != null) throw new PromotionConflictException(decision.failure());
+        if (decision.apply()) transitionBulkReservation(reservation, lines, PromotionReservation.State.COMMITTED);
         return PromotionReservationResponse.from(reservation, lines);
     }
 
@@ -440,8 +438,7 @@ public class PromotionService {
         if (enforcePrincipal) requireBulkReservationPrincipal(reservation, userPrincipalId);
         List<PromotionReservationLine> lines = promotionReservationLineRepository
                 .findByReservationIdForUpdateOrderByVoucherIdAsc(reservationId);
-        if (reservation.getState() == PromotionReservation.State.RESERVED
-                || reservation.getState() == PromotionReservation.State.COMMITTED) {
+        if (ReservationPolicy.release(reservation.getState() == null ? null : reservation.getState().name())) {
             transitionBulkReservation(reservation, lines, PromotionReservation.State.RELEASED);
         }
         return PromotionReservationResponse.from(reservation, lines);
@@ -449,10 +446,8 @@ public class PromotionService {
 
     private void requireBulkReservationPrincipal(PromotionReservation reservation, Long userPrincipalId) {
         validatePositiveId(userPrincipalId, "userPrincipalId");
-        if (reservation.getUserPrincipalId() == null
-                || !reservation.getUserPrincipalId().equals(userPrincipalId)) {
-            throw new PromotionConflictException("Promotion reservation is owned by another principal");
-        }
+        String failure = ReservationReplayPolicy.principalFailure(reservation.getUserPrincipalId(), userPrincipalId);
+        if (failure != null) throw new PromotionConflictException(failure);
     }
 
     @Transactional
@@ -465,8 +460,9 @@ public class PromotionService {
         for (PromotionReservation candidate : candidates) {
             PromotionReservation reservation = promotionReservationRepository
                     .findByIdForUpdate(candidate.getReservationId()).orElse(null);
-            if (reservation != null && reservation.getState() == PromotionReservation.State.RESERVED
-                    && !LocalDateTime.now().isBefore(reservation.getExpiresAt())) {
+            if (reservation != null && ReservationPolicy.expire(
+                    reservation.getState() == null ? null : reservation.getState().name(),
+                    reservation.getExpiresAt(), LocalDateTime.now())) {
                 List<PromotionReservationLine> lines = promotionReservationLineRepository
                         .findByReservationIdForUpdateOrderByVoucherIdAsc(reservation.getReservationId());
                 transitionBulkReservation(reservation, lines, PromotionReservation.State.EXPIRED);
@@ -485,18 +481,17 @@ public class PromotionService {
                     line.getVoucherId());
             Voucher voucher = voucherRepository.findByIdForUpdate(line.getVoucherId())
                     .orElseThrow(() -> new IllegalStateException("Reserved voucher is missing: " + line.getVoucherId()));
-            int global = safeCount(voucher.getUsedQuantity());
+            ReservationPolicy.Counters counters = ReservationPolicy.transition(voucher.getUsedQuantity(),
+                    wallet.getReservedCount(), wallet.getUsedCount(), wasCommitted,
+                    target == PromotionReservation.State.COMMITTED, true);
+            if (counters.failure() != null) throw new IllegalStateException(counters.failure());
             if (target == PromotionReservation.State.COMMITTED) {
-                wallet.setReservedCount(Math.max(0, safeCount(wallet.getReservedCount()) - 1));
-                wallet.setUsedCount(safeCount(wallet.getUsedCount()) + 1);
+                wallet.setReservedCount(counters.reserved());
+                wallet.setUsedCount(counters.used());
             } else {
-                if (global <= 0) throw new IllegalStateException("Voucher usage counter is inconsistent");
-                voucher.setUsedQuantity(global - 1);
-                if (wasCommitted) {
-                    wallet.setUsedCount(Math.max(0, safeCount(wallet.getUsedCount()) - 1));
-                } else {
-                    wallet.setReservedCount(Math.max(0, safeCount(wallet.getReservedCount()) - 1));
-                }
+                voucher.setUsedQuantity(counters.global());
+                if (wasCommitted) wallet.setUsedCount(counters.used());
+                else wallet.setReservedCount(counters.reserved());
             }
             updateWalletCompatibilityState(wallet, voucher, reservation.getOrderId());
             line.setState(PromotionReservationLine.State.valueOf(target.name()));
@@ -510,9 +505,8 @@ public class PromotionService {
         validatePositiveId(orderId, "orderId");
         PromotionReservation reservation = promotionReservationRepository.findByIdForUpdate(reservationId)
                 .orElseThrow(() -> new IllegalArgumentException("Promotion reservation not found"));
-        if (!orderId.equals(reservation.getOrderId())) {
-            throw new PromotionConflictException("reservationId is bound to another order");
-        }
+        String failure = ReservationReplayPolicy.orderFailure(reservation.getOrderId(), orderId, true);
+        if (failure != null) throw new PromotionConflictException(failure);
         return reservation;
     }
 
@@ -527,15 +521,14 @@ public class PromotionService {
         List<Long> existing = promotionReservationLineRepository.findByReservationIdOrderByVoucherIdAsc(
                         reservation.getReservationId()).stream()
                 .map(PromotionReservationLine::getVoucherId).sorted().toList();
-        if (!reservation.getOrderId().equals(request.getOrderId())
-                || !reservation.getUserId().equals(request.getUserId())
-                || !Objects.equals(reservation.getUserPrincipalId(), request.getUserPrincipalId())
-                || !reservation.getRestaurantId().equals(request.getRestaurantId())
-                || reservation.getSubtotal().compareTo(request.getSubtotal()) != 0
-                || reservation.getGrossShippingFee().compareTo(request.getGrossShippingFee()) != 0
-                || !existing.equals(voucherIds)) {
-            throw new PromotionConflictException("Promotion reservation replay payload does not match");
-        }
+        String failure = ReservationReplayPolicy.failure(
+                new ReservationReplayPolicy.Request(reservation.getReservationId(), reservation.getOrderId(),
+                        reservation.getUserId(), reservation.getUserPrincipalId(), reservation.getRestaurantId(),
+                        reservation.getSubtotal(), reservation.getGrossShippingFee(), existing),
+                new ReservationReplayPolicy.Request(request.getReservationId(), request.getOrderId(),
+                        request.getUserId(), request.getUserPrincipalId(), request.getRestaurantId(),
+                        request.getSubtotal(), request.getGrossShippingFee(), voucherIds), true);
+        if (failure != null) throw new PromotionConflictException(failure);
     }
 
     private void validateBulkReserveRequest(BulkReserveRequest request) {
@@ -569,18 +562,11 @@ public class PromotionService {
     }
 
     private void updateWalletCompatibilityState(UserVoucher wallet, Voucher voucher, Long orderId) {
-        int used = safeCount(wallet.getUsedCount());
-        int reserved = safeCount(wallet.getReservedCount());
-        int limit = voucher.getUsageLimitPerUser() == null ? 1 : voucher.getUsageLimitPerUser();
-        if (reserved > 0) wallet.setStatus(UserVoucher.Status.RESERVED);
-        else if (used >= limit) wallet.setStatus(UserVoucher.Status.USED);
-        else wallet.setStatus(UserVoucher.Status.SAVED);
-        wallet.setOrderId(reserved > 0 ? orderId : null);
-        wallet.setUsedAt(used > 0 ? LocalDateTime.now() : null);
-    }
-
-    private int safeCount(Integer value) {
-        return value == null ? 0 : Math.max(0, value);
+        ReservationPolicy.WalletState state = ReservationPolicy.wallet(
+                wallet.getUsedCount(), wallet.getReservedCount(), voucher.getUsageLimitPerUser());
+        wallet.setStatus(UserVoucher.Status.valueOf(state.status()));
+        wallet.setOrderId(state.bindOrder() ? orderId : null);
+        wallet.setUsedAt(state.stampUsedAt() ? LocalDateTime.now() : null);
     }
 
     private void requireBulkRepositories() {
@@ -636,7 +622,7 @@ public class PromotionService {
         userVoucher.setStatus(UserVoucher.Status.RESERVED);
         userVoucher.setOrderId(request.getOrderId());
         userVoucher.setUsedAt(null);
-        voucher.setUsedQuantity(voucher.getUsedQuantity() + 1);
+        voucher.setUsedQuantity(ReservationPolicy.reserve(voucher.getUsedQuantity(), null, null, false).global());
         try {
             voucherReservationRepository.saveAndFlush(reservation);
         } catch (DataIntegrityViolationException ex) {
@@ -649,21 +635,17 @@ public class PromotionService {
     @Transactional
     public VoucherReservationResponse commitReservation(UUID reservationId, Long orderId) {
         VoucherReservation reservation = lockedReservation(reservationId, orderId);
-        if (reservation.getState() == VoucherReservation.State.RESERVED
-                && !LocalDateTime.now().isBefore(reservation.getExpiresAt())) {
-            // Do not silently ACK a late order.created event. The expiry job is
-            // the only owner of RESERVED -> EXPIRED capacity restoration.
-            throw new PromotionConflictException("Voucher reservation expired before commit");
-        } else if (reservation.getState() == VoucherReservation.State.RESERVED) {
+        ReservationPolicy.Transition decision = ReservationPolicy.commit(
+                reservation.getState() == null ? null : reservation.getState().name(),
+                reservation.getExpiresAt(), LocalDateTime.now(), false);
+        if (decision.failure() != null) throw new PromotionConflictException(decision.failure());
+        if (decision.apply()) {
             UserVoucher userVoucher = walletVoucherForUpdate(reservation.getUserPrincipalId(), reservation.getUserId(),
                     reservation.getVoucherId());
             userVoucher.setStatus(UserVoucher.Status.USED);
             userVoucher.setUsedAt(LocalDateTime.now());
             reservation.setState(VoucherReservation.State.COMMITTED);
             outboxService.enqueue(reservation);
-        } else if (reservation.getState() != VoucherReservation.State.COMMITTED) {
-            throw new PromotionConflictException(
-                    "Voucher reservation cannot be committed from state " + reservation.getState());
         }
         return legacyReservationResponse(reservation);
     }
@@ -671,8 +653,7 @@ public class PromotionService {
     @Transactional
     public VoucherReservationResponse releaseReservation(UUID reservationId, Long orderId) {
         VoucherReservation reservation = lockedReservation(reservationId, orderId);
-        if (reservation.getState() == VoucherReservation.State.RESERVED
-                || reservation.getState() == VoucherReservation.State.COMMITTED) {
+        if (ReservationPolicy.release(reservation.getState() == null ? null : reservation.getState().name())) {
             releaseCapacity(reservation, VoucherReservation.State.RELEASED);
         }
         return legacyReservationResponse(reservation);
@@ -696,8 +677,9 @@ public class PromotionService {
         for (VoucherReservation candidate : expired) {
             VoucherReservation reservation = voucherReservationRepository
                     .findByIdForUpdate(candidate.getReservationId()).orElse(null);
-            if (reservation != null && reservation.getState() == VoucherReservation.State.RESERVED
-                    && !LocalDateTime.now().isBefore(reservation.getExpiresAt())) {
+            if (reservation != null && ReservationPolicy.expire(
+                    reservation.getState() == null ? null : reservation.getState().name(),
+                    reservation.getExpiresAt(), LocalDateTime.now())) {
                 expireReservation(reservation);
                 count++;
             }
@@ -710,9 +692,8 @@ public class PromotionService {
         validatePositiveId(orderId, "orderId");
         VoucherReservation reservation = voucherReservationRepository.findByIdForUpdate(reservationId)
                 .orElseThrow(() -> new IllegalArgumentException("Voucher reservation not found"));
-        if (!reservation.getOrderId().equals(orderId)) {
-            throw new PromotionConflictException("reservationId is bound to another order");
-        }
+        String failure = ReservationReplayPolicy.orderFailure(reservation.getOrderId(), orderId, false);
+        if (failure != null) throw new PromotionConflictException(failure);
         return reservation;
     }
 
@@ -725,10 +706,10 @@ public class PromotionService {
                 reservation.getVoucherId());
         Voucher voucher = voucherRepository.findByIdForUpdate(reservation.getVoucherId())
                 .orElseThrow(() -> new IllegalStateException("Reserved voucher is missing"));
-        if (voucher.getUsedQuantity() <= 0) {
-            throw new IllegalStateException("Voucher usage counter is inconsistent");
-        }
-        voucher.setUsedQuantity(voucher.getUsedQuantity() - 1);
+        ReservationPolicy.Counters counters = ReservationPolicy.transition(voucher.getUsedQuantity(), null, null,
+                false, false, false);
+        if (counters.failure() != null) throw new IllegalStateException(counters.failure());
+        voucher.setUsedQuantity(counters.global());
         userVoucher.setStatus(UserVoucher.Status.SAVED);
         userVoucher.setOrderId(null);
         userVoucher.setUsedAt(null);
@@ -742,16 +723,14 @@ public class PromotionService {
     }
 
     private void requireSameReservation(VoucherReservation reservation, ReserveRequest request) {
-        if (!reservation.getReservationId().equals(request.getReservationId())
-                || !reservation.getOrderId().equals(request.getOrderId())
-                || !reservation.getUserId().equals(request.getUserId())
-                || !java.util.Objects.equals(reservation.getUserPrincipalId(), request.getUserPrincipalId())
-                || !reservation.getVoucherId().equals(request.getVoucherId())
-                || !reservation.getRestaurantId().equals(request.getRestaurantId())
-                || reservation.getSubtotal().compareTo(request.getSubtotal()) != 0
-                || reservation.getShippingFee().compareTo(request.getShippingFee()) != 0) {
-            throw new PromotionConflictException("Reservation replay payload does not match");
-        }
+        String failure = ReservationReplayPolicy.failure(
+                new ReservationReplayPolicy.Request(reservation.getReservationId(), reservation.getOrderId(),
+                        reservation.getUserId(), reservation.getUserPrincipalId(), reservation.getRestaurantId(),
+                        reservation.getSubtotal(), reservation.getShippingFee(), java.util.Collections.singletonList(reservation.getVoucherId())),
+                new ReservationReplayPolicy.Request(request.getReservationId(), request.getOrderId(),
+                        request.getUserId(), request.getUserPrincipalId(), request.getRestaurantId(),
+                        request.getSubtotal(), request.getShippingFee(), java.util.Collections.singletonList(request.getVoucherId())), false);
+        if (failure != null) throw new PromotionConflictException(failure);
     }
 
     @Transactional(readOnly = true)

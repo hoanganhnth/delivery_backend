@@ -1,10 +1,10 @@
 package com.delivery.promotion_service.service;
 
+import com.delivery.promotion.domain.OrderReservationEventPolicy;
+
 import com.delivery.promotion_service.dto.PromotionReservationResponse;
 import com.delivery.promotion_service.dto.VoucherReservationResponse;
-import com.delivery.promotion_service.entity.PromotionReservation;
 import com.delivery.promotion_service.entity.PromotionOrderReservationReceipt;
-import com.delivery.promotion_service.entity.VoucherReservation;
 import com.delivery.promotion_service.exception.PromotionConflictException;
 import com.delivery.promotion_service.repository.PromotionOrderReservationReceiptRepository;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -16,7 +16,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.time.LocalDateTime;
 import java.util.HexFormat;
 import java.util.UUID;
 
@@ -27,9 +26,6 @@ import java.util.UUID;
  */
 @Service
 public class PromotionOrderReservationEventProcessor {
-
-    private static final String COMMIT = "COMMIT";
-    private static final String RELEASE = "RELEASE";
 
     private final PromotionService promotionService;
     private final PromotionOrderReservationReceiptRepository receipts;
@@ -61,8 +57,11 @@ public class PromotionOrderReservationEventProcessor {
         JsonNode event = objectMapper.readTree(payload);
         UUID eventId = requiredUuid(event, "eventId");
         long orderId = requiredPositiveLong(event, "orderId");
-        String sourceTopic = canonicalSourceTopic(receivedTopic);
-        String action = actionFor(sourceTopic);
+        OrderReservationEventPolicy.Topic topic = OrderReservationEventPolicy.topic(
+                receivedTopic, orderCreatedTopic, orderCancelledTopic, refundEligibleTopic);
+        if (topic.failure() != null) throw new IllegalArgumentException(topic.failure());
+        String sourceTopic = topic.source();
+        String action = topic.action();
         UUID reservationId = optionalUuid(event, "voucherReservationId");
         UUID promotionReservationId = optionalUuid(event, "promotionReservationId");
         String fingerprint = fingerprint(payload);
@@ -75,43 +74,26 @@ public class PromotionOrderReservationEventProcessor {
             return;
         }
 
-        if (reservationId == null && promotionReservationId == null) {
-            return;
-        }
-        if (COMMIT.equals(action)) {
-            if (promotionReservationId != null) {
+        OrderReservationEventPolicy.Operation operation = OrderReservationEventPolicy.operation(
+                action, reservationId, promotionReservationId, event.path("previousStatus").asText(""));
+        switch (operation) {
+            case NONE -> { }
+            case COMMIT_BULK -> {
                 PromotionReservationResponse response =
                         promotionService.commitPromotionReservation(promotionReservationId, orderId);
-                if (response == null || response.state() != PromotionReservation.State.COMMITTED) {
-                    throw new PromotionConflictException(
-                            "Promotion reservation did not reach COMMITTED state");
-                }
-            } else {
+                String failure = OrderReservationEventPolicy.commitFailure(
+                        response == null || response.state() == null ? null : response.state().name(), true);
+                if (failure != null) throw new PromotionConflictException(failure);
+            }
+            case COMMIT_LEGACY -> {
                 VoucherReservationResponse response = promotionService.commitReservation(reservationId, orderId);
-                if (response == null || response.getState() != VoucherReservation.State.COMMITTED) {
-                    throw new PromotionConflictException(
-                            "Voucher reservation did not reach COMMITTED state");
-                }
+                String failure = OrderReservationEventPolicy.commitFailure(
+                        response == null || response.getState() == null ? null : response.getState().name(), false);
+                if (failure != null) throw new PromotionConflictException(failure);
             }
-        } else {
-            // A committed promotion can only be compensated before the
-            // delivery reaches PICKED_UP. After pickup the financial snapshot
-            // is retained for manual reconciliation; no quota is restored.
-            if (isAfterPickup(event)) {
-                return;
-            }
-            if (promotionReservationId != null) {
-                promotionService.releasePromotionReservation(promotionReservationId, orderId);
-            } else {
-                promotionService.releaseReservation(reservationId, orderId);
-            }
+            case RELEASE_BULK -> promotionService.releasePromotionReservation(promotionReservationId, orderId);
+            case RELEASE_LEGACY -> promotionService.releaseReservation(reservationId, orderId);
         }
-    }
-
-    private boolean isAfterPickup(JsonNode event) {
-        String previous = event.path("previousStatus").asText("").toUpperCase(java.util.Locale.ROOT);
-        return "PICKED_UP".equals(previous) || "DELIVERING".equals(previous)
-                || "DELIVERED".equals(previous) || "COMPLETED".equals(previous);
     }
 
     private int insertIfAbsent(UUID eventId, String sourceTopic, String action, long orderId,
@@ -120,23 +102,6 @@ public class PromotionOrderReservationEventProcessor {
             return receipts.insertIfAbsentH2(eventId, sourceTopic, action, orderId, reservationId, fingerprint);
         }
         return receipts.insertIfAbsentPostgres(eventId, sourceTopic, action, orderId, reservationId, fingerprint);
-    }
-
-    private String canonicalSourceTopic(String receivedTopic) {
-        if (receivedTopic == null || receivedTopic.isBlank()) {
-            throw new IllegalArgumentException("source topic is required");
-        }
-        return receivedTopic.replaceFirst("-retry-promotion-\\d+$", "");
-    }
-
-    private String actionFor(String sourceTopic) {
-        if (orderCreatedTopic.equals(sourceTopic)) {
-            return COMMIT;
-        }
-        if (orderCancelledTopic.equals(sourceTopic) || refundEligibleTopic.equals(sourceTopic)) {
-            return RELEASE;
-        }
-        throw new IllegalArgumentException("Unexpected voucher reservation source topic: " + sourceTopic);
     }
 
     private UUID requiredUuid(JsonNode event, String field) {
@@ -185,13 +150,10 @@ public class PromotionOrderReservationEventProcessor {
 
     private void requireExactReplay(PromotionOrderReservationReceipt receipt, String sourceTopic,
                                     String action, long orderId, UUID reservationId, String fingerprint) {
-        if (!receipt.getSourceTopic().equals(sourceTopic)
-                || !receipt.getAction().equals(action)
-                || !receipt.getOrderId().equals(orderId)
-                || !java.util.Objects.equals(receipt.getReservationId(), reservationId)
-                || !receipt.getPayloadFingerprint().equals(fingerprint)) {
-            throw new IllegalArgumentException(
-                    "eventId replay has a contradictory voucher reservation payload");
-        }
+        String failure = OrderReservationEventPolicy.replayFailure(
+                new OrderReservationEventPolicy.Receipt(receipt.getSourceTopic(), receipt.getAction(),
+                        receipt.getOrderId(), receipt.getReservationId(), receipt.getPayloadFingerprint()),
+                new OrderReservationEventPolicy.Receipt(sourceTopic, action, orderId, reservationId, fingerprint));
+        if (failure != null) throw new IllegalArgumentException(failure);
     }
 }

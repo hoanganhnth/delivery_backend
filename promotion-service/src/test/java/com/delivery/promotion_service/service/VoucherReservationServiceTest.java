@@ -255,6 +255,17 @@ class VoucherReservationServiceTest {
         when(voucherRepository.findByIdForUpdate(11L)).thenReturn(Optional.of(voucher));
 
         service.commitPromotionReservation(reservationId, 101L);
+        assertThat(wallet.getReservedCount()).isZero();
+        assertThat(wallet.getUsedCount()).isEqualTo(1);
+        assertThat(wallet.getStatus()).isEqualTo(UserVoucher.Status.USED);
+        assertThat(wallet.getOrderId()).isNull();
+        assertThat(wallet.getUsedAt()).isNotNull();
+        assertThat(voucher.getUsedQuantity()).isEqualTo(1);
+        assertThat(line.getState()).isEqualTo(PromotionReservationLine.State.COMMITTED);
+        // A terminal replay remains a no-op even after its original hold expires.
+        reservation.setExpiresAt(LocalDateTime.now().minusSeconds(1));
+        service.commitPromotionReservation(reservationId, 101L);
+        assertThat(wallet.getUsedCount()).isEqualTo(1);
         service.releasePromotionReservation(reservationId, 101L);
         service.releasePromotionReservation(reservationId, 101L);
 
@@ -265,6 +276,118 @@ class VoucherReservationServiceTest {
         assertThat(wallet.getStatus()).isEqualTo(UserVoucher.Status.SAVED);
         assertThat(voucher.getUsedQuantity()).isZero();
         verify(outboxService, org.mockito.Mockito.times(2)).enqueue(eq(reservation), eq(List.of(line)));
+    }
+
+    @Test
+    void legacyCommittedReleasePreservesBulkCountersAndLockOutboxOrder() {
+        var request = request(); var reservation = reservation(request);
+        reservation.setState(VoucherReservation.State.COMMITTED);
+        var wallet = wallet(); wallet.setUsedCount(5); wallet.setReservedCount(3);
+        wallet.setUsedAt(LocalDateTime.now()); wallet.setOrderId(101L);
+        var voucher = voucher(); voucher.setUsedQuantity(1);
+        when(reservationRepository.findByIdForUpdate(request.getReservationId())).thenReturn(Optional.of(reservation));
+        when(userVoucherRepository.findByUserIdAndVoucherIdForUpdate(7L, 11L)).thenReturn(Optional.of(wallet));
+        when(voucherRepository.findByIdForUpdate(11L)).thenReturn(Optional.of(voucher));
+        service.releaseReservation(request.getReservationId(), 101L);
+        assertThat(wallet.getUsedCount()).isEqualTo(5);
+        assertThat(wallet.getReservedCount()).isEqualTo(3);
+        assertThat(wallet.getStatus()).isEqualTo(UserVoucher.Status.SAVED);
+        assertThat(wallet.getOrderId()).isNull(); assertThat(wallet.getUsedAt()).isNull();
+        var order = org.mockito.Mockito.inOrder(reservationRepository, userVoucherRepository, voucherRepository, outboxService);
+        order.verify(reservationRepository).findByIdForUpdate(request.getReservationId());
+        order.verify(userVoucherRepository).findByUserIdAndVoucherIdForUpdate(7L, 11L);
+        order.verify(voucherRepository).findByIdForUpdate(11L);
+        order.verify(outboxService).enqueue(reservation);
+        order.verify(voucherRepository).findById(11L);
+    }
+
+    @Test
+    void bulkOrderReplayAcceptsDifferentReservationIdAndChecksFingerprintBeforeLocks() {
+        UUID original = UUID.randomUUID(); var reservation = bulkReservation(original);
+        var request = BulkReserveRequest.builder().reservationId(UUID.randomUUID()).orderId(101L)
+                .userId(7L).userPrincipalId(42L).restaurantId(9L).subtotal(reservation.getSubtotal())
+                .grossShippingFee(reservation.getGrossShippingFee()).voucherIds(List.of(11L)).build();
+        when(promotionReservationRepository.findByOrderId(101L)).thenReturn(Optional.of(reservation));
+        when(promotionReservationLineRepository.findByReservationIdOrderByVoucherIdAsc(original))
+                .thenReturn(List.of(PromotionReservationLine.builder().voucherId(11L).build()));
+        assertThat(service.reserveVouchers(request).reservationId()).isEqualTo(original);
+        request.setSubtotal(request.getSubtotal().add(BigDecimal.ONE));
+        assertThatThrownBy(() -> service.reserveVouchers(request)).isExactlyInstanceOf(PromotionConflictException.class)
+                .hasMessage("Promotion reservation replay payload does not match");
+        org.mockito.Mockito.verifyNoInteractions(userVoucherRepository, voucherRepository, outboxService);
+        verify(promotionReservationRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void inconsistentLegacyReleaseFailsAfterWalletThenVoucherLocksBeforeMutationOrOutbox() {
+        var request = request(); var reservation = reservation(request); var wallet = wallet(); var voucher = voucher();
+        wallet.setStatus(UserVoucher.Status.RESERVED);
+        when(reservationRepository.findByIdForUpdate(request.getReservationId())).thenReturn(Optional.of(reservation));
+        when(userVoucherRepository.findByUserIdAndVoucherIdForUpdate(7L, 11L)).thenReturn(Optional.of(wallet));
+        when(voucherRepository.findByIdForUpdate(11L)).thenReturn(Optional.of(voucher));
+        assertThatThrownBy(() -> service.releaseReservation(request.getReservationId(), 101L))
+                .isExactlyInstanceOf(IllegalStateException.class).hasMessage("Voucher usage counter is inconsistent");
+        assertThat(wallet.getStatus()).isEqualTo(UserVoucher.Status.RESERVED);
+        assertThat(reservation.getState()).isEqualTo(VoucherReservation.State.RESERVED);
+        org.mockito.Mockito.verifyNoInteractions(outboxService);
+        var order = org.mockito.Mockito.inOrder(reservationRepository, userVoucherRepository, voucherRepository);
+        order.verify(reservationRepository).findByIdForUpdate(request.getReservationId());
+        order.verify(userVoucherRepository).findByUserIdAndVoucherIdForUpdate(7L, 11L);
+        order.verify(voucherRepository).findByIdForUpdate(11L);
+    }
+
+    @Test
+    void expiryRechecksLockedLegacyRowsAndRestoresCapacityOnce() {
+        var request = request(); var expired = reservation(request);
+        expired.setExpiresAt(LocalDateTime.now().minusSeconds(1));
+        var missing = reservation(request()); var committed = reservation(request());
+        committed.setState(VoucherReservation.State.COMMITTED);
+        var future = reservation(request()); var wallet = wallet(); var voucher = voucher();
+        voucher.setUsedQuantity(1);
+        when(reservationRepository.findTop100ByStateAndExpiresAtLessThanEqualOrderByExpiresAtAsc(
+                eq(VoucherReservation.State.RESERVED), any())).thenReturn(List.of(missing, committed, future, expired));
+        when(reservationRepository.findByIdForUpdate(missing.getReservationId())).thenReturn(Optional.empty());
+        when(reservationRepository.findByIdForUpdate(committed.getReservationId())).thenReturn(Optional.of(committed));
+        when(reservationRepository.findByIdForUpdate(future.getReservationId())).thenReturn(Optional.of(future));
+        when(reservationRepository.findByIdForUpdate(expired.getReservationId())).thenReturn(Optional.of(expired));
+        when(userVoucherRepository.findByUserIdAndVoucherIdForUpdate(7L, 11L)).thenReturn(Optional.of(wallet));
+        when(voucherRepository.findByIdForUpdate(11L)).thenReturn(Optional.of(voucher));
+        assertThat(service.expireReservations()).isEqualTo(1);
+        assertThat(service.expireReservations()).isZero();
+        assertThat(expired.getState()).isEqualTo(VoucherReservation.State.EXPIRED);
+        assertThat(voucher.getUsedQuantity()).isZero();
+        verify(outboxService).enqueue(expired);
+    }
+
+    @Test
+    void bulkExpiryLocksLinesThenWalletThenVoucherBeforeOutboxAndRetainsUsedCounter() {
+        UUID id = UUID.randomUUID(); var reservation = bulkReservation(id);
+        reservation.setExpiresAt(LocalDateTime.now().minusSeconds(1));
+        var line = PromotionReservationLine.builder().reservationId(id).voucherId(11L)
+                .state(PromotionReservationLine.State.RESERVED).build();
+        var wallet = wallet(); wallet.setUserPrincipalId(42L); wallet.setReservedCount(1); wallet.setUsedCount(1);
+        var voucher = voucher(); voucher.setUsedQuantity(2); voucher.setUsageLimitPerUser(2);
+        when(promotionReservationRepository.findTop100ByStateAndExpiresAtLessThanEqualOrderByExpiresAtAsc(
+                eq(PromotionReservation.State.RESERVED), any())).thenReturn(List.of(reservation));
+        when(promotionReservationRepository.findByIdForUpdate(id)).thenReturn(Optional.of(reservation));
+        when(promotionReservationLineRepository.findByReservationIdForUpdateOrderByVoucherIdAsc(id)).thenReturn(List.of(line));
+        when(userVoucherRepository.findByPrincipalOrUnbackfilledLegacyAndVoucherIdForUpdate(42L, 7L, 11L)).thenReturn(Optional.of(wallet));
+        when(voucherRepository.findByIdForUpdate(11L)).thenReturn(Optional.of(voucher));
+        assertThat(service.expirePromotionReservations()).isEqualTo(1);
+        assertThat(service.expirePromotionReservations()).isZero();
+        assertThat(wallet.getReservedCount()).isZero(); assertThat(wallet.getUsedCount()).isEqualTo(1);
+        assertThat(wallet.getStatus()).isEqualTo(UserVoucher.Status.SAVED);
+        assertThat(wallet.getOrderId()).isNull(); assertThat(wallet.getUsedAt()).isNotNull();
+        assertThat(voucher.getUsedQuantity()).isEqualTo(1);
+        assertThat(line.getState()).isEqualTo(PromotionReservationLine.State.EXPIRED);
+        var order = org.mockito.Mockito.inOrder(promotionReservationRepository, promotionReservationLineRepository,
+                userVoucherRepository, voucherRepository, outboxService);
+        order.verify(promotionReservationRepository).findTop100ByStateAndExpiresAtLessThanEqualOrderByExpiresAtAsc(eq(PromotionReservation.State.RESERVED), any());
+        order.verify(promotionReservationRepository).findByIdForUpdate(id);
+        order.verify(promotionReservationLineRepository).findByReservationIdForUpdateOrderByVoucherIdAsc(id);
+        order.verify(userVoucherRepository).findByPrincipalOrUnbackfilledLegacyAndVoucherIdForUpdate(42L, 7L, 11L);
+        order.verify(voucherRepository).findByIdForUpdate(11L);
+        order.verify(outboxService).enqueue(reservation, List.of(line));
     }
 
     private ReserveRequest request() {

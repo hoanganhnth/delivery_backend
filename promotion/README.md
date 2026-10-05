@@ -1,4 +1,4 @@
-# Promotion tranche: inventory and first domain slice
+# Promotion tranche: inventory and domain policy extraction
 
 Inventory inspected before extraction on `refactor/promotion`, 2026-10-05.
 Paths below are repository-root-relative and refer to the extracted tree unless
@@ -33,8 +33,9 @@ and ownership authority remains `docs/workflows/promotion_voucher_flow.md:3`.
    limits now live in domain. Ownership HTTP, principal resolution, clocks,
    audit mutation and locked persistence remain in the host. Approval policy is
    unchanged.
-3. Extract legacy and bulk reservation transition/counter/replay policies with
-   concurrency regressions before introducing transaction/use-case ports.
+3. **Completed slice 3:** legacy and bulk reservation transition/counter/replay
+   policies, Order receipt/event routing and refund compensation outcomes now
+   live in domain; host retains locks, transactions and persistence.
 4. Introduce application-api/application for collection, pricing, reservations
    and consumed Order events; preserve transaction/ACK/receipt/outbox boundaries.
 5. Move transport, persistence, scheduling, ownership client and composition
@@ -138,11 +139,7 @@ Validation for slice 2:
   `/tmp/promotion-slice2-oracle/`; no oracle code is shipped in production.
 - `git diff --check` passes. No git writes or plan edits.
 
-Slice 3 remains unimplemented: reservation transition/counter compatibility
-state, reservation fingerprint replay, Order receipt/event replay and refund
-compensation decisions remain in the host. Transactions, locks, repositories,
-outbox, Kafka, topics, flags and database code are unchanged. Slices 4–6 also
-remain as listed above.
+Slice 3 is recorded below. Slices 4–6 remain as listed above.
 
 Additional pre-existing observations, preserved by regression tests:
 
@@ -155,3 +152,59 @@ Additional pre-existing observations, preserved by regression tests:
 - Creation validates a trimmed layer but stores its untrimmed uppercase text;
   this normalization asymmetry is retained. The existing end-time and stacking
   payable-guard inconsistencies remain unchanged and regression-tested.
+
+## Slice 3 equivalence evidence
+
+Authority is the saved pre-extraction host implementation and
+`docs/workflows/promotion_voucher_flow.md`. `ReservationPolicy`,
+`ReservationReplayPolicy` and `OrderReservationEventPolicy` use only JDK imports.
+They return transition, counter, wallet, routing or failure outcomes; host code
+maps them to the existing mutations and exception classes/messages. JSON parsing,
+SHA-256 computation, clocks, transactions, repository calls, locks, receipt claim,
+outbox, Kafka/ACK, topics, flags and database schema remain in the host.
+
+| Moved decision | Executable equivalence evidence |
+| --- | --- |
+| Commit/release/expiry transitions | `ReservationPolicyTest` covers both rails, all persisted states plus null, before/equal/after expiry, terminal replay and malformed-expiry short circuit. Host regressions prove late commit leaves quota unchanged; expiry rechecks locked candidates and restores once. Bulk line locks still precede the commit guard. |
+| Global/per-wallet counters and compatibility state | Domain matrix covers null, negative, zero, positive and MAX_VALUE counters; reserve, commit, uncommitted release/expiry and committed compensation; default/negative/zero/positive limits, untouched raw fields and overflow. Host tests assert intermediate COMMITTED counters/state, terminal replay, compensation and exact wallet/voucher/outbox lock order. Legacy release deliberately leaves bulk counters intact. |
+| Reservation fingerprint/order/principal binding | `ReservationReplayPolicyTest` varies every fingerprint field, money scale, sorted-list order, null principals and conflicting payload short circuit; both binding rails retain equality direction. Host tests prove replay precedes wallet/voucher locks, conflicting payload prevents save/outbox and bulk order replay accepts a different reservation ID. Public principal checks retain their position before line locks; trusted Kafka calls retain their two-argument rail. |
+| Order topic/action/routing/refund fence | Domain tests cover configured topics, numeric retry suffixes, invalid topics, overlapping-topic precedence, both/neither reservation IDs, bulk precedence, case-folded fulfilment states and untrimmed previous status. Host tests prove receipt claim precedes compensation, after-pickup receipts do not touch usage and JSON identity validation still precedes topic validation and receipt claim. |
+| Receipt/event replay and commit confirmation | Domain tests vary all receipt fields and nullable reservation identity, preserve short circuit and every commit confirmation message. Host tests prove exact replay is a no-op, contradictory identity/raw whitespace fails with the same exception/message, and bulk identity remains protected by raw fingerprint while the receipt identity column remains legacy-only. |
+
+Validation:
+
+- `mvn -B -pl :promotion-service -am clean verify`: BUILD SUCCESS, 294 tests
+  (133 domain, 130 host, 31 upstream), zero failures/errors, 10 Docker-only skips.
+  Full log: `/tmp/promotion-slice3-final-verify.log`.
+- Docker-only skips: `VoucherReservationPostgresConcurrencyTest` (4),
+  `PromotionOrderReservationReceiptPostgresConcurrencyTest` (3),
+  `PromotionReservationKafkaPostgresIntegrationTest` (3). Testcontainers could
+  not find a valid Docker environment; this slice does not claim Docker proof.
+- Domain JaCoCo: 441/452 lines (97.57%), 578/598 branches (96.66%). Each of the
+  three extracted policies has 100% line/branch coverage. Both 85% gates remain
+  unchanged, with no new exclusions or build configuration changes.
+- The same 24 host reservation/event regressions passed against both saved
+  pre-extraction sources and extracted classes: zero failures/skips in each run.
+  Temporary baseline compilation and JUnit launcher live in
+  `/tmp/promotion-slice3-baseline/`, with `baseline.log` and `extracted.log`.
+  Pre-extraction sources are in `/tmp/promotion-slice3-before/`. No baseline
+  implementation is shipped in the repository.
+
+Additional pre-existing inconsistencies retained:
+
+- Bulk order replay ignores the requested reservation UUID while legacy replay
+  rejects a changed UUID. This is covered directly and through host replay.
+- Legacy counters unbox null and do not normalize negatives, whereas bulk
+  counters normalize null/negative values. Integer increment overflow remains.
+- Bulk compatibility transitions refresh `usedAt` whenever any usage remains,
+  including expiry of another hold; compensation does not preserve the original
+  usage timestamp. Wallet order binding is cleared when no reserved count remains.
+- The bulk reservation ID is absent from the receipt identity column; the raw
+  payload hash detects its changes. JSON whitespace alone also makes an event
+  contradictory. No receipt schema or fingerprint normalization is introduced.
+- Refund/cancellation previous status is case-insensitive but untrimmed;
+  whitespace around `PICKED_UP` bypasses the fulfilment fence. The domain matrix
+  preserves this behavior instead of adding a new refund policy.
+
+Remaining work: slice 4 application contracts/use cases, slice 5
+infrastructure/boot consolidation, and slice 6 packaged recovery rehearsals.
