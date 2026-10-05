@@ -2,6 +2,8 @@ package com.delivery.saga_orchestrator_service.service;
 
 import com.delivery.dispatch.application.DefaultDeliveryProgressUseCase;
 import com.delivery.dispatch.application.DefaultAssignmentUseCase;
+import com.delivery.dispatch.application.DefaultStepFailureUseCase;
+import com.delivery.dispatch.application.api.StepFailureUseCase;
 import com.delivery.dispatch.application.DefaultMatchOutcomeUseCase;
 import com.delivery.dispatch.application.api.AssignmentUseCase;
 import com.delivery.dispatch.application.DefaultOrderLifecycleUseCase;
@@ -662,6 +664,42 @@ public class SagaManager {
         }
     }
 
+    private StepFailureUseCase stepFailures() {
+        return new DefaultStepFailureUseCase(
+                dispatchCase -> sagaInstanceRepository.save(saga(dispatchCase)),
+                (dispatchCase, deliveryCommand, stopMatching, cause) ->
+                        compensateDelivery(saga(dispatchCase), deliveryCommand, stopMatching, cause),
+                (dispatchCase, status, cause) -> sendOrderStatusCommand(saga(dispatchCase), status, cause));
+    }
+
+    /** Sends the compensating Delivery command enriched with deliveryId; returns the correlated event. */
+    private String compensateDelivery(SagaInstance saga, FailureCompensation.DeliveryCommand deliveryCommand,
+                                      boolean stopMatching, String rawEvent) {
+        Long orderId = saga.getOrderId();
+        String topic = deliveryCommand == FailureCompensation.DeliveryCommand.CANCEL_DELIVERY
+                ? CMD_CANCEL_DELIVERY
+                : CMD_MARK_SHIPPER_NOT_FOUND;
+        String correlatedEvent = rawEvent;
+        try {
+            ObjectNode payloadNode = (ObjectNode) objectMapper.readTree(rawEvent);
+            if (saga.getDeliveryId() != null) {
+                payloadNode.put("deliveryId", saga.getDeliveryId());
+            }
+            String enrichedEvent = objectMapper.writeValueAsString(payloadNode);
+            correlatedEvent = enrichedEvent;
+            sendCommand(topic, orderId.toString(), enrichedEvent);
+            if (stopMatching) {
+                sendStopMatchingCommand(saga, orderId, enrichedEvent);
+            }
+        } catch (Exception e) {
+            if (e instanceof SagaCommandPublishException publishException) {
+                throw publishException;
+            }
+            sendCommand(topic, orderId.toString(), rawEvent);
+        }
+        return correlatedEvent;
+    }
+
     private AssignmentUseCase assignments() {
         return new DefaultAssignmentUseCase(
                 dispatchCase -> sagaInstanceRepository.save(saga(dispatchCase)),
@@ -796,70 +834,15 @@ public class SagaManager {
      */
     private void handleStepFailedLocked(String stepName, SagaInstance saga, String reason, String rawEvent) {
         Long orderId = saga.getOrderId();
-        FailureCompensation.Outcome outcome = FailureCompensation.outcome(stepName, dispatch(saga));
-
-        // A Delivery refusal after the Order cancellation command is an
-        // invariant breach, not an ignorable terminal replay. Record it so the
-        // reconciliation/alerting path can recover the Order/Delivery drift.
-        if (outcome == FailureCompensation.Outcome.RECORD_CANCEL_REFUSAL) {
-            saga.addStep("DELIVERY_CANCEL_FAILED", "delivery.cancel.failed", rawEvent);
-            saga.setStatus(SagaStatus.FAILED);
-            saga.setCompletedAt(LocalDateTime.now());
-            sagaInstanceRepository.save(saga);
-            log.error("[Saga] Delivery cancellation failed after compensation for orderId={}: {}. "
-                    + "Manual reconciliation is required.", orderId, reason);
-            return;
+        SagaStatus previous = saga.getStatus();
+        switch (stepFailures().onStepFailed(new SagaDispatchCase(saga, objectMapper), stepName, rawEvent)) {
+            case CANCEL_REFUSAL_RECORDED -> log.error("[Saga] Delivery cancellation failed after compensation for "
+                    + "orderId={}: {}. Manual reconciliation is required.", orderId, reason);
+            case IGNORED_TERMINAL -> log.warn("⚠️ [Saga] handleStepFailed - Saga cho orderId={} đã ở trạng thái cuối {}, bỏ qua",
+                    orderId, saga.getStatus());
+            case COMPENSATED -> log.error("🚨 [Saga] COMPENSATION — Step {} failed for orderId={} (prevStatus={}): {}",
+                    stepName, orderId, previous, reason);
         }
-
-        if (outcome == FailureCompensation.Outcome.IGNORE_TERMINAL) {
-            log.warn("⚠️ [Saga] handleStepFailed - Saga cho orderId={} đã ở trạng thái cuối {}, bỏ qua", orderId, saga.getStatus());
-            return;
-        }
-
-        // ✅ Lưu trạng thái TRƯỚC khi chuyển sang COMPENSATING, để quyết định đúng
-        //    hành động bù trừ (bug cũ: switch trên status đã bị ghi đè → luôn vào default).
-        SagaStatus prevStatus = saga.getStatus();
-        saga.setStatus(SagaStatus.COMPENSATING);
-        saga.addStep(stepName + "_FAILED", stepName + ".failed", rawEvent);
-
-        log.error("🚨 [Saga] COMPENSATION — Step {} failed for orderId={} (prevStatus={}): {}",
-                stepName, orderId, prevStatus, reason);
-
-        // Compensation dựa trên trạng thái TRƯỚC khi fail
-        FailureCompensation compensation = FailureCompensation.forPreviousStatus(
-                DispatchStatus.valueOf(prevStatus.name()));
-        if (compensation.deliveryCommand() == FailureCompensation.DeliveryCommand.NONE) {
-            // Nếu chưa có gì cần dọn → chỉ báo order failed
-            sendOrderStatusCommand(orderId, compensation.orderStatus(), rawEvent);
-        } else {
-            String deliveryCommand = compensation.deliveryCommand()
-                    == FailureCompensation.DeliveryCommand.CANCEL_DELIVERY
-                    ? CMD_CANCEL_DELIVERY
-                    : CMD_MARK_SHIPPER_NOT_FOUND;
-            String correlatedEvent = rawEvent;
-            try {
-                ObjectNode payloadNode = (ObjectNode) objectMapper.readTree(rawEvent);
-                if (saga.getDeliveryId() != null) {
-                    payloadNode.put("deliveryId", saga.getDeliveryId());
-                }
-                String enrichedEvent = objectMapper.writeValueAsString(payloadNode);
-                correlatedEvent = enrichedEvent;
-                sendCommand(deliveryCommand, orderId.toString(), enrichedEvent);
-                if (compensation.stopMatching()) {
-                    sendStopMatchingCommand(saga, orderId, enrichedEvent);
-                }
-            } catch (Exception e) {
-                if (e instanceof SagaCommandPublishException publishException) {
-                    throw publishException;
-                }
-                sendCommand(deliveryCommand, orderId.toString(), rawEvent);
-            }
-            sendOrderStatusCommand(orderId, compensation.orderStatus(), correlatedEvent);
-        }
-
-        saga.setStatus(SagaStatus.FAILED);
-        saga.setCompletedAt(LocalDateTime.now());
-        sagaInstanceRepository.save(saga);
     }
 
     /**
