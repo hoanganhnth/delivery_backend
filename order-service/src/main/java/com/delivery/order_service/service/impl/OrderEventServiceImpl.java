@@ -70,16 +70,11 @@ public class OrderEventServiceImpl implements OrderEventService {
         
         if (!newOrderStatus.equals(order.getStatus())) {
             OrderStatus previousStatus = order.getStatus();
-            // restaurant.order-confirmed and Saga commands are consumed from
-            // different Kafka topics. Saga may therefore authoritatively start
-            // matching before this service commits the restaurant event. Keep
-            // the domain sequence strict, but converge through both valid steps
-            // in this transaction instead of sending the command to DLT.
-            if (order.getStatus() == OrderStatus.PENDING
-                    && newOrderStatus == OrderStatus.FINDING_SHIPPER) {
-                transition(order, OrderStatus.CONFIRMED);
+            for (com.delivery.order.domain.OrderStatus step :
+                    com.delivery.order.domain.SagaStatusPolicy.deliveryTransitions(
+                            order.getStatus().toDomain(), newOrderStatus.toDomain())) {
+                transition(order, OrderStatus.valueOf(step.name()));
             }
-            transition(order, newOrderStatus);
             if (newOrderStatus == OrderStatus.FINDING_SHIPPER) {
                 order.setShipperId(null);
             }
@@ -241,18 +236,10 @@ public class OrderEventServiceImpl implements OrderEventService {
             throw new IllegalArgumentException("shipper acceptance execution context does not match order");
         }
 
-        if (event.getShipperId() == null || event.getShipperId() <= 0) {
-            throw new IllegalArgumentException("shipperId must be positive");
-        }
-        if (order.getStatus() == OrderStatus.ASSIGNED
-                || order.getStatus() == OrderStatus.PICKED_UP
-                || order.getStatus() == OrderStatus.DELIVERING
-                || order.getStatus() == OrderStatus.DELIVERED) {
-            if (event.getShipperId().equals(order.getShipperId())) {
-                log.info("Shipper assignment already applied for order {}, skipping replay", order.getId());
-                return;
-            }
-            throw new IllegalStateException("Shipper acceptance conflicts with assigned shipper");
+        if (com.delivery.order.domain.SagaStatusPolicy.assignmentReplay(
+                order.getStatus().toDomain(), order.getShipperId(), event.getShipperId())) {
+            log.info("Shipper assignment already applied for order {}, skipping replay", order.getId());
+            return;
         }
 
         transition(order, OrderStatus.ASSIGNED);
@@ -354,31 +341,8 @@ public class OrderEventServiceImpl implements OrderEventService {
      * ✅ Map delivery status to order status
      */
     private OrderStatus mapDeliveryStatusToOrderStatus(String deliveryStatus) {
-        if (deliveryStatus == null) {
-            throw new IllegalArgumentException("Delivery status is required");
-        }
-        switch (deliveryStatus) {
-            case "ASSIGNED":
-                return OrderStatus.ASSIGNED;
-            case "WAIT_SHIPPER_CONFIRM":
-                return OrderStatus.WAIT_SHIPPER_CONFIRM;
-            case "FINDING_SHIPPER":
-                return OrderStatus.FINDING_SHIPPER;
-            case "IN_PROGRESS":
-                return OrderStatus.DELIVERING;
-            case "PICKED_UP":
-                return OrderStatus.PICKED_UP;
-            case "DELIVERING":
-                return OrderStatus.DELIVERING;
-            case "DELIVERED":
-                return OrderStatus.DELIVERED;
-            case "CANCELLED":
-                return OrderStatus.CANCELLED;
-            case "SHIPPER_NOT_FOUND":
-                return OrderStatus.SHIPPER_NOT_FOUND;
-            default:
-                throw new IllegalArgumentException("Unknown delivery status: " + deliveryStatus);
-        }
+        return OrderStatus.valueOf(
+                com.delivery.order.domain.SagaStatusPolicy.deliveryStatus(deliveryStatus).name());
     }
 
     private void transition(Order order, OrderStatus target) {

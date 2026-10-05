@@ -94,22 +94,16 @@ public class SagaOrderCommandProcessor {
      * receipt so the same Kafka record is retried on its original partition.
      */
     private boolean claimNextSequence(Long orderId, long sequence) {
-        if (sequence <= 0) {
-            // Compatibility commands are accepted only before sequence fencing
-            // is enabled for that order during the rolling deployment.
-            Order legacy = orderRepository.findByIdForUpdate(orderId).orElseThrow();
-            if (legacy.getLastSagaStatusSequence() != 0) {
-                throw new IllegalArgumentException("Legacy Saga command arrived after sequenced commands");
-            }
-            return true;
-        }
         Order order = orderRepository.findByIdForUpdate(orderId).orElseThrow();
         long cursor = order.getLastSagaStatusSequence();
-        if (sequence <= cursor) return false;
-        if (sequence != cursor + 1) {
-            throw new SagaOrderSequenceGapException(orderId, cursor + 1, sequence);
-        }
-        order.setLastSagaStatusSequence(sequence);
-        return true;
+        return switch (com.delivery.order.domain.SagaStatusPolicy.sequence(cursor, sequence)) {
+            case LEGACY -> true;
+            case STALE -> false;
+            case GAP -> throw new SagaOrderSequenceGapException(orderId, cursor + 1, sequence);
+            case NEXT -> {
+                order.setLastSagaStatusSequence(sequence);
+                yield true;
+            }
+        };
     }
 }

@@ -862,9 +862,7 @@ public class OrderServiceImpl implements OrderService {
                             "Order not found with id: " + event.getOrderId()));
 
             // Chỉ cập nhật nếu order đang ở trạng thái phù hợp (PENDING, CONFIRMED)
-            if (order.getStatus() != OrderStatus.CONFIRMED
-                    && order.getStatus() != OrderStatus.FINDING_SHIPPER
-                    && order.getStatus() != OrderStatus.WAIT_SHIPPER_CONFIRM) {
+            if (!com.delivery.order.domain.SagaStatusPolicy.appliesShipperNotFound(order.getStatus().toDomain())) {
                 log.warn("⚠️ Order {} not in a matching status, current status: {}",
                         order.getId(), order.getStatus());
                 return;

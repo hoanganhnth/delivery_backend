@@ -35,11 +35,8 @@ public class SagaCommandReceiptService {
     @Transactional
     public boolean claim(UUID eventId, String commandType, Long orderId,
                          String sagaStatus, String rawPayload) {
-        require(eventId != null, "eventId is required");
-        requireText(commandType, "commandType");
-        require(orderId != null && orderId > 0, "orderId must be positive");
-        requireText(sagaStatus, "sagaStatus");
-        requireText(rawPayload, "raw command payload");
+        com.delivery.order.domain.SagaCommandIdentity.requireCommand(
+                eventId, commandType, orderId, sagaStatus, rawPayload);
 
         String fingerprint = fingerprint(rawPayload);
         SagaCommandReceipt existing = repository.findById(eventId).orElse(null);
@@ -67,13 +64,9 @@ public class SagaCommandReceiptService {
 
     private void requireExactReplay(SagaCommandReceipt existing, String commandType, Long orderId,
                                     String sagaStatus, String fingerprint) {
-        if (!existing.getCommandType().equals(commandType)
-                || !existing.getOrderId().equals(orderId)
-                || !existing.getSagaStatus().equals(sagaStatus)
-                || !existing.getPayloadFingerprint().equals(fingerprint)) {
-            throw new IllegalArgumentException(
-                    "saga order command eventId replay has contradictory command identity or payload");
-        }
+        new com.delivery.order.domain.SagaCommandIdentity(existing.getCommandType(), existing.getOrderId(),
+                existing.getSagaStatus(), existing.getPayloadFingerprint()).requireExactReplay(
+                new com.delivery.order.domain.SagaCommandIdentity(commandType, orderId, sagaStatus, fingerprint));
     }
 
     private String fingerprint(String payload) {
@@ -85,15 +78,4 @@ public class SagaCommandReceiptService {
         }
     }
 
-    private void require(boolean condition, String message) {
-        if (!condition) {
-            throw new IllegalArgumentException(message);
-        }
-    }
-
-    private void requireText(String value, String field) {
-        if (value == null || value.isBlank()) {
-            throw new IllegalArgumentException(field + " is required");
-        }
-    }
 }

@@ -24,6 +24,15 @@ class OrderStatusTest {
     }
 
     @Test
+    void unknownExternalStatusRetainsHostEnumErrorMessage() {
+        assertEquals("No enum constant com.delivery.order_service.entity.OrderStatus.UNKNOWN",
+                assertThrows(IllegalArgumentException.class,
+                        () -> OrderStatus.fromExternal(" unknown ")).getMessage());
+        assertEquals("Order status is required", assertThrows(IllegalArgumentException.class,
+                () -> OrderStatus.fromExternal(null)).getMessage());
+    }
+
+    @Test
     void converterWritesOnlyCanonicalNames() {
         assertEquals("WAIT_SHIPPER_CONFIRM",
                 converter.convertToDatabaseColumn(OrderStatus.WAIT_SHIPPER_CONFIRM));
