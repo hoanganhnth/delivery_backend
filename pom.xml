@@ -53,6 +53,7 @@
         <module>api-gateway</module>
         <module>web-bff</module>
         <module>delivery-service</module>
+        <module>notification/domain</module>
         <module>notification-service</module>
         <module>order-service</module>
         <module>restaurant/boot</module>

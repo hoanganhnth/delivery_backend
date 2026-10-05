@@ -1,6 +1,9 @@
 package com.delivery.notification_service.service.impl;
 
 import com.delivery.notification_service.common.constants.NotificationConstants;
+import com.delivery.notification.domain.NotificationIntent;
+import com.delivery.notification.domain.NotificationMapping;
+import com.delivery.notification.domain.ReplayPayload;
 import com.delivery.notification_service.dto.request.SendNotificationRequest;
 import com.delivery.notification_service.dto.response.NotificationResponse;
 import com.delivery.notification_service.entity.Notification;
@@ -25,7 +28,6 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -159,15 +161,15 @@ public class NotificationServiceImpl implements NotificationService {
     }
 
     private void assertReplayMatches(Notification existing, SendNotificationRequest request) {
-        boolean samePayload = Objects.equals(existing.getUserId(), request.getUserId())
-                && Objects.equals(existing.getUserPrincipalId(), request.getUserPrincipalId())
-                && Objects.equals(existing.getTitle(), request.getTitle())
-                && Objects.equals(existing.getMessage(), request.getMessage())
-                && Objects.equals(existing.getType(), request.getType())
-                && Objects.equals(existing.getPriority(), request.getPriority())
-                && Objects.equals(existing.getRelatedEntityId(), request.getRelatedEntityId())
-                && Objects.equals(existing.getRelatedEntityType(), request.getRelatedEntityType())
-                && Objects.equals(existing.getData(), request.getData());
+        ReplayPayload stored = new ReplayPayload(
+                existing.getUserId(), existing.getUserPrincipalId(), existing.getTitle(), existing.getMessage(),
+                existing.getType(), existing.getPriority(), existing.getRelatedEntityId(),
+                existing.getRelatedEntityType(), existing.getData());
+        ReplayPayload incoming = new ReplayPayload(
+                request.getUserId(), request.getUserPrincipalId(), request.getTitle(), request.getMessage(),
+                request.getType(), request.getPriority(), request.getRelatedEntityId(),
+                request.getRelatedEntityType(), request.getData());
+        boolean samePayload = stored.matches(incoming);
         if (!samePayload) {
             throw new NotificationConflictException(
                     "Deduplication key is already bound to a different notification payload");
@@ -357,24 +359,8 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Override
     public void sendOrderCreatedNotification(UUID eventId, Long userId, Long userPrincipalId, Long orderId, String restaurantName) {
-        requireEventId(eventId);
-        requirePositiveId(userId, "userId");
-        requirePositiveId(orderId, "orderId");
-        if (restaurantName == null || restaurantName.isBlank()) {
-            throw new IllegalArgumentException("canonical restaurantName is required");
-        }
-        SendNotificationRequest request = new SendNotificationRequest();
-        request.setUserId(userId);
-        request.setUserPrincipalId(userPrincipalId);
-        request.setTitle("Đơn hàng đã được tạo");
-        request.setMessage("Đơn hàng #" + orderId + " từ " + restaurantName + " đã được tạo thành công");
-        request.setType(NotificationConstants.ORDER_CREATED);
-        request.setPriority(NotificationConstants.PRIORITY_MEDIUM);
-        request.setRelatedEntityId(orderId);
-        request.setRelatedEntityType("ORDER");
-        request.setDeduplicationKey("order-created:" + eventId);
-
-        sendNotification(request);
+        sendNotification(toRequest(NotificationMapping.orderCreated(
+                eventId, userId, userPrincipalId, orderId, restaurantName)));
     }
 
     @Override
@@ -384,57 +370,16 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Override
     public void sendDeliveryStatusNotification(UUID eventId, Long userId, Long userPrincipalId, Long deliveryId, String status, String shipperName) {
-        requireEventId(eventId);
-        requirePositiveId(userId, "userId");
-        requirePositiveId(deliveryId, "deliveryId");
-        String title = getDeliveryStatusTitle(status);
-        String message = getDeliveryStatusMessage(deliveryId, status, shipperName);
-
-        SendNotificationRequest request = new SendNotificationRequest();
-        request.setUserId(userId);
-        request.setUserPrincipalId(userPrincipalId);
-        request.setTitle(title);
-        request.setMessage(message);
-        request.setType(getDeliveryStatusType(status));
-        request.setPriority(NotificationConstants.PRIORITY_HIGH);
-        request.setRelatedEntityId(deliveryId);
-        request.setRelatedEntityType("DELIVERY");
-        request.setDeduplicationKey("delivery-status:" + eventId);
-
-        sendNotification(request);
+        sendNotification(toRequest(NotificationMapping.deliveryStatus(
+                eventId, userId, userPrincipalId, deliveryId, status, shipperName)));
     }
 
     @Override
     public void sendShipperMatchFoundNotification(Long shipperId, Long orderId, String restaurantName,
             String pickupAddress, String deliveryAddress,
             Double distance, String offerEventId) {
-        requirePositiveId(shipperId, "shipperId");
-        requirePositiveId(orderId, "orderId");
-        SendNotificationRequest request = new SendNotificationRequest();
-        request.setUserId(shipperId);
-        request.setTitle("🎯 Đơn hàng phù hợp!");
-        request.setMessage(String.format(
-                "Đơn hàng #%d từ %s - cách điểm lấy khoảng %.1fkm. Mở ứng dụng để xem offer hiện tại.",
-                orderId, restaurantName, distance));
-        request.setType(NotificationConstants.MATCH_FOUND);
-        request.setPriority(NotificationConstants.PRIORITY_HIGH);
-        request.setRelatedEntityId(orderId);
-        request.setRelatedEntityType("ORDER");
-        request.setDeduplicationKey("shipper-offer:" + offerEventId + ":" + shipperId);
-        // Persist the inbox record and use FCM only as a best-effort wake-up;
-        // Delivery's authenticated current-offer endpoint is the source of truth.
-        request.setSendPush(true);
-        // Add detailed info to data field
-        Map<String, Object> data = new HashMap<>();
-        data.put("pickupAddress", pickupAddress);
-        data.put("deliveryAddress", deliveryAddress);
-        data.put("distance", distance);
-        data.put("orderId", orderId);
-        data.put("recoveryEndpoint", "/api/deliveries/offers/current");
-        Gson gson = new Gson();
-        String json = gson.toJson(data);
-        request.setData(json);
-        sendNotification(request);
+        sendNotification(toRequest(NotificationMapping.shipperOffer(shipperId, orderId, restaurantName,
+                pickupAddress, deliveryAddress, distance, offerEventId)));
         log.info("🎯 Sent match found notification to shipper {}", shipperId);
     }
 
@@ -463,66 +408,23 @@ public class NotificationServiceImpl implements NotificationService {
         }
     }
 
-    private void requireEventId(UUID eventId) {
-        if (eventId == null) {
-            throw new IllegalArgumentException("stable eventId is required");
+    private SendNotificationRequest toRequest(NotificationIntent intent) {
+        SendNotificationRequest request = new SendNotificationRequest();
+        request.setUserId(intent.userId());
+        request.setUserPrincipalId(intent.userPrincipalId());
+        request.setTitle(intent.title());
+        request.setMessage(intent.message());
+        request.setType(intent.type());
+        request.setPriority(intent.priority());
+        request.setRelatedEntityId(intent.relatedEntityId());
+        request.setRelatedEntityType(intent.relatedEntityType());
+        request.setDeduplicationKey(intent.deduplicationKey());
+        request.setSendPush(intent.sendPush());
+        if (intent.data() != null) {
+            Map<String, Object> data = new HashMap<>();
+            data.putAll(intent.data());
+            request.setData(new Gson().toJson(data));
         }
-    }
-
-    private String getDeliveryStatusTitle(String status) {
-        return switch (status) {
-            case "PENDING" -> "Đơn đang chờ xử lý giao hàng";
-            case "FINDING_SHIPPER" -> "Đang tìm shipper";
-            case "WAIT_SHIPPER_CONFIRM" -> "Đang chờ shipper xác nhận";
-            case "SHIPPER_NOT_FOUND" -> "Chưa tìm được shipper";
-            case "ASSIGNED" -> "Đã phân công shipper";
-            case "PICKED_UP" -> "Shipper đã lấy hàng";
-            case "DELIVERING" -> "Đơn hàng đang được giao";
-            case "DELIVERED" -> "Giao hàng hoàn thành";
-            case "CANCELLED" -> "Giao hàng đã bị hủy";
-            default -> throw new IllegalArgumentException("Unknown delivery status: " + status);
-        };
-    }
-
-    private String getDeliveryStatusMessage(Long deliveryId, String status, String shipperName) {
-        return switch (status) {
-            case "PENDING" -> "Đơn hàng đang chờ bắt đầu quy trình giao";
-            case "FINDING_SHIPPER" -> "Hệ thống đang tìm shipper cho đơn hàng của bạn";
-            case "WAIT_SHIPPER_CONFIRM" -> "Đang chờ shipper xác nhận nhận đơn";
-            case "SHIPPER_NOT_FOUND" -> "Hiện chưa tìm được shipper phù hợp cho đơn hàng";
-            case "ASSIGNED" -> hasText(shipperName)
-                    ? shipperName + " đã được phân công giao đơn hàng của bạn"
-                    : "Đơn hàng của bạn đã được phân công cho shipper";
-            case "PICKED_UP" -> hasText(shipperName)
-                    ? shipperName + " đã lấy đơn hàng và chuẩn bị giao"
-                    : "Đơn hàng của bạn đã được lấy và chuẩn bị giao";
-            case "DELIVERING" -> hasText(shipperName)
-                    ? shipperName + " đang trên đường giao hàng"
-                    : "Đơn hàng của bạn đang được giao";
-            case "DELIVERED" -> hasText(shipperName)
-                    ? "Đơn hàng đã được " + shipperName + " giao thành công"
-                    : "Đơn hàng đã được giao thành công";
-            case "CANCELLED" -> "Quy trình giao hàng đã bị hủy";
-            default -> throw new IllegalArgumentException("Unknown delivery status: " + status);
-        };
-    }
-
-    private boolean hasText(String value) {
-        return value != null && !value.isBlank();
-    }
-
-    private String getDeliveryStatusType(String status) {
-        return switch (status) {
-            case "PENDING" -> NotificationConstants.DELIVERY_PENDING;
-            case "FINDING_SHIPPER" -> NotificationConstants.DELIVERY_FINDING_SHIPPER;
-            case "WAIT_SHIPPER_CONFIRM" -> NotificationConstants.DELIVERY_WAIT_SHIPPER_CONFIRM;
-            case "SHIPPER_NOT_FOUND" -> NotificationConstants.DELIVERY_SHIPPER_NOT_FOUND;
-            case "ASSIGNED" -> NotificationConstants.DELIVERY_ASSIGNED;
-            case "PICKED_UP" -> NotificationConstants.DELIVERY_PICKED_UP;
-            case "DELIVERING" -> NotificationConstants.DELIVERY_DELIVERING;
-            case "DELIVERED" -> NotificationConstants.DELIVERY_DELIVERED;
-            case "CANCELLED" -> NotificationConstants.DELIVERY_CANCELLED;
-            default -> throw new IllegalArgumentException("Unknown delivery status: " + status);
-        };
+        return request;
     }
 }

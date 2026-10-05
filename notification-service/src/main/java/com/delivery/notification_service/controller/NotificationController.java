@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
 
 import java.util.List;
+import com.delivery.notification.domain.NotificationPreferences;
 
 @Slf4j
 @RestController
@@ -152,7 +153,7 @@ public class NotificationController {
     }
 
     private boolean preferencesAvailable() {
-        return preferencesEnabled && notificationPreferenceService != null;
+        return NotificationPreferences.capabilityAvailable(preferencesEnabled, notificationPreferenceService != null);
     }
 
     private ResponseEntity<BaseResponse<NotificationPreferenceResponse>> preferenceCapabilityUnavailable() {

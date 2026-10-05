@@ -1,6 +1,7 @@
 package com.delivery.notification_service.service.impl;
 
 import com.delivery.notification_service.dto.response.NotificationPreferenceResponse;
+import com.delivery.notification.domain.NotificationPreferences;
 import com.delivery.notification_service.entity.NotificationPreference;
 import com.delivery.notification_service.repository.NotificationPreferenceRepository;
 import com.delivery.notification_service.service.NotificationPreferenceService;
@@ -54,19 +55,21 @@ public class NotificationPreferenceServiceImpl implements NotificationPreference
     }
 
     private static NotificationPreferenceResponse defaultResponse() {
+        NotificationPreferences defaults = NotificationPreferences.fromStoredMarketing(null);
         return NotificationPreferenceResponse.builder()
-                .transactionalNotificationsEnabled(true)
-                .marketingNotificationsEnabled(false)
-                .configured(false)
+                .transactionalNotificationsEnabled(defaults.transactionalNotificationsEnabled())
+                .marketingNotificationsEnabled(defaults.marketingNotificationsEnabled())
+                .configured(defaults.configured())
                 .updatedAt(null)
                 .build();
     }
 
     private NotificationPreferenceResponse response(NotificationPreference preference) {
+        NotificationPreferences stored = NotificationPreferences.fromStoredMarketing(preference.isMarketingNotificationsEnabled());
         return NotificationPreferenceResponse.builder()
-                .transactionalNotificationsEnabled(true)
-                .marketingNotificationsEnabled(preference.isMarketingNotificationsEnabled())
-                .configured(true)
+                .transactionalNotificationsEnabled(stored.transactionalNotificationsEnabled())
+                .marketingNotificationsEnabled(stored.marketingNotificationsEnabled())
+                .configured(stored.configured())
                 .updatedAt(preference.getUpdatedAt())
                 .build();
     }
