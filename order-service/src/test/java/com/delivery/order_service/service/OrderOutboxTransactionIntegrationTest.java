@@ -181,6 +181,46 @@ class OrderOutboxTransactionIntegrationTest {
                 .isEqualTo(OrderStatus.FINDING_SHIPPER);
     }
 
+    @Test
+    void customerCancellationCommitsImmutableSnapshotAndExactReplayHasNoEffects() throws Exception {
+        Order candidate = newOrder();
+        candidate.setUserPrincipalId(901L);
+        candidate.setInventoryReservationId(UUID.randomUUID());
+        Order order = orderRepository.save(candidate);
+        orderService.cancelOrder(order.getId(), 901L, 10L, "USER", "changed mind");
+        Order cancelled = orderRepository.findById(order.getId()).orElseThrow();
+        var outbox = outboxRepository.findAll().get(0);
+        var payload = objectMapper.readTree(outbox.getPayload());
+        assertThat(outbox.getTopic()).isEqualTo("order.cancelled");
+        assertThat(payload.path("cancelledBySource").asText()).isEqualTo("CUSTOMER");
+        assertThat(payload.path("cancelReasonCode").asText()).isEqualTo("CUSTOMER_CANCELLED");
+        assertThat(payload.path("previousStatus").asText()).isEqualTo("PENDING");
+        assertThat(payload.path("inventoryReservationId").asText()).isEqualTo(order.getInventoryReservationId().toString());
+        assertThat(payload.path("totalPrice").decimalValue()).isEqualByComparingTo(order.getTotalPrice());
+        orderService.cancelOrder(order.getId(), 901L, 99L, "USER", "changed mind");
+        assertThat(orderRepository.findById(order.getId()).orElseThrow().getUpdatedAt()).isEqualTo(cancelled.getUpdatedAt());
+        assertThat(outboxRepository.count()).isEqualTo(1);
+        assertThat(outboxRepository.findAll().get(0).getPayload()).isEqualTo(outbox.getPayload());
+        assertThatThrownBy(() -> orderService.cancelOrder(order.getId(), 901L, 10L, "USER", "different"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Order cancellation already exists with a different actor or reason");
+        assertThat(outboxRepository.count()).isEqualTo(1);
+    }
+
+    @Test
+    void customerCancellationRollsBackWithOutboxAndCanRetry() {
+        Order order = orderRepository.save(newOrder());
+        assertThatThrownBy(() -> transactionTemplate.executeWithoutResult(status -> {
+            orderService.cancelOrder(order.getId(), 10L, "USER", "changed mind");
+            throw new DeliberateRollback();
+        })).isInstanceOf(DeliberateRollback.class);
+        assertThat(orderRepository.findById(order.getId()).orElseThrow().getStatus()).isEqualTo(OrderStatus.PENDING);
+        assertThat(outboxRepository.count()).isZero();
+        orderService.cancelOrder(order.getId(), 10L, "USER", "changed mind");
+        assertThat(orderRepository.findById(order.getId()).orElseThrow().getStatus()).isEqualTo(OrderStatus.CANCELLED);
+        assertThat(outboxRepository.count()).isEqualTo(1);
+    }
+
     private Order newOrder() {
         Order order = new Order();
         order.setUserId(10L);

@@ -1,6 +1,7 @@
 package com.delivery.order_service.service;
 
 import com.delivery.order_service.dto.event.OrderCancelledEvent;
+import com.delivery.order.domain.OrderCancellationPolicy;
 import com.delivery.order.contracts.OrderCreatedEvent;
 import com.delivery.order_service.entity.Order;
 import lombok.extern.slf4j.Slf4j;
@@ -84,10 +85,10 @@ public class OrderEventPublisher {
      */
     public void publishRefundEligibilityEvent(Order order, String previousStatus, String reason) {
         requirePersistedOrder(order);
+        var intent = OrderCancellationPolicy.noShipperIntent();
         OrderCancelledEvent event = mapOrderToCancelledEvent(order, previousStatus, null,
-                "SHIPPER_NOT_FOUND", "SYSTEM", "SHIPPER_NOT_FOUND");
-        event.setCancelReason(reason == null || reason.isBlank()
-                ? "No shipper available" : reason);
+                intent.currentStatus(), intent.source(), intent.reasonCode());
+        event.setCancelReason(OrderCancellationPolicy.noShipperReason(reason));
         outboxService.enqueue(
                 "REFUND_ELIGIBLE",
                 order.getId().toString(),

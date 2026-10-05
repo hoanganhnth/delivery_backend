@@ -25,7 +25,7 @@ No plan, topic, schema, flag or business-policy changes are authorized.
 
 1. Complete Saga status application orchestration through transaction/store/receipt ports; preserve receipt-before-order locking, stale receipt commit, gap rollback and ACK proof.
 2. Extract restaurant/payment transaction/store orchestration through application ports; domain lifecycle/receipt decisions and cross-topic convergence/replay integration proof are now extracted (slice 2 below).
-3. Extract ownership/read and cancellation/refund-intent policies/use cases, preserving principal fallback and exception precedence.
+3. Ownership/read and cancellation/refund-intent domain policies are extracted (slice 3 below), preserving principal fallback and exception precedence; application transaction/store orchestration remains for later consolidation.
 4. Extract canonical checkout admission/pricing, preview, shipping/ETA and quote policies through fact/client ports.
 5. Extract create/quote/idempotency/reservation orchestration and compensation/lease recovery with DB race and remote ambiguous-failure proof.
 6. Extract outbox lease/retry application orchestration; relocate adapters/composition to infrastructure and entrypoint/config to boot; remove host only after packaged HTTP/Kafka/Postgres recovery proof and inventories/packaging updates (outside this slice).
@@ -182,3 +182,67 @@ handle the baseline acceptance decision. This task does not fix that defect.
 application port/transaction orchestration and the observed inactive
 RetryableTopic/owner-DLT discrepancy are explicitly retained, not repaired by
 this equivalence slice.
+
+## Slice 3: ownership/read and cancellation/refund intent
+
+- Framework-free `OrderOwnershipPolicy` owns detail/cancellation role admission,
+  principal ownership, gated fallback for unmigrated customer/creator rows,
+  legacy SHIPPER detail ownership and list admission/denial precedence. The
+  existing restaurant-owner wire role is `SHOP_OWNER`. Host maps access outcomes
+  to the original `AccessDeniedException` messages and fallback metric labels;
+  query execution/paging/mapping and enforcement configuration remain host-owned.
+- `OrderCancellationPolicy` owns exact actor/reason replay, pre-pickup eligibility,
+  typed actor cancellation source/reason and system no-shipper refund intent/reason
+  defaults. It does not decide Settlement/provider refund eligibility. The host
+  retains lock → permission → exact replay → eligibility → canonical transition
+  → mutation/timestamp → save → metric → outbox → response ordering. ADMIN only
+  bypasses eligibility; the canonical transition still rejects post-pickup and
+  non-cancelled terminal states. Exact replay keeps the saved timestamp and emits
+  no new event. Legacy replay fallback/metrics and null/empty reason semantics
+  remain unchanged.
+- Existing transaction annotations, snapshots, topics, event types, configuration,
+  DTOs and schemas are unchanged. No application ports/modules were introduced:
+  this follows the prior domain-policy slice pattern; transaction/store/outbox
+  orchestration remains host-owned for later consolidation.
+- Domain tests exhaust role/principal/legacy/enforcement/read-vs-cancel combinations,
+  every cancellation status, every replay identity/reason combination, typed
+  intents and no-shipper reason defaults. Host regressions preserve ADMIN's
+  transition discrepancy, SHIPPER's legacy ID discrepancy, SHOP_OWNER wire role,
+  fallback metrics, permission-before-replay/status and missing-order precedence,
+  list denial-before-query/status parsing. Real proxied H2/JPA tests prove
+  cancellation/snapshot/outbox commit, exact replay/conflict and atomic rollback
+  followed by retry; existing lock/save/event ordering proof is retained.
+- No new business/runtime defect observed. Existing documented ADMIN, SHIPPER,
+  no-shipper simulation/timestamp and inactive RetryableTopic/owner-DLT
+  discrepancies remain preserved. Tests also retain existing malformed/null
+  legacy-ID `NullPointerException` behavior rather than introducing new admission
+  semantics; persisted legacy IDs are expected to be non-null.
+- Filesystem changes only, under `order/` and `order-service/`; no git commands,
+  `docs/plans/` edits, POM changes or coverage-gate reductions.
+
+### Slice 3 final validation
+
+- Required `mvn -B -pl :order-service -am clean verify` with sandbox escalation
+  for local server/Docker integration access: exit 0, **BUILD SUCCESS**.
+  Log: `/tmp/order-slice3-clean-verify.log`.
+- Domain: 18 tests, zero failures/errors/skips; JaCoCo LINE 147/147 (100%) and
+  BRANCH 220/220 (100%). Both unchanged 85% gates passed. Host: 176 tests,
+  zero failures/errors/skips; executable Spring Boot JAR packaged successfully.
+- Docker-only skips: **none**. `OrderCreateIdempotencyPostgresConcurrencyTest`,
+  `SagaOrderKafkaPostgresIntegrationTest`, and
+  `SagaOrderCommandPostgresConcurrencyTest` each ran and passed (one test each).
+- Initial `mvn -B -pl :order-domain -am clean verify`: exit 0, all domain tests
+  and 85% checks passed; `/tmp/order-slice3-domain.log`. Initial focused
+  `mvn -B -pl :order-service -am verify
+  -Dtest=OrderOwnershipPolicyTest,OrderCancellationPolicyTest,OrderServiceCanonicalPricingTest,OrderOutboxTransactionIntegrationTest,OrderEventPublisherTopicConfigurationTest
+  -Dsurefire.failIfNoSpecifiedTests=false`: exit 0; domain 6 + host 34 tests,
+  zero failures/errors/skips; `/tmp/order-slice3-focused.log`. This preceded the
+  final SHOP_OWNER regression; the definitive clean run includes that regression
+  and the final production policies.
+- Final source inspection confirms no framework imports in domain production;
+  no new trailing whitespace in the added/changed blocks. No git-based checks
+  were run, per this slice's filesystem-only instruction.
+
+**Complete for slice 3 domain policy extraction.** No observed pre-existing
+business discrepancy was fixed; future application/adapter consolidation and
+separate policy/runtime decisions remain outside this slice.

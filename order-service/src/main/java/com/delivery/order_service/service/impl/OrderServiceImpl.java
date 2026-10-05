@@ -1,6 +1,8 @@
 package com.delivery.order_service.service.impl;
 
 import com.delivery.order_service.common.constants.RoleConstants;
+import com.delivery.order.domain.OrderOwnershipPolicy;
+import com.delivery.order.domain.OrderCancellationPolicy;
 import com.delivery.order_service.dto.internal.ValidatedOrderData;
 import com.delivery.order_service.dto.request.CreateOrderRequest;
 import com.delivery.order_service.dto.response.OrderResponse;
@@ -603,9 +605,7 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional(readOnly = true)
     public Page<OrderResponse> getOrdersByUser(Long userId, Long requesterId, String role, Pageable pageable) {
-        if (!RoleConstants.ADMIN.equals(role) && !userId.equals(requesterId)) {
-            throw new AccessDeniedException("Bạn chỉ có thể xem đơn hàng của chính mình");
-        }
+        requireReadAdmission(OrderOwnershipPolicy.userListDenial(userId, requesterId, role));
         Page<Order> orders = orderRepository.findByUserIdOrderByCreatedAtDesc(userId, pageable);
         return orders.map(orderMapper::orderToOrderResponse);
     }
@@ -613,9 +613,7 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional(readOnly = true)
     public Page<OrderResponse> getOrdersByPrincipal(Long principalId, Long legacyUserId, String role, Pageable pageable) {
-        if (principalId == null || legacyUserId == null) {
-            throw new AccessDeniedException("Missing authenticated identity");
-        }
+        requireReadAdmission(OrderOwnershipPolicy.principalListDenial(principalId, legacyUserId));
         Page<Order> orders = principalOwnershipEnforced
                 ? orderRepository.findByUserPrincipalIdOrderByCreatedAtDesc(principalId, pageable)
                 : orderRepository.findByPrincipalOrUnmigratedLegacyUserOrderByCreatedAtDesc(
@@ -630,15 +628,7 @@ public class OrderServiceImpl implements OrderService {
     @Transactional(readOnly = true)
     public Page<OrderResponse> getOrdersByRestaurantOwner(Long principalId, Long legacyOwnerId, String role,
             Pageable pageable) {
-        // Chỉ admin hoặc chính restaurant owner mới được xem
-        if (!RoleConstants.ADMIN.equals(role)) {
-            if (!RoleConstants.RESTAURANT_OWNER.equals(role)) {
-                throw new AccessDeniedException("Bạn không có quyền xem đơn hàng của chủ nhà hàng");
-            }
-        }
-        if (principalId == null || legacyOwnerId == null) {
-            throw new AccessDeniedException("Missing authenticated identity");
-        }
+        requireReadAdmission(OrderOwnershipPolicy.restaurantOwnerListDenial(principalId, legacyOwnerId, role));
 
         // No hot-path lookup into Restaurant/Auth. New rows use the stable
         // principal; legacy rows remain readable only while their principal is absent.
@@ -667,9 +657,7 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional(readOnly = true)
     public Page<OrderResponse> getOrdersByStatus(String status, Long userId, String role, Pageable pageable) {
-        if (!RoleConstants.ADMIN.equals(role)) {
-            throw new AccessDeniedException("Chỉ admin được lọc toàn hệ thống theo trạng thái");
-        }
+        requireReadAdmission(OrderOwnershipPolicy.globalListDenial(role, true));
         Page<Order> orders = orderRepository.findByStatusOrderByCreatedAtDesc(
                 OrderStatus.fromExternal(status), pageable);
         return orders.map(orderMapper::orderToOrderResponse);
@@ -679,9 +667,7 @@ public class OrderServiceImpl implements OrderService {
     @Transactional(readOnly = true)
     public Page<OrderResponse> getAllOrders(Long userId, String role, Pageable pageable) {
         // Chỉ admin mới được xem tất cả đơn hàng
-        if (!RoleConstants.ADMIN.equals(role)) {
-            throw new AccessDeniedException("Bạn không có quyền xem tất cả đơn hàng");
-        }
+        requireReadAdmission(OrderOwnershipPolicy.globalListDenial(role, false));
 
         Page<Order> orders = orderRepository.findAllByOrderByCreatedAtDesc(pageable);
         return orders.map(orderMapper::orderToOrderResponse);
@@ -707,34 +693,27 @@ public class OrderServiceImpl implements OrderService {
         return item;
     }
 
+    private void requireReadAdmission(String denial) {
+        if (denial != null) throw new AccessDeniedException(denial);
+    }
+
     private void validateViewPermission(Order order, Long principalId, Long legacyUserId, String role) {
-        if (RoleConstants.ADMIN.equals(role)) {
-            return; // Admin có thể xem tất cả
-        }
+        validateOwnership(order, principalId, legacyUserId, role, false);
+    }
 
-        if (RoleConstants.USER.equals(role)) {
-            if (order.getUserPrincipalId() != null && principalId != null
-                    && order.getUserPrincipalId().equals(principalId)) return;
-            if (!principalOwnershipEnforced && order.getUserPrincipalId() == null
-                    && order.getUserId().equals(legacyUserId)) {
-                businessMetrics.identityLegacyFallback("customer_read");
-                return;
-            }
+    private void validateOwnership(Order order, Long principalId, Long legacyUserId, String role,
+                                   boolean cancellation) {
+        var owners = new OrderOwnershipPolicy.Owners(order.getUserPrincipalId(), order.getUserId(),
+                order.getCreatorPrincipalId(), order.getCreatorId(), order.getShipperId());
+        var access = OrderOwnershipPolicy.access(owners, principalId, legacyUserId, role,
+                principalOwnershipEnforced, cancellation);
+        switch (access) {
+            case ALLOWED -> { }
+            case CUSTOMER_LEGACY -> businessMetrics.identityLegacyFallback(cancellation ? "customer_cancel" : "customer_read");
+            case RESTAURANT_LEGACY -> businessMetrics.identityLegacyFallback(cancellation ? "restaurant_owner_cancel" : "restaurant_owner_read");
+            case DENIED -> throw new AccessDeniedException(cancellation
+                    ? "Bạn không có quyền hủy đơn hàng này" : "Bạn không có quyền xem đơn hàng này");
         }
-        if (RoleConstants.RESTAURANT_OWNER.equals(role)) {
-            if (order.getCreatorPrincipalId() != null && principalId != null
-                    && order.getCreatorPrincipalId().equals(principalId)) return;
-            if (!principalOwnershipEnforced && order.getCreatorPrincipalId() == null
-                    && order.getCreatorId().equals(legacyUserId)) {
-                businessMetrics.identityLegacyFallback("restaurant_owner_read");
-                return;
-            }
-        }
-        if (RoleConstants.SHIPPER.equals(role) && legacyUserId != null && legacyUserId.equals(order.getShipperId())) {
-            return;
-        }
-
-        throw new AccessDeniedException("Bạn không có quyền xem đơn hàng này");
     }
 
     @Override
@@ -777,73 +756,28 @@ public class OrderServiceImpl implements OrderService {
         // ✅ Publish the cancellation for Delivery and the refund boundary.  The
         // source is part of the durable event so a future provider rollout cannot
         // mistake an admin/customer exception for an automatic refund trigger.
-        String cancellationSource = RoleConstants.ADMIN.equals(role) ? "ADMIN"
-                : RoleConstants.RESTAURANT_OWNER.equals(role) ? "RESTAURANT" : "CUSTOMER";
-        String reasonCode = RoleConstants.ADMIN.equals(role) ? "ADMIN_CANCELLED"
-                : RoleConstants.RESTAURANT_OWNER.equals(role) ? "RESTAURANT_CANCELLED" : "CUSTOMER_CANCELLED";
+        var intent = OrderCancellationPolicy.actorIntent(role);
         orderEventPublisher.publishOrderCancelledEvent(order, previousStatus, userId,
-                cancellationSource, reasonCode);
+                intent.source(), intent.reasonCode());
 
         return orderMapper.orderToOrderResponse(order);
     }
 
     private void validateCancelOrderPermission(Order order, Long principalId, Long legacyUserId, String role) {
-        // Admin có thể hủy bất kỳ đơn hàng nào
-        if (RoleConstants.ADMIN.equals(role)) {
-            return;
-        }
-
-        // User chỉ có thể hủy đơn hàng của mình
-        if (RoleConstants.USER.equals(role)) {
-            if (order.getUserPrincipalId() != null && principalId != null
-                    && order.getUserPrincipalId().equals(principalId)) return;
-            if (!principalOwnershipEnforced && order.getUserPrincipalId() == null
-                    && order.getUserId().equals(legacyUserId)) {
-                businessMetrics.identityLegacyFallback("customer_cancel");
-                return;
-            }
-        }
-
-        // Restaurant owner có thể hủy đơn hàng của nhà hàng mình
-        if (RoleConstants.RESTAURANT_OWNER.equals(role)) {
-            if (order.getCreatorPrincipalId() != null && principalId != null
-                    && order.getCreatorPrincipalId().equals(principalId)) return;
-            if (!principalOwnershipEnforced && order.getCreatorPrincipalId() == null
-                    && order.getCreatorId().equals(legacyUserId)) {
-                businessMetrics.identityLegacyFallback("restaurant_owner_cancel");
-                return;
-            }
-        }
-
-        throw new AccessDeniedException("Bạn không có quyền hủy đơn hàng này");
+        validateOwnership(order, principalId, legacyUserId, role, true);
     }
 
     private void requireExactCancellationReplay(Order order, Long principalId, Long legacyUserId, String reason) {
-        if ((order.getCancelledByPrincipalId() != null && Objects.equals(order.getCancelledByPrincipalId(), principalId)
-                    || !principalOwnershipEnforced && order.getCancelledByPrincipalId() == null
-                            && Objects.equals(order.getCancelledBy(), legacyUserId))
-                && Objects.equals(order.getCancelReason(), reason)) {
-            if (order.getCancelledByPrincipalId() == null) businessMetrics.identityLegacyFallback("cancel_replay");
-            log.info("Order {} cancellation already applied by principal {}, skipping exact replay",
-                    order.getId(), principalId);
-            return;
-        }
-        throw new IllegalStateException("Order cancellation already exists with a different actor or reason");
+        boolean legacy = OrderCancellationPolicy.requireExactReplay(order.getCancelledByPrincipalId(),
+                order.getCancelledBy(), order.getCancelReason(), principalId, legacyUserId, reason,
+                principalOwnershipEnforced);
+        if (legacy) businessMetrics.identityLegacyFallback("cancel_replay");
+        log.info("Order {} cancellation already applied by principal {}, skipping exact replay",
+                order.getId(), principalId);
     }
 
     private void validateCancelOrderConditions(Order order, Long userId, String role) {
-        // Admin có thể hủy bất kỳ đơn nào
-        if (RoleConstants.ADMIN.equals(role)) return;
-
-        // Customer/restaurant owner chỉ có thể hủy trước pickup. Shipper cancellation
-        // belongs to Delivery /cancel-assignment so availability and rematch converge.
-        if (order.getStatus() != OrderStatus.PENDING
-                && order.getStatus() != OrderStatus.CONFIRMED
-                && order.getStatus() != OrderStatus.FINDING_SHIPPER
-                && order.getStatus() != OrderStatus.WAIT_SHIPPER_CONFIRM
-                && order.getStatus() != OrderStatus.ASSIGNED) {
-            throw new IllegalStateException("Không thể hủy đơn hàng ở trạng thái: " + order.getStatus());
-        }
+        OrderCancellationPolicy.requireCancellable(order.getStatus() == null ? null : order.getStatus().toDomain(), role);
     }
 
     /**

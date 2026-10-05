@@ -483,6 +483,134 @@ class OrderServiceCanonicalPricingTest {
         org.mockito.Mockito.verifyNoInteractions(orderEventPublisher);
     }
 
+    @Test
+    void adminCancellationRetainsTransitionTableForEveryNonCancelledState() {
+        for (var status : com.delivery.order_service.entity.OrderStatus.values()) {
+            if (status == com.delivery.order_service.entity.OrderStatus.CANCELLED) continue;
+            Order order = new Order();
+            order.setId(101L);
+            order.setStatus(status);
+            when(orderRepository.findByIdForUpdate(101L)).thenReturn(java.util.Optional.of(order));
+            if (status.canTransitionTo(com.delivery.order_service.entity.OrderStatus.CANCELLED)) {
+                when(orderRepository.save(order)).thenReturn(order);
+                service().cancelOrder(101L, 901L, 21L, "ADMIN", "admin reason");
+                verify(orderEventPublisher).publishOrderCancelledEvent(order, status.name(), 21L,
+                        "ADMIN", "ADMIN_CANCELLED");
+            } else {
+                assertEquals("Invalid order transition: " + status + " -> CANCELLED",
+                        assertThrows(IllegalStateException.class,
+                                () -> service().cancelOrder(101L, 901L, 21L, "ADMIN", "admin reason")).getMessage());
+                org.mockito.Mockito.verify(orderRepository, org.mockito.Mockito.never()).save(order);
+            }
+        }
+    }
+
+    @Test
+    void shipperReadUsesLegacyUserIdEvenWhenPrincipalEnforcementIsEnabled() {
+        Order order = new Order();
+        order.setId(101L);
+        order.setShipperId(41L);
+        when(orderRepository.findById(101L)).thenReturn(java.util.Optional.of(order));
+        var service = service();
+        ReflectionTestUtils.setField(service, "principalOwnershipEnforced", true);
+        service.getOrderById(101L, 999L, 41L, "SHIPPER");
+        verify(orderMapper).orderToOrderResponse(order);
+        assertEquals("Bạn không có quyền xem đơn hàng này",
+                assertThrows(com.delivery.order_service.exception.AccessDeniedException.class,
+                        () -> service.getOrderById(101L, 41L, 999L, "SHIPPER")).getMessage());
+    }
+
+    @Test
+    void permissionPrecedesCancellationReplayAndConditionsAndMissingOrderPrecedesPermission() {
+        var service = service();
+        assertEquals("Không tìm thấy đơn hàng với ID: 101",
+                assertThrows(com.delivery.order_service.exception.ResourceNotFoundException.class,
+                        () -> service.cancelOrder(101L, 21L, null, "reason")).getMessage());
+        for (var status : new com.delivery.order_service.entity.OrderStatus[]{
+                com.delivery.order_service.entity.OrderStatus.CANCELLED,
+                com.delivery.order_service.entity.OrderStatus.PICKED_UP}) {
+            Order order = new Order();
+            order.setUserId(22L);
+            order.setStatus(status);
+            when(orderRepository.findByIdForUpdate(101L)).thenReturn(java.util.Optional.of(order));
+            assertEquals("Bạn không có quyền hủy đơn hàng này",
+                    assertThrows(com.delivery.order_service.exception.AccessDeniedException.class,
+                            () -> service.cancelOrder(101L, 21L, "USER", "reason")).getMessage());
+        }
+        verifyNoInteractions(orderEventPublisher, orderMapper);
+        org.mockito.Mockito.verify(orderRepository, org.mockito.Mockito.never()).save(any());
+    }
+
+    @Test
+    void principalOwnershipPreventsLegacyFallbackAndReplayRetainsMetrics() {
+        Order order = new Order();
+        order.setId(101L);
+        order.setUserId(21L);
+        order.setUserPrincipalId(901L);
+        order.setStatus(com.delivery.order_service.entity.OrderStatus.CANCELLED);
+        order.setCancelledByPrincipalId(901L);
+        order.setCancelledBy(21L);
+        order.setCancelReason(null);
+        when(orderRepository.findByIdForUpdate(101L)).thenReturn(java.util.Optional.of(order));
+        when(orderRepository.findById(101L)).thenReturn(java.util.Optional.of(order));
+        var service = service();
+        assertThrows(com.delivery.order_service.exception.AccessDeniedException.class,
+                () -> service.getOrderById(101L, 902L, 21L, "USER"));
+        service.cancelOrder(101L, 901L, 99L, "USER", null);
+        verifyNoInteractions(businessMetrics, orderEventPublisher);
+        order.setUserPrincipalId(null);
+        order.setCancelledByPrincipalId(null);
+        service.cancelOrder(101L, 901L, 21L, "USER", null);
+        verify(businessMetrics).identityLegacyFallback("customer_cancel");
+        verify(businessMetrics).identityLegacyFallback("cancel_replay");
+        ReflectionTestUtils.setField(service, "principalOwnershipEnforced", true);
+        assertThrows(com.delivery.order_service.exception.AccessDeniedException.class,
+                () -> service.cancelOrder(101L, 901L, 21L, "USER", null));
+        org.mockito.Mockito.verify(orderRepository, org.mockito.Mockito.never()).save(any());
+    }
+
+    @Test
+    void readListAdmissionRetainsPrecedenceBeforeQueriesAndStatusParsing() {
+        var service = service();
+        var pageable = org.springframework.data.domain.Pageable.unpaged();
+        assertEquals("Bạn không có quyền xem đơn hàng của chủ nhà hàng",
+                assertThrows(com.delivery.order_service.exception.AccessDeniedException.class,
+                        () -> service.getOrdersByRestaurantOwner(null, null, "USER", pageable)).getMessage());
+        assertEquals("Missing authenticated identity",
+                assertThrows(com.delivery.order_service.exception.AccessDeniedException.class,
+                        () -> service.getOrdersByRestaurantOwner(null, null, "ADMIN", pageable)).getMessage());
+        assertThrows(com.delivery.order_service.exception.AccessDeniedException.class,
+                () -> service.getOrdersByPrincipal(null, 1L, "ADMIN", pageable));
+        assertEquals("Chỉ admin được lọc toàn hệ thống theo trạng thái",
+                assertThrows(com.delivery.order_service.exception.AccessDeniedException.class,
+                        () -> service.getOrdersByStatus("invalid", 1L, "USER", pageable)).getMessage());
+        assertThrows(com.delivery.order_service.exception.AccessDeniedException.class,
+                () -> service.getAllOrders(1L, "USER", pageable));
+        assertThrows(com.delivery.order_service.exception.AccessDeniedException.class,
+                () -> service.getOrdersByUser(1L, 2L, "USER", pageable));
+        verifyNoInteractions(orderRepository);
+    }
+
+    @Test
+    void shopOwnerWireRoleRetainsOwnershipFallbackAndTypedCancellation() {
+        Order order = new Order();
+        order.setId(101L);
+        order.setCreatorId(31L);
+        order.setStatus(com.delivery.order_service.entity.OrderStatus.ASSIGNED);
+        when(orderRepository.findById(101L)).thenReturn(java.util.Optional.of(order));
+        when(orderRepository.findByIdForUpdate(101L)).thenReturn(java.util.Optional.of(order));
+        when(orderRepository.save(order)).thenReturn(order);
+        var service = service();
+        service.getOrderById(101L, 901L, 31L, "SHOP_OWNER");
+        service.cancelOrder(101L, 901L, 31L, "SHOP_OWNER", "closed");
+        verify(businessMetrics).identityLegacyFallback("restaurant_owner_read");
+        verify(businessMetrics).identityLegacyFallback("restaurant_owner_cancel");
+        verify(orderEventPublisher).publishOrderCancelledEvent(order, "ASSIGNED", 31L,
+                "RESTAURANT", "RESTAURANT_CANCELLED");
+        assertThrows(com.delivery.order_service.exception.AccessDeniedException.class,
+                () -> service.getOrderById(101L, 901L, 31L, "RESTAURANT_OWNER"));
+    }
+
     private OrderServiceImpl service() {
         return new OrderServiceImpl(
                 orderRepository, orderItemRepository, orderMapper, orderEventPublisher,
