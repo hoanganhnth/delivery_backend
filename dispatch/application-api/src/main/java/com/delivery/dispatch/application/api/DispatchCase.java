@@ -24,6 +24,9 @@ public interface DispatchCase {
     /** Stamps the completion time of a terminal case. */
     void markCompleted();
 
+    /** Records the single Delivery identity of the case. */
+    void attachDelivery(Long deliveryId);
+
     /** Clears completion while compensation is still awaited. */
     void clearCompletion();
 

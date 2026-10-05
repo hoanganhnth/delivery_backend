@@ -2,6 +2,8 @@ package com.delivery.saga_orchestrator_service.service;
 
 import com.delivery.dispatch.application.DefaultDeliveryProgressUseCase;
 import com.delivery.dispatch.application.DefaultAssignmentUseCase;
+import com.delivery.dispatch.application.DefaultDeliveryCreationUseCase;
+import com.delivery.dispatch.application.api.DeliveryCreationUseCase;
 import com.delivery.dispatch.application.DefaultStepFailureUseCase;
 import com.delivery.dispatch.application.api.StepFailureUseCase;
 import com.delivery.dispatch.application.DefaultMatchOutcomeUseCase;
@@ -187,54 +189,15 @@ public class SagaManager {
     public void handleDeliveryCreated(Long orderId, Long deliveryId, String rawEvent) {
         if (!claimInbound("delivery.created.result", orderId, rawEvent)) return;
         SagaInstance saga = findSagaByOrderId(orderId);
-
-        // An exact replay is harmless, but a second delivery identity for the
-        // same order is a contradictory event and must not be ACK-discarded.
-        if (saga.getStatus() != SagaStatus.STARTED) {
-            if (deliveryId != null && deliveryId.equals(saga.getDeliveryId())
-                    && hasStep(saga, "DELIVERY_CREATED")) {
-                log.info("[Saga] Exact delivery-created replay for orderId={}, deliveryId={}, skipping",
-                        orderId, deliveryId);
-                return;
-            }
-            // A cancellation or timeout may overtake the result of an in-flight
-            // create-delivery command on another topic. The late result is a
-            // valid consequence of work already dispatched, not a contradictory
-            // terminal transition. Record its single identity and re-issue the
-            // cancellation so a Delivery cannot remain orphaned after either a
-            // customer cancellation or a failed STARTED timeout.
-            if ((saga.getStatus() == SagaStatus.CANCELLED || saga.getStatus() == SagaStatus.FAILED)
-                    && saga.getDeliveryId() == null
-                    && !hasStep(saga, "DELIVERY_CREATED")) {
-                if (deliveryId == null || deliveryId <= 0) {
-                    throw new IllegalArgumentException(
-                            "deliveryId must be positive for cancelled orderId=" + orderId);
-                }
-                saga.setDeliveryId(deliveryId);
-                saga.addStep("DELIVERY_CREATED", "delivery.created.result", rawEvent);
-                sagaInstanceRepository.save(saga);
-                sendCommand(CMD_CANCEL_DELIVERY, orderId.toString(), rawEvent);
-                log.info("[Saga] Late delivery-created result for terminal orderId={}, "
-                        + "deliveryId={}; cancellation re-issued after {}", orderId, deliveryId,
-                        saga.getStatus());
-                return;
-            }
-            throw new IllegalStateException("Contradictory delivery-created event for order "
-                    + orderId + ": existing delivery=" + saga.getDeliveryId()
-                    + ", received delivery=" + deliveryId + ", saga status=" + saga.getStatus());
-        }
-
-        saga.setDeliveryId(deliveryId);
-        saga.setStatus(SagaStatus.DELIVERY_CREATED);
-        saga.addStep("DELIVERY_CREATED", "delivery.created.result", rawEvent);
-        sagaInstanceRepository.save(saga);
-
-        // ✅ Nếu nhà hàng đã confirm trước khi delivery tạo xong (race) → tìm shipper luôn.
-        if (hasStep(saga, "RESTAURANT_CONFIRMED")) {
-            log.info("🍽️ [Saga] Nhà hàng đã confirm trước; tìm shipper ngay cho orderId={}", orderId);
-            triggerFindShipper(saga, orderId, deliveryId, rawEvent);
-        } else {
-            log.info("⏸️ [Saga] Delivery tạo xong, CHỜ nhà hàng confirm mới tìm shipper. orderId={}", orderId);
+        switch (deliveryCreation().onDeliveryCreated(new SagaDispatchCase(saga, objectMapper), deliveryId, rawEvent)) {
+            case REPLAY -> log.info("[Saga] Exact delivery-created replay for orderId={}, deliveryId={}, skipping",
+                    orderId, deliveryId);
+            case ORPHAN_CANCELLED -> log.info("[Saga] Late delivery-created result for terminal orderId={}, "
+                    + "deliveryId={}; cancellation re-issued after {}", orderId, deliveryId, saga.getStatus());
+            case AWAITING_RESTAURANT ->
+                    log.info("⏸️ [Saga] Delivery tạo xong, CHỜ nhà hàng confirm mới tìm shipper. orderId={}", orderId);
+            case MATCHING_STARTED ->
+                    log.info("🍽️ [Saga] Nhà hàng đã confirm trước; tìm shipper ngay cho orderId={}", orderId);
         }
     }
 
@@ -664,6 +627,17 @@ public class SagaManager {
         }
     }
 
+    private DeliveryCreationUseCase deliveryCreation() {
+        return new DefaultDeliveryCreationUseCase(
+                dispatchCase -> sagaInstanceRepository.save(saga(dispatchCase)),
+                (dispatchCase, deliveryEvent) -> {
+                    SagaInstance saga = saga(dispatchCase);
+                    triggerFindShipper(saga, saga.getOrderId(), saga.getDeliveryId(), deliveryEvent);
+                },
+                (dispatchCase, cause) -> sendCommand(CMD_CANCEL_DELIVERY, String.valueOf(dispatchCase.orderId()), cause),
+                (dispatchCase, status, cause) -> sendOrderStatusCommand(saga(dispatchCase), status, cause));
+    }
+
     private StepFailureUseCase stepFailures() {
         return new DefaultStepFailureUseCase(
                 dispatchCase -> sagaInstanceRepository.save(saga(dispatchCase)),
@@ -796,25 +770,12 @@ public class SagaManager {
     public void handleDeliveryCreationFailed(Long orderId, String reason, String rawEvent) {
         if (!claimInbound("delivery.created.failed", orderId, rawEvent)) return;
         SagaInstance saga = findSagaByOrderId(orderId);
-
-        if (saga.getStatus() != SagaStatus.STARTED) {
-            log.warn("⚠️ [Saga] handleDeliveryCreationFailed - Saga cho orderId={} đang ở {}, bỏ qua (không phải STARTED)", orderId, saga.getStatus());
-            return;
+        switch (deliveryCreation().onDeliveryCreationFailed(new SagaDispatchCase(saga, objectMapper), rawEvent)) {
+            case IGNORED_STATE -> log.warn("⚠️ [Saga] handleDeliveryCreationFailed - Saga cho orderId={} đang ở {}, "
+                    + "bỏ qua (không phải STARTED)", orderId, saga.getStatus());
+            case COMPENSATED -> log.error("🚨 [Saga] COMPENSATION — Delivery creation failed for orderId={}: {}",
+                    orderId, reason);
         }
-
-        saga.setStatus(SagaStatus.COMPENSATING);
-        saga.addStep("DELIVERY_CREATION_FAILED", "delivery.created.failed", rawEvent);
-        sagaInstanceRepository.save(saga);
-
-        log.error("🚨 [Saga] COMPENSATION — Delivery creation failed for orderId={}: {}", orderId, reason);
-
-        // ✅ COMPENSATION: Báo order-service → cập nhật status thất bại
-        sendOrderStatusCommand(orderId, "CANCELLED", rawEvent);
-
-        // Đánh dấu saga thất bại
-        saga.setStatus(SagaStatus.FAILED);
-        saga.setCompletedAt(LocalDateTime.now());
-        sagaInstanceRepository.save(saga);
     }
 
     /**

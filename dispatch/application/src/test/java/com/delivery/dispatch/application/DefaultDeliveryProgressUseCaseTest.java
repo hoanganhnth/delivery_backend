@@ -31,6 +31,7 @@ class DefaultDeliveryProgressUseCaseTest {
         boolean completionCleared;
         @Override public long orderId() { return 7; }
         @Override public Long deliveryId() { return deliveryId; }
+        @Override public void attachDelivery(Long deliveryId) { this.deliveryId = deliveryId; }
         @Override public void clearCompletion() { completed = false; completionCleared = true; }
         @Override public DispatchStatus status() { return status; }
         @Override public void transitionTo(DispatchStatus status) { this.status = status; }
