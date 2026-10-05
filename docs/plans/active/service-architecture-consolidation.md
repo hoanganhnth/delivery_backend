@@ -52,7 +52,7 @@ from the earlier conversation, not implicitly authorized by this structural plan
   preserve location ordering and reconnect fences.
 - [x] Settlement: move actual COD ledger/refund/payment/payout workflows;
   retain provider gating, receipts, locks and financial compensation guarantees.
-- [ ] Match: complete single/batch dispatch runtime, expiry, cancellation,
+- [x] Match: complete single/batch dispatch runtime, expiry, cancellation,
   availability and COD holds behind core use cases.
 - [ ] Delivery: complete create/offer/accept/batch/lifecycle/POD/exception and
   cancel workflows; replace legacy delegating facades with real use cases.
@@ -1159,3 +1159,9 @@ Tracking closure is committed at `44b25a0`; refactor worktree fast-forwarded to 
 - gpt-6.1-sol hardening restored workflow logs through observation-only `Effects` hooks in infrastructure (application stays framework-free) and added proofs: full context with processing on/application-api off, signed VNPay IPN through MVC (00/99/97 and DB state), real KafkaTemplate publisher payload/failure swallowing, top-up/publish failure rollback and fake replay.
 - Real PostgreSQL concurrency proof reproduced a pre-existing double top-up (two identical callbacks: ledger=2, wallet +200 for 100, two success events). Per user decision it is fixed: callback and fake confirmation load the payment through `findByPaymentRefForUpdate` (PESSIMISTIC_WRITE) before the pending check, so a duplicate waits and replays the committed SUCCESS. Red `/tmp/payment-double-topup-red.log`; green full clean verify `/tmp/settlement-payment-lock-verify.log`: domain 42/application 43/infrastructure 1/boot 125, zero failures/errors/skips; observed ledger=1, wallet +100, events=1.
 - Settlement checkbox closed after this commit is fast-forwarded to main.
+
+### Match and Dispatch tranches integrated (2026-10-05)
+
+- Match (main): single-dispatch policy (M1), batch bundle policy (M2), command admission/stop policy, batch pool lifecycle, availability projection policy, nearby-search use case, relocation to `match/{domain,application-api,application,infrastructure,boot}`. Contract fixes: batch release ACK after commit; batch dispatch fenced by generation tombstone and absolute deadline, stop retires pool items. Open: route stop order (user decision), packaged multi-replica/crash rehearsal for Match.
+- Saga → Dispatch option C (user decision: repurpose in place, keep topics/groups/schema/artifact): `dispatch/{domain,application-api,application,infrastructure,boot}` with domain policies, CaseHistory port and application use cases for delivery progress, order lifecycle, match outcomes, assignment, step failure and delivery creation. Saga defects fixed: shipper decisions overtaking offer confirmation; rematch only after Delivery offer retirement (`delivery.offer-retired`). Open: stuck OFFER_PERSISTING/COMPENSATING/OFFER_RETIRING timeouts (user decision), order.created/offer-timeout orchestration still in adapter, packaged crash rehearsal.
+- Combined clean verify on the integrated branch (Docker PostgreSQL/Kafka, real Redis, caffeinate): Settlement domain 42/application 43/infrastructure 1/boot 125; Match domain 33/application 7/infrastructure 1/boot 113; Dispatch domain 19/application 38/boot 91; zero failures/errors/skips; HTTP contract 244/229, inventory 244 handlers, layout and baseline contract tests pass.
