@@ -1,5 +1,7 @@
 package com.delivery.delivery_service.service.impl;
 
+import com.delivery.delivery.domain.OfferDecisionPolicy;
+import com.delivery.delivery.domain.OfferDecisionRejected;
 import com.delivery.delivery_service.common.constants.KafkaTopicConstants;
 import com.delivery.delivery_service.common.constants.RoleConstants;
 import com.delivery.delivery_service.dto.event.ShipperAcceptedEvent;
@@ -260,84 +262,42 @@ public class DeliveryServiceImpl implements DeliveryService {
     public DeliveryResponse acceptDelivery(AcceptDeliveryRequest request, Long shipperId, String role) {
         log.info("🚚 Shipper {} attempting to accept order {}", shipperId, request.getOrderId());
 
-        // ✅ Validate shipper role
-        if (!RoleConstants.SHIPPER.equals(role)) {
-            throw new AccessDeniedException("Chỉ shipper mới có thể nhận đơn hàng");
+        OfferDecisionPolicy.Action action;
+        try {
+            action = OfferDecisionPolicy.requireRequest(RoleConstants.SHIPPER.equals(role), request.getOrderId(),
+                    request.getAction(), request.getRejectReason());
+        } catch (OfferDecisionRejected rejected) {
+            throw offerDecisionFailure(rejected);
         }
-
-        // ✅ Validate request
-        if (request.getOrderId() == null) {
-            throw new InvalidStatusException("Order ID is required");
-        }
-
-        // ✅ Validate action
-        if (request.getAction() == null ||
-                (!ShipperActionConstants.ACCEPT.equals(request.getAction()) &&
-                        !ShipperActionConstants.REJECT.equals(request.getAction()))) {
-            throw new InvalidStatusException("Action must be ACCEPT or REJECT");
-        }
-
-        // ✅ Validate reject reason if rejecting
-        if (ShipperActionConstants.REJECT.equals(request.getAction()) &&
-                (request.getRejectReason() == null || request.getRejectReason().trim().isEmpty())) {
-            throw new InvalidStatusException("Reject reason is required when rejecting delivery");
-        }
-
-        // ✅ Validate pickup time if accepting
-        // if (ShipperActionConstants.ACCEPT.equals(request.getAction()) &&
-        // request.getEstimatedPickupTime() == null) {
-        // throw new InvalidStatusException("Estimated pickup time is required when
-        // accepting delivery");
-        // }
 
         // ✅ Find delivery by order ID
         Delivery delivery = deliveryRepository.findByOrderIdForUpdate(request.getOrderId())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Không tìm thấy thông tin giao hàng cho đơn hàng: " + request.getOrderId()));
 
-        if (ShipperActionConstants.ACCEPT.equals(request.getAction())
-                && DeliveryStatus.ASSIGNED.equals(delivery.getStatus())
-                && shipperId.equals(delivery.getShipperId())) {
+        OfferDecisionPolicy.Decision decision;
+        try {
+            // The row lock above prevents two shippers accepting this order; the
+            // active-delivery guard is evaluated only for a live ACCEPT.
+            decision = OfferDecisionPolicy.decide(action, shipperId, offerOf(delivery),
+                    request.getRejectReason(), LocalDateTime.now(), () -> {
+                        List<Delivery> active = deliveryRepository.findActiveDeliveriesByShipper(
+                                shipperId, org.springframework.data.domain.PageRequest.of(0, 1));
+                        if (active == null || active.isEmpty()) return null;
+                        log.warn("⚠️ Shipper {} attempted to accept order {} but already has {} active delivery(ies)",
+                                shipperId, request.getOrderId(), active.size());
+                        return active.get(0).getId();
+                    });
+        } catch (OfferDecisionRejected rejected) {
+            throw offerDecisionFailure(rejected);
+        }
+        if (decision == OfferDecisionPolicy.Decision.ACCEPT_REPLAY) {
             log.info("Shipper acceptance already applied for order {}, skipping duplicate", request.getOrderId());
             return deliveryMapper.deliveryToDeliveryResponse(delivery);
         }
-
-        if (ShipperActionConstants.REJECT.equals(request.getAction())
-                && isRejectedShipperReplay(delivery, shipperId, request.getRejectReason())) {
+        if (decision == OfferDecisionPolicy.Decision.REJECT_REPLAY) {
             log.info("Shipper rejection already applied for order {}, skipping duplicate", request.getOrderId());
             return deliveryMapper.deliveryToDeliveryResponse(delivery);
-        }
-
-        // ✅ Validate delivery status
-        if (!DeliveryStatus.WAIT_SHIPPER_CONFIRM.equals(delivery.getStatus())) {
-            throw new InvalidStatusException("Đơn hàng không ở trạng thái chờ shipper xác nhận");
-        }
-
-        if (delivery.getOfferedShipperId() == null || !delivery.getOfferedShipperId().equals(shipperId)) {
-            throw new AccessDeniedException("Đơn hàng này không được offer cho shipper hiện tại");
-        }
-        if (delivery.getOfferExpiresAt() == null || !delivery.getOfferExpiresAt().isAfter(LocalDateTime.now())) {
-            throw new InvalidStatusException("Offer nhận đơn đã hết hạn");
-        }
-
-        // This check remains a business guard. The row lock above prevents two
-        // shippers accepting this order; a database-level per-shipper guard is a
-        // separate hardening item.
-        if (ShipperActionConstants.ACCEPT.equals(request.getAction())) {
-            List<Delivery> activeDeliveries = deliveryRepository.findActiveDeliveriesByShipper(
-                    shipperId, org.springframework.data.domain.PageRequest.of(0, 1));
-            if (activeDeliveries != null && !activeDeliveries.isEmpty()) {
-                log.warn("⚠️ Shipper {} attempted to accept order {} but already has {} active delivery(ies)",
-                        shipperId, request.getOrderId(), activeDeliveries.size());
-                throw new InvalidStatusException(
-                        "Bạn đang có đơn hàng đang xử lý (Delivery #" + activeDeliveries.get(0).getId()
-                                + "). Hãy hoàn thành đơn hiện tại trước khi nhận đơn mới!");
-            }
-        }
-
-        // ✅ Check if already assigned to another shipper
-        if (delivery.getShipperId() != null && !delivery.getShipperId().equals(shipperId)) {
-            throw new InvalidStatusException("Đơn hàng đã được giao cho shipper khác");
         }
 
         // ✅ Process based on action
@@ -654,7 +614,7 @@ public class DeliveryServiceImpl implements DeliveryService {
                         "Không tìm thấy thông tin giao hàng cho đơn hàng: " + orderId));
 
         String cancelNote = canonicalCancelAssignmentReason(reason);
-        if (isRejectedShipperReplay(delivery, shipperId, cancelNote)) {
+        if (OfferDecisionPolicy.isRejectReplay(offerOf(delivery), shipperId, cancelNote)) {
             log.info("Shipper cancellation already applied for order {}, skipping duplicate", orderId);
             return deliveryMapper.deliveryToDeliveryResponse(delivery);
         }
@@ -759,13 +719,17 @@ public class DeliveryServiceImpl implements DeliveryService {
                     delivery.getId(), shipperId);
     }
 
-    private boolean isRejectedShipperReplay(Delivery delivery, Long shipperId, String reason) {
-        return DeliveryStatus.FINDING_SHIPPER.equals(delivery.getStatus())
-                && delivery.getShipperId() == null
-                && delivery.getOfferExpiresAt() == null
-                && shipperId != null
-                && shipperId.equals(delivery.getOfferedShipperId())
-                && Objects.equals(delivery.getRejectReason(), reason);
+    private static OfferDecisionPolicy.Offer offerOf(Delivery delivery) {
+        return new OfferDecisionPolicy.Offer(
+                com.delivery.delivery.domain.DeliveryStatus.valueOf(delivery.getStatus().name()),
+                delivery.getShipperId(), delivery.getOfferedShipperId(),
+                delivery.getOfferExpiresAt(), delivery.getRejectReason());
+    }
+
+    private RuntimeException offerDecisionFailure(OfferDecisionRejected rejected) {
+        return rejected.kind() == OfferDecisionRejected.Kind.ACCESS_DENIED
+                ? new AccessDeniedException(rejected.getMessage())
+                : new InvalidStatusException(rejected.getMessage());
     }
 
     private String canonicalCancelAssignmentReason(String reason) {
