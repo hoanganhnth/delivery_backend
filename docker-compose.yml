@@ -350,7 +350,7 @@ services:
     networks: [delivery-network]
 
   delivery-service:
-    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: delivery-service } }
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: delivery/boot } }
     container_name: delivery-service
     expose: ["8085", "9090"]
     environment:

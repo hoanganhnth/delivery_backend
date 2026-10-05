@@ -37,10 +37,10 @@
         <module>settlement/application-api</module>
         <module>settlement/application</module>
         <module>settlement/infrastructure</module>
-        <module>modules/delivery/delivery-domain</module>
-        <module>modules/delivery/delivery-application-api</module>
-        <module>modules/delivery/delivery-application</module>
-        <module>modules/delivery/delivery-infrastructure</module>
+        <module>delivery/domain</module>
+        <module>delivery/application-api</module>
+        <module>delivery/application</module>
+        <module>delivery/infrastructure</module>
         <module>match/domain</module>
         <module>match/application-api</module>
         <module>match/application</module>
@@ -52,7 +52,7 @@
         <module>user</module>
         <module>api-gateway</module>
         <module>web-bff</module>
-        <module>delivery-service</module>
+        <module>delivery/boot</module>
         <module>notification-service</module>
         <module>order-service</module>
         <module>restaurant/boot</module>

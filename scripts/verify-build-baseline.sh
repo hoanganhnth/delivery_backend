@@ -23,7 +23,7 @@ modules=(
   auth/boot
   user/boot
   api-gateway
-  delivery-service
+  delivery/boot
   notification-service
   order-service
   restaurant/boot
@@ -483,13 +483,15 @@ if ! rg -q 'enabled:[[:space:]]*true' "${promotion_config}"; then
   exit 1
 fi
 
-if [[ -e "${ROOT_DIR}/delivery-service/src/main/resources/schema.sql" ]]; then
+if [[ -e "${ROOT_DIR}/delivery/infrastructure/src/main/resources/schema.sql" \
+    || -e "${ROOT_DIR}/delivery/boot/src/main/resources/schema.sql" ]]; then
   echo "delivery-service: schema.sql must not duplicate Flyway-owned tables." >&2
   exit 1
 fi
 if rg -q 'ALTER TABLE[[:space:]]+deliveries' \
     --glob '!**/db/migration/**' \
-    "${ROOT_DIR}/delivery-service/src/main/java"; then
+    "${ROOT_DIR}/delivery/infrastructure/src/main/java" \
+    "${ROOT_DIR}/delivery/boot/src/main/java"; then
   echo "delivery-service: runtime Java code must not mutate the Flyway-owned schema." >&2
   exit 1
 fi
@@ -503,7 +505,7 @@ if ! rg -Fq 'ownerDltTopic(record.topic())' "${order_kafka_config}" \
   exit 1
 fi
 
-delivery_kafka_config="${ROOT_DIR}/delivery-service/src/main/java/com/delivery/delivery_service/config/KafkaConfig.java"
+delivery_kafka_config="${ROOT_DIR}/delivery/infrastructure/src/main/java/com/delivery/delivery_service/config/KafkaConfig.java"
 if ! rg -Fq 'record.topic() + ".DLT"' "${delivery_kafka_config}" \
     || ! rg -Fq 'new FixedBackOff(1000L, 2)' "${delivery_kafka_config}" \
     || ! rg -Fq 'recoverer.setFailIfSendResultIsError(true)' "${delivery_kafka_config}"; then
@@ -511,11 +513,11 @@ if ! rg -Fq 'record.topic() + ".DLT"' "${delivery_kafka_config}" \
   exit 1
 fi
 
-delivery_pom="${ROOT_DIR}/delivery-service/pom.xml"
-delivery_main="${ROOT_DIR}/delivery-service/src/main/java"
-if rg -Fq '<artifactId>spring-boot-starter-websocket</artifactId>' "${delivery_pom}" \
+delivery_poms=("${ROOT_DIR}/delivery/infrastructure/pom.xml" "${ROOT_DIR}/delivery/boot/pom.xml")
+delivery_main=("${ROOT_DIR}/delivery/infrastructure/src/main/java" "${ROOT_DIR}/delivery/boot/src/main/java")
+if rg -Fq '<artifactId>spring-boot-starter-websocket</artifactId>' "${delivery_poms[@]}" \
     || rg -n 'EnableWebSocketMessageBroker|SimpMessagingTemplate|/ws/delivery-native|DeliveryWebSocketService' \
-      "${delivery_main}" >/dev/null; then
+      "${delivery_main[@]}" >/dev/null; then
   echo "delivery-service: STOMP/WebSocket graph must remain removed; status uses REST/Kafka and location uses Tracking raw WebSocket." >&2
   exit 1
 fi
@@ -592,7 +594,7 @@ if [[ -e "${ROOT_DIR}/livestream-service/src/main/java/com/delivery/livestream_s
       "${ROOT_DIR}/settlement/infrastructure/src/main/java/com/delivery/settlement_service/repository/PaymentOrderRepository.java" \
     || rg -q 'findByRoomId|countActiveDeliveriesByShipper' \
       "${livestream_repository}" \
-      "${ROOT_DIR}/delivery-service/src/main/java/com/delivery/delivery_service/repository/DeliveryRepository.java" \
+      "${ROOT_DIR}/delivery/infrastructure/src/main/java/com/delivery/delivery_service/repository/DeliveryRepository.java" \
     || [[ -e "${ROOT_DIR}/tracking/infrastructure/src/main/java/com/delivery/tracking_service/service/ShipperLocationService.java" ]]; then
   echo "dead hidden-capability repository graphs must not be restored without a caller and contract." >&2
   exit 1
@@ -620,7 +622,7 @@ if ! rg -Fq 'publishers.sweepExpired(batchSize)' "${tracking_expiry_sweeper}" \
   echo "tracking-service: publisher fencing, disconnect grace and crash-expiry reconciliation are required." >&2
   exit 1
 fi
-for core_consumer in delivery-service dispatch/boot dispatch/infrastructure match/boot match/infrastructure; do
+for core_consumer in delivery/boot delivery/infrastructure dispatch/boot dispatch/infrastructure match/boot match/infrastructure; do
   if rg -q 'AUTO_OFFSET_RESET_CONFIG, "latest"|auto-offset-reset=latest' \
       "${ROOT_DIR}/${core_consumer}/src/main"; then
     echo "${core_consumer}: durable core consumers must replay from earliest when group state is absent." >&2
@@ -642,7 +644,7 @@ if ! rg -Fq 'DLT_REPLAY_CONFIRMATION must exactly equal' \
   echo "Kafka DLT recovery must remain coordinate-confirmed, dry-run by default, and single-record only." >&2
   exit 1
 fi
-for manual_dlt_consumer in delivery-service dispatch/infrastructure match/infrastructure order-service notification-service promotion-service; do
+for manual_dlt_consumer in delivery/infrastructure dispatch/infrastructure match/infrastructure order-service notification-service promotion-service; do
   if ! rg -Fq 'setCommitRecovered(true)' \
       "${ROOT_DIR}/${manual_dlt_consumer}/src/main/java"; then
     echo "${manual_dlt_consumer}: manual-immediate DLT recovery must commit the recovered source offset." >&2
@@ -695,14 +697,14 @@ if [[ ! -f "${promotion_order_receipt_migration}" ]] \
   exit 1
 fi
 if ! rg -Fq 'factory.setAutoStartup(listenerAutoStartup)' \
-    "${ROOT_DIR}/delivery-service/src/main/java/com/delivery/delivery_service/config/KafkaConfig.java"; then
+    "${ROOT_DIR}/delivery/infrastructure/src/main/java/com/delivery/delivery_service/config/KafkaConfig.java"; then
   echo "delivery-service: isolated recovery must be able to disable Kafka listener startup." >&2
   exit 1
 fi
-delivery_command_listener="${ROOT_DIR}/delivery-service/src/main/java/com/delivery/delivery_service/listener/OrderEventListener.java"
-delivery_inbound_receipt_service="${ROOT_DIR}/delivery-service/src/main/java/com/delivery/delivery_service/service/DeliveryInboundReceiptService.java"
-delivery_saga_processor="${ROOT_DIR}/delivery-service/src/main/java/com/delivery/delivery_service/service/DeliverySagaCommandProcessor.java"
-delivery_inbound_receipt_migration="${ROOT_DIR}/delivery-service/src/main/resources/db/migration/V14__delivery_inbound_command_receipts.sql"
+delivery_command_listener="${ROOT_DIR}/delivery/infrastructure/src/main/java/com/delivery/delivery_service/listener/OrderEventListener.java"
+delivery_inbound_receipt_service="${ROOT_DIR}/delivery/infrastructure/src/main/java/com/delivery/delivery_service/service/DeliveryInboundReceiptService.java"
+delivery_saga_processor="${ROOT_DIR}/delivery/infrastructure/src/main/java/com/delivery/delivery_service/service/DeliverySagaCommandProcessor.java"
+delivery_inbound_receipt_migration="${ROOT_DIR}/delivery/infrastructure/src/main/resources/db/migration/V14__delivery_inbound_command_receipts.sql"
 if rg -q 'groupId\s*=\s*"delivery-service"' "${delivery_command_listener}" \
     || [[ "$(rg -c '\$\{app\.kafka\.topics\.' "${delivery_command_listener}")" -ne 5 ]]; then
   echo "delivery-service: command group/topics must be configurable for isolated recovery rehearsal." >&2
@@ -712,7 +714,7 @@ if [[ ! -f "${delivery_inbound_receipt_migration}" ]] \
     || ! rg -Fq 'delivery_inbound_receipts' "${delivery_inbound_receipt_migration}" \
     || ! rg -Fq 'insertIfAbsentPostgres' "${delivery_inbound_receipt_service}" \
     || ! rg -Fq 'ON CONFLICT (event_id) DO NOTHING' \
-      "${ROOT_DIR}/delivery-service/src/main/java/com/delivery/delivery_service/repository/DeliveryInboundReceiptRepository.java" \
+      "${ROOT_DIR}/delivery/infrastructure/src/main/java/com/delivery/delivery_service/repository/DeliveryInboundReceiptRepository.java" \
     || ! rg -Fq 'DeliverySagaCommandProcessor' "${delivery_command_listener}" \
     || rg -q '@Transactional' "${delivery_command_listener}" \
     || ! rg -Fq '@Transactional' "${delivery_saga_processor}" \
