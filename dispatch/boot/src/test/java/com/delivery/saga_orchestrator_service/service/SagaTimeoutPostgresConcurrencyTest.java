@@ -70,6 +70,8 @@ class SagaTimeoutPostgresConcurrencyTest {
         registry.add("spring.flyway.baseline-on-migrate", () -> "true");
     }
 
+    @Autowired private SagaStuckStateTimeoutService stuckTimeouts;
+    @Autowired private io.micrometer.core.instrument.MeterRegistry meters;
     @Autowired private SagaManager manager;
     @Autowired private SagaInstanceRepository sagaRepository;
     @Autowired private SagaInboundReceiptRepository receiptRepository;
@@ -222,6 +224,82 @@ class SagaTimeoutPostgresConcurrencyTest {
         assertThat(outboxRepository.findById(pending.getId())).get()
                 .extracting(SagaOutboxEvent::getStatus, SagaOutboxEvent::getAttempts)
                 .containsExactly(SagaOutboxEvent.Status.SENT, 0);
+    }
+
+    @org.junit.jupiter.api.extension.ExtendWith(org.springframework.boot.test.system.OutputCaptureExtension.class)
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(value = SagaInstance.SagaStatus.class,
+            names = {"OFFER_PERSISTING", "COMPENSATING", "OFFER_RETIRING"})
+    void twoSchedulersResendSameCommandOnceAndExhaustBudget(SagaInstance.SagaStatus state,
+            org.springframework.boot.test.system.CapturedOutput output) throws Exception {
+        String topic = switch (state) {
+            case OFFER_PERSISTING -> SagaManager.CMD_CACHE_SHIPPER_FOUND;
+            case COMPENSATING -> SagaManager.CMD_CANCEL_DELIVERY;
+            default -> SagaManager.CMD_EXPIRE_SHIPPER_OFFER;
+        };
+        var saga = new SagaInstance();
+        saga.setSagaType("ORDER_CREATION");
+        saga.setOrderId(950001L);
+        saga.setStatus(state);
+        saga.setStateEnteredAt(LocalDateTime.now().minusSeconds(121));
+        saga = sagaRepository.saveAndFlush(saga);
+        var command = new SagaOutboxEvent();
+        command.setEventId(UUID.randomUUID());
+        command.setAggregateId("950001");
+        command.setEventType(topic);
+        command.setTopic(topic);
+        command.setEventKey("950001");
+        String payload = "{\"orderId\":950001,\"eventId\":\"" + command.getEventId() + "\"}";
+        command.setPayload(payload);
+        command.setStatus(SagaOutboxEvent.Status.SENT);
+        command.setCreatedAt(LocalDateTime.now().minusSeconds(122));
+        command.setNextAttemptAt(command.getCreatedAt());
+        command = outboxRepository.saveAndFlush(command);
+        UUID eventId = command.getEventId();
+        var firstScheduler = new SagaStuckStateTimeoutScheduler(sagaRepository, stuckTimeouts);
+        var secondScheduler = new SagaStuckStateTimeoutScheduler(sagaRepository, stuckTimeouts);
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        var executor = Executors.newFixedThreadPool(2);
+        try {
+            var first = executor.submit(() -> invokeTogether(ready, start, firstScheduler::checkTimeouts));
+            var second = executor.submit(() -> invokeTogether(ready, start, secondScheduler::checkTimeouts));
+            assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+            assertThat(first.get(30, TimeUnit.SECONDS)).isNull();
+            assertThat(second.get(30, TimeUnit.SECONDS)).isNull();
+        } finally {
+            executor.shutdownNow();
+        }
+        assertThat(sagaRepository.findById(saga.getId()).orElseThrow().getStuckResendAttempts()).isOne();
+        assertThat(outboxRepository.count()).isOne();
+        assertThat(outboxRepository.findById(command.getId()).orElseThrow())
+                .extracting(SagaOutboxEvent::getEventId, SagaOutboxEvent::getPayload, SagaOutboxEvent::getStatus)
+                .containsExactly(eventId, payload, SagaOutboxEvent.Status.PENDING);
+        // Immediate repeated poll does not resend or prematurely fail.
+        firstScheduler.checkTimeouts();
+        assertThat(sagaRepository.findById(saga.getId()).orElseThrow().getStuckResendAttempts()).isOne();
+        var tx = new TransactionTemplate(transactionManager);
+        for (int attempt = 2; attempt <= 3; attempt++) {
+            tx.executeWithoutResult(ignored -> {
+                var locked = sagaRepository.findByOrderIdForUpdate(950001L).orElseThrow();
+                locked.setStuckLastResentAt(LocalDateTime.now().minusSeconds(121));
+                var sent = outboxRepository.findByIdForUpdate(outboxRepository.findAll().get(0).getId()).orElseThrow();
+                sent.setStatus(SagaOutboxEvent.Status.SENT);
+            });
+            firstScheduler.checkTimeouts();
+            assertThat(sagaRepository.findById(saga.getId()).orElseThrow().getStuckResendAttempts()).isEqualTo(attempt);
+        }
+        double before = meters.counter("dispatch.stuck.state.failed", "state", state.name()).count();
+        tx.executeWithoutResult(ignored -> sagaRepository.findByOrderIdForUpdate(950001L).orElseThrow()
+                .setStuckLastResentAt(LocalDateTime.now().minusSeconds(121)));
+        firstScheduler.checkTimeouts();
+        secondScheduler.checkTimeouts();
+        assertThat(sagaRepository.findById(saga.getId()).orElseThrow().getStatus()).isEqualTo(SagaInstance.SagaStatus.FAILED);
+        assertThat(meters.counter("dispatch.stuck.state.failed", "state", state.name()).count()).isEqualTo(before + 1);
+        assertThat(outboxRepository.findById(command.getId()).orElseThrow().getEventId()).isEqualTo(eventId);
+        assertThat(output.getAll()).contains("manual reconciliation required caseId=" + saga.getId())
+                .contains("orderId=950001, state=" + state);
     }
 
     private SagaOutboxRelay relay(KafkaTemplate<String, Object> kafkaTemplate) {

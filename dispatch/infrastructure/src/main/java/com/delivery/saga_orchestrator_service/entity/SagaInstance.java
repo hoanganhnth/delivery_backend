@@ -57,6 +57,20 @@ public class SagaInstance {
     private LocalDateTime updatedAt;
     private LocalDateTime completedAt;
 
+    private LocalDateTime stateEnteredAt;
+    private LocalDateTime stuckLastResentAt;
+    @Column(nullable = false)
+    private int stuckResendAttempts;
+
+    public void setStatus(SagaStatus status) {
+        if (this.status != status) {
+            stateEnteredAt = LocalDateTime.now();
+            stuckLastResentAt = null;
+            stuckResendAttempts = 0;
+        }
+        this.status = status;
+    }
+
     @OneToMany(mappedBy = "sagaInstance", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("executedAt ASC")
     private List<SagaStep> steps = new ArrayList<>();
@@ -81,6 +95,7 @@ public class SagaInstance {
     public void prePersist() {
         if (createdAt == null) createdAt = LocalDateTime.now();
         if (updatedAt == null) updatedAt = createdAt;
+        if (stateEnteredAt == null) stateEnteredAt = updatedAt;
     }
 
     @PreUpdate

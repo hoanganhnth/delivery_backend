@@ -17,6 +17,12 @@ import jakarta.persistence.LockModeType;
 @Repository
 public interface SagaInstanceRepository extends JpaRepository<SagaInstance, UUID> {
 
+    @Query("SELECT s FROM SagaInstance s WHERE s.status = :status AND "
+            + "COALESCE(s.stuckLastResentAt, s.stateEnteredAt) <= :cutoff "
+            + "ORDER BY s.stateEnteredAt ASC, s.id ASC")
+    List<SagaInstance> findStuckReplyCases(@Param("status") SagaInstance.SagaStatus status,
+            @Param("cutoff") LocalDateTime cutoff, Pageable pageable);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT s FROM SagaInstance s WHERE s.orderId = :orderId")
     Optional<SagaInstance> findByOrderIdForUpdate(@Param("orderId") Long orderId);

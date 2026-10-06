@@ -67,3 +67,26 @@ khi relay sang Kafka.
 - Runtime Gate B8: restaurant-confirm-before-match, one-shipper offer,
   reject/timeout/rematch, cancel before/after pickup, duplicate/crash/restart và
   poison-message DLT trên PostgreSQL/Kafka thật.
+
+## Awaited-reply timeouts
+
+`OFFER_PERSISTING`, `COMPENSATING` and `OFFER_RETIRING` each default to a
+120-second reply window. Configure `app.saga.timeout.offer-persisting-seconds`,
+`app.saga.timeout.compensating-seconds`, `app.saga.timeout.offer-retiring-seconds`
+with `SAGA_OFFER_PERSISTING_TIMEOUT_SECONDS`, `SAGA_COMPENSATING_TIMEOUT_SECONDS`,
+`SAGA_OFFER_RETIRING_TIMEOUT_SECONDS`. `app.saga.timeout.max-resends`
+(`SAGA_STUCK_STATE_MAX_RESENDS`, default 3) counts resends after the original
+command; zero disables resends. Polling uses the existing
+`app.saga.timeout-poll-delay-ms` and bounded timeout batch size.
+
+The scheduler locks the case and rechecks its persisted state-entry or last
+resend timestamp. Unrelated inbound events do not restart the reply window.
+It requeues the latest outbox command for the awaited state's command topic,
+keeping the same event ID, payload, key and trace context. An active outbox lease
+is allowed to finish before requeueing. Each resend starts another full reply
+window; expiry after the last resend marks the case `FAILED` for manual
+reconciliation without issuing a new compensation or Order transition.
+After commit, `dispatch.stuck.state.failed` (tag `state`) increments and an ERROR
+log records the case/order IDs. Inspect case steps and the original outbox
+command before reconciling with Delivery; a late reply follows existing state
+guards. Flyway V9 backfills legacy state-entry timestamps from `updated_at`.

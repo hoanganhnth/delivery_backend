@@ -11,6 +11,8 @@ import java.util.List;
 import java.util.Optional;
 
 public interface SagaOutboxEventRepository extends JpaRepository<SagaOutboxEvent, Long> {
+    Optional<SagaOutboxEvent> findFirstByAggregateIdAndTopicOrderByIdDesc(String aggregateId, String topic);
+
     /**
      * Claim at most the earliest unsent command for each order. An earlier retry
      * (or DEAD command awaiting operator action) blocks later commands for that
