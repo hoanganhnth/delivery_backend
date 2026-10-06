@@ -37,7 +37,7 @@ class FirebaseWakeMessageFactoryTest {
     @Test
     void firebaseServiceLogStatementsDoNotIncludeTokenPayloadOrProviderMessage() throws IOException {
         String source = Files.readString(Path.of(
-                "src/main/java/com/delivery/notification_service/service/FirebaseService.java"));
+                "../infrastructure/src/main/java/com/delivery/notification_service/service/FirebaseService.java"));
         Matcher logStatements = Pattern.compile(
                         "log\\.(?:trace|debug|info|warn|error)\\s*\\((?s:.*?)\\);")
                 .matcher(source);

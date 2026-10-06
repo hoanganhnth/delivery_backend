@@ -56,7 +56,8 @@
         <module>notification/domain</module>
         <module>notification/application-api</module>
         <module>notification/application</module>
-        <module>notification-service</module>
+        <module>notification/infrastructure</module>
+        <module>notification/boot</module>
         <module>order-service</module>
         <module>restaurant/boot</module>
         <module>shipper</module>

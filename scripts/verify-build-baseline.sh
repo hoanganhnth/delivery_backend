@@ -24,7 +24,7 @@ modules=(
   user/boot
   api-gateway
   delivery-service
-  notification-service
+  notification/boot
   order-service
   restaurant/boot
   shipper/boot
@@ -275,7 +275,7 @@ if rg -n 'new BaseResponse<>' \
 fi
 
 if rg -n 'log\.(error|warn|info)\([^\n]*(Raw Message|Raw:|rawPayload|message\s*\+)' \
-    "${ROOT_DIR}/notification-service/src/main/java" >/dev/null; then
+    "${ROOT_DIR}/notification/infrastructure/src/main/java" >/dev/null; then
   echo "Notification Kafka listeners must not log raw event payloads." >&2
   exit 1
 fi
@@ -293,7 +293,7 @@ if rg -n 'estimateShipperEarnings|Missing coordinates, using minimum shipping fe
 fi
 
 if rg -n 'getRestaurantName.*"Nhà hàng"' \
-    "${ROOT_DIR}/notification-service/src/main/java" >/dev/null; then
+    "${ROOT_DIR}/notification/infrastructure/src/main/java" >/dev/null; then
   echo "notification-service: canonical restaurant names must not fall back to a synthetic label." >&2
   exit 1
 fi
@@ -347,7 +347,7 @@ hidden_capability_defaults=(
   'settlement/boot/src/main/resources/application.properties|app.payout.provider=${PAYOUT_PROVIDER:PAYOS}'
   'settlement/boot/src/main/resources/application.properties|app.settlement.self-service-api-enabled=${SETTLEMENT_SELF_SERVICE_API_ENABLED:false}'
   'settlement/boot/src/main/resources/application.properties|app.settlement.admin-mutation-api-enabled=${SETTLEMENT_ADMIN_MUTATION_API_ENABLED:false}'
-  'notification-service/src/main/resources/application.properties|app.notification.preferences-enabled=${NOTIFICATION_PREFERENCES_ENABLED:false}'
+  'notification/boot/src/main/resources/application.properties|app.notification.preferences-enabled=${NOTIFICATION_PREFERENCES_ENABLED:false}'
   'shipper/boot/src/main/resources/application.properties|app.shipper.legacy-rating-write-api-enabled=${SHIPPER_LEGACY_RATING_WRITE_API_ENABLED:false}'
   'shipper/boot/src/main/resources/application.properties|app.shipper.legacy-delete-api-enabled=${SHIPPER_LEGACY_DELETE_API_ENABLED:false}'
   'promotion-service/src/main/resources/application.yml|merchant-create-api-enabled: ${PROMOTION_MERCHANT_CREATE_API_ENABLED:false}'
@@ -520,23 +520,24 @@ if rg -Fq '<artifactId>spring-boot-starter-websocket</artifactId>' "${delivery_p
   exit 1
 fi
 
-notification_kafka_config="${ROOT_DIR}/notification-service/src/main/java/com/delivery/notification_service/config/KafkaConfig.java"
-if ! rg -Fq 'ownerDltTopic(record.topic())' "${notification_kafka_config}" \
-    || ! rg -Fq 'replaceFirst("-retry-notification-\\d+$", "") + ".notification.DLT"' "${notification_kafka_config}" \
-    || ! rg -Fq 'new FixedBackOff(1000L, 2)' "${notification_kafka_config}" \
-    || ! rg -Fq 'recoverer.setFailIfSendResultIsError(true)' "${notification_kafka_config}"; then
-  echo "notification-service: Kafka event failures must use finite retry and fail-closed owner-isolated same-partition DLT recovery." >&2
+notification_kafka_config="${ROOT_DIR}/notification/infrastructure/src/main/java/com/delivery/notification_service/config/NotificationKafkaConsumerConfig.java"
+notification_shared_error_handler="${ROOT_DIR}/platform/kafka-starter/src/main/java/com/delivery/platform/kafka/CommonKafkaErrorHandler.java"
+if ! rg -Fq 'factory.setCommonErrorHandler(errorHandler)' "${notification_kafka_config}" \
+    || ! rg -Fq 'ContainerProperties.AckMode.MANUAL_IMMEDIATE' "${notification_kafka_config}" \
+    || ! rg -Fq 'setCommitRecovered(true)' "${notification_shared_error_handler}" \
+    || ! rg -Fq 'recoverer.setFailIfSendResultIsError(true)' "${notification_shared_error_handler}"; then
+  echo "notification-service: Kafka event failures must retain shared finite retry and fail-closed DLT recovery." >&2
   exit 1
 fi
 
-notification_repository="${ROOT_DIR}/notification-service/src/main/java/com/delivery/notification_service/repository/NotificationRepository.java"
-notification_service_impl="${ROOT_DIR}/notification-service/src/main/java/com/delivery/notification_service/service/impl/NotificationServiceImpl.java"
+notification_repository="${ROOT_DIR}/notification/infrastructure/src/main/java/com/delivery/notification_service/repository/NotificationRepository.java"
+notification_service_impl="${ROOT_DIR}/notification/infrastructure/src/main/java/com/delivery/notification_service/service/impl/NotificationServiceImpl.java"
 if ! rg -Fq 'ON CONFLICT (deduplication_key) DO NOTHING' "${notification_repository}" \
     || ! rg -Fq '@Transactional(propagation = Propagation.REQUIRES_NEW)' "${notification_repository}" \
     || ! rg -Fq 'int insertIfAbsentPostgres(' "${notification_repository}" \
     || ! rg -Fq 'int inserted = insertIfAbsent(notification);' "${notification_service_impl}" \
     || ! rg -Fq 'return notificationRepository.insertIfAbsentPostgres(' "${notification_service_impl}" \
-    || ! rg -Fq 'assertReplayMatches(saved, request);' "${notification_service_impl}" \
+    || ! rg -Fq 'if (keyed) assertReplay(created, command);' "${ROOT_DIR}/notification/application/src/main/java/com/delivery/notification/application/DurableSend.java" \
     || ! rg -Fq 'if (request.getDeduplicationKey() == null || request.getDeduplicationKey().isBlank())' "${notification_service_impl}"; then
   echo "notification-service: keyed Kafka notifications must atomically commit one durable PENDING row before external delivery." >&2
   exit 1
@@ -551,9 +552,9 @@ if ! rg -Fq 'ownerDltTopic(record.topic())' "${saga_kafka_config}" \
   exit 1
 fi
 
-notification_pom="${ROOT_DIR}/notification-service/pom.xml"
-notification_main="${ROOT_DIR}/notification-service/src/main/java"
-if rg -Fq '<artifactId>spring-boot-starter-websocket</artifactId>' "${notification_pom}" \
+notification_pom="${ROOT_DIR}/notification/boot/pom.xml"
+notification_main="${ROOT_DIR}/notification/infrastructure/src/main/java"
+if rg -Fq '<artifactId>spring-boot-starter-websocket</artifactId>' "${notification_pom}" "${ROOT_DIR}/notification/infrastructure/pom.xml" \
     || rg -n 'EnableWebSocketMessageBroker|SimpMessagingTemplate|/ws-native|sendWebSocket' \
       "${notification_main}" >/dev/null; then
   echo "notification-service: STOMP/WebSocket graph must remain removed; MVP realtime is Tracking raw location only." >&2
@@ -642,7 +643,7 @@ if ! rg -Fq 'DLT_REPLAY_CONFIRMATION must exactly equal' \
   echo "Kafka DLT recovery must remain coordinate-confirmed, dry-run by default, and single-record only." >&2
   exit 1
 fi
-for manual_dlt_consumer in delivery-service dispatch/infrastructure match/infrastructure order-service notification-service promotion-service; do
+for manual_dlt_consumer in delivery-service dispatch/infrastructure match/infrastructure order-service promotion-service; do
   if ! rg -Fq 'setCommitRecovered(true)' \
       "${ROOT_DIR}/${manual_dlt_consumer}/src/main/java"; then
     echo "${manual_dlt_consumer}: manual-immediate DLT recovery must commit the recovered source offset." >&2

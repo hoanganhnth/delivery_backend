@@ -1601,7 +1601,7 @@ public Mono<ResponseEntity<BaseResponse<List<NearbyShipperResponse>>>> findNearb
 ### `POST` `/api/firebase/register-token`
 
 - Handler: `FirebaseController.registerFcmToken`
-- Source: [`backend_delivery/notification-service/src/main/java/com/delivery/notification_service/controller/FirebaseController.java:27`](../../../../notification-service/src/main/java/com/delivery/notification_service/controller/FirebaseController.java)
+- Source: [`backend_delivery/notification/infrastructure/src/main/java/com/delivery/notification_service/controller/FirebaseController.java:27`](../../../../notification/infrastructure/src/main/java/com/delivery/notification_service/controller/FirebaseController.java)
 - Java return type: `ResponseEntity<BaseResponse<Void>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1621,7 +1621,7 @@ public ResponseEntity<BaseResponse<Void>> registerFcmToken( @AuthenticationPrinc
 ### `POST` `/api/firebase/unregister-token`
 
 - Handler: `FirebaseController.unregisterFcmToken`
-- Source: [`backend_delivery/notification-service/src/main/java/com/delivery/notification_service/controller/FirebaseController.java:37`](../../../../notification-service/src/main/java/com/delivery/notification_service/controller/FirebaseController.java)
+- Source: [`backend_delivery/notification/infrastructure/src/main/java/com/delivery/notification_service/controller/FirebaseController.java:37`](../../../../notification/infrastructure/src/main/java/com/delivery/notification_service/controller/FirebaseController.java)
 - Java return type: `ResponseEntity<BaseResponse<Void>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1641,7 +1641,7 @@ public ResponseEntity<BaseResponse<Void>> unregisterFcmToken( @AuthenticationPri
 ### `DELETE` `/api/notifications/{id}`
 
 - Handler: `NotificationController.deleteNotification`
-- Source: [`backend_delivery/notification-service/src/main/java/com/delivery/notification_service/controller/NotificationController.java:123`](../../../../notification-service/src/main/java/com/delivery/notification_service/controller/NotificationController.java)
+- Source: [`backend_delivery/notification/infrastructure/src/main/java/com/delivery/notification_service/controller/NotificationController.java:125`](../../../../notification/infrastructure/src/main/java/com/delivery/notification_service/controller/NotificationController.java)
 - Java return type: `ResponseEntity<BaseResponse<Void>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1661,7 +1661,7 @@ public ResponseEntity<BaseResponse<Void>> deleteNotification( @PathVariable Long
 ### `GET` `/api/notifications/{id}`
 
 - Handler: `NotificationController.getNotificationById`
-- Source: [`backend_delivery/notification-service/src/main/java/com/delivery/notification_service/controller/NotificationController.java:113`](../../../../notification-service/src/main/java/com/delivery/notification_service/controller/NotificationController.java)
+- Source: [`backend_delivery/notification/infrastructure/src/main/java/com/delivery/notification_service/controller/NotificationController.java:115`](../../../../notification/infrastructure/src/main/java/com/delivery/notification_service/controller/NotificationController.java)
 - Java return type: `ResponseEntity<BaseResponse<NotificationResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1681,7 +1681,7 @@ public ResponseEntity<BaseResponse<NotificationResponse>> getNotificationById( @
 ### `PUT` `/api/notifications/{id}/read`
 
 - Handler: `NotificationController.markAsRead`
-- Source: [`backend_delivery/notification-service/src/main/java/com/delivery/notification_service/controller/NotificationController.java:94`](../../../../notification-service/src/main/java/com/delivery/notification_service/controller/NotificationController.java)
+- Source: [`backend_delivery/notification/infrastructure/src/main/java/com/delivery/notification_service/controller/NotificationController.java:96`](../../../../notification/infrastructure/src/main/java/com/delivery/notification_service/controller/NotificationController.java)
 - Java return type: `ResponseEntity<BaseResponse<NotificationResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1701,7 +1701,7 @@ public ResponseEntity<BaseResponse<NotificationResponse>> markAsRead( @PathVaria
 ### `PUT` `/api/notifications/mark-all-read`
 
 - Handler: `NotificationController.markAllAsRead`
-- Source: [`backend_delivery/notification-service/src/main/java/com/delivery/notification_service/controller/NotificationController.java:104`](../../../../notification-service/src/main/java/com/delivery/notification_service/controller/NotificationController.java)
+- Source: [`backend_delivery/notification/infrastructure/src/main/java/com/delivery/notification_service/controller/NotificationController.java:106`](../../../../notification/infrastructure/src/main/java/com/delivery/notification_service/controller/NotificationController.java)
 - Java return type: `ResponseEntity<BaseResponse<Integer>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1720,7 +1720,7 @@ public ResponseEntity<BaseResponse<Integer>> markAllAsRead( @AuthenticationPrinc
 ### `GET` `/api/notifications/preferences`
 
 - Handler: `NotificationController.getPreferences`
-- Source: [`backend_delivery/notification-service/src/main/java/com/delivery/notification_service/controller/NotificationController.java:133`](../../../../notification-service/src/main/java/com/delivery/notification_service/controller/NotificationController.java)
+- Source: [`backend_delivery/notification/infrastructure/src/main/java/com/delivery/notification_service/controller/NotificationController.java:135`](../../../../notification/infrastructure/src/main/java/com/delivery/notification_service/controller/NotificationController.java)
 - Java return type: `ResponseEntity<BaseResponse<NotificationPreferenceResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1739,7 +1739,7 @@ public ResponseEntity<BaseResponse<NotificationPreferenceResponse>> getPreferenc
 ### `PUT` `/api/notifications/preferences/marketing`
 
 - Handler: `NotificationController.updateMarketingPreference`
-- Source: [`backend_delivery/notification-service/src/main/java/com/delivery/notification_service/controller/NotificationController.java:143`](../../../../notification-service/src/main/java/com/delivery/notification_service/controller/NotificationController.java)
+- Source: [`backend_delivery/notification/infrastructure/src/main/java/com/delivery/notification_service/controller/NotificationController.java:146`](../../../../notification/infrastructure/src/main/java/com/delivery/notification_service/controller/NotificationController.java)
 - Java return type: `ResponseEntity<BaseResponse<NotificationPreferenceResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1759,7 +1759,7 @@ public ResponseEntity<BaseResponse<NotificationPreferenceResponse>> updateMarket
 ### `POST` `/api/notifications/send`
 
 - Handler: `NotificationController.sendNotification`
-- Source: [`backend_delivery/notification-service/src/main/java/com/delivery/notification_service/controller/NotificationController.java:50`](../../../../notification-service/src/main/java/com/delivery/notification_service/controller/NotificationController.java)
+- Source: [`backend_delivery/notification/infrastructure/src/main/java/com/delivery/notification_service/controller/NotificationController.java:52`](../../../../notification/infrastructure/src/main/java/com/delivery/notification_service/controller/NotificationController.java)
 - Java return type: `ResponseEntity<BaseResponse<NotificationResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1779,7 +1779,7 @@ public ResponseEntity<BaseResponse<NotificationResponse>> sendNotification( @Val
 ### `GET` `/api/notifications/unread`
 
 - Handler: `NotificationController.getUnreadNotifications`
-- Source: [`backend_delivery/notification-service/src/main/java/com/delivery/notification_service/controller/NotificationController.java:76`](../../../../notification-service/src/main/java/com/delivery/notification_service/controller/NotificationController.java)
+- Source: [`backend_delivery/notification/infrastructure/src/main/java/com/delivery/notification_service/controller/NotificationController.java:78`](../../../../notification/infrastructure/src/main/java/com/delivery/notification_service/controller/NotificationController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<NotificationResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1798,7 +1798,7 @@ public ResponseEntity<BaseResponse<List<NotificationResponse>>> getUnreadNotific
 ### `GET` `/api/notifications/unread-count`
 
 - Handler: `NotificationController.getUnreadCount`
-- Source: [`backend_delivery/notification-service/src/main/java/com/delivery/notification_service/controller/NotificationController.java:85`](../../../../notification-service/src/main/java/com/delivery/notification_service/controller/NotificationController.java)
+- Source: [`backend_delivery/notification/infrastructure/src/main/java/com/delivery/notification_service/controller/NotificationController.java:87`](../../../../notification/infrastructure/src/main/java/com/delivery/notification_service/controller/NotificationController.java)
 - Java return type: `ResponseEntity<BaseResponse<Long>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1817,7 +1817,7 @@ public ResponseEntity<BaseResponse<Long>> getUnreadCount( @AuthenticationPrincip
 ### `GET` `/api/notifications/user/{userId}`
 
 - Handler: `NotificationController.getUserNotifications`
-- Source: [`backend_delivery/notification-service/src/main/java/com/delivery/notification_service/controller/NotificationController.java:65`](../../../../notification-service/src/main/java/com/delivery/notification_service/controller/NotificationController.java)
+- Source: [`backend_delivery/notification/infrastructure/src/main/java/com/delivery/notification_service/controller/NotificationController.java:67`](../../../../notification/infrastructure/src/main/java/com/delivery/notification_service/controller/NotificationController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<NotificationResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -6247,7 +6247,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.notification_service.controller.FirebaseController.TokenRequest`
 
 - Kind: `class`
-- Source: [`backend_delivery/notification-service/src/main/java/com/delivery/notification_service/controller/FirebaseController.java:52`](../../../../notification-service/src/main/java/com/delivery/notification_service/controller/FirebaseController.java)
+- Source: [`backend_delivery/notification/infrastructure/src/main/java/com/delivery/notification_service/controller/FirebaseController.java:52`](../../../../notification/infrastructure/src/main/java/com/delivery/notification_service/controller/FirebaseController.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6256,7 +6256,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.notification_service.dto.request.SendNotificationRequest`
 
 - Kind: `class`
-- Source: [`backend_delivery/notification-service/src/main/java/com/delivery/notification_service/dto/request/SendNotificationRequest.java:16`](../../../../notification-service/src/main/java/com/delivery/notification_service/dto/request/SendNotificationRequest.java)
+- Source: [`backend_delivery/notification/infrastructure/src/main/java/com/delivery/notification_service/dto/request/SendNotificationRequest.java:16`](../../../../notification/infrastructure/src/main/java/com/delivery/notification_service/dto/request/SendNotificationRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6275,7 +6275,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.notification_service.dto.request.UpdateMarketingNotificationPreferenceRequest`
 
 - Kind: `class`
-- Source: [`backend_delivery/notification-service/src/main/java/com/delivery/notification_service/dto/request/UpdateMarketingNotificationPreferenceRequest.java:10`](../../../../notification-service/src/main/java/com/delivery/notification_service/dto/request/UpdateMarketingNotificationPreferenceRequest.java)
+- Source: [`backend_delivery/notification/infrastructure/src/main/java/com/delivery/notification_service/dto/request/UpdateMarketingNotificationPreferenceRequest.java:10`](../../../../notification/infrastructure/src/main/java/com/delivery/notification_service/dto/request/UpdateMarketingNotificationPreferenceRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6284,7 +6284,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.notification_service.dto.response.NotificationPreferenceResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/notification-service/src/main/java/com/delivery/notification_service/dto/response/NotificationPreferenceResponse.java:11`](../../../../notification-service/src/main/java/com/delivery/notification_service/dto/response/NotificationPreferenceResponse.java)
+- Source: [`backend_delivery/notification/infrastructure/src/main/java/com/delivery/notification_service/dto/response/NotificationPreferenceResponse.java:11`](../../../../notification/infrastructure/src/main/java/com/delivery/notification_service/dto/response/NotificationPreferenceResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6296,7 +6296,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.notification_service.dto.response.NotificationResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/notification-service/src/main/java/com/delivery/notification_service/dto/response/NotificationResponse.java:13`](../../../../notification-service/src/main/java/com/delivery/notification_service/dto/response/NotificationResponse.java)
+- Source: [`backend_delivery/notification/infrastructure/src/main/java/com/delivery/notification_service/dto/response/NotificationResponse.java:13`](../../../../notification/infrastructure/src/main/java/com/delivery/notification_service/dto/response/NotificationResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6319,7 +6319,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.notification_service.payload.BaseResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/notification-service/src/main/java/com/delivery/notification_service/payload/BaseResponse.java:13`](../../../../notification-service/src/main/java/com/delivery/notification_service/payload/BaseResponse.java)
+- Source: [`backend_delivery/notification/infrastructure/src/main/java/com/delivery/notification_service/payload/BaseResponse.java:13`](../../../../notification/infrastructure/src/main/java/com/delivery/notification_service/payload/BaseResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |

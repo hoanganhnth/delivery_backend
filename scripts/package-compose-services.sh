@@ -21,6 +21,7 @@ fi
 service_paths=()
 for service in "${services[@]}"; do
   canonical="${service%-service}"
+  # Consolidated services (including notification-service) package from <name>/boot.
   # The Saga orchestrator was repurposed in place as Dispatch; its artifact name is unchanged.
   [[ "$service" == "saga-orchestrator-service" ]] && canonical="dispatch"
   if [[ -f "${service}/pom.xml" && -d "${service}/src" ]]; then
