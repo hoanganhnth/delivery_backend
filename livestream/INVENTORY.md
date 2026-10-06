@@ -4,7 +4,7 @@ Authority: `docs/services/livestream_management.md`, default-off checkpoint in
 `ROADMAP_MVP_TO_PRODUCTION.md`, and existing code/tests. This is an equivalence
 tranche: retain messages, exception classes, validation order, topics, flags,
 transactions, migrations and persistence. Paths below are relative to
-`livestream-service/src/main/java/com/delivery/livestream_service/` unless stated.
+`livestream/infrastructure/src/main/java/com/delivery/livestream_service/` unless stated.
 Line references describe the pre-extraction baseline (checkout service line
 numbers change in slice 1). No git operation or branch manipulation is part of
 this filesystem-only task; the parent owns branch provenance.

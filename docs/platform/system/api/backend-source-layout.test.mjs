@@ -151,3 +151,31 @@ test('Notification relocation preserves discovery of every HTTP handler', () => 
     assert.equal(serviceForSource(root, source), 'notification-service');
   }
 });
+
+
+test('Livestream relocation preserves its artifact, adapters and migration layout', () => {
+  const root = path.resolve(import.meta.dirname, '../../../..');
+  assert.equal(fs.existsSync(path.join(root, 'livestream-service')), false);
+  assert.deepEqual(serviceSourceRoots(root)
+    .filter(({ service }) => service === 'livestream-service')
+    .map(({ directory }) => path.relative(root, directory)).sort(), [
+    'livestream/boot/src/main/java',
+    'livestream/infrastructure/src/main/java',
+  ]);
+  const controllers = path.join(root,
+    'livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller');
+  for (const controller of fs.readdirSync(controllers)) {
+    assert.equal(serviceForSource(root, path.join(controllers, controller)), 'livestream-service');
+  }
+  assert.deepEqual(fs.readdirSync(path.join(root,
+    'livestream/boot/src/main/java/com/delivery/livestream_service')), ['LivestreamServiceApplication.java']);
+  assert.deepEqual(fs.readdirSync(path.join(root,
+    'livestream/boot/src/main/resources')), ['application.properties']);
+  assert.deepEqual(fs.readdirSync(path.join(root,
+    'livestream/infrastructure/src/main/java/db/migration')).sort(), [
+    'V1__livestream_schema.java',
+    'V2__livestream_moderation_audit.java',
+    'V3__livestream_product_soft_delete.java',
+    'V4__livestream_checkout_receipts.java',
+  ]);
+});

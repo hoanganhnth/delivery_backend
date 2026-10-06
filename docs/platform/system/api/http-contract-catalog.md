@@ -1188,7 +1188,7 @@ public ResponseEntity<BaseResponse<List<FlashSaleItemDto>>> getItems(@PathVariab
 ### `POST` `/api/livestreams`
 
 - Handler: `LivestreamController.createLivestream`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:37`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
+- Source: [`backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:37`](../../../../livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
 - Java return type: `ResponseEntity<BaseResponse<LivestreamResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1208,7 +1208,7 @@ public ResponseEntity<BaseResponse<LivestreamResponse>> createLivestream( @Valid
 ### `GET` `/api/livestreams/{id}`
 
 - Handler: `LivestreamController.getLivestreamById`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:90`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
+- Source: [`backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:90`](../../../../livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
 - Java return type: `ResponseEntity<BaseResponse<LivestreamResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1228,7 +1228,7 @@ public ResponseEntity<BaseResponse<LivestreamResponse>> getLivestreamById( @Path
 ### `POST` `/api/livestreams/{id}/end`
 
 - Handler: `LivestreamController.endLivestream`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:68`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
+- Source: [`backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:68`](../../../../livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
 - Java return type: `ResponseEntity<BaseResponse<LivestreamResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1248,7 +1248,7 @@ public ResponseEntity<BaseResponse<LivestreamResponse>> endLivestream( @PathVari
 ### `POST` `/api/livestreams/{id}/join`
 
 - Handler: `LivestreamController.joinLivestream`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:58`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
+- Source: [`backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:58`](../../../../livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
 - Java return type: `ResponseEntity<BaseResponse<JoinLivestreamResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1268,7 +1268,7 @@ public ResponseEntity<BaseResponse<JoinLivestreamResponse>> joinLivestream( @Pat
 ### `POST` `/api/livestreams/{id}/moderation`
 
 - Handler: `LivestreamModerationController.moderate`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamModerationController.java:27`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamModerationController.java)
+- Source: [`backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/LivestreamModerationController.java:27`](../../../../livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/LivestreamModerationController.java)
 - Java return type: `ResponseEntity<BaseResponse<LivestreamModerationResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1289,7 +1289,7 @@ public ResponseEntity<BaseResponse<LivestreamModerationResponse>> moderate( @Pat
 ### `GET` `/api/livestreams/{id}/products`
 
 - Handler: `LivestreamProductController.getProductsByLivestream`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamProductController.java:73`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamProductController.java)
+- Source: [`backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/LivestreamProductController.java:73`](../../../../livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/LivestreamProductController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<LivestreamProductResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1309,7 +1309,7 @@ public ResponseEntity<BaseResponse<List<LivestreamProductResponse>>> getProducts
 ### `DELETE` `/api/livestreams/{id}/products/{productId}`
 
 - Handler: `LivestreamProductController.removeProduct`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamProductController.java:62`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamProductController.java)
+- Source: [`backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/LivestreamProductController.java:62`](../../../../livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/LivestreamProductController.java)
 - Java return type: `ResponseEntity<BaseResponse<Void>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1330,7 +1330,7 @@ public ResponseEntity<BaseResponse<Void>> removeProduct( @PathVariable UUID id, 
 ### `DELETE` `/api/livestreams/{id}/products/{productId}/pin`
 
 - Handler: `LivestreamProductController.unpinProduct`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamProductController.java:51`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamProductController.java)
+- Source: [`backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/LivestreamProductController.java:51`](../../../../livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/LivestreamProductController.java)
 - Java return type: `ResponseEntity<BaseResponse<Void>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1351,7 +1351,7 @@ public ResponseEntity<BaseResponse<Void>> unpinProduct( @PathVariable UUID id, @
 ### `POST` `/api/livestreams/{id}/products/pin`
 
 - Handler: `LivestreamProductController.pinProduct`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamProductController.java:40`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamProductController.java)
+- Source: [`backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/LivestreamProductController.java:40`](../../../../livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/LivestreamProductController.java)
 - Java return type: `ResponseEntity<BaseResponse<LivestreamProductResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1372,7 +1372,7 @@ public ResponseEntity<BaseResponse<LivestreamProductResponse>> pinProduct( @Path
 ### `GET` `/api/livestreams/{id}/products/pinned`
 
 - Handler: `LivestreamProductController.getPinnedProducts`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamProductController.java:81`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamProductController.java)
+- Source: [`backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/LivestreamProductController.java:81`](../../../../livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/LivestreamProductController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<LivestreamProductResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1392,7 +1392,7 @@ public ResponseEntity<BaseResponse<List<LivestreamProductResponse>>> getPinnedPr
 ### `POST` `/api/livestreams/{id}/start`
 
 - Handler: `LivestreamController.startLivestream`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:47`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
+- Source: [`backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:47`](../../../../livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
 - Java return type: `ResponseEntity<BaseResponse<StartLivestreamResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1412,7 +1412,7 @@ public ResponseEntity<BaseResponse<StartLivestreamResponse>> startLivestream( @P
 ### `POST` `/api/livestreams/{id}/token`
 
 - Handler: `StreamTokenController.generateToken`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/StreamTokenController.java:31`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/StreamTokenController.java)
+- Source: [`backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/StreamTokenController.java:31`](../../../../livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/StreamTokenController.java)
 - Java return type: `ResponseEntity<BaseResponse<TokenResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1433,7 +1433,7 @@ public ResponseEntity<BaseResponse<TokenResponse>> generateToken( @PathVariable 
 ### `POST` `/api/livestreams/{id}/token/renew`
 
 - Handler: `LivestreamTokenRenewalController.renew`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamTokenRenewalController.java:46`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamTokenRenewalController.java)
+- Source: [`backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/LivestreamTokenRenewalController.java:46`](../../../../livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/LivestreamTokenRenewalController.java)
 - Java return type: `ResponseEntity<BaseResponse<RenewLivestreamTokenResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1453,7 +1453,7 @@ public ResponseEntity<BaseResponse<RenewLivestreamTokenResponse>> renew( @PathVa
 ### `GET` `/api/livestreams/active`
 
 - Handler: `LivestreamController.getActiveLivestreams`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:82`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
+- Source: [`backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:82`](../../../../livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<LivestreamResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1472,7 +1472,7 @@ public ResponseEntity<BaseResponse<List<LivestreamResponse>>> getActiveLivestrea
 ### `GET` `/api/livestreams/admin`
 
 - Handler: `LivestreamAdminController.list`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamAdminController.java:34`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamAdminController.java)
+- Source: [`backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/LivestreamAdminController.java:34`](../../../../livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/LivestreamAdminController.java)
 - Java return type: `ResponseEntity<BaseResponse<RoomPage>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1493,7 +1493,7 @@ public ResponseEntity<BaseResponse<RoomPage>> list( @AuthenticationPrincipal Aut
 ### `POST` `/api/livestreams/internal/checkout-quote`
 
 - Handler: `InternalLivestreamCheckoutController.quote`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/InternalLivestreamCheckoutController.java:35`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/InternalLivestreamCheckoutController.java)
+- Source: [`backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/InternalLivestreamCheckoutController.java:35`](../../../../livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/InternalLivestreamCheckoutController.java)
 - Java return type: `ResponseEntity<BaseResponse<LivestreamCheckoutQuoteResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1513,7 +1513,7 @@ public ResponseEntity<BaseResponse<LivestreamCheckoutQuoteResponse>> quote( @Val
 ### `POST` `/api/livestreams/internal/order-context`
 
 - Handler: `InternalLivestreamCheckoutController.orderContext`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/InternalLivestreamCheckoutController.java:46`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/InternalLivestreamCheckoutController.java)
+- Source: [`backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/InternalLivestreamCheckoutController.java:46`](../../../../livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/InternalLivestreamCheckoutController.java)
 - Java return type: `ResponseEntity<BaseResponse<java.util.List<LivestreamOrderContext>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1536,7 +1536,7 @@ public ResponseEntity<BaseResponse<java.util.List<LivestreamOrderContext>>> orde
 ### `GET` `/api/livestreams/restaurant/{restaurantId}`
 
 - Handler: `LivestreamController.getLivestreamsByRestaurant`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:106`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
+- Source: [`backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:106`](../../../../livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<LivestreamResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1556,7 +1556,7 @@ public ResponseEntity<BaseResponse<List<LivestreamResponse>>> getLivestreamsByRe
 ### `GET` `/api/livestreams/seller/{sellerId}`
 
 - Handler: `LivestreamController.getLivestreamsBySeller`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:98`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
+- Source: [`backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java:98`](../../../../livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<LivestreamResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -5898,7 +5898,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.livestream_service.controller.LivestreamAdminController.RoomPage`
 
 - Kind: `record`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamAdminController.java:30`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamAdminController.java)
+- Source: [`backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/LivestreamAdminController.java:30`](../../../../livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/LivestreamAdminController.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5911,7 +5911,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.livestream_service.dto.request.CreateLivestreamRequest`
 
 - Kind: `class`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/dto/request/CreateLivestreamRequest.java:12`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/dto/request/CreateLivestreamRequest.java)
+- Source: [`backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/dto/request/CreateLivestreamRequest.java:12`](../../../../livestream/infrastructure/src/main/java/com/delivery/livestream_service/dto/request/CreateLivestreamRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5923,7 +5923,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.livestream_service.dto.request.GenerateTokenRequest`
 
 - Kind: `class`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/dto/request/GenerateTokenRequest.java:10`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/dto/request/GenerateTokenRequest.java)
+- Source: [`backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/dto/request/GenerateTokenRequest.java:10`](../../../../livestream/infrastructure/src/main/java/com/delivery/livestream_service/dto/request/GenerateTokenRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5933,7 +5933,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.livestream_service.dto.request.LivestreamCheckoutQuoteRequest`
 
 - Kind: `class`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/dto/request/LivestreamCheckoutQuoteRequest.java:15`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/dto/request/LivestreamCheckoutQuoteRequest.java)
+- Source: [`backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/dto/request/LivestreamCheckoutQuoteRequest.java:15`](../../../../livestream/infrastructure/src/main/java/com/delivery/livestream_service/dto/request/LivestreamCheckoutQuoteRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5944,7 +5944,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.livestream_service.dto.request.ModerateLivestreamRequest`
 
 - Kind: `record`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/dto/request/ModerateLivestreamRequest.java:10`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/dto/request/ModerateLivestreamRequest.java)
+- Source: [`backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/dto/request/ModerateLivestreamRequest.java:10`](../../../../livestream/infrastructure/src/main/java/com/delivery/livestream_service/dto/request/ModerateLivestreamRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5955,7 +5955,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.livestream_service.dto.request.PinProductRequest`
 
 - Kind: `class`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/dto/request/PinProductRequest.java:13`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/dto/request/PinProductRequest.java)
+- Source: [`backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/dto/request/PinProductRequest.java:13`](../../../../livestream/infrastructure/src/main/java/com/delivery/livestream_service/dto/request/PinProductRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5969,7 +5969,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.livestream_service.dto.response.JoinLivestreamResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/dto/response/JoinLivestreamResponse.java:18`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/dto/response/JoinLivestreamResponse.java)
+- Source: [`backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/dto/response/JoinLivestreamResponse.java:18`](../../../../livestream/infrastructure/src/main/java/com/delivery/livestream_service/dto/response/JoinLivestreamResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5987,7 +5987,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.livestream_service.dto.response.LivestreamCheckoutQuoteResponse`
 
 - Kind: `record`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/dto/response/LivestreamCheckoutQuoteResponse.java:7`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/dto/response/LivestreamCheckoutQuoteResponse.java)
+- Source: [`backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/dto/response/LivestreamCheckoutQuoteResponse.java:7`](../../../../livestream/infrastructure/src/main/java/com/delivery/livestream_service/dto/response/LivestreamCheckoutQuoteResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5998,7 +5998,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 #### `com.delivery.livestream_service.dto.response.LivestreamCheckoutQuoteResponse.Item`
 
 - Kind: `record`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/dto/response/LivestreamCheckoutQuoteResponse.java:12`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/dto/response/LivestreamCheckoutQuoteResponse.java)
+- Source: [`backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/dto/response/LivestreamCheckoutQuoteResponse.java:12`](../../../../livestream/infrastructure/src/main/java/com/delivery/livestream_service/dto/response/LivestreamCheckoutQuoteResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6008,7 +6008,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.livestream_service.dto.response.LivestreamCheckoutQuoteResponse.Item`
 
 - Kind: `record`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/dto/response/LivestreamCheckoutQuoteResponse.java:12`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/dto/response/LivestreamCheckoutQuoteResponse.java)
+- Source: [`backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/dto/response/LivestreamCheckoutQuoteResponse.java:12`](../../../../livestream/infrastructure/src/main/java/com/delivery/livestream_service/dto/response/LivestreamCheckoutQuoteResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6018,7 +6018,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.livestream_service.dto.response.LivestreamModerationResponse`
 
 - Kind: `record`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/dto/response/LivestreamModerationResponse.java:7`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/dto/response/LivestreamModerationResponse.java)
+- Source: [`backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/dto/response/LivestreamModerationResponse.java:7`](../../../../livestream/infrastructure/src/main/java/com/delivery/livestream_service/dto/response/LivestreamModerationResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6031,7 +6031,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.livestream_service.dto.response.LivestreamOrderContext`
 
 - Kind: `record`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/dto/response/LivestreamOrderContext.java:7`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/dto/response/LivestreamOrderContext.java)
+- Source: [`backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/dto/response/LivestreamOrderContext.java:7`](../../../../livestream/infrastructure/src/main/java/com/delivery/livestream_service/dto/response/LivestreamOrderContext.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6049,7 +6049,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.livestream_service.dto.response.LivestreamProductResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/dto/response/LivestreamProductResponse.java:12`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/dto/response/LivestreamProductResponse.java)
+- Source: [`backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/dto/response/LivestreamProductResponse.java:12`](../../../../livestream/infrastructure/src/main/java/com/delivery/livestream_service/dto/response/LivestreamProductResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6068,7 +6068,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.livestream_service.dto.response.LivestreamResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/dto/response/LivestreamResponse.java:14`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/dto/response/LivestreamResponse.java)
+- Source: [`backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/dto/response/LivestreamResponse.java:14`](../../../../livestream/infrastructure/src/main/java/com/delivery/livestream_service/dto/response/LivestreamResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6091,7 +6091,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.livestream_service.dto.response.RenewLivestreamTokenResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/dto/response/RenewLivestreamTokenResponse.java:11`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/dto/response/RenewLivestreamTokenResponse.java)
+- Source: [`backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/dto/response/RenewLivestreamTokenResponse.java:11`](../../../../livestream/infrastructure/src/main/java/com/delivery/livestream_service/dto/response/RenewLivestreamTokenResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6105,7 +6105,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.livestream_service.dto.response.StartLivestreamResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/dto/response/StartLivestreamResponse.java:19`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/dto/response/StartLivestreamResponse.java)
+- Source: [`backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/dto/response/StartLivestreamResponse.java:19`](../../../../livestream/infrastructure/src/main/java/com/delivery/livestream_service/dto/response/StartLivestreamResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6123,7 +6123,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.livestream_service.dto.response.TokenResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/dto/response/TokenResponse.java:13`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/dto/response/TokenResponse.java)
+- Source: [`backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/dto/response/TokenResponse.java:13`](../../../../livestream/infrastructure/src/main/java/com/delivery/livestream_service/dto/response/TokenResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6135,7 +6135,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.livestream_service.enums.LivestreamModerationAction`
 
 - Kind: `enum`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/enums/LivestreamModerationAction.java:3`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/enums/LivestreamModerationAction.java)
+- Source: [`backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/enums/LivestreamModerationAction.java:3`](../../../../livestream/infrastructure/src/main/java/com/delivery/livestream_service/enums/LivestreamModerationAction.java)
 - Enum values: `WARN`, `UNPIN`, `FORCE_END`
 
 | Field | Java type | Required | Validation/annotations |
@@ -6145,7 +6145,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.livestream_service.enums.LivestreamStatus`
 
 - Kind: `enum`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/enums/LivestreamStatus.java:3`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/enums/LivestreamStatus.java)
+- Source: [`backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/enums/LivestreamStatus.java:3`](../../../../livestream/infrastructure/src/main/java/com/delivery/livestream_service/enums/LivestreamStatus.java)
 - Enum values: `CREATED`
 
 | Field | Java type | Required | Validation/annotations |
@@ -6155,7 +6155,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.livestream_service.enums.StreamProvider`
 
 - Kind: `enum`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/enums/StreamProvider.java:3`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/enums/StreamProvider.java)
+- Source: [`backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/enums/StreamProvider.java:3`](../../../../livestream/infrastructure/src/main/java/com/delivery/livestream_service/enums/StreamProvider.java)
 - Enum values: `AGORA`
 
 | Field | Java type | Required | Validation/annotations |
@@ -6165,7 +6165,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.livestream_service.enums.TokenRole`
 
 - Kind: `enum`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/enums/TokenRole.java:3`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/enums/TokenRole.java)
+- Source: [`backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/enums/TokenRole.java:3`](../../../../livestream/infrastructure/src/main/java/com/delivery/livestream_service/enums/TokenRole.java)
 - Enum values: `HOST`
 
 | Field | Java type | Required | Validation/annotations |
@@ -6175,7 +6175,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.livestream_service.payload.BaseResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/payload/BaseResponse.java:5`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/payload/BaseResponse.java)
+- Source: [`backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/payload/BaseResponse.java:5`](../../../../livestream/infrastructure/src/main/java/com/delivery/livestream_service/payload/BaseResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6187,7 +6187,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 #### `com.delivery.livestream_service.payload.BaseResponse.ErrorPayload`
 
 - Kind: `record`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/payload/BaseResponse.java:46`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/payload/BaseResponse.java)
+- Source: [`backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/payload/BaseResponse.java:46`](../../../../livestream/infrastructure/src/main/java/com/delivery/livestream_service/payload/BaseResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6197,7 +6197,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.livestream_service.payload.BaseResponse.ErrorPayload`
 
 - Kind: `record`
-- Source: [`backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/payload/BaseResponse.java:46`](../../../../livestream-service/src/main/java/com/delivery/livestream_service/payload/BaseResponse.java)
+- Source: [`backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/payload/BaseResponse.java:46`](../../../../livestream/infrastructure/src/main/java/com/delivery/livestream_service/payload/BaseResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |

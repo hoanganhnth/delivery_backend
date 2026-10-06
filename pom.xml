@@ -77,7 +77,8 @@
         <module>livestream/domain</module>
         <module>livestream/application-api</module>
         <module>livestream/application</module>
-        <module>livestream-service</module>
+        <module>livestream/infrastructure</module>
+        <module>livestream/boot</module>
         <module>settlement/boot</module>
         <module>flashsale-service</module>
         <module>analytics-service</module>
