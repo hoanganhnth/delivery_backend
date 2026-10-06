@@ -1,6 +1,7 @@
 package com.delivery.search_service.consumer;
 
 import com.delivery.search.contracts.EntitySyncEvent;
+import com.delivery.search.domain.CheckpointReplayPolicy;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -17,8 +18,6 @@ import org.springframework.stereotype.Component;
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.time.LocalDateTime;
-import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -130,62 +129,18 @@ public class ElasticsearchEntitySyncCheckpointStore implements EntitySyncCheckpo
         String occurredAt = source.path("occurredAt").asText(null);
         String action = source.path("action").asText(null);
         String storedFingerprint = source.path("payloadFingerprint").asText(null);
-        String expectedOccurredAt = event.getOccurredAt().toString();
-        String expectedAction = event.getAction().toUpperCase(Locale.ROOT);
-
-        if (event.getEventId().toString().equals(eventId)) {
-            if (!sameOccurredAt(expectedOccurredAt, occurredAt) || !expectedAction.equals(action)) {
-                throw new IllegalArgumentException(
-                        "entity-sync eventId replay has contradictory metadata for " + checkpointId);
-            }
-            if (storedFingerprint == null) {
-                upgradeLegacyFingerprint(body, fingerprint, checkpointId);
-                return ClaimResult.APPLY;
-            }
-            if (!fingerprint.equals(storedFingerprint)) {
-                throw new IllegalArgumentException(
-                        "entity-sync eventId replay has contradictory payload for " + checkpointId);
-            }
-            return ClaimResult.EXACT_REPLAY;
+        var decision = CheckpointReplayPolicy.classify(
+                new CheckpointReplayPolicy.Expected(
+                        event.getEventId().toString(), event.getOccurredAt().toString(),
+                        event.getAction().toUpperCase(Locale.ROOT)),
+                new CheckpointReplayPolicy.Stored(
+                        eventId, occurredAt, action, storedFingerprint), fingerprint, checkpointId);
+        if (decision == CheckpointReplayPolicy.Decision.UPGRADE_LEGACY) {
+            upgradeLegacyFingerprint(body, fingerprint, checkpointId);
+            return ClaimResult.APPLY;
         }
-        if (occurredAt == null) {
-            throw new IllegalStateException("Checkpoint has no comparable occurredAt for " + checkpointId);
-        }
-        int ordering = compareOccurredAt(occurredAt, expectedOccurredAt);
-        if (ordering > 0) {
-            return ClaimResult.STALE;
-        }
-        if (ordering == 0) {
-            throw new IllegalArgumentException(
-                    "Conflicting entity-sync events share the same occurredAt for " + checkpointId);
-        }
-        throw new IllegalStateException("Checkpoint claim regressed for " + checkpointId);
-    }
-
-    private boolean sameOccurredAt(String expected, String stored) {
-        return parseOccurredAt(expected).equals(parseOccurredAt(stored));
-    }
-
-    private int compareOccurredAt(String left, String right) {
-        return parseOccurredAt(left).compareTo(parseOccurredAt(right));
-    }
-
-    private LocalDateTime parseOccurredAt(String value) {
-        try {
-            return LocalDateTime.parse(value);
-        } catch (RuntimeException localFormat) {
-            try {
-                // Spring Data Elasticsearch mappings written before this
-                // checkpoint store can expose a Date field with an explicit
-                // offset (typically a trailing Z). Their producer used a
-                // LocalDateTime, so normalize the textual representation to
-                // the original local fields before comparing it to a retry.
-                return OffsetDateTime.parse(value).toLocalDateTime();
-            } catch (RuntimeException offsetFormat) {
-                offsetFormat.addSuppressed(localFormat);
-                throw new IllegalStateException("Checkpoint has an invalid occurredAt value", offsetFormat);
-            }
-        }
+        return decision == CheckpointReplayPolicy.Decision.STALE
+                ? ClaimResult.STALE : ClaimResult.EXACT_REPLAY;
     }
 
     private void upgradeLegacyFingerprint(JsonNode body, String fingerprint, String checkpointId) {

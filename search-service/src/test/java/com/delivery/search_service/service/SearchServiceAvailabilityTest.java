@@ -54,6 +54,37 @@ class SearchServiceAvailabilityTest {
         assertSame(result, service.searchRestaurants("pho", pageable));
     }
 
+
+    @Test
+    void dishDelegationPreservesPageableSortIdentityAndFailureCause() {
+        ObjectProvider<RestaurantSearchRepository> restaurants = mock(ObjectProvider.class);
+        ObjectProvider<DishSearchRepository> dishes = mock(ObjectProvider.class);
+        var service = new SearchService(restaurants, dishes);
+        var pageable = PageRequest.of(3, 7, org.springframework.data.domain.Sort.by("name"));
+        var unavailable = assertThrows(SearchUnavailableException.class, () -> service.searchDishes(" q ", pageable));
+        org.junit.jupiter.api.Assertions.assertEquals("Dish search repository is unavailable", unavailable.getMessage());
+        org.junit.jupiter.api.Assertions.assertNull(unavailable.getCause());
+        var repository = mock(DishSearchRepository.class);
+        when(dishes.getIfAvailable()).thenReturn(repository);
+        Page<com.delivery.search_service.document.DishDocument> result = new PageImpl<>(List.of(), pageable, 27);
+        when(repository.findByNameOrDescription(" q ", " q ", pageable)).thenReturn(result);
+        assertSame(result, service.searchDishes(" q ", pageable));
+        RuntimeException failure = new IllegalStateException("backend details");
+        when(repository.findByNameOrDescription(" q ", " q ", pageable)).thenThrow(failure);
+        var wrapped = assertThrows(SearchUnavailableException.class, () -> service.searchDishes(" q ", pageable));
+        org.junit.jupiter.api.Assertions.assertEquals("Dish search failed", wrapped.getMessage());
+        assertSame(failure, wrapped.getCause());
+    }
+
+    @Test
+    void providerResolutionFailureRemainsOutsideUnavailableTranslation() {
+        ObjectProvider<RestaurantSearchRepository> restaurants = mock(ObjectProvider.class);
+        RuntimeException failure = new IllegalStateException("bean resolution failure");
+        when(restaurants.getIfAvailable()).thenThrow(failure);
+        assertSame(failure, assertThrows(RuntimeException.class,
+                () -> service(restaurants).searchRestaurants("q", PageRequest.of(0, 20))));
+    }
+
     private static SearchService service(ObjectProvider<RestaurantSearchRepository> restaurants) {
         ObjectProvider<DishSearchRepository> dishes = mock(ObjectProvider.class);
         return new SearchService(restaurants, dishes);

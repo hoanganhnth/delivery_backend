@@ -66,6 +66,8 @@
         <module>restaurant/boot</module>
         <module>shipper</module>
         <module>search/domain</module>
+        <module>search/application-api</module>
+        <module>search/application</module>
         <module>search-service</module>
         <module>dispatch/domain</module>
         <module>dispatch/application-api</module>

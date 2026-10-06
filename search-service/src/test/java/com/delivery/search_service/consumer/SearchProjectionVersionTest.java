@@ -77,4 +77,24 @@ class SearchProjectionVersionTest {
         org.mockito.Mockito.verifyNoInteractions(restClient);
     }
 
+    @Test
+    void preExistingPut404IsStillTreatedAsReachedProjection() throws Exception {
+        RestClient client = mock(RestClient.class);
+        Response response = mock(Response.class);
+        when(response.getStatusLine()).thenReturn(new org.apache.http.message.BasicStatusLine(
+                new org.apache.http.ProtocolVersion("HTTP", 1, 1), 404, "index_not_found_exception"));
+        when(response.getRequestLine()).thenReturn(new org.apache.http.message.BasicRequestLine(
+                "PUT", "/restaurant/_doc/1", new org.apache.http.ProtocolVersion("HTTP", 1, 1)));
+        when(response.getHost()).thenReturn(new org.apache.http.HttpHost("localhost", 9200));
+        var missingIndex = new org.elasticsearch.client.ResponseException(response);
+        when(client.performRequest(org.mockito.ArgumentMatchers.any(Request.class))).thenThrow(missingIndex);
+        var event = EntitySyncEvent.builder().entityType("RESTAURANT").entityId("1").action("UPDATE")
+                .aggregateVersion(2L).payload(Map.of("name", "R")).build();
+        org.junit.jupiter.api.Assertions.assertDoesNotThrow(
+                () -> new ElasticsearchSearchProjectionWriter(client, new ObjectMapper()).apply(event));
+        var request = ArgumentCaptor.forClass(Request.class);
+        verify(client).performRequest(request.capture());
+        assertThat(request.getValue().getMethod()).isEqualTo("PUT");
+    }
+
 }

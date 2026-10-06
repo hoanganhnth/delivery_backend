@@ -1,5 +1,8 @@
 package com.delivery.search_service.service;
 
+import com.delivery.search.application.DefaultSearchQueryUseCase;
+import com.delivery.search.application.api.SearchQuery;
+import com.delivery.search.application.api.SearchQueryUseCase;
 import com.delivery.search_service.document.DishDocument;
 import com.delivery.search_service.document.RestaurantDocument;
 import com.delivery.search_service.repository.DishSearchRepository;
@@ -20,29 +23,26 @@ public class SearchService {
     private final ObjectProvider<RestaurantSearchRepository> restaurantRepository;
     private final ObjectProvider<DishSearchRepository> dishRepository;
     public Page<RestaurantDocument> searchRestaurants(String query, Pageable pageable) {
-        RestaurantSearchRepository repository = restaurantRepository.getIfAvailable();
-        if (repository == null) {
-            throw new SearchUnavailableException("Restaurant search repository is unavailable");
-        }
-        try {
-            return repository.findByNameOrDescription(query, query, pageable);
-        } catch (RuntimeException exception) {
-            log.error("Restaurant search failed", exception);
-            throw new SearchUnavailableException("Restaurant search failed", exception);
-        }
+        return execute(query, new DefaultSearchQueryUseCase<>(() -> {
+            RestaurantSearchRepository repository = restaurantRepository.getIfAvailable();
+            return repository == null ? null
+                    : input -> repository.findByNameOrDescription(input.text(), input.text(), pageable);
+        }, "Restaurant", failure -> log.error("Restaurant search failed", failure)));
     }
 
     public Page<DishDocument> searchDishes(String query, Pageable pageable) {
-        DishSearchRepository repository = dishRepository.getIfAvailable();
-        if (repository == null) {
-            throw new SearchUnavailableException("Dish search repository is unavailable");
-        }
-        try {
-            return repository.findByNameOrDescription(query, query, pageable);
-        } catch (RuntimeException exception) {
-            log.error("Dish search failed", exception);
-            throw new SearchUnavailableException("Dish search failed", exception);
-        }
+        return execute(query, new DefaultSearchQueryUseCase<>(() -> {
+            DishSearchRepository repository = dishRepository.getIfAvailable();
+            return repository == null ? null
+                    : input -> repository.findByNameOrDescription(input.text(), input.text(), pageable);
+        }, "Dish", failure -> log.error("Dish search failed", failure)));
     }
 
+    private <R> R execute(String query, SearchQueryUseCase<R> useCase) {
+        try {
+            return useCase.search(new SearchQuery(query));
+        } catch (com.delivery.search.application.api.SearchUnavailableException exception) {
+            throw new SearchUnavailableException(exception.getMessage(), exception.getCause());
+        }
+    }
 }

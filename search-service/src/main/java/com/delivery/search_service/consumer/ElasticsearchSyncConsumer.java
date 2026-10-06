@@ -1,7 +1,9 @@
 package com.delivery.search_service.consumer;
 
 import com.delivery.search.contracts.EntitySyncEvent;
-import com.delivery.search.domain.EntitySyncRules;
+import com.delivery.search.application.DefaultProjectEntityUseCase;
+import com.delivery.search.application.api.ProjectionInput;
+import com.delivery.search.application.api.ProjectionPorts;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.delivery.observability.Phase8Metrics;
@@ -47,25 +49,40 @@ public class ElasticsearchSyncConsumer {
 
     @KafkaListener(topics = "entity-sync", groupId = "${spring.kafka.consumer.group-id}")
     public void consumeEntitySyncEvent(EntitySyncEvent event) {
-        validateEvent(event);
-        EntitySyncCheckpointStore.ClaimResult claim = checkpointStore.claim(event, fingerprint(event));
-        if (claim == EntitySyncCheckpointStore.ClaimResult.STALE) {
+        ProjectionInput input = event == null ? null : new ProjectionInput(
+                event.getEventId(), event.getOccurredAt(), event.getEntityType(), event.getAction(),
+                event.getEntityId(), event.getPayload(), event.getAggregateVersion(),
+                event.getDeletedAt(), event.getDeletionReason());
+        new DefaultProjectEntityUseCase(new HostProjectionPorts(event)).project(input);
+    }
+
+    /** Bound to the original wire object so existing adapters and fixtures retain identity. */
+    private final class HostProjectionPorts implements ProjectionPorts {
+        private final EntitySyncEvent event;
+        private HostProjectionPorts(EntitySyncEvent event) { this.event = event; }
+        @Override public String fingerprint(ProjectionInput input) {
+            return ElasticsearchSyncConsumer.this.fingerprint(event);
+        }
+        @Override public Claim claim(ProjectionInput input, String fingerprint) {
+            EntitySyncCheckpointStore.ClaimResult result = checkpointStore.claim(event, fingerprint);
+            // Existing fixtures may return null; it historically followed the write path.
+            return result == null ? null : Claim.valueOf(result.name());
+        }
+        @Override public void write(ProjectionInput input) { projectionWriter.apply(event); }
+        @Override public void stale(ProjectionInput input) {
             metrics.staleEventRejected();
             log.info("Skipping stale entity-sync event {} for {}:{}",
                     event.getEventId(), event.getEntityType(), event.getEntityId());
-            return;
         }
-        log.info("Received sync event for type: {}, action: {}, id: {}", 
-                event.getEntityType(), event.getAction(), event.getEntityId());
-
-        try {
-            projectionWriter.apply(event);
-            if ("DELETE".equalsIgnoreCase(event.getAction())) metrics.tombstoneApplied();
-        } catch (Exception e) {
+        @Override public void received(ProjectionInput input) {
+            log.info("Received sync event for type: {}, action: {}, id: {}",
+                    event.getEntityType(), event.getAction(), event.getEntityId());
+        }
+        @Override public void tombstoneApplied() { metrics.tombstoneApplied(); }
+        @Override public void replayFailed(ProjectionInput input, Exception failure) {
             metrics.projectionReplayFailure();
             log.error("Search projection failed for {}:{} event {}",
-                    event.getEntityType(), event.getEntityId(), event.getEventId(), e);
-            throw new IllegalStateException("Failed to synchronize search entity", e);
+                    event.getEntityType(), event.getEntityId(), event.getEventId(), failure);
         }
     }
 
@@ -90,13 +107,6 @@ public class ElasticsearchSyncConsumer {
         } catch (Exception e) {
             throw new IllegalArgumentException("entity-sync payload cannot be fingerprinted", e);
         }
-    }
-
-    private void validateEvent(EntitySyncEvent event) {
-        EntitySyncRules.validate(event == null ? null : new EntitySyncRules.Metadata(
-                event.getEventId(), event.getOccurredAt(), event.getEntityType(),
-                event.getAction(), event.getEntityId(), event.getPayload() != null,
-                event.getAggregateVersion(), event.getDeletedAt()));
     }
 
 }
