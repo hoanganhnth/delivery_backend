@@ -44,7 +44,7 @@
       "path": "/api/analytics/dashboard/admin",
       "handler": "getAdminDashboard",
       "source": {
-        "file": "backend_delivery/analytics-service/src/main/java/com/delivery/analytics_service/controller/DashboardController.java",
+        "file": "backend_delivery/analytics/infrastructure/src/main/java/com/delivery/analytics_service/controller/DashboardController.java",
         "line": 28
       },
       "java": {
@@ -102,7 +102,7 @@
       "path": "/api/analytics/dashboard/restaurant/{restaurantId}",
       "handler": "getRestaurantDashboard",
       "source": {
-        "file": "backend_delivery/analytics-service/src/main/java/com/delivery/analytics_service/controller/DashboardController.java",
+        "file": "backend_delivery/analytics/infrastructure/src/main/java/com/delivery/analytics_service/controller/DashboardController.java",
         "line": 53
       },
       "java": {
@@ -172,7 +172,7 @@
       "path": "/api/analytics/dashboard/my-restaurant",
       "handler": "getMyRestaurantDashboard",
       "source": {
-        "file": "backend_delivery/analytics-service/src/main/java/com/delivery/analytics_service/controller/DashboardController.java",
+        "file": "backend_delivery/analytics/infrastructure/src/main/java/com/delivery/analytics_service/controller/DashboardController.java",
         "line": 70
       },
       "java": {
@@ -243,7 +243,7 @@
       "path": "/api/analytics/reconcile",
       "handler": "manualReconcile",
       "source": {
-        "file": "backend_delivery/analytics-service/src/main/java/com/delivery/analytics_service/controller/DashboardController.java",
+        "file": "backend_delivery/analytics/infrastructure/src/main/java/com/delivery/analytics_service/controller/DashboardController.java",
         "line": 92
       },
       "java": {
@@ -11700,7 +11700,7 @@
     "com.delivery.analytics_service.dto.DashboardResponse": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/analytics-service/src/main/java/com/delivery/analytics_service/dto/DashboardResponse.java",
+        "file": "backend_delivery/analytics/infrastructure/src/main/java/com/delivery/analytics_service/dto/DashboardResponse.java",
         "line": 12
       },
       "fields": [],
@@ -11708,7 +11708,7 @@
         "AdminDashboard": {
           "kind": "class",
           "source": {
-            "file": "backend_delivery/analytics-service/src/main/java/com/delivery/analytics_service/dto/DashboardResponse.java",
+            "file": "backend_delivery/analytics/infrastructure/src/main/java/com/delivery/analytics_service/dto/DashboardResponse.java",
             "line": 50
           },
           "fields": [
@@ -11747,7 +11747,7 @@
         "OverviewStats": {
           "kind": "class",
           "source": {
-            "file": "backend_delivery/analytics-service/src/main/java/com/delivery/analytics_service/dto/DashboardResponse.java",
+            "file": "backend_delivery/analytics/infrastructure/src/main/java/com/delivery/analytics_service/dto/DashboardResponse.java",
             "line": 15
           },
           "fields": [
@@ -11804,7 +11804,7 @@
         "RestaurantDashboard": {
           "kind": "class",
           "source": {
-            "file": "backend_delivery/analytics-service/src/main/java/com/delivery/analytics_service/dto/DashboardResponse.java",
+            "file": "backend_delivery/analytics/infrastructure/src/main/java/com/delivery/analytics_service/dto/DashboardResponse.java",
             "line": 59
           },
           "fields": [
@@ -11837,7 +11837,7 @@
         "StatusBreakdown": {
           "kind": "class",
           "source": {
-            "file": "backend_delivery/analytics-service/src/main/java/com/delivery/analytics_service/dto/DashboardResponse.java",
+            "file": "backend_delivery/analytics/infrastructure/src/main/java/com/delivery/analytics_service/dto/DashboardResponse.java",
             "line": 34
           },
           "fields": [
@@ -11858,7 +11858,7 @@
         "TimeSeriesPoint": {
           "kind": "class",
           "source": {
-            "file": "backend_delivery/analytics-service/src/main/java/com/delivery/analytics_service/dto/DashboardResponse.java",
+            "file": "backend_delivery/analytics/infrastructure/src/main/java/com/delivery/analytics_service/dto/DashboardResponse.java",
             "line": 27
           },
           "fields": [
@@ -11885,7 +11885,7 @@
         "TopRestaurant": {
           "kind": "class",
           "source": {
-            "file": "backend_delivery/analytics-service/src/main/java/com/delivery/analytics_service/dto/DashboardResponse.java",
+            "file": "backend_delivery/analytics/infrastructure/src/main/java/com/delivery/analytics_service/dto/DashboardResponse.java",
             "line": 40
           },
           "fields": [
@@ -11920,7 +11920,7 @@
     "com.delivery.analytics_service.payload.BaseResponse": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/analytics-service/src/main/java/com/delivery/analytics_service/payload/BaseResponse.java",
+        "file": "backend_delivery/analytics/infrastructure/src/main/java/com/delivery/analytics_service/payload/BaseResponse.java",
         "line": 10
       },
       "fields": [

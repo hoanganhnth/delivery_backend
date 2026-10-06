@@ -642,7 +642,7 @@ services:
     networks: [delivery-network]
 
   analytics-service:
-    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: analytics-service } }
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: analytics/boot } }
     container_name: analytics-service
     profiles: [optional-capabilities]
     expose: ["8097", "9090"]

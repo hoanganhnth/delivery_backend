@@ -37,7 +37,7 @@ Current inventory: **244 operations** across **18 controller-owning services** a
 ### `GET` `/api/analytics/dashboard/admin`
 
 - Handler: `DashboardController.getAdminDashboard`
-- Source: [`backend_delivery/analytics-service/src/main/java/com/delivery/analytics_service/controller/DashboardController.java:28`](../../../../analytics-service/src/main/java/com/delivery/analytics_service/controller/DashboardController.java)
+- Source: [`backend_delivery/analytics/infrastructure/src/main/java/com/delivery/analytics_service/controller/DashboardController.java:28`](../../../../analytics/infrastructure/src/main/java/com/delivery/analytics_service/controller/DashboardController.java)
 - Java return type: `ResponseEntity<BaseResponse<DashboardResponse.AdminDashboard>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -58,7 +58,7 @@ public ResponseEntity<BaseResponse<DashboardResponse.AdminDashboard>> getAdminDa
 ### `GET` `/api/analytics/dashboard/my-restaurant`
 
 - Handler: `DashboardController.getMyRestaurantDashboard`
-- Source: [`backend_delivery/analytics-service/src/main/java/com/delivery/analytics_service/controller/DashboardController.java:70`](../../../../analytics-service/src/main/java/com/delivery/analytics_service/controller/DashboardController.java)
+- Source: [`backend_delivery/analytics/infrastructure/src/main/java/com/delivery/analytics_service/controller/DashboardController.java:70`](../../../../analytics/infrastructure/src/main/java/com/delivery/analytics_service/controller/DashboardController.java)
 - Java return type: `ResponseEntity<BaseResponse<DashboardResponse.RestaurantDashboard>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -80,7 +80,7 @@ public ResponseEntity<BaseResponse<DashboardResponse.RestaurantDashboard>> getMy
 ### `GET` `/api/analytics/dashboard/restaurant/{restaurantId}`
 
 - Handler: `DashboardController.getRestaurantDashboard`
-- Source: [`backend_delivery/analytics-service/src/main/java/com/delivery/analytics_service/controller/DashboardController.java:53`](../../../../analytics-service/src/main/java/com/delivery/analytics_service/controller/DashboardController.java)
+- Source: [`backend_delivery/analytics/infrastructure/src/main/java/com/delivery/analytics_service/controller/DashboardController.java:53`](../../../../analytics/infrastructure/src/main/java/com/delivery/analytics_service/controller/DashboardController.java)
 - Java return type: `ResponseEntity<BaseResponse<DashboardResponse.RestaurantDashboard>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -102,7 +102,7 @@ public ResponseEntity<BaseResponse<DashboardResponse.RestaurantDashboard>> getRe
 ### `POST` `/api/analytics/reconcile`
 
 - Handler: `DashboardController.manualReconcile`
-- Source: [`backend_delivery/analytics-service/src/main/java/com/delivery/analytics_service/controller/DashboardController.java:92`](../../../../analytics-service/src/main/java/com/delivery/analytics_service/controller/DashboardController.java)
+- Source: [`backend_delivery/analytics/infrastructure/src/main/java/com/delivery/analytics_service/controller/DashboardController.java:92`](../../../../analytics/infrastructure/src/main/java/com/delivery/analytics_service/controller/DashboardController.java)
 - Java return type: `ResponseEntity<BaseResponse<String>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -4997,7 +4997,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.analytics_service.dto.DashboardResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/analytics-service/src/main/java/com/delivery/analytics_service/dto/DashboardResponse.java:12`](../../../../analytics-service/src/main/java/com/delivery/analytics_service/dto/DashboardResponse.java)
+- Source: [`backend_delivery/analytics/infrastructure/src/main/java/com/delivery/analytics_service/dto/DashboardResponse.java:12`](../../../../analytics/infrastructure/src/main/java/com/delivery/analytics_service/dto/DashboardResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5006,7 +5006,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 #### `com.delivery.analytics_service.dto.DashboardResponse.AdminDashboard`
 
 - Kind: `class`
-- Source: [`backend_delivery/analytics-service/src/main/java/com/delivery/analytics_service/dto/DashboardResponse.java:50`](../../../../analytics-service/src/main/java/com/delivery/analytics_service/dto/DashboardResponse.java)
+- Source: [`backend_delivery/analytics/infrastructure/src/main/java/com/delivery/analytics_service/dto/DashboardResponse.java:50`](../../../../analytics/infrastructure/src/main/java/com/delivery/analytics_service/dto/DashboardResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5019,7 +5019,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 #### `com.delivery.analytics_service.dto.DashboardResponse.OverviewStats`
 
 - Kind: `class`
-- Source: [`backend_delivery/analytics-service/src/main/java/com/delivery/analytics_service/dto/DashboardResponse.java:15`](../../../../analytics-service/src/main/java/com/delivery/analytics_service/dto/DashboardResponse.java)
+- Source: [`backend_delivery/analytics/infrastructure/src/main/java/com/delivery/analytics_service/dto/DashboardResponse.java:15`](../../../../analytics/infrastructure/src/main/java/com/delivery/analytics_service/dto/DashboardResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5035,7 +5035,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 #### `com.delivery.analytics_service.dto.DashboardResponse.RestaurantDashboard`
 
 - Kind: `class`
-- Source: [`backend_delivery/analytics-service/src/main/java/com/delivery/analytics_service/dto/DashboardResponse.java:59`](../../../../analytics-service/src/main/java/com/delivery/analytics_service/dto/DashboardResponse.java)
+- Source: [`backend_delivery/analytics/infrastructure/src/main/java/com/delivery/analytics_service/dto/DashboardResponse.java:59`](../../../../analytics/infrastructure/src/main/java/com/delivery/analytics_service/dto/DashboardResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5047,7 +5047,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 #### `com.delivery.analytics_service.dto.DashboardResponse.StatusBreakdown`
 
 - Kind: `class`
-- Source: [`backend_delivery/analytics-service/src/main/java/com/delivery/analytics_service/dto/DashboardResponse.java:34`](../../../../analytics-service/src/main/java/com/delivery/analytics_service/dto/DashboardResponse.java)
+- Source: [`backend_delivery/analytics/infrastructure/src/main/java/com/delivery/analytics_service/dto/DashboardResponse.java:34`](../../../../analytics/infrastructure/src/main/java/com/delivery/analytics_service/dto/DashboardResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5057,7 +5057,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 #### `com.delivery.analytics_service.dto.DashboardResponse.TimeSeriesPoint`
 
 - Kind: `class`
-- Source: [`backend_delivery/analytics-service/src/main/java/com/delivery/analytics_service/dto/DashboardResponse.java:27`](../../../../analytics-service/src/main/java/com/delivery/analytics_service/dto/DashboardResponse.java)
+- Source: [`backend_delivery/analytics/infrastructure/src/main/java/com/delivery/analytics_service/dto/DashboardResponse.java:27`](../../../../analytics/infrastructure/src/main/java/com/delivery/analytics_service/dto/DashboardResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5068,7 +5068,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 #### `com.delivery.analytics_service.dto.DashboardResponse.TopRestaurant`
 
 - Kind: `class`
-- Source: [`backend_delivery/analytics-service/src/main/java/com/delivery/analytics_service/dto/DashboardResponse.java:40`](../../../../analytics-service/src/main/java/com/delivery/analytics_service/dto/DashboardResponse.java)
+- Source: [`backend_delivery/analytics/infrastructure/src/main/java/com/delivery/analytics_service/dto/DashboardResponse.java:40`](../../../../analytics/infrastructure/src/main/java/com/delivery/analytics_service/dto/DashboardResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5080,7 +5080,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.analytics_service.payload.BaseResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/analytics-service/src/main/java/com/delivery/analytics_service/payload/BaseResponse.java:10`](../../../../analytics-service/src/main/java/com/delivery/analytics_service/payload/BaseResponse.java)
+- Source: [`backend_delivery/analytics/infrastructure/src/main/java/com/delivery/analytics_service/payload/BaseResponse.java:10`](../../../../analytics/infrastructure/src/main/java/com/delivery/analytics_service/payload/BaseResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
