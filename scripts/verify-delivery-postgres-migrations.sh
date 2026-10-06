@@ -6,7 +6,7 @@ readonly POSTGRES_DATABASE="${POSTGRES_DATABASE:-delivery_db}"
 readonly CLEAN_SCHEMA="b8_delivery_clean_rehearsal"
 readonly V5_SCHEMA="b8_delivery_v5_rehearsal"
 readonly V9_SCHEMA="b8_delivery_v9_rehearsal"
-readonly MIGRATION_DIR="delivery-service/src/main/resources/db/migration"
+readonly MIGRATION_DIR="delivery/infrastructure/src/main/resources/db/migration"
 
 command -v docker >/dev/null
 

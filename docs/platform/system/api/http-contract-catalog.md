@@ -518,7 +518,7 @@ public ResponseEntity<BaseResponse<AuthResponse>> socialLogin(@Valid @RequestBod
 ### `GET` `/api/deliveries/{deliveryId}/exception`
 
 - Handler: `DeliveryController.getDeliveryException`
-- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:228`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:228`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<DeliveryExceptionResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -538,7 +538,7 @@ public ResponseEntity<BaseResponse<DeliveryExceptionResponse>> getDeliveryExcept
 ### `POST` `/api/deliveries/{deliveryId}/exceptions/failed`
 
 - Handler: `DeliveryController.reportDeliveryFailure`
-- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:197`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:197`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<DeliveryExceptionResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -559,7 +559,7 @@ public ResponseEntity<BaseResponse<DeliveryExceptionResponse>> reportDeliveryFai
 ### `POST` `/api/deliveries/{deliveryId}/exceptions/retry`
 
 - Handler: `DeliveryController.useDeliveryRetry`
-- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:208`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:208`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<DeliveryExceptionResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -579,7 +579,7 @@ public ResponseEntity<BaseResponse<DeliveryExceptionResponse>> useDeliveryRetry(
 ### `POST` `/api/deliveries/{deliveryId}/exceptions/return/confirm`
 
 - Handler: `DeliveryController.confirmDeliveryReturn`
-- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:218`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:218`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<DeliveryExceptionResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -599,7 +599,7 @@ public ResponseEntity<BaseResponse<DeliveryExceptionResponse>> confirmDeliveryRe
 ### `GET` `/api/deliveries/{deliveryId}/proofs/{proofId}/access`
 
 - Handler: `DeliveryController.createProofReadAccess`
-- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:186`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:186`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<ProofAccessResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -620,7 +620,7 @@ public ResponseEntity<BaseResponse<ProofAccessResponse>> createProofReadAccess( 
 ### `POST` `/api/deliveries/{deliveryId}/proofs/{proofId}/confirm`
 
 - Handler: `DeliveryController.confirmProofUpload`
-- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:175`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:175`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<ProofOfDeliveryResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -641,7 +641,7 @@ public ResponseEntity<BaseResponse<ProofOfDeliveryResponse>> confirmProofUpload(
 ### `POST` `/api/deliveries/{deliveryId}/proofs/upload-intent`
 
 - Handler: `DeliveryController.createProofUploadIntent`
-- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:163`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:163`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<ProofUploadIntentResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -662,7 +662,7 @@ public ResponseEntity<BaseResponse<ProofUploadIntentResponse>> createProofUpload
 ### `GET` `/api/deliveries/{id}`
 
 - Handler: `DeliveryController.getDelivery`
-- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:238`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:238`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<DeliveryResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -682,7 +682,7 @@ public ResponseEntity<BaseResponse<DeliveryResponse>> getDelivery( @PathVariable
 ### `PUT` `/api/deliveries/{id}/status`
 
 - Handler: `DeliveryController.updateStatus`
-- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:247`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:247`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<DeliveryResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -703,7 +703,7 @@ public ResponseEntity<BaseResponse<DeliveryResponse>> updateStatus( @PathVariabl
 ### `POST` `/api/deliveries/accept`
 
 - Handler: `DeliveryController.acceptDelivery`
-- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:113`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:113`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<DeliveryResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -723,7 +723,7 @@ public ResponseEntity<BaseResponse<DeliveryResponse>> acceptDelivery( @Valid @Re
 ### `POST` `/api/deliveries/batch/accept`
 
 - Handler: `DeliveryController.acceptBatch`
-- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:93`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:93`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<DeliveryResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -743,7 +743,7 @@ public ResponseEntity<BaseResponse<DeliveryResponse>> acceptBatch( @Valid @Reque
 ### `POST` `/api/deliveries/batch/reject`
 
 - Handler: `DeliveryController.rejectBatch`
-- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:104`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:104`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<Void>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -763,7 +763,7 @@ public ResponseEntity<BaseResponse<Void>> rejectBatch( @Valid @RequestBody Rejec
 ### `GET` `/api/deliveries/batches/{batchId}`
 
 - Handler: `DeliveryController.getBatchSnapshot`
-- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:153`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:153`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<com.delivery.delivery_service.dto.response.DeliveryBatchSnapshotResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -783,7 +783,7 @@ public ResponseEntity<BaseResponse<com.delivery.delivery_service.dto.response.De
 ### `POST` `/api/deliveries/cancel-assignment`
 
 - Handler: `DeliveryController.cancelAssignedDelivery`
-- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:124`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:124`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<DeliveryResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -803,7 +803,7 @@ public ResponseEntity<BaseResponse<DeliveryResponse>> cancelAssignedDelivery( @V
 ### `GET` `/api/deliveries/internal/{deliveryId}/tracking-access`
 
 - Handler: `InternalDeliveryController.canTrack`
-- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/InternalDeliveryController.java:42`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/InternalDeliveryController.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/InternalDeliveryController.java:42`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/InternalDeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<Boolean>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -826,7 +826,7 @@ public ResponseEntity<BaseResponse<Boolean>> canTrack( @PathVariable Long delive
 ### `GET` `/api/deliveries/internal/simulation-runs/{runId}/deliveries`
 
 - Handler: `InternalDeliveryController.findSimulationRunDeliveries`
-- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/InternalDeliveryController.java:74`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/InternalDeliveryController.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/InternalDeliveryController.java:74`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/InternalDeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<SimulationDeliveryStatus>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -846,7 +846,7 @@ public ResponseEntity<BaseResponse<List<SimulationDeliveryStatus>>> findSimulati
 ### `GET` `/api/deliveries/offers/current`
 
 - Handler: `DeliveryController.getCurrentOffer`
-- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:134`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:134`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<DeliveryOfferResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -865,7 +865,7 @@ public ResponseEntity<BaseResponse<DeliveryOfferResponse>> getCurrentOffer( @Aut
 ### `GET` `/api/deliveries/offers/current-batch`
 
 - Handler: `DeliveryController.getCurrentBatchOffer`
-- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:143`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:143`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<com.delivery.delivery_service.dto.response.DeliveryBatchOfferResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -884,7 +884,7 @@ public ResponseEntity<BaseResponse<com.delivery.delivery_service.dto.response.De
 ### `GET` `/api/deliveries/order/{orderId}`
 
 - Handler: `DeliveryController.getDeliveryByOrderId`
-- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:278`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:278`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<DeliveryResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -904,7 +904,7 @@ public ResponseEntity<BaseResponse<DeliveryResponse>> getDeliveryByOrderId( @Pat
 ### `GET` `/api/deliveries/shipper/{shipperId}`
 
 - Handler: `DeliveryController.getDeliveriesByShipper`
-- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:258`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:258`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<DeliveryResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -924,7 +924,7 @@ public ResponseEntity<BaseResponse<List<DeliveryResponse>>> getDeliveriesByShipp
 ### `GET` `/api/deliveries/shipper/{shipperId}/active`
 
 - Handler: `DeliveryController.getActiveDeliveriesByShipper`
-- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:268`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:268`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<DeliveryResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -5288,7 +5288,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.delivery_service.controller.InternalDeliveryController.SimulationDeliveryStatus`
 
 - Kind: `record`
-- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/InternalDeliveryController.java:88`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/controller/InternalDeliveryController.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/InternalDeliveryController.java:88`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/InternalDeliveryController.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5299,7 +5299,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.delivery_service.dto.request.AcceptBatchRequest`
 
 - Kind: `class`
-- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/dto/request/AcceptBatchRequest.java:9`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/dto/request/AcceptBatchRequest.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/dto/request/AcceptBatchRequest.java:9`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/dto/request/AcceptBatchRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5311,7 +5311,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.delivery_service.dto.request.AcceptDeliveryRequest`
 
 - Kind: `class`
-- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/dto/request/AcceptDeliveryRequest.java:15`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/dto/request/AcceptDeliveryRequest.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/dto/request/AcceptDeliveryRequest.java:15`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/dto/request/AcceptDeliveryRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5323,7 +5323,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.delivery_service.dto.request.CancelDeliveryAssignmentRequest`
 
 - Kind: `class`
-- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/dto/request/CancelDeliveryAssignmentRequest.java:9`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/dto/request/CancelDeliveryAssignmentRequest.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/dto/request/CancelDeliveryAssignmentRequest.java:9`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/dto/request/CancelDeliveryAssignmentRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5333,7 +5333,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.delivery_service.dto.request.CreateProofUploadIntentRequest`
 
 - Kind: `class`
-- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/dto/request/CreateProofUploadIntentRequest.java:11`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/dto/request/CreateProofUploadIntentRequest.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/dto/request/CreateProofUploadIntentRequest.java:11`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/dto/request/CreateProofUploadIntentRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5343,7 +5343,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.delivery_service.dto.request.RejectBatchRequest`
 
 - Kind: `class`
-- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/dto/request/RejectBatchRequest.java:9`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/dto/request/RejectBatchRequest.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/dto/request/RejectBatchRequest.java:9`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/dto/request/RejectBatchRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5353,7 +5353,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.delivery_service.dto.request.ReportDeliveryFailureRequest`
 
 - Kind: `class`
-- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/dto/request/ReportDeliveryFailureRequest.java:8`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/dto/request/ReportDeliveryFailureRequest.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/dto/request/ReportDeliveryFailureRequest.java:8`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/dto/request/ReportDeliveryFailureRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5362,7 +5362,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.delivery_service.dto.response.DeliveryBatchOfferResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/dto/response/DeliveryBatchOfferResponse.java:14`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/dto/response/DeliveryBatchOfferResponse.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/dto/response/DeliveryBatchOfferResponse.java:14`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/dto/response/DeliveryBatchOfferResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5376,7 +5376,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.delivery_service.dto.response.DeliveryBatchSnapshotItemResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/dto/response/DeliveryBatchSnapshotItemResponse.java:9`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/dto/response/DeliveryBatchSnapshotItemResponse.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/dto/response/DeliveryBatchSnapshotItemResponse.java:9`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/dto/response/DeliveryBatchSnapshotItemResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5390,7 +5390,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.delivery_service.dto.response.DeliveryBatchSnapshotResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/dto/response/DeliveryBatchSnapshotResponse.java:15`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/dto/response/DeliveryBatchSnapshotResponse.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/dto/response/DeliveryBatchSnapshotResponse.java:15`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/dto/response/DeliveryBatchSnapshotResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5404,7 +5404,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.delivery_service.dto.response.DeliveryExceptionResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/dto/response/DeliveryExceptionResponse.java:12`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/dto/response/DeliveryExceptionResponse.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/dto/response/DeliveryExceptionResponse.java:12`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/dto/response/DeliveryExceptionResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5421,7 +5421,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.delivery_service.dto.response.DeliveryOfferResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/dto/response/DeliveryOfferResponse.java:17`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/dto/response/DeliveryOfferResponse.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/dto/response/DeliveryOfferResponse.java:17`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/dto/response/DeliveryOfferResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5452,7 +5452,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.delivery_service.dto.response.DeliveryResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/dto/response/DeliveryResponse.java:12`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/dto/response/DeliveryResponse.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/dto/response/DeliveryResponse.java:12`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/dto/response/DeliveryResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5487,7 +5487,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.delivery_service.dto.response.ProofAccessResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/dto/response/ProofAccessResponse.java:12`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/dto/response/ProofAccessResponse.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/dto/response/ProofAccessResponse.java:12`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/dto/response/ProofAccessResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5498,7 +5498,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.delivery_service.dto.response.ProofOfDeliveryResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/dto/response/ProofOfDeliveryResponse.java:12`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/dto/response/ProofOfDeliveryResponse.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/dto/response/ProofOfDeliveryResponse.java:12`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/dto/response/ProofOfDeliveryResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5512,7 +5512,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.delivery_service.dto.response.ProofUploadIntentResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/dto/response/ProofUploadIntentResponse.java:13`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/dto/response/ProofUploadIntentResponse.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/dto/response/ProofUploadIntentResponse.java:13`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/dto/response/ProofUploadIntentResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5526,7 +5526,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.delivery_service.entity.DeliveryBatchItemStatus`
 
 - Kind: `enum`
-- Source: [`backend_delivery/modules/delivery/delivery-infrastructure/src/main/java/com/delivery/delivery_service/entity/DeliveryBatchItemStatus.java:3`](../../../../modules/delivery/delivery-infrastructure/src/main/java/com/delivery/delivery_service/entity/DeliveryBatchItemStatus.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/entity/DeliveryBatchItemStatus.java:3`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/entity/DeliveryBatchItemStatus.java)
 - Enum values: `OFFERED`, `ACCEPTED`, `PICKED_UP`, `DELIVERING`, `DELIVERED`, `RETURNING`, `RETURNED`, `CANCELLED`, `RETIRED`
 
 | Field | Java type | Required | Validation/annotations |
@@ -5536,7 +5536,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.delivery_service.entity.DeliveryBatchStatus`
 
 - Kind: `enum`
-- Source: [`backend_delivery/modules/delivery/delivery-infrastructure/src/main/java/com/delivery/delivery_service/entity/DeliveryBatchStatus.java:3`](../../../../modules/delivery/delivery-infrastructure/src/main/java/com/delivery/delivery_service/entity/DeliveryBatchStatus.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/entity/DeliveryBatchStatus.java:3`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/entity/DeliveryBatchStatus.java)
 - Enum values: `OFFERED`, `ACCEPTED`, `PICKED_UP`, `DELIVERING`, `COMPLETED`, `CANCELLED`, `RETIRED`
 
 | Field | Java type | Required | Validation/annotations |
@@ -5546,7 +5546,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.delivery_service.entity.DeliveryExceptionStatus`
 
 - Kind: `enum`
-- Source: [`backend_delivery/modules/delivery/delivery-infrastructure/src/main/java/com/delivery/delivery_service/entity/DeliveryExceptionStatus.java:4`](../../../../modules/delivery/delivery-infrastructure/src/main/java/com/delivery/delivery_service/entity/DeliveryExceptionStatus.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/entity/DeliveryExceptionStatus.java:4`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/entity/DeliveryExceptionStatus.java)
 - Enum values: `RETRY_AVAILABLE`, `RETRY_USED`, `RETURNING`, `RETURNED`, `RESOLVED`
 
 | Field | Java type | Required | Validation/annotations |
@@ -5556,7 +5556,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.delivery_service.entity.DeliveryProofStatus`
 
 - Kind: `enum`
-- Source: [`backend_delivery/modules/delivery/delivery-infrastructure/src/main/java/com/delivery/delivery_service/entity/DeliveryProofStatus.java:4`](../../../../modules/delivery/delivery-infrastructure/src/main/java/com/delivery/delivery_service/entity/DeliveryProofStatus.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/entity/DeliveryProofStatus.java:4`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/entity/DeliveryProofStatus.java)
 - Enum values: `UPLOAD_PENDING`, `CONFIRMED`, `EXPIRED`, `PURGED`
 
 | Field | Java type | Required | Validation/annotations |
@@ -5566,7 +5566,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.delivery_service.entity.DeliveryStatus`
 
 - Kind: `enum`
-- Source: [`backend_delivery/modules/delivery/delivery-infrastructure/src/main/java/com/delivery/delivery_service/entity/DeliveryStatus.java:3`](../../../../modules/delivery/delivery-infrastructure/src/main/java/com/delivery/delivery_service/entity/DeliveryStatus.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/entity/DeliveryStatus.java:3`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/entity/DeliveryStatus.java)
 - Enum values: `PENDING`, `FINDING_SHIPPER`, `WAIT_SHIPPER_CONFIRM`, `SHIPPER_NOT_FOUND`, `ASSIGNED`, `PICKED_UP`, `DELIVERING`, `DELIVERED`, `RETURNING`, `RETURNED`, `CANCELLED`
 
 | Field | Java type | Required | Validation/annotations |
@@ -5576,7 +5576,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.delivery_service.payload.BaseResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/payload/BaseResponse.java:6`](../../../../delivery-service/src/main/java/com/delivery/delivery_service/payload/BaseResponse.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/payload/BaseResponse.java:6`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/payload/BaseResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |

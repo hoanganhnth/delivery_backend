@@ -26,6 +26,7 @@ for service in "${services[@]}"; do
   [[ "$service" == "saga-orchestrator-service" ]] && canonical="dispatch"
   if [[ -f "${service}/pom.xml" && -d "${service}/src" ]]; then
     service_paths+=("$service")
+  # Consolidated services (including Delivery) package their runtime from <name>/boot.
   elif [[ -f "${canonical}/boot/pom.xml" && -d "${canonical}/boot/src" ]]; then
     service_paths+=("${canonical}/boot")
   else

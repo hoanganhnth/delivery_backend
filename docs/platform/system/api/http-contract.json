@@ -1080,7 +1080,7 @@
       "path": "/api/deliveries/accept",
       "handler": "acceptDelivery",
       "source": {
-        "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
+        "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
         "line": 113
       },
       "java": {
@@ -1130,7 +1130,7 @@
       "path": "/api/deliveries/batch/accept",
       "handler": "acceptBatch",
       "source": {
-        "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
+        "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
         "line": 93
       },
       "java": {
@@ -1180,7 +1180,7 @@
       "path": "/api/deliveries/batch/reject",
       "handler": "rejectBatch",
       "source": {
-        "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
+        "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
         "line": 104
       },
       "java": {
@@ -1230,7 +1230,7 @@
       "path": "/api/deliveries/cancel-assignment",
       "handler": "cancelAssignedDelivery",
       "source": {
-        "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
+        "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
         "line": 124
       },
       "java": {
@@ -1280,7 +1280,7 @@
       "path": "/api/deliveries/offers/current",
       "handler": "getCurrentOffer",
       "source": {
-        "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
+        "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
         "line": 134
       },
       "java": {
@@ -1311,7 +1311,7 @@
       "path": "/api/deliveries/offers/current-batch",
       "handler": "getCurrentBatchOffer",
       "source": {
-        "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
+        "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
         "line": 143
       },
       "java": {
@@ -1342,7 +1342,7 @@
       "path": "/api/deliveries/batches/{batchId}",
       "handler": "getBatchSnapshot",
       "source": {
-        "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
+        "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
         "line": 153
       },
       "java": {
@@ -1385,7 +1385,7 @@
       "path": "/api/deliveries/{deliveryId}/proofs/upload-intent",
       "handler": "createProofUploadIntent",
       "source": {
-        "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
+        "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
         "line": 163
       },
       "java": {
@@ -1447,7 +1447,7 @@
       "path": "/api/deliveries/{deliveryId}/proofs/{proofId}/confirm",
       "handler": "confirmProofUpload",
       "source": {
-        "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
+        "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
         "line": 175
       },
       "java": {
@@ -1502,7 +1502,7 @@
       "path": "/api/deliveries/{deliveryId}/proofs/{proofId}/access",
       "handler": "createProofReadAccess",
       "source": {
-        "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
+        "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
         "line": 186
       },
       "java": {
@@ -1557,7 +1557,7 @@
       "path": "/api/deliveries/{deliveryId}/exceptions/failed",
       "handler": "reportDeliveryFailure",
       "source": {
-        "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
+        "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
         "line": 197
       },
       "java": {
@@ -1619,7 +1619,7 @@
       "path": "/api/deliveries/{deliveryId}/exceptions/retry",
       "handler": "useDeliveryRetry",
       "source": {
-        "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
+        "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
         "line": 208
       },
       "java": {
@@ -1662,7 +1662,7 @@
       "path": "/api/deliveries/{deliveryId}/exceptions/return/confirm",
       "handler": "confirmDeliveryReturn",
       "source": {
-        "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
+        "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
         "line": 218
       },
       "java": {
@@ -1705,7 +1705,7 @@
       "path": "/api/deliveries/{deliveryId}/exception",
       "handler": "getDeliveryException",
       "source": {
-        "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
+        "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
         "line": 228
       },
       "java": {
@@ -1748,7 +1748,7 @@
       "path": "/api/deliveries/{id}",
       "handler": "getDelivery",
       "source": {
-        "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
+        "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
         "line": 238
       },
       "java": {
@@ -1791,7 +1791,7 @@
       "path": "/api/deliveries/{id}/status",
       "handler": "updateStatus",
       "source": {
-        "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
+        "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
         "line": 247
       },
       "java": {
@@ -1846,7 +1846,7 @@
       "path": "/api/deliveries/shipper/{shipperId}",
       "handler": "getDeliveriesByShipper",
       "source": {
-        "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
+        "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
         "line": 258
       },
       "java": {
@@ -1889,7 +1889,7 @@
       "path": "/api/deliveries/shipper/{shipperId}/active",
       "handler": "getActiveDeliveriesByShipper",
       "source": {
-        "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
+        "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
         "line": 268
       },
       "java": {
@@ -1932,7 +1932,7 @@
       "path": "/api/deliveries/order/{orderId}",
       "handler": "getDeliveryByOrderId",
       "source": {
-        "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
+        "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
         "line": 278
       },
       "java": {
@@ -1975,7 +1975,7 @@
       "path": "/api/deliveries/internal/{deliveryId}/tracking-access",
       "handler": "canTrack",
       "source": {
-        "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/InternalDeliveryController.java",
+        "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/InternalDeliveryController.java",
         "line": 42
       },
       "java": {
@@ -9943,7 +9943,7 @@
       "path": "/api/deliveries/internal/simulation-runs/{runId}/deliveries",
       "handler": "findSimulationRunDeliveries",
       "source": {
-        "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/InternalDeliveryController.java",
+        "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/InternalDeliveryController.java",
         "line": 74
       },
       "java": {
@@ -12645,7 +12645,7 @@
     "com.delivery.delivery_service.controller.InternalDeliveryController.SimulationDeliveryStatus": {
       "kind": "record",
       "source": {
-        "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/controller/InternalDeliveryController.java",
+        "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/InternalDeliveryController.java",
         "line": 88
       },
       "fields": [
@@ -12672,7 +12672,7 @@
     "com.delivery.delivery_service.dto.request.AcceptBatchRequest": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/dto/request/AcceptBatchRequest.java",
+        "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/dto/request/AcceptBatchRequest.java",
         "line": 9
       },
       "fields": [
@@ -12714,7 +12714,7 @@
     "com.delivery.delivery_service.dto.request.AcceptDeliveryRequest": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/dto/request/AcceptDeliveryRequest.java",
+        "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/dto/request/AcceptDeliveryRequest.java",
         "line": 15
       },
       "fields": [
@@ -12815,7 +12815,7 @@
     "com.delivery.delivery_service.dto.request.CancelDeliveryAssignmentRequest": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/dto/request/CancelDeliveryAssignmentRequest.java",
+        "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/dto/request/CancelDeliveryAssignmentRequest.java",
         "line": 9
       },
       "fields": [
@@ -12866,7 +12866,7 @@
     "com.delivery.delivery_service.dto.request.CreateProofUploadIntentRequest": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/dto/request/CreateProofUploadIntentRequest.java",
+        "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/dto/request/CreateProofUploadIntentRequest.java",
         "line": 11
       },
       "fields": [
@@ -12925,7 +12925,7 @@
     "com.delivery.delivery_service.dto.request.RejectBatchRequest": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/dto/request/RejectBatchRequest.java",
+        "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/dto/request/RejectBatchRequest.java",
         "line": 9
       },
       "fields": [
@@ -12955,7 +12955,7 @@
     "com.delivery.delivery_service.dto.request.ReportDeliveryFailureRequest": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/dto/request/ReportDeliveryFailureRequest.java",
+        "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/dto/request/ReportDeliveryFailureRequest.java",
         "line": 8
       },
       "fields": [
@@ -12989,7 +12989,7 @@
     "com.delivery.delivery_service.dto.response.DeliveryBatchOfferResponse": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/dto/response/DeliveryBatchOfferResponse.java",
+        "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/dto/response/DeliveryBatchOfferResponse.java",
         "line": 14
       },
       "fields": [
@@ -13034,7 +13034,7 @@
     "com.delivery.delivery_service.dto.response.DeliveryBatchSnapshotItemResponse": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/dto/response/DeliveryBatchSnapshotItemResponse.java",
+        "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/dto/response/DeliveryBatchSnapshotItemResponse.java",
         "line": 9
       },
       "fields": [
@@ -13079,7 +13079,7 @@
     "com.delivery.delivery_service.dto.response.DeliveryBatchSnapshotResponse": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/dto/response/DeliveryBatchSnapshotResponse.java",
+        "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/dto/response/DeliveryBatchSnapshotResponse.java",
         "line": 15
       },
       "fields": [
@@ -13124,7 +13124,7 @@
     "com.delivery.delivery_service.dto.response.DeliveryExceptionResponse": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/dto/response/DeliveryExceptionResponse.java",
+        "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/dto/response/DeliveryExceptionResponse.java",
         "line": 12
       },
       "fields": [
@@ -13187,7 +13187,7 @@
     "com.delivery.delivery_service.dto.response.DeliveryOfferResponse": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/dto/response/DeliveryOfferResponse.java",
+        "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/dto/response/DeliveryOfferResponse.java",
         "line": 17
       },
       "fields": [
@@ -13334,7 +13334,7 @@
     "com.delivery.delivery_service.dto.response.DeliveryResponse": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/dto/response/DeliveryResponse.java",
+        "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/dto/response/DeliveryResponse.java",
         "line": 12
       },
       "fields": [
@@ -13505,7 +13505,7 @@
     "com.delivery.delivery_service.dto.response.ProofAccessResponse": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/dto/response/ProofAccessResponse.java",
+        "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/dto/response/ProofAccessResponse.java",
         "line": 12
       },
       "fields": [
@@ -13532,7 +13532,7 @@
     "com.delivery.delivery_service.dto.response.ProofOfDeliveryResponse": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/dto/response/ProofOfDeliveryResponse.java",
+        "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/dto/response/ProofOfDeliveryResponse.java",
         "line": 12
       },
       "fields": [
@@ -13577,7 +13577,7 @@
     "com.delivery.delivery_service.dto.response.ProofUploadIntentResponse": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/dto/response/ProofUploadIntentResponse.java",
+        "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/dto/response/ProofUploadIntentResponse.java",
         "line": 13
       },
       "fields": [
@@ -13622,7 +13622,7 @@
     "com.delivery.delivery_service.entity.DeliveryBatchItemStatus": {
       "kind": "enum",
       "source": {
-        "file": "backend_delivery/modules/delivery/delivery-infrastructure/src/main/java/com/delivery/delivery_service/entity/DeliveryBatchItemStatus.java",
+        "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/entity/DeliveryBatchItemStatus.java",
         "line": 3
       },
       "fields": [],
@@ -13641,7 +13641,7 @@
     "com.delivery.delivery_service.entity.DeliveryBatchStatus": {
       "kind": "enum",
       "source": {
-        "file": "backend_delivery/modules/delivery/delivery-infrastructure/src/main/java/com/delivery/delivery_service/entity/DeliveryBatchStatus.java",
+        "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/entity/DeliveryBatchStatus.java",
         "line": 3
       },
       "fields": [],
@@ -13658,7 +13658,7 @@
     "com.delivery.delivery_service.entity.DeliveryExceptionStatus": {
       "kind": "enum",
       "source": {
-        "file": "backend_delivery/modules/delivery/delivery-infrastructure/src/main/java/com/delivery/delivery_service/entity/DeliveryExceptionStatus.java",
+        "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/entity/DeliveryExceptionStatus.java",
         "line": 4
       },
       "fields": [],
@@ -13673,7 +13673,7 @@
     "com.delivery.delivery_service.entity.DeliveryProofStatus": {
       "kind": "enum",
       "source": {
-        "file": "backend_delivery/modules/delivery/delivery-infrastructure/src/main/java/com/delivery/delivery_service/entity/DeliveryProofStatus.java",
+        "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/entity/DeliveryProofStatus.java",
         "line": 4
       },
       "fields": [],
@@ -13687,7 +13687,7 @@
     "com.delivery.delivery_service.entity.DeliveryStatus": {
       "kind": "enum",
       "source": {
-        "file": "backend_delivery/modules/delivery/delivery-infrastructure/src/main/java/com/delivery/delivery_service/entity/DeliveryStatus.java",
+        "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/entity/DeliveryStatus.java",
         "line": 3
       },
       "fields": [],
@@ -13708,7 +13708,7 @@
     "com.delivery.delivery_service.payload.BaseResponse": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/delivery-service/src/main/java/com/delivery/delivery_service/payload/BaseResponse.java",
+        "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/payload/BaseResponse.java",
         "line": 6
       },
       "fields": [
