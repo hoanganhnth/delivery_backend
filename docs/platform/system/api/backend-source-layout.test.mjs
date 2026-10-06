@@ -248,3 +248,25 @@ test('Simulator relocation preserves identity, adapters and Java migration owner
   assert.ok(modules.indexOf('<module>simulator/infrastructure</module>')
     < modules.indexOf('<module>simulator/boot</module>'));
 });
+});
+
+test('Flashsale relocation keeps its artifact identity and adapters discoverable', () => {
+  const backend = path.resolve(import.meta.dirname, '../../../..');
+  assert.equal(fs.existsSync(path.join(backend, 'flashsale-service')), false);
+  assert.deepEqual(serviceSourceRoots(backend)
+    .filter(({ service }) => service === 'flashsale-service')
+    .map(({ directory }) => path.relative(backend, directory)).sort(), [
+    'flashsale/boot/src/main/java',
+    'flashsale/infrastructure/src/main/java',
+  ]);
+  assert.equal(serviceForSource(backend, path.join(backend,
+    'flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/controller/PublicFlashSaleController.java')),
+  'flashsale-service');
+  const bootSources = fs.readdirSync(path.join(backend,
+    'flashsale/boot/src/main/java/com/delivery/flashsale_service'));
+  assert.deepEqual(bootSources, ['FlashsaleServiceApplication.java']);
+  assert.ok(fs.existsSync(path.join(backend,
+    'flashsale/infrastructure/src/main/resources/db/migration')));
+  assert.equal(fs.existsSync(path.join(backend, 'flashsale/boot/src/main/resources/db')), false);
+});
+

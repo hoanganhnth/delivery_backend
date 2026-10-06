@@ -36,7 +36,7 @@ modules=(
   web-bff/boot
   livestream/boot
   settlement/boot
-  flashsale-service
+  flashsale/boot
   analytics/boot
   promotion/boot
   simulator/boot
@@ -269,7 +269,7 @@ if rg -n 'new BaseResponse<>' \
     --glob '!**/BaseResponse.java' \
     "${ROOT_DIR}/auth/infrastructure/src/main/java" \
     "${ROOT_DIR}/settlement/infrastructure/src/main/java" \
-    "${ROOT_DIR}/flashsale-service/src/main/java" >/dev/null; then
+    "${ROOT_DIR}/flashsale/infrastructure/src/main/java" >/dev/null; then
   echo "Auth, Settlement and Flash Sale must use BaseResponse named factories at call sites." >&2
   exit 1
 fi
@@ -333,9 +333,9 @@ fi
 
 hidden_capability_defaults=(
   'analytics/boot/src/main/resources/application.properties|app.analytics.processing-enabled=${ANALYTICS_PROCESSING_ENABLED:false}'
-  'flashsale-service/src/main/resources/application.properties|app.flashsale.checkout-enabled=${FLASHSALE_CHECKOUT_ENABLED:false}'
-  'flashsale-service/src/main/resources/application.properties|app.flashsale.outbox-relay-enabled=${FLASHSALE_OUTBOX_RELAY_ENABLED:false}'
-  'flashsale-service/src/main/resources/application.properties|app.flashsale.merchant-registration-enabled=${FLASHSALE_MERCHANT_REGISTRATION_ENABLED:false}'
+  'flashsale/boot/src/main/resources/application.properties|app.flashsale.checkout-enabled=${FLASHSALE_CHECKOUT_ENABLED:false}'
+  'flashsale/boot/src/main/resources/application.properties|app.flashsale.outbox-relay-enabled=${FLASHSALE_OUTBOX_RELAY_ENABLED:false}'
+  'flashsale/boot/src/main/resources/application.properties|app.flashsale.merchant-registration-enabled=${FLASHSALE_MERCHANT_REGISTRATION_ENABLED:false}'
   'livestream/boot/src/main/resources/application.properties|app.livestream.api-enabled=${LIVESTREAM_API_ENABLED:false}'
   'order/boot/src/main/resources/application.properties|app.order.payment-event-processing-enabled=${ORDER_PAYMENT_EVENT_PROCESSING_ENABLED:false}'
   'order/boot/src/main/resources/application.properties|app.order.voucher-checkout-enabled=${ORDER_VOUCHER_CHECKOUT_ENABLED:false}'
