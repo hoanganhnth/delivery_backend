@@ -38,7 +38,7 @@ modules=(
   settlement/boot
   flashsale-service
   analytics-service
-  promotion-service
+  promotion/boot
   simulator-service
 )
 
@@ -350,9 +350,9 @@ hidden_capability_defaults=(
   'notification/boot/src/main/resources/application.properties|app.notification.preferences-enabled=${NOTIFICATION_PREFERENCES_ENABLED:false}'
   'shipper/boot/src/main/resources/application.properties|app.shipper.legacy-rating-write-api-enabled=${SHIPPER_LEGACY_RATING_WRITE_API_ENABLED:false}'
   'shipper/boot/src/main/resources/application.properties|app.shipper.legacy-delete-api-enabled=${SHIPPER_LEGACY_DELETE_API_ENABLED:false}'
-  'promotion-service/src/main/resources/application.yml|merchant-create-api-enabled: ${PROMOTION_MERCHANT_CREATE_API_ENABLED:false}'
-  'promotion-service/src/main/resources/application.yml|checkout-enabled: ${PROMOTION_CHECKOUT_ENABLED:false}'
-  'promotion-service/src/main/resources/application.yml|outbox-relay-enabled: ${PROMOTION_OUTBOX_RELAY_ENABLED:false}'
+  'promotion/boot/src/main/resources/application.yml|merchant-create-api-enabled: ${PROMOTION_MERCHANT_CREATE_API_ENABLED:false}'
+  'promotion/boot/src/main/resources/application.yml|checkout-enabled: ${PROMOTION_CHECKOUT_ENABLED:false}'
+  'promotion/boot/src/main/resources/application.yml|outbox-relay-enabled: ${PROMOTION_OUTBOX_RELAY_ENABLED:false}'
 )
 for entry in "${hidden_capability_defaults[@]}"; do
   relative_file="${entry%%|*}"
@@ -384,7 +384,7 @@ if rg -Fq 'ORDER_LEGACY_' "${legacy_order_properties}" \
   exit 1
 fi
 if rg -q 'BaseResponse<(java\.util\.List<)?Voucher>' \
-    "${ROOT_DIR}/promotion-service/src/main/java/com/delivery/promotion_service/controller"; then
+    "${ROOT_DIR}/promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller"; then
   echo "promotion-service: HTTP controllers must return VoucherResponse instead of serializing Voucher entities." >&2
   exit 1
 fi
@@ -473,7 +473,7 @@ for module in "${flyway_authority_modules[@]}"; do
   fi
 done
 
-promotion_config="${ROOT_DIR}/promotion-service/src/main/resources/application.yml"
+promotion_config="${ROOT_DIR}/promotion/boot/src/main/resources/application.yml"
 if ! rg -q 'ddl-auto:[[:space:]]*validate' "${promotion_config}"; then
   echo "promotion-service: Flyway-owned production schema must use Hibernate validate." >&2
   exit 1
@@ -646,7 +646,7 @@ if ! rg -Fq 'DLT_REPLAY_CONFIRMATION must exactly equal' \
   echo "Kafka DLT recovery must remain coordinate-confirmed, dry-run by default, and single-record only." >&2
   exit 1
 fi
-for manual_dlt_consumer in delivery/infrastructure dispatch/infrastructure match/infrastructure platform/kafka-starter promotion-service; do
+for manual_dlt_consumer in delivery/infrastructure dispatch/infrastructure match/infrastructure platform/kafka-starter promotion/infrastructure; do
   if ! rg -Fq 'setCommitRecovered(true)' \
       "${ROOT_DIR}/${manual_dlt_consumer}/src/main/java"; then
     echo "${manual_dlt_consumer}: manual-immediate DLT recovery must commit the recovered source offset." >&2
@@ -679,11 +679,11 @@ if ! rg -Fq 'ON CONFLICT DO NOTHING' "${refund_case_repository}" \
   echo "settlement-service: feature-gated refund intake must atomically claim its durable case before an outbox handoff." >&2
   exit 1
 fi
-promotion_kafka_config="${ROOT_DIR}/promotion-service/src/main/java/com/delivery/promotion_service/config/KafkaConfig.java"
-promotion_order_listener="${ROOT_DIR}/promotion-service/src/main/java/com/delivery/promotion_service/listener/OrderReservationEventListener.java"
-promotion_order_processor="${ROOT_DIR}/promotion-service/src/main/java/com/delivery/promotion_service/service/PromotionOrderReservationEventProcessor.java"
-promotion_order_receipt_repository="${ROOT_DIR}/promotion-service/src/main/java/com/delivery/promotion_service/repository/PromotionOrderReservationReceiptRepository.java"
-promotion_order_receipt_migration="${ROOT_DIR}/promotion-service/src/main/resources/db/migration/V4__promotion_order_reservation_receipts.sql"
+promotion_kafka_config="${ROOT_DIR}/promotion/infrastructure/src/main/java/com/delivery/promotion_service/config/KafkaConfig.java"
+promotion_order_listener="${ROOT_DIR}/promotion/infrastructure/src/main/java/com/delivery/promotion_service/listener/OrderReservationEventListener.java"
+promotion_order_processor="${ROOT_DIR}/promotion/infrastructure/src/main/java/com/delivery/promotion_service/service/PromotionOrderReservationEventProcessor.java"
+promotion_order_receipt_repository="${ROOT_DIR}/promotion/infrastructure/src/main/java/com/delivery/promotion_service/repository/PromotionOrderReservationReceiptRepository.java"
+promotion_order_receipt_migration="${ROOT_DIR}/promotion/infrastructure/src/main/resources/db/migration/V4__promotion_order_reservation_receipts.sql"
 if [[ ! -f "${promotion_order_receipt_migration}" ]] \
     || ! rg -Fq 'promotion_order_reservation_receipts' "${promotion_order_receipt_migration}" \
     || ! rg -Fq 'ON CONFLICT (event_id) DO NOTHING' "${promotion_order_receipt_repository}" \

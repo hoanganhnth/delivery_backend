@@ -25,11 +25,10 @@ for service in "${services[@]}"; do
   # Consolidated services (including notification-service) package from <name>/boot.
   # The Saga orchestrator was repurposed in place as Dispatch; its artifact name is unchanged.
   [[ "$service" == "saga-orchestrator-service" ]] && canonical="dispatch"
-  if [[ -f "${service}/pom.xml" && -d "${service}/src" ]]; then
-    service_paths+=("$service")
-  # Consolidated services (including Delivery) package their runtime from <name>/boot.
-  elif [[ -f "${canonical}/boot/pom.xml" && -d "${canonical}/boot/src" ]]; then
+  if [[ -f "${canonical}/boot/pom.xml" && -d "${canonical}/boot/src" ]]; then
     service_paths+=("${canonical}/boot")
+  elif [[ -f "${service}/pom.xml" && -d "${service}/src" ]]; then
+    service_paths+=("$service")
   else
     die "Unknown or non-packageable service: ${service}"
   fi

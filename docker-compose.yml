@@ -616,7 +616,7 @@ services:
     networks: [delivery-network]
 
   promotion-service:
-    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: promotion-service } }
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: promotion/boot } }
     container_name: promotion-service
     profiles: [optional-capabilities]
     expose: ["8096", "9090"]

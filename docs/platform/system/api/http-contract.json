@@ -4710,7 +4710,7 @@
       "path": "/api/promotions/platform",
       "handler": "createPlatformVoucher",
       "source": {
-        "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
+        "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
         "line": 66
       },
       "java": {
@@ -4760,7 +4760,7 @@
       "path": "/api/promotions/capability",
       "handler": "capability",
       "source": {
-        "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
+        "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
         "line": 53
       },
       "java": {
@@ -4791,7 +4791,7 @@
       "path": "/api/promotions/shop",
       "handler": "createShopVoucher",
       "source": {
-        "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
+        "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
         "line": 77
       },
       "java": {
@@ -4833,7 +4833,7 @@
       "path": "/api/promotions/collect/{code}",
       "handler": "collectVoucher",
       "source": {
-        "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
+        "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
         "line": 93
       },
       "java": {
@@ -4876,7 +4876,7 @@
       "path": "/api/promotions/my-vouchers",
       "handler": "getMyVouchers",
       "source": {
-        "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
+        "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
         "line": 106
       },
       "java": {
@@ -4907,7 +4907,7 @@
       "path": "/api/promotions/merchant",
       "handler": "listMerchantVouchers",
       "source": {
-        "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
+        "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
         "line": 118
       },
       "java": {
@@ -4938,7 +4938,7 @@
       "path": "/api/promotions/shop",
       "handler": "listShopVouchers",
       "source": {
-        "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
+        "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
         "line": 125
       },
       "java": {
@@ -4969,7 +4969,7 @@
       "path": "/api/promotions/admin",
       "handler": "listAllVouchers",
       "source": {
-        "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
+        "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
         "line": 134
       },
       "java": {
@@ -5000,7 +5000,7 @@
       "path": "/api/promotions/admin/pending-shop",
       "handler": "listPendingShopVouchers",
       "source": {
-        "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
+        "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
         "line": 141
       },
       "java": {
@@ -5031,7 +5031,7 @@
       "path": "/api/promotions/admin/{id}/approve",
       "handler": "approveShopVoucher",
       "source": {
-        "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
+        "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
         "line": 148
       },
       "java": {
@@ -5074,7 +5074,7 @@
       "path": "/api/promotions/admin/{id}/reject",
       "handler": "rejectShopVoucher",
       "source": {
-        "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
+        "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
         "line": 158
       },
       "java": {
@@ -5130,7 +5130,7 @@
       "path": "/api/promotions/admin/{id}/pause",
       "handler": "pauseVoucher",
       "source": {
-        "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
+        "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
         "line": 169
       },
       "java": {
@@ -5173,7 +5173,7 @@
       "path": "/api/promotions/admin/{id}/resume",
       "handler": "resumeVoucher",
       "source": {
-        "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
+        "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
         "line": 178
       },
       "java": {
@@ -5216,7 +5216,7 @@
       "path": "/api/promotions/{id}",
       "handler": "deleteVoucher",
       "source": {
-        "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
+        "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
         "line": 187
       },
       "java": {
@@ -5259,7 +5259,7 @@
       "path": "/api/promotions/internal/calculate",
       "handler": "calculate",
       "source": {
-        "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
+        "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
         "line": 197
       },
       "java": {
@@ -5303,7 +5303,7 @@
       "path": "/api/promotions/internal/reserve",
       "handler": "reserve",
       "source": {
-        "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
+        "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
         "line": 213
       },
       "java": {
@@ -5347,7 +5347,7 @@
       "path": "/api/promotions/internal/reservations",
       "handler": "reserveBulk",
       "source": {
-        "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
+        "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
         "line": 232
       },
       "java": {
@@ -5399,7 +5399,7 @@
       "path": "/api/promotions/internal/reservations/{reservationId}/commit",
       "handler": "commit",
       "source": {
-        "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
+        "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
         "line": 240
       },
       "java": {
@@ -5456,7 +5456,7 @@
       "path": "/api/promotions/internal/reservations/{reservationId}/release",
       "handler": "release",
       "source": {
-        "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
+        "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
         "line": 250
       },
       "java": {
@@ -5513,7 +5513,7 @@
       "path": "/api/promotions/internal/promotion-reservations/{reservationId}/commit",
       "handler": "commitBulk",
       "source": {
-        "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
+        "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
         "line": 260
       },
       "java": {
@@ -5582,7 +5582,7 @@
       "path": "/api/promotions/internal/promotion-reservations/{reservationId}/release",
       "handler": "releaseBulk",
       "source": {
-        "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
+        "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/controller/PromotionController.java",
         "line": 271
       },
       "java": {
@@ -18090,7 +18090,7 @@
     "com.delivery.promotion_service.dto.BulkReserveRequest": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/dto/BulkReserveRequest.java",
+        "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/dto/BulkReserveRequest.java",
         "line": 21
       },
       "fields": [
@@ -18265,7 +18265,7 @@
     "com.delivery.promotion_service.dto.CalculateResponse": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/dto/CalculateResponse.java",
+        "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/dto/CalculateResponse.java",
         "line": 17
       },
       "fields": [
@@ -18340,7 +18340,7 @@
         "AppliedVoucherInfo": {
           "kind": "class",
           "source": {
-            "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/dto/CalculateResponse.java",
+            "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/dto/CalculateResponse.java",
             "line": 58
           },
           "fields": [
@@ -18385,7 +18385,7 @@
         "UnavailableVoucherInfo": {
           "kind": "class",
           "source": {
-            "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/dto/CalculateResponse.java",
+            "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/dto/CalculateResponse.java",
             "line": 47
           },
           "fields": [
@@ -18418,7 +18418,7 @@
         "VoucherInfo": {
           "kind": "class",
           "source": {
-            "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/dto/CalculateResponse.java",
+            "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/dto/CalculateResponse.java",
             "line": 34
           },
           "fields": [
@@ -18465,7 +18465,7 @@
     "com.delivery.promotion_service.dto.CalculateResponse.AppliedVoucherInfo": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/dto/CalculateResponse.java",
+        "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/dto/CalculateResponse.java",
         "line": 58
       },
       "fields": [
@@ -18510,7 +18510,7 @@
     "com.delivery.promotion_service.dto.CalculateResponse.UnavailableVoucherInfo": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/dto/CalculateResponse.java",
+        "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/dto/CalculateResponse.java",
         "line": 47
       },
       "fields": [
@@ -18543,7 +18543,7 @@
     "com.delivery.promotion_service.dto.CalculateResponse.VoucherInfo": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/dto/CalculateResponse.java",
+        "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/dto/CalculateResponse.java",
         "line": 34
       },
       "fields": [
@@ -18588,7 +18588,7 @@
     "com.delivery.promotion_service.dto.CartContextRequest": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/dto/CartContextRequest.java",
+        "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/dto/CartContextRequest.java",
         "line": 18
       },
       "fields": [
@@ -18721,7 +18721,7 @@
     "com.delivery.promotion_service.dto.CreateVoucherRequest": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/dto/CreateVoucherRequest.java",
+        "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/dto/CreateVoucherRequest.java",
         "line": 14
       },
       "fields": [
@@ -18984,7 +18984,7 @@
     "com.delivery.promotion_service.dto.PromotionReservationResponse": {
       "kind": "record",
       "source": {
-        "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/dto/PromotionReservationResponse.java",
+        "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/dto/PromotionReservationResponse.java",
         "line": 13
       },
       "fields": [
@@ -19047,7 +19047,7 @@
         "Line": {
           "kind": "record",
           "source": {
-            "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/dto/PromotionReservationResponse.java",
+            "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/dto/PromotionReservationResponse.java",
             "line": 34
           },
           "fields": [
@@ -19100,7 +19100,7 @@
     "com.delivery.promotion_service.dto.PromotionReservationResponse.Line": {
       "kind": "record",
       "source": {
-        "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/dto/PromotionReservationResponse.java",
+        "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/dto/PromotionReservationResponse.java",
         "line": 34
       },
       "fields": [
@@ -19151,7 +19151,7 @@
     "com.delivery.promotion_service.dto.ReserveRequest": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/dto/ReserveRequest.java",
+        "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/dto/ReserveRequest.java",
         "line": 18
       },
       "fields": [
@@ -19320,7 +19320,7 @@
     "com.delivery.promotion_service.dto.VoucherCapabilityResponse": {
       "kind": "record",
       "source": {
-        "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/dto/VoucherCapabilityResponse.java",
+        "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/dto/VoucherCapabilityResponse.java",
         "line": 5
       },
       "fields": [
@@ -19359,7 +19359,7 @@
     "com.delivery.promotion_service.dto.VoucherReservationResponse": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/dto/VoucherReservationResponse.java",
+        "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/dto/VoucherReservationResponse.java",
         "line": 16
       },
       "fields": [
@@ -19458,7 +19458,7 @@
     "com.delivery.promotion_service.dto.VoucherResponse": {
       "kind": "record",
       "source": {
-        "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/dto/VoucherResponse.java",
+        "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/dto/VoucherResponse.java",
         "line": 9
       },
       "fields": [
@@ -19647,7 +19647,7 @@
     "com.delivery.promotion_service.dto.VoucherSelectionMode": {
       "kind": "enum",
       "source": {
-        "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/dto/VoucherSelectionMode.java",
+        "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/dto/VoucherSelectionMode.java",
         "line": 9
       },
       "fields": [],
@@ -19659,7 +19659,7 @@
     "com.delivery.promotion_service.entity.PromotionReservation": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/entity/PromotionReservation.java",
+        "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/entity/PromotionReservation.java",
         "line": 30
       },
       "fields": [
@@ -19937,7 +19937,7 @@
         "State": {
           "kind": "enum",
           "source": {
-            "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/entity/PromotionReservation.java",
+            "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/entity/PromotionReservation.java",
             "line": 90
           },
           "fields": [],
@@ -19953,7 +19953,7 @@
     "com.delivery.promotion_service.entity.PromotionReservation.State": {
       "kind": "enum",
       "source": {
-        "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/entity/PromotionReservation.java",
+        "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/entity/PromotionReservation.java",
         "line": 90
       },
       "fields": [],
@@ -19967,7 +19967,7 @@
     "com.delivery.promotion_service.entity.PromotionReservationLine": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/entity/PromotionReservationLine.java",
+        "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/entity/PromotionReservationLine.java",
         "line": 30
       },
       "fields": [
@@ -20143,7 +20143,7 @@
         "State": {
           "kind": "enum",
           "source": {
-            "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/entity/PromotionReservationLine.java",
+            "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/entity/PromotionReservationLine.java",
             "line": 60
           },
           "fields": [],
@@ -20159,7 +20159,7 @@
     "com.delivery.promotion_service.entity.PromotionReservationLine.State": {
       "kind": "enum",
       "source": {
-        "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/entity/PromotionReservationLine.java",
+        "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/entity/PromotionReservationLine.java",
         "line": 60
       },
       "fields": [],
@@ -20173,7 +20173,7 @@
     "com.delivery.promotion_service.entity.Voucher": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/entity/Voucher.java",
+        "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/entity/Voucher.java",
         "line": 18
       },
       "fields": [
@@ -20697,7 +20697,7 @@
         "CreatorType": {
           "kind": "enum",
           "source": {
-            "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/entity/Voucher.java",
+            "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/entity/Voucher.java",
             "line": 132
           },
           "fields": [],
@@ -20710,7 +20710,7 @@
         "RewardType": {
           "kind": "enum",
           "source": {
-            "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/entity/Voucher.java",
+            "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/entity/Voucher.java",
             "line": 136
           },
           "fields": [],
@@ -20723,7 +20723,7 @@
         "ScopeType": {
           "kind": "enum",
           "source": {
-            "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/entity/Voucher.java",
+            "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/entity/Voucher.java",
             "line": 140
           },
           "fields": [],
@@ -20738,7 +20738,7 @@
     "com.delivery.promotion_service.entity.Voucher.CreatorType": {
       "kind": "enum",
       "source": {
-        "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/entity/Voucher.java",
+        "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/entity/Voucher.java",
         "line": 132
       },
       "fields": [],
@@ -20751,7 +20751,7 @@
     "com.delivery.promotion_service.entity.Voucher.RewardType": {
       "kind": "enum",
       "source": {
-        "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/entity/Voucher.java",
+        "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/entity/Voucher.java",
         "line": 136
       },
       "fields": [],
@@ -20764,7 +20764,7 @@
     "com.delivery.promotion_service.entity.Voucher.ScopeType": {
       "kind": "enum",
       "source": {
-        "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/entity/Voucher.java",
+        "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/entity/Voucher.java",
         "line": 140
       },
       "fields": [],
@@ -20777,7 +20777,7 @@
     "com.delivery.promotion_service.entity.VoucherReservation": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/entity/VoucherReservation.java",
+        "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/entity/VoucherReservation.java",
         "line": 33
       },
       "fields": [
@@ -21021,7 +21021,7 @@
         "State": {
           "kind": "enum",
           "source": {
-            "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/entity/VoucherReservation.java",
+            "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/entity/VoucherReservation.java",
             "line": 87
           },
           "fields": [],
@@ -21037,7 +21037,7 @@
     "com.delivery.promotion_service.entity.VoucherReservation.State": {
       "kind": "enum",
       "source": {
-        "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/entity/VoucherReservation.java",
+        "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/entity/VoucherReservation.java",
         "line": 87
       },
       "fields": [],
@@ -21051,7 +21051,7 @@
     "com.delivery.promotion_service.payload.BaseResponse": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/payload/BaseResponse.java",
+        "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/payload/BaseResponse.java",
         "line": 3
       },
       "fields": [
@@ -21078,7 +21078,7 @@
     "com.delivery.promotion_service.service.VoucherLayer": {
       "kind": "enum",
       "source": {
-        "file": "backend_delivery/promotion-service/src/main/java/com/delivery/promotion_service/service/VoucherLayer.java",
+        "file": "backend_delivery/promotion/infrastructure/src/main/java/com/delivery/promotion_service/service/VoucherLayer.java",
         "line": 4
       },
       "fields": [],

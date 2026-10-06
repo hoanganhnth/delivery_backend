@@ -16,7 +16,7 @@ Tài liệu định hướng (đọc trước khi sửa):
 Quy ước: service đã hợp nhất nằm tại `<name>/{domain,application-api,
 application,infrastructure,boot}`; artifact/DNS vẫn là `<name>-service`.
 Routing, Web BFF, Shipper, User, Auth, Restaurant và Tracking đã hợp nhất trên
-main theo cấu trúc này; Settlement, Match, Order, Delivery và Notification cũng dùng layout đó. Saga đã được chuyển tại chỗ thành `dispatch/`, artifact/DNS vẫn là `saga-orchestrator-service`.
+main theo cấu trúc này; Settlement, Match, Order, Delivery, Notification và Promotion cũng dùng layout đó. Saga đã được chuyển tại chỗ thành `dispatch/`, artifact/DNS vẫn là `saga-orchestrator-service`.
 Tracking đã có proof packaged runtime/recovery và
 224 test trên main. Các service còn lại đang chuyển
 lần lượt từ `modules/<name>/` + host `<name>-service/`; xem
