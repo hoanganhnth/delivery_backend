@@ -7,7 +7,9 @@ Date: 2026-10-02
 Active. User approved the root-level service layout and completing one service
 before starting the next. Worktree: `.worktrees/backend-service-architecture`
 at workspace root, branch `refactor/service-architecture`, base `71218d7`.
-Auth tranche is integrated on `main` at `047ccb2`; Restaurant tranche is integrated on `main` at `2c0eaaa`; Tracking is integrated on `main` at `0c41101`; Settlement is next. The
+Auth tranche is integrated on `main` at `047ccb2`; Restaurant tranche is integrated on `main` at `2c0eaaa`; Tracking is integrated on `main` at `0c41101`; Settlement, Match, Dispatch,
+Delivery, Order, Notification and Promotion (wave A, 94e89c3) and Search,
+Analytics, Livestream, Simulator and Flash Sale (wave B, f66321f) are integrated. The
 retired Auth source paths have no tracked files. Ignored local build outputs
 and operator PEM files may still remain in a developer checkout under the old
 directory; do not delete or package those PEM files as part of source cleanup.
@@ -54,15 +56,29 @@ from the earlier conversation, not implicitly authorized by this structural plan
   retain provider gating, receipts, locks and financial compensation guarantees.
 - [x] Match: complete single/batch dispatch runtime, expiry, cancellation,
   availability and COD holds behind core use cases.
-- [ ] Delivery: complete create/offer/accept/batch/lifecycle/POD/exception and
+- [x] Delivery: complete create/offer/accept/batch/lifecycle/POD/exception and
   cancel workflows; replace legacy delegating facades with real use cases.
-- [ ] Order, Notification and Saga, independently: extract complete runtime
+  Relocated to `delivery/` (f6a28a6); integrated in wave A.
+- [x] Order, Notification and Saga, independently: extract complete runtime
   use cases with outbox/inbox, ordering, retry and cancellation recovery proof.
-- [ ] Search, Analytics, Promotion, Flash Sale, Livestream and Simulator,
+  Saga repurposed as `dispatch/`; Order (abb91c5) and Notification (aafa177)
+  relocated and integrated in wave A. Packaged Saga/Match crash-replay
+  rehearsal passes (a892d39).
+- [x] Search, Analytics, Promotion, Flash Sale, Livestream and Simulator,
   independently: complete existing Phase 8/9 responsibilities, including
   remaining Kafka evidence, without declaring pending work complete.
+  Promotion integrated in wave A; the other five in wave B. Pre-existing
+  defects found during extraction are recorded in each `<name>/INVENTORY.md`
+  and preserved by regression tests, not fixed.
 - [ ] Remove empty `modules/`; validate full reactor, contract inventories,
   effective dependency boundaries, Compose and packaged runtime evidence.
+  Done: `modules/` and every legacy `<name>-service/` host have no tracked
+  files; full reactor on main f66321f: 3853 tests, 0 failures, 0 errors,
+  6 env-gated skips (MatchRedisOfferIntegrationTest); layout, HTTP contract
+  (244 operations), inventory, actuator and build-baseline gates pass.
+  Open: packaged Compose runtime evidence exists only for Tracking and the
+  Saga/Match rehearsal; the rehearsal needs the staged shipper identity
+  migration flags on, which are off by default (user decision pending).
 
 ## Routing implementation and proof
 

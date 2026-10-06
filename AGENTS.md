@@ -17,9 +17,9 @@ Quy ước: service đã hợp nhất nằm tại `<name>/{domain,application-ap
 application,infrastructure,boot}`; artifact/DNS vẫn là `<name>-service`.
 Routing, Web BFF, Shipper, User, Auth, Restaurant và Tracking đã hợp nhất trên
 main theo cấu trúc này; Settlement, Match, Order, Delivery, Notification, Promotion, Search, Analytics, Livestream, Simulator và Flashsale cũng dùng layout đó. Saga đã được chuyển tại chỗ thành `dispatch/`, artifact/DNS vẫn là `saga-orchestrator-service`.
-Tracking đã có proof packaged runtime/recovery và
-224 test trên main. Các service còn lại đang chuyển
-lần lượt từ `modules/<name>/` + host `<name>-service/`; xem
+Tracking đã có proof packaged runtime/recovery; Saga/Match có harness
+crash-replay đóng gói. Mọi service đã ở layout hợp nhất (không còn
+`modules/` hay host `<name>-service/` được track); việc còn mở nằm trong
 `docs/plans/active/service-architecture-consolidation.md`. Adapter HTTP/Kafka/JPA
 và composition nằm trong infrastructure; boot giữ entrypoint/config.
 Giao tiếp qua Kafka event hoặc HTTP nội bộ. Không hard-code secret; dùng env var.
