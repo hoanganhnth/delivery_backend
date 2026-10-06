@@ -101,9 +101,11 @@ class BatchBundlePolicyTest {
     }
 
     @Test
-    void stopSequencePlacesPickupsBeforeDropoffsAndTimeoutIsClamped() {
-        assertEquals(new BatchBundlePolicy.StopSequence(0, 3), BatchBundlePolicy.stopSequence(0, 3));
-        assertEquals(new BatchBundlePolicy.StopSequence(2, 5), BatchBundlePolicy.stopSequence(2, 3));
+    void stopSequencePreservesScoredInterleavingAndTimeoutIsClamped() {
+        assertEquals(new BatchBundlePolicy.StopSequence(0, 1), BatchBundlePolicy.stopSequence(0, 3));
+        assertEquals(new BatchBundlePolicy.StopSequence(2, 3), BatchBundlePolicy.stopSequence(1, 3));
+        assertEquals(new BatchBundlePolicy.StopSequence(4, 5), BatchBundlePolicy.stopSequence(2, 3));
+        assertEquals(new BatchBundlePolicy.StopSequence(0, 1), BatchBundlePolicy.stopSequence(0, 1));
         assertThrows(IllegalArgumentException.class, () -> BatchBundlePolicy.stopSequence(3, 3));
         assertThrows(IllegalArgumentException.class, () -> BatchBundlePolicy.stopSequence(-1, 3));
         assertEquals(1, BatchBundlePolicy.waitingTimeoutSeconds(0));

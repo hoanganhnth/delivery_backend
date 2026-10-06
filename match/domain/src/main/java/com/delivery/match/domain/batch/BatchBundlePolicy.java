@@ -132,8 +132,8 @@ public final class BatchBundlePolicy {
     }
 
     /**
-     * Global stop positions 0..(2n-1): pickups occupy the first contiguous
-     * half and matching drop-offs the second, so pickup precedes drop-off.
+     * Global stop positions 0..(2n-1) for the scored order: each pickup is
+     * immediately followed by its drop-off before the next order's pickup.
      */
     public record StopSequence(int pickup, int dropoff) {
     }
@@ -142,7 +142,7 @@ public final class BatchBundlePolicy {
         if (index < 0 || index >= itemCount) {
             throw new IllegalArgumentException("Batch item index is outside the bundle");
         }
-        return new StopSequence(index, itemCount + index);
+        return new StopSequence(2 * index, 2 * index + 1);
     }
 
     /** Offer response window clamped to 1..180 seconds. */
