@@ -18,6 +18,7 @@ else
   services=("$@")
 fi
 
+# Order keeps artifact order-service and resolves to order/boot through the canonical layout.
 service_paths=()
 for service in "${services[@]}"; do
   canonical="${service%-service}"

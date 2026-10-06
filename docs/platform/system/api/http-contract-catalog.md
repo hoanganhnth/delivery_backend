@@ -1839,7 +1839,7 @@ public ResponseEntity<BaseResponse<List<NotificationResponse>>> getUserNotificat
 ### `POST` `/api/orders`
 
 - Handler: `OrderController.createOrder`
-- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/controller/OrderController.java:71`](../../../../order-service/src/main/java/com/delivery/order_service/controller/OrderController.java)
+- Source: [`backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/controller/OrderController.java:71`](../../../../order/infrastructure/src/main/java/com/delivery/order_service/controller/OrderController.java)
 - Java return type: `ResponseEntity<BaseResponse<OrderResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1860,7 +1860,7 @@ public ResponseEntity<BaseResponse<OrderResponse>> createOrder( @Valid @RequestB
 ### `GET` `/api/orders/{id}`
 
 - Handler: `OrderController.getOrderById`
-- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/controller/OrderController.java:104`](../../../../order-service/src/main/java/com/delivery/order_service/controller/OrderController.java)
+- Source: [`backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/controller/OrderController.java:104`](../../../../order/infrastructure/src/main/java/com/delivery/order_service/controller/OrderController.java)
 - Java return type: `ResponseEntity<BaseResponse<OrderResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1880,7 +1880,7 @@ public ResponseEntity<BaseResponse<OrderResponse>> getOrderById( @PathVariable L
 ### `PUT` `/api/orders/{id}/cancel`
 
 - Handler: `OrderController.cancelOrder`
-- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/controller/OrderController.java:175`](../../../../order-service/src/main/java/com/delivery/order_service/controller/OrderController.java)
+- Source: [`backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/controller/OrderController.java:175`](../../../../order/infrastructure/src/main/java/com/delivery/order_service/controller/OrderController.java)
 - Java return type: `ResponseEntity<BaseResponse<OrderResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1901,7 +1901,7 @@ public ResponseEntity<BaseResponse<OrderResponse>> cancelOrder( @PathVariable Lo
 ### `GET` `/api/orders/all`
 
 - Handler: `OrderController.getAllOrders`
-- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/controller/OrderController.java:164`](../../../../order-service/src/main/java/com/delivery/order_service/controller/OrderController.java)
+- Source: [`backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/controller/OrderController.java:164`](../../../../order/infrastructure/src/main/java/com/delivery/order_service/controller/OrderController.java)
 - Java return type: `ResponseEntity<BaseResponse<PageResponse<OrderResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1922,7 +1922,7 @@ public ResponseEntity<BaseResponse<PageResponse<OrderResponse>>> getAllOrders( @
 ### `POST` `/api/orders/checkout-preview`
 
 - Handler: `OrderController.checkoutPreview`
-- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/controller/OrderController.java:57`](../../../../order-service/src/main/java/com/delivery/order_service/controller/OrderController.java)
+- Source: [`backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/controller/OrderController.java:57`](../../../../order/infrastructure/src/main/java/com/delivery/order_service/controller/OrderController.java)
 - Java return type: `ResponseEntity<BaseResponse<CheckoutPreviewResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1942,7 +1942,7 @@ public ResponseEntity<BaseResponse<CheckoutPreviewResponse>> checkoutPreview( @V
 ### `GET` `/api/orders/internal/{orderId}/rating-eligibility`
 
 - Handler: `InternalOrderController.isRatingEligible`
-- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/controller/InternalOrderController.java:30`](../../../../order-service/src/main/java/com/delivery/order_service/controller/InternalOrderController.java)
+- Source: [`backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/controller/InternalOrderController.java:30`](../../../../order/infrastructure/src/main/java/com/delivery/order_service/controller/InternalOrderController.java)
 - Java return type: `ResponseEntity<BaseResponse<Boolean>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1964,7 +1964,7 @@ public ResponseEntity<BaseResponse<Boolean>> isRatingEligible( @PathVariable Lon
 ### `GET` `/api/orders/internal/{orderId}/restaurant-decision-eligibility`
 
 - Handler: `InternalOrderController.isRestaurantDecisionEligible`
-- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/controller/InternalOrderController.java:51`](../../../../order-service/src/main/java/com/delivery/order_service/controller/InternalOrderController.java)
+- Source: [`backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/controller/InternalOrderController.java:51`](../../../../order/infrastructure/src/main/java/com/delivery/order_service/controller/InternalOrderController.java)
 - Java return type: `ResponseEntity<BaseResponse<Boolean>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1985,7 +1985,7 @@ public ResponseEntity<BaseResponse<Boolean>> isRestaurantDecisionEligible( @Path
 ### `GET` `/api/orders/my-orders`
 
 - Handler: `OrderController.getMyOrders`
-- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/controller/OrderController.java:114`](../../../../order-service/src/main/java/com/delivery/order_service/controller/OrderController.java)
+- Source: [`backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/controller/OrderController.java:114`](../../../../order/infrastructure/src/main/java/com/delivery/order_service/controller/OrderController.java)
 - Java return type: `ResponseEntity<BaseResponse<PageResponse<OrderResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -2006,7 +2006,7 @@ public ResponseEntity<BaseResponse<PageResponse<OrderResponse>>> getMyOrders( @A
 ### `GET` `/api/orders/my-restaurant-orders`
 
 - Handler: `OrderController.getMyRestaurantOrders`
-- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/controller/OrderController.java:125`](../../../../order-service/src/main/java/com/delivery/order_service/controller/OrderController.java)
+- Source: [`backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/controller/OrderController.java:125`](../../../../order/infrastructure/src/main/java/com/delivery/order_service/controller/OrderController.java)
 - Java return type: `ResponseEntity<BaseResponse<PageResponse<OrderResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -2028,7 +2028,7 @@ public ResponseEntity<BaseResponse<PageResponse<OrderResponse>>> getMyRestaurant
 ### `GET` `/api/orders/status/{status}`
 
 - Handler: `OrderController.getOrdersByStatus`
-- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/controller/OrderController.java:152`](../../../../order-service/src/main/java/com/delivery/order_service/controller/OrderController.java)
+- Source: [`backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/controller/OrderController.java:152`](../../../../order/infrastructure/src/main/java/com/delivery/order_service/controller/OrderController.java)
 - Java return type: `ResponseEntity<BaseResponse<PageResponse<OrderResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -6330,7 +6330,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.order_service.dto.request.CancelOrderRequest`
 
 - Kind: `class`
-- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/dto/request/CancelOrderRequest.java:7`](../../../../order-service/src/main/java/com/delivery/order_service/dto/request/CancelOrderRequest.java)
+- Source: [`backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/dto/request/CancelOrderRequest.java:7`](../../../../order/infrastructure/src/main/java/com/delivery/order_service/dto/request/CancelOrderRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6339,7 +6339,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.order_service.dto.request.CheckoutPreviewRequest`
 
 - Kind: `class`
-- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/dto/request/CheckoutPreviewRequest.java:24`](../../../../order-service/src/main/java/com/delivery/order_service/dto/request/CheckoutPreviewRequest.java)
+- Source: [`backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/dto/request/CheckoutPreviewRequest.java:24`](../../../../order/infrastructure/src/main/java/com/delivery/order_service/dto/request/CheckoutPreviewRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6356,7 +6356,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 #### `com.delivery.order_service.dto.request.CheckoutPreviewRequest.PreviewItem`
 
 - Kind: `class`
-- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/dto/request/CheckoutPreviewRequest.java:62`](../../../../order-service/src/main/java/com/delivery/order_service/dto/request/CheckoutPreviewRequest.java)
+- Source: [`backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/dto/request/CheckoutPreviewRequest.java:62`](../../../../order/infrastructure/src/main/java/com/delivery/order_service/dto/request/CheckoutPreviewRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6367,7 +6367,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.order_service.dto.request.CheckoutPreviewRequest.PreviewItem`
 
 - Kind: `class`
-- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/dto/request/CheckoutPreviewRequest.java:62`](../../../../order-service/src/main/java/com/delivery/order_service/dto/request/CheckoutPreviewRequest.java)
+- Source: [`backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/dto/request/CheckoutPreviewRequest.java:62`](../../../../order/infrastructure/src/main/java/com/delivery/order_service/dto/request/CheckoutPreviewRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6378,7 +6378,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.order_service.dto.request.CreateOrderRequest`
 
 - Kind: `class`
-- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/dto/request/CreateOrderRequest.java:12`](../../../../order-service/src/main/java/com/delivery/order_service/dto/request/CreateOrderRequest.java)
+- Source: [`backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/dto/request/CreateOrderRequest.java:12`](../../../../order/infrastructure/src/main/java/com/delivery/order_service/dto/request/CreateOrderRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6404,7 +6404,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 #### `com.delivery.order_service.dto.request.CreateOrderRequest.OrderItemRequest`
 
 - Kind: `class`
-- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/dto/request/CreateOrderRequest.java:39`](../../../../order-service/src/main/java/com/delivery/order_service/dto/request/CreateOrderRequest.java)
+- Source: [`backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/dto/request/CreateOrderRequest.java:39`](../../../../order/infrastructure/src/main/java/com/delivery/order_service/dto/request/CreateOrderRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6418,7 +6418,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.order_service.dto.request.CreateOrderRequest.OrderItemRequest`
 
 - Kind: `class`
-- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/dto/request/CreateOrderRequest.java:39`](../../../../order-service/src/main/java/com/delivery/order_service/dto/request/CreateOrderRequest.java)
+- Source: [`backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/dto/request/CreateOrderRequest.java:39`](../../../../order/infrastructure/src/main/java/com/delivery/order_service/dto/request/CreateOrderRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6432,7 +6432,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.order_service.dto.response.CheckoutPreviewResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/dto/response/CheckoutPreviewResponse.java:19`](../../../../order-service/src/main/java/com/delivery/order_service/dto/response/CheckoutPreviewResponse.java)
+- Source: [`backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/dto/response/CheckoutPreviewResponse.java:19`](../../../../order/infrastructure/src/main/java/com/delivery/order_service/dto/response/CheckoutPreviewResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6464,7 +6464,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 #### `com.delivery.order_service.dto.response.CheckoutPreviewResponse.AppliedVoucherInfo`
 
 - Kind: `class`
-- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/dto/response/CheckoutPreviewResponse.java:62`](../../../../order-service/src/main/java/com/delivery/order_service/dto/response/CheckoutPreviewResponse.java)
+- Source: [`backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/dto/response/CheckoutPreviewResponse.java:62`](../../../../order/infrastructure/src/main/java/com/delivery/order_service/dto/response/CheckoutPreviewResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6478,7 +6478,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 #### `com.delivery.order_service.dto.response.CheckoutPreviewResponse.PreviewItemDetail`
 
 - Kind: `class`
-- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/dto/response/CheckoutPreviewResponse.java:74`](../../../../order-service/src/main/java/com/delivery/order_service/dto/response/CheckoutPreviewResponse.java)
+- Source: [`backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/dto/response/CheckoutPreviewResponse.java:74`](../../../../order/infrastructure/src/main/java/com/delivery/order_service/dto/response/CheckoutPreviewResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6492,7 +6492,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 #### `com.delivery.order_service.dto.response.CheckoutPreviewResponse.PriceChangeInfo`
 
 - Kind: `class`
-- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/dto/response/CheckoutPreviewResponse.java:86`](../../../../order-service/src/main/java/com/delivery/order_service/dto/response/CheckoutPreviewResponse.java)
+- Source: [`backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/dto/response/CheckoutPreviewResponse.java:86`](../../../../order/infrastructure/src/main/java/com/delivery/order_service/dto/response/CheckoutPreviewResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6503,7 +6503,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.order_service.dto.response.CheckoutPreviewResponse.AppliedVoucherInfo`
 
 - Kind: `class`
-- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/dto/response/CheckoutPreviewResponse.java:62`](../../../../order-service/src/main/java/com/delivery/order_service/dto/response/CheckoutPreviewResponse.java)
+- Source: [`backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/dto/response/CheckoutPreviewResponse.java:62`](../../../../order/infrastructure/src/main/java/com/delivery/order_service/dto/response/CheckoutPreviewResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6517,7 +6517,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.order_service.dto.response.CheckoutPreviewResponse.PreviewItemDetail`
 
 - Kind: `class`
-- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/dto/response/CheckoutPreviewResponse.java:74`](../../../../order-service/src/main/java/com/delivery/order_service/dto/response/CheckoutPreviewResponse.java)
+- Source: [`backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/dto/response/CheckoutPreviewResponse.java:74`](../../../../order/infrastructure/src/main/java/com/delivery/order_service/dto/response/CheckoutPreviewResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6531,7 +6531,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.order_service.dto.response.CheckoutPreviewResponse.PriceChangeInfo`
 
 - Kind: `class`
-- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/dto/response/CheckoutPreviewResponse.java:86`](../../../../order-service/src/main/java/com/delivery/order_service/dto/response/CheckoutPreviewResponse.java)
+- Source: [`backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/dto/response/CheckoutPreviewResponse.java:86`](../../../../order/infrastructure/src/main/java/com/delivery/order_service/dto/response/CheckoutPreviewResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6542,7 +6542,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.order_service.dto.response.OrderItemResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/dto/response/OrderItemResponse.java:10`](../../../../order-service/src/main/java/com/delivery/order_service/dto/response/OrderItemResponse.java)
+- Source: [`backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/dto/response/OrderItemResponse.java:10`](../../../../order/infrastructure/src/main/java/com/delivery/order_service/dto/response/OrderItemResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6556,7 +6556,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.order_service.dto.response.OrderResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/dto/response/OrderResponse.java:13`](../../../../order-service/src/main/java/com/delivery/order_service/dto/response/OrderResponse.java)
+- Source: [`backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/dto/response/OrderResponse.java:13`](../../../../order/infrastructure/src/main/java/com/delivery/order_service/dto/response/OrderResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6599,7 +6599,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 #### `com.delivery.order_service.dto.response.OrderResponse.PromotionBreakdown`
 
 - Kind: `class`
-- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/dto/response/OrderResponse.java:54`](../../../../order-service/src/main/java/com/delivery/order_service/dto/response/OrderResponse.java)
+- Source: [`backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/dto/response/OrderResponse.java:54`](../../../../order/infrastructure/src/main/java/com/delivery/order_service/dto/response/OrderResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6613,7 +6613,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.order_service.dto.response.OrderResponse.PromotionBreakdown`
 
 - Kind: `class`
-- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/dto/response/OrderResponse.java:54`](../../../../order-service/src/main/java/com/delivery/order_service/dto/response/OrderResponse.java)
+- Source: [`backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/dto/response/OrderResponse.java:54`](../../../../order/infrastructure/src/main/java/com/delivery/order_service/dto/response/OrderResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6627,7 +6627,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.order_service.payload.ApiError`
 
 - Kind: `record`
-- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/payload/ApiError.java:7`](../../../../order-service/src/main/java/com/delivery/order_service/payload/ApiError.java)
+- Source: [`backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/payload/ApiError.java:7`](../../../../order/infrastructure/src/main/java/com/delivery/order_service/payload/ApiError.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6637,7 +6637,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.order_service.payload.BaseResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/payload/BaseResponse.java:3`](../../../../order-service/src/main/java/com/delivery/order_service/payload/BaseResponse.java)
+- Source: [`backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/payload/BaseResponse.java:3`](../../../../order/infrastructure/src/main/java/com/delivery/order_service/payload/BaseResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -6649,7 +6649,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.order_service.payload.PageResponse`
 
 - Kind: `record`
-- Source: [`backend_delivery/order-service/src/main/java/com/delivery/order_service/payload/PageResponse.java:7`](../../../../order-service/src/main/java/com/delivery/order_service/payload/PageResponse.java)
+- Source: [`backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/payload/PageResponse.java:7`](../../../../order/infrastructure/src/main/java/com/delivery/order_service/payload/PageResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |

@@ -3,16 +3,16 @@
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 	<parent>
-		<groupId>org.springframework.boot</groupId>
-		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>3.5.15</version>
-		<relativePath/> <!-- lookup parent from repository -->
+		<groupId>com.delivery</groupId>
+		<artifactId>delivery-build-parent</artifactId>
+		<version>1.0.0-SNAPSHOT</version>
+		<relativePath>../../platform/delivery-build-parent/pom.xml</relativePath>
 	</parent>
 	<groupId>com.delivery</groupId>
-	<artifactId>order-service</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
-	<name>order-service</name>
-	<description>Demo project for Spring Boot</description>
+	<artifactId>order-infrastructure</artifactId>
+	<version>1.0.0-SNAPSHOT</version>
+	<name>order-infrastructure</name>
+	<description>Order HTTP, Kafka, JPA adapters, migrations and Spring composition.</description>
 	<url/>
 	<licenses>
 		<license/>
@@ -116,36 +116,10 @@
 			<groupId>io.opentelemetry</groupId>
 			<artifactId>opentelemetry-exporter-otlp</artifactId>
 		</dependency>
-
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-test</artifactId>
-			<scope>test</scope>
-		</dependency>
 		<dependency>
 			<groupId>io.github.resilience4j</groupId>
 			<artifactId>resilience4j-circuitbreaker</artifactId>
 			<version>2.2.0</version>
-		</dependency>
-		<dependency>
-			<groupId>com.h2database</groupId>
-			<artifactId>h2</artifactId>
-			<scope>test</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.testcontainers</groupId>
-			<artifactId>junit-jupiter</artifactId>
-			<scope>test</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.testcontainers</groupId>
-			<artifactId>postgresql</artifactId>
-			<scope>test</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.testcontainers</groupId>
-			<artifactId>kafka</artifactId>
-			<scope>test</scope>
 		</dependency>
 	</dependencies>
 
@@ -162,10 +136,6 @@
 						</path>
 					</annotationProcessorPaths>
 				</configuration>
-			</plugin>
-			<plugin>
-				<groupId>org.springframework.boot</groupId>
-				<artifactId>spring-boot-maven-plugin</artifactId>
 			</plugin>
 		</plugins>
 	</build>

@@ -4104,7 +4104,7 @@
       "path": "/api/orders/checkout-preview",
       "handler": "checkoutPreview",
       "source": {
-        "file": "backend_delivery/order-service/src/main/java/com/delivery/order_service/controller/OrderController.java",
+        "file": "backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/controller/OrderController.java",
         "line": 57
       },
       "java": {
@@ -4154,7 +4154,7 @@
       "path": "/api/orders",
       "handler": "createOrder",
       "source": {
-        "file": "backend_delivery/order-service/src/main/java/com/delivery/order_service/controller/OrderController.java",
+        "file": "backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/controller/OrderController.java",
         "line": 71
       },
       "java": {
@@ -4217,7 +4217,7 @@
       "path": "/api/orders/{id}",
       "handler": "getOrderById",
       "source": {
-        "file": "backend_delivery/order-service/src/main/java/com/delivery/order_service/controller/OrderController.java",
+        "file": "backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/controller/OrderController.java",
         "line": 104
       },
       "java": {
@@ -4260,7 +4260,7 @@
       "path": "/api/orders/my-orders",
       "handler": "getMyOrders",
       "source": {
-        "file": "backend_delivery/order-service/src/main/java/com/delivery/order_service/controller/OrderController.java",
+        "file": "backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/controller/OrderController.java",
         "line": 114
       },
       "java": {
@@ -4319,7 +4319,7 @@
       "path": "/api/orders/my-restaurant-orders",
       "handler": "getMyRestaurantOrders",
       "source": {
-        "file": "backend_delivery/order-service/src/main/java/com/delivery/order_service/controller/OrderController.java",
+        "file": "backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/controller/OrderController.java",
         "line": 125
       },
       "java": {
@@ -4391,7 +4391,7 @@
       "path": "/api/orders/status/{status}",
       "handler": "getOrdersByStatus",
       "source": {
-        "file": "backend_delivery/order-service/src/main/java/com/delivery/order_service/controller/OrderController.java",
+        "file": "backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/controller/OrderController.java",
         "line": 152
       },
       "java": {
@@ -4462,7 +4462,7 @@
       "path": "/api/orders/all",
       "handler": "getAllOrders",
       "source": {
-        "file": "backend_delivery/order-service/src/main/java/com/delivery/order_service/controller/OrderController.java",
+        "file": "backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/controller/OrderController.java",
         "line": 164
       },
       "java": {
@@ -4521,7 +4521,7 @@
       "path": "/api/orders/{id}/cancel",
       "handler": "cancelOrder",
       "source": {
-        "file": "backend_delivery/order-service/src/main/java/com/delivery/order_service/controller/OrderController.java",
+        "file": "backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/controller/OrderController.java",
         "line": 175
       },
       "java": {
@@ -4584,7 +4584,7 @@
       "path": "/api/orders/internal/{orderId}/rating-eligibility",
       "handler": "isRatingEligible",
       "source": {
-        "file": "backend_delivery/order-service/src/main/java/com/delivery/order_service/controller/InternalOrderController.java",
+        "file": "backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/controller/InternalOrderController.java",
         "line": 30
       },
       "java": {
@@ -4653,7 +4653,7 @@
       "path": "/api/orders/internal/{orderId}/restaurant-decision-eligibility",
       "handler": "isRestaurantDecisionEligible",
       "source": {
-        "file": "backend_delivery/order-service/src/main/java/com/delivery/order_service/controller/InternalOrderController.java",
+        "file": "backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/controller/InternalOrderController.java",
         "line": 51
       },
       "java": {
@@ -16658,7 +16658,7 @@
     "com.delivery.order_service.dto.request.CancelOrderRequest": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/order-service/src/main/java/com/delivery/order_service/dto/request/CancelOrderRequest.java",
+        "file": "backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/dto/request/CancelOrderRequest.java",
         "line": 7
       },
       "fields": [
@@ -16684,7 +16684,7 @@
     "com.delivery.order_service.dto.request.CheckoutPreviewRequest": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/order-service/src/main/java/com/delivery/order_service/dto/request/CheckoutPreviewRequest.java",
+        "file": "backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/dto/request/CheckoutPreviewRequest.java",
         "line": 24
       },
       "fields": [
@@ -16872,7 +16872,7 @@
         "PreviewItem": {
           "kind": "class",
           "source": {
-            "file": "backend_delivery/order-service/src/main/java/com/delivery/order_service/dto/request/CheckoutPreviewRequest.java",
+            "file": "backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/dto/request/CheckoutPreviewRequest.java",
             "line": 62
           },
           "fields": [
@@ -16950,7 +16950,7 @@
     "com.delivery.order_service.dto.request.CheckoutPreviewRequest.PreviewItem": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/order-service/src/main/java/com/delivery/order_service/dto/request/CheckoutPreviewRequest.java",
+        "file": "backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/dto/request/CheckoutPreviewRequest.java",
         "line": 62
       },
       "fields": [
@@ -17026,7 +17026,7 @@
     "com.delivery.order_service.dto.request.CreateOrderRequest": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/order-service/src/main/java/com/delivery/order_service/dto/request/CreateOrderRequest.java",
+        "file": "backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/dto/request/CreateOrderRequest.java",
         "line": 12
       },
       "fields": [
@@ -17143,7 +17143,7 @@
         "OrderItemRequest": {
           "kind": "class",
           "source": {
-            "file": "backend_delivery/order-service/src/main/java/com/delivery/order_service/dto/request/CreateOrderRequest.java",
+            "file": "backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/dto/request/CreateOrderRequest.java",
             "line": 39
           },
           "fields": [
@@ -17190,7 +17190,7 @@
     "com.delivery.order_service.dto.request.CreateOrderRequest.OrderItemRequest": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/order-service/src/main/java/com/delivery/order_service/dto/request/CreateOrderRequest.java",
+        "file": "backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/dto/request/CreateOrderRequest.java",
         "line": 39
       },
       "fields": [
@@ -17235,7 +17235,7 @@
     "com.delivery.order_service.dto.response.CheckoutPreviewResponse": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/order-service/src/main/java/com/delivery/order_service/dto/response/CheckoutPreviewResponse.java",
+        "file": "backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/dto/response/CheckoutPreviewResponse.java",
         "line": 19
       },
       "fields": [
@@ -17388,7 +17388,7 @@
         "AppliedVoucherInfo": {
           "kind": "class",
           "source": {
-            "file": "backend_delivery/order-service/src/main/java/com/delivery/order_service/dto/response/CheckoutPreviewResponse.java",
+            "file": "backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/dto/response/CheckoutPreviewResponse.java",
             "line": 62
           },
           "fields": [
@@ -17433,7 +17433,7 @@
         "PreviewItemDetail": {
           "kind": "class",
           "source": {
-            "file": "backend_delivery/order-service/src/main/java/com/delivery/order_service/dto/response/CheckoutPreviewResponse.java",
+            "file": "backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/dto/response/CheckoutPreviewResponse.java",
             "line": 74
           },
           "fields": [
@@ -17478,7 +17478,7 @@
         "PriceChangeInfo": {
           "kind": "class",
           "source": {
-            "file": "backend_delivery/order-service/src/main/java/com/delivery/order_service/dto/response/CheckoutPreviewResponse.java",
+            "file": "backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/dto/response/CheckoutPreviewResponse.java",
             "line": 86
           },
           "fields": [
@@ -17507,7 +17507,7 @@
     "com.delivery.order_service.dto.response.CheckoutPreviewResponse.AppliedVoucherInfo": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/order-service/src/main/java/com/delivery/order_service/dto/response/CheckoutPreviewResponse.java",
+        "file": "backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/dto/response/CheckoutPreviewResponse.java",
         "line": 62
       },
       "fields": [
@@ -17552,7 +17552,7 @@
     "com.delivery.order_service.dto.response.CheckoutPreviewResponse.PreviewItemDetail": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/order-service/src/main/java/com/delivery/order_service/dto/response/CheckoutPreviewResponse.java",
+        "file": "backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/dto/response/CheckoutPreviewResponse.java",
         "line": 74
       },
       "fields": [
@@ -17597,7 +17597,7 @@
     "com.delivery.order_service.dto.response.CheckoutPreviewResponse.PriceChangeInfo": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/order-service/src/main/java/com/delivery/order_service/dto/response/CheckoutPreviewResponse.java",
+        "file": "backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/dto/response/CheckoutPreviewResponse.java",
         "line": 86
       },
       "fields": [
@@ -17624,7 +17624,7 @@
     "com.delivery.order_service.dto.response.OrderItemResponse": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/order-service/src/main/java/com/delivery/order_service/dto/response/OrderItemResponse.java",
+        "file": "backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/dto/response/OrderItemResponse.java",
         "line": 10
       },
       "fields": [
@@ -17669,7 +17669,7 @@
     "com.delivery.order_service.dto.response.OrderResponse": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/order-service/src/main/java/com/delivery/order_service/dto/response/OrderResponse.java",
+        "file": "backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/dto/response/OrderResponse.java",
         "line": 13
       },
       "fields": [
@@ -17888,7 +17888,7 @@
         "PromotionBreakdown": {
           "kind": "class",
           "source": {
-            "file": "backend_delivery/order-service/src/main/java/com/delivery/order_service/dto/response/OrderResponse.java",
+            "file": "backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/dto/response/OrderResponse.java",
             "line": 54
           },
           "fields": [
@@ -17935,7 +17935,7 @@
     "com.delivery.order_service.dto.response.OrderResponse.PromotionBreakdown": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/order-service/src/main/java/com/delivery/order_service/dto/response/OrderResponse.java",
+        "file": "backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/dto/response/OrderResponse.java",
         "line": 54
       },
       "fields": [
@@ -17980,7 +17980,7 @@
     "com.delivery.order_service.payload.ApiError": {
       "kind": "record",
       "source": {
-        "file": "backend_delivery/order-service/src/main/java/com/delivery/order_service/payload/ApiError.java",
+        "file": "backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/payload/ApiError.java",
         "line": 7
       },
       "fields": [
@@ -18001,7 +18001,7 @@
     "com.delivery.order_service.payload.BaseResponse": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/order-service/src/main/java/com/delivery/order_service/payload/BaseResponse.java",
+        "file": "backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/payload/BaseResponse.java",
         "line": 3
       },
       "fields": [
@@ -18045,7 +18045,7 @@
     "com.delivery.order_service.payload.PageResponse": {
       "kind": "record",
       "source": {
-        "file": "backend_delivery/order-service/src/main/java/com/delivery/order_service/payload/PageResponse.java",
+        "file": "backend_delivery/order/infrastructure/src/main/java/com/delivery/order_service/payload/PageResponse.java",
         "line": 7
       },
       "fields": [

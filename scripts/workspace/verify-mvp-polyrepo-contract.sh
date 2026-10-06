@@ -96,8 +96,8 @@ assert_no_match \
 assert_no_match \
   'Order backend must not restore legacy update/delete/read/order-assign controllers or flags.' \
   'LegacyOrderMutationController|LegacyOrderReadController|ORDER_LEGACY_|app\.order\.legacy-' \
-  "$BACKEND_DIR/order-service/src/main/java" \
-  "$BACKEND_DIR/order-service/src/main/resources"
+  "$BACKEND_DIR/order/infrastructure/src/main/java" \
+  "$BACKEND_DIR/order/boot/src/main/resources"
 
 assert_no_match \
   'Removed shipper template, DI and legacy icon packages must not return.' \

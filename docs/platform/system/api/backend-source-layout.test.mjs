@@ -65,3 +65,23 @@ test('a boot POM without an artifact identity fails instead of omitting handlers
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('Order relocation keeps its artifact identity and adapters discoverable', () => {
+  const backend = path.resolve(import.meta.dirname, '../../../..');
+  assert.equal(fs.existsSync(path.join(backend, 'order-service')), false);
+  assert.deepEqual(serviceSourceRoots(backend)
+    .filter(({ service }) => service === 'order-service')
+    .map(({ directory }) => path.relative(backend, directory)).sort(), [
+    'order/boot/src/main/java',
+    'order/infrastructure/src/main/java',
+  ]);
+  assert.equal(serviceForSource(backend, path.join(backend,
+    'order/infrastructure/src/main/java/com/delivery/order_service/controller/OrderController.java')),
+  'order-service');
+  const bootSources = fs.readdirSync(path.join(backend,
+    'order/boot/src/main/java/com/delivery/order_service'));
+  assert.deepEqual(bootSources, ['OrderServiceApplication.java']);
+  assert.ok(fs.existsSync(path.join(backend,
+    'order/infrastructure/src/main/resources/db/migration')));
+  assert.equal(fs.existsSync(path.join(backend, 'order/boot/src/main/resources/db')), false);
+});

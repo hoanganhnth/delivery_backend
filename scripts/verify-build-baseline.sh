@@ -25,7 +25,7 @@ modules=(
   api-gateway
   delivery-service
   notification-service
-  order-service
+  order/boot
   restaurant/boot
   shipper/boot
   search-service
@@ -287,7 +287,7 @@ if rg -n 'Math\.random\(|Featured Item|example\.com/item|RestaurantCatalog(Servi
 fi
 
 if rg -n 'estimateShipperEarnings|Missing coordinates, using minimum shipping fee' \
-    "${ROOT_DIR}/order-service/src/main/java" >/dev/null; then
+    "${ROOT_DIR}/order/infrastructure/src/main/java" >/dev/null; then
   echo "order-service: non-canonical shipping fallback or dead 80% earnings policy must not return." >&2
   exit 1
 fi
@@ -305,7 +305,7 @@ if rg -n 'ResponseEntity<(BaseResponse<)?Page<' \
 fi
 
 for stable_page in \
-  "${ROOT_DIR}/order-service/src/main/java/com/delivery/order_service/payload/PageResponse.java" \
+  "${ROOT_DIR}/order/infrastructure/src/main/java/com/delivery/order_service/payload/PageResponse.java" \
   "${ROOT_DIR}/shipper/infrastructure/src/main/java/com/delivery/shipper_service/payload/PageResponse.java" \
   "${ROOT_DIR}/search-service/src/main/java/com/delivery/search_service/payload/PageResponse.java"; do
   if ! rg -q -U 'List<T> items,[[:space:]]*int page,[[:space:]]*int size,[[:space:]]*long totalItems,[[:space:]]*int totalPages,[[:space:]]*boolean hasNext' \
@@ -337,10 +337,10 @@ hidden_capability_defaults=(
   'flashsale-service/src/main/resources/application.properties|app.flashsale.outbox-relay-enabled=${FLASHSALE_OUTBOX_RELAY_ENABLED:false}'
   'flashsale-service/src/main/resources/application.properties|app.flashsale.merchant-registration-enabled=${FLASHSALE_MERCHANT_REGISTRATION_ENABLED:false}'
   'livestream-service/src/main/resources/application.properties|app.livestream.api-enabled=${LIVESTREAM_API_ENABLED:false}'
-  'order-service/src/main/resources/application.properties|app.order.payment-event-processing-enabled=${ORDER_PAYMENT_EVENT_PROCESSING_ENABLED:false}'
-  'order-service/src/main/resources/application.properties|app.order.voucher-checkout-enabled=${ORDER_VOUCHER_CHECKOUT_ENABLED:false}'
-  'order-service/src/main/resources/application.properties|app.order.flashsale-checkout-enabled=${ORDER_FLASHSALE_CHECKOUT_ENABLED:false}'
-  'order-service/src/main/resources/application.properties|app.order.livestream-checkout-enabled=${ORDER_LIVESTREAM_CHECKOUT_ENABLED:false}'
+  'order/boot/src/main/resources/application.properties|app.order.payment-event-processing-enabled=${ORDER_PAYMENT_EVENT_PROCESSING_ENABLED:false}'
+  'order/boot/src/main/resources/application.properties|app.order.voucher-checkout-enabled=${ORDER_VOUCHER_CHECKOUT_ENABLED:false}'
+  'order/boot/src/main/resources/application.properties|app.order.flashsale-checkout-enabled=${ORDER_FLASHSALE_CHECKOUT_ENABLED:false}'
+  'order/boot/src/main/resources/application.properties|app.order.livestream-checkout-enabled=${ORDER_LIVESTREAM_CHECKOUT_ENABLED:false}'
   'settlement/boot/src/main/resources/application.properties|app.payment.processing-enabled=${PAYMENT_PROCESSING_ENABLED:false}'
   'settlement/boot/src/main/resources/application.properties|app.payment.fake-provider-enabled=${FAKE_PAYMENT_PROVIDER_ENABLED:false}'
   'settlement/boot/src/main/resources/application.properties|app.payout.processing-enabled=${PAYOUT_PROCESSING_ENABLED:false}'
@@ -371,9 +371,9 @@ for fake_payment_source in \
     exit 1
   fi
 done
-legacy_order_read_controller="${ROOT_DIR}/order-service/src/main/java/com/delivery/order_service/controller/LegacyOrderReadController.java"
-legacy_order_mutation_controller="${ROOT_DIR}/order-service/src/main/java/com/delivery/order_service/controller/LegacyOrderMutationController.java"
-legacy_order_properties="${ROOT_DIR}/order-service/src/main/resources/application.properties"
+legacy_order_read_controller="${ROOT_DIR}/order/infrastructure/src/main/java/com/delivery/order_service/controller/LegacyOrderReadController.java"
+legacy_order_mutation_controller="${ROOT_DIR}/order/infrastructure/src/main/java/com/delivery/order_service/controller/LegacyOrderMutationController.java"
+legacy_order_properties="${ROOT_DIR}/order/boot/src/main/resources/application.properties"
 if [[ -e "${legacy_order_read_controller}" || -e "${legacy_order_mutation_controller}" ]]; then
   echo "order-service: legacy order controllers must remain deleted." >&2
   exit 1
@@ -494,12 +494,13 @@ if rg -q 'ALTER TABLE[[:space:]]+deliveries' \
   exit 1
 fi
 
-order_kafka_config="${ROOT_DIR}/order-service/src/main/java/com/delivery/order_service/config/KafkaConfig.java"
-if ! rg -Fq 'ownerDltTopic(record.topic())' "${order_kafka_config}" \
-    || ! rg -Fq 'replaceFirst("-retry-order-\\d+$", "") + ".order.DLT"' "${order_kafka_config}" \
-    || ! rg -Fq 'new FixedBackOff(1000L, 2)' "${order_kafka_config}" \
-    || ! rg -Fq 'recoverer.setFailIfSendResultIsError(true)' "${order_kafka_config}"; then
-  echo "order-service: Kafka consumer failures must use finite retry and fail-closed owner-isolated same-partition DLT recovery." >&2
+order_kafka_config="${ROOT_DIR}/order/infrastructure/src/main/java/com/delivery/order_service/config/OrderKafkaConsumerConfig.java"
+order_shared_error_handler="${ROOT_DIR}/platform/kafka-starter/src/main/java/com/delivery/platform/kafka/CommonKafkaErrorHandler.java"
+if ! rg -Fq 'factory.setCommonErrorHandler(errorHandler)' "${order_kafka_config}" \
+    || ! rg -Fq 'backOff.setMaxAttempts(MAX_RETRIES)' "${order_shared_error_handler}" \
+    || ! rg -Fq 'record.partition()' "${order_shared_error_handler}" \
+    || ! rg -Fq 'recoverer.setFailIfSendResultIsError(true)' "${order_shared_error_handler}"; then
+  echo "order-service: Kafka consumer failures must retain shared finite retry and fail-closed same-partition DLT recovery." >&2
   exit 1
 fi
 
@@ -642,7 +643,7 @@ if ! rg -Fq 'DLT_REPLAY_CONFIRMATION must exactly equal' \
   echo "Kafka DLT recovery must remain coordinate-confirmed, dry-run by default, and single-record only." >&2
   exit 1
 fi
-for manual_dlt_consumer in delivery-service dispatch/infrastructure match/infrastructure order-service notification-service promotion-service; do
+for manual_dlt_consumer in delivery-service dispatch/infrastructure match/infrastructure platform/kafka-starter notification-service promotion-service; do
   if ! rg -Fq 'setCommitRecovered(true)' \
       "${ROOT_DIR}/${manual_dlt_consumer}/src/main/java"; then
     echo "${manual_dlt_consumer}: manual-immediate DLT recovery must commit the recovered source offset." >&2
@@ -721,12 +722,12 @@ if [[ ! -f "${delivery_inbound_receipt_migration}" ]] \
   echo "delivery-service: every Saga command must commit its durable receipt/mutation before listener ACK." >&2
   exit 1
 fi
-order_restaurant_listener="${ROOT_DIR}/order-service/src/main/java/com/delivery/order_service/listener/RestaurantEventListener.java"
-order_saga_listener="${ROOT_DIR}/order-service/src/main/java/com/delivery/order_service/listener/SagaCommandListener.java"
-order_saga_processor="${ROOT_DIR}/order-service/src/main/java/com/delivery/order_service/service/SagaOrderCommandProcessor.java"
-order_saga_receipt_service="${ROOT_DIR}/order-service/src/main/java/com/delivery/order_service/service/SagaCommandReceiptService.java"
-order_saga_receipt_migration="${ROOT_DIR}/order-service/src/main/resources/db/migration/V9__create_saga_command_receipts.sql"
-order_properties="${ROOT_DIR}/order-service/src/main/resources/application.properties"
+order_restaurant_listener="${ROOT_DIR}/order/infrastructure/src/main/java/com/delivery/order_service/listener/RestaurantEventListener.java"
+order_saga_listener="${ROOT_DIR}/order/infrastructure/src/main/java/com/delivery/order_service/listener/SagaCommandListener.java"
+order_saga_processor="${ROOT_DIR}/order/infrastructure/src/main/java/com/delivery/order_service/service/SagaOrderCommandProcessor.java"
+order_saga_receipt_service="${ROOT_DIR}/order/infrastructure/src/main/java/com/delivery/order_service/service/SagaCommandReceiptService.java"
+order_saga_receipt_migration="${ROOT_DIR}/order/infrastructure/src/main/resources/db/migration/V9__create_saga_command_receipts.sql"
+order_properties="${ROOT_DIR}/order/boot/src/main/resources/application.properties"
 if [[ "$(rg -c '\$\{app\.kafka\.input-topics\.restaurant-' "${order_restaurant_listener}")" -ne 2 ]] \
     || ! rg -Fq '${app.kafka.input-topics.saga-update-order-status:saga.command.update-order-status}' \
       "${order_saga_listener}" \
@@ -742,14 +743,14 @@ if [[ ! -f "${order_saga_receipt_migration}" ]] \
     || ! rg -Fq 'saga_command_receipts' "${order_saga_receipt_migration}" \
     || ! rg -Fq 'insertIfAbsentPostgres' "${order_saga_receipt_service}" \
     || ! rg -Fq 'ON CONFLICT (event_id) DO NOTHING' \
-      "${ROOT_DIR}/order-service/src/main/java/com/delivery/order_service/repository/SagaCommandReceiptRepository.java" \
+      "${ROOT_DIR}/order/infrastructure/src/main/java/com/delivery/order_service/repository/SagaCommandReceiptRepository.java" \
     || ! rg -Fq 'SagaOrderCommandProcessor' "${order_saga_listener}" \
     || ! rg -Fq '@Transactional' "${order_saga_processor}" \
     || ! rg -Fq 'SagaCommandReceiptService.UPDATE_ORDER_STATUS' "${order_saga_processor}" \
-    || ! rg -Fq 'RawStringPreservingJsonMessageConverter' \
-      "${ROOT_DIR}/order-service/src/main/java/com/delivery/order_service/config/KafkaConfig.java" \
-    || ! rg -Fq '@Qualifier("retryKafkaTemplate") KafkaTemplate<String, String> kafkaTemplate' \
-      "${ROOT_DIR}/order-service/src/main/java/com/delivery/order_service/config/KafkaConfig.java"; then
+    || ! rg -Fq 'return type == String.class && record.value() != null' \
+      "${ROOT_DIR}/order/infrastructure/src/main/java/com/delivery/order_service/config/OrderKafkaConsumerConfig.java" \
+    || ! rg -Fq 'new DelegatingByTypeSerializer(serializers, true)' \
+      "${ROOT_DIR}/order/infrastructure/src/main/java/com/delivery/order_service/config/OrderKafkaConsumerConfig.java"; then
   echo "order-service: Saga update-status must retain raw-payload ingress, transactional receipt, and raw DLT recovery." >&2
   exit 1
 fi
