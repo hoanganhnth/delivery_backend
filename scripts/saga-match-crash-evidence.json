@@ -1,0 +1,332 @@
+{
+  "failure": {
+    "source": "/tmp/saga-match-diagnostic-rehearsal.log",
+    "decision_trace": {
+      "eventId": "29e40b8f-0aa1-3203-a516-37622eada3b6",
+      "commandEventId": "2d647b1c-d8ff-4b75-ab1d-53af3becefde",
+      "matchingSessionId": "52233503-78a5-33f0-87d2-a85f7b846556",
+      "orderId": 2,
+      "deliveryId": 2,
+      "eventType": "MATCHING_DECISION_TRACE",
+      "eventVersion": 1,
+      "algorithmId": "nearest-cod",
+      "algorithmVersion": "v1",
+      "executionMode": "REAL",
+      "mode": "ACTIVE",
+      "decision": "SHIPPER_NOT_FOUND",
+      "pickupLat": 20.9717,
+      "pickupLng": 105.777,
+      "radiusKm": 5.0,
+      "candidatePoolSize": 20,
+      "attempts": 3,
+      "latencyMs": 2827,
+      "occurredAt": "2026-10-06T11:56:05.056607506Z",
+      "selectedShipperId": null,
+      "candidateViewIsPostGeoFilter": true,
+      "notes": [],
+      "stages": [
+        {
+          "name": "GEO_QUERY",
+          "result": "OBSERVED",
+          "candidateCount": 1,
+          "latencyMs": 201,
+          "detail": "Candidate list is post GEO online/fresh/busy/offer filtering"
+        },
+        {
+          "name": "COD_ELIGIBILITY",
+          "result": "FILTERED",
+          "candidateCount": 3,
+          "latencyMs": 643,
+          "detail": "Settlement eligibility checked sequentially before reserve"
+        },
+        {
+          "name": "RESERVE",
+          "result": "NOT_RUN",
+          "candidateCount": 0,
+          "latencyMs": 0,
+          "detail": null
+        },
+        {
+          "name": "OUTCOME",
+          "result": "SHIPPER_NOT_FOUND",
+          "candidateCount": 0,
+          "latencyMs": null,
+          "detail": "No candidate passed the active matching path"
+        }
+      ],
+      "candidates": [
+        {
+          "shipperId": 4,
+          "latitude": 20.972998931097997,
+          "longitude": 105.77899843454361,
+          "distanceKm": 0.2529,
+          "completedDeliveries": 0,
+          "combinedScoreMinutes": null,
+          "online": true,
+          "codEligible": false,
+          "rank": 1,
+          "state": "REJECTED",
+          "reasons": [
+            "COD_NOT_ELIGIBLE"
+          ]
+        }
+      ]
+    },
+    "shipper_balances": [
+      {
+        "id": 1,
+        "entity_id": 1,
+        "entity_type": "SHIPPER",
+        "available_balance": 0.0,
+        "pending_balance": 0.0,
+        "holding_balance": 0.0,
+        "deposit_balance": 500000.0,
+        "total_deposited": 500000.0,
+        "total_cod_collected": 0.0,
+        "created_at": "2026-10-06T11:54:03.758124",
+        "updated_at": "2026-10-06T11:54:03.758124",
+        "reserved_deposit_balance": 0.0
+      }
+    ],
+    "cod_capacity_holds": [],
+    "redis_geo_member": 4
+  },
+  "success": {
+    "source": "/tmp/saga-match-rehearsal-current.log",
+    "project": "saga-match-crash-1791296486-73803-17482",
+    "staged_rows": [
+      {
+        "event_id": "ee478d9b-17f8-4602-82ad-b760eacc3748",
+        "topic": "saga.command.find-shipper",
+        "order_id": 2,
+        "delivery_id": 2,
+        "payload": {
+          "orderId": 2,
+          "deliveryId": 2,
+          "pickupAddress": "123 Tr\u1ea7n Ph\u00fa, Ph\u01b0\u1eddng M\u1ed9 Lao, H\u00e0 \u0110\u00f4ng, H\u00e0 N\u1ed9i",
+          "pickupLat": 20.9717,
+          "pickupLng": 105.777,
+          "deliveryAddress": "Crash rehearsal address",
+          "deliveryLat": 20.976,
+          "deliveryLng": 105.775,
+          "totalPrice": 57000.0,
+          "shippingFee": 12000.0,
+          "paymentMethod": "COD",
+          "restaurantId": 1,
+          "batchOfferEnabled": false,
+          "restaurantName": "Qu\u00e1n Test H\u00c0 \u0110\u00d4NG",
+          "simulationContext": {
+            "mode": "REAL",
+            "runId": null,
+            "cohortId": null,
+            "bindingVersion": null
+          },
+          "maxRetryAttempts": 2,
+          "initialDelaySeconds": 1,
+          "maxDelaySeconds": 2,
+          "backoffMultiplier": 1.0,
+          "matchingDeadlineAt": "2026-10-06T14:36:59.220852927",
+          "matchingSessionId": "d347e069-2777-3df9-adcd-c9f58ccb375e",
+          "eventId": "ee478d9b-17f8-4602-82ad-b760eacc3748",
+          "eventType": "saga.command.find-shipper",
+          "occurredAt": "2026-10-06T14:31:59.221300219"
+        },
+        "payload_fingerprint": "c13a6b3eea3d160b60f38fce055044108d168513dcf3a7ca6a98777a58ff92c9",
+        "candidate_payload": {
+          "eventId": "28ee44bd-ae23-322d-8f5d-7423a371ff31",
+          "deliveryId": 2,
+          "orderId": 2,
+          "availableShippers": [
+            {
+              "shipperId": 1,
+              "shipperName": null,
+              "shipperPhone": null,
+              "distanceKm": 0.2529,
+              "latitude": 20.972998931097997,
+              "longitude": 105.77899843454361,
+              "rating": null,
+              "isOnline": true
+            }
+          ],
+          "foundAt": "2026-10-06T14:32:01.59220622",
+          "waitingTimeoutSeconds": 180,
+          "matchingSessionId": "d347e069-2777-3df9-adcd-c9f58ccb375e",
+          "restaurantName": "Qu\u00e1n Test H\u00c0 \u0110\u00d4NG",
+          "pickupAddress": "123 Tr\u1ea7n Ph\u00fa, Ph\u01b0\u1eddng M\u1ed9 Lao, H\u00e0 \u0110\u00f4ng, H\u00e0 N\u1ed9i",
+          "deliveryAddress": "Crash rehearsal address",
+          "pickupLat": 20.9717,
+          "pickupLng": 105.777,
+          "deliveryLat": 20.976,
+          "deliveryLng": 105.775,
+          "totalPrice": 57000.0,
+          "paymentMethod": "COD",
+          "simulationContext": {
+            "mode": "REAL",
+            "runId": null,
+            "cohortId": null,
+            "bindingVersion": null
+          },
+          "batchOffer": null,
+          "batchId": null,
+          "batchItems": null,
+          "codHoldIds": null,
+          "batchWave": null
+        },
+        "status": "RESULT_STAGED",
+        "created_at": "2026-10-06T14:31:59.767289",
+        "updated_at": "2026-10-06T14:32:01.76798",
+        "completed_at": "2026-10-06T14:32:01.76798",
+        "matching_session_id": "d347e069-2777-3df9-adcd-c9f58ccb375e",
+        "dispatch_round_id": null,
+        "next_attempt_at": null,
+        "matching_deadline_at": null
+      },
+      {
+        "id": 1,
+        "event_id": "28ee44bd-ae23-322d-8f5d-7423a371ff31",
+        "command_event_id": "ee478d9b-17f8-4602-82ad-b760eacc3748",
+        "aggregate_id": "2",
+        "event_type": "shipper.found",
+        "topic": "shipper.found",
+        "event_key": "2",
+        "payload": {
+          "eventId": "28ee44bd-ae23-322d-8f5d-7423a371ff31",
+          "deliveryId": 2,
+          "orderId": 2,
+          "availableShippers": [
+            {
+              "shipperId": 1,
+              "shipperName": null,
+              "shipperPhone": null,
+              "distanceKm": 0.2529,
+              "latitude": 20.972998931097997,
+              "longitude": 105.77899843454361,
+              "rating": null,
+              "isOnline": true
+            }
+          ],
+          "foundAt": "2026-10-06T14:32:01.59220622",
+          "waitingTimeoutSeconds": 180,
+          "matchingSessionId": "d347e069-2777-3df9-adcd-c9f58ccb375e",
+          "restaurantName": "Qu\u00e1n Test H\u00c0 \u0110\u00d4NG",
+          "pickupAddress": "123 Tr\u1ea7n Ph\u00fa, Ph\u01b0\u1eddng M\u1ed9 Lao, H\u00e0 \u0110\u00f4ng, H\u00e0 N\u1ed9i",
+          "deliveryAddress": "Crash rehearsal address",
+          "pickupLat": 20.9717,
+          "pickupLng": 105.777,
+          "deliveryLat": 20.976,
+          "deliveryLng": 105.775,
+          "totalPrice": 57000.0,
+          "paymentMethod": "COD",
+          "simulationContext": {
+            "mode": "REAL",
+            "runId": null,
+            "cohortId": null,
+            "bindingVersion": null
+          },
+          "batchOffer": null,
+          "batchId": null,
+          "batchItems": null,
+          "codHoldIds": null,
+          "batchWave": null
+        },
+        "traceparent": null,
+        "status": "PENDING",
+        "attempts": 0,
+        "next_attempt_at": "2026-10-06T14:32:01.751995",
+        "created_at": "2026-10-06T14:32:01.751995",
+        "sent_at": null,
+        "last_error": null,
+        "lease_token": null,
+        "lease_until": null
+      },
+      {
+        "id": 2,
+        "event_id": "603563ab-df3d-343b-9b18-c22d19375170",
+        "command_event_id": "ee478d9b-17f8-4602-82ad-b760eacc3748",
+        "aggregate_id": "2",
+        "event_type": "MATCHING_DECISION_TRACE",
+        "topic": "matching.decision-trace",
+        "event_key": "2",
+        "payload": {
+          "eventId": "603563ab-df3d-343b-9b18-c22d19375170",
+          "commandEventId": "ee478d9b-17f8-4602-82ad-b760eacc3748",
+          "matchingSessionId": "d347e069-2777-3df9-adcd-c9f58ccb375e",
+          "orderId": 2,
+          "deliveryId": 2,
+          "eventType": "MATCHING_DECISION_TRACE",
+          "eventVersion": 1,
+          "algorithmId": "nearest-cod",
+          "algorithmVersion": "v1",
+          "executionMode": "REAL",
+          "mode": "ACTIVE",
+          "decision": "SHIPPER_SELECTED",
+          "pickupLat": 20.9717,
+          "pickupLng": 105.777,
+          "radiusKm": 5.0,
+          "candidatePoolSize": 20,
+          "attempts": 1,
+          "latencyMs": 1851,
+          "occurredAt": "2026-10-06T14:32:01.799566970Z",
+          "selectedShipperId": 1,
+          "candidateViewIsPostGeoFilter": true,
+          "notes": [],
+          "stages": [
+            {
+              "name": "GEO_QUERY",
+              "result": "OBSERVED",
+              "candidateCount": 1,
+              "latencyMs": 486,
+              "detail": "Candidate list is post GEO online/fresh/busy/offer filtering"
+            },
+            {
+              "name": "COD_ELIGIBILITY",
+              "result": "PASSED",
+              "candidateCount": 1,
+              "latencyMs": 1467,
+              "detail": "Settlement eligibility checked sequentially before reserve"
+            },
+            {
+              "name": "RESERVE",
+              "result": "WON",
+              "candidateCount": 1,
+              "latencyMs": 53,
+              "detail": null
+            },
+            {
+              "name": "OUTCOME",
+              "result": "SHIPPER_SELECTED",
+              "candidateCount": 1,
+              "latencyMs": null,
+              "detail": "One candidate was selected and the durable result was staged"
+            }
+          ],
+          "candidates": [
+            {
+              "shipperId": 1,
+              "latitude": 20.972998931097997,
+              "longitude": 105.77899843454361,
+              "distanceKm": 0.2529,
+              "completedDeliveries": 0,
+              "combinedScoreMinutes": null,
+              "online": true,
+              "codEligible": true,
+              "rank": 1,
+              "state": "SELECTED",
+              "reasons": []
+            }
+          ]
+        },
+        "traceparent": null,
+        "status": "PENDING",
+        "attempts": 0,
+        "next_attempt_at": "2026-10-06T14:32:01.81711",
+        "created_at": "2026-10-06T14:32:01.81711",
+        "sent_at": null,
+        "last_error": null,
+        "lease_token": null,
+        "lease_until": null
+      }
+    ],
+    "final_assertion": "Saga/Match two-replica crash/replay rehearsal passed: order=2 delivery=2 command=ee478d9b-17f8-4602-82ad-b760eacc3748, one Match result/outbox, one Delivery offer, one notification and one Saga cache command."
+  }
+}

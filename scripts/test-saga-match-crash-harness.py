@@ -184,13 +184,19 @@ class HarnessPreflight(unittest.TestCase):
                            'container_name': name, 'ports': ['1234:1234']}
                     for name, layout in FIXTURE.LAYOUTS.items()}
         services.update({name: {'image': name, 'ports': ['1234:1234']}
-                         for name in ('api-gateway', 'postgres', 'kafka', 'redis')})
+                         for name in ('api-gateway', 'postgres', 'kafka', 'redis',
+                                      'shipper-service', 'tracking-service', 'delivery-service')})
+        for name in ('shipper-service', 'tracking-service', 'delivery-service'):
+            services[name]['environment'] = {}
         services['optional'] = {'profiles': ['optional'], 'image': 'optional'}
         config = {'name': 'backend_delivery', 'services': services,
                   'networks': {'delivery-network': {'external': True, 'name': 'canonical'}},
                   'volumes': {'postgres_data': {'external': True, 'name': 'canonical'}, 'kafka_data': {}}}
         owner = 'unique-owner'
         result = FIXTURE.owned_config(config, owner)
+        self.assertEqual(result['services']['shipper-service']['environment']['SHIPPER_IDENTITY_OUTBOX_RELAY_ENABLED'], 'true')
+        for name in ('tracking-service', 'delivery-service'):
+            self.assertEqual(result['services'][name]['environment']['SHIPPER_IDENTITY_PROJECTION_ENFORCED'], 'true')
         self.assertNotIn('name', result)
         self.assertNotIn('optional', result['services'])
         for kind in ('volumes', 'networks'):
@@ -301,6 +307,103 @@ esac
         result = subprocess.run(['bash', '-c', 'compose() { return 1; }\n' + function + '\nstop_dlt_is_empty'],
                                 capture_output=True, timeout=3)
         self.assertNotEqual(result.returncode, 0)
+
+    def test_cod_timeout_dumps_payloads_balances_and_reservations_after_deadline(self):
+        text = SCRIPT.read_text()
+        wait = text[text.index('wait_for()'):text.index('psql_value()')]
+        diagnostics = text[text.index('dump_match_timeout_diagnostics()'):text.index('wait_for_service_healthy()')]
+        for diagnostic_status in (0, 7):
+            with self.subTest(diagnostic_status=diagnostic_status):
+                command = ('set -euo pipefail\nreadonly TIMEOUT_SECONDS=0\nPOLL_SECONDS=0 order_id=42\n'
+                           'psql_value() { printf "db=%s sql=%s budget=%s deadline=%s\\n" '
+                           '"$1" "$2" "$DIAGNOSTIC_COMMAND_TIMEOUT_SECONDS" "$OBSERVATION_DEADLINE"; '
+                           f'return {diagnostic_status}; }}\n'
+                           'compose() { printf "compose=%s budget=%s deadline=%s\\n" '
+                           '"$*" "$DIAGNOSTIC_COMMAND_TIMEOUT_SECONDS" "$OBSERVATION_DEADLINE"; '
+                           f'return {diagnostic_status}; }}\n'
+                           + wait + diagnostics +
+                           "\nwait_for 'Match command and unsent result outbox' false")
+                result = subprocess.run(['bash', '-c', command], capture_output=True, text=True, timeout=3)
+                self.assertEqual(result.returncode, 1)
+                self.assertIn('Timed out waiting', result.stderr)
+                for expected in ('match_commands WHERE order_id = 42',
+                                 "match_outbox_events WHERE aggregate_id = '42'",
+                                 'SELECT * FROM cod_capacity_holds WHERE order_id = 42',
+                                 "SELECT * FROM balances WHERE entity_type = 'SHIPPER'",
+                                 'row_to_json(r)', 'budget=10 deadline=\n',
+                                 'match:shipper:*', 'match:delivery:offer*',
+                                 'redis-cli TTL', 'redis-cli --raw GET',
+                                 'logs --no-color --tail=300 match-service settlement-service'):
+                    self.assertIn(expected, result.stderr)
+                self.assertEqual(result.stdout, '')
+
+    def test_diagnostic_budget_reaches_docker_wrapper_with_readonly_timeout(self):
+        text = SCRIPT.read_text()
+        docker = text[text.index('docker()'):text.index('curl()')]
+        diagnostics = text[text.index('dump_match_timeout_diagnostics()'):text.index('wait_for_service_healthy()')]
+        command = ('set -euo pipefail\nreadonly TIMEOUT_SECONDS=900\n'
+                   'OBSERVATION_DEADLINE=0 order_id=42\n'
+                   'bounded_command() { printf "limit=%s\\n" "$1"; }\n'
+                   'psql_value() { docker query "$@"; }\n'
+                   'compose() { docker compose "$@"; }\n'
+                   + docker + diagnostics + '\ndump_match_timeout_diagnostics')
+        result = subprocess.run(['bash', '-c', command], capture_output=True, text=True, timeout=3)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stderr.count('limit=10\n'), 6)
+        self.assertNotIn('readonly variable', result.stderr)
+
+    def test_match_diagnostics_only_run_for_failed_match_staging_wait(self):
+        text = SCRIPT.read_text()
+        wait = text[text.index('wait_for()'):text.index('psql_value()')]
+        for description, timeout, predicate, expected in (
+                ('Match command and unsent result outbox', 1, 'true', 0),
+                ('unrelated readiness', 0, 'false', 1)):
+            with self.subTest(description=description):
+                command = ('set -euo pipefail\n'
+                           f'TIMEOUT_SECONDS={timeout} POLL_SECONDS=0\n'
+                           'dump_match_timeout_diagnostics() { echo unexpected-diagnostics >&2; }\n'
+                           + wait + f'\nwait_for "{description}" {predicate}')
+                result = subprocess.run(['bash', '-c', command], capture_output=True,
+                                        text=True, timeout=3)
+                self.assertEqual(result.returncode, expected, result.stderr)
+                self.assertNotIn('unexpected-diagnostics', result.stderr)
+
+    def test_seed_waits_for_both_canonical_identity_projections_before_locations(self):
+        seed = SCRIPT.with_name('seed.sh').read_text()
+        start = seed.index('  if [[ "$SEED_WAIT_SHIPPER_IDENTITY_PROJECTION" == "true" ]]; then', seed.index('shipper_profile='))
+        end = seed.index('  "${COMPOSE_COMMAND[@]}" exec -T postgres psql -U postgres -d settlement_db', start)
+        self.assertLess(end, seed.index('"$BASE/api/tracking/shipper-locations/update"', start))
+        command = ('set -euo pipefail\nCOMPOSE_COMMAND=(mock_compose)\n'
+                   'SEED_WAIT_SHIPPER_IDENTITY_PROJECTION=true shipper_id=1 shipper_user_id=4\n'
+                   'mock_compose() { printf "%s\\n" "$*" >&2; '
+                   'if [[ -f "$FIXTURE_PROJECTION_CALLS/$8" ]]; then echo 1; '
+                   'else touch "$FIXTURE_PROJECTION_CALLS/$8"; echo 0; fi; }\n'
+                   'sleep() { echo projection-poll >&2; }\n'
+                   + seed[start:end])
+        result = subprocess.run(['bash', '-c', command],
+                                env=dict(self.env, FIXTURE_PROJECTION_CALLS=str(self.root)),
+                                capture_output=True, text=True, timeout=3)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        for database in ('tracking_db', 'delivery_db'):
+            self.assertIn('-d ' + database, result.stderr)
+        self.assertEqual(result.stderr.count('WHERE shipper_id = 1 AND legacy_user_id = 4'), 4)
+        self.assertEqual(result.stderr.count('projection-poll'), 2)
+
+    def test_staging_requires_one_business_result_and_a_found_event(self):
+        text = SCRIPT.read_text()
+        function = text[text.index('match_result_is_pending()'):text.index("wait_for 'Match command and unsent result outbox'")]
+        snapshot = text[text.index('match_snapshot()'):text.index('match_result_is_pending()')]
+        self.assertEqual(snapshot.count("topic <> 'matching.decision-trace'"), 2)
+        for state, found_count, expected in (
+                ('1|RESULT_STAGED|1|PENDING', '1', 0),
+                ('1|RESULT_STAGED|1|PENDING', '0', 1),
+                ('1|RESULT_STAGED|2|PENDING', '1', 1),
+                ('1|RESULT_STAGED|1|SENT', '1', 1)):
+            result = subprocess.run(['bash', '-c',
+                'match_snapshot() { echo "$STATE"; }\npsql_value() { echo "$FOUND_COUNT"; }\n'
+                + function + '\nmatch_result_is_pending'],
+                env=dict(self.env, STATE=state, FOUND_COUNT=found_count), capture_output=True, timeout=3)
+            self.assertEqual(result.returncode, expected)
 
     def test_original_crash_window_assertions_remain_present(self):
         text = SCRIPT.read_text()

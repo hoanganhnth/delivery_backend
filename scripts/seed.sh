@@ -28,6 +28,7 @@ SIMULATION_COHORT_ID="${SIMULATION_COHORT_ID:-$(uuidgen | tr '[:upper:]' '[:lowe
 # Runtime rehearsals may use an isolated local database fixture without an
 # SMTP inbox. Production/default seeding never bypasses email verification.
 SEED_LOCAL_FIXTURE_EMAIL_VERIFIED="${SEED_LOCAL_FIXTURE_EMAIL_VERIFIED:-false}"
+SEED_WAIT_SHIPPER_IDENTITY_PROJECTION="${SEED_WAIT_SHIPPER_IDENTITY_PROJECTION:-false}"
 
 # ⚠️ Role: các service downstream kiểm tra theo các chuỗi này
 #   (USER = khách, SHOP_OWNER = chủ nhà hàng, SHIPPER = shipper).
@@ -69,6 +70,10 @@ fi
 
 [[ "$SEED_SKIP_SHIPPER" == "true" || "$SEED_SKIP_SHIPPER" == "false" ]] || {
   echo "SEED_SKIP_SHIPPER must be true or false" >&2
+  exit 2
+}
+[[ "$SEED_WAIT_SHIPPER_IDENTITY_PROJECTION" == "true" || "$SEED_WAIT_SHIPPER_IDENTITY_PROJECTION" == "false" ]] || {
+  echo "SEED_WAIT_SHIPPER_IDENTITY_PROJECTION must be true or false" >&2
   exit 2
 }
 [[ "$SEED_SKIP_OUTSIDER" == "true" || "$SEED_SKIP_OUTSIDER" == "false" ]] || {
@@ -303,6 +308,18 @@ for shipper_index in $(seq 1 "$SEED_SHIPPER_COUNT"); do
   shipper_user_id="$(jq -r '.data.userId // .userId // empty' <<< "$shipper_profile")"
   [[ "$shipper_id" =~ ^[0-9]+$ ]] || { echo "❌ Không lấy được id canonical của shipper"; exit 1; }
   [[ "$shipper_user_id" =~ ^[0-9]+$ ]] || { echo "❌ Không lấy được userId canonical của shipper"; exit 1; }
+  if [[ "$SEED_WAIT_SHIPPER_IDENTITY_PROJECTION" == "true" ]]; then
+    # The crash harness bounds the entire seed process. Observe the real
+    # Kafka projections; never manufacture a mapping or a GEO member.
+    for identity_database in tracking_db delivery_db; do
+      until [[ "$("${COMPOSE_COMMAND[@]}" exec -T postgres psql -U postgres \
+        -d "$identity_database" -v ON_ERROR_STOP=1 -At -c \
+        "SELECT count(*) FROM shipper_identity_projection
+          WHERE shipper_id = $shipper_id AND legacy_user_id = $shipper_user_id;")" == '1' ]]; do
+        sleep 2
+      done
+    done
+  fi
   "${COMPOSE_COMMAND[@]}" exec -T postgres psql -U postgres -d settlement_db \
     -v shipper_id="$shipper_id" -v deposit_amount="$SHIPPER_DEPOSIT" \
     -f - < "$BACKEND_DIR/scripts/seed-settlement.sql" >/dev/null

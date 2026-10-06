@@ -47,7 +47,7 @@ except subprocess.TimeoutExpired:
 }
 
 docker() {
-  local limit="$TIMEOUT_SECONDS"
+  local limit="${DIAGNOSTIC_COMMAND_TIMEOUT_SECONDS:-$TIMEOUT_SECONDS}"
   if [[ -n "${OBSERVATION_DEADLINE:-}" ]]; then
     limit=$((OBSERVATION_DEADLINE - SECONDS))
     (( limit > 0 )) || return 124
@@ -126,6 +126,9 @@ wait_for() {
     sleep "$POLL_SECONDS"
   done
   printf 'Timed out waiting for %s.\n' "$description" >&2
+  if [[ "$description" == 'Match command and unsent result outbox' ]]; then
+    dump_match_timeout_diagnostics || true
+  fi
   return 1
 }
 
@@ -133,6 +136,42 @@ psql_value() {
   local database="$1"
   local query="$2"
   compose exec -T postgres psql -U postgres -d "$database" -v ON_ERROR_STOP=1 -At -c "$query"
+}
+
+dump_match_timeout_diagnostics() {
+  # The observation budget has expired. Give each best-effort diagnostic its
+  # own bounded command budget without changing the failed wait's outcome.
+  local OBSERVATION_DEADLINE=''
+  local DIAGNOSTIC_COMMAND_TIMEOUT_SECONDS=10
+  printf '[SAGA-MATCH-CRASH] timeout diagnostics: order=%s\n' "$order_id" >&2
+  printf '%s\n' 'match_db.match_commands (including command/candidate payloads):' >&2
+  psql_value match_db "SELECT COALESCE(json_agg(row_to_json(r)), '[]'::json)
+    FROM (SELECT * FROM match_commands WHERE order_id = $order_id ORDER BY created_at) r;" >&2 || true
+  printf '%s\n' 'match_db.match_outbox_events (including decision-trace payloads):' >&2
+  psql_value match_db "SELECT COALESCE(json_agg(row_to_json(r)), '[]'::json)
+    FROM (SELECT * FROM match_outbox_events WHERE aggregate_id = '$order_id' ORDER BY id) r;" >&2 || true
+  printf '%s\n' 'settlement_db.cod_capacity_holds:' >&2
+  psql_value settlement_db "SELECT COALESCE(json_agg(row_to_json(r)), '[]'::json)
+    FROM (SELECT * FROM cod_capacity_holds WHERE order_id = $order_id ORDER BY created_at) r;" >&2 || true
+  printf '%s\n' 'settlement_db.balances (all SHIPPER identities in the isolated fixture):' >&2
+  psql_value settlement_db "SELECT COALESCE(json_agg(row_to_json(r)), '[]'::json)
+    FROM (SELECT * FROM balances WHERE entity_type = 'SHIPPER' ORDER BY entity_id) r;" >&2 || true
+  printf '%s\n' 'Redis reservation/freshness keys (key, type, TTL, value):' >&2
+  compose exec -T redis sh -c '
+    for pattern in "match:shipper:*" "match:delivery:offer*" "match:cancelled:*"; do
+      redis-cli --scan --pattern "$pattern" | while IFS= read -r key; do
+        printf "key=%s type=" "$key"
+        redis-cli TYPE "$key"
+        printf "ttl="; redis-cli TTL "$key"
+        redis-cli --raw GET "$key"
+      done
+    done
+    printf "GEO members and online identities:\n"
+    redis-cli ZRANGE match:shippers:geo 0 -1 WITHSCORES
+    redis-cli SMEMBERS match:shippers:online
+  ' >&2 || true
+  printf '%s\n' 'Match/Settlement logs:' >&2
+  compose logs --no-color --tail=300 match-service settlement-service >&2 || true
 }
 
 wait_for_service_healthy() {
@@ -219,6 +258,7 @@ COMPOSE_PROJECT_NAME="$PROJECT_NAME" \
 RUN_ID="$seed_run_id" \
 SEED_OUTPUT_FILE="$seed_result" \
 SEED_LOCAL_FIXTURE_EMAIL_VERIFIED=true \
+SEED_WAIT_SHIPPER_IDENTITY_PROJECTION=true \
 BASE="$BASE" bash scripts/seed.sh > "$fixture_dir/seed.log" 2>&1 || {
   status=$?
   printf 'Seed failed (exit %s); last seed output:\n' "$status" >&2
@@ -486,12 +526,14 @@ match_snapshot() {
   psql_value match_db "SELECT
     (SELECT count(*) FROM match_commands WHERE order_id = $order_id),
     COALESCE((SELECT status FROM match_commands WHERE order_id = $order_id ORDER BY created_at DESC LIMIT 1), ''),
-    (SELECT count(*) FROM match_outbox_events WHERE aggregate_id = '$order_id'),
-    COALESCE((SELECT status FROM match_outbox_events WHERE aggregate_id = '$order_id' ORDER BY id DESC LIMIT 1), '');"
+    (SELECT count(*) FROM match_outbox_events WHERE aggregate_id = '$order_id' AND topic <> 'matching.decision-trace'),
+    COALESCE((SELECT status FROM match_outbox_events WHERE aggregate_id = '$order_id' AND topic <> 'matching.decision-trace' ORDER BY id DESC LIMIT 1), '');"
 }
 
 match_result_is_pending() {
-  [[ "$(match_snapshot)" == '1|RESULT_STAGED|1|PENDING' ]]
+  [[ "$(match_snapshot)" == '1|RESULT_STAGED|1|PENDING' ]] &&
+  [[ "$(psql_value match_db "SELECT count(*) FROM match_outbox_events
+      WHERE aggregate_id = '$order_id' AND topic = 'shipper.found' AND status = 'PENDING';")" == '1' ]]
 }
 
 wait_for 'Match command and unsent result outbox' match_result_is_pending
@@ -529,7 +571,7 @@ offer_matches_order() {
 wait_for 'durable Match outbox relay to restore the shipper offer' offer_matches_order
 
 match_outbox_is_sent() {
-  [[ "$(psql_value match_db "SELECT status FROM match_outbox_events WHERE command_event_id = '$command_event_id';")" == SENT ]]
+  [[ "$(psql_value match_db "SELECT status FROM match_outbox_events WHERE command_event_id = '$command_event_id' AND topic = 'shipper.found';")" == SENT ]]
 }
 
 wait_for 'Match outbox row to become SENT' match_outbox_is_sent

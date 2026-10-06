@@ -117,6 +117,11 @@ def owned_config(config, owner):
         'MATCHING_INITIAL_MAX_RETRY_ATTEMPTS': '2', 'MATCHING_INITIAL_DELAY_SECONDS': '1',
         'MATCHING_INITIAL_MAX_DELAY_SECONDS': '2', 'MATCHING_INITIAL_BACKOFF_MULTIPLIER': '1.0',
     })
+    # Fresh JWT user/principal IDs differ from shipper aggregate IDs. Follow
+    # the domain-ID projection wave before publishing fixture locations.
+    services['shipper-service']['environment']['SHIPPER_IDENTITY_OUTBOX_RELAY_ENABLED'] = 'true'
+    for name in ('tracking-service', 'delivery-service'):
+        services[name]['environment']['SHIPPER_IDENTITY_PROJECTION_ENFORCED'] = 'true'
     return config
 
 
