@@ -9,7 +9,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
 @Component
-public class RestaurantOwnershipClient {
+public class RestaurantOwnershipClient implements com.delivery.flashsale.application.api.OwnershipPort {
 
     private final RestTemplate restTemplate;
     private final String restaurantServiceUrl;

@@ -2,12 +2,12 @@
 
 Scope: equivalence-only extraction from `flashsale-service`; artifact/DNS remains
 `flashsale-service`. No flags, Kafka consumer configuration, messages, exception
-types, topics, locking, SQL or transaction boundaries change in slice 1.
+types, topics, locking, SQL or transaction boundaries change in slices 1–5.
 Authority: `docs/workflows/flash_sale_flow.md`,
 `docs/platform/decisions/0003-voucher-flashsale-checkout-policy.md`, existing
 implementation/tests, and Promotion's framework-free domain/build conventions.
 References below are repository-relative; host line numbers describe the initial
-inventory (the availability adapter changes locally in slice 1).
+inventory; the completed extraction map below supersedes implementation locations.
 
 ## Entrypoints
 
@@ -109,27 +109,92 @@ independent conditions. Workflow also requires Order/client checkout flags off;
 those surfaces are outside scope. Discovery/config fail-fast/retry topic creation
 also default false; no setting changes are authorized.
 
-## Proposed ordered slices
+## Ordered slices
 
-1. **Availability domain (this task):** register `flashsale/domain` before host,
+1. **Availability domain (completed in slice 1):** register `flashsale/domain` before host,
    depend from host, extract the shared pure availability decision behind a lazy
    read view; exhaustive ordering/boundary tests, 85% line and branch gates.
-2. Extract campaign/item validation and lifecycle decisions, preserving DTO
+2. **Completed:** extract campaign/item validation and lifecycle decisions, preserving DTO
    validation vs service-validation ordering and all compatibility errors.
-3. Extract reservation replay/transition/expiry decisions with state and identity
+3. **Completed:** extract reservation replay/transition/expiry decisions with state and identity
    value types; retain locks, clock acquisition, ledger updates and transactions
    in host until application ports exist.
-4. Extract order-event action/receipt replay and outbox retry decisions; keep
+4. **Completed:** extract order-event action/receipt replay and outbox retry decisions; keep
    Jackson, Kafka retry/ACK/configuration, native receipt SQL and serialization
    in host. Preserve raw-payload fingerprint and deterministic event identities.
-5. Introduce `flashsale/application-api` contracts/ports and
+5. **Completed:** introduce `flashsale/application-api` contracts/ports and
    `flashsale/application` use cases; host supplies HTTP/Kafka/JPA/ownership/
    outbox/clock adapters. Keep existing artifact and default-off composition.
-6. Relocate adapters/persistence/migrations to `flashsale/infrastructure` and
+6. **Remaining, not started:** relocate adapters/persistence/migrations to `flashsale/infrastructure` and
    entrypoint/configuration to `flashsale/boot`, ending at
    `flashsale/{domain,application-api,application,infrastructure,boot}` with boot
    artifact/DNS `flashsale-service`. Re-run host, migration, Docker race/replay
    and packaged-runtime proof before retiring the legacy host directory.
+
+## Slices 2–5 extraction map and proof
+
+Validated October 6, 2026. The service directory remains the runtime host; no
+adapter, migration, configuration or entrypoint relocation is included.
+
+- `flashsale/domain`: `FlashSaleInputs` supplies lazy validation input views;
+  `FlashSaleCatalogPolicy` owns ordered validation, discount/status/approval
+  decisions and initial states; `FlashSaleReservationPolicy` owns exact identity
+  replay, 15-minute TTL, complete state transitions, inclusive expiry, requested
+  line identity, row completeness and ledger checks; `FlashSaleEventPolicy` owns
+  topic/action mapping, receipt replay, deterministic outbox identities, retry
+  delay/DEAD boundaries and error truncation. Availability remains unchanged.
+- `flashsale/application-api`: catalog, stock, ownership, event receipt, outbox,
+  relay and recurring-stock ports. Mutable stock/reservation views adapt managed
+  host rows; generic output types retain transport DTOs and persistence enums
+  outside the framework-free modules.
+- `flashsale/application`: catalog, merchant registration, quote/reserve/commit/
+  release/expiry, event receipt, outbox, relay and recurring-stock use cases.
+  Orchestration retains validation-before-write, all-lines-before-counters,
+  flush-before-outbox, ownership-before-registration and lock/recheck ordering.
+- Host `FlashSaleService`, `FlashSaleStockService`,
+  `FlashSaleOrderReservationEventProcessor`, `FlashSaleOutboxService`,
+  `FlashSaleOutboxRelay` and `FlashSaleCronService` delegate to these use cases.
+  Host DTOs implement lazy inputs; `RestaurantOwnershipClient` implements the
+  ownership port and the merchant controller invokes registration orchestration.
+  Existing Spring transaction/capability/role boundaries, JPA locks, native
+  receipt SQL, raw-payload SHA-256, JSON serialization, HTTP and Kafka send/ACK
+  adapters remain in the host. Kafka consumer configuration is untouched.
+- Root reactor builds domain → application-api → application → legacy host.
+  The repackaged `flashsale-service-0.0.1-SNAPSHOT.jar` includes all three module
+  jars and the unchanged `FlashsaleServiceApplication` entrypoint.
+
+Executable evidence:
+
+- `mvn -B -pl :flashsale-service -am clean verify`: **BUILD SUCCESS**, October 6,
+  2026 at 21:29:28 +07:00, elapsed 1 minute 52 seconds. All nine reactor entries
+  succeeded. Surefire XML totals: **438 tests, 0 failures, 0 errors, 10 skips**
+  (428 executed). Domain: 266; application-api: 1; application: 26; host: 114
+  including 10 skips; supporting modules: 31.
+- Unchanged **85% line and branch gates** pass for all three extracted modules.
+  JaCoCo: domain **124/124 lines, 176/176 branches**; application **103/103 lines,
+  42/42 branches**; application-api **1/1 line**, no executable branches.
+- Domain tests exhaust decision ordering, time/price/identifier boundaries,
+  transition matrices, every replay identity field, receipt contradiction,
+  deterministic identities and retry/error boundaries. Application tests cover
+  every executable line and branch with port sequencing, no-write failure paths,
+  terminal replay, expiry rechecks, ownership and bounded batch assertions.
+  Host tests exercise adapters, serialization failure, outbox cardinality,
+  reserve/commit/release transactional rollback, query/DTO/security contracts
+  and migration validation.
+- Recorded defects remain regression-protected: H2 transaction tests prove
+  recurring reset still zeros durable holds and subsequent release fails closed,
+  and still includes deleted APPROVED items; catalog tests retain exhausted
+  item visibility without time-window checks; availability tests retain null
+  assumptions and Java integer overflow. No new product policy is introduced.
+- Docker unavailable: `FlashSaleReservationPostgresConcurrencyTest` **4 skips**,
+  `FlashSaleOrderReservationReceiptPostgresConcurrencyTest` **3 skips**, and
+  `FlashSaleReservationKafkaPostgresIntegrationTest` **3 skips**, each explicitly
+  reports `disabledWithoutDocker is true and Docker is not available`. H2/unit
+  evidence does not certify PostgreSQL contention or Kafka replay/recovery.
+
+Remaining work is slice 6 only, including Docker-backed and packaged-runtime
+proof before retiring the legacy host. No additional behavioral defect was
+identified in the completed extraction; the recorded risks below remain open.
 
 ## Pre-existing risks/defects (not fixed)
 

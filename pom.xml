@@ -77,6 +77,8 @@
         <module>livestream-service</module>
         <module>settlement/boot</module>
         <module>flashsale/domain</module>
+        <module>flashsale/application-api</module>
+        <module>flashsale/application</module>
         <module>flashsale-service</module>
         <module>analytics-service</module>
         <module>promotion/domain</module>

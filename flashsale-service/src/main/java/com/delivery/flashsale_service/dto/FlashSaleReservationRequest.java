@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Data
-public class FlashSaleReservationRequest {
+public class FlashSaleReservationRequest implements com.delivery.flashsale.domain.FlashSaleInputs.Reservation {
     @NotNull private UUID reservationId;
     @NotNull @Positive private Long orderId;
     @NotNull @Positive private Long userId;

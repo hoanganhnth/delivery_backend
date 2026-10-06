@@ -44,7 +44,8 @@ import static org.mockito.Mockito.doAnswer;
         "app.flashsale.checkout-enabled=true", "spring.jpa.show-sql=false"
 })
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({FlashSaleStockService.class, FlashSaleOutboxService.class, FlashSaleReservationTransactionTest.Config.class})
+@Import({FlashSaleStockService.class, FlashSaleOutboxService.class, FlashSaleCronService.class,
+        FlashSaleReservationTransactionTest.Config.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class FlashSaleReservationTransactionTest {
     @TestConfiguration
@@ -54,6 +55,7 @@ class FlashSaleReservationTransactionTest {
     }
 
     @Autowired FlashSaleStockService service;
+    @Autowired FlashSaleCronService cron;
     @Autowired FlashSaleItemRepository items;
     @Autowired FlashSaleCampaignRepository campaigns;
     @Autowired FlashSaleReservationRepository reservations;
@@ -135,6 +137,38 @@ class FlashSaleReservationTransactionTest {
         assertThat(reservations.findById(request.getReservationId()).orElseThrow().getState()).isEqualTo(state);
         assertThat(items.findById(itemId).orElseThrow().getSoldQuantity()).isEqualTo(sold);
         assertThat(outbox.count()).isEqualTo(eventCount);
+    }
+
+    @Test
+    void recurringResetStillZerosDurableHoldsAndLaterReleaseFailsLedgerCheck() {
+        var campaign = campaigns.findAll().get(0);
+        campaign.setIsRecurring(true);
+        campaigns.saveAndFlush(campaign);
+        service.reserveStock(request);
+
+        cron.resetRecurringCampaignStock();
+
+        assertStored(FlashSaleReservation.State.RESERVED, 0, 1);
+        assertThatThrownBy(() -> service.release(request.getReservationId(), request.getOrderId()))
+                .hasMessage("Flash sale stock ledger is inconsistent");
+        assertStored(FlashSaleReservation.State.RESERVED, 0, 1);
+    }
+
+    @Test
+    void recurringResetStillIncludesDeletedApprovedItems() {
+        var campaign = campaigns.findAll().get(0);
+        campaign.setIsRecurring(true);
+        campaigns.saveAndFlush(campaign);
+        var item = items.findById(itemId).orElseThrow();
+        item.setSoldQuantity(1);
+        item.setDeletedAt(java.time.LocalDateTime.of(2026, 1, 1, 0, 0));
+        items.saveAndFlush(item);
+
+        cron.resetRecurringCampaignStock();
+
+        var stored = items.findById(itemId).orElseThrow();
+        assertThat(stored.getSoldQuantity()).isZero();
+        assertThat(stored.getDeletedAt()).isEqualTo(item.getDeletedAt());
     }
 
     private void failNextOutboxWrite() {

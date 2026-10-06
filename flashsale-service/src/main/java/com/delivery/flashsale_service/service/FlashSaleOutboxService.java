@@ -10,7 +10,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.nio.charset.StandardCharsets;
+import com.delivery.flashsale.application.OutboxUseCase;
+import com.delivery.flashsale.application.api.OutboxPort;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -29,11 +30,18 @@ public class FlashSaleOutboxService {
 
     @Transactional(propagation = Propagation.MANDATORY)
     public UUID enqueue(FlashSaleReservation reservation) {
-        String eventType = "FLASH_SALE_RESERVATION_" + reservation.getState().name();
-        UUID eventId = UUID.nameUUIDFromBytes((reservation.getReservationId() + ":" + eventType)
-                .getBytes(StandardCharsets.UTF_8));
-        if (repository.existsById(eventId)) return eventId;
-        LocalDateTime now = LocalDateTime.now();
+        return new OutboxUseCase<>(new OutboxPort<FlashSaleReservation>() {
+            public String state(FlashSaleReservation row) { return row.getState().name(); }
+            public UUID reservationId(FlashSaleReservation row) { return row.getReservationId(); }
+            public boolean exists(UUID eventId) { return repository.existsById(eventId); }
+            public LocalDateTime now() { return LocalDateTime.now(); }
+            public void save(FlashSaleReservation row, UUID eventId, String eventType, LocalDateTime now) {
+                persistEvent(row, eventId, eventType, now);
+            }
+        }).enqueue(reservation);
+    }
+
+    private void persistEvent(FlashSaleReservation reservation, UUID eventId, String eventType, LocalDateTime now) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("eventId", eventId); payload.put("eventType", eventType); payload.put("occurredAt", now);
         payload.put("reservationId", reservation.getReservationId()); payload.put("orderId", reservation.getOrderId());
@@ -49,7 +57,7 @@ public class FlashSaleOutboxService {
         event.setAggregateId(reservation.getReservationId().toString()); event.setEventType(eventType);
         event.setTopic(topic); event.setEventKey(reservation.getOrderId().toString()); event.setPayload(json(payload));
         event.setStatus(FlashSaleOutboxEvent.Status.PENDING); event.setAttempts(0);
-        event.setNextAttemptAt(now); event.setCreatedAt(now); repository.save(event); return eventId;
+        event.setNextAttemptAt(now); event.setCreatedAt(now); repository.save(event);
     }
 
     private String json(Map<String, Object> payload) {

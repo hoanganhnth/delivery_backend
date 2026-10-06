@@ -2,7 +2,6 @@ package com.delivery.flashsale_service.service;
 
 import com.delivery.flashsale_service.dto.FlashSaleReservationRequest;
 import com.delivery.flashsale_service.dto.FlashSaleReservationResponse;
-import com.delivery.flashsale_service.dto.ReserveItemRequest;
 import com.delivery.flashsale_service.dto.FlashSaleQuoteRequest;
 import com.delivery.flashsale_service.dto.FlashSaleQuoteResponse;
 import com.delivery.flashsale_service.entity.FlashSaleItem;
@@ -18,10 +17,14 @@ import org.springframework.beans.factory.annotation.Value;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 
+import com.delivery.flashsale.application.StockUseCases;
+import com.delivery.flashsale.application.api.StockPort;
+import com.delivery.flashsale.domain.FlashSaleInputs;
+import com.delivery.flashsale.domain.FlashSaleReservationPolicy;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.*;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -36,179 +39,83 @@ public class FlashSaleStockService {
     @Value("${app.identity.principal-ownership.enforced:false}")
     private boolean principalOwnershipEnforced;
 
+    private StockUseCases<FlashSaleReservationResponse, FlashSaleQuoteResponse> useCases() {
+        return new StockUseCases<>(new PersistenceAdapter());
+    }
     @Transactional(readOnly = true)
-    public FlashSaleQuoteResponse quote(FlashSaleQuoteRequest request) {
-        if (request == null || request.getRestaurantId() == null || request.getItems() == null
-                || request.getRestaurantId() <= 0 || !hasValidLines(request.getItems()))
-            throw new IllegalArgumentException("Invalid flash-sale quote request");
-        Map<Long, ReserveItemRequest> requested = request.getItems().stream().collect(Collectors.toMap(
-                ReserveItemRequest::getFlashSaleItemId, Function.identity(),
-                (left, right) -> { throw new IllegalArgumentException("Duplicate flashSaleItemId"); }, TreeMap::new));
-        List<FlashSaleItem> items = itemRepository.findAllById(requested.keySet());
-        if (items.size() != requested.size()) throw new IllegalArgumentException("Flash sale item not found");
-        LocalTime now = LocalTime.now();
-        List<FlashSaleQuoteResponse.Line> lines = items.stream().sorted(Comparator.comparing(FlashSaleItem::getId))
-                .map(item -> {
-                    ReserveItemRequest line = requested.get(item.getId());
-                    FlashSaleAvailabilityPolicy.requireAvailable(item, request.getRestaurantId(), line.getQuantity(), now);
-                    return FlashSaleQuoteResponse.Line.builder().flashSaleItemId(item.getId())
-                            .menuItemId(item.getMenuItemId()).quantity(line.getQuantity())
-                            .unitPrice(item.getFlashSalePrice()).build();
-                }).toList();
-        return FlashSaleQuoteResponse.builder().restaurantId(request.getRestaurantId()).items(lines).build();
-    }
-
+    public FlashSaleQuoteResponse quote(FlashSaleQuoteRequest request) { return useCases().quote(request); }
     @Transactional
-    public FlashSaleReservationResponse reserveStock(FlashSaleReservationRequest request) {
-        validateRequest(request);
-        if (!principalOwnershipEnforced && request.getUserPrincipalId() == null) {
-            legacyReservationFallback().increment();
-        }
-        Optional<FlashSaleReservation> replay = reservationRepository.findById(request.getReservationId());
-        if (replay.isPresent()) return exactReplay(replay.get(), request);
-        Optional<FlashSaleReservation> sameOrder = reservationRepository.findByOrderId(request.getOrderId());
-        if (sameOrder.isPresent()) return exactReplay(sameOrder.get(), request);
-
-        Map<Long, ReserveItemRequest> requested = request.getItems().stream().collect(Collectors.toMap(
-                ReserveItemRequest::getFlashSaleItemId, Function.identity(),
-                (left, right) -> { throw new IllegalArgumentException("Duplicate flashSaleItemId"); },
-                TreeMap::new));
-        List<FlashSaleItem> items = itemRepository.findAllByIdForUpdate(requested.keySet());
-        if (items.size() != requested.size()) throw new IllegalArgumentException("Flash sale item not found");
-
-        LocalTime now = LocalTime.now();
-        LocalDateTime createdAt = LocalDateTime.now();
-        FlashSaleReservation reservation = FlashSaleReservation.builder()
-                .reservationId(request.getReservationId()).orderId(request.getOrderId())
-                .userId(request.getUserId()).userPrincipalId(request.getUserPrincipalId()).restaurantId(request.getRestaurantId())
-                .state(FlashSaleReservation.State.RESERVED).expiresAt(createdAt.plusMinutes(15))
-                .createdAt(createdAt).updatedAt(createdAt).build();
-
-        for (FlashSaleItem item : items) {
-            ReserveItemRequest lineRequest = requested.get(item.getId());
-            FlashSaleAvailabilityPolicy.requireAvailable(item, request.getRestaurantId(), lineRequest.getQuantity(), now);
-            reservation.getLines().add(FlashSaleReservationLine.builder()
-                    .reservation(reservation).flashSaleItemId(item.getId()).menuItemId(item.getMenuItemId())
-                    .quantity(lineRequest.getQuantity()).unitPrice(item.getFlashSalePrice()).build());
-        }
-        // No write occurs until every line has passed validation. The locked rows and this
-        // transaction make the whole cart one all-or-nothing stock operation.
-        for (FlashSaleItem item : items) {
-            item.setSoldQuantity(item.getSoldQuantity() + requested.get(item.getId()).getQuantity());
-        }
-        reservationRepository.saveAndFlush(reservation);
-        outboxService.enqueue(reservation);
-        return FlashSaleReservationResponse.from(reservation);
-    }
-
+    public FlashSaleReservationResponse reserveStock(FlashSaleReservationRequest request) { return useCases().reserve(request); }
     @Transactional
-    public FlashSaleReservationResponse commit(UUID reservationId, Long orderId) {
-        FlashSaleReservation reservation = locked(reservationId, orderId);
-        if (reservation.getState() == FlashSaleReservation.State.RESERVED
-                && !LocalDateTime.now().isBefore(reservation.getExpiresAt())) {
-            // The expiry sweep owns capacity restoration. A late order.created
-            // cannot be acknowledged as a successful COMMIT, including by the
-            // Kafka receipt transaction that calls this method.
-            throw new IllegalArgumentException("Flash sale reservation expired before commit");
-        } else if (reservation.getState() == FlashSaleReservation.State.RESERVED) {
-            reservation.setState(FlashSaleReservation.State.COMMITTED);
-            outboxService.enqueue(reservation);
-        } else if (reservation.getState() != FlashSaleReservation.State.COMMITTED) {
-            throw new IllegalArgumentException(
-                    "Flash sale reservation cannot be committed from state " + reservation.getState());
-        }
-        return FlashSaleReservationResponse.from(reservation);
-    }
-
+    public FlashSaleReservationResponse commit(UUID id, Long orderId) { return useCases().commit(id, orderId); }
     @Transactional
-    public FlashSaleReservationResponse release(UUID reservationId, Long orderId) {
-        FlashSaleReservation reservation = locked(reservationId, orderId);
-        if (reservation.getState() == FlashSaleReservation.State.RESERVED
-                || reservation.getState() == FlashSaleReservation.State.COMMITTED) {
-            releaseCapacity(reservation, FlashSaleReservation.State.RELEASED);
-        }
-        return FlashSaleReservationResponse.from(reservation);
-    }
-
+    public FlashSaleReservationResponse release(UUID id, Long orderId) { return useCases().release(id, orderId); }
     @Transactional
-    public int expireReservations() {
-        List<FlashSaleReservation> due = reservationRepository
-                .findTop100ByStateAndExpiresAtLessThanEqualOrderByExpiresAtAsc(
-                        FlashSaleReservation.State.RESERVED, LocalDateTime.now());
-        int expired = 0;
-        for (FlashSaleReservation candidate : due) {
-            FlashSaleReservation reservation = reservationRepository
-                    .findByIdForUpdate(candidate.getReservationId()).orElse(null);
-            if (reservation != null && reservation.getState() == FlashSaleReservation.State.RESERVED
-                    && !LocalDateTime.now().isBefore(reservation.getExpiresAt())) {
-                releaseCapacity(reservation, FlashSaleReservation.State.EXPIRED);
-                expired++;
-            }
+    public int expireReservations() { return useCases().expire(); }
+
+    private final class PersistenceAdapter implements StockPort<FlashSaleReservationResponse, FlashSaleQuoteResponse> {
+        public LocalTime time() { return LocalTime.now(); }
+        public LocalDateTime now() { return LocalDateTime.now(); }
+        public boolean principalEnforced() { return principalOwnershipEnforced; }
+        public void legacyFallback() { legacyReservationFallback().increment(); }
+        public Optional<Reservation> find(UUID id) { return reservationRepository.findById(id).map(ReservationView::new); }
+        public Optional<Reservation> findOrder(Long orderId) { return reservationRepository.findByOrderId(orderId).map(ReservationView::new); }
+        public Optional<Reservation> lock(UUID id) { return reservationRepository.findByIdForUpdate(id).map(ReservationView::new); }
+        public List<Item> items(Collection<Long> ids, boolean lock) {
+            List<FlashSaleItem> rows = lock ? itemRepository.findAllByIdForUpdate(ids) : itemRepository.findAllById(ids);
+            return rows.stream().map(row -> (Item) new ItemView(row)).toList();
         }
-        return expired;
-    }
-
-    private void releaseCapacity(FlashSaleReservation reservation, FlashSaleReservation.State terminal) {
-        List<Long> ids = reservation.getLines().stream().map(FlashSaleReservationLine::getFlashSaleItemId)
-                .sorted().toList();
-        Map<Long, FlashSaleItem> items = itemRepository.findAllByIdForUpdate(ids).stream()
-                .collect(Collectors.toMap(FlashSaleItem::getId, Function.identity()));
-        for (FlashSaleReservationLine line : reservation.getLines()) {
-            FlashSaleItem item = items.get(line.getFlashSaleItemId());
-            if (item == null || item.getSoldQuantity() < line.getQuantity()) {
-                throw new IllegalStateException("Flash sale stock ledger is inconsistent");
-            }
-            item.setSoldQuantity(item.getSoldQuantity() - line.getQuantity());
+        public Reservation create(FlashSaleInputs.Reservation request, FlashSaleReservationPolicy.State state, LocalDateTime createdAt, LocalDateTime expiresAt) {
+            return new ReservationView(FlashSaleReservation.builder()
+                    .reservationId(request.getReservationId()).orderId(request.getOrderId())
+                    .userId(request.getUserId()).userPrincipalId(request.getUserPrincipalId()).restaurantId(request.getRestaurantId())
+                    .state(FlashSaleReservation.State.valueOf(state.name())).expiresAt(expiresAt)
+                    .createdAt(createdAt).updatedAt(createdAt).build());
         }
-        reservation.setState(terminal);
-        outboxService.enqueue(reservation);
-    }
-
-    private FlashSaleReservation locked(UUID reservationId, Long orderId) {
-        if (reservationId == null || orderId == null || orderId <= 0)
-            throw new IllegalArgumentException("reservationId and positive orderId are required");
-        FlashSaleReservation reservation = reservationRepository.findByIdForUpdate(reservationId)
-                .orElseThrow(() -> new IllegalArgumentException("Flash sale reservation not found"));
-        if (!reservation.getOrderId().equals(orderId))
-            throw new IllegalArgumentException("reservationId is bound to another order");
-        return reservation;
-    }
-
-    private FlashSaleReservationResponse exactReplay(FlashSaleReservation reservation,
-                                                       FlashSaleReservationRequest request) {
-        Map<Long, Integer> existing = reservation.getLines().stream().collect(Collectors.toMap(
-                FlashSaleReservationLine::getFlashSaleItemId, FlashSaleReservationLine::getQuantity));
-        Map<Long, Integer> incoming = request.getItems().stream().collect(Collectors.toMap(
-                ReserveItemRequest::getFlashSaleItemId, ReserveItemRequest::getQuantity,
-                (left, right) -> { throw new IllegalArgumentException("Duplicate flashSaleItemId"); }));
-        if (!reservation.getReservationId().equals(request.getReservationId())
-                || !reservation.getOrderId().equals(request.getOrderId())
-                || !reservation.getUserId().equals(request.getUserId())
-                || !java.util.Objects.equals(reservation.getUserPrincipalId(), request.getUserPrincipalId())
-                || !reservation.getRestaurantId().equals(request.getRestaurantId())
-                || !existing.equals(incoming)) {
-            throw new IllegalArgumentException("Reservation replay payload does not match");
+        public void saveAndFlush(Reservation reservation) { reservationRepository.saveAndFlush(((ReservationView) reservation).row()); }
+        public void enqueue(Reservation reservation) { outboxService.enqueue(((ReservationView) reservation).row()); }
+        public FlashSaleReservationResponse response(Reservation reservation) { return FlashSaleReservationResponse.from(((ReservationView) reservation).row()); }
+        public FlashSaleQuoteResponse quote(Long restaurantId, List<Line> lines) {
+            return FlashSaleQuoteResponse.builder().restaurantId(restaurantId).items(lines.stream().map(line ->
+                    FlashSaleQuoteResponse.Line.builder().flashSaleItemId(line.itemId()).menuItemId(line.menuItemId())
+                            .quantity(line.quantity()).unitPrice(line.price()).build()).toList()).build();
         }
-        return FlashSaleReservationResponse.from(reservation);
-    }
-
-    private void validateRequest(FlashSaleReservationRequest request) {
-        if (request == null || request.getReservationId() == null || request.getOrderId() == null
-                || request.getOrderId() <= 0 || request.getUserId() == null || request.getUserId() <= 0
-                || request.getRestaurantId() == null || request.getRestaurantId() <= 0
-                || !hasValidLines(request.getItems()))
-            throw new IllegalArgumentException("Invalid flash sale reservation request");
-        if (principalOwnershipEnforced && (request.getUserPrincipalId() == null || request.getUserPrincipalId() <= 0)) {
-            throw new IllegalArgumentException("userPrincipalId is required when principal ownership is enforced");
+        public List<UUID> due(LocalDateTime now) {
+            return reservationRepository.findTop100ByStateAndExpiresAtLessThanEqualOrderByExpiresAtAsc(
+                    FlashSaleReservation.State.RESERVED, now).stream().map(FlashSaleReservation::getReservationId).toList();
         }
     }
 
-    private boolean hasValidLines(List<ReserveItemRequest> lines) {
-        return lines != null && !lines.isEmpty()
-                && lines.stream().noneMatch(line -> line == null
-                        || line.getFlashSaleItemId() == null || line.getFlashSaleItemId() <= 0
-                        || line.getQuantity() == null || line.getQuantity() <= 0)
-                && lines.stream().map(ReserveItemRequest::getFlashSaleItemId).distinct().count() == lines.size();
+    private record ItemView(FlashSaleItem row) implements StockPort.Item {
+        public boolean deleted() { return row.getDeletedAt() != null; }
+        public Long restaurantId() { return row.getRestaurantId(); }
+        public boolean approved() { return row.getStatus() == FlashSaleItem.ItemStatus.APPROVED; }
+        public boolean campaignActive() { return row.getCampaign().getStatus() == com.delivery.flashsale_service.entity.FlashSaleCampaign.CampaignStatus.ACTIVE; }
+        public LocalTime campaignStartTime() { return row.getCampaign().getStartTime(); }
+        public LocalTime campaignEndTime() { return row.getCampaign().getEndTime(); }
+        public Integer stockQuantity() { return row.getStockQuantity(); }
+        public Integer soldQuantity() { return row.getSoldQuantity(); }
+        public void soldQuantity(int value) { row.setSoldQuantity(value); }
+        public Long id() { return row.getId(); }
+        public Long menuItemId() { return row.getMenuItemId(); }
+        public BigDecimal price() { return row.getFlashSalePrice(); }
+    }
+
+    private record ReservationView(FlashSaleReservation row) implements StockPort.Reservation {
+        public UUID id() { return row.getReservationId(); }
+        public Long orderId() { return row.getOrderId(); }
+        public FlashSaleReservationPolicy.State state() { return row.getState() == null ? null : FlashSaleReservationPolicy.State.valueOf(row.getState().name()); }
+        public void state(FlashSaleReservationPolicy.State state) { row.setState(FlashSaleReservation.State.valueOf(state.name())); }
+        public LocalDateTime expiresAt() { return row.getExpiresAt(); }
+        public List<StockPort.Line> lines() { return row.getLines().stream().map(line -> new StockPort.Line(
+                line.getFlashSaleItemId(), line.getMenuItemId(), line.getQuantity(), line.getUnitPrice())).toList(); }
+        public void addLine(StockPort.Line line) { row.getLines().add(FlashSaleReservationLine.builder().reservation(row)
+                .flashSaleItemId(line.itemId()).menuItemId(line.menuItemId()).quantity(line.quantity()).unitPrice(line.price()).build()); }
+        public FlashSaleReservationPolicy.Identity identity() {
+            return new FlashSaleReservationPolicy.Identity(row.getReservationId(), row.getOrderId(), row.getUserId(),
+                    row.getUserPrincipalId(), row.getRestaurantId(), row.getLines().stream().collect(Collectors.toMap(
+                            FlashSaleReservationLine::getFlashSaleItemId, FlashSaleReservationLine::getQuantity)));
+        }
     }
 
     private Counter legacyReservationFallback() {

@@ -101,6 +101,22 @@ class FlashSaleServiceQuerySafetyTest {
     }
 
     @Test
+    void publicCatalogStillReturnsExhaustedItemsWithoutCheckingCampaignTimeWindow() {
+        FlashSaleService service = new FlashSaleService(campaignRepository, itemRepository, mapper);
+        var active = FlashSaleCampaign.builder().id(9L).status(FlashSaleCampaign.CampaignStatus.ACTIVE)
+                .startTime(LocalTime.of(8, 0)).endTime(LocalTime.of(9, 0)).build();
+        var exhausted = FlashSaleItem.builder().id(41L).campaign(active)
+                .status(FlashSaleItem.ItemStatus.APPROVED).stockQuantity(2).soldQuantity(2).build();
+        var dto = new com.delivery.flashsale_service.dto.FlashSaleItemDto();
+        when(campaignRepository.findById(9L)).thenReturn(java.util.Optional.of(active));
+        when(itemRepository.findByCampaignIdAndStatus(9L, FlashSaleItem.ItemStatus.APPROVED, Pageable.ofSize(100)))
+                .thenReturn(List.of(exhausted));
+        when(mapper.toDto(exhausted)).thenReturn(dto);
+
+        assertEquals(List.of(dto), service.getPublicItemsByCampaign(9L));
+    }
+
+    @Test
     void registerRejectsNonDiscountedPriceBeforeRepositoryCalls() {
         FlashSaleService service = new FlashSaleService(campaignRepository, itemRepository, mapper);
         RegisterItemRequest request = new RegisterItemRequest();

@@ -7,7 +7,7 @@ import lombok.Data;
 import java.math.BigDecimal;
 
 @Data
-public class RegisterItemRequest {
+public class RegisterItemRequest implements com.delivery.flashsale.domain.FlashSaleInputs.Item {
     @NotNull
     @Positive
     private Long campaignId;

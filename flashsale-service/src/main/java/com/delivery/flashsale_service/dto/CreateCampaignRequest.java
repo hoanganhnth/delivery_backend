@@ -7,7 +7,7 @@ import lombok.Data;
 import java.time.LocalTime;
 
 @Data
-public class CreateCampaignRequest {
+public class CreateCampaignRequest implements com.delivery.flashsale.domain.FlashSaleInputs.Campaign {
     @NotBlank
     @Size(max = 255)
     private String name;

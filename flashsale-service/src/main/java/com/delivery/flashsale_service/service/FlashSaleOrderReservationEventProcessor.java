@@ -1,6 +1,9 @@
 package com.delivery.flashsale_service.service;
 
-import com.delivery.flashsale_service.entity.FlashSaleOrderReservationReceipt;
+import com.delivery.flashsale.application.EventUseCase;
+import com.delivery.flashsale.application.api.EventPort;
+import com.delivery.flashsale.domain.FlashSaleEventPolicy;
+import com.delivery.flashsale.domain.FlashSaleEventPolicy.Receipt;
 import com.delivery.flashsale_service.repository.FlashSaleOrderReservationReceiptRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -13,7 +16,6 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
-import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -23,9 +25,6 @@ import java.util.UUID;
 @Service
 @ConditionalOnProperty(name = "app.flashsale.checkout-enabled", havingValue = "true")
 public class FlashSaleOrderReservationEventProcessor {
-
-    private static final String COMMIT = "COMMIT";
-    private static final String RELEASE = "RELEASE";
 
     private final FlashSaleStockService stockService;
     private final FlashSaleOrderReservationReceiptRepository receipts;
@@ -57,27 +56,22 @@ public class FlashSaleOrderReservationEventProcessor {
         JsonNode event = objectMapper.readTree(payload);
         UUID eventId = requiredUuid(event, "eventId");
         long orderId = requiredPositiveLong(event, "orderId");
-        String sourceTopic = canonicalSourceTopic(receivedTopic);
-        String action = actionFor(sourceTopic);
+        String sourceTopic = FlashSaleEventPolicy.canonicalSourceTopic(receivedTopic);
+        String action = FlashSaleEventPolicy.actionFor(sourceTopic, orderCreatedTopic, orderCancelledTopic, refundEligibleTopic);
         UUID reservationId = optionalUuid(event, "flashSaleReservationId");
         String fingerprint = fingerprint(payload);
 
-        if (insertIfAbsent(eventId, sourceTopic, action, orderId, reservationId, fingerprint) == 0) {
-            FlashSaleOrderReservationReceipt existing = receipts.findById(eventId)
-                    .orElseThrow(() -> new IllegalStateException(
-                            "flash-sale receipt conflict resolved without a committed receipt"));
-            requireExactReplay(existing, sourceTopic, action, orderId, reservationId, fingerprint);
-            return;
-        }
-
-        if (reservationId == null) {
-            return;
-        }
-        if (COMMIT.equals(action)) {
-            stockService.commit(reservationId, orderId);
-        } else {
-            stockService.release(reservationId, orderId);
-        }
+        new EventUseCase(new EventPort() {
+            public int claim(UUID id, Receipt receipt) {
+                return insertIfAbsent(id, receipt.sourceTopic(), receipt.action(), receipt.orderId(), receipt.reservationId(), receipt.fingerprint());
+            }
+            public java.util.Optional<Receipt> find(UUID id) {
+                return receipts.findById(id).map(row -> new Receipt(row.getSourceTopic(), row.getAction(), row.getOrderId(),
+                        row.getReservationId(), row.getPayloadFingerprint()));
+            }
+            public void commit(UUID id, Long order) { stockService.commit(id, order); }
+            public void release(UUID id, Long order) { stockService.release(id, order); }
+        }).process(eventId, new Receipt(sourceTopic, action, orderId, reservationId, fingerprint));
     }
 
     private int insertIfAbsent(UUID eventId, String sourceTopic, String action, long orderId,
@@ -86,23 +80,6 @@ public class FlashSaleOrderReservationEventProcessor {
             return receipts.insertIfAbsentH2(eventId, sourceTopic, action, orderId, reservationId, fingerprint);
         }
         return receipts.insertIfAbsentPostgres(eventId, sourceTopic, action, orderId, reservationId, fingerprint);
-    }
-
-    private String canonicalSourceTopic(String receivedTopic) {
-        if (receivedTopic == null || receivedTopic.isBlank()) {
-            throw new IllegalArgumentException("source topic is required");
-        }
-        return receivedTopic.replaceFirst("-retry-flashsale-\\d+$", "");
-    }
-
-    private String actionFor(String sourceTopic) {
-        if (orderCreatedTopic.equals(sourceTopic)) {
-            return COMMIT;
-        }
-        if (orderCancelledTopic.equals(sourceTopic) || refundEligibleTopic.equals(sourceTopic)) {
-            return RELEASE;
-        }
-        throw new IllegalArgumentException("Unexpected flash-sale reservation source topic: " + sourceTopic);
     }
 
     private UUID requiredUuid(JsonNode event, String field) {
@@ -149,15 +126,4 @@ public class FlashSaleOrderReservationEventProcessor {
         }
     }
 
-    private void requireExactReplay(FlashSaleOrderReservationReceipt receipt, String sourceTopic,
-                                    String action, long orderId, UUID reservationId, String fingerprint) {
-        if (!receipt.getSourceTopic().equals(sourceTopic)
-                || !receipt.getAction().equals(action)
-                || !receipt.getOrderId().equals(orderId)
-                || !Objects.equals(receipt.getReservationId(), reservationId)
-                || !receipt.getPayloadFingerprint().equals(fingerprint)) {
-            throw new IllegalArgumentException(
-                    "eventId replay has a contradictory flash-sale reservation payload");
-        }
-    }
 }

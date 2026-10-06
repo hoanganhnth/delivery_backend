@@ -18,7 +18,8 @@ public class FlashSaleCronService {
     @Transactional
     public void resetRecurringCampaignStock() {
         log.info("Running daily cron job to reset recurring flash sale stock...");
-        int updated = itemRepo.resetRecurringSoldQuantity(FlashSaleItem.ItemStatus.APPROVED);
+        int updated = new com.delivery.flashsale.application.RecurringStockUseCase(
+                () -> itemRepo.resetRecurringSoldQuantity(FlashSaleItem.ItemStatus.APPROVED)).reset();
         log.info("Reset stock for {} recurring flash sale items.", updated);
     }
 }

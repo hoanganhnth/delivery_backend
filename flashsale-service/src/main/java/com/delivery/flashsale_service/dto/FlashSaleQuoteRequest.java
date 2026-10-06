@@ -9,7 +9,7 @@ import lombok.Data;
 import java.util.List;
 
 @Data
-public class FlashSaleQuoteRequest {
+public class FlashSaleQuoteRequest implements com.delivery.flashsale.domain.FlashSaleInputs.Quote {
     @NotNull @Positive private Long restaurantId;
     @NotEmpty private List<@Valid @NotNull ReserveItemRequest> items;
 }

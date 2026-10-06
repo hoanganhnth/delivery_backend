@@ -11,7 +11,7 @@
     </parent>
     <artifactId>flashsale-domain</artifactId>
     <name>flashsale-domain</name>
-    <description>Framework-independent flash-sale availability decisions.</description>
+    <description>Framework-independent flash-sale catalog, reservation and event decisions.</description>
     <properties>
         <delivery.coverage.line.minimum>0.85</delivery.coverage.line.minimum>
         <delivery.coverage.branch.minimum>0.85</delivery.coverage.branch.minimum>
@@ -27,5 +27,6 @@
             <artifactId>assertj-core</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency><groupId>org.mockito</groupId><artifactId>mockito-core</artifactId><scope>test</scope></dependency>
     </dependencies>
 </project>

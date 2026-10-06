@@ -5,7 +5,7 @@ import jakarta.validation.constraints.Positive;
 import lombok.Data;
 
 @Data
-public class ReserveItemRequest {
+public class ReserveItemRequest implements com.delivery.flashsale.domain.FlashSaleInputs.Line {
     @NotNull
     @Positive
     private Long flashSaleItemId;
