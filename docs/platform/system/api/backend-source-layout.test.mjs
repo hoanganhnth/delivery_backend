@@ -110,3 +110,19 @@ test('Order relocation keeps its artifact identity and adapters discoverable', (
     'order/infrastructure/src/main/resources/db/migration')));
   assert.equal(fs.existsSync(path.join(backend, 'order/boot/src/main/resources/db')), false);
 });
+
+test('Notification relocation preserves discovery of every HTTP handler', () => {
+  const root = path.resolve(import.meta.dirname, '../../../..');
+  assert.equal(fs.existsSync(path.join(root, 'notification-service')), false);
+  const roots = serviceSourceRoots(root).filter(({ service }) => service === 'notification-service');
+  assert.deepEqual(roots.map(({ directory }) => path.relative(root, directory)).sort(), [
+    'notification/boot/src/main/java',
+    'notification/infrastructure/src/main/java',
+  ]);
+  for (const controller of ['FirebaseController', 'NotificationController']) {
+    const source = path.join(root,
+      `notification/infrastructure/src/main/java/com/delivery/notification_service/controller/${controller}.java`);
+    assert.equal(fs.existsSync(source), true);
+    assert.equal(serviceForSource(root, source), 'notification-service');
+  }
+});

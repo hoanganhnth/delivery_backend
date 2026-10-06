@@ -452,7 +452,7 @@ services:
     networks: [delivery-network]
 
   notification-service:
-    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: notification-service } }
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: notification/boot } }
     container_name: notification-service
     expose: ["8091", "9090"]
     environment:

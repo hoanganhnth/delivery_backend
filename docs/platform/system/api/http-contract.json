@@ -3606,7 +3606,7 @@
       "path": "/api/firebase/register-token",
       "handler": "registerFcmToken",
       "source": {
-        "file": "backend_delivery/notification-service/src/main/java/com/delivery/notification_service/controller/FirebaseController.java",
+        "file": "backend_delivery/notification/infrastructure/src/main/java/com/delivery/notification_service/controller/FirebaseController.java",
         "line": 27
       },
       "java": {
@@ -3656,7 +3656,7 @@
       "path": "/api/firebase/unregister-token",
       "handler": "unregisterFcmToken",
       "source": {
-        "file": "backend_delivery/notification-service/src/main/java/com/delivery/notification_service/controller/FirebaseController.java",
+        "file": "backend_delivery/notification/infrastructure/src/main/java/com/delivery/notification_service/controller/FirebaseController.java",
         "line": 37
       },
       "java": {
@@ -3706,8 +3706,8 @@
       "path": "/api/notifications/send",
       "handler": "sendNotification",
       "source": {
-        "file": "backend_delivery/notification-service/src/main/java/com/delivery/notification_service/controller/NotificationController.java",
-        "line": 50
+        "file": "backend_delivery/notification/infrastructure/src/main/java/com/delivery/notification_service/controller/NotificationController.java",
+        "line": 52
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<NotificationResponse>> sendNotification( @Valid @RequestBody SendNotificationRequest request, @RequestHeader(value = \"Internal-Token\", required = false) String internalToken)",
@@ -3758,8 +3758,8 @@
       "path": "/api/notifications/user/{userId}",
       "handler": "getUserNotifications",
       "source": {
-        "file": "backend_delivery/notification-service/src/main/java/com/delivery/notification_service/controller/NotificationController.java",
-        "line": 65
+        "file": "backend_delivery/notification/infrastructure/src/main/java/com/delivery/notification_service/controller/NotificationController.java",
+        "line": 67
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<List<NotificationResponse>>> getUserNotifications( @PathVariable Long userId, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -3801,8 +3801,8 @@
       "path": "/api/notifications/unread",
       "handler": "getUnreadNotifications",
       "source": {
-        "file": "backend_delivery/notification-service/src/main/java/com/delivery/notification_service/controller/NotificationController.java",
-        "line": 76
+        "file": "backend_delivery/notification/infrastructure/src/main/java/com/delivery/notification_service/controller/NotificationController.java",
+        "line": 78
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<List<NotificationResponse>>> getUnreadNotifications( @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -3832,8 +3832,8 @@
       "path": "/api/notifications/unread-count",
       "handler": "getUnreadCount",
       "source": {
-        "file": "backend_delivery/notification-service/src/main/java/com/delivery/notification_service/controller/NotificationController.java",
-        "line": 85
+        "file": "backend_delivery/notification/infrastructure/src/main/java/com/delivery/notification_service/controller/NotificationController.java",
+        "line": 87
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<Long>> getUnreadCount( @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -3863,8 +3863,8 @@
       "path": "/api/notifications/{id}/read",
       "handler": "markAsRead",
       "source": {
-        "file": "backend_delivery/notification-service/src/main/java/com/delivery/notification_service/controller/NotificationController.java",
-        "line": 94
+        "file": "backend_delivery/notification/infrastructure/src/main/java/com/delivery/notification_service/controller/NotificationController.java",
+        "line": 96
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<NotificationResponse>> markAsRead( @PathVariable Long id, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -3906,8 +3906,8 @@
       "path": "/api/notifications/mark-all-read",
       "handler": "markAllAsRead",
       "source": {
-        "file": "backend_delivery/notification-service/src/main/java/com/delivery/notification_service/controller/NotificationController.java",
-        "line": 104
+        "file": "backend_delivery/notification/infrastructure/src/main/java/com/delivery/notification_service/controller/NotificationController.java",
+        "line": 106
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<Integer>> markAllAsRead( @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -3937,8 +3937,8 @@
       "path": "/api/notifications/{id}",
       "handler": "getNotificationById",
       "source": {
-        "file": "backend_delivery/notification-service/src/main/java/com/delivery/notification_service/controller/NotificationController.java",
-        "line": 113
+        "file": "backend_delivery/notification/infrastructure/src/main/java/com/delivery/notification_service/controller/NotificationController.java",
+        "line": 115
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<NotificationResponse>> getNotificationById( @PathVariable Long id, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -3980,8 +3980,8 @@
       "path": "/api/notifications/{id}",
       "handler": "deleteNotification",
       "source": {
-        "file": "backend_delivery/notification-service/src/main/java/com/delivery/notification_service/controller/NotificationController.java",
-        "line": 123
+        "file": "backend_delivery/notification/infrastructure/src/main/java/com/delivery/notification_service/controller/NotificationController.java",
+        "line": 125
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<Void>> deleteNotification( @PathVariable Long id, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -4023,8 +4023,8 @@
       "path": "/api/notifications/preferences",
       "handler": "getPreferences",
       "source": {
-        "file": "backend_delivery/notification-service/src/main/java/com/delivery/notification_service/controller/NotificationController.java",
-        "line": 133
+        "file": "backend_delivery/notification/infrastructure/src/main/java/com/delivery/notification_service/controller/NotificationController.java",
+        "line": 135
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<NotificationPreferenceResponse>> getPreferences( @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -4054,8 +4054,8 @@
       "path": "/api/notifications/preferences/marketing",
       "handler": "updateMarketingPreference",
       "source": {
-        "file": "backend_delivery/notification-service/src/main/java/com/delivery/notification_service/controller/NotificationController.java",
-        "line": 143
+        "file": "backend_delivery/notification/infrastructure/src/main/java/com/delivery/notification_service/controller/NotificationController.java",
+        "line": 146
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<NotificationPreferenceResponse>> updateMarketingPreference( @Valid @RequestBody UpdateMarketingNotificationPreferenceRequest request, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -16234,7 +16234,7 @@
     "com.delivery.notification_service.controller.FirebaseController.TokenRequest": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/notification-service/src/main/java/com/delivery/notification_service/controller/FirebaseController.java",
+        "file": "backend_delivery/notification/infrastructure/src/main/java/com/delivery/notification_service/controller/FirebaseController.java",
         "line": 52
       },
       "fields": [
@@ -16266,7 +16266,7 @@
     "com.delivery.notification_service.dto.request.SendNotificationRequest": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/notification-service/src/main/java/com/delivery/notification_service/dto/request/SendNotificationRequest.java",
+        "file": "backend_delivery/notification/infrastructure/src/main/java/com/delivery/notification_service/dto/request/SendNotificationRequest.java",
         "line": 16
       },
       "fields": [
@@ -16475,7 +16475,7 @@
     "com.delivery.notification_service.dto.request.UpdateMarketingNotificationPreferenceRequest": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/notification-service/src/main/java/com/delivery/notification_service/dto/request/UpdateMarketingNotificationPreferenceRequest.java",
+        "file": "backend_delivery/notification/infrastructure/src/main/java/com/delivery/notification_service/dto/request/UpdateMarketingNotificationPreferenceRequest.java",
         "line": 10
       },
       "fields": [
@@ -16499,7 +16499,7 @@
     "com.delivery.notification_service.dto.response.NotificationPreferenceResponse": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/notification-service/src/main/java/com/delivery/notification_service/dto/response/NotificationPreferenceResponse.java",
+        "file": "backend_delivery/notification/infrastructure/src/main/java/com/delivery/notification_service/dto/response/NotificationPreferenceResponse.java",
         "line": 11
       },
       "fields": [
@@ -16532,7 +16532,7 @@
     "com.delivery.notification_service.dto.response.NotificationResponse": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/notification-service/src/main/java/com/delivery/notification_service/dto/response/NotificationResponse.java",
+        "file": "backend_delivery/notification/infrastructure/src/main/java/com/delivery/notification_service/dto/response/NotificationResponse.java",
         "line": 13
       },
       "fields": [
@@ -16631,7 +16631,7 @@
     "com.delivery.notification_service.payload.BaseResponse": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/notification-service/src/main/java/com/delivery/notification_service/payload/BaseResponse.java",
+        "file": "backend_delivery/notification/infrastructure/src/main/java/com/delivery/notification_service/payload/BaseResponse.java",
         "line": 13
       },
       "fields": [

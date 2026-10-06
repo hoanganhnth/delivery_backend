@@ -16,7 +16,7 @@ mvn -B -f "${ROOT_DIR}/pom.xml" -pl platform/delivery-platform-bom -am \
   -DskipTests install
 mvn -B -f "${ROOT_DIR}/identity-contracts/pom.xml" help:effective-pom \
   -Doutput="${current_effective}"
-mvn -B -f "${ROOT_DIR}/notification-service/pom.xml" help:effective-pom \
+mvn -B -f "${ROOT_DIR}/notification/boot/pom.xml" help:effective-pom \
   -Doutput="${unmigrated_effective}"
 
 python3 - "${baseline_effective}" "${current_effective}" "${unmigrated_effective}" <<'PY'
