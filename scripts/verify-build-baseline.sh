@@ -39,7 +39,7 @@ modules=(
   flashsale-service
   analytics-service
   promotion/boot
-  simulator-service
+  simulator/boot
 )
 
 if [[ -n "${JAVA_HOME:-}" ]]; then

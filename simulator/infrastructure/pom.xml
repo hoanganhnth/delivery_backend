@@ -5,21 +5,14 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>org.springframework.boot</groupId>
-        <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.5.15</version>
-        <relativePath/>
+        <groupId>com.delivery</groupId>
+        <artifactId>delivery-build-parent</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+        <relativePath>../../platform/delivery-build-parent/pom.xml</relativePath>
     </parent>
-
-    <groupId>com.delivery</groupId>
-    <artifactId>simulator-service</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
-    <name>simulator-service</name>
-    <description>Dev/test-only Delivery Scenario Lab runner</description>
-
-    <properties>
-        <java.version>17</java.version>
-    </properties>
+    <artifactId>simulator-infrastructure</artifactId>
+    <name>simulator-infrastructure</name>
+    <description>Simulator HTTP, Kafka, JPA, migrations and Spring composition.</description>
 
     <dependencies>
         <dependency><groupId>com.delivery</groupId><artifactId>simulator-application</artifactId><version>1.0.0-SNAPSHOT</version></dependency>
@@ -59,36 +52,5 @@
             <optional>true</optional>
         </dependency>
 
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-test</artifactId>
-            <scope>test</scope>
-        </dependency>
     </dependencies>
-
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>org.jacoco</groupId>
-                <artifactId>jacoco-maven-plugin</artifactId>
-                <version>0.8.13</version>
-                <executions>
-                    <execution>
-                        <id>prepare-agent</id>
-                        <goals><goal>prepare-agent</goal></goals>
-                        <configuration><append>false</append></configuration>
-                    </execution>
-                    <execution>
-                        <id>report</id>
-                        <phase>verify</phase>
-                        <goals><goal>report</goal></goals>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-maven-plugin</artifactId>
-            </plugin>
-        </plugins>
-    </build>
 </project>

@@ -86,7 +86,8 @@
         <module>simulator/domain</module>
         <module>simulator/application-api</module>
         <module>simulator/application</module>
-        <module>simulator-service</module>
+        <module>simulator/infrastructure</module>
+        <module>simulator/boot</module>
     </modules>
 
     <build>

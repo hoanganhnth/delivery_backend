@@ -11,7 +11,7 @@
   "counts": {
     "operations": 244,
     "services": 18,
-    "sourceSchemas": 229,
+    "sourceSchemas": 220,
     "byService": {
       "analytics-service": 4,
       "auth-service": 20,
@@ -9285,7 +9285,7 @@
       "path": "/api/simulator/validate",
       "handler": "validate",
       "source": {
-        "file": "backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java",
+        "file": "backend_delivery/simulator/infrastructure/src/main/java/com/delivery/simulator/controller/SimulatorController.java",
         "line": 45
       },
       "java": {
@@ -9340,7 +9340,7 @@
       "path": "/api/simulator/runs",
       "handler": "start",
       "source": {
-        "file": "backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java",
+        "file": "backend_delivery/simulator/infrastructure/src/main/java/com/delivery/simulator/controller/SimulatorController.java",
         "line": 53
       },
       "java": {
@@ -9395,7 +9395,7 @@
       "path": "/api/simulator/runs",
       "handler": "list",
       "source": {
-        "file": "backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java",
+        "file": "backend_delivery/simulator/infrastructure/src/main/java/com/delivery/simulator/controller/SimulatorController.java",
         "line": 69
       },
       "java": {
@@ -9439,7 +9439,7 @@
       "path": "/api/simulator/runs/{runId}",
       "handler": "get",
       "source": {
-        "file": "backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java",
+        "file": "backend_delivery/simulator/infrastructure/src/main/java/com/delivery/simulator/controller/SimulatorController.java",
         "line": 61
       },
       "java": {
@@ -9495,7 +9495,7 @@
       "path": "/api/simulator/runs/{runId}/algorithm-traces",
       "handler": "traces",
       "source": {
-        "file": "backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java",
+        "file": "backend_delivery/simulator/infrastructure/src/main/java/com/delivery/simulator/controller/SimulatorController.java",
         "line": 76
       },
       "java": {
@@ -9551,7 +9551,7 @@
       "path": "/api/simulator/runs/{runId}/journal",
       "handler": "journal",
       "source": {
-        "file": "backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java",
+        "file": "backend_delivery/simulator/infrastructure/src/main/java/com/delivery/simulator/controller/SimulatorController.java",
         "line": 84
       },
       "java": {
@@ -9607,7 +9607,7 @@
       "path": "/api/simulator/runs/{runId}/stream",
       "handler": "stream",
       "source": {
-        "file": "backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java",
+        "file": "backend_delivery/simulator/infrastructure/src/main/java/com/delivery/simulator/controller/SimulatorController.java",
         "line": 92
       },
       "java": {
@@ -9663,7 +9663,7 @@
       "path": "/api/simulator/runs/{runId}/pause",
       "handler": "pause",
       "source": {
-        "file": "backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java",
+        "file": "backend_delivery/simulator/infrastructure/src/main/java/com/delivery/simulator/controller/SimulatorController.java",
         "line": 102
       },
       "java": {
@@ -9719,7 +9719,7 @@
       "path": "/api/simulator/runs/{runId}/resume",
       "handler": "resume",
       "source": {
-        "file": "backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java",
+        "file": "backend_delivery/simulator/infrastructure/src/main/java/com/delivery/simulator/controller/SimulatorController.java",
         "line": 110
       },
       "java": {
@@ -9775,7 +9775,7 @@
       "path": "/api/simulator/runs/{runId}/abort",
       "handler": "abort",
       "source": {
-        "file": "backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java",
+        "file": "backend_delivery/simulator/infrastructure/src/main/java/com/delivery/simulator/controller/SimulatorController.java",
         "line": 118
       },
       "java": {
@@ -9831,7 +9831,7 @@
       "path": "/api/simulator/runs/{runId}/reconcile",
       "handler": "reconcile",
       "source": {
-        "file": "backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java",
+        "file": "backend_delivery/simulator/infrastructure/src/main/java/com/delivery/simulator/controller/SimulatorController.java",
         "line": 127
       },
       "java": {
@@ -9887,7 +9887,7 @@
       "path": "/api/simulator/runs/{runId}",
       "handler": "cleanup",
       "source": {
-        "file": "backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java",
+        "file": "backend_delivery/simulator/infrastructure/src/main/java/com/delivery/simulator/controller/SimulatorController.java",
         "line": 136
       },
       "java": {
@@ -26898,409 +26898,13 @@
         }
       ]
     },
-    "com.delivery.simulator.config.SimulatorProperties": {
-      "kind": "class",
-      "source": {
-        "file": "backend_delivery/simulator-service/src/main/java/com/delivery/simulator/config/SimulatorProperties.java",
-        "line": 9
-      },
-      "fields": [
-        {
-          "name": "enabled",
-          "type": "boolean",
-          "annotations": [],
-          "required": false
-        },
-        {
-          "name": "adminOnly",
-          "type": "boolean",
-          "annotations": [],
-          "required": false
-        },
-        {
-          "name": "apiToken",
-          "type": "String",
-          "annotations": [],
-          "required": false
-        },
-        {
-          "name": "gatewayBaseUrl",
-          "type": "String",
-          "annotations": [],
-          "required": false
-        },
-        {
-          "name": "authBaseUrl",
-          "type": "String",
-          "annotations": [],
-          "required": false
-        },
-        {
-          "name": "deliveryBaseUrl",
-          "type": "String",
-          "annotations": [],
-          "required": false
-        },
-        {
-          "name": "internalSecret",
-          "type": "String",
-          "annotations": [],
-          "required": false
-        },
-        {
-          "name": "managedActorPoolRequired",
-          "type": "boolean",
-          "annotations": [],
-          "required": false
-        },
-        {
-          "name": "allowNonLocalTargets",
-          "type": "boolean",
-          "annotations": [],
-          "required": false
-        },
-        {
-          "name": "pollIntervalMillis",
-          "type": "int",
-          "annotations": [],
-          "required": false
-        },
-        {
-          "name": "humanOrderTimeoutSeconds",
-          "type": "int",
-          "annotations": [],
-          "required": false
-        },
-        {
-          "name": "runTimeoutSeconds",
-          "type": "int",
-          "annotations": [],
-          "required": false
-        },
-        {
-          "name": "maxShippers",
-          "type": "int",
-          "annotations": [],
-          "required": false
-        },
-        {
-          "name": "maxOrdersPerRun",
-          "type": "int",
-          "annotations": [],
-          "required": false
-        },
-        {
-          "name": "maxConcurrentRuns",
-          "type": "int",
-          "annotations": [],
-          "required": false
-        },
-        {
-          "name": "movementTickSeconds",
-          "type": "int",
-          "annotations": [],
-          "required": false
-        },
-        {
-          "name": "kafkaObserverEnabled",
-          "type": "boolean",
-          "annotations": [],
-          "required": false
-        },
-        {
-          "name": "ledgerObserverEnabled",
-          "type": "boolean",
-          "annotations": [],
-          "required": false
-        },
-        {
-          "name": "kafkaDecisionTraceTopic",
-          "type": "String",
-          "annotations": [],
-          "required": false
-        },
-        {
-          "name": "kafkaObserverGroupId",
-          "type": "String",
-          "annotations": [],
-          "required": false
-        }
-      ]
-    },
-    "com.delivery.simulator.repository.SimulationActorLeaseRepository": {
-      "kind": "interface",
-      "source": {
-        "file": "backend_delivery/simulator-service/src/main/java/com/delivery/simulator/repository/SimulationActorLeaseRepository.java",
-        "line": 11
-      },
-      "fields": []
-    },
-    "com.delivery.simulator.repository.SimulationRunJournalRepository": {
-      "kind": "interface",
-      "source": {
-        "file": "backend_delivery/simulator-service/src/main/java/com/delivery/simulator/repository/SimulationRunJournalRepository.java",
-        "line": 7
-      },
-      "fields": []
-    },
-    "com.delivery.simulator.repository.SimulationRunRepository": {
-      "kind": "interface",
-      "source": {
-        "file": "backend_delivery/simulator-service/src/main/java/com/delivery/simulator/repository/SimulationRunRepository.java",
-        "line": 9
-      },
-      "fields": []
-    },
-    "com.delivery.simulator.service.GatewayClient": {
-      "kind": "class",
-      "source": {
-        "file": "backend_delivery/simulator-service/src/main/java/com/delivery/simulator/service/GatewayClient.java",
-        "line": 23
-      },
-      "fields": [
-        {
-          "name": "httpClient",
-          "type": "HttpClient",
-          "annotations": [],
-          "required": false
-        },
-        {
-          "name": "objectMapper",
-          "type": "ObjectMapper",
-          "annotations": [],
-          "required": false
-        },
-        {
-          "name": "properties",
-          "type": "SimulatorProperties",
-          "annotations": [],
-          "required": false
-        },
-        {
-          "name": "faultInjection",
-          "type": "GatewayFaultInjection",
-          "annotations": [],
-          "required": false
-        }
-      ],
-      "nestedTypes": {
-        "GatewayException": {
-          "kind": "class",
-          "source": {
-            "file": "backend_delivery/simulator-service/src/main/java/com/delivery/simulator/service/GatewayClient.java",
-            "line": 118
-          },
-          "fields": [
-            {
-              "name": "status",
-              "type": "int",
-              "annotations": [],
-              "required": false
-            },
-            {
-              "name": "operation",
-              "type": "String",
-              "annotations": [],
-              "required": false
-            }
-          ]
-        }
-      }
-    },
-    "com.delivery.simulator.service.GatewayFaultInjection": {
-      "kind": "class",
-      "source": {
-        "file": "backend_delivery/simulator-service/src/main/java/com/delivery/simulator/service/GatewayFaultInjection.java",
-        "line": 13
-      },
-      "fields": []
-    },
-    "com.delivery.simulator.service.SimulationActorPoolClient": {
-      "kind": "interface",
-      "source": {
-        "file": "backend_delivery/simulator-service/src/main/java/com/delivery/simulator/service/SimulationActorPoolClient.java",
-        "line": 7
-      },
-      "fields": [],
-      "nestedTypes": {
-        "BoundActor": {
-          "kind": "record",
-          "source": {
-            "file": "backend_delivery/simulator-service/src/main/java/com/delivery/simulator/service/SimulationActorPoolClient.java",
-            "line": 12
-          },
-          "fields": [
-            {
-              "name": "principalId",
-              "type": "Long",
-              "annotations": [],
-              "required": false
-            },
-            {
-              "name": "context",
-              "type": "SimulationContext",
-              "annotations": [],
-              "required": false
-            },
-            {
-              "name": "accessToken",
-              "type": "String",
-              "annotations": [],
-              "required": false
-            }
-          ]
-        }
-      }
-    },
-    "com.delivery.simulator.service.SimulationDeliveryRecoveryClient": {
-      "kind": "interface",
-      "source": {
-        "file": "backend_delivery/simulator-service/src/main/java/com/delivery/simulator/service/SimulationDeliveryRecoveryClient.java",
-        "line": 7
-      },
-      "fields": [],
-      "nestedTypes": {
-        "DeliveryStatus": {
-          "kind": "record",
-          "source": {
-            "file": "backend_delivery/simulator-service/src/main/java/com/delivery/simulator/service/SimulationDeliveryRecoveryClient.java",
-            "line": 10
-          },
-          "fields": [
-            {
-              "name": "deliveryId",
-              "type": "Long",
-              "annotations": [],
-              "required": false
-            },
-            {
-              "name": "orderId",
-              "type": "Long",
-              "annotations": [],
-              "required": false
-            },
-            {
-              "name": "status",
-              "type": "String",
-              "annotations": [],
-              "required": false
-            }
-          ]
-        }
-      }
-    },
-    "com.delivery.simulator.service.SimulationLeaseService": {
-      "kind": "class",
-      "source": {
-        "file": "backend_delivery/simulator-service/src/main/java/com/delivery/simulator/service/SimulationLeaseService.java",
-        "line": 13
-      },
-      "fields": [
-        {
-          "name": "leases",
-          "type": "SimulationActorLeaseRepository",
-          "annotations": [],
-          "required": false
-        },
-        {
-          "name": "ttlSeconds",
-          "type": "long",
-          "annotations": [],
-          "required": false
-        }
-      ]
-    },
     "com.delivery.simulator.service.SimulationRecoveryService": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/simulator-service/src/main/java/com/delivery/simulator/service/SimulationRecoveryService.java",
-        "line": 26
+        "file": "backend_delivery/simulator/infrastructure/src/main/java/com/delivery/simulator/service/SimulationRecoveryService.java",
+        "line": 10
       },
-      "fields": [
-        {
-          "name": "mapper",
-          "type": "ObjectMapper",
-          "annotations": [],
-          "required": false
-        },
-        {
-          "name": "runs",
-          "type": "SimulationRunRepository",
-          "annotations": [],
-          "required": false
-        },
-        {
-          "name": "journal",
-          "type": "SimulationRunJournalRepository",
-          "annotations": [],
-          "required": false
-        },
-        {
-          "name": "gateway",
-          "type": "GatewayClient",
-          "annotations": [],
-          "required": false
-        },
-        {
-          "name": "actors",
-          "type": "SimulationActorPoolClient",
-          "annotations": [],
-          "required": false
-        },
-        {
-          "name": "leases",
-          "type": "SimulationLeaseService",
-          "annotations": [],
-          "required": false
-        },
-        {
-          "name": "deliveryRecovery",
-          "type": "SimulationDeliveryRecoveryClient",
-          "annotations": [],
-          "required": false
-        }
-      ],
-      "nestedTypes": {
-        "RecoveryResult": {
-          "kind": "record",
-          "source": {
-            "file": "backend_delivery/simulator-service/src/main/java/com/delivery/simulator/service/SimulationRecoveryService.java",
-            "line": 171
-          },
-          "fields": [
-            {
-              "name": "runId",
-              "type": "UUID",
-              "annotations": [],
-              "required": false
-            },
-            {
-              "name": "reconciled",
-              "type": "boolean",
-              "annotations": [],
-              "required": false
-            },
-            {
-              "name": "deliveryIds",
-              "type": "List<Long>",
-              "annotations": [],
-              "required": false
-            },
-            {
-              "name": "deliveryStatuses",
-              "type": "Map<Long, String>",
-              "annotations": [],
-              "required": false
-            },
-            {
-              "name": "releasedActors",
-              "type": "int",
-              "annotations": [],
-              "required": false
-            }
-          ]
-        }
-      }
+      "fields": []
     },
     "com.delivery.tracking_service.dto.request.UpdateLocationRequest": {
       "kind": "class",

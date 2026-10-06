@@ -6,7 +6,7 @@ This is an equivalence-only inventory of `simulator-service`, at the slice 1 bas
 References in the baseline tables below are repository-relative pre-extraction
 file:line locations; current owners are described in the slice progress sections.
 Source and executable tests take precedence over the stale in-memory-only
-claims in simulator-service/README.md and docs/platform/system/simulator/README.md.
+claims in simulator/README.md and docs/platform/system/simulator/README.md.
 Relevant authority: AGENTS.md, docs/WORKFLOW.md, ROADMAP_MVP_TO_PRODUCTION.md,
 docs/plans/active/service-architecture-consolidation.md, the simulator design
 README and existing fence/recovery/assertion tests. No new product policy is
@@ -326,3 +326,14 @@ successfully. Final source inspection confirms ports have host implementations,
 application has no production framework imports, and scheduler/lifecycle/SSE
 composition remains in the host. Kafka observers/configuration, migrations,
 HTTP security and resources were not relocated.
+
+## Host relocation
+
+Current layout is `simulator/{domain,application-api,application,infrastructure,boot}`.
+Infrastructure owns the former host HTTP/Kafka/JPA adapters, composition,
+configuration binding type and Java Flyway migrations. Boot retains the unchanged
+entrypoint, runtime application.properties and existing host regression tests.
+The baseline references above intentionally describe the pre-extraction layout;
+current host Java sources are under `simulator/infrastructure/src/main/java`,
+except the entrypoint under `simulator/boot/src/main/java`. Artifact/DNS,
+Java packages, migration contents, config keys and core 85% gates are unchanged.

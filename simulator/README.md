@@ -8,14 +8,14 @@ not registered in the public Gateway route table and is disabled by default.
 ```sh
 SIMULATOR_ENABLED=true \
   SIMULATOR_GATEWAY_BASE_URL=http://127.0.0.1:8079 \
-  mvn -pl simulator-service spring-boot:run
+  mvn -pl simulator/boot spring-boot:run
 ```
 
 For the isolated Compose stack, package the module first and use the separate
 overlay:
 
 ```sh
-mvn -pl simulator-service -am package
+mvn -pl simulator/boot -am package
 docker compose -f docker-compose.yml -f docker-compose.secrets.yml \
   -f docker-compose.simulator.yml up -d simulator-service
 ```
