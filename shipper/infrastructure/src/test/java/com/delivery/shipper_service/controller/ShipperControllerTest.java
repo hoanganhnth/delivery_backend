@@ -119,4 +119,52 @@ public class ShipperControllerTest {
 
         verifyNoInteractions(updateProfile);
     }
+
+    @Test
+    void profileUpdateForwardsDocumentsAndUsesResolvedProfileIdentity() throws Exception {
+        var request = new com.delivery.shipper_service.dto.request.UpdateShipperRequest();
+        request.setFullName("Updated Shipper");
+        request.setVehicleType("BIKE");
+        request.setLicenseNumber("LIC-22");
+        request.setIdCard("CARD-22");
+        request.setPhone("0901111111");
+        request.setLicensePlate("PLATE-22");
+        request.setDriverImage("driver.png");
+        request.setIdCardFrontImage("front.png");
+        request.setIdCardBackImage("back.png");
+        request.setLicenseImage("license.png");
+        var snapshot = new ShipperSnapshot(42L, new IdentityRef(1L, 1L), "Updated Shipper", "BIKE",
+                "LIC-22", "CARD-22", "0901111111", "PLATE-22", false, 0, 5.0, 0, "ACTIVE", 1L,
+                "driver.png", "front.png", "back.png", "license.png", null, null);
+        when(readSelf.execute(any())).thenReturn(snapshot);
+        when(updateProfile.execute(any())).thenReturn(snapshot);
+
+        mockMvc.perform(put("/api/shippers").with(testActor(1L, "SHIPPER")).with(csrf())
+                .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value(1))
+                .andExpect(jsonPath("$.data.id").value(42))
+                .andExpect(jsonPath("$.data.fullName").value("Updated Shipper"))
+                .andExpect(jsonPath("$.data.driverImage").value("driver.png"))
+                .andExpect(jsonPath("$.data.idCardFrontImage").value("front.png"))
+                .andExpect(jsonPath("$.data.idCardBackImage").value("back.png"))
+                .andExpect(jsonPath("$.data.licenseImage").value("license.png"));
+        org.mockito.Mockito.verify(updateProfile).execute(new ShipperCommands.UpdateProfile(
+                new ShipperCommands.Actor(1L, 1L, com.delivery.shipper.domain.identity.ShipperRole.SHIPPER),
+                42L, "Updated Shipper", "BIKE", "LIC-22", "CARD-22", "0901111111", "PLATE-22",
+                "driver.png", "front.png", "back.png", "license.png"));
+    }
+
+    @Test
+    void onlineStatusHasItsOwnCommandAndResponse() throws Exception {
+        var snapshot = new ShipperSnapshot(42L, new IdentityRef(1L, 1L), "Shipper", "BIKE",
+                "LIC", "CARD", "0901111111", null, true, 0, 5.0, 0, "ACTIVE", 1L,
+                null, null, null, null, null, null);
+        when(setOnlineStatus.execute(any())).thenReturn(snapshot);
+        mockMvc.perform(patch("/api/shippers/online-status").param("isOnline", "true")
+                .with(testActor(1L, "SHIPPER")).with(csrf()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.isOnline").value(true));
+        org.mockito.Mockito.verify(setOnlineStatus).execute(new ShipperCommands.SetOnlineStatus(
+                new ShipperCommands.Actor(1L, 1L, com.delivery.shipper.domain.identity.ShipperRole.SHIPPER), true));
+        verifyNoInteractions(updateProfile);
+    }
 }

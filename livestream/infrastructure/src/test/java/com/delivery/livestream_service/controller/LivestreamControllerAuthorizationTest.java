@@ -22,6 +22,71 @@ class LivestreamControllerAuthorizationTest {
     private final LivestreamController controller = new LivestreamController(livestreams, hostAuthorization);
 
     @Test
+    void hostCreateAndStartPreservePayloadAndAuthorizeRestaurantBeforeMutation() {
+        var actor = new AuthenticatedActor(110L, 11L, "owner@example.test", Set.of("SHOP_OWNER"));
+        var request = new com.delivery.livestream_service.dto.request.CreateLivestreamRequest();
+        request.setTitle("Friday kitchen");
+        request.setRestaurantId(42L);
+        request.setStreamProvider(com.delivery.livestream_service.enums.StreamProvider.AGORA);
+        var room = new LivestreamResponse();
+        var id = UUID.randomUUID();
+        room.setId(id);
+        room.setRestaurantId(42L);
+        when(livestreams.createLivestream(request, 11L, "SHOP_OWNER")).thenReturn(room);
+        when(livestreams.getLivestreamById(id)).thenReturn(room);
+        var started = new com.delivery.livestream_service.dto.response.StartLivestreamResponse();
+        started.setToken("opaque-fixture-token");
+        when(livestreams.startLivestream(id, 11L, "SHOP_OWNER")).thenReturn(started);
+
+        var createdResponse = controller.createLivestream(request, actor);
+        org.assertj.core.api.Assertions.assertThat(createdResponse.getStatusCode().value()).isEqualTo(200);
+        org.assertj.core.api.Assertions.assertThat(createdResponse.getBody().getData()).isSameAs(room);
+        org.assertj.core.api.Assertions.assertThat(createdResponse.getBody().getMessage()).isEqualTo("Tạo livestream thành công");
+        var startedResponse = controller.startLivestream(id, actor);
+        org.assertj.core.api.Assertions.assertThat(startedResponse.getBody().getData().getToken()).isEqualTo("opaque-fixture-token");
+        var order = org.mockito.Mockito.inOrder(hostAuthorization, livestreams);
+        order.verify(hostAuthorization).requireHost(actor, 42L);
+        order.verify(livestreams).createLivestream(request, 11L, "SHOP_OWNER");
+        order.verify(livestreams).getLivestreamById(id);
+        order.verify(hostAuthorization).requireHost(actor, 42L);
+        order.verify(livestreams).startLivestream(id, 11L, "SHOP_OWNER");
+    }
+
+    @Test
+    void authenticatedReadsReturnRoomDataAndRestaurantReadsRequireHostAuthority() {
+        var actor = new AuthenticatedActor(110L, 11L, "owner@example.test", Set.of("SHOP_OWNER"));
+        var id = UUID.randomUUID();
+        var room = new LivestreamResponse();
+        room.setId(id);
+        var rooms = java.util.List.of(room);
+        when(livestreams.getActiveLivestreams()).thenReturn(rooms);
+        when(livestreams.getLivestreamById(id)).thenReturn(room);
+        when(livestreams.getLivestreamsBySeller(11L)).thenReturn(rooms);
+        when(livestreams.getLivestreamsByRestaurant(42L)).thenReturn(rooms);
+
+        org.assertj.core.api.Assertions.assertThat(controller.getActiveLivestreams(actor).getBody().getData()).isEqualTo(rooms);
+        org.assertj.core.api.Assertions.assertThat(controller.getLivestreamById(id, actor).getBody().getData()).isSameAs(room);
+        org.assertj.core.api.Assertions.assertThat(controller.getLivestreamsBySeller(11L, actor).getBody().getData()).isEqualTo(rooms);
+        var response = controller.getLivestreamsByRestaurant(42L, actor);
+        org.assertj.core.api.Assertions.assertThat(response.getStatusCode().value()).isEqualTo(200);
+        org.assertj.core.api.Assertions.assertThat(response.getBody().getStatus()).isEqualTo(1);
+        org.assertj.core.api.Assertions.assertThat(response.getBody().getData()).isEqualTo(rooms);
+        var order = org.mockito.Mockito.inOrder(hostAuthorization, livestreams);
+        order.verify(hostAuthorization).requireHost(actor, 42L);
+        order.verify(livestreams).getLivestreamsByRestaurant(42L);
+    }
+
+    @Test
+    void absentActorCannotReadRoomsOrStartThem() {
+        var id = UUID.randomUUID();
+        assertThatThrownBy(() -> controller.getActiveLivestreams(null))
+                .isInstanceOf(UnauthorizedLivestreamAccessException.class).hasMessage("Yêu cầu đăng nhập");
+        assertThatThrownBy(() -> controller.startLivestream(id, null))
+                .isInstanceOf(UnauthorizedLivestreamAccessException.class);
+        verifyNoInteractions(livestreams, hostAuthorization);
+    }
+
+    @Test
     void viewerJoinDoesNotRequireRestaurantHostOwnership() {
         UUID livestreamId = UUID.randomUUID();
         AuthenticatedActor viewer = new AuthenticatedActor(10L, 10L, "viewer@example.test", Set.of("USER"));
