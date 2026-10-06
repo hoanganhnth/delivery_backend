@@ -18,7 +18,7 @@ REQUIRED = (
     "docs/contracts/events/entity-tombstone-v1.json",
     "docs/runbooks/search-projection-replay.md",
     "docs/runbooks/simulator-scenarios-phase8-9.md",
-    "livestream-service/src/main/java/db/migration/V3__livestream_product_soft_delete.java",
+    "livestream/infrastructure/src/main/java/db/migration/V3__livestream_product_soft_delete.java",
 )
 
 def main() -> int:
@@ -33,7 +33,7 @@ def main() -> int:
         if not (ROOT / relative).exists():
             errors.append(f"missing required artifact: {relative}")
     for domain in DOMAINS:
-        source_root = ROOT / domain / "src/main/java"
+        source_root = ROOT / ("livestream/infrastructure" if domain == "livestream-service" else domain) / "src/main/java"
         if not source_root.exists():
             continue
         for source in source_root.rglob("*.java"):

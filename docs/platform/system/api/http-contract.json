@@ -2583,7 +2583,7 @@
       "path": "/api/livestreams",
       "handler": "createLivestream",
       "source": {
-        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java",
+        "file": "backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java",
         "line": 37
       },
       "java": {
@@ -2633,7 +2633,7 @@
       "path": "/api/livestreams/{id}/start",
       "handler": "startLivestream",
       "source": {
-        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java",
+        "file": "backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java",
         "line": 47
       },
       "java": {
@@ -2676,7 +2676,7 @@
       "path": "/api/livestreams/{id}/join",
       "handler": "joinLivestream",
       "source": {
-        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java",
+        "file": "backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java",
         "line": 58
       },
       "java": {
@@ -2719,7 +2719,7 @@
       "path": "/api/livestreams/{id}/end",
       "handler": "endLivestream",
       "source": {
-        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java",
+        "file": "backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java",
         "line": 68
       },
       "java": {
@@ -2762,7 +2762,7 @@
       "path": "/api/livestreams/{id}/moderation",
       "handler": "moderate",
       "source": {
-        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamModerationController.java",
+        "file": "backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/LivestreamModerationController.java",
         "line": 27
       },
       "java": {
@@ -2824,7 +2824,7 @@
       "path": "/api/livestreams/internal/checkout-quote",
       "handler": "quote",
       "source": {
-        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/InternalLivestreamCheckoutController.java",
+        "file": "backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/InternalLivestreamCheckoutController.java",
         "line": 35
       },
       "java": {
@@ -2876,7 +2876,7 @@
       "path": "/api/livestreams/internal/order-context",
       "handler": "orderContext",
       "source": {
-        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/InternalLivestreamCheckoutController.java",
+        "file": "backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/InternalLivestreamCheckoutController.java",
         "line": 46
       },
       "java": {
@@ -3024,7 +3024,7 @@
       "path": "/api/livestreams/admin",
       "handler": "list",
       "source": {
-        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamAdminController.java",
+        "file": "backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/LivestreamAdminController.java",
         "line": 34
       },
       "java": {
@@ -3083,7 +3083,7 @@
       "path": "/api/livestreams/{id}/token/renew",
       "handler": "renew",
       "source": {
-        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamTokenRenewalController.java",
+        "file": "backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/LivestreamTokenRenewalController.java",
         "line": 46
       },
       "java": {
@@ -3126,7 +3126,7 @@
       "path": "/api/livestreams/active",
       "handler": "getActiveLivestreams",
       "source": {
-        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java",
+        "file": "backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java",
         "line": 82
       },
       "java": {
@@ -3157,7 +3157,7 @@
       "path": "/api/livestreams/{id}",
       "handler": "getLivestreamById",
       "source": {
-        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java",
+        "file": "backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java",
         "line": 90
       },
       "java": {
@@ -3200,7 +3200,7 @@
       "path": "/api/livestreams/seller/{sellerId}",
       "handler": "getLivestreamsBySeller",
       "source": {
-        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java",
+        "file": "backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java",
         "line": 98
       },
       "java": {
@@ -3243,7 +3243,7 @@
       "path": "/api/livestreams/restaurant/{restaurantId}",
       "handler": "getLivestreamsByRestaurant",
       "source": {
-        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java",
+        "file": "backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/LivestreamController.java",
         "line": 106
       },
       "java": {
@@ -3286,7 +3286,7 @@
       "path": "/api/livestreams/{id}/products/pin",
       "handler": "pinProduct",
       "source": {
-        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamProductController.java",
+        "file": "backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/LivestreamProductController.java",
         "line": 40
       },
       "java": {
@@ -3348,7 +3348,7 @@
       "path": "/api/livestreams/{id}/products/{productId}/pin",
       "handler": "unpinProduct",
       "source": {
-        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamProductController.java",
+        "file": "backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/LivestreamProductController.java",
         "line": 51
       },
       "java": {
@@ -3403,7 +3403,7 @@
       "path": "/api/livestreams/{id}/products/{productId}",
       "handler": "removeProduct",
       "source": {
-        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamProductController.java",
+        "file": "backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/LivestreamProductController.java",
         "line": 62
       },
       "java": {
@@ -3458,7 +3458,7 @@
       "path": "/api/livestreams/{id}/products",
       "handler": "getProductsByLivestream",
       "source": {
-        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamProductController.java",
+        "file": "backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/LivestreamProductController.java",
         "line": 73
       },
       "java": {
@@ -3501,7 +3501,7 @@
       "path": "/api/livestreams/{id}/products/pinned",
       "handler": "getPinnedProducts",
       "source": {
-        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamProductController.java",
+        "file": "backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/LivestreamProductController.java",
         "line": 81
       },
       "java": {
@@ -3544,7 +3544,7 @@
       "path": "/api/livestreams/{id}/token",
       "handler": "generateToken",
       "source": {
-        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/StreamTokenController.java",
+        "file": "backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/StreamTokenController.java",
         "line": 31
       },
       "java": {
@@ -15027,7 +15027,7 @@
     "com.delivery.livestream_service.controller.LivestreamAdminController.RoomPage": {
       "kind": "record",
       "source": {
-        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/controller/LivestreamAdminController.java",
+        "file": "backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/controller/LivestreamAdminController.java",
         "line": 30
       },
       "fields": [
@@ -15066,7 +15066,7 @@
     "com.delivery.livestream_service.dto.request.CreateLivestreamRequest": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/dto/request/CreateLivestreamRequest.java",
+        "file": "backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/dto/request/CreateLivestreamRequest.java",
         "line": 12
       },
       "fields": [
@@ -15140,7 +15140,7 @@
     "com.delivery.livestream_service.dto.request.GenerateTokenRequest": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/dto/request/GenerateTokenRequest.java",
+        "file": "backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/dto/request/GenerateTokenRequest.java",
         "line": 10
       },
       "fields": [
@@ -15172,7 +15172,7 @@
     "com.delivery.livestream_service.dto.request.LivestreamCheckoutQuoteRequest": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/dto/request/LivestreamCheckoutQuoteRequest.java",
+        "file": "backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/dto/request/LivestreamCheckoutQuoteRequest.java",
         "line": 15
       },
       "fields": [
@@ -15252,7 +15252,7 @@
     "com.delivery.livestream_service.dto.request.ModerateLivestreamRequest": {
       "kind": "record",
       "source": {
-        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/dto/request/ModerateLivestreamRequest.java",
+        "file": "backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/dto/request/ModerateLivestreamRequest.java",
         "line": 10
       },
       "fields": [
@@ -15314,7 +15314,7 @@
     "com.delivery.livestream_service.dto.request.PinProductRequest": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/dto/request/PinProductRequest.java",
+        "file": "backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/dto/request/PinProductRequest.java",
         "line": 13
       },
       "fields": [
@@ -15397,7 +15397,7 @@
     "com.delivery.livestream_service.dto.response.JoinLivestreamResponse": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/dto/response/JoinLivestreamResponse.java",
+        "file": "backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/dto/response/JoinLivestreamResponse.java",
         "line": 18
       },
       "fields": [
@@ -15466,7 +15466,7 @@
     "com.delivery.livestream_service.dto.response.LivestreamCheckoutQuoteResponse": {
       "kind": "record",
       "source": {
-        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/dto/response/LivestreamCheckoutQuoteResponse.java",
+        "file": "backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/dto/response/LivestreamCheckoutQuoteResponse.java",
         "line": 7
       },
       "fields": [
@@ -15493,7 +15493,7 @@
         "Item": {
           "kind": "record",
           "source": {
-            "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/dto/response/LivestreamCheckoutQuoteResponse.java",
+            "file": "backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/dto/response/LivestreamCheckoutQuoteResponse.java",
             "line": 12
           },
           "fields": [
@@ -15516,7 +15516,7 @@
     "com.delivery.livestream_service.dto.response.LivestreamCheckoutQuoteResponse.Item": {
       "kind": "record",
       "source": {
-        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/dto/response/LivestreamCheckoutQuoteResponse.java",
+        "file": "backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/dto/response/LivestreamCheckoutQuoteResponse.java",
         "line": 12
       },
       "fields": [
@@ -15537,7 +15537,7 @@
     "com.delivery.livestream_service.dto.response.LivestreamModerationResponse": {
       "kind": "record",
       "source": {
-        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/dto/response/LivestreamModerationResponse.java",
+        "file": "backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/dto/response/LivestreamModerationResponse.java",
         "line": 7
       },
       "fields": [
@@ -15587,7 +15587,7 @@
     "com.delivery.livestream_service.dto.response.LivestreamOrderContext": {
       "kind": "record",
       "source": {
-        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/dto/response/LivestreamOrderContext.java",
+        "file": "backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/dto/response/LivestreamOrderContext.java",
         "line": 7
       },
       "fields": [
@@ -15656,7 +15656,7 @@
     "com.delivery.livestream_service.dto.response.LivestreamProductResponse": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/dto/response/LivestreamProductResponse.java",
+        "file": "backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/dto/response/LivestreamProductResponse.java",
         "line": 12
       },
       "fields": [
@@ -15731,7 +15731,7 @@
     "com.delivery.livestream_service.dto.response.LivestreamResponse": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/dto/response/LivestreamResponse.java",
+        "file": "backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/dto/response/LivestreamResponse.java",
         "line": 14
       },
       "fields": [
@@ -15830,7 +15830,7 @@
     "com.delivery.livestream_service.dto.response.RenewLivestreamTokenResponse": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/dto/response/RenewLivestreamTokenResponse.java",
+        "file": "backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/dto/response/RenewLivestreamTokenResponse.java",
         "line": 11
       },
       "fields": [
@@ -15875,7 +15875,7 @@
     "com.delivery.livestream_service.dto.response.StartLivestreamResponse": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/dto/response/StartLivestreamResponse.java",
+        "file": "backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/dto/response/StartLivestreamResponse.java",
         "line": 19
       },
       "fields": [
@@ -15944,7 +15944,7 @@
     "com.delivery.livestream_service.dto.response.TokenResponse": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/dto/response/TokenResponse.java",
+        "file": "backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/dto/response/TokenResponse.java",
         "line": 13
       },
       "fields": [
@@ -15977,7 +15977,7 @@
     "com.delivery.livestream_service.enums.LivestreamModerationAction": {
       "kind": "enum",
       "source": {
-        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/enums/LivestreamModerationAction.java",
+        "file": "backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/enums/LivestreamModerationAction.java",
         "line": 3
       },
       "fields": [],
@@ -15990,7 +15990,7 @@
     "com.delivery.livestream_service.enums.LivestreamStatus": {
       "kind": "enum",
       "source": {
-        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/enums/LivestreamStatus.java",
+        "file": "backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/enums/LivestreamStatus.java",
         "line": 3
       },
       "fields": [],
@@ -16001,7 +16001,7 @@
     "com.delivery.livestream_service.enums.StreamProvider": {
       "kind": "enum",
       "source": {
-        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/enums/StreamProvider.java",
+        "file": "backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/enums/StreamProvider.java",
         "line": 3
       },
       "fields": [],
@@ -16012,7 +16012,7 @@
     "com.delivery.livestream_service.enums.TokenRole": {
       "kind": "enum",
       "source": {
-        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/enums/TokenRole.java",
+        "file": "backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/enums/TokenRole.java",
         "line": 3
       },
       "fields": [],
@@ -16023,7 +16023,7 @@
     "com.delivery.livestream_service.payload.BaseResponse": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/payload/BaseResponse.java",
+        "file": "backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/payload/BaseResponse.java",
         "line": 5
       },
       "fields": [
@@ -16067,7 +16067,7 @@
         "ErrorPayload": {
           "kind": "record",
           "source": {
-            "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/payload/BaseResponse.java",
+            "file": "backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/payload/BaseResponse.java",
             "line": 46
           },
           "fields": [
@@ -16090,7 +16090,7 @@
     "com.delivery.livestream_service.payload.BaseResponse.ErrorPayload": {
       "kind": "record",
       "source": {
-        "file": "backend_delivery/livestream-service/src/main/java/com/delivery/livestream_service/payload/BaseResponse.java",
+        "file": "backend_delivery/livestream/infrastructure/src/main/java/com/delivery/livestream_service/payload/BaseResponse.java",
         "line": 46
       },
       "fields": [

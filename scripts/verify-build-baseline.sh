@@ -34,7 +34,7 @@ modules=(
   match/boot
   routing/boot
   web-bff/boot
-  livestream-service
+  livestream/boot
   settlement/boot
   flashsale-service
   analytics/boot
@@ -336,7 +336,7 @@ hidden_capability_defaults=(
   'flashsale-service/src/main/resources/application.properties|app.flashsale.checkout-enabled=${FLASHSALE_CHECKOUT_ENABLED:false}'
   'flashsale-service/src/main/resources/application.properties|app.flashsale.outbox-relay-enabled=${FLASHSALE_OUTBOX_RELAY_ENABLED:false}'
   'flashsale-service/src/main/resources/application.properties|app.flashsale.merchant-registration-enabled=${FLASHSALE_MERCHANT_REGISTRATION_ENABLED:false}'
-  'livestream-service/src/main/resources/application.properties|app.livestream.api-enabled=${LIVESTREAM_API_ENABLED:false}'
+  'livestream/boot/src/main/resources/application.properties|app.livestream.api-enabled=${LIVESTREAM_API_ENABLED:false}'
   'order/boot/src/main/resources/application.properties|app.order.payment-event-processing-enabled=${ORDER_PAYMENT_EVENT_PROCESSING_ENABLED:false}'
   'order/boot/src/main/resources/application.properties|app.order.voucher-checkout-enabled=${ORDER_VOUCHER_CHECKOUT_ENABLED:false}'
   'order/boot/src/main/resources/application.properties|app.order.flashsale-checkout-enabled=${ORDER_FLASHSALE_CHECKOUT_ENABLED:false}'
@@ -582,8 +582,8 @@ for core_kafka_config in \
   fi
 done
 
-livestream_repository="${ROOT_DIR}/livestream-service/src/main/java/com/delivery/livestream_service/repository/LivestreamRepository.java"
-livestream_product_repository="${ROOT_DIR}/livestream-service/src/main/java/com/delivery/livestream_service/repository/LivestreamProductRepository.java"
+livestream_repository="${ROOT_DIR}/livestream/infrastructure/src/main/java/com/delivery/livestream_service/repository/LivestreamRepository.java"
+livestream_product_repository="${ROOT_DIR}/livestream/infrastructure/src/main/java/com/delivery/livestream_service/repository/LivestreamProductRepository.java"
 analytics_event_repository="${ROOT_DIR}/analytics/infrastructure/src/main/java/com/delivery/analytics_service/repository/AnalyticsEventRepository.java"
 if [[ "$(rg -c 'Pageable pageable' "${livestream_repository}")" -ne 3 ]] \
     || [[ "$(rg -c 'Pageable pageable' "${livestream_product_repository}")" -ne 2 ]] \
@@ -591,7 +591,7 @@ if [[ "$(rg -c 'Pageable pageable' "${livestream_repository}")" -ne 3 ]] \
   echo "hidden capability list/reconciliation queries must remain bounded or paged." >&2
   exit 1
 fi
-if [[ -e "${ROOT_DIR}/livestream-service/src/main/java/com/delivery/livestream_service/repository/LivestreamEventRepository.java" ]] \
+if [[ -e "${ROOT_DIR}/livestream/infrastructure/src/main/java/com/delivery/livestream_service/repository/LivestreamEventRepository.java" ]] \
     || rg -q 'findByEntityIdAndEntityTypeOrderByCreatedAtDesc' \
       "${ROOT_DIR}/settlement/infrastructure/src/main/java/com/delivery/settlement_service/repository/PaymentOrderRepository.java" \
     || rg -q 'findByRoomId|countActiveDeliveriesByShipper' \

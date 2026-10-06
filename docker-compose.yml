@@ -565,7 +565,7 @@ services:
     networks: [delivery-network]
 
   livestream-service:
-    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: livestream-service } }
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: livestream/boot } }
     container_name: livestream-service
     profiles: [optional-capabilities]
     expose: ["8094", "9090"]
