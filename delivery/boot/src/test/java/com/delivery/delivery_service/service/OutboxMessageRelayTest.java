@@ -74,6 +74,53 @@ class OutboxMessageRelayTest {
         assertThat(event.getAttempts()).isEqualTo(2);
     }
 
+    @Test
+    void leasedSendClaimsOneAtATimeAndAcknowledgesTheSameToken() {
+        var leases = org.mockito.Mockito.mock(OutboxLeaseService.class);
+        ReflectionTestUtils.setField(relay, "leaseService", leases);
+        ReflectionTestUtils.setField(relay, "leaseSeconds", 1L);
+        OutboxEvent event = pendingEvent(); event.setId(7L);
+        when(leases.claim(org.mockito.ArgumentMatchers.eq(1), any(UUID.class), org.mockito.ArgumentMatchers.eq(11L)))
+                .thenReturn(List.of(event), List.of());
+        when(kafkaTemplate.send(any(org.apache.kafka.clients.producer.ProducerRecord.class)))
+                .thenReturn(CompletableFuture.completedFuture(null));
+        when(leases.markSent(org.mockito.ArgumentMatchers.eq(7L), any(UUID.class))).thenReturn(true);
+        relay.relayMessages();
+        var token = ArgumentCaptor.forClass(UUID.class);
+        verify(leases, org.mockito.Mockito.times(2)).claim(org.mockito.ArgumentMatchers.eq(1), token.capture(), org.mockito.ArgumentMatchers.eq(11L));
+        verify(leases).markSent(7L, token.getAllValues().get(0));
+        assertThat(token.getAllValues().get(1)).isNotEqualTo(token.getAllValues().get(0));
+        verify(repository, org.mockito.Mockito.never()).save(any());
+    }
+
+    @Test
+    void leasedFailureIsRecordedAndLaterPollCanRecover() {
+        var leases = org.mockito.Mockito.mock(OutboxLeaseService.class);
+        ReflectionTestUtils.setField(relay, "leaseService", leases);
+        OutboxEvent event = pendingEvent(); event.setId(7L);
+        when(leases.claim(org.mockito.ArgumentMatchers.eq(1), any(UUID.class), org.mockito.ArgumentMatchers.anyLong()))
+                .thenReturn(List.of(event), List.of());
+        when(kafkaTemplate.send(any(org.apache.kafka.clients.producer.ProducerRecord.class)))
+                .thenReturn(CompletableFuture.failedFuture(new IllegalStateException("broker down")));
+        when(leases.markFailure(org.mockito.ArgumentMatchers.eq(7L),any(UUID.class),any(),org.mockito.ArgumentMatchers.eq(2)))
+                .thenThrow(new IllegalStateException("database down"));
+        org.junit.jupiter.api.Assertions.assertDoesNotThrow(relay::relayMessages);
+        verify(leases).markFailure(org.mockito.ArgumentMatchers.eq(7L),any(UUID.class),
+                org.mockito.ArgumentMatchers.argThat(e -> e.getCause().getMessage().equals("broker down")),org.mockito.ArgumentMatchers.eq(2));
+        verify(leases, org.mockito.Mockito.never()).markSent(org.mockito.ArgumentMatchers.anyLong(),any());
+        verify(repository, org.mockito.Mockito.never()).save(any());
+    }
+
+    @Test
+    void claimFailureStopsPollWithoutPublishing() {
+        var leases = org.mockito.Mockito.mock(OutboxLeaseService.class);
+        ReflectionTestUtils.setField(relay, "leaseService", leases);
+        when(leases.claim(org.mockito.ArgumentMatchers.eq(1), any(UUID.class), org.mockito.ArgumentMatchers.anyLong()))
+                .thenThrow(new IllegalStateException("database down"));
+        org.junit.jupiter.api.Assertions.assertDoesNotThrow(relay::relayMessages);
+        org.mockito.Mockito.verifyNoInteractions(repository, kafkaTemplate);
+    }
+
     private OutboxEvent pendingEvent() {
         OutboxEvent event = new OutboxEvent();
         event.setEventId(UUID.randomUUID());

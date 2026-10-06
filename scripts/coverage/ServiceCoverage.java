@@ -6,4 +6,7 @@ public class ServiceCoverage { public static void main(String[] a) throws Except
   Analyzer an=new Analyzer(l.getExecutionDataStore(),cb);
   for(Path m:mods){if(m.getFileName().toString().equals("boot"))continue; Path c=m.resolve("target/classes"); if(Files.exists(c)) an.analyzeAll(c.toFile());}
   int lc=0,lt=0,bc=0,bt=0; for(IClassCoverage c:cb.getClasses()){lc+=c.getLineCounter().getCoveredCount();lt+=c.getLineCounter().getTotalCount();bc+=c.getBranchCounter().getCoveredCount();bt+=c.getBranchCounter().getTotalCount();}
+  int top=Integer.parseInt(System.getenv().getOrDefault("TOP","0"));
+  if(top>0){ cb.getClasses().stream().sorted((x,y)->y.getLineCounter().getMissedCount()-x.getLineCounter().getMissedCount()).limit(top)
+    .forEach(c->System.out.printf("   missed %4d/%4d  %s%n",c.getLineCounter().getMissedCount(),c.getLineCounter().getTotalCount(),c.getName())); }
   System.out.printf("%-12s lines %5.1f%% (%d/%d)  branches %5.1f%%%n",s,lt==0?0:100.0*lc/lt,lc,lt,bt==0?0:100.0*bc/bt);}}}
