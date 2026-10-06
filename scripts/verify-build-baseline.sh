@@ -28,7 +28,7 @@ modules=(
   order/boot
   restaurant/boot
   shipper/boot
-  search-service
+  search/boot
   dispatch/boot
   tracking/boot
   match/boot
@@ -307,7 +307,7 @@ fi
 for stable_page in \
   "${ROOT_DIR}/order/infrastructure/src/main/java/com/delivery/order_service/payload/PageResponse.java" \
   "${ROOT_DIR}/shipper/infrastructure/src/main/java/com/delivery/shipper_service/payload/PageResponse.java" \
-  "${ROOT_DIR}/search-service/src/main/java/com/delivery/search_service/payload/PageResponse.java"; do
+  "${ROOT_DIR}/search/infrastructure/src/main/java/com/delivery/search_service/payload/PageResponse.java"; do
   if ! rg -q -U 'List<T> items,[[:space:]]*int page,[[:space:]]*int size,[[:space:]]*long totalItems,[[:space:]]*int totalPages,[[:space:]]*boolean hasNext' \
       "${stable_page}"; then
     echo "Stable pagination contract drifted in ${stable_page}." >&2
@@ -389,17 +389,17 @@ if rg -q 'BaseResponse<(java\.util\.List<)?Voucher>' \
   exit 1
 fi
 if rg -q 'PageResponse<(Restaurant|Dish|Shipper)Document>' \
-    "${ROOT_DIR}/search-service/src/main/java/com/delivery/search_service/controller"; then
+    "${ROOT_DIR}/search/infrastructure/src/main/java/com/delivery/search_service/controller"; then
   echo "search-service: HTTP controllers must return search DTOs instead of Elasticsearch documents." >&2
   exit 1
 fi
 if rg -q 'private[[:space:]]+Double[[:space:]]+price;' \
-    "${ROOT_DIR}/search-service/src/main/java/com/delivery/search_service"; then
+    "${ROOT_DIR}/search/infrastructure/src/main/java/com/delivery/search_service"; then
   echo "search-service: dish price must use BigDecimal, not Double." >&2
   exit 1
 fi
 if rg -q 'Shipper(SearchController|SearchRepository|Document|SearchResponse)|searchShippers|SHIPPER_SEARCH_SYNC|SEARCH_SHIPPER_' \
-    "${ROOT_DIR}/search-service/src" \
+    "${ROOT_DIR}/search/infrastructure/src" \
     "${ROOT_DIR}/shipper/infrastructure/src" \
     "${ROOT_DIR}/docker-compose.yml"; then
   echo "Dead shipper Elasticsearch search/sync graph must not be restored without product authority and a caller." >&2
