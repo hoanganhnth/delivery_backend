@@ -1,12 +1,12 @@
-package com.delivery.simulator.service;
+package com.delivery.simulator.domain;
 
 /** Pure evaluation; the runner owns observation and journal/state updates. */
-final class SimulationAssertionPolicy {
+public final class SimulationAssertionPolicy {
     private SimulationAssertionPolicy() { }
 
-    record Result(String status, String actualValue) { }
+    public record Result(String status, String actualValue) { }
 
-    static Result evaluate(String terminal, String assigned, String expectedTerminal,
+    public static Result evaluate(String terminal, String assigned, String expectedTerminal,
                            String expectedShipper, boolean requiresLedgerObserver) {
         if (requiresLedgerObserver) {
             return new Result("SKIPPED", "Ledger observer chưa được bật trong MVP runner");
@@ -23,7 +23,7 @@ final class SimulationAssertionPolicy {
         return new Result("PASSED", "Verified through Gateway state polling: " + terminal);
     }
 
-    static String runOutcome(boolean hasFailure, boolean hasSkipped) {
+    public static String runOutcome(boolean hasFailure, boolean hasSkipped) {
         if (hasFailure) return "FAILED";
         if (hasSkipped) return "PARTIAL";
         return "PASSED";

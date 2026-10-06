@@ -1,5 +1,7 @@
 package com.delivery.simulator.service;
 
+import com.delivery.simulator.domain.SimulationAssertionPolicy;
+
 import com.delivery.simulator.config.SimulatorProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
