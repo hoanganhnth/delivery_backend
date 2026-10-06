@@ -3,8 +3,8 @@
 Scope: equivalence-only Search tranche. Authority: `docs/services/search_service.md`,
 `docs/plans/active/service-architecture-consolidation.md`, and the existing host
 implementation/tests. No new policy, flags, topics, storage or consumer configuration.
-Paths below are relative to `search-service/src/main/java/com/delivery/search_service/`
-unless prefixed otherwise. Historical line references describe the post-slice-1 source;
+Adapter paths below are relative to `search/infrastructure/src/main/java/com/delivery/search_service/`
+unless prefixed otherwise. The entrypoint and application configuration live in `search/boot`. Historical line references describe the post-slice-1 source;
 pre-extraction decision locations are recorded explicitly.
 
 ## Entrypoints and observable contract
@@ -15,8 +15,8 @@ pre-extraction decision locations are recorded explicitly.
 | HTTP GET `/api/search/dishes` | `controller/SearchController.java:41` | Same admission; stable DTO and page envelope |
 | Kafka `entity-sync` | `consumer/ElasticsearchSyncConsumer.java:48` | Configured consumer group; validation → fingerprint → checkpoint claim → stale no-op or projection write |
 | HTTP error translation | `controller/SearchExceptionHandler.java:15`, `:21` | Unavailable → 503/status 0/null/`Search is temporarily unavailable`; bad request → 400 with original exception message |
-| Private management health | `config/SearchBackendHealthIndicator.java:29`, `src/main/resources/application.yml:65` | HEAD Elasticsearch, 2xx/3xx UP; failure DOWN; separate management port, health-only exposure |
-| Boot | `SearchServiceApplication.java:9` | Spring composition, artifact and application name remain `search-service` |
+| Private management health | `config/SearchBackendHealthIndicator.java:29`, `search/boot/src/main/resources/application.yml:65` | HEAD Elasticsearch, 2xx/3xx UP; failure DOWN; separate management port, health-only exposure |
+| Boot | `search/boot/src/main/java/com/delivery/search_service/SearchServiceApplication.java:9` | Spring composition, artifact and application name remain `search-service` |
 
 Public restaurant/dish GETs are permitted without authentication by
 `security/SecurityConfig.java:24`; other application requests require JWT.
@@ -84,7 +84,7 @@ KafkaTemplate is used by the DLT recoverer only.
 
 ## Flags and ownership
 
-`src/main/resources/application.yml:35` and `:54`: repositories and projection
+`search/boot/src/main/resources/application.yml:35` and `:54`: repositories and projection
 consumer/writer/checkpoint are gated by `APP_ELASTICSEARCH_ENABLED:false`.
 `:39`: discovery defaults off (`SERVICE_DISCOVERY_ENABLED:false`).
 `:26`: Kafka listener startup defaults **true**, independently of backend gate.
@@ -103,12 +103,13 @@ No Search business feature flag or identity ownership filter is present.
    outputs and ports. Keep Kafka contract and HTTP DTO mappings in adapters.
 4. **Completed (slice 4):** introduce `search/application` for admission/claim/write and query orchestration;
    preserve fingerprint inputs, metrics, error wrapping and call ordering.
-5. **Remaining:** move HTTP/Kafka/Jackson/Elasticsearch/security/health adapters and storage models
-   into `search/infrastructure`; maintain topics, flags, indices and DB behavior.
-6. **Remaining:** relocate host to `search/boot` (entrypoint/config only), ending in
-   `search/{domain,application-api,application,infrastructure,boot}`. Keep artifact,
-   DNS, runtime configuration and deployment contract `search-service`; rerun host
-   verify and packaged/runtime recovery proof when environment supports it.
+5. **Completed (slice 5):** move HTTP/Kafka/Jackson/Elasticsearch/security/health adapters and storage models
+   into `search/infrastructure`; preserve source bytes, topics, flags and indices.
+   Search has no JPA adapters or Flyway migrations.
+6. **Completed (slice 6):** relocate host to `search/boot` (entrypoint/config only), ending in
+   `search/{domain,application-api,application,infrastructure,boot}`. Artifact, DNS,
+   runtime configuration and deployment contract remain `search-service`. Existing
+   host tests stay in boot; environment-supported runtime recovery proof remains pending.
 
 ## Application boundary (slices 3–4)
 
@@ -125,7 +126,7 @@ No Search business feature flag or identity ownership filter is present.
   importing Spring into application-api/application or introducing new paging policy.
   HTTP still owns trimming/admission/DTO conversion; pageable stays bound to the host
   reader. Projection output is void, matching the existing listener contract.
-- Reactor order: domain → application-api → application → search-service. All three
+- Reactor order: domain → application-api → application → infrastructure → boot (`search-service`). All three
   new modules inherit explicit 85% line/branch gates. The host retains its existing
   JaCoCo report configuration; no gate is removed or weakened. No transactions are
   introduced; checkpoint and writer are still separate Elasticsearch operations.
@@ -149,9 +150,9 @@ No Search business feature flag or identity ownership filter is present.
   cluster/index recreation and outage/replay recovery remain unproved operationally.
 - `docs/services/search_service.md` describes timestamp-only versioning, while code
   already prefers aggregateVersion. Documentation outside scope is not changed.
-- Requested Promotion module pattern is not present in this checkout (only
-  `promotion-service` exists). Existing Restaurant domain/build-parent conventions
-  provide the equivalent new-module layout and inherited 85% JaCoCo gates.
+- During the initial extraction, Promotion had not yet been consolidated. Existing
+  Restaurant domain/build-parent conventions supplied the new-module layout and
+  inherited 85% JaCoCo gates; relocation follows Delivery/Match/Settlement.
 
 ## Slice 1 validation (historical)
 
@@ -179,7 +180,7 @@ was run; branch creation/verification remains with the parent under the requeste
 filesystem-only workflow.
 
 
-## Slices 2–4 validation (current)
+## Slices 2–4 validation (historical)
 
 `mvn -B -pl :search-service -am clean verify` exited 0, BUILD SUCCESS
 (01:26 min), finished 2026-10-06T18:20:17+07:00.
@@ -214,4 +215,32 @@ slice tests. Responses/exceptions are now constructed before opening their stubs
 final clean verification has no failures/errors. Final source/build review confirmed
 framework-free extracted modules and host-only Jackson/Elasticsearch/Spring adapters.
 No git commands, Kafka consumer configuration edits, docs/plans edits or relocation
-were performed. Remaining work is slices 5–6 and environment-supported runtime proof.
+were performed. At that checkpoint, remaining work was slices 5–6 and environment-supported runtime proof.
+
+## Relocation validation (slices 5–6, current)
+
+`mvn -B -pl :search-service -am clean verify` exited 0, BUILD SUCCESS
+(42.016 s), finished 2026-10-06T20:12:47+07:00.
+Log: `/tmp/search-relocation-verify.log`.
+
+- Boot (`search-service`): 53 discovered tests, 48 executed, 0 failures/errors,
+  5 Docker-only skips. Surefire reports Docker unavailable; skipped methods are
+  the same five named in slice 1 validation. No live recovery proof is claimed.
+- Domain: 32 tests; application-api: 1; application: 10. No failures/errors/skips.
+  All retain 85% line/branch gates and measure 100% line/branch coverage.
+- All five Search modules build. Packaged artifact remains
+  `search/boot/target/search-service-0.0.1-SNAPSHOT.jar`, with the unchanged
+  entrypoint/configuration and `search-infrastructure` nested dependency.
+- SHA-256 comparison confirms 45 relocated source/resource/test/wrapper files
+  are byte-identical. `search-service/` is absent. Search has no SQL migrations.
+- `node --test docs/platform/system/api/backend-source-layout.test.mjs`: 8 passed.
+- `node docs/platform/system/api/generate-http-contract.mjs --check`: passed,
+  244 operations and 229 schemas.
+- `node docs/platform/system/api/verify-http-api-inventory.mjs`: passed,
+  244 handlers across 18 services.
+- `python3 scripts/verify-build-baseline-contract-test.py`: 13 passed.
+- Shell syntax checks passed for both changed build/package scripts. Package
+  service resolution already supports `<name>/boot`; its comment now includes Search.
+
+No git commands were run and no docs/plans files were edited. Runtime Docker,
+Kafka and Elasticsearch recovery remains environment-dependent follow-up.

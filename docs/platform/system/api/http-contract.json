@@ -7760,7 +7760,7 @@
       "path": "/api/search/restaurants",
       "handler": "searchRestaurants",
       "source": {
-        "file": "backend_delivery/search-service/src/main/java/com/delivery/search_service/controller/SearchController.java",
+        "file": "backend_delivery/search/infrastructure/src/main/java/com/delivery/search_service/controller/SearchController.java",
         "line": 30
       },
       "java": {
@@ -7864,7 +7864,7 @@
       "path": "/api/search/dishes",
       "handler": "searchDishes",
       "source": {
-        "file": "backend_delivery/search-service/src/main/java/com/delivery/search_service/controller/SearchController.java",
+        "file": "backend_delivery/search/infrastructure/src/main/java/com/delivery/search_service/controller/SearchController.java",
         "line": 42
       },
       "java": {
@@ -25031,7 +25031,7 @@
     "com.delivery.search_service.dto.DishSearchResponse": {
       "kind": "record",
       "source": {
-        "file": "backend_delivery/search-service/src/main/java/com/delivery/search_service/dto/DishSearchResponse.java",
+        "file": "backend_delivery/search/infrastructure/src/main/java/com/delivery/search_service/dto/DishSearchResponse.java",
         "line": 7
       },
       "fields": [
@@ -25076,7 +25076,7 @@
     "com.delivery.search_service.dto.RestaurantSearchResponse": {
       "kind": "record",
       "source": {
-        "file": "backend_delivery/search-service/src/main/java/com/delivery/search_service/dto/RestaurantSearchResponse.java",
+        "file": "backend_delivery/search/infrastructure/src/main/java/com/delivery/search_service/dto/RestaurantSearchResponse.java",
         "line": 5
       },
       "fields": [
@@ -25121,7 +25121,7 @@
     "com.delivery.search_service.payload.BaseResponse": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/search-service/src/main/java/com/delivery/search_service/payload/BaseResponse.java",
+        "file": "backend_delivery/search/infrastructure/src/main/java/com/delivery/search_service/payload/BaseResponse.java",
         "line": 3
       },
       "fields": [
@@ -25148,7 +25148,7 @@
     "com.delivery.search_service.payload.PageResponse": {
       "kind": "record",
       "source": {
-        "file": "backend_delivery/search-service/src/main/java/com/delivery/search_service/payload/PageResponse.java",
+        "file": "backend_delivery/search/infrastructure/src/main/java/com/delivery/search_service/payload/PageResponse.java",
         "line": 7
       },
       "fields": [

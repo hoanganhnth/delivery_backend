@@ -151,3 +151,23 @@ test('Notification relocation preserves discovery of every HTTP handler', () => 
     assert.equal(serviceForSource(root, source), 'notification-service');
   }
 });
+
+test('Search relocation keeps its artifact identity and adapters discoverable', () => {
+  const backend = path.resolve(import.meta.dirname, '../../../..');
+  assert.equal(fs.existsSync(path.join(backend, 'search-service')), false);
+  assert.deepEqual(serviceSourceRoots(backend)
+    .filter(({ service }) => service === 'search-service')
+    .map(({ directory }) => path.relative(backend, directory)).sort(), [
+    'search/boot/src/main/java',
+    'search/infrastructure/src/main/java',
+  ]);
+  assert.equal(serviceForSource(backend, path.join(backend,
+    'search/infrastructure/src/main/java/com/delivery/search_service/controller/SearchController.java')),
+  'search-service');
+  const bootSources = fs.readdirSync(path.join(backend,
+    'search/boot/src/main/java/com/delivery/search_service'));
+  assert.deepEqual(bootSources, ['SearchServiceApplication.java']);
+  assert.deepEqual(fs.readdirSync(path.join(backend, 'search/boot/src/main/resources')),
+    ['application.yml']);
+  assert.equal(fs.existsSync(path.join(backend, 'search/boot/src/main/resources/db')), false);
+});

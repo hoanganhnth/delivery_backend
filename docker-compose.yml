@@ -377,7 +377,7 @@ services:
     networks: [delivery-network]
 
   search-service:
-    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: search-service } }
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: search/boot } }
     container_name: search-service
     expose: ["8088", "9090"]
     environment:

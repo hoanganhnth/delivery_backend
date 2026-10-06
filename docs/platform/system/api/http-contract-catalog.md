@@ -3377,7 +3377,7 @@ public ResponseEntity<RouteResponse> route( @RequestHeader(value = "Internal-Tok
 ### `GET` `/api/search/dishes`
 
 - Handler: `SearchController.searchDishes`
-- Source: [`backend_delivery/search-service/src/main/java/com/delivery/search_service/controller/SearchController.java:42`](../../../../search-service/src/main/java/com/delivery/search_service/controller/SearchController.java)
+- Source: [`backend_delivery/search/infrastructure/src/main/java/com/delivery/search_service/controller/SearchController.java:42`](../../../../search/infrastructure/src/main/java/com/delivery/search_service/controller/SearchController.java)
 - Java return type: `ResponseEntity<BaseResponse<PageResponse<DishSearchResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -3398,7 +3398,7 @@ public ResponseEntity<BaseResponse<PageResponse<DishSearchResponse>>> searchDish
 ### `GET` `/api/search/restaurants`
 
 - Handler: `SearchController.searchRestaurants`
-- Source: [`backend_delivery/search-service/src/main/java/com/delivery/search_service/controller/SearchController.java:30`](../../../../search-service/src/main/java/com/delivery/search_service/controller/SearchController.java)
+- Source: [`backend_delivery/search/infrastructure/src/main/java/com/delivery/search_service/controller/SearchController.java:30`](../../../../search/infrastructure/src/main/java/com/delivery/search_service/controller/SearchController.java)
 - Java return type: `ResponseEntity<BaseResponse<PageResponse<RestaurantSearchResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -7951,7 +7951,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.search_service.dto.DishSearchResponse`
 
 - Kind: `record`
-- Source: [`backend_delivery/search-service/src/main/java/com/delivery/search_service/dto/DishSearchResponse.java:7`](../../../../search-service/src/main/java/com/delivery/search_service/dto/DishSearchResponse.java)
+- Source: [`backend_delivery/search/infrastructure/src/main/java/com/delivery/search_service/dto/DishSearchResponse.java:7`](../../../../search/infrastructure/src/main/java/com/delivery/search_service/dto/DishSearchResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -7965,7 +7965,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.search_service.dto.RestaurantSearchResponse`
 
 - Kind: `record`
-- Source: [`backend_delivery/search-service/src/main/java/com/delivery/search_service/dto/RestaurantSearchResponse.java:5`](../../../../search-service/src/main/java/com/delivery/search_service/dto/RestaurantSearchResponse.java)
+- Source: [`backend_delivery/search/infrastructure/src/main/java/com/delivery/search_service/dto/RestaurantSearchResponse.java:5`](../../../../search/infrastructure/src/main/java/com/delivery/search_service/dto/RestaurantSearchResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -7979,7 +7979,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.search_service.payload.BaseResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/search-service/src/main/java/com/delivery/search_service/payload/BaseResponse.java:3`](../../../../search-service/src/main/java/com/delivery/search_service/payload/BaseResponse.java)
+- Source: [`backend_delivery/search/infrastructure/src/main/java/com/delivery/search_service/payload/BaseResponse.java:3`](../../../../search/infrastructure/src/main/java/com/delivery/search_service/payload/BaseResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -7990,7 +7990,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.search_service.payload.PageResponse`
 
 - Kind: `record`
-- Source: [`backend_delivery/search-service/src/main/java/com/delivery/search_service/payload/PageResponse.java:7`](../../../../search-service/src/main/java/com/delivery/search_service/payload/PageResponse.java)
+- Source: [`backend_delivery/search/infrastructure/src/main/java/com/delivery/search_service/payload/PageResponse.java:7`](../../../../search/infrastructure/src/main/java/com/delivery/search_service/payload/PageResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |

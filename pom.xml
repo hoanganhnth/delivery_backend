@@ -68,7 +68,8 @@
         <module>search/domain</module>
         <module>search/application-api</module>
         <module>search/application</module>
-        <module>search-service</module>
+        <module>search/infrastructure</module>
+        <module>search/boot</module>
         <module>dispatch/domain</module>
         <module>dispatch/application-api</module>
         <module>dispatch/application</module>
