@@ -11,8 +11,11 @@ modules=(
 
 for module in "${modules[@]}"; do
   directory="${module}"
-  if [[ -f "${ROOT_DIR}/${module%-service}/boot/pom.xml" ]]; then
-    directory="${module%-service}/boot"
+  canonical="${module%-service}"
+  # The Saga orchestrator was repurposed in place as Dispatch; its artifact name is unchanged.
+  [[ "${module}" == "saga-orchestrator-service" ]] && canonical="dispatch"
+  if [[ -f "${ROOT_DIR}/${canonical}/boot/pom.xml" ]]; then
+    directory="${canonical}/boot"
   fi
   pom="${ROOT_DIR}/${directory}/pom.xml"
   config="${ROOT_DIR}/${directory}/src/main/resources/application.properties"
