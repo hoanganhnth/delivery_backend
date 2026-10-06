@@ -5,6 +5,7 @@ import com.delivery.flashsale_service.entity.FlashSaleItem;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.EnumSource;
 
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -53,6 +54,65 @@ class FlashSaleAvailabilityPolicyTest {
                 .hasMessage("Out of stock for flash sale item 41");
 
         assertThat(item.getSoldQuantity()).isEqualTo(8);
+    }
+
+    @Test
+    void wrongRestaurantWinsOverMissingCampaignAndStock() {
+        FlashSaleItem item = FlashSaleItem.builder().restaurantId(10L).build();
+
+        assertThatThrownBy(() -> FlashSaleAvailabilityPolicy.requireAvailable(item, 9L, 1, null))
+                .isExactlyInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Flash sale item belongs to another restaurant");
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = FlashSaleItem.ItemStatus.class, names = {"PENDING", "REJECTED"})
+    void nonApprovedItemDoesNotReadMissingCampaign(FlashSaleItem.ItemStatus status) {
+        FlashSaleItem item = FlashSaleItem.builder().restaurantId(9L).status(status).build();
+
+        assertThatThrownBy(() -> FlashSaleAvailabilityPolicy.requireAvailable(item, 9L, 1, null))
+                .isExactlyInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Flash sale item is not approved");
+    }
+
+    @Test
+    void nullItemStatusIsNotApproved() {
+        FlashSaleItem item = FlashSaleItem.builder().restaurantId(9L).build();
+
+        assertThatThrownBy(() -> FlashSaleAvailabilityPolicy.requireAvailable(item, 9L, 1, null))
+                .isExactlyInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Flash sale item is not approved");
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = FlashSaleCampaign.CampaignStatus.class, mode = EnumSource.Mode.EXCLUDE, names = "ACTIVE")
+    void nonActiveCampaignDoesNotReadMissingWindowOrStock(FlashSaleCampaign.CampaignStatus status) {
+        FlashSaleItem item = availableItem();
+        item.setCampaign(FlashSaleCampaign.builder().status(status).build());
+
+        assertThatThrownBy(() -> FlashSaleAvailabilityPolicy.requireAvailable(item, 9L, 1, null))
+                .isExactlyInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Flash sale campaign is not active");
+        assertThat(item.getSoldQuantity()).isEqualTo(8);
+    }
+
+    @Test
+    void nullCampaignStatusIsNotActive() {
+        FlashSaleItem item = availableItem();
+        item.setCampaign(FlashSaleCampaign.builder().build());
+
+        assertThatThrownBy(() -> FlashSaleAvailabilityPolicy.requireAvailable(item, 9L, 1, null))
+                .isExactlyInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Flash sale campaign is not active");
+    }
+
+    @Test
+    void approvedItemWithMissingCampaignRetainsNullPointerFailure() {
+        FlashSaleItem item = availableItem();
+        item.setCampaign(null);
+
+        assertThatThrownBy(() -> FlashSaleAvailabilityPolicy.requireAvailable(item, 9L, 1, LocalTime.NOON))
+                .isExactlyInstanceOf(NullPointerException.class);
     }
 
     private static FlashSaleItem availableItem() {
