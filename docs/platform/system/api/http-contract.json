@@ -2056,7 +2056,7 @@
       "path": "/api/flashsales/admin/campaigns",
       "handler": "createCampaign",
       "source": {
-        "file": "backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/controller/AdminFlashSaleController.java",
+        "file": "backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/controller/AdminFlashSaleController.java",
         "line": 24
       },
       "java": {
@@ -2106,7 +2106,7 @@
       "path": "/api/flashsales/admin/campaigns",
       "handler": "getAllCampaigns",
       "source": {
-        "file": "backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/controller/AdminFlashSaleController.java",
+        "file": "backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/controller/AdminFlashSaleController.java",
         "line": 32
       },
       "java": {
@@ -2137,7 +2137,7 @@
       "path": "/api/flashsales/admin/campaigns/{id}/items",
       "handler": "getCampaignItems",
       "source": {
-        "file": "backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/controller/AdminFlashSaleController.java",
+        "file": "backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/controller/AdminFlashSaleController.java",
         "line": 39
       },
       "java": {
@@ -2180,7 +2180,7 @@
       "path": "/api/flashsales/admin/campaigns/{id}/status",
       "handler": "updateStatus",
       "source": {
-        "file": "backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/controller/AdminFlashSaleController.java",
+        "file": "backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/controller/AdminFlashSaleController.java",
         "line": 47
       },
       "java": {
@@ -2235,7 +2235,7 @@
       "path": "/api/flashsales/admin/items/{id}/approve",
       "handler": "approveItem",
       "source": {
-        "file": "backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/controller/AdminFlashSaleController.java",
+        "file": "backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/controller/AdminFlashSaleController.java",
         "line": 57
       },
       "java": {
@@ -2278,7 +2278,7 @@
       "path": "/api/flashsales/internal/reserve",
       "handler": "reserveStock",
       "source": {
-        "file": "backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/controller/InternalFlashSaleController.java",
+        "file": "backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/controller/InternalFlashSaleController.java",
         "line": 34
       },
       "java": {
@@ -2323,7 +2323,7 @@
       "path": "/api/flashsales/internal/quote",
       "handler": "quote",
       "source": {
-        "file": "backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/controller/InternalFlashSaleController.java",
+        "file": "backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/controller/InternalFlashSaleController.java",
         "line": 65
       },
       "java": {
@@ -2368,7 +2368,7 @@
       "path": "/api/flashsales/internal/reservations/{reservationId}/commit",
       "handler": "commit",
       "source": {
-        "file": "backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/controller/InternalFlashSaleController.java",
+        "file": "backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/controller/InternalFlashSaleController.java",
         "line": 79
       },
       "java": {
@@ -2425,7 +2425,7 @@
       "path": "/api/flashsales/internal/reservations/{reservationId}/release",
       "handler": "release",
       "source": {
-        "file": "backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/controller/InternalFlashSaleController.java",
+        "file": "backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/controller/InternalFlashSaleController.java",
         "line": 89
       },
       "java": {
@@ -2482,7 +2482,7 @@
       "path": "/api/flashsales/merchant/items",
       "handler": "registerItem",
       "source": {
-        "file": "backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/controller/MerchantFlashSaleController.java",
+        "file": "backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/controller/MerchantFlashSaleController.java",
         "line": 25
       },
       "java": {
@@ -2532,7 +2532,7 @@
       "path": "/api/flashsales/public/campaigns",
       "handler": "getActiveCampaigns",
       "source": {
-        "file": "backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/controller/PublicFlashSaleController.java",
+        "file": "backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/controller/PublicFlashSaleController.java",
         "line": 17
       },
       "java": {
@@ -2551,7 +2551,7 @@
       "path": "/api/flashsales/public/campaigns/{campaignId}/items",
       "handler": "getItems",
       "source": {
-        "file": "backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/controller/PublicFlashSaleController.java",
+        "file": "backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/controller/PublicFlashSaleController.java",
         "line": 22
       },
       "java": {
@@ -13735,7 +13735,7 @@
     "com.delivery.flashsale_service.dto.BaseResponse": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/dto/BaseResponse.java",
+        "file": "backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/dto/BaseResponse.java",
         "line": 10
       },
       "fields": [
@@ -13762,7 +13762,7 @@
     "com.delivery.flashsale_service.dto.CreateCampaignRequest": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/dto/CreateCampaignRequest.java",
+        "file": "backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/dto/CreateCampaignRequest.java",
         "line": 10
       },
       "fields": [
@@ -13839,7 +13839,7 @@
     "com.delivery.flashsale_service.dto.FlashSaleCampaignDto": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/dto/FlashSaleCampaignDto.java",
+        "file": "backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/dto/FlashSaleCampaignDto.java",
         "line": 8
       },
       "fields": [
@@ -13890,7 +13890,7 @@
     "com.delivery.flashsale_service.dto.FlashSaleItemDto": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/dto/FlashSaleItemDto.java",
+        "file": "backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/dto/FlashSaleItemDto.java",
         "line": 7
       },
       "fields": [
@@ -13953,7 +13953,7 @@
     "com.delivery.flashsale_service.dto.FlashSaleQuoteRequest": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/dto/FlashSaleQuoteRequest.java",
+        "file": "backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/dto/FlashSaleQuoteRequest.java",
         "line": 12
       },
       "fields": [
@@ -14010,7 +14010,7 @@
     "com.delivery.flashsale_service.dto.FlashSaleQuoteResponse": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/dto/FlashSaleQuoteResponse.java",
+        "file": "backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/dto/FlashSaleQuoteResponse.java",
         "line": 9
       },
       "fields": [
@@ -14031,7 +14031,7 @@
         "Line": {
           "kind": "class",
           "source": {
-            "file": "backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/dto/FlashSaleQuoteResponse.java",
+            "file": "backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/dto/FlashSaleQuoteResponse.java",
             "line": 13
           },
           "fields": [
@@ -14066,7 +14066,7 @@
     "com.delivery.flashsale_service.dto.FlashSaleQuoteResponse.Line": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/dto/FlashSaleQuoteResponse.java",
+        "file": "backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/dto/FlashSaleQuoteResponse.java",
         "line": 13
       },
       "fields": [
@@ -14099,7 +14099,7 @@
     "com.delivery.flashsale_service.dto.FlashSaleReservationRequest": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/dto/FlashSaleReservationRequest.java",
+        "file": "backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/dto/FlashSaleReservationRequest.java",
         "line": 13
       },
       "fields": [
@@ -14228,7 +14228,7 @@
     "com.delivery.flashsale_service.dto.FlashSaleReservationResponse": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/dto/FlashSaleReservationResponse.java",
+        "file": "backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/dto/FlashSaleReservationResponse.java",
         "line": 13
       },
       "fields": [
@@ -14267,7 +14267,7 @@
         "Line": {
           "kind": "class",
           "source": {
-            "file": "backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/dto/FlashSaleReservationResponse.java",
+            "file": "backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/dto/FlashSaleReservationResponse.java",
             "line": 21
           },
           "fields": [
@@ -14302,7 +14302,7 @@
     "com.delivery.flashsale_service.dto.FlashSaleReservationResponse.Line": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/dto/FlashSaleReservationResponse.java",
+        "file": "backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/dto/FlashSaleReservationResponse.java",
         "line": 21
       },
       "fields": [
@@ -14335,7 +14335,7 @@
     "com.delivery.flashsale_service.dto.RegisterItemRequest": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/dto/RegisterItemRequest.java",
+        "file": "backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/dto/RegisterItemRequest.java",
         "line": 10
       },
       "fields": [
@@ -14474,7 +14474,7 @@
     "com.delivery.flashsale_service.dto.ReserveItemRequest": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/dto/ReserveItemRequest.java",
+        "file": "backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/dto/ReserveItemRequest.java",
         "line": 8
       },
       "fields": [
@@ -14525,7 +14525,7 @@
     "com.delivery.flashsale_service.entity.FlashSaleCampaign": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/entity/FlashSaleCampaign.java",
+        "file": "backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/entity/FlashSaleCampaign.java",
         "line": 14
       },
       "fields": [
@@ -14679,7 +14679,7 @@
         "CampaignStatus": {
           "kind": "enum",
           "source": {
-            "file": "backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/entity/FlashSaleCampaign.java",
+            "file": "backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/entity/FlashSaleCampaign.java",
             "line": 51
           },
           "fields": [],
@@ -14694,7 +14694,7 @@
     "com.delivery.flashsale_service.entity.FlashSaleCampaign.CampaignStatus": {
       "kind": "enum",
       "source": {
-        "file": "backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/entity/FlashSaleCampaign.java",
+        "file": "backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/entity/FlashSaleCampaign.java",
         "line": 51
       },
       "fields": [],
@@ -14707,7 +14707,7 @@
     "com.delivery.flashsale_service.entity.FlashSaleReservation": {
       "kind": "class",
       "source": {
-        "file": "backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/entity/FlashSaleReservation.java",
+        "file": "backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/entity/FlashSaleReservation.java",
         "line": 16
       },
       "fields": [
@@ -14883,7 +14883,7 @@
         "State": {
           "kind": "enum",
           "source": {
-            "file": "backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/entity/FlashSaleReservation.java",
+            "file": "backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/entity/FlashSaleReservation.java",
             "line": 32
           },
           "fields": [],
@@ -14899,7 +14899,7 @@
     "com.delivery.flashsale_service.entity.FlashSaleReservation.State": {
       "kind": "enum",
       "source": {
-        "file": "backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/entity/FlashSaleReservation.java",
+        "file": "backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/entity/FlashSaleReservation.java",
         "line": 32
       },
       "fields": [],

@@ -12,7 +12,7 @@ inventory; the completed extraction map below supersedes implementation location
 ## Entrypoints
 
 All Java paths below start at
-`flashsale-service/src/main/java/com/delivery/flashsale_service/`.
+`flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/`.
 
 | Transport | Route/topic | File:line (method) |
 | --- | --- | --- |
@@ -99,7 +99,7 @@ All Java paths below start at
 
 ## Default-off capability flags
 
-`flashsale-service/src/main/resources/application.properties:26` checkout
+`flashsale/boot/src/main/resources/application.properties:26` checkout
 (`FLASHSALE_CHECKOUT_ENABLED=false`), `:29` relay
 (`FLASHSALE_OUTBOX_RELAY_ENABLED=false`), `:39` merchant registration
 (`FLASHSALE_MERCHANT_REGISTRATION_ENABLED=false`), `:40` principal enforcement
@@ -125,16 +125,16 @@ also default false; no setting changes are authorized.
 5. **Completed:** introduce `flashsale/application-api` contracts/ports and
    `flashsale/application` use cases; host supplies HTTP/Kafka/JPA/ownership/
    outbox/clock adapters. Keep existing artifact and default-off composition.
-6. **Remaining, not started:** relocate adapters/persistence/migrations to `flashsale/infrastructure` and
-   entrypoint/configuration to `flashsale/boot`, ending at
-   `flashsale/{domain,application-api,application,infrastructure,boot}` with boot
-   artifact/DNS `flashsale-service`. Re-run host, migration, Docker race/replay
-   and packaged-runtime proof before retiring the legacy host directory.
+6. **Completed:** adapters/persistence/migrations reside in `flashsale/infrastructure`;
+   entrypoint/properties and the unchanged host tests reside in `flashsale/boot`.
+   The legacy host directory is removed; boot artifact/DNS stays `flashsale-service`.
+   Docker race/replay proof remains environment-dependent and is reported separately.
 
 ## Slices 2–5 extraction map and proof
 
-Validated October 6, 2026. The service directory remains the runtime host; no
-adapter, migration, configuration or entrypoint relocation is included.
+Validated October 6, 2026. Slices 1–5 extracted decisions and use cases.
+Slice 6 relocates the unchanged adapters and migrations into infrastructure, with the entrypoint, properties
+and original host tests in boot. Artifact/DNS remains `flashsale-service`.
 
 - `flashsale/domain`: `FlashSaleInputs` supplies lazy validation input views;
   `FlashSaleCatalogPolicy` owns ordered validation, discount/status/approval

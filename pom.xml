@@ -79,7 +79,8 @@
         <module>flashsale/domain</module>
         <module>flashsale/application-api</module>
         <module>flashsale/application</module>
-        <module>flashsale-service</module>
+        <module>flashsale/infrastructure</module>
+        <module>flashsale/boot</module>
         <module>analytics-service</module>
         <module>promotion/domain</module>
         <module>promotion/application-api</module>

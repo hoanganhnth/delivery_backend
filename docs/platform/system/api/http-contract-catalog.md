@@ -946,7 +946,7 @@ public ResponseEntity<BaseResponse<List<DeliveryResponse>>> getActiveDeliveriesB
 ### `GET` `/api/flashsales/admin/campaigns`
 
 - Handler: `AdminFlashSaleController.getAllCampaigns`
-- Source: [`backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/controller/AdminFlashSaleController.java:32`](../../../../flashsale-service/src/main/java/com/delivery/flashsale_service/controller/AdminFlashSaleController.java)
+- Source: [`backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/controller/AdminFlashSaleController.java:32`](../../../../flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/controller/AdminFlashSaleController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<FlashSaleCampaignDto>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -965,7 +965,7 @@ public ResponseEntity<BaseResponse<List<FlashSaleCampaignDto>>> getAllCampaigns(
 ### `POST` `/api/flashsales/admin/campaigns`
 
 - Handler: `AdminFlashSaleController.createCampaign`
-- Source: [`backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/controller/AdminFlashSaleController.java:24`](../../../../flashsale-service/src/main/java/com/delivery/flashsale_service/controller/AdminFlashSaleController.java)
+- Source: [`backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/controller/AdminFlashSaleController.java:24`](../../../../flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/controller/AdminFlashSaleController.java)
 - Java return type: `ResponseEntity<BaseResponse<FlashSaleCampaignDto>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -985,7 +985,7 @@ public ResponseEntity<BaseResponse<FlashSaleCampaignDto>> createCampaign( @Valid
 ### `GET` `/api/flashsales/admin/campaigns/{id}/items`
 
 - Handler: `AdminFlashSaleController.getCampaignItems`
-- Source: [`backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/controller/AdminFlashSaleController.java:39`](../../../../flashsale-service/src/main/java/com/delivery/flashsale_service/controller/AdminFlashSaleController.java)
+- Source: [`backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/controller/AdminFlashSaleController.java:39`](../../../../flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/controller/AdminFlashSaleController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<FlashSaleItemDto>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1005,7 +1005,7 @@ public ResponseEntity<BaseResponse<List<FlashSaleItemDto>>> getCampaignItems( @P
 ### `PUT` `/api/flashsales/admin/campaigns/{id}/status`
 
 - Handler: `AdminFlashSaleController.updateStatus`
-- Source: [`backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/controller/AdminFlashSaleController.java:47`](../../../../flashsale-service/src/main/java/com/delivery/flashsale_service/controller/AdminFlashSaleController.java)
+- Source: [`backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/controller/AdminFlashSaleController.java:47`](../../../../flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/controller/AdminFlashSaleController.java)
 - Java return type: `ResponseEntity<BaseResponse<Void>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1026,7 +1026,7 @@ public ResponseEntity<BaseResponse<Void>> updateStatus( @PathVariable Long id, @
 ### `PUT` `/api/flashsales/admin/items/{id}/approve`
 
 - Handler: `AdminFlashSaleController.approveItem`
-- Source: [`backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/controller/AdminFlashSaleController.java:57`](../../../../flashsale-service/src/main/java/com/delivery/flashsale_service/controller/AdminFlashSaleController.java)
+- Source: [`backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/controller/AdminFlashSaleController.java:57`](../../../../flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/controller/AdminFlashSaleController.java)
 - Java return type: `ResponseEntity<BaseResponse<Void>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1046,7 +1046,7 @@ public ResponseEntity<BaseResponse<Void>> approveItem( @PathVariable Long id, @A
 ### `POST` `/api/flashsales/internal/quote`
 
 - Handler: `InternalFlashSaleController.quote`
-- Source: [`backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/controller/InternalFlashSaleController.java:65`](../../../../flashsale-service/src/main/java/com/delivery/flashsale_service/controller/InternalFlashSaleController.java)
+- Source: [`backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/controller/InternalFlashSaleController.java:65`](../../../../flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/controller/InternalFlashSaleController.java)
 - Java return type: `ResponseEntity<BaseResponse<FlashSaleQuoteResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1066,7 +1066,7 @@ public ResponseEntity<BaseResponse<FlashSaleQuoteResponse>> quote( @RequestBody(
 ### `POST` `/api/flashsales/internal/reservations/{reservationId}/commit`
 
 - Handler: `InternalFlashSaleController.commit`
-- Source: [`backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/controller/InternalFlashSaleController.java:79`](../../../../flashsale-service/src/main/java/com/delivery/flashsale_service/controller/InternalFlashSaleController.java)
+- Source: [`backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/controller/InternalFlashSaleController.java:79`](../../../../flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/controller/InternalFlashSaleController.java)
 - Java return type: `ResponseEntity<BaseResponse<FlashSaleReservationResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1087,7 +1087,7 @@ public ResponseEntity<BaseResponse<FlashSaleReservationResponse>> commit( @PathV
 ### `POST` `/api/flashsales/internal/reservations/{reservationId}/release`
 
 - Handler: `InternalFlashSaleController.release`
-- Source: [`backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/controller/InternalFlashSaleController.java:89`](../../../../flashsale-service/src/main/java/com/delivery/flashsale_service/controller/InternalFlashSaleController.java)
+- Source: [`backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/controller/InternalFlashSaleController.java:89`](../../../../flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/controller/InternalFlashSaleController.java)
 - Java return type: `ResponseEntity<BaseResponse<FlashSaleReservationResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1108,7 +1108,7 @@ public ResponseEntity<BaseResponse<FlashSaleReservationResponse>> release( @Path
 ### `POST` `/api/flashsales/internal/reserve`
 
 - Handler: `InternalFlashSaleController.reserveStock`
-- Source: [`backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/controller/InternalFlashSaleController.java:34`](../../../../flashsale-service/src/main/java/com/delivery/flashsale_service/controller/InternalFlashSaleController.java)
+- Source: [`backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/controller/InternalFlashSaleController.java:34`](../../../../flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/controller/InternalFlashSaleController.java)
 - Java return type: `ResponseEntity<BaseResponse<FlashSaleReservationResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1128,7 +1128,7 @@ public ResponseEntity<BaseResponse<FlashSaleReservationResponse>> reserveStock( 
 ### `POST` `/api/flashsales/merchant/items`
 
 - Handler: `MerchantFlashSaleController.registerItem`
-- Source: [`backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/controller/MerchantFlashSaleController.java:25`](../../../../flashsale-service/src/main/java/com/delivery/flashsale_service/controller/MerchantFlashSaleController.java)
+- Source: [`backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/controller/MerchantFlashSaleController.java:25`](../../../../flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/controller/MerchantFlashSaleController.java)
 - Java return type: `ResponseEntity<BaseResponse<FlashSaleItemDto>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1148,7 +1148,7 @@ public ResponseEntity<BaseResponse<FlashSaleItemDto>> registerItem( @Valid @Requ
 ### `GET` `/api/flashsales/public/campaigns`
 
 - Handler: `PublicFlashSaleController.getActiveCampaigns`
-- Source: [`backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/controller/PublicFlashSaleController.java:17`](../../../../flashsale-service/src/main/java/com/delivery/flashsale_service/controller/PublicFlashSaleController.java)
+- Source: [`backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/controller/PublicFlashSaleController.java:17`](../../../../flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/controller/PublicFlashSaleController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<FlashSaleCampaignDto>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -1167,7 +1167,7 @@ public ResponseEntity<BaseResponse<List<FlashSaleCampaignDto>>> getActiveCampaig
 ### `GET` `/api/flashsales/public/campaigns/{campaignId}/items`
 
 - Handler: `PublicFlashSaleController.getItems`
-- Source: [`backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/controller/PublicFlashSaleController.java:22`](../../../../flashsale-service/src/main/java/com/delivery/flashsale_service/controller/PublicFlashSaleController.java)
+- Source: [`backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/controller/PublicFlashSaleController.java:22`](../../../../flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/controller/PublicFlashSaleController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<FlashSaleItemDto>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -5587,7 +5587,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.flashsale_service.dto.BaseResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/dto/BaseResponse.java:10`](../../../../flashsale-service/src/main/java/com/delivery/flashsale_service/dto/BaseResponse.java)
+- Source: [`backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/dto/BaseResponse.java:10`](../../../../flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/dto/BaseResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5598,7 +5598,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.flashsale_service.dto.CreateCampaignRequest`
 
 - Kind: `class`
-- Source: [`backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/dto/CreateCampaignRequest.java:10`](../../../../flashsale-service/src/main/java/com/delivery/flashsale_service/dto/CreateCampaignRequest.java)
+- Source: [`backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/dto/CreateCampaignRequest.java:10`](../../../../flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/dto/CreateCampaignRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5610,7 +5610,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.flashsale_service.dto.FlashSaleCampaignDto`
 
 - Kind: `class`
-- Source: [`backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/dto/FlashSaleCampaignDto.java:8`](../../../../flashsale-service/src/main/java/com/delivery/flashsale_service/dto/FlashSaleCampaignDto.java)
+- Source: [`backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/dto/FlashSaleCampaignDto.java:8`](../../../../flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/dto/FlashSaleCampaignDto.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5625,7 +5625,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.flashsale_service.dto.FlashSaleItemDto`
 
 - Kind: `class`
-- Source: [`backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/dto/FlashSaleItemDto.java:7`](../../../../flashsale-service/src/main/java/com/delivery/flashsale_service/dto/FlashSaleItemDto.java)
+- Source: [`backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/dto/FlashSaleItemDto.java:7`](../../../../flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/dto/FlashSaleItemDto.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5642,7 +5642,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.flashsale_service.dto.FlashSaleQuoteRequest`
 
 - Kind: `class`
-- Source: [`backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/dto/FlashSaleQuoteRequest.java:12`](../../../../flashsale-service/src/main/java/com/delivery/flashsale_service/dto/FlashSaleQuoteRequest.java)
+- Source: [`backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/dto/FlashSaleQuoteRequest.java:12`](../../../../flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/dto/FlashSaleQuoteRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5652,7 +5652,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.flashsale_service.dto.FlashSaleQuoteResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/dto/FlashSaleQuoteResponse.java:9`](../../../../flashsale-service/src/main/java/com/delivery/flashsale_service/dto/FlashSaleQuoteResponse.java)
+- Source: [`backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/dto/FlashSaleQuoteResponse.java:9`](../../../../flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/dto/FlashSaleQuoteResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5662,7 +5662,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 #### `com.delivery.flashsale_service.dto.FlashSaleQuoteResponse.Line`
 
 - Kind: `class`
-- Source: [`backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/dto/FlashSaleQuoteResponse.java:13`](../../../../flashsale-service/src/main/java/com/delivery/flashsale_service/dto/FlashSaleQuoteResponse.java)
+- Source: [`backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/dto/FlashSaleQuoteResponse.java:13`](../../../../flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/dto/FlashSaleQuoteResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5674,7 +5674,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.flashsale_service.dto.FlashSaleQuoteResponse.Line`
 
 - Kind: `class`
-- Source: [`backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/dto/FlashSaleQuoteResponse.java:13`](../../../../flashsale-service/src/main/java/com/delivery/flashsale_service/dto/FlashSaleQuoteResponse.java)
+- Source: [`backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/dto/FlashSaleQuoteResponse.java:13`](../../../../flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/dto/FlashSaleQuoteResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5686,7 +5686,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.flashsale_service.dto.FlashSaleReservationRequest`
 
 - Kind: `class`
-- Source: [`backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/dto/FlashSaleReservationRequest.java:13`](../../../../flashsale-service/src/main/java/com/delivery/flashsale_service/dto/FlashSaleReservationRequest.java)
+- Source: [`backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/dto/FlashSaleReservationRequest.java:13`](../../../../flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/dto/FlashSaleReservationRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5700,7 +5700,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.flashsale_service.dto.FlashSaleReservationResponse`
 
 - Kind: `class`
-- Source: [`backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/dto/FlashSaleReservationResponse.java:13`](../../../../flashsale-service/src/main/java/com/delivery/flashsale_service/dto/FlashSaleReservationResponse.java)
+- Source: [`backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/dto/FlashSaleReservationResponse.java:13`](../../../../flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/dto/FlashSaleReservationResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5713,7 +5713,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 #### `com.delivery.flashsale_service.dto.FlashSaleReservationResponse.Line`
 
 - Kind: `class`
-- Source: [`backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/dto/FlashSaleReservationResponse.java:21`](../../../../flashsale-service/src/main/java/com/delivery/flashsale_service/dto/FlashSaleReservationResponse.java)
+- Source: [`backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/dto/FlashSaleReservationResponse.java:21`](../../../../flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/dto/FlashSaleReservationResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5725,7 +5725,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.flashsale_service.dto.FlashSaleReservationResponse.Line`
 
 - Kind: `class`
-- Source: [`backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/dto/FlashSaleReservationResponse.java:21`](../../../../flashsale-service/src/main/java/com/delivery/flashsale_service/dto/FlashSaleReservationResponse.java)
+- Source: [`backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/dto/FlashSaleReservationResponse.java:21`](../../../../flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/dto/FlashSaleReservationResponse.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5737,7 +5737,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.flashsale_service.dto.RegisterItemRequest`
 
 - Kind: `class`
-- Source: [`backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/dto/RegisterItemRequest.java:10`](../../../../flashsale-service/src/main/java/com/delivery/flashsale_service/dto/RegisterItemRequest.java)
+- Source: [`backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/dto/RegisterItemRequest.java:10`](../../../../flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/dto/RegisterItemRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5751,7 +5751,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.flashsale_service.dto.ReserveItemRequest`
 
 - Kind: `class`
-- Source: [`backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/dto/ReserveItemRequest.java:8`](../../../../flashsale-service/src/main/java/com/delivery/flashsale_service/dto/ReserveItemRequest.java)
+- Source: [`backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/dto/ReserveItemRequest.java:8`](../../../../flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/dto/ReserveItemRequest.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5761,7 +5761,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.flashsale_service.entity.FlashSaleCampaign`
 
 - Kind: `class`
-- Source: [`backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/entity/FlashSaleCampaign.java:14`](../../../../flashsale-service/src/main/java/com/delivery/flashsale_service/entity/FlashSaleCampaign.java)
+- Source: [`backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/entity/FlashSaleCampaign.java:14`](../../../../flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/entity/FlashSaleCampaign.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5778,7 +5778,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 #### `com.delivery.flashsale_service.entity.FlashSaleCampaign.CampaignStatus`
 
 - Kind: `enum`
-- Source: [`backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/entity/FlashSaleCampaign.java:51`](../../../../flashsale-service/src/main/java/com/delivery/flashsale_service/entity/FlashSaleCampaign.java)
+- Source: [`backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/entity/FlashSaleCampaign.java:51`](../../../../flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/entity/FlashSaleCampaign.java)
 - Enum values: `UPCOMING`, `ACTIVE`, `ENDED`
 
 | Field | Java type | Required | Validation/annotations |
@@ -5788,7 +5788,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.flashsale_service.entity.FlashSaleCampaign.CampaignStatus`
 
 - Kind: `enum`
-- Source: [`backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/entity/FlashSaleCampaign.java:51`](../../../../flashsale-service/src/main/java/com/delivery/flashsale_service/entity/FlashSaleCampaign.java)
+- Source: [`backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/entity/FlashSaleCampaign.java:51`](../../../../flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/entity/FlashSaleCampaign.java)
 - Enum values: `UPCOMING`, `ACTIVE`, `ENDED`
 
 | Field | Java type | Required | Validation/annotations |
@@ -5798,7 +5798,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.flashsale_service.entity.FlashSaleReservation`
 
 - Kind: `class`
-- Source: [`backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/entity/FlashSaleReservation.java:16`](../../../../flashsale-service/src/main/java/com/delivery/flashsale_service/entity/FlashSaleReservation.java)
+- Source: [`backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/entity/FlashSaleReservation.java:16`](../../../../flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/entity/FlashSaleReservation.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
@@ -5815,7 +5815,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 #### `com.delivery.flashsale_service.entity.FlashSaleReservation.State`
 
 - Kind: `enum`
-- Source: [`backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/entity/FlashSaleReservation.java:32`](../../../../flashsale-service/src/main/java/com/delivery/flashsale_service/entity/FlashSaleReservation.java)
+- Source: [`backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/entity/FlashSaleReservation.java:32`](../../../../flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/entity/FlashSaleReservation.java)
 - Enum values: `RESERVED`, `COMMITTED`, `RELEASED`, `EXPIRED`
 
 | Field | Java type | Required | Validation/annotations |
@@ -5825,7 +5825,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 ### `com.delivery.flashsale_service.entity.FlashSaleReservation.State`
 
 - Kind: `enum`
-- Source: [`backend_delivery/flashsale-service/src/main/java/com/delivery/flashsale_service/entity/FlashSaleReservation.java:32`](../../../../flashsale-service/src/main/java/com/delivery/flashsale_service/entity/FlashSaleReservation.java)
+- Source: [`backend_delivery/flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/entity/FlashSaleReservation.java:32`](../../../../flashsale/infrastructure/src/main/java/com/delivery/flashsale_service/entity/FlashSaleReservation.java)
 - Enum values: `RESERVED`, `COMMITTED`, `RELEASED`, `EXPIRED`
 
 | Field | Java type | Required | Validation/annotations |

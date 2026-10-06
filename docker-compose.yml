@@ -664,7 +664,7 @@ services:
     networks: [delivery-network]
 
   flashsale-service:
-    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: flashsale-service } }
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: flashsale/boot } }
     container_name: flashsale-service
     profiles: [optional-capabilities]
     expose: ["8092", "9090"]
