@@ -218,6 +218,20 @@ class HarnessPreflight(unittest.TestCase):
         self.assertEqual(environment['SPRING_DATA_REDIS_HOST'], '127.0.0.1')
         self.assertEqual(environment['MATCH_OUTBOX_RELAY_ENABLED'], 'true')
 
+    def test_restaurant_route_readiness_requires_success_before_seed(self):
+        text = SCRIPT.read_text()
+        start = text.index('restaurant_route_is_ready()')
+        end = text.index("wait_for 'Gateway restaurant route readiness", start)
+        function = text[start:end]
+        self.assertLess(end, text.index('BASE="$BASE" bash scripts/seed.sh'))
+        for status, expected in [('503', 1), ('401', 1), ('200', 0)]:
+            result = subprocess.run(['bash', '-c',
+                'curl() { printf "%s" "$RESPONSE_STATUS"; }\n' + function +
+                '\nrestaurant_route_is_ready'],
+                env=dict(self.env, RESPONSE_STATUS=status, BASE='http://fixture'),
+                capture_output=True, text=True)
+            self.assertEqual(result.returncode, expected, result.stderr)
+
     def cleanup_proof(self, exit_action):
         executable = self.bin / 'docker'
         executable.write_text('''#!/bin/sh

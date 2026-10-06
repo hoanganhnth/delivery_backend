@@ -200,6 +200,16 @@ if [[ ! "$gateway_port" =~ ^[0-9]+$ ]]; then
 fi
 BASE="http://127.0.0.1:${gateway_port}"
 
+# Container readiness precedes Eureka/Gateway route convergence on a cold stack.
+# Observe the public read route before seed performs its non-idempotent POST.
+restaurant_route_is_ready() {
+  local status
+  status="$(curl --silent --show-error -o /dev/null -w '%{http_code}' \
+    "$BASE/api/restaurants")" || return 1
+  [[ "$status" == '200' ]]
+}
+wait_for 'Gateway restaurant route readiness before seeding' restaurant_route_is_ready
+
 # Seed derives shipper idCard/phone from RUN_ID; CreateShipperRequest caps idCard
 # at 20 chars, so the seed id must stay short (ID-<seed id>-<n> <= 20).
 seed_run_id="m$(date +%s)"
