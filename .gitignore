@@ -32,3 +32,7 @@ Thumbs.db
 firebase-service-account.json
 # Local source/build archives.
 *.tar.gz
+
+# Python bytecode from script tests
+__pycache__/
+*.pyc
