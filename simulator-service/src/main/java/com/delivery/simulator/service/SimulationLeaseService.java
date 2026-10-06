@@ -10,7 +10,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 
 /** Durable lease heartbeat/fence used by virtual shipper workers. */
 @Service
-public class SimulationLeaseService {
+public class SimulationLeaseService implements com.delivery.simulator.application.api.SimulationPorts.Leases<SimulationActorLease> {
     private final SimulationActorLeaseRepository leases;
     private final long ttlSeconds;
 

@@ -20,7 +20,7 @@ import java.util.UUID;
  * It never logs access tokens or response bodies on failures.
  */
 @Component
-public class GatewayClient {
+public class GatewayClient implements com.delivery.simulator.application.api.SimulationPorts.Gateway {
 
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
@@ -115,22 +115,7 @@ public class GatewayClient {
         }
     }
 
-    public static final class GatewayException extends RuntimeException {
-        private final int status;
-        private final String operation;
-
-        public GatewayException(int status, String operation, String message) {
-            super(message);
-            this.status = status;
-            this.operation = operation;
-        }
-
-        public int getStatus() {
-            return status;
-        }
-
-        public String getOperation() {
-            return operation;
-        }
+    public static final class GatewayException extends com.delivery.simulator.application.api.SimulationPorts.GatewayException {
+        public GatewayException(int status, String operation, String message) { super(status, operation, message); }
     }
 }

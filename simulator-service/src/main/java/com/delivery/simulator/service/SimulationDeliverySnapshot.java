@@ -14,12 +14,12 @@ record SimulationDeliverySnapshot(long deliveryId, String status, String offered
     }
 
     private static String canonicalShipper(JsonNode scenario, String rawId) {
-        if (rawId.isBlank() || "null".equals(rawId)) return "";
+        java.util.List<com.delivery.simulator.domain.SimulationDecisions.ActorAlias> aliases = new java.util.ArrayList<>();
         for (JsonNode shipper : scenario.path("shippers")) {
-            if (rawId.equals(text(shipper, "id", ""))) return rawId;
-            if (shipper.path("userId").asText("").equals(rawId)) return text(shipper, "id", rawId);
+            aliases.add(new com.delivery.simulator.domain.SimulationDecisions.ActorAlias(
+                    text(shipper,"id",rawId),shipper.path("userId").asText("")));
         }
-        return rawId;
+        return com.delivery.simulator.domain.SimulationDecisions.canonicalShipper(aliases,rawId);
     }
 
     private static String text(JsonNode node, String field, String fallback) {

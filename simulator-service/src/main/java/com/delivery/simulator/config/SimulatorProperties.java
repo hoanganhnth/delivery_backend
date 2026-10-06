@@ -6,7 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @ConfigurationProperties(prefix = "simulator")
-public class SimulatorProperties {
+public class SimulatorProperties implements com.delivery.simulator.application.api.SimulationPorts.Settings {
 
     private boolean enabled = false;
     private boolean adminOnly = true;

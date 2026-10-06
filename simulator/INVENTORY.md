@@ -2,16 +2,16 @@
 
 ## Authority and boundary
 
-This is an equivalence-only inventory of `simulator-service`, before slice 1.
-References below are repository-relative baseline file:line locations; the
-single new domain import shifts subsequent SimulationService lines by two.
+This is an equivalence-only inventory of `simulator-service`, at the slice 1 baseline; later extraction evidence is recorded below.
+References in the baseline tables below are repository-relative pre-extraction
+file:line locations; current owners are described in the slice progress sections.
 Source and executable tests take precedence over the stale in-memory-only
 claims in simulator-service/README.md and docs/platform/system/simulator/README.md.
 Relevant authority: AGENTS.md, docs/WORKFLOW.md, ROADMAP_MVP_TO_PRODUCTION.md,
 docs/plans/active/service-architecture-consolidation.md, the simulator design
 README and existing fence/recovery/assertion tests. No new product policy is
 introduced. Runtime artifact/DNS remains `simulator-service`. Transport, JSON,
-JPA, scheduling, security, metrics and composition stay in the host for slice 1.
+JPA, scheduling, security, metrics and composition stay in the host through slice 5.
 No Kafka consumer configuration or docs/plans files are changed.
 
 For the tables, `C` means
@@ -215,3 +215,114 @@ console log for this execution: /tmp/simulator-verify.log.
 Filesystem-only work: no Git commands were run; branch creation/verification
 is the parent's responsibility under the assigned constraint. Later slices and
 real database concurrency/packaged recovery validation remain future work.
+
+
+## Slices 2–5 implementation
+
+Completed the ordered decision and application extractions without relocation:
+
+- **Slice 2:** domain `DeterministicPolyline` and `SimulationDecisions` own movement,
+  terminal convergence, run terminality, actor release safety, coordinate bounds,
+  confirmation and retry decisions. The host route class is a compatibility
+  delegate; host state delegates terminal/release decisions. Seed behavior is
+  deliberately unchanged, including NaN/infinity and zero-distance behavior.
+- **Slice 3:** domain `CandidateOracle` and `ShadowRanking` use immutable record
+  inputs/results. Host state and shadow comparator retain Jackson parsing and
+  response rendering. Rounded candidate ordering, first-match actor aliases,
+  first-candidate ties, duplicate actor overrides and fairness scoring remain
+  equivalent. Neither oracle nor shadow recommendation feeds Match.
+- **Slice 4:** `simulator/application-api` defines Gateway, Auth actor binding,
+  Delivery recovery, settings, run/state/store, lease, journal, observation,
+  fault, state factory and time ports. Existing JsonNode scenario/response and
+  Map snapshot shapes serve as command/result contracts; this slice deliberately
+  introduces no transport DTO conversion. Binding and delivery result records
+  and the Gateway failure contract now belong to that module. Host interfaces
+  and exception subclasses retain caller compatibility.
+- **Slice 5:** `simulator/application` owns `SimulationUseCases`,
+  `SimulationLeaseCoordinator` and `SimulationRecoveryUseCase`. This includes
+  validation/start/control, per-order execution, human order discovery, offers,
+  movement, triggers, polling, observations/assertions, orphan reconciliation,
+  heartbeat/expiry, cleanup and recovery. Host `SimulationService` and
+  `SimulationRecoveryService` compose and delegate to those use cases. Host
+  repositories, entities, lease transactions, JSON/redaction, HTTP/Kafka/SSE,
+  scheduler/lifecycle annotations, thread-pool construction and system-time
+  implementation stay in `simulator-service`.
+
+Reactor adds application-api/application after domain, before the host. Domain,
+application-api and application keep inherited 85% LINE/BRANCH gates. Application
+has its own executable port-only tests rather than relying on host coverage;
+all original host regression tests remain. Production application/domain have
+no Spring/JPA/Kafka/HTTP-client dependencies. Jackson is retained in the API and
+application to preserve the existing scenario and observation contract during
+this bounded extraction. Spring test utilities are test-only.
+
+### Regression and newly observed gaps
+
+Domain truth tables cover projection/control/coordinate/retry branches, aliases,
+shadow eligibility and reason precedence, numeric movement and seed equivalence.
+Application tests cover side-effect order, persistence failure rollback, binding
+ownership and partial rollback, durable/memory controls, retained recovery
+fences, observation retention/cap, offers and action de-duplication, trigger
+policies, transient poll classification, bounded location retry, movement,
+confirmation, checkout quote forwarding, human-order discovery/timeout and
+assertion precedence. Recovery tests cover nested journal identities, malformed
+rows, fallback lookup, every terminal status, partial binding rollback and
+terminal proof before release. Coordinator tests cover lost fence, outage abort,
+terminal/no-state exclusions and release retry.
+
+Recorded defects remain: seed has no effect; ledger assertions skip; commands
+have no admission-cap check; stale lease reads can produce the same fence;
+ledger receipt reads precede inserts and differently identified delivery replay
+propagates a storage conflict. `SimulationKnownPersistenceGapsTest` characterizes
+stale repository responses and replay failure, **not actual database concurrency**.
+The stale README observation also remains; it is documented in this inventory.
+
+Two additional gaps were found while characterizing the moved logic and are
+preserved, with explicit tests rather than fixed in this equivalence task:
+
+6. Recovery accepts an Auth binding with a foreign run/cohort when the returned
+   principal still matches the customer. Normal start checks run/cohort;
+   recovery does not. `SimulationRecoveryUseCaseTest.
+   recoveryPreservesExistingMissingReturnedContextOwnershipCheck` proves that
+   behavior and the use of the original requested run when unbinding.
+7. `checkControl` checks abort before/inside the pause loop, but not after the
+   sleep exits the loop. Abort clears pause; an abort during pause sleep can
+   therefore allow one subsequent Gateway action. `SimulationUseCasesTest.
+   pauseAndInterruptFenceSubsequentWrites` characterizes that one action and
+   verifies the following control check rejects the aborted state. This does
+   not weaken the existing host fence tests; the gap is a distinct interleaving.
+
+### Remaining slices
+
+Slices 6–7 remain: infrastructure and boot relocation, final composition/module
+boundary proof, packaged runtime, migration and real persistence/recovery proof.
+No docs/plans or Kafka consumer configuration edits are part of this work.
+No Git commands were run. Parent owns branch/history/diff review under the
+filesystem-only constraint; source surfaces and executable behavior were
+inspected here.
+
+
+### Fresh slice 2–5 validation evidence
+
+Executed `mvn -B -pl :simulator-service -am clean verify`: exit **0**, **BUILD
+SUCCESS**, 1:08 minutes, finished 2026-10-06T21:28:34+07:00. Surefire reports:
+identity-contracts 5, auth-resource-server-starter 8, simulator-domain 17,
+simulator-application-api 2, simulator-application 103, simulator-service 156
+(including all original 153 host tests). **291 tests, 0 failures, 0 errors,
+0 skips. Docker-dependent skips: none in this reactor.** No Docker-backed
+persistence or packaged runtime exercise was added by this slice.
+
+JaCoCo executable gates all passed:
+
+| Module | LINE | BRANCH | Minimum |
+| --- | --- | --- | --- |
+| simulator-domain | 102/102 (100%) | 162/166 (97.59%) | 85% / 85% |
+| simulator-application-api | 12/12 (100%) | 10/10 (100%) | 85% / 85% |
+| simulator-application | 957/969 (98.76%) | 473/538 (87.92%) | 85% / 85% |
+
+Evidence: `/tmp/simulator-slice2-verify.log`, module `target/surefire-reports/`
+and `target/site/jacoco/jacoco.xml`. The host repackaged JAR also built
+successfully. Final source inspection confirms ports have host implementations,
+application has no production framework imports, and scheduler/lifecycle/SSE
+composition remains in the host. Kafka observers/configuration, migrations,
+HTTP security and resources were not relocated.

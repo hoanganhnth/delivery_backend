@@ -9,7 +9,7 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "simulation_runs")
-public class SimulationRun {
+public class SimulationRun implements com.delivery.simulator.application.api.SimulationPorts.Run {
     @Id
     private UUID runId;
     @Column(nullable = false, length = 32)

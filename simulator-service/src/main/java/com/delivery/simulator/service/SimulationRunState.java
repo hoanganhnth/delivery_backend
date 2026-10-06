@@ -18,7 +18,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
-final class SimulationRunState {
+final class SimulationRunState implements com.delivery.simulator.application.api.RunState {
 
     private final ObjectMapper objectMapper;
     private final JsonNode rawScenario;
@@ -64,23 +64,23 @@ final class SimulationRunState {
         initializeAssertions();
     }
 
-    String getRunId() {
+    public String getRunId() {
         return runId;
     }
 
-    String getCorrelationId() {
+    public String getCorrelationId() {
         return correlationId;
     }
 
-    JsonNode getRawScenario() {
+    public JsonNode getRawScenario() {
         return rawScenario;
     }
 
-    void setEventObserver(Consumer<Map<String, Object>> eventObserver) {
+    public void setEventObserver(Consumer<Map<String, Object>> eventObserver) {
         this.eventObserver = eventObserver;
     }
 
-    void setAssertionObserver(Consumer<Map<String, Object>> assertionObserver) {
+    public void setAssertionObserver(Consumer<Map<String, Object>> assertionObserver) {
         this.assertionObserver = assertionObserver;
     }
 
@@ -89,55 +89,55 @@ final class SimulationRunState {
      * It must retain scenario shape for diagnostics without storing credentials
      * used by the active in-memory runner.
      */
-    String persistableScenarioJson() {
+    public String persistableScenarioJson() {
         return safeScenario().toString();
     }
 
-    synchronized void setStatus(String status) {
+    public synchronized void setStatus(String status) {
         this.status = status;
-        if (List.of("PASSED", "PARTIAL", "FAILED", "ABORTED").contains(status)) {
+        if (com.delivery.simulator.domain.SimulationDecisions.terminalRun(status)) {
             this.endedAt = Instant.now().toString();
         }
     }
 
-    String getStatus() {
+    public String getStatus() {
         return status;
     }
 
-    Instant getStartedAt() { return startedAt; }
+    public Instant getStartedAt() { return startedAt; }
 
-    boolean isPaused() {
+    public boolean isPaused() {
         return paused;
     }
 
-    void pause() {
+    public void pause() {
         paused = true;
         status = "PAUSED";
     }
 
-    void resume() {
+    public void resume() {
         paused = false;
         if (!aborted && !isTerminal()) {
             status = "RUNNING";
         }
     }
 
-    void abort() {
+    public void abort() {
         aborted = true;
         paused = false;
         status = "ABORTED";
         endedAt = Instant.now().toString();
     }
 
-    boolean isAborted() {
+    public boolean isAborted() {
         return aborted;
     }
 
-    boolean isTerminal() {
-        return List.of("PASSED", "PARTIAL", "FAILED", "ABORTED").contains(status);
+    public boolean isTerminal() {
+        return com.delivery.simulator.domain.SimulationDecisions.terminalRun(status);
     }
 
-    void setOrder(Long orderId, String orderStatus) {
+    public void setOrder(Long orderId, String orderStatus) {
         this.orderId = orderId;
         if (orderId != null && orderId > 0) observedOrderIds.add(orderId);
         if (orderStatus != null) {
@@ -145,13 +145,13 @@ final class SimulationRunState {
         }
     }
 
-    void setOrderStatus(String orderStatus) {
+    public void setOrderStatus(String orderStatus) {
         if (orderStatus != null && !orderStatus.isBlank()) {
             this.orderStatus = orderStatus;
         }
     }
 
-    void setDelivery(Long deliveryId, String deliveryStatus) {
+    public void setDelivery(Long deliveryId, String deliveryStatus) {
         this.deliveryId = deliveryId;
         if (deliveryId != null && deliveryId > 0) observedDeliveryIds.add(deliveryId);
         if (deliveryId != null && deliveryId > 0 && orderId != null && orderId > 0) {
@@ -162,13 +162,13 @@ final class SimulationRunState {
         }
     }
 
-    void setDeliveryStatus(String deliveryStatus) {
+    public void setDeliveryStatus(String deliveryStatus) {
         if (deliveryStatus != null && !deliveryStatus.isBlank()) {
             this.deliveryStatus = deliveryStatus;
         }
     }
 
-    boolean matchesAlgorithmTrace(JsonNode trace) {
+    public boolean matchesAlgorithmTrace(JsonNode trace) {
         long traceOrderId = trace.path("orderId").asLong(-1);
         long traceDeliveryId = trace.path("deliveryId").asLong(-1);
         if (traceOrderId <= 0 || traceDeliveryId <= 0) {
@@ -179,7 +179,7 @@ final class SimulationRunState {
                 && Long.valueOf(traceOrderId).equals(deliveryOrderIds.get(traceDeliveryId));
     }
 
-    synchronized void beginNextOrder(int sequenceNumber) {
+    public synchronized void beginNextOrder(int sequenceNumber) {
         if (orderId != null && (orders.isEmpty()
                 || !orderId.equals(orders.get(orders.size() - 1).get("orderId")))) {
             Map<String, Object> previous = new LinkedHashMap<>();
@@ -201,7 +201,7 @@ final class SimulationRunState {
                 "Cùng actor pool và simulation namespace; counter fairness được giữ lại", "INFO");
     }
 
-    synchronized void finishCurrentOrder() {
+    public synchronized void finishCurrentOrder() {
         if (orderId == null) return;
         Map<String, Object> current = new LinkedHashMap<>();
         current.put("sequence", orders.size() + 1);
@@ -213,7 +213,7 @@ final class SimulationRunState {
         orders.add(current);
     }
 
-    synchronized void addAlgorithmTrace(JsonNode trace) {
+    public synchronized void addAlgorithmTrace(JsonNode trace) {
         Map<String, Object> value = objectMapper.convertValue(trace, LinkedHashMap.class);
         boolean alreadyObserved = algorithmTraces.stream()
                 .anyMatch(existing -> String.valueOf(existing.get("eventId"))
@@ -233,7 +233,7 @@ final class SimulationRunState {
                 "matching.decision-trace", value);
     }
 
-    synchronized void addAlgorithmComparison(JsonNode comparison) {
+    public synchronized void addAlgorithmComparison(JsonNode comparison) {
         Map<String, Object> value = objectMapper.convertValue(comparison, LinkedHashMap.class);
         String sourceEventId = String.valueOf(value.getOrDefault("sourceEventId", ""));
         String algorithm = String.valueOf(value.getOrDefault("algorithmId", ""));
@@ -250,41 +250,40 @@ final class SimulationRunState {
                 "simulation.algorithm-shadow", value);
     }
 
-    Long getOrderId() {
+    public Long getOrderId() {
         return orderId;
     }
 
-    Long getDeliveryId() {
+    public Long getDeliveryId() {
         return deliveryId;
     }
 
-    String getOrderStatus() {
+    public String getOrderStatus() {
         return orderStatus;
     }
 
-    String getDeliveryStatus() {
+    public String getDeliveryStatus() {
         return deliveryStatus;
     }
 
     /** An actor may only re-enter Auth's pool after its last delivery converged. */
-    boolean isActorReleaseSafe() {
-        return deliveryId == null || Set.of("DELIVERED", "CANCELLED", "SHIPPER_NOT_FOUND", "NONE")
-                .contains(deliveryStatus);
+    public boolean isActorReleaseSafe() {
+        return com.delivery.simulator.domain.SimulationDecisions.actorReleaseSafe(deliveryId,deliveryStatus);
     }
 
-    void setActiveOfferShipperId(String shipperId) {
+    public void setActiveOfferShipperId(String shipperId) {
         activeOfferShipperId = shipperId;
     }
 
-    void setAssignedShipperId(String shipperId) {
+    public void setAssignedShipperId(String shipperId) {
         assignedShipperId = shipperId;
     }
 
-    String getAssignedShipperId() {
+    public String getAssignedShipperId() {
         return assignedShipperId;
     }
 
-    void initializeShippers() {
+    public void initializeShippers() {
         JsonNode configured = rawScenario.path("shippers");
         if (!configured.isArray()) {
             return;
@@ -316,7 +315,7 @@ final class SimulationRunState {
         }
     }
 
-    void initializeAssertions() {
+    public void initializeAssertions() {
         JsonNode configured = rawScenario.path("assertions");
         if (!configured.isArray()) {
             return;
@@ -331,12 +330,12 @@ final class SimulationRunState {
         }
     }
 
-    synchronized void replaceCandidates(List<Map<String, Object>> values) {
+    public synchronized void replaceCandidates(List<Map<String, Object>> values) {
         candidates.clear();
         candidates.addAll(values);
     }
 
-    synchronized void updateCandidate(String shipperId, String state, String reason) {
+    public synchronized void updateCandidate(String shipperId, String state, String reason) {
         for (Map<String, Object> candidate : candidates) {
             if (shipperId.equals(String.valueOf(candidate.get("shipperId")))) {
                 candidate.put("state", state);
@@ -349,7 +348,7 @@ final class SimulationRunState {
         }
     }
 
-    synchronized void updateShipper(String shipperId, String status, Boolean online,
+    public synchronized void updateShipper(String shipperId, String status, Boolean online,
                                      Double latitude, Double longitude) {
         Map<String, Object> value = shippers.get(shipperId);
         if (value == null) {
@@ -364,26 +363,26 @@ final class SimulationRunState {
         if (longitude != null) value.put("currentLng", longitude);
     }
 
-    boolean markTriggerFired(String key) {
+    public boolean markTriggerFired(String key) {
         return firedTriggers.add(key);
     }
 
-    boolean isTriggerFiredAtStage(String stage) {
+    public boolean isTriggerFiredAtStage(String stage) {
         if (stage == null || stage.isBlank()) {
             return false;
         }
         return firedTriggers.stream().anyMatch(key -> key.endsWith(":" + stage));
     }
 
-    long markOfferSeen(String shipperId) {
+    public long markOfferSeen(String shipperId) {
         return offerFirstSeen.computeIfAbsent(shipperId, ignored -> System.currentTimeMillis());
     }
 
-    void clearOfferSeen(String shipperId) {
+    public void clearOfferSeen(String shipperId) {
         offerFirstSeen.remove(shipperId);
     }
 
-    synchronized void assertion(String assertionId, String status, String actualValue) {
+    public synchronized void assertion(String assertionId, String status, String actualValue) {
         for (Map<String, Object> value : assertions) {
             if (assertionId.equals(String.valueOf(value.get("id")))) {
                 value.put("status", status);
@@ -402,11 +401,11 @@ final class SimulationRunState {
         }
     }
 
-    void addEvent(String source, String title, String details, String status) {
+    public void addEvent(String source, String title, String details, String status) {
         addEvent(source, title, details, status, null, null);
     }
 
-    synchronized void addEvent(String source, String title, String details,
+    public synchronized void addEvent(String source, String title, String details,
                                 String status, String topic, Object payload) {
         Map<String, Object> event = new LinkedHashMap<>();
         event.put("id", "evt-" + UUID.randomUUID());
@@ -426,7 +425,7 @@ final class SimulationRunState {
         publish();
     }
 
-    void addEmitter(SseEmitter emitter) {
+    public void addEmitter(SseEmitter emitter) {
         emitters.add(emitter);
         emitter.onCompletion(() -> emitters.remove(emitter));
         emitter.onTimeout(() -> emitters.remove(emitter));
@@ -434,7 +433,7 @@ final class SimulationRunState {
         publishTo(emitter);
     }
 
-    void completeEmitters() {
+    public void completeEmitters() {
         for (SseEmitter emitter : emitters) {
             try {
                 emitter.complete();
@@ -445,7 +444,7 @@ final class SimulationRunState {
         emitters.clear();
     }
 
-    synchronized Map<String, Object> snapshot() {
+    public synchronized Map<String, Object> snapshot() {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("runId", runId);
         result.put("scenario", safeScenario());
@@ -516,61 +515,24 @@ final class SimulationRunState {
         }
         JsonNode restaurant = rawScenario.path("restaurant");
         JsonNode customer = rawScenario.path("customer");
-        double pickupLat = number(restaurant, "lat", 0d);
-        double pickupLng = number(restaurant, "lng", 0d);
-        double orderAmount = number(restaurant, "menuItemPrice", 0d)
-                * Math.max(1d, number(customer, "itemQuantity", 1d));
-        List<Map<String, Object>> values = new ArrayList<>();
+        List<com.delivery.simulator.domain.CandidateOracle.Input> inputs = new ArrayList<>();
         for (JsonNode shipper : configured) {
-            String id = text(shipper, "id", UUID.randomUUID().toString());
-            double latitude = number(shipper, "initialLat", 0d);
-            double longitude = number(shipper, "initialLng", 0d);
-            double distance = distanceKm(latitude, longitude, pickupLat, pickupLng);
-            double codBalance = number(shipper, "codBalance", 0d);
-            boolean online = shipper.path("isOnline").asBoolean(false);
-            boolean codEligible = codBalance >= orderAmount;
-            Map<String, Object> candidate = new LinkedHashMap<>();
-            candidate.put("shipperId", id);
-            candidate.put("shipperName", text(shipper, "name", id));
-            candidate.put("distanceKm", round(distance));
-            candidate.put("codBalance", codBalance);
-            candidate.put("isOnline", online);
-            candidate.put("isBusy", false);
-            candidate.put("isEligible", online && codEligible);
-            candidate.put("selectionScore", round(1d / (1d + distance)));
-            candidate.put("generation", 0);
-            candidate.put("state", online && codEligible ? "EVALUATED" : "SKIPPED");
-            if (!online) {
-                candidate.put("rejectionReason", "Scenario config: shipper đang offline");
-            } else if (!codEligible) {
-                candidate.put("rejectionReason", "Scenario config: ký quỹ COD thấp hơn giá trị đơn");
-            }
-            values.add(candidate);
+            String id = text(shipper,"id",UUID.randomUUID().toString());
+            inputs.add(new com.delivery.simulator.domain.CandidateOracle.Input(id,text(shipper,"name",id),
+                    number(shipper,"initialLat",0d),number(shipper,"initialLng",0d),
+                    number(shipper,"codBalance",0d),shipper.path("isOnline").asBoolean(false)));
         }
-        values.sort(Comparator.comparingDouble(value -> ((Number) value.get("distanceKm")).doubleValue()));
-        candidates.addAll(values);
-    }
-
-    private double distanceKm(double firstLat, double firstLng, double secondLat, double secondLng) {
-        if (!Double.isFinite(firstLat) || !Double.isFinite(firstLng)
-                || !Double.isFinite(secondLat) || !Double.isFinite(secondLng)) {
-            return Double.POSITIVE_INFINITY;
+        for (var value : com.delivery.simulator.domain.CandidateOracle.evaluate(inputs,
+                number(restaurant,"lat",0d),number(restaurant,"lng",0d),number(restaurant,"menuItemPrice",0d),
+                number(customer,"itemQuantity",1d))) {
+            Map<String,Object> candidate = new LinkedHashMap<>();
+            candidate.put("shipperId",value.id()); candidate.put("shipperName",value.name());
+            candidate.put("distanceKm",value.distance()); candidate.put("codBalance",value.codBalance());
+            candidate.put("isOnline",value.online()); candidate.put("isBusy",false); candidate.put("isEligible",value.eligible());
+            candidate.put("selectionScore",value.score()); candidate.put("generation",0); candidate.put("state",value.state());
+            if (value.reason() != null) candidate.put("rejectionReason",value.reason());
+            candidates.add(candidate);
         }
-        double lat1 = Math.toRadians(firstLat);
-        double lat2 = Math.toRadians(secondLat);
-        double deltaLat = Math.toRadians(secondLat - firstLat);
-        double deltaLng = Math.toRadians(secondLng - firstLng);
-        double haversine = Math.sin(deltaLat / 2d) * Math.sin(deltaLat / 2d)
-                + Math.cos(lat1) * Math.cos(lat2)
-                * Math.sin(deltaLng / 2d) * Math.sin(deltaLng / 2d);
-        return 6371d * 2d * Math.atan2(Math.sqrt(haversine), Math.sqrt(1d - haversine));
-    }
-
-    private double round(double value) {
-        if (!Double.isFinite(value)) {
-            return value;
-        }
-        return Math.round(value * 1000d) / 1000d;
     }
 
     private JsonNode safeScenario() {

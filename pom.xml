@@ -84,6 +84,8 @@
         <module>promotion/infrastructure</module>
         <module>promotion/boot</module>
         <module>simulator/domain</module>
+        <module>simulator/application-api</module>
+        <module>simulator/application</module>
         <module>simulator-service</module>
     </modules>
 

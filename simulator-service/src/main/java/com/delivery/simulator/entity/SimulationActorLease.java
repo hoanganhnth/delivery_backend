@@ -9,7 +9,7 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "simulation_actor_leases")
-public class SimulationActorLease {
+public class SimulationActorLease implements com.delivery.simulator.application.api.SimulationPorts.Lease {
     @Id private UUID leaseId;
     @Column(nullable = false) private UUID runId;
     @Column(nullable = false) private Long principalId;

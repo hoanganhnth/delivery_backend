@@ -13,7 +13,7 @@ import org.springframework.stereotype.Service;
 
 /** Append-only, credential-redacted timeline journal for post-restart audit. */
 @Service
-public class SimulationRunJournalService {
+public class SimulationRunJournalService implements com.delivery.simulator.application.api.SimulationPorts.Journal {
     private final SimulationRunJournalRepository entries;
     private final ObjectMapper mapper;
     public SimulationRunJournalService(SimulationRunJournalRepository entries, ObjectMapper mapper) {

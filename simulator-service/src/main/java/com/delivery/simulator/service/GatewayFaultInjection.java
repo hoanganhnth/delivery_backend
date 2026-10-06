@@ -10,10 +10,10 @@ import org.springframework.stereotype.Component;
  * mutation.
  */
 @Component
-class GatewayFaultInjection {
+class GatewayFaultInjection implements com.delivery.simulator.application.api.SimulationPorts.Faults {
     private final Set<String> armedPollFailures = ConcurrentHashMap.newKeySet();
 
-    void armOneTransientPollFailure(String correlationId) {
+    public void armOneTransientPollFailure(String correlationId) {
         if (correlationId != null && !correlationId.isBlank()) armedPollFailures.add(correlationId);
     }
 
