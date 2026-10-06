@@ -37,7 +37,7 @@ modules=(
   livestream-service
   settlement/boot
   flashsale-service
-  analytics-service
+  analytics/boot
   promotion/boot
   simulator-service
 )
@@ -332,7 +332,7 @@ if rg -q 'spring\.datasource\.password=123456|password:[[:space:]]*123456' \
 fi
 
 hidden_capability_defaults=(
-  'analytics-service/src/main/resources/application.properties|app.analytics.processing-enabled=${ANALYTICS_PROCESSING_ENABLED:false}'
+  'analytics/boot/src/main/resources/application.properties|app.analytics.processing-enabled=${ANALYTICS_PROCESSING_ENABLED:false}'
   'flashsale-service/src/main/resources/application.properties|app.flashsale.checkout-enabled=${FLASHSALE_CHECKOUT_ENABLED:false}'
   'flashsale-service/src/main/resources/application.properties|app.flashsale.outbox-relay-enabled=${FLASHSALE_OUTBOX_RELAY_ENABLED:false}'
   'flashsale-service/src/main/resources/application.properties|app.flashsale.merchant-registration-enabled=${FLASHSALE_MERCHANT_REGISTRATION_ENABLED:false}'
@@ -584,7 +584,7 @@ done
 
 livestream_repository="${ROOT_DIR}/livestream-service/src/main/java/com/delivery/livestream_service/repository/LivestreamRepository.java"
 livestream_product_repository="${ROOT_DIR}/livestream-service/src/main/java/com/delivery/livestream_service/repository/LivestreamProductRepository.java"
-analytics_event_repository="${ROOT_DIR}/analytics-service/src/main/java/com/delivery/analytics_service/repository/AnalyticsEventRepository.java"
+analytics_event_repository="${ROOT_DIR}/analytics/infrastructure/src/main/java/com/delivery/analytics_service/repository/AnalyticsEventRepository.java"
 if [[ "$(rg -c 'Pageable pageable' "${livestream_repository}")" -ne 3 ]] \
     || [[ "$(rg -c 'Pageable pageable' "${livestream_product_repository}")" -ne 2 ]] \
     || ! rg -Fq 'Page<AnalyticsEvent> findByEventTimeBetween' "${analytics_event_repository}"; then

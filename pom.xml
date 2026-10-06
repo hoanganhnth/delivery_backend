@@ -81,7 +81,11 @@
         <module>livestream-service</module>
         <module>settlement/boot</module>
         <module>flashsale-service</module>
-        <module>analytics-service</module>
+        <module>analytics/domain</module>
+        <module>analytics/application-api</module>
+        <module>analytics/application</module>
+        <module>analytics/infrastructure</module>
+        <module>analytics/boot</module>
         <module>promotion/domain</module>
         <module>promotion/application-api</module>
         <module>promotion/application</module>

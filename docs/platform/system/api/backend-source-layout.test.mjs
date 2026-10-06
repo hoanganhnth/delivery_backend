@@ -171,3 +171,24 @@ test('Search relocation keeps its artifact identity and adapters discoverable', 
     ['application.yml']);
   assert.equal(fs.existsSync(path.join(backend, 'search/boot/src/main/resources/db')), false);
 });
+
+
+test('Analytics relocation keeps artifact identity, adapters and migrations discoverable', () => {
+  const backend = path.resolve(import.meta.dirname, '../../../..');
+  assert.equal(fs.existsSync(path.join(backend, 'analytics-service')), false);
+  assert.deepEqual(serviceSourceRoots(backend)
+    .filter(({ service }) => service === 'analytics-service')
+    .map(({ directory }) => path.relative(backend, directory)).sort(), [
+    'analytics/boot/src/main/java',
+    'analytics/infrastructure/src/main/java',
+  ]);
+  assert.equal(serviceForSource(backend, path.join(backend,
+    'analytics/infrastructure/src/main/java/com/delivery/analytics_service/controller/DashboardController.java')),
+  'analytics-service');
+  assert.deepEqual(fs.readdirSync(path.join(backend,
+    'analytics/boot/src/main/java/com/delivery/analytics_service')), ['AnalyticsServiceApplication.java']);
+  assert.deepEqual(fs.readdirSync(path.join(backend,
+    'analytics/boot/src/main/resources')), ['application.properties']);
+  assert.ok(fs.existsSync(path.join(backend,
+    'analytics/infrastructure/src/main/resources/db/migration')));
+});
