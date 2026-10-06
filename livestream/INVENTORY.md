@@ -132,22 +132,22 @@ join count is cumulative and currentViewers is not measured.
 
 ## Ordered slices
 
-1. **This slice:** create framework-free `livestream/domain` before host in
+1. **Complete (slice 1):** create framework-free `livestream/domain` before host in
    reactor, apply 85% line/branch JaCoCo gates, move checkout scope, context
    metadata and stored quote/context snapshot validation with exhaustive tests.
    Keep nullable host request handling, DTO mapping and persistence in host.
-2. Extract lifecycle/provider/product eligibility and permission rules with
+2. **Complete (this tranche):** Extract lifecycle/provider/product eligibility and permission rules with
    enum/exception compatibility adapters; prove all transition/error ordering.
-3. Extract token role/TTL/UID decisions and moderation decisions; retain Agora,
+3. **Complete (this tranche):** Extract token role/TTL/UID decisions and moderation decisions; retain Agora,
    actor conversion, audit transaction and request validation at adapters.
-4. Extract receipt/replay and price-context decisions without changing ordered
+4. **Complete (this tranche):** Extract receipt/replay and price-context decisions without changing ordered
    fingerprint bytes, JSON payload, unique constraint or REQUIRES_NEW recovery.
-5. Introduce `application-api` commands/results/ports, then `application` use
+5. **Complete (this tranche):** Introduce `application-api` commands/results/ports, then `application` use
    cases for lifecycle, products, moderation and checkout; preserve transaction
    boundaries and bounded reads with host adapters and tests.
-6. Relocate transport, auth, clients, Kafka DTO/publisher, JPA, migrations and
+6. **Remaining:** Relocate transport, auth, clients, Kafka DTO/publisher, JPA, migrations and
    adapters to `livestream/infrastructure`; retain inert publisher behavior.
-7. Relocate composition/config/entrypoint to `livestream/boot`, preserving
+7. **Remaining:** Relocate composition/config/entrypoint to `livestream/boot`, preserving
    artifact/DNS `livestream-service`, runtime resources and package compatibility.
    Final tree: `livestream/{domain,application-api,application,infrastructure,boot}`.
 
@@ -170,7 +170,49 @@ join count is cumulative and currentViewers is not measured.
   negative IDs remain accepted in pure rules (normal generated DB IDs are positive).
 - Configured cooldown values are unused; concurrent viewer count is unimplemented.
 
-## Validation
+## Slices 2–5 implementation
+
+- `domain/LivestreamPolicy` owns provider, seller/host permission, lifecycle,
+  product scope/status/duplicate, cumulative-count, token UID/role/TTL, moderator,
+  checkout-room/completeness and replay decisions. `CheckoutFingerprint` retains
+  exact UTF-8 SHA-256 input bytes, including ordered `List.toString()` formatting.
+- `application-api` exposes checkout commands, room/product snapshot results and
+  lifecycle, product, moderation, checkout and restaurant-ownership ports. Generic
+  host handles/commands/mapped responses keep JPA entities and HTTP DTO types out
+  of the application module's imports and dependencies.
+- `application` orchestrates lifecycle, products, host authorization, moderation
+  and checkout behind those ports. Lists request the original fixed 100 bound;
+  quote omissions, requested order, replay-before-live-read and receipt recovery
+  results remain unchanged.
+- Host services implement ports and delegate. `LivestreamCompatibility` maps
+  pure domain rejections to the existing exact exception classes and messages;
+  nullable enum conversion stays at the boundary. Token renewal and Agora token
+  adapters delegate role/status/TTL/UID decisions to domain.
+- Transactions, JPA save/saveAndFlush, canonical restaurant HTTP lookup, response
+  mapping, timestamps, inert publishers, JSON receipt serialization and the
+  REQUIRES_NEW writer/duplicate-insert recovery stay in the host. Migrations,
+  feature flags, secrets and Kafka consumer configuration are unchanged.
+- Pure policy tests cover all statuses and permission combinations, validation
+  ordering, nullable compatibility, UID narrowing, count overflow, and ordered
+  fingerprint bytes. Application tests exercise ordered port interactions,
+  rejection-before-write behavior, missing pins, malformed snapshots, duplicate
+  rows, original-payload replay, conflict rejection and recovery-result mapping.
+  Host H2 tests prove rollback and the preserved default-join limitation below;
+  publisher tests explicitly prove that all four success publishers remain inert.
+
+### Newly observed pre-existing limitations (preserved)
+
+- The two-argument `joinLivestream(id, viewer)` overload is not transactional and
+  calls the transactional three-argument overload on `this`. Spring's proxy is
+  bypassed: a view increment can commit even when viewer token generation fails.
+  `LivestreamLifecycleTransactionTest` preserves this behavior and separately
+  proves rollback for explicit counted join and failed start. The HTTP controller
+  uses the explicit counted/monitoring entrypoint, retaining its transaction.
+- Legacy long user IDs are narrowed with `intValue()` without range checks;
+  cumulative view-count addition can wrap at `Long.MAX_VALUE`. Pure regression
+  tests retain these behaviors; this extraction adds no new identity/count policy.
+
+## Slice 1 validation (historical)
 
 `mvn -B -pl :livestream-service -am clean verify` passed (exit 0,
 BUILD SUCCESS, 41.186s; log `/tmp/livestream-slice-verify.log`). Reactor reports
@@ -190,3 +232,40 @@ Docker-only skips in `LivestreamCheckoutReceiptPostgresIntegrationTest`
 Slice 1 domain has no production dependencies; host retains all
 transport/persistence classes. PostgreSQL race/recovery proof remains deferred
 until Docker is available. No Kafka consumer configuration was edited.
+
+
+## Slices 2–5 final validation
+
+`mvn -B -pl :livestream-service -am clean verify` passed, exit 0,
+**BUILD SUCCESS**, 1 minute 37 seconds, completed 2026-10-06 21:25:57 +07:00.
+Full output: `/tmp/livestream-slice2-final-verify.log`.
+Reactor: **224 tests, zero failures, zero errors, three Docker-only skips**:
+
+| Module | Tests | Skipped | Line coverage | Branch coverage |
+|---|---:|---:|---:|---:|
+| livestream-domain | 50 | 0 | 64/65 (98.46%) | 104/104 (100%) |
+| livestream-application-api | 1 | 0 | 3/3 (100%) | No executable branches |
+| livestream-application | 29 | 0 | 99/99 (100%) | 12/12 (100%) |
+| livestream-service | 113 | 3 | Existing host reporting retained | Existing host reporting retained |
+| observability-starter | 16 | 0 | Existing checks | Existing checks |
+| runtime-platform-starter | 2 | 0 | Existing checks | Existing checks |
+| identity-contracts | 5 | 0 | Existing checks | Existing checks |
+| auth-resource-server-starter | 8 | 0 | Existing checks | Existing checks |
+
+All extracted modules retain and pass both **85% line and branch gates**.
+The sole missed domain line is the impossible missing-SHA-256 provider catch;
+no coverage exclusion or gate reduction was introduced. Counters come from
+`target/site/jacoco/jacoco.xml`; test totals come from Surefire XML reports.
+The three PostgreSQL test methods listed in the historical validation section
+remain skipped because Docker is unavailable. H2 receipt, migration, moderation
+rollback, lifecycle rollback, HTTP authorization/error, product authority/repin,
+ordering and bounded-list tests all pass. In particular,
+`LivestreamLifecycleTransactionTest` executes both rollback checks and the
+preserved default-overload self-invocation failure case.
+
+Filesystem-only source review confirms zero Spring/JPA/Kafka/host-package imports
+in the three extracted modules. No Kafka consumer configuration, migration,
+feature flag, `docs/plans/` file or Git state was edited. Slices **1–5 complete**;
+remaining ordered work is **6 (infrastructure relocation)** and **7 (boot
+relocation/runtime proof)**. Docker PostgreSQL concurrency/recovery proof remains
+unexecuted in this environment; no stronger persistence guarantee is claimed.

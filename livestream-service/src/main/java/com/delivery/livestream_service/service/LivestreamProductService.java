@@ -6,12 +6,8 @@ import com.delivery.livestream_service.dto.request.PinProductRequest;
 import com.delivery.livestream_service.dto.response.LivestreamProductResponse;
 import com.delivery.livestream_service.entity.Livestream;
 import com.delivery.livestream_service.entity.LivestreamProduct;
-import com.delivery.livestream_service.enums.LivestreamStatus;
-import com.delivery.livestream_service.exception.InvalidLivestreamStatusException;
 import com.delivery.livestream_service.exception.LivestreamNotFoundException;
 import com.delivery.livestream_service.exception.LivestreamProductNotFoundException;
-import com.delivery.livestream_service.exception.ProductAlreadyPinnedException;
-import com.delivery.livestream_service.exception.UnauthorizedLivestreamAccessException;
 import com.delivery.livestream_service.mapper.LivestreamMapper;
 import com.delivery.livestream_service.repository.LivestreamProductRepository;
 import com.delivery.livestream_service.repository.LivestreamRepository;
@@ -24,180 +20,77 @@ import org.springframework.data.domain.PageRequest;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
+
+import com.delivery.livestream.api.*;
+import com.delivery.livestream.application.ProductUseCases;
 
 @Slf4j
 @Service
 public class LivestreamProductService {
-
-    private static final int COMPATIBILITY_LIST_LIMIT = 100;
-
-    private final LivestreamProductRepository productRepository;
-    private final LivestreamRepository livestreamRepository;
-    private final LivestreamEventPublisher eventPublisher;
-    private final LivestreamMapper mapper;
-    private final LivestreamProductAuthorityClient authority;
-
-    public LivestreamProductService(LivestreamProductRepository productRepository,
-                                    LivestreamRepository livestreamRepository,
-                                    LivestreamEventPublisher eventPublisher,
-                                    LivestreamMapper mapper, LivestreamProductAuthorityClient authority) {
-        this.productRepository = productRepository;
-        this.livestreamRepository = livestreamRepository;
-        this.eventPublisher = eventPublisher;
-        this.mapper = mapper;
-        this.authority = authority;
-    }
-
-    @Transactional
-    public LivestreamProductResponse pinProduct(UUID livestreamId, PinProductRequest request, Long sellerId) {
-        return pinProduct(livestreamId, request, sellerId, false);
-    }
-
-    @Transactional
-    public LivestreamProductResponse pinProduct(UUID livestreamId, PinProductRequest request, Long sellerId, boolean admin) {
-        log.info("Pinning product: livestream={}, product={}, seller={}", 
-                livestreamId, request.getProductId(), sellerId);
-
-        Livestream livestream = getLivestreamAndCheckPermission(livestreamId, sellerId, admin);
-
-        if (request.getRestaurantId() != null && !livestream.getRestaurantId().equals(request.getRestaurantId())) {
-            throw new UnauthorizedLivestreamAccessException("Sản phẩm không thuộc restaurant của livestream");
-        }
-
-        if (livestream.getStatus() != LivestreamStatus.LIVE && livestream.getStatus() != LivestreamStatus.CREATED) {
-            throw new InvalidLivestreamStatusException("Chỉ có thể thêm sản phẩm khi livestream đang chuẩn bị hoặc đang diễn ra");
-        }
-
-        // Find or create product
-        LivestreamProduct product = productRepository
-                .findByLivestreamIdAndProductId(livestreamId, request.getProductId())
-                .or(() -> productRepository.findByLivestreamIdAndProductIdIncludingDeleted(livestreamId, request.getProductId()))
-                .orElseGet(() -> {
-                    LivestreamProduct newProduct = new LivestreamProduct();
-                    newProduct.setLivestreamId(livestreamId);
-                    newProduct.setProductId(request.getProductId());
-                    return newProduct;
-                });
-
-        if (Boolean.TRUE.equals(product.getIsPinned())) {
-            throw new ProductAlreadyPinnedException("Sản phẩm đã được pin trong livestream");
-        }
-
-        product.setPriceAtLive(request.getPriceAtLive());
-        var canonical = authority.requireAvailable(livestream.getRestaurantId(), request.getProductId());
-        product.setProductName(canonical.productName());
-        product.setProductImage(canonical.productImage());
-        product.setRestaurantId(livestream.getRestaurantId());
-        product.setRestaurantName(canonical.restaurantName());
-        product.setIsPinned(true);
-        product.setDeletedAt(null);
-        product.setDeletedByPrincipalId(null);
-        product.setDeletionReason(null);
-        product.setPinnedAt(LocalDateTime.now());
-        product = productRepository.save(product);
-
-        // Publish Kafka event
-        ProductPinnedEvent event = new ProductPinnedEvent(
-                livestreamId,
-                request.getProductId(),
-                request.getPriceAtLive(),
-                product.getPinnedAt()
-        );
-        eventPublisher.publishProductPinned(event);
-
-        log.info("Product pinned successfully: livestream={}, product={}", livestreamId, request.getProductId());
-        return mapper.toProductResponse(product);
-    }
-
-    @Transactional
-    public void unpinProduct(UUID livestreamId, Long productId, Long sellerId) {
-        unpinProduct(livestreamId, productId, sellerId, false);
-    }
-
-    @Transactional
-    public void unpinProduct(UUID livestreamId, Long productId, Long sellerId, boolean admin) {
-        log.info("Unpinning product: livestream={}, product={}, seller={}", livestreamId, productId, sellerId);
-
-        Livestream livestream = getLivestreamAndCheckPermission(livestreamId, sellerId, admin);
-
-        if (livestream.getStatus() != LivestreamStatus.LIVE && livestream.getStatus() != LivestreamStatus.CREATED) {
-            throw new InvalidLivestreamStatusException("Chỉ có thể bỏ sản phẩm khi livestream đang chuẩn bị hoặc đang diễn ra");
-        }
-
-        LivestreamProduct product = productRepository
-                .findByLivestreamIdAndProductId(livestreamId, productId)
-                .orElseThrow(() -> new LivestreamProductNotFoundException(
-                        "Không tìm thấy sản phẩm trong livestream"));
-
-        product.setIsPinned(false);
-        productRepository.save(product);
-
-        // Publish Kafka event
-        ProductUnpinnedEvent event = new ProductUnpinnedEvent(
-                livestreamId,
-                productId,
-                LocalDateTime.now()
-        );
-        eventPublisher.publishProductUnpinned(event);
-
-        log.info("Product unpinned successfully: livestream={}, product={}", livestreamId, productId);
+    private final ProductUseCases<Livestream, LivestreamProduct, LivestreamProductResponse, PinProductRequest> useCases;
+    public LivestreamProductService(LivestreamProductRepository products, LivestreamRepository rooms,
+                                   LivestreamEventPublisher events, LivestreamMapper mapper,
+                                   LivestreamProductAuthorityClient authority) {
+        useCases = new ProductUseCases<>(new ProductPorts<>() {
+            public Livestream room(UUID id) {
+                return rooms.findById(id).orElseThrow(() -> new LivestreamNotFoundException("Không tìm thấy livestream với ID: " + id));
+            }
+            public RoomSnapshot roomSnapshot(Livestream room) { return LivestreamCompatibility.snapshot(room); }
+            public ProductSnapshot snapshot(LivestreamProduct product) { return LivestreamCompatibility.snapshot(product); }
+            public LivestreamProduct findOrCreate(UUID id, Long productId) {
+                return products.findByLivestreamIdAndProductId(id, productId)
+                    .or(() -> products.findByLivestreamIdAndProductIdIncludingDeleted(id, productId))
+                    .orElseGet(() -> { var product = new LivestreamProduct(); product.setLivestreamId(id); product.setProductId(productId); return product; });
+            }
+            public LivestreamProduct find(UUID id, Long productId) {
+                return products.findByLivestreamIdAndProductId(id, productId).orElseThrow(() -> new LivestreamProductNotFoundException("Không tìm thấy sản phẩm trong livestream"));
+            }
+            public void price(LivestreamProduct product, PinProductRequest command) { product.setPriceAtLive(command.getPriceAtLive()); }
+            public LivestreamProduct pin(LivestreamProduct product, Livestream room, PinProductRequest command) {
+                var canonical = authority.requireAvailable(room.getRestaurantId(), command.getProductId());
+                product.setProductName(canonical.productName()); product.setProductImage(canonical.productImage());
+                product.setRestaurantId(room.getRestaurantId()); product.setRestaurantName(canonical.restaurantName());
+                product.setIsPinned(true); product.setDeletedAt(null); product.setDeletedByPrincipalId(null);
+                product.setDeletionReason(null); product.setPinnedAt(LocalDateTime.now());
+                return products.save(product);
+            }
+            public void unpin(LivestreamProduct product) { product.setIsPinned(false); products.save(product); }
+            public void remove(LivestreamProduct product, Long legacySeller) {
+                product.setIsPinned(false); product.setDeletedAt(LocalDateTime.now());
+                product.setDeletedByPrincipalId(legacySeller); product.setDeletionReason("LIVESTREAM_PRODUCT_REMOVED");
+                products.save(product);
+            }
+            public void pinned(UUID id, LivestreamProduct product, PinProductRequest command) {
+                events.publishProductPinned(new ProductPinnedEvent(id, command.getProductId(), command.getPriceAtLive(), product.getPinnedAt()));
+            }
+            public void unpinned(UUID id, Long productId) { events.publishProductUnpinned(new ProductUnpinnedEvent(id, productId, LocalDateTime.now())); }
+            public LivestreamProductResponse response(LivestreamProduct product) { return mapper.toProductResponse(product); }
+            public List<LivestreamProduct> list(UUID id, boolean pinnedOnly, int limit) {
+                var page = PageRequest.of(0, limit);
+                return pinnedOnly ? products.findByLivestreamIdAndIsPinned(id, true, page) : products.findByLivestreamId(id, page);
+            }
+        });
     }
     @Transactional
-    public void removeProduct(UUID livestreamId, Long productId, Long sellerId) {
-        removeProduct(livestreamId, productId, sellerId, false);
-    }
-
+    public LivestreamProductResponse pinProduct(UUID id, PinProductRequest request, Long seller) { return pinProduct(id, request, seller, false); }
     @Transactional
-    public void removeProduct(UUID livestreamId, Long productId, Long sellerId, boolean admin) {
-        log.info("Removing product from livestream: livestream={}, product={}, seller={}", livestreamId, productId, sellerId);
-
-        Livestream livestream = getLivestreamAndCheckPermission(livestreamId, sellerId, admin);
-
-        if (livestream.getStatus() != LivestreamStatus.LIVE && livestream.getStatus() != LivestreamStatus.CREATED) {
-            throw new InvalidLivestreamStatusException("Chỉ có thể xóa sản phẩm khi livestream đang chuẩn bị hoặc đang diễn ra");
-        }
-
-        LivestreamProduct product = productRepository
-                .findByLivestreamIdAndProductId(livestreamId, productId)
-                .orElseThrow(() -> new LivestreamProductNotFoundException(
-                        "Không tìm thấy sản phẩm trong livestream"));
-
-        product.setIsPinned(false);
-        product.setDeletedAt(LocalDateTime.now());
-        product.setDeletedByPrincipalId(sellerId);
-        product.setDeletionReason("LIVESTREAM_PRODUCT_REMOVED");
-        productRepository.save(product);
-        log.info("Product removed successfully: livestream={}, product={}", livestreamId, productId);
+    public LivestreamProductResponse pinProduct(UUID id, PinProductRequest request, Long seller, boolean admin) {
+        return LivestreamCompatibility.call(() -> useCases.pin(id, request, request.getProductId(), request.getRestaurantId(), seller, admin));
+    }
+    @Transactional
+    public void unpinProduct(UUID id, Long product, Long seller) { unpinProduct(id, product, seller, false); }
+    @Transactional
+    public void unpinProduct(UUID id, Long product, Long seller, boolean admin) {
+        LivestreamCompatibility.run(() -> useCases.unpin(id, product, seller, admin));
+    }
+    @Transactional
+    public void removeProduct(UUID id, Long product, Long seller) { removeProduct(id, product, seller, false); }
+    @Transactional
+    public void removeProduct(UUID id, Long product, Long seller, boolean admin) {
+        LivestreamCompatibility.run(() -> useCases.remove(id, product, seller, admin));
     }
     @Transactional(readOnly = true)
-    public List<LivestreamProductResponse> getProductsByLivestream(UUID livestreamId) {
-        log.info("Getting all products for livestream: {}", livestreamId);
-        return productRepository.findByLivestreamId(
-                        livestreamId, PageRequest.of(0, COMPATIBILITY_LIST_LIMIT))
-                .stream()
-                .map(mapper::toProductResponse)
-                .collect(Collectors.toList());
-    }
-
+    public List<LivestreamProductResponse> getProductsByLivestream(UUID id) { return useCases.list(id, false); }
     @Transactional(readOnly = true)
-    public List<LivestreamProductResponse> getPinnedProducts(UUID livestreamId) {
-        log.info("Getting pinned products for livestream: {}", livestreamId);
-        return productRepository.findByLivestreamIdAndIsPinned(
-                        livestreamId, true, PageRequest.of(0, COMPATIBILITY_LIST_LIMIT))
-                .stream()
-                .map(mapper::toProductResponse)
-                .collect(Collectors.toList());
-    }
-
-    private Livestream getLivestreamAndCheckPermission(UUID livestreamId, Long sellerId, boolean admin) {
-        Livestream livestream = livestreamRepository.findById(livestreamId)
-                .orElseThrow(() -> new LivestreamNotFoundException("Không tìm thấy livestream với ID: " + livestreamId));
-
-        if (!admin && !livestream.getSellerId().equals(sellerId)) {
-            throw new UnauthorizedLivestreamAccessException("Bạn không có quyền thao tác với livestream này");
-        }
-
-        return livestream;
-    }
+    public List<LivestreamProductResponse> getPinnedProducts(UUID id) { return useCases.list(id, true); }
 }

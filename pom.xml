@@ -75,6 +75,8 @@
         <module>match/boot</module>
         <module>routing</module>
         <module>livestream/domain</module>
+        <module>livestream/application-api</module>
+        <module>livestream/application</module>
         <module>livestream-service</module>
         <module>settlement/boot</module>
         <module>flashsale-service</module>

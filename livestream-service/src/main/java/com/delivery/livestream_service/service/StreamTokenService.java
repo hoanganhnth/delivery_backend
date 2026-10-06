@@ -3,9 +3,7 @@ package com.delivery.livestream_service.service;
 import com.delivery.livestream_service.config.agora.RtcTokenBuilder;
 import com.delivery.livestream_service.dto.response.TokenResponse;
 import com.delivery.livestream_service.entity.Livestream;
-import com.delivery.livestream_service.enums.LivestreamStatus;
 import com.delivery.livestream_service.enums.TokenRole;
-import com.delivery.livestream_service.exception.InvalidLivestreamStatusException;
 import com.delivery.livestream_service.exception.LivestreamNotFoundException;
 import com.delivery.livestream_service.repository.LivestreamRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -46,9 +44,8 @@ public class StreamTokenService {
                 .orElseThrow(() -> new LivestreamNotFoundException("Không tìm thấy livestream với ID: " + livestreamId));
 
         // Validate livestream status based on role
-        if (role == TokenRole.VIEWER && livestream.getStatus() != LivestreamStatus.LIVE) {
-            throw new InvalidLivestreamStatusException("Livestream chưa bắt đầu. Không thể tạo token cho viewer.");
-        }
+        LivestreamCompatibility.run(() -> com.delivery.livestream.domain.LivestreamPolicy.token(
+                LivestreamCompatibility.name(role), LivestreamCompatibility.name(livestream.getStatus())));
 
         String roomId = livestream.getRoomId();
         String channelName = livestream.getChannelName();
@@ -67,7 +64,7 @@ public class StreamTokenService {
      */
     private String generateAgoraToken(String channelName, Long userId, TokenRole role, Integer expireSeconds) {
         try {
-            int uid = userId.intValue();
+            int uid = com.delivery.livestream.domain.LivestreamPolicy.uid(userId);
             int timestamp = (int)(System.currentTimeMillis() / 1000 + expireSeconds);
             
             // Convert TokenRole to Agora Role

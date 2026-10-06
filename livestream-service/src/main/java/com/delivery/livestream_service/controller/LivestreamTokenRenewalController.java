@@ -28,7 +28,7 @@ import java.util.UUID;
 @ConditionalOnProperty(name = "app.livestream.api-enabled", havingValue = "true")
 public class LivestreamTokenRenewalController {
 
-    private static final int TOKEN_TTL_SECONDS = 3600;
+    private static final int TOKEN_TTL_SECONDS = com.delivery.livestream.domain.LivestreamPolicy.tokenTtl();
 
     private final LivestreamService livestreamService;
     private final StreamTokenService streamTokenService;
@@ -50,13 +50,14 @@ public class LivestreamTokenRenewalController {
             throw new UnauthorizedLivestreamAccessException("Yêu cầu đăng nhập");
         }
         LivestreamResponse room = livestreamService.getLivestreamById(id);
-        if (room.getStatus() != LivestreamStatus.LIVE) {
-            throw new InvalidLivestreamStatusException("Chỉ gia hạn token cho livestream đang phát");
+        try {
+            com.delivery.livestream.domain.LivestreamPolicy.renewalStatus(room.getStatus() == null ? null : room.getStatus().name());
+        } catch (com.delivery.livestream.domain.LivestreamPolicy.Rejection failure) {
+            throw new InvalidLivestreamStatusException(failure.getMessage());
         }
-
-        boolean isOwningHost = actor.getUserId().equals(room.getSellerId())
-                && (actor.isAdmin() || actor.isShopOwner());
-        TokenRole role = isOwningHost ? TokenRole.HOST : TokenRole.VIEWER;
+        TokenRole role = TokenRole.valueOf(com.delivery.livestream.domain.LivestreamPolicy.renewalRole(
+                actor.getUserId(), room.getSellerId(), actor.isAdmin(), actor.isShopOwner()));
+        boolean isOwningHost = role == TokenRole.HOST;
         if (isOwningHost) {
             hostAuthorization.requireHost(actor, room.getRestaurantId());
         }
@@ -66,7 +67,7 @@ public class LivestreamTokenRenewalController {
                 id,
                 room.getChannelName(),
                 token.getToken(),
-                actor.getUserId().intValue(),
+                com.delivery.livestream.domain.LivestreamPolicy.uid(actor.getUserId()),
                 role.name(),
                 token.getExpiresAt());
         return ResponseEntity.ok(new BaseResponse<>(1, response, "Gia hạn token livestream thành công"));
