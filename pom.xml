@@ -74,6 +74,7 @@
         <module>tracking/boot</module>
         <module>match/boot</module>
         <module>routing</module>
+        <module>livestream/domain</module>
         <module>livestream-service</module>
         <module>settlement/boot</module>
         <module>flashsale-service</module>

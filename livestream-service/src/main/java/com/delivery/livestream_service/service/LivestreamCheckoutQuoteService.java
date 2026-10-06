@@ -1,5 +1,6 @@
 package com.delivery.livestream_service.service;
 
+import com.delivery.livestream.domain.CheckoutValidationPolicy;
 import com.delivery.livestream_service.dto.request.LivestreamCheckoutQuoteRequest;
 import com.delivery.livestream_service.dto.response.LivestreamCheckoutQuoteResponse;
 import com.delivery.livestream_service.dto.response.LivestreamOrderContext;
@@ -19,7 +20,6 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -27,8 +27,6 @@ import java.util.stream.Collectors;
 
 @Service
 public class LivestreamCheckoutQuoteService {
-    private static final int MAX_PRODUCTS = 50;
-
     private final LivestreamRepository rooms;
     private final LivestreamProductRepository products;
     private final LivestreamCheckoutReceiptRepository receipts;
@@ -85,10 +83,7 @@ public class LivestreamCheckoutQuoteService {
                                                      Long actorPrincipalId,
                                                      String correlationId,
                                                      String idempotencyKey) {
-        if (actorPrincipalId == null || actorPrincipalId <= 0 || correlationId == null || correlationId.isBlank()
-                || idempotencyKey == null || idempotencyKey.isBlank()) {
-            throw new IllegalArgumentException("Livestream checkout context requires actor, correlation and idempotency key");
-        }
+        CheckoutValidationPolicy.requireContextMetadata(actorPrincipalId, correlationId, idempotencyKey);
         validate(request);
         String fingerprint = requestFingerprint(request, actorPrincipalId);
         var existing = receipts.findByActorPrincipalIdAndIdempotencyKey(actorPrincipalId, idempotencyKey);
@@ -109,10 +104,8 @@ public class LivestreamCheckoutQuoteService {
         }
         List<LivestreamOrderContext> result = request.getProductIds().stream().map(pinned::get)
                 .filter(java.util.Objects::nonNull).map(product -> {
-                    if (product.getId() == null || product.getPriceAtLive() == null || product.getPriceAtLive().signum() <= 0
-                            || !request.getRestaurantId().equals(product.getRestaurantId())) {
-                        throw new IllegalStateException("Pinned product snapshot is invalid");
-                    }
+                    CheckoutValidationPolicy.requireContextProduct(product.getId(), product.getPriceAtLive(),
+                            request.getRestaurantId(), product.getRestaurantId());
                     return new LivestreamOrderContext(1, room.getId(), product.getProductId(), room.getSellerId(),
                             room.getRestaurantId(), product.getId(), actorPrincipalId, correlationId,
                             idempotencyKey, product.getPriceAtLive());
@@ -154,23 +147,14 @@ public class LivestreamCheckoutQuoteService {
     }
 
     private LivestreamCheckoutQuoteResponse.Item toQuoteItem(LivestreamProduct product, Long restaurantId) {
-        if (!restaurantId.equals(product.getRestaurantId())) {
-            throw new IllegalStateException("Pinned product restaurant scope is invalid");
-        }
-        if (product.getPriceAtLive() == null || product.getPriceAtLive().signum() <= 0) {
-            throw new IllegalStateException("Pinned product price is invalid");
-        }
+        CheckoutValidationPolicy.requireQuoteProduct(restaurantId, product.getRestaurantId(), product.getPriceAtLive());
         return new LivestreamCheckoutQuoteResponse.Item(product.getProductId(), product.getPriceAtLive());
     }
 
     private void validate(LivestreamCheckoutQuoteRequest request) {
-        if (request == null || request.getLivestreamId() == null
-                || request.getRestaurantId() == null || request.getRestaurantId() <= 0
-                || request.getProductIds() == null || request.getProductIds().isEmpty()
-                || request.getProductIds().size() > MAX_PRODUCTS
-                || request.getProductIds().stream().anyMatch(id -> id == null || id <= 0)
-                || new LinkedHashSet<>(request.getProductIds()).size() != request.getProductIds().size()) {
+        if (request == null) {
             throw new IllegalArgumentException("Invalid livestream checkout quote scope");
         }
+        CheckoutValidationPolicy.requireScope(request.getLivestreamId(), request.getRestaurantId(), request.getProductIds());
     }
 }

@@ -6,6 +6,7 @@ import com.delivery.livestream_service.repository.LivestreamRepository;
 import com.delivery.livestream_service.repository.LivestreamCheckoutReceiptRepository;
 import com.delivery.livestream_service.service.LivestreamCheckoutQuoteService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -40,9 +41,24 @@ class LivestreamCheckoutValidationTest {
         var receipts = mock(LivestreamCheckoutReceiptRepository.class);
         var service = new LivestreamCheckoutQuoteService(rooms, products, receipts, new ObjectMapper());
 
+        assertThatThrownBy(() -> service.quote(request))
+                .isExactlyInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Invalid livestream checkout quote scope");
         assertThatThrownBy(() -> service.orderContext(request, 123L, "correlation", "key"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Invalid livestream checkout quote scope");
+        verifyNoInteractions(rooms, products, receipts);
+    }
+
+    @Test
+    void contextMetadataStillPrecedesScopeAndAllPersistenceAccess() {
+        var rooms = mock(LivestreamRepository.class);
+        var products = mock(LivestreamProductRepository.class);
+        var receipts = mock(LivestreamCheckoutReceiptRepository.class);
+        var service = new LivestreamCheckoutQuoteService(rooms, products, receipts, new ObjectMapper());
+        assertThatThrownBy(() -> service.orderContext(null, null, null, null))
+                .isExactlyInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Livestream checkout context requires actor, correlation and idempotency key");
         verifyNoInteractions(rooms, products, receipts);
     }
 
