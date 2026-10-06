@@ -248,7 +248,6 @@ test('Simulator relocation preserves identity, adapters and Java migration owner
   assert.ok(modules.indexOf('<module>simulator/infrastructure</module>')
     < modules.indexOf('<module>simulator/boot</module>'));
 });
-});
 
 test('Flashsale relocation keeps its artifact identity and adapters discoverable', () => {
   const backend = path.resolve(import.meta.dirname, '../../../..');
