@@ -45,26 +45,42 @@ public class CheckoutQuoteService {
      * still the locking authority inside the create-order write transaction.
      */
     public CheckoutPreviewResponse validateAndReprice(CreateOrderRequest request, Long principalId, Long userId) {
-        UUID quoteId = request.getQuoteId();
-        CheckoutQuote quote = repositoryQuote(quoteId, false);
-        decide(() -> CheckoutQuotePolicy.validate(facts(quote), principalId, clock::instant,
-                () -> fingerprints.pricingInput(request)));
-
-        CheckoutPreviewRequest previewRequest = toPreviewRequest(request);
-        CheckoutPreviewResponse current = previewService.calculatePreview(previewRequest, principalId, userId);
-        if (CheckoutQuotePolicy.priceChanged(facts(quote), () -> fingerprints.pricingSnapshot(current))) {
-            CheckoutPreviewResponse replacement = issuer.persist(previewRequest, current, principalId);
-            throw new OrderApiException("PRICE_CHANGED", "Giá đơn hàng đã thay đổi, vui lòng xác nhận lại",
-                    Map.of("quote", replacement));
-        }
-        return current;
+        return com.delivery.order.application.QuoteWorkflow.validateAndReprice(
+                ports(request, request.getQuoteId(), principalId, userId, null));
     }
 
     @Transactional
     public void consume(UUID quoteId, Long principalId, Long orderId) {
-        CheckoutQuote quote = repositoryQuote(quoteId, true);
-        decide(() -> CheckoutQuotePolicy.consume(facts(quote), principalId, clock::instant));
-        quote.consume(orderId);
+        com.delivery.order.application.QuoteWorkflow.consume(ports(null, quoteId, principalId, null, orderId));
+    }
+
+    private com.delivery.order.application.api.QuotePorts<CheckoutQuote, CheckoutPreviewRequest, CheckoutPreviewResponse> ports(
+            CreateOrderRequest request, UUID quoteId, Long principalId, Long userId, Long orderId) {
+        return new com.delivery.order.application.api.QuotePorts<>() {
+            public CheckoutQuote find(boolean lock) { return repositoryQuote(quoteId, lock); }
+            public void validate(CheckoutQuote quote) {
+                decide(() -> CheckoutQuotePolicy.validate(facts(quote), principalId, clock::instant,
+                        () -> fingerprints.pricingInput(request)));
+            }
+            public CheckoutPreviewRequest previewInput() { return toPreviewRequest(request); }
+            public CheckoutPreviewResponse reprice(CheckoutPreviewRequest input) {
+                return previewService.calculatePreview(input, principalId, userId);
+            }
+            public boolean priceChanged(CheckoutQuote quote, CheckoutPreviewResponse current) {
+                return CheckoutQuotePolicy.priceChanged(facts(quote), () -> fingerprints.pricingSnapshot(current));
+            }
+            public CheckoutPreviewResponse replacement(CheckoutPreviewRequest input, CheckoutPreviewResponse current) {
+                return issuer.persist(input, current, principalId);
+            }
+            public RuntimeException changed(CheckoutPreviewResponse replacement) {
+                return new OrderApiException("PRICE_CHANGED", "Giá đơn hàng đã thay đổi, vui lòng xác nhận lại",
+                        Map.of("quote", replacement));
+            }
+            public void admitConsume(CheckoutQuote quote) {
+                decide(() -> CheckoutQuotePolicy.consume(facts(quote), principalId, clock::instant));
+            }
+            public void consume(CheckoutQuote quote) { quote.consume(orderId); }
+        };
     }
 
     private CheckoutPreviewRequest toPreviewRequest(CreateOrderRequest request) {

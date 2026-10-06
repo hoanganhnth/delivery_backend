@@ -27,7 +27,7 @@ public class OrderCreateIdempotencyService {
     public OrderCreateIdempotencyService(OrderCreateIdempotencyReceiptRepository repository,
                                          @Value("${app.order.idempotency.processing-lease:PT30S}") Duration processingLease) {
         this.repository = repository;
-        this.processingLease = boundedLease(processingLease);
+        this.processingLease = com.delivery.order.domain.IdempotencyLeasePolicy.boundedLease(processingLease);
     }
 
     /** Source-compatible constructor for focused unit tests and old callers. */
@@ -42,71 +42,77 @@ public class OrderCreateIdempotencyService {
     @Transactional
     public OrderCreateIdempotencyReceipt acquire(Long principalId, UUID key, String fingerprint,
                                                   UUID processingToken) {
-        requireArguments(principalId, key, fingerprint, processingToken);
-        Instant processingUntil = Instant.now().plus(processingLease);
-        OrderCreateIdempotencyReceipt existing = repository
-                .findByPrincipalIdAndIdempotencyKey(principalId, key).orElse(null);
-        if (existing != null) {
-            assertFingerprintMatches(existing, fingerprint);
-            if (existing.getOrderId() != null) return existing;
-            if (isOwnedAndLive(existing, processingToken)) return existing;
-            if (isLive(existing)) {
-                throw inProgress();
-            }
-        }
-
-        int inserted = insertIfAbsentWithLease(principalId, key, fingerprint, processingToken, processingUntil);
-        if (inserted == 1) {
-            return repository.findByPrincipalIdAndIdempotencyKey(principalId, key).orElseThrow();
-        }
-
-        existing = repository.findByPrincipalIdAndIdempotencyKey(principalId, key).orElse(null);
-        if (existing == null) throw inProgress();
-        assertFingerprintMatches(existing, fingerprint);
-        if (existing.getOrderId() != null) return existing;
-        if (isOwnedAndLive(existing, processingToken)) return existing;
-        if (claimExpiredLease(principalId, key, fingerprint, processingToken, processingUntil) == 1) {
-            return repository.findByPrincipalIdAndIdempotencyKey(principalId, key).orElseThrow();
-        }
-        throw inProgress();
+        return com.delivery.order.application.IdempotencyWorkflow.acquire(
+                ports(principalId, key, fingerprint, processingToken));
     }
 
     public OrderCreateIdempotencyReceipt claim(Long principalId, UUID key, String fingerprint) {
-        OrderCreateIdempotencyReceipt existing = repository.findByPrincipalIdAndIdempotencyKey(principalId, key)
-                .orElse(null);
-        boolean insertedByThisClaim = false;
-        if (existing == null && insertIfAbsent(principalId, key, fingerprint) == 1) {
-            insertedByThisClaim = true;
-            existing = repository.findByPrincipalIdAndIdempotencyKey(principalId, key).orElseThrow();
-        }
-        if (existing == null) {
-            existing = repository.findByPrincipalIdAndIdempotencyKey(principalId, key).orElseThrow(() ->
-                    new OrderApiException("IDEMPOTENCY_IN_PROGRESS", "Yêu cầu đặt đơn đang được xử lý"));
-        }
-        if (!existing.getRequestFingerprint().equals(fingerprint)
-                || !CheckoutFingerprintService.VERSION.equals(existing.getFingerprintVersion())) {
-            throw new OrderApiException("IDEMPOTENCY_KEY_REUSED",
-                    "Idempotency-Key đã được dùng với dữ liệu khác");
-        }
-        if (!insertedByThisClaim && existing.getOrderId() == null) {
-            throw new OrderApiException("IDEMPOTENCY_IN_PROGRESS",
-                    "Yêu cầu đặt đơn đang được xử lý, vui lòng thử lại với cùng Idempotency-Key");
-        }
-        return existing;
+        return com.delivery.order.application.IdempotencyWorkflow.legacyClaim(
+                new com.delivery.order.application.api.LegacyIdempotencyPorts<OrderCreateIdempotencyReceipt>() {
+            public OrderCreateIdempotencyReceipt find() {
+                return repository.findByPrincipalIdAndIdempotencyKey(principalId, key).orElse(null);
+            }
+            public int insert() { return insertIfAbsent(principalId, key, fingerprint); }
+            public OrderCreateIdempotencyReceipt requireFound() {
+                return repository.findByPrincipalIdAndIdempotencyKey(principalId, key).orElseThrow();
+            }
+            public OrderCreateIdempotencyReceipt requireExisting() {
+                return repository.findByPrincipalIdAndIdempotencyKey(principalId, key).orElseThrow(() ->
+                        new OrderApiException("IDEMPOTENCY_IN_PROGRESS", "Yêu cầu đặt đơn đang được xử lý"));
+            }
+            public void assertFingerprint(OrderCreateIdempotencyReceipt receipt) {
+                // Preserve legacy null-fingerprint behavior and the original comparison direction.
+                if (!com.delivery.order.domain.IdempotencyLeasePolicy.fingerprintMatches(
+                        receipt.getRequestFingerprint(), fingerprint,
+                        CheckoutFingerprintService.VERSION, receipt.getFingerprintVersion()))
+                    throw new OrderApiException("IDEMPOTENCY_KEY_REUSED", "Idempotency-Key đã được dùng với dữ liệu khác");
+            }
+            public boolean completed(OrderCreateIdempotencyReceipt receipt) { return receipt.getOrderId() != null; }
+            public RuntimeException inProgress() { return OrderCreateIdempotencyService.this.inProgress(); }
+        });
     }
 
     /** Final transaction fence for a request that owns the preflight lease. */
     public OrderCreateIdempotencyReceipt claim(Long principalId, UUID key, String fingerprint,
                                                UUID processingToken) {
-        requireArguments(principalId, key, fingerprint, processingToken);
-        OrderCreateIdempotencyReceipt existing = repository.findByPrincipalIdAndIdempotencyKeyForUpdate(principalId, key)
-                .orElseThrow(() -> inProgress());
-        assertFingerprintMatches(existing, fingerprint);
-        if (existing.getOrderId() != null) return existing;
-        if (!processingToken.equals(existing.getProcessingToken()) || !isLive(existing)) {
-            throw inProgress();
-        }
-        return existing;
+        return com.delivery.order.application.IdempotencyWorkflow.claim(
+                ports(principalId, key, fingerprint, processingToken));
+    }
+
+    private com.delivery.order.application.api.IdempotencyPorts<OrderCreateIdempotencyReceipt> ports(
+            Long principalId, UUID key, String fingerprint, UUID processingToken) {
+        return new com.delivery.order.application.api.IdempotencyPorts<>() {
+            private Instant processingUntil;
+            public void requireArguments() {
+                OrderCreateIdempotencyService.this.requireArguments(principalId, key, fingerprint, processingToken);
+            }
+            public OrderCreateIdempotencyReceipt find() {
+                // Acquire computes this before its initial lookup, as before extraction.
+                if (processingUntil == null) processingUntil = Instant.now().plus(processingLease);
+                return repository.findByPrincipalIdAndIdempotencyKey(principalId, key).orElse(null);
+            }
+            public OrderCreateIdempotencyReceipt findLocked() {
+                return repository.findByPrincipalIdAndIdempotencyKeyForUpdate(principalId, key).orElse(null);
+            }
+            public void assertFingerprint(OrderCreateIdempotencyReceipt receipt) {
+                assertFingerprintMatches(receipt, fingerprint);
+            }
+            public boolean completed(OrderCreateIdempotencyReceipt receipt) { return receipt.getOrderId() != null; }
+            public boolean ownedAndLive(OrderCreateIdempotencyReceipt receipt) {
+                return isOwnedAndLive(receipt, processingToken);
+            }
+            public boolean live(OrderCreateIdempotencyReceipt receipt) { return isLive(receipt); }
+            public int insert() {
+                return insertIfAbsentWithLease(principalId, key, fingerprint, processingToken, processingUntil);
+            }
+            public int reclaim() {
+                return claimExpiredLease(principalId, key, fingerprint, processingToken, processingUntil);
+            }
+            public OrderCreateIdempotencyReceipt requireFound() {
+                return repository.findByPrincipalIdAndIdempotencyKey(principalId, key).orElseThrow();
+            }
+            public RuntimeException inProgress() { return OrderCreateIdempotencyService.this.inProgress(); }
+        };
     }
 
     /**
@@ -125,8 +131,9 @@ public class OrderCreateIdempotencyService {
         if (receipt == null || fingerprint == null) {
             throw new IllegalArgumentException("Idempotency receipt and fingerprint are required");
         }
-        if (!fingerprint.equals(receipt.getRequestFingerprint())
-                || !CheckoutFingerprintService.VERSION.equals(receipt.getFingerprintVersion())) {
+        if (!com.delivery.order.domain.IdempotencyLeasePolicy.fingerprintMatches(
+                fingerprint, receipt.getRequestFingerprint(),
+                CheckoutFingerprintService.VERSION, receipt.getFingerprintVersion())) {
             throw new OrderApiException("IDEMPOTENCY_KEY_REUSED",
                     "Idempotency-Key đã được dùng với dữ liệu khác");
         }
@@ -177,11 +184,11 @@ public class OrderCreateIdempotencyService {
     }
 
     private boolean isOwnedAndLive(OrderCreateIdempotencyReceipt receipt, UUID token) {
-        return token.equals(receipt.getProcessingToken()) && isLive(receipt);
+        return com.delivery.order.domain.IdempotencyLeasePolicy.owned(token, receipt.getProcessingToken()) && isLive(receipt);
     }
 
     private boolean isLive(OrderCreateIdempotencyReceipt receipt) {
-        return receipt.getProcessingUntil() != null && receipt.getProcessingUntil().isAfter(Instant.now());
+        return receipt.getProcessingUntil() != null && com.delivery.order.domain.IdempotencyLeasePolicy.live(receipt.getProcessingUntil(), Instant.now());
     }
 
     private OrderApiException inProgress() {
@@ -189,9 +196,4 @@ public class OrderCreateIdempotencyService {
                 "Yêu cầu đặt đơn đang được xử lý, vui lòng thử lại với cùng Idempotency-Key");
     }
 
-    private Duration boundedLease(Duration value) {
-        Duration candidate = value == null ? Duration.ofSeconds(30) : value;
-        return candidate.compareTo(Duration.ofSeconds(5)) < 0 ? Duration.ofSeconds(5)
-                : candidate.compareTo(Duration.ofMinutes(5)) > 0 ? Duration.ofMinutes(5) : candidate;
-    }
 }

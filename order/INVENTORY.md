@@ -30,7 +30,7 @@ No plan, topic, schema, flag or business-policy changes are authorized.
    shipping distance/rounding, serviceability/ETA and quote lifecycle decisions
    are extracted (slice 4 and remainder below), preserving distinct error
    precedence. HTTP/transaction/store orchestration remains for slices 5–6.
-5. Extract create/quote/idempotency/reservation orchestration and compensation/lease recovery with DB race and remote ambiguous-failure proof.
+5. Create/quote/idempotency/reservation orchestration and compensation/lease recovery are extracted (slice 5 below), with DB race and remote ambiguous-failure proof.
 6. Extract outbox lease/retry application orchestration; relocate adapters/composition to infrastructure and entrypoint/config to boot; remove host only after packaged HTTP/Kafka/Postgres recovery proof and inventories/packaging updates (outside this slice).
 
 ## Observed pre-existing discrepancies (preserved)
@@ -401,3 +401,123 @@ slice 6. No new application modules or empty layers were introduced.
 **Slice 4 domain extraction is complete.** Remaining HTTP/transaction/store,
 create/reservation/idempotency/compensation orchestration and adapter/boot
 consolidation stay in slices 5–6; no empty application modules are introduced.
+
+## Slice 5: create, quote, idempotency and reservation application orchestration
+
+- Added framework-free `order/application-api` and `order/application` modules
+  to the root reactor and host dependency graph. Both inherit the existing
+  build-parent check and explicitly keep 85% LINE and BRANCH minima. Ports use
+  request-scoped opaque handles without importing host entities, Spring, JPA,
+  HTTP DTOs or Kafka contracts. Host adapters retain those concrete types.
+- `CreateOrderWorkflow` coordinates admission, scoped leased acquisition,
+  completed replay, remote/read preflight, host write transaction and owned
+  incomplete-lease release. `PrepareOrderWorkflow` preserves selection/quote/
+  canonical-fact admission order; `CreateWriteWorkflow` coordinates locked final
+  receipt claim/replay before zero-valued shell flush and reservation work.
+  The customer check before the host concurrency permit remains in place.
+- `QuoteWorkflow` owns preview-before-independent-persistence issuance,
+  unlocked validation/repricing, replacement persistence before PRICE_CHANGED,
+  and locked consume admission before mutation. Host retains quote UUID/clock,
+  fingerprints, transaction annotations/template, repository locks and error
+  translation. Existing domain quote policy keeps owner/expiry/input/replay
+  precedence; no quote DB lock spans remote pricing.
+- `ReservationWorkflow` journals IDs before ambiguous inventory/flash calls,
+  coordinates canonical pricing and voucher reservation, local snapshots,
+  inventory commit, quote consumption, receipt completion and created outbox.
+  `VoucherWorkflow` chooses the existing auto/manual/legacy rails through
+  domain `CheckoutReservationPolicy`. Failure releases attempted voucher,
+  promotion, flash and inventory IDs in precisely that order, retaining the
+  original exception and ordered suppressed release failures. TTL remains the
+  final remote recovery fence. Host retains all HTTP calls, principal/legacy
+  payload selection, persistence snapshots, transactions and outbox enqueue.
+- `IdempotencyWorkflow` coordinates atomic insert, re-read, expired-lease CAS,
+  completed replay, fingerprint checks and final pessimistic claim, including
+  the legacy claim overload. `IdempotencyLeasePolicy` owns existing 5-second to
+  5-minute bounds, token equality, strictly-after expiry and fingerprint/version
+  binding (including legacy comparison direction/null behavior). H2/PostgreSQL SQL,
+  DB time/CAS predicates, unique constraint, transaction boundaries, fingerprint
+  version and ownership-fenced release remain unchanged host adapters.
+- Application tests cover all optional reservation combinations, failures at
+  every orchestration stage, identical attempted/released IDs and release error
+  suppression, replay short circuits, final-lock ordering, lease admission and
+  recovery, quote issuance/repricing/consume order and every voucher rail.
+  Real proxied H2/JPA create tests prove snapshot/receipt/outbox atomicity,
+  completed replay skipping remote facts, preflight release/retry, ambiguous
+  inventory release and rollback after receipt completion. Host regressions
+  prove ambiguous legacy voucher, promotion and flash release identity; flash
+  release failure preserves the original cause. PostgreSQL tests retain the
+  atomic insert race and add application live-owner and expired-lease races,
+  old-owner final-claim/release fencing and subsequent recovery.
+
+### Existing recovery boundaries retained
+
+- The real Spring transaction fixture proves a failure after final receipt
+  completion rolls back local writes and releases the preflight lease: acquire
+  returns a detached handle, distinct from the final locked/managed receipt.
+  Application tests additionally preserve the original conditional release
+  rule for adapters returning the same handle: an already-completed in-memory
+  handle skips release. This is adapter-handle behavior, not a new production
+  business policy or a demonstrated production defect.
+- Reservation compensation catches failures inside the write operation. A
+  failure raised only by the transaction commit after that operation returns
+  does not enter reservation compensation. No after-completion hook is added;
+  existing remote recovery semantics are retained. Application tests preserve
+  commit-failure lease handling. Packaged remote crash/commit-failure recovery
+  remains for slice 6; no stronger runtime guarantee is claimed here.
+- Previously documented business/runtime discrepancies remain unchanged,
+  including inactive RetryableTopic/owner-DLT behavior. No Kafka consumer
+  configuration, schema, topics, defaults or business policies were changed.
+
+### Slice 6 plan
+
+1. Extract outbox lease/retry orchestration behind application transaction/store/
+   publish ports, preserving token fencing, publish-outside-transaction,
+   at-least-once duplicates, retry bounds and DEAD behavior.
+2. Relocate host HTTP/Kafka/JPA adapters and composition into infrastructure,
+   and entrypoint/config into boot; finish remaining lifecycle/read/cancellation
+   application orchestration during consolidation. Preserve artifact/DNS names,
+   adapter exception precedence, transaction/lock ordering and existing flags.
+3. Retire `order-service` only after packaged HTTP/Kafka/PostgreSQL runtime and
+   recovery proof plus reactor/inventory/packaging updates. Decide the existing
+   business/runtime discrepancies separately; no consumer-config repair is
+   authorized by these equivalence slices.
+
+### Slice 5 final validation
+
+- Required `mvn -B -pl :order-service -am clean verify`, with local server and
+  Docker access: exit 0, **BUILD SUCCESS**, finished
+  2026-10-06T18:24:58+07:00. Log:
+  `/tmp/order-slice5-final-clean-verify.log`.
+- Entire reactor: **311 tests**, zero failures/errors/skips. Domain: 43 tests;
+  application API: 1; application: 13; host: 197. The executable Spring Boot
+  JAR packaged successfully. Host canonical pricing/compensation: 26 tests;
+  real create transaction integration: 4 tests, all passed.
+- Docker-only skips: **none**. PostgreSQL idempotency concurrency: 3 tests,
+  including both application races; Kafka/PostgreSQL Saga integration: 1;
+  PostgreSQL Saga concurrency: 1. All ran and passed with real containers.
+- Domain JaCoCo LINE 494/494 (100%), BRANCH 708/710 (99.72%). Application
+  LINE 106/106 and BRANCH 75/75 (100% each); application API LINE 1/1 (100%),
+  with no executable branches. All unchanged 85% LINE/BRANCH gates passed.
+  The two existing unreachable domain branches are documented under slice 4;
+  the new lease/reservation policies and application workflows have no missed
+  lines or branches.
+- Focused transaction verification:
+  `mvn -B -pl :order-service -am verify -Dtest=OrderCreateTransactionIntegrationTest
+  -Dsurefire.failIfNoSpecifiedTests=false`: exit 0, 4 tests, zero failures/errors/
+  skips. `/tmp/order-slice5-transaction-focused.log`.
+- An earlier full run (`/tmp/order-slice5-definitive-clean-verify.log`) failed
+  only the new fixture's incorrect assumption that acquire and final claim
+  share the same managed receipt. Corrected the assertion to the actual detached
+  acquire handle, added successful same-key retry after rollback, and reran
+  focused plus full clean verification. No production recovery change was made
+  to satisfy that assertion.
+- Reviewed filesystem diffs against pre-extraction host copies and inspected
+  source/whitespace and framework imports. Core production modules have no
+  Spring/JPA/host imports. Source edits stay under `order/`, `order-service/`
+  and root `pom.xml`; no git commands, docs/plans edits, Kafka consumer
+  configuration edits or reductions to coverage gates.
+
+**Slice 5 is complete for the authorized equivalence extraction.** Existing
+commit-only compensation limits and previously documented discrepancies are
+preserved. Adapter/boot consolidation, outbox application orchestration and
+packaged runtime/recovery proof remain for slice 6.

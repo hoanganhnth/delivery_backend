@@ -1,6 +1,14 @@
 package com.delivery.order_service.repository;
 
 import com.delivery.order_service.service.CheckoutFingerprintService;
+import com.delivery.order_service.service.OrderCreateIdempotencyService;
+import com.delivery.order_service.entity.OrderCreateIdempotencyReceipt;
+import com.delivery.order_service.exception.OrderApiException;
+import org.springframework.context.annotation.Import;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Propagation;
+import java.time.Instant;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
@@ -29,6 +37,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         "spring.cloud.discovery.enabled=false",
         "eureka.client.enabled=false"
 })
+@Import(OrderCreateIdempotencyService.class)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Testcontainers(disabledWithoutDocker = true)
 class OrderCreateIdempotencyPostgresConcurrencyTest {
@@ -51,6 +60,7 @@ class OrderCreateIdempotencyPostgresConcurrencyTest {
 
     @Autowired private OrderCreateIdempotencyReceiptRepository repository;
     @Autowired private PlatformTransactionManager transactionManager;
+    @Autowired private OrderCreateIdempotencyService idempotency;
 
     @Test
     void concurrentSamePrincipalAndKeyCreateExactlyOneReceipt() throws Exception {
@@ -67,6 +77,70 @@ class OrderCreateIdempotencyPostgresConcurrencyTest {
         } finally {
             executor.shutdownNow();
         }
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void concurrentApplicationAcquireHasOneLiveOwner() throws Exception {
+        UUID key = UUID.randomUUID();
+        assertSingleApplicationOwner(key);
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void expiredLeaseRaceReclaimsOnceAndFencesOldOwnerAndRelease() throws Exception {
+        UUID key = UUID.randomUUID();
+        UUID oldToken = UUID.randomUUID();
+        new TransactionTemplate(transactionManager).execute(status ->
+                repository.insertIfAbsentWithLeasePostgres(77L, key, "fingerprint",
+                        CheckoutFingerprintService.VERSION, oldToken, Instant.now().minusSeconds(60)));
+        OrderCreateIdempotencyReceipt winner = assertSingleApplicationOwner(key);
+        assertThat(winner.getProcessingToken()).isNotEqualTo(oldToken);
+        TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+        assertThatThrownBy(() -> transaction.execute(status -> idempotency.claim(77L, key, "fingerprint", oldToken)))
+                .isInstanceOfSatisfying(OrderApiException.class,
+                        error -> assertThat(error.getCode()).isEqualTo("IDEMPOTENCY_IN_PROGRESS"));
+        idempotency.release(winner.getId(), oldToken);
+        assertThat(repository.findByPrincipalIdAndIdempotencyKey(77L, key).orElseThrow().getProcessingToken())
+                .isEqualTo(winner.getProcessingToken());
+        transaction.execute(status -> {
+            assertThat(idempotency.claim(77L, key, "fingerprint", winner.getProcessingToken()).getId())
+                    .isEqualTo(winner.getId());
+            return null;
+        });
+        idempotency.release(winner.getId(), winner.getProcessingToken());
+        UUID nextToken = UUID.randomUUID();
+        OrderCreateIdempotencyReceipt recovered = idempotency.acquire(77L, key, "fingerprint", nextToken);
+        assertThat(recovered.getId()).isEqualTo(winner.getId());
+        assertThat(recovered.getProcessingToken()).isEqualTo(nextToken);
+    }
+
+    private OrderCreateIdempotencyReceipt assertSingleApplicationOwner(UUID key) throws Exception {
+        CyclicBarrier startTogether = new CyclicBarrier(2);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<Object> first = executor.submit(() -> acquire(startTogether, key));
+            Future<Object> second = executor.submit(() -> acquire(startTogether, key));
+            List<Object> outcomes = List.of(first.get(), second.get());
+            assertThat(outcomes.stream().filter(OrderCreateIdempotencyReceipt.class::isInstance).count()).isEqualTo(1);
+            assertThat(outcomes.stream().filter(OrderApiException.class::isInstance).count()).isEqualTo(1);
+            OrderApiException conflict = (OrderApiException) outcomes.stream()
+                    .filter(OrderApiException.class::isInstance).findFirst().orElseThrow();
+            assertThat(conflict.getCode()).isEqualTo("IDEMPOTENCY_IN_PROGRESS");
+            OrderCreateIdempotencyReceipt winner = (OrderCreateIdempotencyReceipt) outcomes.stream()
+                    .filter(OrderCreateIdempotencyReceipt.class::isInstance).findFirst().orElseThrow();
+            assertThat(repository.findByPrincipalIdAndIdempotencyKey(77L, key).orElseThrow().getProcessingToken())
+                    .isEqualTo(winner.getProcessingToken());
+            return winner;
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    private Object acquire(CyclicBarrier barrier, UUID key) throws Exception {
+        barrier.await();
+        try { return idempotency.acquire(77L, key, "fingerprint", UUID.randomUUID()); }
+        catch (OrderApiException conflict) { return conflict; }
     }
 
     private Integer claim(CyclicBarrier startTogether, UUID key) throws Exception {

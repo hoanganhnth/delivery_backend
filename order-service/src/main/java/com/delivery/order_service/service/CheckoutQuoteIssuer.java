@@ -45,8 +45,15 @@ public class CheckoutQuoteIssuer {
      * {@link #persist} performs the short local write afterwards.
      */
     public CheckoutPreviewResponse issue(CheckoutPreviewRequest request, Long principalId, Long userId) {
-        CheckoutPreviewResponse response = previewService.calculatePreview(request, principalId, userId);
-        return persist(request, response, principalId);
+        return com.delivery.order.application.QuoteWorkflow.issue(
+                new com.delivery.order.application.api.QuoteIssuePorts<CheckoutPreviewResponse>() {
+                    public CheckoutPreviewResponse preview() {
+                        return previewService.calculatePreview(request, principalId, userId);
+                    }
+                    public CheckoutPreviewResponse persist(CheckoutPreviewResponse response) {
+                        return CheckoutQuoteIssuer.this.persist(request, response, principalId);
+                    }
+                });
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)

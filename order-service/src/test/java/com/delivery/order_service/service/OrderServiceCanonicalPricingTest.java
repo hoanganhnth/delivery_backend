@@ -401,6 +401,59 @@ class OrderServiceCanonicalPricingTest {
     }
 
     @Test
+    void ambiguousFlashReserveReleasesAttemptedIdentityAndRetainsReleaseFailure() {
+        CreateOrderRequest request = baseRequest();
+        request.getItems().get(0).setFlashSaleItemId(88L);
+        when(orderValidationService.validateCreateOrderRequest(request, 21L, 21L))
+                .thenReturn(validatedItem(new BigDecimal("100000")));
+        Order order = new Order();
+        order.setId(101L);
+        when(orderMapper.createOrderRequestToOrder(request)).thenReturn(order);
+        when(orderRepository.saveAndFlush(order)).thenReturn(order);
+        IllegalStateException timeout = new IllegalStateException("ambiguous flash timeout");
+        IllegalStateException releaseFailure = new IllegalStateException("release unavailable");
+        when(reservationClient.reserveFlash(any(UUID.class), eq(101L), eq(21L), eq(7L), eq(request.getItems())))
+                .thenThrow(timeout);
+        doThrow(releaseFailure).when(reservationClient).releaseFlash(any(UUID.class), eq(101L));
+
+        org.junit.jupiter.api.Assertions.assertSame(timeout,
+                assertThrows(IllegalStateException.class, () -> service().createOrder(request, 21L, "USER")));
+        ArgumentCaptor<UUID> id = ArgumentCaptor.forClass(UUID.class);
+        verify(reservationClient).reserveFlash(id.capture(), eq(101L), eq(21L), eq(7L), eq(request.getItems()));
+        verify(reservationClient).releaseFlash(id.getValue(), 101L);
+        org.assertj.core.api.Assertions.assertThat(timeout.getSuppressed()).containsExactly(releaseFailure);
+        verifyNoInteractions(orderItemRepository, orderEventPublisher, shippingFeeCalculationService);
+    }
+
+    @Test
+    void ambiguousPromotionReserveReleasesAttemptedIdentityWithPrincipal() {
+        CreateOrderRequest request = baseRequest();
+        request.setVoucherIds(List.of(55L));
+        request.setSelectionMode("MANUAL");
+        when(orderValidationService.validateCreateOrderRequest(request, 21L, 21L))
+                .thenReturn(validatedItem(new BigDecimal("100000")));
+        Order order = new Order();
+        order.setId(101L);
+        when(orderMapper.createOrderRequestToOrder(request)).thenReturn(order);
+        when(orderRepository.saveAndFlush(order)).thenReturn(order);
+        when(shippingFeeCalculationService.calculateShippingFee(
+                10.75, 106.66, 10.8, 106.7, new BigDecimal("100000")))
+                .thenReturn(new BigDecimal("15000"));
+        IllegalStateException timeout = new IllegalStateException("ambiguous promotion timeout");
+        when(reservationClient.reserveVouchers(any(UUID.class), eq(101L), eq(21L), eq(21L), eq(7L),
+                eq(new BigDecimal("100000")), eq(new BigDecimal("15000")), eq(List.of(55L))))
+                .thenThrow(timeout);
+
+        org.junit.jupiter.api.Assertions.assertSame(timeout,
+                assertThrows(IllegalStateException.class, () -> service().createOrder(request, 21L, "USER")));
+        ArgumentCaptor<UUID> id = ArgumentCaptor.forClass(UUID.class);
+        verify(reservationClient).reserveVouchers(id.capture(), eq(101L), eq(21L), eq(21L), eq(7L),
+                eq(new BigDecimal("100000")), eq(new BigDecimal("15000")), eq(List.of(55L)));
+        verify(reservationClient).releaseVouchers(id.getValue(), 101L, 21L);
+        verifyNoInteractions(orderItemRepository, orderEventPublisher);
+    }
+
+    @Test
     void fractionalCanonicalMoneyIsNotRoundedAndClientPriceIsIgnored() {
         CreateOrderRequest request = baseRequest();
         request.getItems().get(0).setQuantity(3);
