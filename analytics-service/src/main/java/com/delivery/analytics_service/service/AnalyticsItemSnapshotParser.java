@@ -2,7 +2,8 @@ package com.delivery.analytics_service.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
+import com.delivery.analytics.domain.SnapshotDecisions;
+import com.delivery.analytics.domain.SnapshotDecisions.Item;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -10,46 +11,36 @@ import java.util.List;
 final class AnalyticsItemSnapshotParser {
     private AnalyticsItemSnapshotParser() {}
 
-    record Item(long menuItemId, long quantity, BigDecimal lineTotal, String menuItemName) {}
-
     static List<Item> parse(JsonNode root) {
         JsonNode items = root.get("items");
         if (items == null || items.isNull()) return List.of();
         if (!items.isArray()) throw new IllegalArgumentException("analytics items must be an array");
-        if (items.size() > 100) throw new IllegalArgumentException("analytics item snapshot exceeds 100 lines");
+        SnapshotDecisions.requireSize(items.size());
         List<Item> result = new ArrayList<>();
         for (JsonNode line : items) {
             long menuItemId = requiredPositiveLong(line, "menuItemId");
             long quantity = requiredPositiveLong(line, "quantity");
             BigDecimal unitPrice = requiredPositiveAmount(line, "unitPrice", "price");
             BigDecimal lineTotal = optionalAmount(line, "lineTotal");
-            BigDecimal expected = unitPrice.multiply(BigDecimal.valueOf(quantity));
-            if (lineTotal == null) lineTotal = expected;
-            if (lineTotal.compareTo(expected) != 0) {
-                throw new IllegalArgumentException("analytics item line total does not reconcile");
-            }
-            String name = line.path("menuItemName").asText("UNKNOWN").trim();
-            result.add(new Item(menuItemId, quantity, lineTotal, name.isBlank() ? "UNKNOWN" : name));
+            String name = line.path("menuItemName").asText("UNKNOWN");
+            result.add(SnapshotDecisions.item(menuItemId, quantity, unitPrice, lineTotal, name));
         }
         return List.copyOf(result);
     }
 
     private static long requiredPositiveLong(JsonNode node, String field) {
         JsonNode value = node.get(field);
-        if (value == null || !value.isIntegralNumber() || !value.canConvertToLong() || value.asLong() <= 0) {
+        if (value == null || !value.isIntegralNumber() || !value.canConvertToLong()) {
             throw new IllegalArgumentException("analytics item " + field + " must be positive");
         }
-        return value.asLong();
+        return SnapshotDecisions.positive(value.asLong(), "analytics item " + field + " must be positive");
     }
 
     private static BigDecimal requiredPositiveAmount(JsonNode node, String... fields) {
         for (String field : fields) {
             BigDecimal value = optionalAmount(node, field);
             if (value != null) {
-                if (value.signum() <= 0 || value.scale() > 2) {
-                    throw new IllegalArgumentException("analytics item price is invalid");
-                }
-                return value.setScale(2, RoundingMode.UNNECESSARY);
+                return SnapshotDecisions.price(value);
             }
         }
         throw new IllegalArgumentException("analytics item price is required");

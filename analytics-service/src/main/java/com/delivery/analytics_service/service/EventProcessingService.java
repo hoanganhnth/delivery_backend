@@ -15,7 +15,12 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.beans.factory.annotation.Value;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
+import com.delivery.analytics.domain.*;
+import com.delivery.analytics.domain.SnapshotDecisions.Item;
+import com.delivery.analytics.application.IngestionService;
+import com.delivery.analytics.applicationapi.IngestionUseCase;
+import com.delivery.analytics.applicationapi.IngestionPorts;
+import java.util.List;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -67,211 +72,104 @@ public class EventProcessingService {
     @Value("${spring.datasource.url:}")
     private String dataSourceUrl;
 
-    // ==================== ORDER EVENTS ====================
+    private final IngestionUseCase ingestion = new IngestionService(
+            this::claim, new IngestionPorts.Payloads() {
+                public LocalDate eventDate(String payload, LocalDate fallback) {
+                    return EventProcessingService.this.eventDate(payload, fallback);
+                }
+                public List<Item> items(String payload) { return AnalyticsItemSnapshotParser.parse(readJson(payload)); }
+            }, new HostProjections(), LocalDate::now);
 
-    /**
-     * Xử lý event: Đơn hàng mới được tạo
-     */
     @Transactional
     public void processOrderCreated(Long orderId, Long userId, Long restaurantId,
-                                     String restaurantName, BigDecimal totalPrice,
-                                     String paymentMethod, String rawPayload) {
-        String deduplicationKey = resolveDeduplicationKey("ORDER_CREATED", orderId, rawPayload);
-        if (!claimEvent(deduplicationKey, "ORDER_CREATED", orderId, userId,
-                restaurantId, restaurantName, totalPrice, "PENDING", paymentMethod, rawPayload)) {
-            return;
-        }
-        LocalDate today = LocalDate.now();
-        LocalDate eventDate = eventDate(rawPayload, today);
-
-        if (isPostgres()) {
-            orderStatsRepo.incrementCreatedPostgres(today, null);
-            if (restaurantId != null) orderStatsRepo.incrementCreatedPostgres(today, restaurantId);
-            applyItemSnapshot(eventDate, restaurantId, rawPayload, false);
-            return;
-        }
-
-        // 2. Cập nhật platform stats (restaurantId = null)
-        DailyOrderStats platformStats = getOrCreateOrderStats(today, null);
-        platformStats.setTotalOrders(platformStats.getTotalOrders() + 1);
-        platformStats.setPendingOrders(platformStats.getPendingOrders() + 1);
-        orderStatsRepo.save(platformStats);
-
-        // 3. Cập nhật restaurant stats
-        if (restaurantId != null) {
-            DailyOrderStats restaurantStats = getOrCreateOrderStats(today, restaurantId);
-            restaurantStats.setTotalOrders(restaurantStats.getTotalOrders() + 1);
-            restaurantStats.setPendingOrders(restaurantStats.getPendingOrders() + 1);
-            orderStatsRepo.save(restaurantStats);
-        }
-
-        applyItemSnapshot(eventDate, restaurantId, rawPayload, false);
-
-        log.info("📊 Processed ORDER_CREATED: orderId={}, restaurantId={}", orderId, restaurantId);
+                                   String restaurantName, BigDecimal totalPrice, String paymentMethod, String rawPayload) {
+        if (process("ORDER_CREATED",orderId,userId,restaurantId,restaurantName,totalPrice,"PENDING",paymentMethod,rawPayload) && !isPostgres())
+            log.info("📊 Processed ORDER_CREATED: orderId={}, restaurantId={}", orderId, restaurantId);
     }
-
-    /**
-     * Xử lý event: Đơn hàng được giao thành công (DELIVERED)
-     */
     @Transactional
     public void processOrderDelivered(Long orderId, Long restaurantId, String restaurantName,
-                                       BigDecimal totalPrice, String rawPayload) {
-        String deduplicationKey = resolveDeduplicationKey("ORDER_DELIVERED", orderId, rawPayload);
-        if (!claimEvent(deduplicationKey, "ORDER_DELIVERED", orderId, null,
-                restaurantId, restaurantName, totalPrice, "DELIVERED", null, rawPayload)) {
-            return;
-        }
-        LocalDate today = LocalDate.now();
-        BigDecimal safeTotal = totalPrice != null ? totalPrice : BigDecimal.ZERO;
-        if (isPostgres()) {
-            orderStatsRepo.incrementDeliveredPostgres(today, null, safeTotal);
-            if (restaurantId != null) {
-                orderStatsRepo.incrementDeliveredPostgres(today, restaurantId, safeTotal);
-            }
-            return;
-        }
-
-        // Platform stats
-        DailyOrderStats platformStats = getOrCreateOrderStats(today, null);
-        platformStats.setDeliveredOrders(platformStats.getDeliveredOrders() + 1);
-        if (platformStats.getPendingOrders() > 0) {
-            platformStats.setPendingOrders(platformStats.getPendingOrders() - 1);
-        }
-        BigDecimal newRevenue = platformStats.getTotalRevenue().add(totalPrice != null ? totalPrice : BigDecimal.ZERO);
-        platformStats.setTotalRevenue(newRevenue);
-        recalcAvg(platformStats);
-        orderStatsRepo.save(platformStats);
-
-        // Restaurant stats
-        if (restaurantId != null) {
-            DailyOrderStats rStats = getOrCreateOrderStats(today, restaurantId);
-            rStats.setDeliveredOrders(rStats.getDeliveredOrders() + 1);
-            if (rStats.getPendingOrders() > 0) {
-                rStats.setPendingOrders(rStats.getPendingOrders() - 1);
-            }
-            BigDecimal rRevenue = rStats.getTotalRevenue().add(totalPrice != null ? totalPrice : BigDecimal.ZERO);
-            rStats.setTotalRevenue(rRevenue);
-            recalcAvg(rStats);
-            orderStatsRepo.save(rStats);
-        }
-
-        log.info("📊 Processed ORDER_DELIVERED: orderId={}, revenue={}", orderId, totalPrice);
+                                     BigDecimal totalPrice, String rawPayload) {
+        if (process("ORDER_DELIVERED",orderId,null,restaurantId,restaurantName,totalPrice,"DELIVERED",null,rawPayload) && !isPostgres())
+            log.info("📊 Processed ORDER_DELIVERED: orderId={}, revenue={}", orderId, totalPrice);
     }
-
-    /**
-     * Xử lý event: Đơn hàng bị hủy (CANCELLED)
-     */
     @Transactional
     public void processOrderCancelled(Long orderId, Long restaurantId, String rawPayload) {
-        String deduplicationKey = resolveDeduplicationKey("ORDER_CANCELLED", orderId, rawPayload);
-        if (!claimEvent(deduplicationKey, "ORDER_CANCELLED", orderId, null,
-                restaurantId, null, null, "CANCELLED", null, rawPayload)) {
-            return;
-        }
-        LocalDate today = LocalDate.now();
-        LocalDate eventDate = eventDate(rawPayload, today);
-        if (isPostgres()) {
-            orderStatsRepo.incrementCancelledPostgres(today, null);
-            if (restaurantId != null) orderStatsRepo.incrementCancelledPostgres(today, restaurantId);
-            applyItemSnapshot(eventDate, restaurantId, rawPayload, true);
-            return;
-        }
-
-        // Platform
-        DailyOrderStats platformStats = getOrCreateOrderStats(today, null);
-        platformStats.setCancelledOrders(platformStats.getCancelledOrders() + 1);
-        if (platformStats.getPendingOrders() > 0) {
-            platformStats.setPendingOrders(platformStats.getPendingOrders() - 1);
-        }
-        orderStatsRepo.save(platformStats);
-
-        // Restaurant
-        if (restaurantId != null) {
-            DailyOrderStats rStats = getOrCreateOrderStats(today, restaurantId);
-            rStats.setCancelledOrders(rStats.getCancelledOrders() + 1);
-            if (rStats.getPendingOrders() > 0) {
-                rStats.setPendingOrders(rStats.getPendingOrders() - 1);
-            }
-            orderStatsRepo.save(rStats);
-        }
-
-        applyItemSnapshot(eventDate, restaurantId, rawPayload, true);
-
-        log.info("📊 Processed ORDER_CANCELLED: orderId={}", orderId);
+        if (process("ORDER_CANCELLED",orderId,null,restaurantId,null,null,"CANCELLED",null,rawPayload) && !isPostgres())
+            log.info("📊 Processed ORDER_CANCELLED: orderId={}", orderId);
     }
-
-    // ==================== PAYMENT EVENTS ====================
-
-    /**
-     * Xử lý event: Thanh toán thành công
-     */
     @Transactional
-    public void processPaymentCompleted(Long orderId, Long userId, Double amount,
-                                         String paymentMethod, String rawPayload) {
-        String deduplicationKey = resolveDeduplicationKey("PAYMENT_COMPLETED", orderId, rawPayload);
-        BigDecimal safeAmount = amount != null ? BigDecimal.valueOf(amount) : BigDecimal.ZERO;
-        if (!claimEvent(deduplicationKey, "PAYMENT_COMPLETED", orderId, userId,
-                null, null, safeAmount, null, paymentMethod, rawPayload)) {
-            return;
-        }
-        LocalDate today = LocalDate.now();
-        if (isPostgres()) {
-            revenueStatsRepo.incrementPaymentCompletedPostgres(today, safeAmount);
-            return;
-        }
-
-        // Platform revenue stats
-        DailyRevenueStats platRevStats = getOrCreatePlatformRevenueStats(today);
-        platRevStats.setSuccessfulPayments(platRevStats.getSuccessfulPayments() + 1);
-        platRevStats.setTotalPaymentAmount(platRevStats.getTotalPaymentAmount().add(safeAmount));
-        revenueStatsRepo.save(platRevStats);
-
-        log.info("📊 Processed PAYMENT_COMPLETED: orderId={}, amount={}", orderId, amount);
+    public void processPaymentCompleted(Long orderId, Long userId, Double amount, String paymentMethod, String rawPayload) {
+        String key=resolveDeduplicationKey("PAYMENT_COMPLETED",orderId,rawPayload);
+        BigDecimal safeAmount=amount!=null?BigDecimal.valueOf(amount):BigDecimal.ZERO;
+        if (ingest(key,"PAYMENT_COMPLETED",orderId,userId,null,null,safeAmount,null,paymentMethod,rawPayload) && !isPostgres())
+            log.info("📊 Processed PAYMENT_COMPLETED: orderId={}, amount={}", orderId, amount);
     }
-
-    /**
-     * Xử lý event: Thanh toán thất bại
-     */
     @Transactional
     public void processPaymentFailed(Long orderId, String rawPayload) {
-        String deduplicationKey = resolveDeduplicationKey("PAYMENT_FAILED", orderId, rawPayload);
-        if (!claimEvent(deduplicationKey, "PAYMENT_FAILED", orderId, null,
-                null, null, null, null, null, rawPayload)) {
-            return;
-        }
-        LocalDate today = LocalDate.now();
-        if (isPostgres()) {
-            revenueStatsRepo.incrementPaymentFailedPostgres(today);
-            return;
-        }
-
-        DailyRevenueStats platRevStats = getOrCreatePlatformRevenueStats(today);
-        platRevStats.setFailedPayments(platRevStats.getFailedPayments() + 1);
-        revenueStatsRepo.save(platRevStats);
-
-        log.info("📊 Processed PAYMENT_FAILED: orderId={}", orderId);
+        if (process("PAYMENT_FAILED",orderId,null,null,null,null,null,null,rawPayload) && !isPostgres())
+            log.info("📊 Processed PAYMENT_FAILED: orderId={}", orderId);
     }
-
-    // ==================== HELPERS ====================
-
-    /**
-     * Apply the additive item snapshot after the whole-event receipt has been
-     * claimed. A duplicate Kafka event therefore cannot increment an item row
-     * twice, while a malformed line rolls back the enclosing transaction.
-     */
-    private void applyItemSnapshot(LocalDate statDate, Long restaurantId, String rawPayload,
-                                   boolean cancelled) {
-        if (itemSalesRepo == null || restaurantId == null) return;
-        for (AnalyticsItemSnapshotParser.Item line : AnalyticsItemSnapshotParser.parse(readJson(rawPayload))) {
-            long menuItemId = line.menuItemId();
-            long quantity = line.quantity();
-            BigDecimal lineTotal = line.lineTotal();
-            String menuItemName = line.menuItemName();
-            long orderedQuantity = cancelled ? 0 : quantity;
-            long cancelledQuantity = cancelled ? quantity : 0;
-            BigDecimal orderedRevenue = cancelled ? BigDecimal.ZERO : lineTotal;
-            BigDecimal cancelledRevenue = cancelled ? lineTotal : BigDecimal.ZERO;
-
+    private boolean process(String type, Long orderId, Long userId, Long restaurantId, String restaurantName,
+                         BigDecimal amount, String status, String paymentMethod, String rawPayload) {
+        String key=resolveDeduplicationKey(type,orderId,rawPayload);
+        return ingest(key,type,orderId,userId,restaurantId,restaurantName,amount,status,paymentMethod,rawPayload);
+    }
+    private boolean ingest(String key, String type, Long orderId, Long userId, Long restaurantId, String restaurantName,
+                        BigDecimal amount, String status, String paymentMethod, String rawPayload) {
+        if(rawPayload==null || rawPayload.isBlank()) throw new IllegalArgumentException("Analytics raw payload is required");
+        String hash=fingerprint(rawPayload);
+        Long version=aggregateVersion(rawPayload);
+        return ingestion.ingest(new IngestionUseCase.Command(key,new ReceiptIdentity(type,orderId,userId,restaurantId,
+                restaurantName,amount,status,paymentMethod,version,rawPayload,hash)));
+    }
+    /** Persistence adapter: native atomic SQL or equivalent domain read/modify/save. */
+    private final class HostProjections implements IngestionPorts.Projections {
+        public void order(String type, LocalDate date, Long restaurantId, BigDecimal amount) {
+            if(isPostgres()) {
+                switch(type) {
+                    case "ORDER_CREATED" -> orderStatsRepo.incrementCreatedPostgres(date,restaurantId);
+                    case "ORDER_DELIVERED" -> orderStatsRepo.incrementDeliveredPostgres(date,restaurantId,
+                            amount!=null?amount:BigDecimal.ZERO);
+                    case "ORDER_CANCELLED" -> orderStatsRepo.incrementCancelledPostgres(date,restaurantId);
+                    default -> throw new IllegalArgumentException(type);
+                }
+                return;
+            }
+            var stats=getOrCreateOrderStats(date,restaurantId);
+            var before=new OrderProjection(stats.getTotalOrders(),stats.getDeliveredOrders(),stats.getCancelledOrders(),
+                    stats.getPendingOrders(),stats.getTotalRevenue(),stats.getAvgOrderValue());
+            var after=switch(type) {
+                case "ORDER_CREATED" -> before.created();
+                case "ORDER_DELIVERED" -> before.delivered(amount);
+                case "ORDER_CANCELLED" -> before.cancel();
+                default -> throw new IllegalArgumentException(type);
+            };
+            stats.setTotalOrders(after.total()); stats.setDeliveredOrders(after.delivered());
+            stats.setCancelledOrders(after.cancelled()); stats.setPendingOrders(after.pending());
+            stats.setTotalRevenue(after.revenue()); stats.setAvgOrderValue(after.average());
+            orderStatsRepo.save(stats);
+        }
+        public void payment(String type, LocalDate date, BigDecimal amount) {
+            boolean completed=type.equals("PAYMENT_COMPLETED");
+            if(isPostgres()) {
+                if(completed) revenueStatsRepo.incrementPaymentCompletedPostgres(date,amount);
+                else revenueStatsRepo.incrementPaymentFailedPostgres(date);
+                return;
+            }
+            var stats=getOrCreatePlatformRevenueStats(date);
+            var before=new PaymentProjection(stats.getSuccessfulPayments(),stats.getFailedPayments(),stats.getTotalPaymentAmount());
+            var after=completed?before.completed(amount):before.failure();
+            stats.setSuccessfulPayments(after.successful());
+            stats.setFailedPayments(after.failed());
+            stats.setTotalPaymentAmount(after.amount());
+            revenueStatsRepo.save(stats);
+        }
+        public boolean itemsEnabled(Long restaurantId) { return itemSalesRepo!=null && restaurantId!=null; }
+        public void item(LocalDate statDate, Long restaurantId, Item line, boolean cancelled) {
+            long menuItemId=line.menuItemId(); String menuItemName=line.menuItemName();
+            var delta=line.delta(cancelled);
+            long orderedQuantity=delta.orderedQuantity(), cancelledQuantity=delta.cancelledQuantity();
+            BigDecimal orderedRevenue=delta.orderedRevenue(), cancelledRevenue=delta.cancelledRevenue();
             if (isPostgres()) {
                 itemSalesRepo.incrementPostgres(statDate, restaurantId, menuItemId, menuItemName,
                         orderedQuantity, cancelledQuantity, orderedRevenue, cancelledRevenue,
@@ -310,27 +208,21 @@ public class EventProcessingService {
 
     private LocalDate eventDate(String rawPayload, LocalDate fallback) {
         JsonNode root = readJson(rawPayload);
-        for (String field : new String[]{"occurredAt", "eventTimestamp", "createdAt"}) {
-            JsonNode value = root.get(field);
-            if (value != null && !value.isNull() && !value.asText().isBlank()) {
-                try {
-                    return LocalDateTime.parse(value.asText()).toLocalDate();
-                } catch (RuntimeException invalid) {
-                    throw new IllegalArgumentException("analytics event timestamp is invalid", invalid);
-                }
-            }
-        }
-        return fallback;
+        String selected=SnapshotDecisions.firstTimestamp(text(root,"occurredAt"),text(root,"eventTimestamp"),text(root,"createdAt"));
+        if(selected==null) return fallback;
+        try { return LocalDateTime.parse(selected).toLocalDate(); }
+        catch(RuntimeException invalid) { throw new IllegalArgumentException("analytics event timestamp is invalid",invalid); }
+    }
+    private String text(JsonNode root, String field) {
+        JsonNode value=root.get(field);
+        return value==null || value.isNull()?null:value.asText();
     }
 
-    private boolean claimEvent(String key, String type, Long orderId, Long userId,
-                               Long restaurantId, String restaurantName, BigDecimal amount,
-                               String orderStatus, String paymentMethod, String rawPayload) {
-        if (rawPayload == null || rawPayload.isBlank()) {
-            throw new IllegalArgumentException("Analytics raw payload is required");
-        }
-        String fingerprint = fingerprint(rawPayload);
-        Long aggregateVersion = aggregateVersion(rawPayload);
+    private boolean claim(String key, ReceiptIdentity identity) {
+        String type=identity.eventType(), restaurantName=identity.restaurantName(), orderStatus=identity.orderStatus(),
+                paymentMethod=identity.paymentMethod(), rawPayload=identity.rawPayload(), fingerprint=identity.payloadFingerprint();
+        Long orderId=identity.orderId(),userId=identity.userId(),restaurantId=identity.restaurantId(),aggregateVersion=identity.aggregateVersion();
+        BigDecimal amount=identity.amount();
         AnalyticsEvent incoming = AnalyticsEvent.builder()
                 .deduplicationKey(key).eventType(type).eventTime(LocalDateTime.now())
                 .orderId(orderId).userId(userId).restaurantId(restaurantId)
@@ -372,10 +264,10 @@ public class EventProcessingService {
     private Long aggregateVersion(String rawPayload) {
         JsonNode value = readJson(rawPayload).get("aggregateVersion");
         if (value == null || value.isNull() || value.asText().isBlank()) return null;
-        if (!value.isIntegralNumber() || !value.canConvertToLong() || value.asLong() <= 0) {
+        if (!value.isIntegralNumber() || !value.canConvertToLong()) {
             throw new IllegalArgumentException("analytics aggregateVersion must be positive");
         }
-        return value.asLong();
+        return SnapshotDecisions.positive(value.asLong(), "analytics aggregateVersion must be positive");
     }
 
     static String resolveDeduplicationKey(String eventType, Long orderId, String rawPayload) {
@@ -383,16 +275,13 @@ public class EventProcessingService {
             try {
                 JsonNode eventId = OBJECT_MAPPER.readTree(rawPayload).path("eventId");
                 if (eventId.isTextual() && !eventId.asText().isBlank()) {
-                    return eventType + ":event:" + eventId.asText();
+                    return ReceiptKey.resolve(eventType, orderId, eventId.asText());
                 }
             } catch (Exception ignored) {
                 // Listener owns payload validation; legacy producers may not carry eventId.
             }
         }
-        if (orderId == null || orderId <= 0) {
-            throw new IllegalArgumentException("Analytics event requires a positive orderId");
-        }
-        return eventType + ":order:" + orderId;
+        return ReceiptKey.resolve(eventType, orderId, null);
     }
 
     private DailyOrderStats getOrCreateOrderStats(LocalDate date, Long restaurantId) {
@@ -441,11 +330,4 @@ public class EventProcessingService {
                         .build());
     }
 
-    private void recalcAvg(DailyOrderStats stats) {
-        if (stats.getDeliveredOrders() > 0) {
-            stats.setAvgOrderValue(
-                stats.getTotalRevenue().divide(BigDecimal.valueOf(stats.getDeliveredOrders()), 0, RoundingMode.HALF_UP)
-            );
-        }
-    }
 }

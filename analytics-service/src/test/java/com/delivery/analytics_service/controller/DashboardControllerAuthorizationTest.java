@@ -58,4 +58,21 @@ class DashboardControllerAuthorizationTest {
         assertThat(response.getStatusCode().value()).isEqualTo(403);
         verifyNoInteractions(reconciliationJob);
     }
+    @Test
+    void preservedDefectOwnerCanQueryArbitraryRestaurantWithUnvalidatedPeriodAndYear() {
+        var owner = new AuthenticatedActor(10L, 10L, "owner@test.dev", Set.of("SHOP_OWNER"));
+        assertThat(controller.getRestaurantDashboard(999L, " YEAR ", 1900, owner).getStatusCode().value()).isEqualTo(200);
+        org.mockito.Mockito.verify(queryService).getRestaurantDashboard(999L, " YEAR ", 1900);
+        assertThat(controller.getMyRestaurantDashboard("daily", 2200, 888L, owner).getStatusCode().value()).isEqualTo(200);
+        org.mockito.Mockito.verify(queryService).getRestaurantDashboard(888L, "daily", 2200);
+    }
+
+    @Test
+    void myRestaurantStillRequiresExplicitIdInsteadOfUsingActorId() {
+        var owner = new AuthenticatedActor(10L, 10L, "owner@test.dev", Set.of("SHOP_OWNER"));
+        var response = controller.getMyRestaurantDashboard("month", 2026, null, owner);
+        assertThat(response.getStatusCode().value()).isEqualTo(400);
+        assertThat(response.getBody().getMessage()).isEqualTo("restaurantId is required");
+        verifyNoInteractions(queryService);
+    }
 }

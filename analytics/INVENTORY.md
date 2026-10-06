@@ -143,18 +143,18 @@ which has no Analytics listener. Kafka topic values are declared at lines 9–15
 
 ## Ordered slices
 
-1. **This task:** new framework-free analytics-domain reactor module before the
+1. **Complete (slice 1):** new framework-free analytics-domain reactor module before the
    host, 85% JaCoCo line/branch gates; relocate the pure reconciliation reducer,
    preserving input order, exception behavior and numeric results; exhaustive
    domain tests plus existing host paging/transaction integration proof.
-2. Extract immutable receipt identity/replay decisions into domain values; host
+2. **Complete (slice 2):** Extract immutable receipt identity/replay decisions into domain values; host
    maps JPA receipts. Preserve fingerprint legacy fallback, exceptions and claim
    winner handling. Add decision truth tables before changing orchestration.
-3. Separate JSON parsing from framework-free item/version/date decisions; keep
+3. **Complete (slice 2):** Separate JSON parsing from framework-free item/version/date decisions; keep
    Jackson, timestamps and exact malformed-payload errors at the adapter boundary.
-4. Extract dashboard aggregation values and mapping policies; preserve labels,
+4. **Complete (slice 2):** Extract dashboard aggregation values and mapping policies; preserve labels,
    series/status ordering, rounding and current authorization behavior.
-5. Introduce `analytics/application-api` ports/use-case contracts and
+5. **Complete (slice 2):** Introduce `analytics/application-api` ports/use-case contracts and
    `analytics/application` orchestration for ingestion, querying and reconciliation.
    Retain transaction/ACK ordering, scope reset, SQL behavior and default-off gates.
 6. Move HTTP/Kafka/JPA/Jackson/security/scheduling adapters and composition into
@@ -210,3 +210,91 @@ source is byte-identical after normalizing package/public visibility. The old
 host reducer/test are removed; the domain test retains their cases and expands
 boundary coverage. Kafka configuration, listeners, persistence and flags have
 no source edits. No git commands were run; branch/base remains parent-owned.
+
+## Slice 2 extraction (ordered slices 2–5)
+
+- `analytics/domain`: immutable `ReceiptIdentity` owns exact replay comparison;
+  `ReceiptKey` owns namespaced identity/fallback. `SnapshotDecisions` owns item
+  size, positivity, price scale, line reconciliation, name normalization, item
+  deltas and first-present timestamp selection. `OrderProjection` and
+  `PaymentProjection` own existing read/modify/save arithmetic. `DashboardValues`
+  owns typed totals, overview, monthly/quarterly/yearly mapping and statuses.
+- `analytics/application-api`: ingestion command/receipt/payload/projection ports,
+  typed dashboard query/read contracts, paged reconciliation receipt/scope ports
+  and use-case results. No JPA entities, raw SQL rows, JSON nodes, Spring, Kafka
+  or HTTP types cross the application boundary. The scope overwrite handle is
+  host-owned so reconciliation preserves the existing row identity.
+- `analytics/application`: `IngestionService` sequences claim, date resolution,
+  platform/restaurant writes and complete item parsing; exact replay returns
+  before clock/payload/projections. `DashboardService` preserves two separate
+  overview reads, query order, local default year, top-ten delivered receipts and
+  period fallback. `ReconciliationService` pages 500 receipts and scopes, resets
+  unobserved rows, then overwrites platform and restaurant reductions.
+- Host services and scheduler delegate to these contracts. The host retains
+  Spring transactions (both direct and scheduled), JPA/native upsert adapters,
+  claim conflict recovery, SHA-256, Jackson shape/number parsing and timestamp
+  syntax/errors, payment double conversion, response DTO mapping and logging.
+  Controllers, listeners, Kafka consumer configuration, flags, migrations and
+  deployment contracts retain their existing behavior and location.
+- Both new modules inherit 85% line/branch verify gates, matching domain. The
+  pre-existing host POM reports coverage without a check; it is not weakened.
+
+Additional baseline quirks characterized during this slice (preserved, not new
+regressions): any accepted receipt, including an unrelated/payment receipt,
+marks its platform/restaurant scope observed during reconciliation and can
+create zero order rows. A negative pending counter is retained by ingestion's
+`pending > 0` decrement rule. Null restaurant IDs passed directly to the query
+service retain restaurant query semantics rather than becoming platform reads.
+These have explicit domain/application/host regression cases. The absence of a
+reconciliation lock remains a concurrency limitation; date divergence and lack
+of a version ordering fence have deterministic regression evidence.
+
+Remaining work is ordered slices **6 and 7** only: adapter/composition relocation
+into infrastructure, then boot/artifact relocation with packaged runtime/schema
+and PostgreSQL recovery proof. Docker concurrency proof remains outstanding
+when Testcontainers cannot start. No git commands or plan files were used.
+
+### Slice 2 final validation
+
+`mvn -B -pl :analytics-service -am clean verify` completed with **BUILD SUCCESS**,
+exit **0**, on 2026-10-06 at 19:17:09 +07:00 (47.955 seconds). Reactor reports:
+**279 tests, 0 failures, 0 errors, 5 skips**. Domain: 60; application-api: 1;
+application: 32; host: 155 (5 skips); dependency modules: 31.
+
+JaCoCo verify gates passed without exclusions or threshold changes:
+
+| Module | Lines covered/total | Branches covered/total |
+| --- | --- | --- |
+| analytics-domain | 91/91 (100%) | 100/100 (100%) |
+| analytics-application-api | 6/6 (100%) | 0/0 (no executable branches) |
+| analytics-application | 68/68 (100%) | 39/39 (100%) |
+
+The five skips remain exactly the Docker-only
+`AnalyticsReceiptPostgresIntegrationTest` cases listed under slice 1.
+Testcontainers reported no valid Docker environment. This does not establish
+PostgreSQL concurrency or native SQL rollback proof. Existing mock claim-winner
+and native-path tests passed; all 3 new H2 `AnalyticsIngestionTransactionTest`
+cases passed (invalid second item rolls back receipt/counters; corrected same-key
+retry and exact replay apply once; restaurant write failure rolls back platform
+and receipt; payment write failure rolls back and permits corrected retry).
+Existing host paging (3 cases) and reconciliation transaction (5 cases) passed.
+
+Domain replay truth tables cover every identity field, null/present amounts,
+scale equivalence, fingerprint precedence and legacy raw-text fallback.
+Application tests cover all five ingestion operations, claim-first ordering,
+platform-before-restaurant writes, replay short circuit, complete item parsing,
+operation failures, every query period/fallback, two-read behavior, both paged
+reconciliation sources, empty days, stale scopes and failure propagation.
+Host regression tests preserve ownership/parameter-validation gaps, explicit
+my-restaurant ID, source payment precision loss, event/processing date divergence,
+and absence of aggregate-version ordering enforcement. Existing reducer tests
+continue to preserve unknown/case-mismatched event types, null type, negative
+amounts and overflow behavior. No introduced behavioral defect was found.
+
+Evidence: `/tmp/analytics-slice2-verify.log`, each module's
+`target/surefire-reports/`, and the three extracted modules'
+`target/site/jacoco/{jacoco.xml,jacoco.csv}`. Final host filesystem comparison
+against the pre-edit snapshots is at `/tmp/analytics-slice2-host.diff`.
+Filesystem inspection confirms only the assigned source/POM/inventory surfaces
+were edited; Kafka consumer configuration, listener/controller production code,
+repository SQL, migrations, flags and plan files have no edits.

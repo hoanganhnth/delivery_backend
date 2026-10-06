@@ -1,7 +1,8 @@
 package com.delivery.analytics_service.scheduler;
 
 import com.delivery.analytics.domain.OrderReconciliationAccumulator;
-import com.delivery.analytics_service.entity.AnalyticsEvent;
+import com.delivery.analytics.application.ReconciliationService;
+import com.delivery.analytics.applicationapi.ReconciliationPort;
 import com.delivery.analytics_service.entity.DailyOrderStats;
 import com.delivery.analytics_service.repository.AnalyticsEventRepository;
 import com.delivery.analytics_service.repository.DailyOrderStatsRepository;
@@ -11,17 +12,13 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * Scheduled Job — Chạy hàng đêm lúc 00:05 để chuẩn hóa dữ liệu thống kê
@@ -41,8 +38,6 @@ import java.util.Map;
 @Slf4j
 @ConditionalOnProperty(name = "app.analytics.processing-enabled", havingValue = "true")
 public class StatsReconciliationJob {
-
-    private static final int RECONCILIATION_PAGE_SIZE = 500;
 
     private final AnalyticsEventRepository eventRepo;
     private final DailyOrderStatsRepository orderStatsRepo;
@@ -70,80 +65,40 @@ public class StatsReconciliationJob {
      */
     @Transactional
     public void reconcileDate(LocalDate date) {
-        LocalDateTime startOfDay = date.atStartOfDay();
-        LocalDateTime endOfDay = date.atTime(LocalTime.MAX);
-
-        OrderReconciliationAccumulator platform = new OrderReconciliationAccumulator();
-        Map<Long, OrderReconciliationAccumulator> byRestaurant = new HashMap<>();
-        long processed = 0;
-        Pageable pageable = PageRequest.of(
-                0, RECONCILIATION_PAGE_SIZE, Sort.by(Sort.Direction.ASC, "id"));
-
-        while (true) {
-            Page<AnalyticsEvent> page = eventRepo.findByEventTimeBetween(
-                    startOfDay, endOfDay, pageable);
-            for (AnalyticsEvent event : page.getContent()) {
-                platform.accept(event.getEventType(), event.getAmount());
-                if (event.getRestaurantId() != null) {
-                    byRestaurant.computeIfAbsent(event.getRestaurantId(),
-                                    ignored -> new OrderReconciliationAccumulator())
-                            .accept(event.getEventType(), event.getAmount());
-                }
-                processed++;
+        var result = new ReconciliationService(new ReconciliationPort() {
+            public ReconciliationPort.Page<Receipt> receipts(LocalDate day,int page,int size) {
+                var rows=eventRepo.findByEventTimeBetween(day.atStartOfDay(),day.atTime(LocalTime.MAX),pageRequest(page,size));
+                return new ReconciliationPort.Page<>(rows.getContent().stream().map(e ->
+                        new Receipt(e.getEventType(),e.getRestaurantId(),e.getAmount())).toList(),rows.hasNext());
             }
-            if (!page.hasNext()) {
-                break;
+            public ReconciliationPort.Page<Scope> scopes(LocalDate day,int page,int size) {
+                var rows=orderStatsRepo.findByStatDate(day,pageRequest(page,size));
+                var scopes=rows.getContent().stream().map(row -> (Scope)new Scope() {
+                    public Long restaurantId() { return row.getRestaurantId(); }
+                    public void overwrite(OrderReconciliationAccumulator.Snapshot snapshot) {
+                        applyCounts(row,snapshot);orderStatsRepo.save(row);
+                    }
+                }).toList();
+                return new ReconciliationPort.Page<>(scopes,rows.hasNext());
             }
-            pageable = page.nextPageable();
-        }
-
-        resetUnobservedScopes(date, byRestaurant, processed > 0);
-
-        if (processed == 0) {
+            public void overwrite(LocalDate day,Long restaurantId,OrderReconciliationAccumulator.Snapshot snapshot) {
+                var row=restaurantId==null?orderStatsRepo.findByStatDateAndRestaurantIdIsNull(day)
+                        :orderStatsRepo.findByStatDateAndRestaurantId(day,restaurantId);
+                var stats=row.orElse(DailyOrderStats.builder().statDate(day).restaurantId(restaurantId).build());
+                applyCounts(stats,snapshot);orderStatsRepo.save(stats);
+            }
+        }).reconcile(date);
+        if (result.processed() == 0) {
             log.info("📊 No events found for date: {}", date);
             return;
         }
-
-        // ============ PLATFORM-WIDE STATS ============
-        DailyOrderStats platformStats = orderStatsRepo.findByStatDateAndRestaurantIdIsNull(date)
-                .orElse(DailyOrderStats.builder().statDate(date).restaurantId(null).build());
-        var platformCounts = platform.snapshot();
-        applyCounts(platformStats, platformCounts);
-        orderStatsRepo.save(platformStats);
-
-        // ============ PER-RESTAURANT STATS ============
-        for (Map.Entry<Long, OrderReconciliationAccumulator> entry : byRestaurant.entrySet()) {
-            Long restaurantId = entry.getKey();
-            DailyOrderStats rStats = orderStatsRepo.findByStatDateAndRestaurantId(date, restaurantId)
-                    .orElse(DailyOrderStats.builder().statDate(date).restaurantId(restaurantId).build());
-            applyCounts(rStats, entry.getValue().snapshot());
-            orderStatsRepo.save(rStats);
-        }
-
+        var platformCounts = result.platform();
         log.info("📊 Reconciled {} events for date {} → Platform: {} orders, {} delivered, {} revenue | {} restaurants processed",
-                processed, date, platformCounts.created(), platformCounts.delivered(),
-                platformCounts.revenue(), byRestaurant.size());
+                result.processed(), date, platformCounts.created(), platformCounts.delivered(),
+                platformCounts.revenue(), result.restaurants());
     }
-
-    private void resetUnobservedScopes(LocalDate date,
-                                       Map<Long, OrderReconciliationAccumulator> observedRestaurants,
-                                       boolean hasPlatformEvents) {
-        var zero = new OrderReconciliationAccumulator().snapshot();
-        Pageable pageable = PageRequest.of(0, RECONCILIATION_PAGE_SIZE,
-                Sort.by(Sort.Direction.ASC, "id"));
-        while (true) {
-            Page<DailyOrderStats> page = orderStatsRepo.findByStatDate(date, pageable);
-            for (DailyOrderStats row : page.getContent()) {
-                boolean observed = row.getRestaurantId() == null
-                        ? hasPlatformEvents : observedRestaurants.containsKey(row.getRestaurantId());
-                if (!observed) {
-                    applyCounts(row, zero);
-                    orderStatsRepo.save(row);
-                }
-            }
-            if (!page.hasNext()) return;
-            pageable = page.nextPageable();
-        }
+    private Pageable pageRequest(int page,int size) {
+        return PageRequest.of(page,size,Sort.by(Sort.Direction.ASC,"id"));
     }
 
     private void applyCounts(DailyOrderStats stats, OrderReconciliationAccumulator.Snapshot counts) {
