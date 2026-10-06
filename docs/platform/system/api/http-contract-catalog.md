@@ -5,7 +5,7 @@
 > or JSON Schema. Read [API Contract Guide](README.md) for edge classification,
 > error semantics and compatibility rules.
 
-Current inventory: **244 operations** across **18 controller-owning services** and **229 reachable source schemas**.
+Current inventory: **244 operations** across **18 controller-owning services** and **220 reachable source schemas**.
 
 ## Service index
 
@@ -4229,7 +4229,7 @@ public ResponseEntity<BaseResponse<ShipperResponse>> updateOnlineStatus( @Reques
 ### `GET` `/api/simulator/runs`
 
 - Handler: `SimulatorController.list`
-- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java:69`](../../../../simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java)
+- Source: [`backend_delivery/simulator/infrastructure/src/main/java/com/delivery/simulator/controller/SimulatorController.java:69`](../../../../simulator/infrastructure/src/main/java/com/delivery/simulator/controller/SimulatorController.java)
 - Java return type: `List<Map<String, Object>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -4249,7 +4249,7 @@ public List<Map<String, Object>> list(@RequestHeader(value = "X-Simulator-Token"
 ### `POST` `/api/simulator/runs`
 
 - Handler: `SimulatorController.start`
-- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java:53`](../../../../simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java)
+- Source: [`backend_delivery/simulator/infrastructure/src/main/java/com/delivery/simulator/controller/SimulatorController.java:53`](../../../../simulator/infrastructure/src/main/java/com/delivery/simulator/controller/SimulatorController.java)
 - Java return type: `ResponseEntity<Map<String, Object>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -4270,7 +4270,7 @@ public ResponseEntity<Map<String, Object>> start(@RequestHeader(value = "X-Simul
 ### `DELETE` `/api/simulator/runs/{runId}`
 
 - Handler: `SimulatorController.cleanup`
-- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java:136`](../../../../simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java)
+- Source: [`backend_delivery/simulator/infrastructure/src/main/java/com/delivery/simulator/controller/SimulatorController.java:136`](../../../../simulator/infrastructure/src/main/java/com/delivery/simulator/controller/SimulatorController.java)
 - Java return type: `Map<String, Object>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -4291,7 +4291,7 @@ public Map<String, Object> cleanup(@RequestHeader(value = "X-Simulator-Token", r
 ### `GET` `/api/simulator/runs/{runId}`
 
 - Handler: `SimulatorController.get`
-- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java:61`](../../../../simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java)
+- Source: [`backend_delivery/simulator/infrastructure/src/main/java/com/delivery/simulator/controller/SimulatorController.java:61`](../../../../simulator/infrastructure/src/main/java/com/delivery/simulator/controller/SimulatorController.java)
 - Java return type: `Map<String, Object>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -4312,7 +4312,7 @@ public Map<String, Object> get(@RequestHeader(value = "X-Simulator-Token", requi
 ### `POST` `/api/simulator/runs/{runId}/abort`
 
 - Handler: `SimulatorController.abort`
-- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java:118`](../../../../simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java)
+- Source: [`backend_delivery/simulator/infrastructure/src/main/java/com/delivery/simulator/controller/SimulatorController.java:118`](../../../../simulator/infrastructure/src/main/java/com/delivery/simulator/controller/SimulatorController.java)
 - Java return type: `Map<String, Object>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -4333,7 +4333,7 @@ public Map<String, Object> abort(@RequestHeader(value = "X-Simulator-Token", req
 ### `GET` `/api/simulator/runs/{runId}/algorithm-traces`
 
 - Handler: `SimulatorController.traces`
-- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java:76`](../../../../simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java)
+- Source: [`backend_delivery/simulator/infrastructure/src/main/java/com/delivery/simulator/controller/SimulatorController.java:76`](../../../../simulator/infrastructure/src/main/java/com/delivery/simulator/controller/SimulatorController.java)
 - Java return type: `Object`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -4354,7 +4354,7 @@ public Object traces(@RequestHeader(value = "X-Simulator-Token", required = fals
 ### `GET` `/api/simulator/runs/{runId}/journal`
 
 - Handler: `SimulatorController.journal`
-- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java:84`](../../../../simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java)
+- Source: [`backend_delivery/simulator/infrastructure/src/main/java/com/delivery/simulator/controller/SimulatorController.java:84`](../../../../simulator/infrastructure/src/main/java/com/delivery/simulator/controller/SimulatorController.java)
 - Java return type: `List<Map<String, Object>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -4375,7 +4375,7 @@ public List<Map<String, Object>> journal(@RequestHeader(value = "X-Simulator-Tok
 ### `POST` `/api/simulator/runs/{runId}/pause`
 
 - Handler: `SimulatorController.pause`
-- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java:102`](../../../../simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java)
+- Source: [`backend_delivery/simulator/infrastructure/src/main/java/com/delivery/simulator/controller/SimulatorController.java:102`](../../../../simulator/infrastructure/src/main/java/com/delivery/simulator/controller/SimulatorController.java)
 - Java return type: `Map<String, Object>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -4396,7 +4396,7 @@ public Map<String, Object> pause(@RequestHeader(value = "X-Simulator-Token", req
 ### `POST` `/api/simulator/runs/{runId}/reconcile`
 
 - Handler: `SimulatorController.reconcile`
-- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java:127`](../../../../simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java)
+- Source: [`backend_delivery/simulator/infrastructure/src/main/java/com/delivery/simulator/controller/SimulatorController.java:127`](../../../../simulator/infrastructure/src/main/java/com/delivery/simulator/controller/SimulatorController.java)
 - Java return type: `SimulationRecoveryService.RecoveryResult`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -4417,7 +4417,7 @@ public SimulationRecoveryService.RecoveryResult reconcile( @RequestHeader(value 
 ### `POST` `/api/simulator/runs/{runId}/resume`
 
 - Handler: `SimulatorController.resume`
-- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java:110`](../../../../simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java)
+- Source: [`backend_delivery/simulator/infrastructure/src/main/java/com/delivery/simulator/controller/SimulatorController.java:110`](../../../../simulator/infrastructure/src/main/java/com/delivery/simulator/controller/SimulatorController.java)
 - Java return type: `Map<String, Object>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -4438,7 +4438,7 @@ public Map<String, Object> resume(@RequestHeader(value = "X-Simulator-Token", re
 ### `GET` `/api/simulator/runs/{runId}/stream`
 
 - Handler: `SimulatorController.stream`
-- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java:92`](../../../../simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java)
+- Source: [`backend_delivery/simulator/infrastructure/src/main/java/com/delivery/simulator/controller/SimulatorController.java:92`](../../../../simulator/infrastructure/src/main/java/com/delivery/simulator/controller/SimulatorController.java)
 - Java return type: `SseEmitter`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -4459,7 +4459,7 @@ public SseEmitter stream(@RequestHeader(value = "X-Simulator-Token", required = 
 ### `POST` `/api/simulator/validate`
 
 - Handler: `SimulatorController.validate`
-- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java:45`](../../../../simulator-service/src/main/java/com/delivery/simulator/controller/SimulatorController.java)
+- Source: [`backend_delivery/simulator/infrastructure/src/main/java/com/delivery/simulator/controller/SimulatorController.java:45`](../../../../simulator/infrastructure/src/main/java/com/delivery/simulator/controller/SimulatorController.java)
 - Java return type: `Map<String, Object>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -8358,169 +8358,14 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 | totalPages | int | not declared required | — |
 | hasNext | boolean | not declared required | — |
 
-### `com.delivery.simulator.config.SimulatorProperties`
-
-- Kind: `class`
-- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/config/SimulatorProperties.java:9`](../../../../simulator-service/src/main/java/com/delivery/simulator/config/SimulatorProperties.java)
-
-| Field | Java type | Required | Validation/annotations |
-| --- | --- | --- | --- |
-| enabled | boolean | not declared required | — |
-| adminOnly | boolean | not declared required | — |
-| apiToken | String | not declared required | — |
-| gatewayBaseUrl | String | not declared required | — |
-| authBaseUrl | String | not declared required | — |
-| deliveryBaseUrl | String | not declared required | — |
-| internalSecret | String | not declared required | — |
-| managedActorPoolRequired | boolean | not declared required | — |
-| allowNonLocalTargets | boolean | not declared required | — |
-| pollIntervalMillis | int | not declared required | — |
-| humanOrderTimeoutSeconds | int | not declared required | — |
-| runTimeoutSeconds | int | not declared required | — |
-| maxShippers | int | not declared required | — |
-| maxOrdersPerRun | int | not declared required | — |
-| maxConcurrentRuns | int | not declared required | — |
-| movementTickSeconds | int | not declared required | — |
-| kafkaObserverEnabled | boolean | not declared required | — |
-| ledgerObserverEnabled | boolean | not declared required | — |
-| kafkaDecisionTraceTopic | String | not declared required | — |
-| kafkaObserverGroupId | String | not declared required | — |
-
-### `com.delivery.simulator.repository.SimulationActorLeaseRepository`
-
-- Kind: `interface`
-- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/repository/SimulationActorLeaseRepository.java:11`](../../../../simulator-service/src/main/java/com/delivery/simulator/repository/SimulationActorLeaseRepository.java)
-
-| Field | Java type | Required | Validation/annotations |
-| --- | --- | --- | --- |
-| — | No source-declared fields | — | — |
-
-### `com.delivery.simulator.repository.SimulationRunJournalRepository`
-
-- Kind: `interface`
-- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/repository/SimulationRunJournalRepository.java:7`](../../../../simulator-service/src/main/java/com/delivery/simulator/repository/SimulationRunJournalRepository.java)
-
-| Field | Java type | Required | Validation/annotations |
-| --- | --- | --- | --- |
-| — | No source-declared fields | — | — |
-
-### `com.delivery.simulator.repository.SimulationRunRepository`
-
-- Kind: `interface`
-- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/repository/SimulationRunRepository.java:9`](../../../../simulator-service/src/main/java/com/delivery/simulator/repository/SimulationRunRepository.java)
-
-| Field | Java type | Required | Validation/annotations |
-| --- | --- | --- | --- |
-| — | No source-declared fields | — | — |
-
-### `com.delivery.simulator.service.GatewayClient`
-
-- Kind: `class`
-- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/service/GatewayClient.java:23`](../../../../simulator-service/src/main/java/com/delivery/simulator/service/GatewayClient.java)
-
-| Field | Java type | Required | Validation/annotations |
-| --- | --- | --- | --- |
-| httpClient | HttpClient | not declared required | — |
-| objectMapper | ObjectMapper | not declared required | — |
-| properties | SimulatorProperties | not declared required | — |
-| faultInjection | GatewayFaultInjection | not declared required | — |
-
-#### `com.delivery.simulator.service.GatewayClient.GatewayException`
-
-- Kind: `class`
-- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/service/GatewayClient.java:118`](../../../../simulator-service/src/main/java/com/delivery/simulator/service/GatewayClient.java)
-
-| Field | Java type | Required | Validation/annotations |
-| --- | --- | --- | --- |
-| status | int | not declared required | — |
-| operation | String | not declared required | — |
-
-### `com.delivery.simulator.service.GatewayFaultInjection`
-
-- Kind: `class`
-- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/service/GatewayFaultInjection.java:13`](../../../../simulator-service/src/main/java/com/delivery/simulator/service/GatewayFaultInjection.java)
-
-| Field | Java type | Required | Validation/annotations |
-| --- | --- | --- | --- |
-| — | No source-declared fields | — | — |
-
-### `com.delivery.simulator.service.SimulationActorPoolClient`
-
-- Kind: `interface`
-- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/service/SimulationActorPoolClient.java:7`](../../../../simulator-service/src/main/java/com/delivery/simulator/service/SimulationActorPoolClient.java)
-
-| Field | Java type | Required | Validation/annotations |
-| --- | --- | --- | --- |
-| — | No source-declared fields | — | — |
-
-#### `com.delivery.simulator.service.SimulationActorPoolClient.BoundActor`
-
-- Kind: `record`
-- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/service/SimulationActorPoolClient.java:12`](../../../../simulator-service/src/main/java/com/delivery/simulator/service/SimulationActorPoolClient.java)
-
-| Field | Java type | Required | Validation/annotations |
-| --- | --- | --- | --- |
-| principalId | Long | not declared required | — |
-| context | SimulationContext | not declared required | — |
-| accessToken | String | not declared required | — |
-
-### `com.delivery.simulator.service.SimulationDeliveryRecoveryClient`
-
-- Kind: `interface`
-- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/service/SimulationDeliveryRecoveryClient.java:7`](../../../../simulator-service/src/main/java/com/delivery/simulator/service/SimulationDeliveryRecoveryClient.java)
-
-| Field | Java type | Required | Validation/annotations |
-| --- | --- | --- | --- |
-| — | No source-declared fields | — | — |
-
-#### `com.delivery.simulator.service.SimulationDeliveryRecoveryClient.DeliveryStatus`
-
-- Kind: `record`
-- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/service/SimulationDeliveryRecoveryClient.java:10`](../../../../simulator-service/src/main/java/com/delivery/simulator/service/SimulationDeliveryRecoveryClient.java)
-
-| Field | Java type | Required | Validation/annotations |
-| --- | --- | --- | --- |
-| deliveryId | Long | not declared required | — |
-| orderId | Long | not declared required | — |
-| status | String | not declared required | — |
-
-### `com.delivery.simulator.service.SimulationLeaseService`
-
-- Kind: `class`
-- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/service/SimulationLeaseService.java:13`](../../../../simulator-service/src/main/java/com/delivery/simulator/service/SimulationLeaseService.java)
-
-| Field | Java type | Required | Validation/annotations |
-| --- | --- | --- | --- |
-| leases | SimulationActorLeaseRepository | not declared required | — |
-| ttlSeconds | long | not declared required | — |
-
 ### `com.delivery.simulator.service.SimulationRecoveryService`
 
 - Kind: `class`
-- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/service/SimulationRecoveryService.java:26`](../../../../simulator-service/src/main/java/com/delivery/simulator/service/SimulationRecoveryService.java)
+- Source: [`backend_delivery/simulator/infrastructure/src/main/java/com/delivery/simulator/service/SimulationRecoveryService.java:10`](../../../../simulator/infrastructure/src/main/java/com/delivery/simulator/service/SimulationRecoveryService.java)
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
-| mapper | ObjectMapper | not declared required | — |
-| runs | SimulationRunRepository | not declared required | — |
-| journal | SimulationRunJournalRepository | not declared required | — |
-| gateway | GatewayClient | not declared required | — |
-| actors | SimulationActorPoolClient | not declared required | — |
-| leases | SimulationLeaseService | not declared required | — |
-| deliveryRecovery | SimulationDeliveryRecoveryClient | not declared required | — |
-
-#### `com.delivery.simulator.service.SimulationRecoveryService.RecoveryResult`
-
-- Kind: `record`
-- Source: [`backend_delivery/simulator-service/src/main/java/com/delivery/simulator/service/SimulationRecoveryService.java:171`](../../../../simulator-service/src/main/java/com/delivery/simulator/service/SimulationRecoveryService.java)
-
-| Field | Java type | Required | Validation/annotations |
-| --- | --- | --- | --- |
-| runId | UUID | not declared required | — |
-| reconciled | boolean | not declared required | — |
-| deliveryIds | List<Long> | not declared required | — |
-| deliveryStatuses | Map<Long, String> | not declared required | — |
-| releasedActors | int | not declared required | — |
+| — | No source-declared fields | — | — |
 
 ### `com.delivery.tracking_service.dto.request.UpdateLocationRequest`
 

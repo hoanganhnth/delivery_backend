@@ -220,3 +220,31 @@ test('Livestream relocation preserves its artifact, adapters and migration layou
     'V4__livestream_checkout_receipts.java',
   ]);
 });
+
+test('Simulator relocation preserves identity, adapters and Java migration ownership', () => {
+  const root = path.resolve(import.meta.dirname, '../../../..');
+  assert.equal(fs.existsSync(path.join(root, 'simulator-service')), false);
+  assert.deepEqual(serviceSourceRoots(root)
+    .filter(({ service }) => service === 'simulator-service')
+    .map(({ directory }) => path.relative(root, directory)).sort(), [
+    'simulator/boot/src/main/java',
+    'simulator/infrastructure/src/main/java',
+  ]);
+  const controller = path.join(root,
+    'simulator/infrastructure/src/main/java/com/delivery/simulator/controller/SimulatorController.java');
+  assert.equal(fs.existsSync(controller), true);
+  assert.equal(serviceForSource(root, controller), 'simulator-service');
+  assert.deepEqual(fs.readdirSync(path.join(root,
+    'simulator/boot/src/main/java/com/delivery/simulator')), ['SimulatorServiceApplication.java']);
+  assert.deepEqual(fs.readdirSync(path.join(root, 'simulator/boot/src/main/resources')),
+    ['application.properties']);
+  assert.deepEqual(fs.readdirSync(path.join(root,
+    'simulator/infrastructure/src/main/java/db/migration')).sort(), [
+    'V1__simulation_runs.java',
+    'V2__simulation_run_journal.java',
+  ]);
+  assert.equal(fs.existsSync(path.join(root, 'simulator/boot/src/main/java/db')), false);
+  const modules = fs.readFileSync(path.join(root, 'pom.xml'), 'utf8');
+  assert.ok(modules.indexOf('<module>simulator/infrastructure</module>')
+    < modules.indexOf('<module>simulator/boot</module>'));
+});

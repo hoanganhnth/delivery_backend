@@ -95,7 +95,11 @@
         <module>promotion/application</module>
         <module>promotion/infrastructure</module>
         <module>promotion/boot</module>
-        <module>simulator-service</module>
+        <module>simulator/domain</module>
+        <module>simulator/application-api</module>
+        <module>simulator/application</module>
+        <module>simulator/infrastructure</module>
+        <module>simulator/boot</module>
     </modules>
 
     <build>

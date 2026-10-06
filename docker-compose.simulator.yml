@@ -1,7 +1,7 @@
 # Dev/test-only overlay. Never include this file in a production Compose project.
 services:
   simulator-service:
-    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: simulator-service } }
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: simulator/boot } }
     container_name: delivery-simulator-service
     ports: ["${SIMULATOR_HOST_PORT:-8100}:8100"]
     expose: ["9100"]
