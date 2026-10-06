@@ -311,7 +311,7 @@ services:
     networks: [delivery-network]
 
   order-service:
-    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: order-service } }
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE_PATH: order/boot } }
     container_name: order-service
     expose: ["8084", "9090"]
     environment:

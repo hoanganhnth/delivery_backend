@@ -54,7 +54,11 @@
         <module>web-bff</module>
         <module>delivery-service</module>
         <module>notification-service</module>
-        <module>order-service</module>
+        <module>order/domain</module>
+        <module>order/application-api</module>
+        <module>order/application</module>
+        <module>order/infrastructure</module>
+        <module>order/boot</module>
         <module>restaurant/boot</module>
         <module>shipper</module>
         <module>search-service</module>
