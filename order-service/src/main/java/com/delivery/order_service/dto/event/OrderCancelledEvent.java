@@ -1,5 +1,7 @@
 package com.delivery.order_service.dto.event;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.JsonNode;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -16,6 +18,15 @@ import java.util.UUID;
 @AllArgsConstructor
 public class OrderCancelledEvent {
     private Integer schemaVersion = 2;
+
+    // Filled by the transactional outbox, then retained during relay rehydration.
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private String eventId;
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private String eventType;
+    // Preserve the stored JSON representation rather than reformatting time.
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private JsonNode occurredAt;
     
     // Order basic info
     private Long orderId;
