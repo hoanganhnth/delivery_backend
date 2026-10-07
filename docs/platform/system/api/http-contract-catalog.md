@@ -3857,11 +3857,11 @@ public ResponseEntity<BaseResponse<PaymentOrderResponse>> fakeConfirm( @PathVari
 
 - Handler: `PaymentController.getPaymentStatus`
 - Source: [`backend_delivery/settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/PaymentController.java:111`](../../../../settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/PaymentController.java)
-- Java return type: `ic ResponseEntity<BaseResponse<PaymentOrderResponse>`
+- Java return type: `ResponseEntity<BaseResponse<PaymentOrderResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
 | --- | --- | --- | --- | --- | --- |
-| path | payment | s( Long | declared required | — | @PathVariable |
+| path | paymentId | Long | declared required | — | @PathVariable |
 
 <details>
 <summary>Java signature for getPaymentStatus</summary>
@@ -3896,7 +3896,7 @@ public ResponseEntity<BaseResponse<PaymentOrderResponse>> createPayment( @Valid 
 
 - Handler: `PaymentController.getAvailableProviders`
 - Source: [`backend_delivery/settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/PaymentController.java:133`](../../../../settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/PaymentController.java)
-- Java return type: `ic ResponseEntity<BaseResponse<Set<String>>`
+- Java return type: `ResponseEntity<BaseResponse<Set<String>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
 | --- | --- | --- | --- | --- | --- |
@@ -3915,11 +3915,11 @@ public ResponseEntity<BaseResponse<Set<String>>> getAvailableProviders()
 
 - Handler: `PaymentController.getPaymentByRef`
 - Source: [`backend_delivery/settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/PaymentController.java:122`](../../../../settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/PaymentController.java)
-- Java return type: `ic ResponseEntity<BaseResponse<PaymentOrderResponse>`
+- Java return type: `ResponseEntity<BaseResponse<PaymentOrderResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
 | --- | --- | --- | --- | --- | --- |
-| path | paymentR | f( String | declared required | — | @PathVariable |
+| path | paymentRef | String | declared required | — | @PathVariable |
 
 <details>
 <summary>Java signature for getPaymentByRef</summary>
@@ -3973,11 +3973,11 @@ public ResponseEntity<BaseResponse<PaymentOrderResponse>> vnpayCallback( @Reques
 
 - Handler: `PaymentController.vnpayIpn`
 - Source: [`backend_delivery/settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/PaymentController.java:84`](../../../../settlement/infrastructure/src/main/java/com/delivery/settlement_service/controller/PaymentController.java)
-- Java return type: `c ResponseEntity<Map<String, String>>`
+- Java return type: `ResponseEntity<Map<String, String>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
 | --- | --- | --- | --- | --- | --- |
-| query | param | ( Map<String, String> | declared required | — | @RequestParam |
+| query | params | Map<String, String> | declared required | — | @RequestParam |
 
 <details>
 <summary>Java signature for vnpayIpn</summary>
@@ -5318,6 +5318,9 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 | orderId | Long | declared required | @NotNull(message = "orderId is required"), @Positive(message = "orderId must be positive") |
 | action | String | declared required | @NotNull(message = "action is required"), @Pattern(regexp = "ACCEPT\|REJECT", message = "action must be ACCEPT or REJECT") |
 | notes | String | not declared required | @Size(max = 500) |
+| rejectReason | String | not declared required | @Size(max = 500) |
+| estimatedPickupTime | Double | not declared required | @DecimalMin(value = "0.0", inclusive = false), @DecimalMax("240.0") |
+| currentLat | Double | not declared required | @DecimalMin("8.0"), @DecimalMax("24.0") |
 | currentLng | Double | not declared required | @DecimalMin("102.0"), @DecimalMax("110.0") |
 
 ### `com.delivery.delivery_service.dto.request.CancelDeliveryAssignmentRequest`
@@ -5337,7 +5340,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 
 | Field | Java type | Required | Validation/annotations |
 | --- | --- | --- | --- |
-| message | ", | declared required | @NotBlank(message = "contentType is required"), @Pattern(regexp = "image/(jpeg\|png\|webp) |
+| contentType | String | declared required | @NotBlank(message = "contentType is required"), @Pattern(regexp = "image/(jpeg\|png\|webp)", message = "contentType must be image/jpeg, image/png or image/webp") |
 | contentLengthBytes | long | not declared required | @Min(value = 1, message = "contentLengthBytes must be positive"), @Max(value = 10 * 1024 * 1024, message = "proof image must be at most 10 MB") |
 
 ### `com.delivery.delivery_service.dto.request.RejectBatchRequest`
@@ -5478,11 +5481,16 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 | createdAt | LocalDateTime | not declared required | — |
 | updatedAt | LocalDateTime | not declared required | — |
 | shippingFee | BigDecimal | not declared required | — |
+| grossShippingFee | BigDecimal | not declared required | — |
 | customerShippingFee | BigDecimal | not declared required | — |
 | platformSubsidy | BigDecimal | not declared required | — |
 | shopDiscount | BigDecimal | not declared required | — |
 | promotionReservationId | UUID | not declared required | — |
 | estimatedEarnings | BigDecimal | not declared required | — |
+| platformCommission | BigDecimal | not declared required | — |
+| totalPrice | BigDecimal | not declared required | — |
+| paymentMethod | String | not declared required | — |
+| restaurantId | Long | not declared required | — |
 
 ### `com.delivery.delivery_service.dto.response.ProofAccessResponse`
 
@@ -6214,6 +6222,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 | latitude | double | not declared required | — |
 | longitude | double | not declared required | — |
 | radiusKm | double | not declared required | — |
+| maxShippers | int | not declared required | — |
 
 ### `com.delivery.match_service.dto.response.NearbyShipperResponse`
 
@@ -6447,6 +6456,9 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 | serviceabilityZoneRevision | Long | not declared required | — |
 | items | List<PreviewItemDetail> | not declared required | — |
 | subtotal | BigDecimal | not declared required | — |
+| shippingFee | BigDecimal | not declared required | — |
+| discountAmount | BigDecimal | not declared required | — |
+| totalPrice | BigDecimal | not declared required | — |
 | itemDiscount | BigDecimal | not declared required | — |
 | shippingDiscount | BigDecimal | not declared required | — |
 | customerShippingFee | BigDecimal | not declared required | — |
@@ -6454,6 +6466,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 | platformSubsidy | BigDecimal | not declared required | — |
 | shopDiscount | BigDecimal | not declared required | — |
 | couponCode | String | not declared required | — |
+| couponMessage | String | not declared required | — |
 | voucherId | Long | not declared required | — |
 | selectedVoucherIds | List<Long> | not declared required | — |
 | selectionMode | String | not declared required | — |
@@ -6499,6 +6512,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 | menuItemId | Long | not declared required | — |
 | menuItemName | String | not declared required | — |
 | oldPrice | BigDecimal | not declared required | — |
+| newPrice | BigDecimal | not declared required | — |
 
 ### `com.delivery.order_service.dto.response.CheckoutPreviewResponse.AppliedVoucherInfo`
 
@@ -6538,6 +6552,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 | menuItemId | Long | not declared required | — |
 | menuItemName | String | not declared required | — |
 | oldPrice | BigDecimal | not declared required | — |
+| newPrice | BigDecimal | not declared required | — |
 
 ### `com.delivery.order_service.dto.response.OrderItemResponse`
 
@@ -6594,6 +6609,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 | createdAt | LocalDateTime | not declared required | — |
 | updatedAt | LocalDateTime | not declared required | — |
 | creatorId | Long | not declared required | — |
+| cancelReason | String | not declared required | — |
 | items | List<OrderItemResponse> | not declared required | — |
 
 #### `com.delivery.order_service.dto.response.OrderResponse.PromotionBreakdown`
@@ -8060,8 +8076,12 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 | --- | --- | --- | --- |
 | entityId | Long | declared required | @NotNull(message = "Entity ID is required") |
 | orderId | Long | not declared required | — |
+| entityType | String | not declared required | — |
 | amount | BigDecimal | declared required | @NotNull(message = "Amount is required"), @DecimalMin(value = "10000", message = "Minimum payment is 10,000 VND") |
 | provider | String | not declared required | — |
+| purpose | String | not declared required | — |
+| returnUrl | String | not declared required | — |
+| ipAddress | String | not declared required | — |
 
 ### `com.delivery.settlement_service.dto.request.HoldBalanceRequest`
 
@@ -8107,6 +8127,7 @@ public SessionView refresh( @CookieValue(name = COOKIE, required = false) String
 | pendingBalance | BigDecimal | not declared required | — |
 | holdingBalance | BigDecimal | not declared required | — |
 | depositBalance | BigDecimal | not declared required | — |
+| reservedDepositBalance | BigDecimal | not declared required | — |
 | totalDeposited | BigDecimal | not declared required | — |
 | totalCodCollected | BigDecimal | not declared required | — |
 | createdAt | LocalDateTime | not declared required | — |

@@ -86,7 +86,8 @@ function readInventory() {
 }
 
 function stripCommentsAndStrings(source) {
-  const characters = [...source];
+  // Keep UTF-16 offsets aligned with source.slice(), including after emoji.
+  const characters = source.split('');
   let state = 'normal';
   for (let index = 0; index < characters.length; index += 1) {
     const current = characters[index];
@@ -196,19 +197,42 @@ function splitTopLevel(value, separator = ',') {
   return parts;
 }
 
-function annotationMetadata(raw) {
-  const annotations = [];
-  const matcher = /@([A-Za-z_$][\w.$]*)(?:\s*\(([^)]*)\))?/g;
-  for (const match of raw.matchAll(matcher)) {
-    annotations.push({ name: match[1].split('.').pop(), arguments: normalizeWhitespace(match[2] ?? '') || undefined });
+function annotationRanges(raw) {
+  const masked = stripCommentsAndStrings(raw);
+  const ranges = [];
+  const matcher = /@([A-Za-z_$][\w.$]*)\s*/g;
+  let match;
+  while ((match = matcher.exec(masked))) {
+    const open = matcher.lastIndex;
+    const close = masked[open] === '(' ? matchingIndex(masked, open) : null;
+    const end = close === null ? open : close + 1;
+    ranges.push({ start: match.index, end, name: match[1], arguments: close === null ? '' : raw.slice(open + 1, close) });
+    matcher.lastIndex = end;
   }
-  return annotations;
+  return ranges;
+}
+
+function annotationMetadata(raw) {
+  return annotationRanges(raw).map((annotation) => ({
+    name: annotation.name.split('.').pop(),
+    arguments: normalizeWhitespace(annotation.arguments) || undefined,
+  }));
+}
+
+function removeAnnotations(raw) {
+  let result = '';
+  let offset = 0;
+  for (const annotation of annotationRanges(raw)) {
+    result += `${raw.slice(offset, annotation.start)} `;
+    offset = annotation.end;
+  }
+  return result + raw.slice(offset);
 }
 
 function fieldMetadata(raw, source, offset) {
   const sourceWithoutComments = raw.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\/\/[^\r\n]*/g, ' ');
   const annotations = annotationMetadata(sourceWithoutComments);
-  let remainder = sourceWithoutComments.replace(/@[A-Za-z_$][\w.$]*(?:\s*\([^)]*\))?/g, ' ')
+  let remainder = removeAnnotations(sourceWithoutComments)
     .replace(/\b(?:public|protected|private|static|final|transient|volatile)\b/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
@@ -389,8 +413,10 @@ function schemaFields(definition) {
     if (character !== ';' || nestedDepth !== 0) continue;
     const statement = source.slice(statementStart, index + 1);
     statementStart = index + 1;
-    const statementWithoutAnnotations = statement.replace(/@[A-Za-z_$][\w.$]*(?:\s*\([^)]*\))?/g, ' ');
-    if (/\bstatic\b/.test(statement) || statementWithoutAnnotations.includes('(')) continue;
+    // Classify syntax using the masked source: prose and string literals may
+    // contain parentheses or "static" without making this a method/static field.
+    const statementWithoutAnnotations = removeAnnotations(stripped.slice(index + 1 - statement.length, index + 1));
+    if (/\bstatic\b/.test(statementWithoutAnnotations) || statementWithoutAnnotations.includes('(')) continue;
     const field = fieldMetadata(statement, source, Math.max(open + 1, statementStart - statement.length - 1));
     if (field) {
       fields.push(field);
