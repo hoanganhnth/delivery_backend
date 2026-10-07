@@ -36,6 +36,68 @@ class AuthControllerAdminBoundaryTest {
     }
 
     @Test
+    void fallbackAdminAuthoritiesAndIdentityResolveWithoutTrustingRequestAdminId() {
+        for (String authority : List.of("ADMIN", "ROLE_ADMIN")) {
+            SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
+                    "42", "unused", List.of(new SimpleGrantedAuthority(authority))));
+            assertThat(controller.blockAccount(7L, null).getStatusCode().value()).isEqualTo(200);
+            assertThat(controller.unblockAccount(7L).getStatusCode().value()).isEqualTo(200);
+        }
+        verify(lifecycle, org.mockito.Mockito.times(2)).block(7L, 42L, "Blocked by admin");
+        verify(lifecycle, org.mockito.Mockito.times(2)).unblock(7L, 42L);
+    }
+
+    @Test
+    void adminWithoutResolvableIdentityCannotMutateAccount() {
+        for (String name : List.of("", " ", "unknown@example.com")) {
+            SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
+                    name, "unused", List.of(new SimpleGrantedAuthority("ADMIN"))));
+            assertThat(controller.blockAccount(7L, null).getBody().getMessage()).isEqualTo("Admin ID is required");
+            assertThat(controller.unblockAccount(7L).getStatusCode().value()).isEqualTo(400);
+        }
+        org.mockito.Mockito.verifyNoInteractions(lifecycle);
+    }
+
+    @Test
+    void actorEmailFallbackAndReasonBoundaryReachLifecycle() {
+        var actor = new AuthenticatedActor(null, "admin@example.com", Set.of("ADMIN"));
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(actor, "unused"));
+        when(accounts.byEmail("admin@example.com")).thenReturn(Optional.of(
+                new com.delivery.auth.application.api.AccountSnapshot(42L, 70L, "admin@example.com",
+                        com.delivery.auth.domain.model.AuthAccount.Role.ADMIN,
+                        com.delivery.auth.domain.model.AuthAccount.LifecycleStatus.ACTIVE, true, false, null)));
+        assertThat(controller.blockAccount(7L, new BlockAccountRequest(null)).getStatusCode().value()).isEqualTo(200);
+        assertThat(controller.blockAccount(7L, new BlockAccountRequest("x".repeat(500))).getStatusCode().value()).isEqualTo(200);
+        verify(lifecycle).block(7L, 42L, "Blocked by admin");
+        verify(lifecycle).block(7L, 42L, "x".repeat(500));
+    }
+
+    @Test
+    void sessionRevocationRejectsAbsentAndBlankAuthentication() {
+        assertThat(controller.revokeDeviceSession("device").getStatusCode().value()).isEqualTo(401);
+        for (String name : List.of("", " ")) {
+            SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(name, "unused"));
+            assertThat(controller.getSessions().getStatusCode().value()).isEqualTo(401);
+            assertThat(controller.revokeDeviceSession("device").getBody().getMessage()).isEqualTo("Unauthorized");
+        }
+        org.mockito.Mockito.verifyNoInteractions(deviceSessions);
+    }
+
+    @Test
+    void sessionMappingPreservesNullableDeviceTypeAndRevocationOwner() {
+        setSecurityContext("user@example.com", "ROLE_USER", 10L);
+        when(deviceSessions.activeSessions("user@example.com")).thenReturn(List.of(
+                new com.delivery.auth.domain.model.Session(1L, 10L, "unknown", "old device", null, "ip", "family", true, null, null, null),
+                new com.delivery.auth.domain.model.Session(2L, 10L, "web", "browser", com.delivery.auth.domain.model.Session.DeviceType.WEB, "ip", "family", true, null, null, null)));
+        var response = controller.getSessions();
+        assertThat(response.getStatusCode().value()).isEqualTo(200);
+        assertThat(response.getBody().getData()).extracting(com.delivery.auth_service.dto.SessionInfoResponse::getDeviceType)
+                .containsExactly(null, "web");
+        assertThat(controller.revokeDeviceSession("web").getStatusCode().value()).isEqualTo(200);
+        verify(deviceSessions).revokeDevice("user@example.com", "web");
+    }
+
+    @Test
     void accountReadRequiresAdminRoleBeforeServiceCall() {
         setSecurityContext("user@example.com", "ROLE_USER", 10L);
 

@@ -151,4 +151,72 @@ class UserControllerInternalAuthorizationTest {
                 response.getDob(), response.getAvatarUrl(), response.getAddress(), true, false,
                 null, null, null, response.getCreatedAt(), response.getUpdatedAt());
     }
+
+    @Test
+    void internalOperationsFailClosedWhenSecretIsAbsentOrBlank() {
+        for (String secret : new String[] {null, "", " "}) {
+            ReflectionTestUtils.setField(controller, "internalSecret", secret);
+            var response = controller.getUserByAuthId(9L, "service-secret");
+            assertThat(response.getStatusCode().value()).isEqualTo(403);
+            assertThat(response.getBody().getMessage()).isEqualTo("Internal service token is required");
+        }
+        org.mockito.Mockito.verifyNoInteractions(userProfileReadUseCase);
+    }
+
+    @Test
+    void nullPrincipalCannotReadOrUpdateEvenWhenLegacyIdIsPresent() {
+        var actor = new AuthenticatedActor(null, 7L, "user@example.com", Set.of("USER"));
+        assertThat(controller.getCurrentUser(actor).getStatusCode().value()).isEqualTo(403);
+        assertThat(controller.updateCurrentUser(new UserRequest(), actor).getStatusCode().value()).isEqualTo(403);
+        org.mockito.Mockito.verifyNoInteractions(userProfileReadUseCase, userProfileUseCase);
+    }
+
+    @Test
+    void adminReadsRequireRoleAndMapStatistics() {
+        for (AuthenticatedActor actor : new AuthenticatedActor[] {null,
+                new AuthenticatedActor(7L, "user@example.com", Set.of("USER"))}) {
+            assertThat(controller.getAllUsers(actor).getStatusCode().value()).isEqualTo(403);
+            assertThat(controller.getUserStatistics(actor).getBody().getMessage())
+                    .isEqualTo("Only ADMIN can access this endpoint");
+        }
+        org.mockito.Mockito.verifyNoInteractions(userProfileReadUseCase);
+        var admin = new AuthenticatedActor(1L, "admin@example.com", Set.of("ADMIN"));
+        when(userProfileReadUseCase.all()).thenReturn(java.util.List.of(profileResult(UserResponse.builder().id(7L).email("user@example.com").build())));
+        when(userProfileReadUseCase.statistics()).thenReturn(new com.delivery.user.application.api.UserStatisticsResult(10L, 6L, 1L, 2L, 1L, 8L, 2L));
+        assertThat(controller.getAllUsers(admin).getBody().getData()).extracting(UserResponse::getEmail)
+                .containsExactly("user@example.com");
+        assertThat(controller.getUserStatistics(admin).getBody().getData())
+                .usingRecursiveComparison().isEqualTo(new com.delivery.user_service.dto.UserStatisticsResponse(10L, 6L, 1L, 2L, 1L, 8L, 2L));
+    }
+
+    @Test
+    void blockRequiresAdminIdAndReasonWithActorFallback() {
+        var admin = new AuthenticatedActor(1L, "admin@example.com", Set.of("ADMIN"));
+        var request = new BlockUserRequest();
+        assertThat(controller.blockUser(7L, null, "service-secret", null).getBody().getMessage())
+                .isEqualTo("Admin ID is required");
+        assertThat(controller.blockUser(7L, request, "service-secret", null).getStatusCode().value()).isEqualTo(400);
+        assertThat(controller.blockUser(7L, null, "service-secret", admin).getBody().getMessage())
+                .isEqualTo("Block reason is required");
+        assertThat(controller.blockUser(7L, request, "service-secret", admin).getStatusCode().value()).isEqualTo(400);
+        request.setReason("x".repeat(500));
+        assertThat(controller.blockUser(7L, request, "service-secret", admin).getStatusCode().value()).isEqualTo(200);
+        verify(userBlockStatusUseCase).update(new UpdateUserBlockStatusCommand(7L, 1L, true, "x".repeat(500)));
+        request.setAdminId(2L);
+        assertThat(controller.blockUser(7L, request, "service-secret", null).getStatusCode().value()).isEqualTo(200);
+        verify(userBlockStatusUseCase).update(new UpdateUserBlockStatusCommand(7L, 2L, true, "x".repeat(500)));
+    }
+
+    @Test
+    void unblockRequiresRoleAndAdminIdWithOptionalPayload() {
+        var admin = new AuthenticatedActor(1L, "admin@example.com", Set.of("ADMIN"));
+        var user = new AuthenticatedActor(7L, "user@example.com", Set.of("USER"));
+        assertThat(controller.unblockUser(7L, null, "service-secret", user).getStatusCode().value()).isEqualTo(403);
+        assertThat(controller.unblockUser(7L, null, "service-secret", null).getBody().getMessage())
+                .isEqualTo("Admin ID is required");
+        assertThat(controller.unblockUser(7L, new BlockUserRequest(), "service-secret", null).getStatusCode().value()).isEqualTo(400);
+        assertThat(controller.unblockUser(7L, null, "service-secret", admin).getStatusCode().value()).isEqualTo(200);
+        assertThat(controller.unblockUser(7L, new BlockUserRequest(), "service-secret", admin).getStatusCode().value()).isEqualTo(200);
+        verify(userBlockStatusUseCase, org.mockito.Mockito.times(2)).update(new UpdateUserBlockStatusCommand(7L, 1L, false, null));
+    }
 }

@@ -12,6 +12,20 @@ import static org.mockito.Mockito.verify;
 
 class InternalUserBlockStatusControllerTest {
 
+    @Test
+    void absentSecretAndWhitespaceReasonFailClosed() {
+        for (String secret : new String[] {null, "", " "}) {
+            var disabled = new InternalUserBlockStatusController(userBlockStatusUseCase, secret);
+            var response = disabled.synchronizeBlockStatus(7L, new UserBlockStatusRequest(1L, false, null), "service-secret");
+            assertThat(response.getStatusCode().value()).isEqualTo(403);
+            assertThat(response.getBody().getMessage()).isEqualTo("Internal service token is required");
+        }
+        var invalid = controller.synchronizeBlockStatus(7L, new UserBlockStatusRequest(1L, true, " "), "service-secret");
+        assertThat(invalid.getStatusCode().value()).isEqualTo(400);
+        assertThat(invalid.getBody().getMessage()).isEqualTo("Block reason is required");
+        org.mockito.Mockito.verifyNoInteractions(userBlockStatusUseCase);
+    }
+
     private final UserBlockStatusUseCase userBlockStatusUseCase = mock(UserBlockStatusUseCase.class);
     private final InternalUserBlockStatusController controller =
             new InternalUserBlockStatusController(userBlockStatusUseCase, "service-secret");
