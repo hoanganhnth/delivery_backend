@@ -18,6 +18,52 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class SettlementEligibilityClientImplTest {
 
     @Test
+    void mapsCapacityHoldIdentityAndRejectsInvalidEnvelopes() {
+        java.util.UUID hold = java.util.UUID.randomUUID();
+        java.util.UUID offer = java.util.UUID.randomUUID();
+        assertThat(clientWithJson("{\"status\":1,\"data\":[{\"holdId\":\"" + hold
+                + "\",\"offerId\":\"" + offer + "\",\"orderId\":12,\"deliveryId\":13}]}")
+                .createCodCapacityHolds(10L, hold, offer, hold, java.util.List.of()).block())
+                .containsExactly(new com.delivery.match_service.service.SettlementEligibilityClient.CodCapacityHoldRef(
+                        hold, offer, 12L, 13L));
+        for (String json : java.util.List.of("{\"status\":0,\"data\":[]}",
+                "{\"status\":1,\"data\":null}", "{\"status\":1,\"data\":[]}")) {
+            assertThatThrownBy(() -> clientWithJson(json)
+                    .createCodCapacityHolds(10L, hold, offer, hold, java.util.List.of()).block())
+                    .isInstanceOf(IllegalStateException.class).hasMessage("Invalid settlement hold response");
+        }
+        assertThatThrownBy(() -> clientWithResponse(ClientResponse.create(HttpStatus.OK).build())
+                .createCodCapacityHolds(10L, hold, offer, hold, java.util.List.of()).block())
+                .isInstanceOf(IllegalStateException.class).hasMessage("Settlement hold response is empty");
+    }
+
+    @Test
+    void transitionsCommitAndReleaseAndRejectsUnsupportedTargets() {
+        java.util.UUID hold = java.util.UUID.randomUUID();
+        for (String target : java.util.List.of("committed", "RELEASED")) {
+            assertThat(clientWithJson("{\"status\":1}").transitionCodCapacityHold(hold, target).block()).isTrue();
+            assertThat(clientWithJson("{\"status\":0}").transitionCodCapacityHold(hold, target).block()).isFalse();
+        }
+        assertThatThrownBy(() -> clientWithJson("{}").transitionCodCapacityHold(hold, "PENDING"))
+                .isInstanceOf(IllegalArgumentException.class).hasMessage("Unsupported COD hold target: PENDING");
+        assertThatThrownBy(() -> clientWithResponse(ClientResponse.create(HttpStatus.OK).build())
+                .transitionCodCapacityHold(hold, "COMMITTED").block())
+                .isInstanceOf(IllegalStateException.class).hasMessage("Settlement hold transition response is empty");
+    }
+
+    @Test
+    void propagatesHttpFailuresForEveryOperation() {
+        java.util.UUID identity = java.util.UUID.randomUUID();
+        SettlementEligibilityClientImpl client = clientWithResponse(ClientResponse.create(HttpStatus.SERVICE_UNAVAILABLE).build());
+        assertThatThrownBy(() -> client.isCodEligible(10L, BigDecimal.ONE).block())
+                .isInstanceOf(org.springframework.web.reactive.function.client.WebClientResponseException.ServiceUnavailable.class);
+        assertThatThrownBy(() -> client.createCodCapacityHolds(10L, identity, identity, identity, java.util.List.of()).block())
+                .isInstanceOf(org.springframework.web.reactive.function.client.WebClientResponseException.ServiceUnavailable.class);
+        assertThatThrownBy(() -> client.transitionCodCapacityHold(identity, "RELEASED").block())
+                .isInstanceOf(org.springframework.web.reactive.function.client.WebClientResponseException.ServiceUnavailable.class);
+    }
+
+    @Test
     void returnsCanonicalBooleanData() {
         assertThat(clientWithJson("{\"status\":1,\"message\":\"Eligible\",\"data\":true}")
                 .isCodEligible(10L, new BigDecimal("100000"))

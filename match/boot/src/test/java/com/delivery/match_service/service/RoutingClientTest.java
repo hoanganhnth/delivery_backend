@@ -19,6 +19,58 @@ import org.mockito.ArgumentCaptor;
 class RoutingClientTest {
 
     @Test
+    void emptyPlansAvoidProviderCallsAndDefensivelyCopyItems() {
+        com.delivery.routing.client.RoutingClient provider = mock(com.delivery.routing.client.RoutingClient.class);
+        RoutingClient client = new RoutingClient(provider);
+        assertThat(client.planRoute(0, 0, null).durationSeconds()).isZero();
+        assertThat(client.planRoute(0, 0, List.of()).orderedItems()).isEmpty();
+        assertThat(new RoutingClient.RoutePlan(null, 0).orderedItems()).isEmpty();
+        org.mockito.Mockito.verifyNoInteractions(provider);
+    }
+
+    @Test
+    void invalidProviderDurationsUsePositiveCachedGeodesicFallback() {
+        for (RouteResponse response : java.util.Arrays.asList(null, new RouteResponse(-1, 0, null, "TEST"))) {
+            com.delivery.routing.client.RoutingClient provider = mock(com.delivery.routing.client.RoutingClient.class);
+            when(provider.getRoute(any(RouteRequest.class))).thenReturn(response);
+            RoutingClient client = new RoutingClient(provider);
+            DispatchPoolItem item = item(0, 0, 0, 0);
+            assertThat(client.estimateRouteSeconds(0, 0, List.of(item))).isEqualTo(2);
+            assertThat(client.estimateRouteSeconds(0, 0, List.of(item))).isEqualTo(2);
+            verify(provider).getRoute(any(RouteRequest.class));
+        }
+    }
+
+    @Test
+    void zeroDurationTiesUseStablePoolIdentityOrder() {
+        com.delivery.routing.client.RoutingClient provider = mock(com.delivery.routing.client.RoutingClient.class);
+        when(provider.getRoute(any(RouteRequest.class))).thenReturn(new RouteResponse(0, 0, null, "TEST"));
+        DispatchPoolItem first = item(1, 1, 2, 2);
+        first.setPoolItemId(new UUID(0, 1));
+        DispatchPoolItem second = item(3, 3, 4, 4);
+        second.setPoolItemId(new UUID(0, 2));
+        RoutingClient.RoutePlan plan = new RoutingClient(provider).planRoute(0, 0, List.of(second, first));
+        assertThat(plan.durationSeconds()).isZero();
+        assertThat(plan.orderedItems()).containsExactly(first, second);
+    }
+
+    @Test
+    void missingDropoffCoordinatesCurrentlyFailDuringRouteOriginUnboxing() {
+        for (boolean missingLatitude : List.of(true, false)) {
+            com.delivery.routing.client.RoutingClient provider = mock(com.delivery.routing.client.RoutingClient.class);
+            when(provider.getRoute(any(RouteRequest.class))).thenReturn(new RouteResponse(1, 0, null, "TEST"));
+            DispatchPoolItem item = item(1, 1, 2, 2);
+            if (missingLatitude) item.setDeliveryLat(null);
+            else item.setDeliveryLng(null);
+            org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                    new RoutingClient(provider).estimateRouteSeconds(0, 0, List.of(item)))
+                    .isInstanceOf(NullPointerException.class)
+                    .hasMessageContaining(missingLatitude ? "getDeliveryLat" : "getDeliveryLng");
+            verify(provider).getRoute(any(RouteRequest.class));
+        }
+    }
+
+    @Test
     void usesTypedRoutingClientAndContractsForEachLeg() {
         com.delivery.routing.client.RoutingClient platformClient =
                 mock(com.delivery.routing.client.RoutingClient.class);
