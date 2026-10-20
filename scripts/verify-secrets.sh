@@ -7,7 +7,7 @@ cd "$ROOT_DIR"
 # Scan tracked source/configuration only. Ignored operator secret files are not
 # read, printed or accepted as evidence. The patterns target credentials rather
 # than harmless `${VARIABLE:}` placeholders.
-if git ls-files | rg '(^|/)(private|public|jwt).*\.pem$|firebase-service-account\.json$' >/dev/null; then
+if git ls-files | grep -E '(^|/)(private|public|jwt).*\.pem$|firebase-service-account\.json$' >/dev/null; then
   echo "Tracked key or Firebase credential file detected; inject it through a secret manager instead." >&2
   exit 1
 fi
@@ -29,9 +29,9 @@ if git grep -n -I -E -e \
   exit 1
 fi
 
-if ! rg -q '^INTERNAL_SECRET_FILE=\./\.secrets/internal-secret$' .env.example \
-    || ! rg -q '^DB_PASSWORD_FILE=\./\.secrets/db-password$' .env.example \
-    || ! rg -q '^WEB_BFF_ENCRYPTION_KEY_FILE=\./\.secrets/web-bff-encryption-key$' .env.example; then
+if ! grep -q '^INTERNAL_SECRET_FILE=\./\.secrets/internal-secret$' .env.example \
+    || ! grep -q '^DB_PASSWORD_FILE=\./\.secrets/db-password$' .env.example \
+    || ! grep -q '^WEB_BFF_ENCRYPTION_KEY_FILE=\./\.secrets/web-bff-encryption-key$' .env.example; then
   echo ".env.example must contain only secret file placeholders." >&2
   exit 1
 fi
