@@ -45,6 +45,7 @@ pass "Kubernetes Manifests khớp với generator."
 
 # 4. Kiểm tra biên dịch Java và Unit Tests
 info "4/5. Kiểm tra biên dịch Java (test-compile)..."
+mvn -B -DskipTests install -pl platform/delivery-platform-bom,platform/delivery-build-parent,platform/kafka-starter,observability-starter,runtime-platform-starter,platform/platform-http-blocking,identity-contracts,search-contracts,routing-contracts,delivery-contracts,order-contracts,clients/identity-client,clients/routing-client,auth-resource-server-starter
 mvn -B test-compile -DskipTests
 pass "Biên dịch mã nguồn Java thành công."
 

@@ -1081,7 +1081,7 @@
       "handler": "acceptDelivery",
       "source": {
         "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
-        "line": 113
+        "line": 114
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<DeliveryResponse>> acceptDelivery( @Valid @RequestBody AcceptDeliveryRequest request, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -1131,7 +1131,7 @@
       "handler": "acceptBatch",
       "source": {
         "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
-        "line": 93
+        "line": 94
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<DeliveryResponse>> acceptBatch( @Valid @RequestBody AcceptBatchRequest request, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -1181,7 +1181,7 @@
       "handler": "rejectBatch",
       "source": {
         "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
-        "line": 104
+        "line": 105
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<Void>> rejectBatch( @Valid @RequestBody RejectBatchRequest request, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -1231,7 +1231,7 @@
       "handler": "cancelAssignedDelivery",
       "source": {
         "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
-        "line": 124
+        "line": 125
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<DeliveryResponse>> cancelAssignedDelivery( @Valid @RequestBody CancelDeliveryAssignmentRequest request, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -1281,7 +1281,7 @@
       "handler": "getCurrentOffer",
       "source": {
         "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
-        "line": 134
+        "line": 135
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<DeliveryOfferResponse>> getCurrentOffer( @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -1312,7 +1312,7 @@
       "handler": "getCurrentBatchOffer",
       "source": {
         "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
-        "line": 143
+        "line": 144
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<com.delivery.delivery_service.dto.response.DeliveryBatchOfferResponse>> getCurrentBatchOffer( @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -1343,7 +1343,7 @@
       "handler": "getBatchSnapshot",
       "source": {
         "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
-        "line": 153
+        "line": 154
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<com.delivery.delivery_service.dto.response.DeliveryBatchSnapshotResponse>> getBatchSnapshot( @PathVariable UUID batchId, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -1386,7 +1386,7 @@
       "handler": "createProofUploadIntent",
       "source": {
         "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
-        "line": 163
+        "line": 164
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<ProofUploadIntentResponse>> createProofUploadIntent( @PathVariable Long deliveryId, @Valid @RequestBody CreateProofUploadIntentRequest request, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -1448,7 +1448,7 @@
       "handler": "confirmProofUpload",
       "source": {
         "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
-        "line": 175
+        "line": 176
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<ProofOfDeliveryResponse>> confirmProofUpload( @PathVariable Long deliveryId, @PathVariable UUID proofId, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -1503,7 +1503,7 @@
       "handler": "createProofReadAccess",
       "source": {
         "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
-        "line": 186
+        "line": 187
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<ProofAccessResponse>> createProofReadAccess( @PathVariable Long deliveryId, @PathVariable UUID proofId, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -1558,7 +1558,7 @@
       "handler": "reportDeliveryFailure",
       "source": {
         "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
-        "line": 197
+        "line": 198
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<DeliveryExceptionResponse>> reportDeliveryFailure( @PathVariable Long deliveryId, @Valid @RequestBody ReportDeliveryFailureRequest request, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -1620,7 +1620,7 @@
       "handler": "useDeliveryRetry",
       "source": {
         "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
-        "line": 208
+        "line": 209
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<DeliveryExceptionResponse>> useDeliveryRetry( @PathVariable Long deliveryId, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -1663,7 +1663,7 @@
       "handler": "confirmDeliveryReturn",
       "source": {
         "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
-        "line": 218
+        "line": 219
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<DeliveryExceptionResponse>> confirmDeliveryReturn( @PathVariable Long deliveryId, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -1706,7 +1706,7 @@
       "handler": "getDeliveryException",
       "source": {
         "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
-        "line": 228
+        "line": 229
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<DeliveryExceptionResponse>> getDeliveryException( @PathVariable Long deliveryId, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -1749,7 +1749,7 @@
       "handler": "getDelivery",
       "source": {
         "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
-        "line": 238
+        "line": 239
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<DeliveryResponse>> getDelivery( @PathVariable Long id, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -1792,7 +1792,7 @@
       "handler": "updateStatus",
       "source": {
         "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
-        "line": 247
+        "line": 248
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<DeliveryResponse>> updateStatus( @PathVariable Long id, @RequestParam DeliveryStatus status, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -1847,7 +1847,7 @@
       "handler": "getDeliveriesByShipper",
       "source": {
         "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
-        "line": 258
+        "line": 259
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<List<DeliveryResponse>>> getDeliveriesByShipper( @PathVariable Long shipperId, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -1890,7 +1890,7 @@
       "handler": "getActiveDeliveriesByShipper",
       "source": {
         "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
-        "line": 268
+        "line": 269
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<List<DeliveryResponse>>> getActiveDeliveriesByShipper( @PathVariable Long shipperId, @AuthenticationPrincipal AuthenticatedActor actor)",
@@ -1933,7 +1933,7 @@
       "handler": "getDeliveryByOrderId",
       "source": {
         "file": "backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java",
-        "line": 278
+        "line": 279
       },
       "java": {
         "signature": "public ResponseEntity<BaseResponse<DeliveryResponse>> getDeliveryByOrderId( @PathVariable Long orderId, @AuthenticationPrincipal AuthenticatedActor actor)",

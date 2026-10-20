@@ -62,6 +62,7 @@ jobs:
 
       - name: Run Unit & Integration Tests (with JaCoCo Coverage)
         run: |
+          mvn -B -DskipTests install -pl platform/delivery-platform-bom,platform/delivery-build-parent,platform/kafka-starter,observability-starter,runtime-platform-starter,platform/platform-http-blocking,identity-contracts,search-contracts,routing-contracts,delivery-contracts,order-contracts,clients/identity-client,clients/routing-client,auth-resource-server-starter
           mvn -B test-compile
           mvn -B test -Dtest="*Test" -DfailIfNoTests=false
 

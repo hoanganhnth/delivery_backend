@@ -518,7 +518,7 @@ public ResponseEntity<BaseResponse<AuthResponse>> socialLogin(@Valid @RequestBod
 ### `GET` `/api/deliveries/{deliveryId}/exception`
 
 - Handler: `DeliveryController.getDeliveryException`
-- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:228`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:229`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<DeliveryExceptionResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -538,7 +538,7 @@ public ResponseEntity<BaseResponse<DeliveryExceptionResponse>> getDeliveryExcept
 ### `POST` `/api/deliveries/{deliveryId}/exceptions/failed`
 
 - Handler: `DeliveryController.reportDeliveryFailure`
-- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:197`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:198`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<DeliveryExceptionResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -559,7 +559,7 @@ public ResponseEntity<BaseResponse<DeliveryExceptionResponse>> reportDeliveryFai
 ### `POST` `/api/deliveries/{deliveryId}/exceptions/retry`
 
 - Handler: `DeliveryController.useDeliveryRetry`
-- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:208`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:209`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<DeliveryExceptionResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -579,7 +579,7 @@ public ResponseEntity<BaseResponse<DeliveryExceptionResponse>> useDeliveryRetry(
 ### `POST` `/api/deliveries/{deliveryId}/exceptions/return/confirm`
 
 - Handler: `DeliveryController.confirmDeliveryReturn`
-- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:218`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:219`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<DeliveryExceptionResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -599,7 +599,7 @@ public ResponseEntity<BaseResponse<DeliveryExceptionResponse>> confirmDeliveryRe
 ### `GET` `/api/deliveries/{deliveryId}/proofs/{proofId}/access`
 
 - Handler: `DeliveryController.createProofReadAccess`
-- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:186`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:187`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<ProofAccessResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -620,7 +620,7 @@ public ResponseEntity<BaseResponse<ProofAccessResponse>> createProofReadAccess( 
 ### `POST` `/api/deliveries/{deliveryId}/proofs/{proofId}/confirm`
 
 - Handler: `DeliveryController.confirmProofUpload`
-- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:175`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:176`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<ProofOfDeliveryResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -641,7 +641,7 @@ public ResponseEntity<BaseResponse<ProofOfDeliveryResponse>> confirmProofUpload(
 ### `POST` `/api/deliveries/{deliveryId}/proofs/upload-intent`
 
 - Handler: `DeliveryController.createProofUploadIntent`
-- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:163`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:164`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<ProofUploadIntentResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -662,7 +662,7 @@ public ResponseEntity<BaseResponse<ProofUploadIntentResponse>> createProofUpload
 ### `GET` `/api/deliveries/{id}`
 
 - Handler: `DeliveryController.getDelivery`
-- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:238`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:239`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<DeliveryResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -682,7 +682,7 @@ public ResponseEntity<BaseResponse<DeliveryResponse>> getDelivery( @PathVariable
 ### `PUT` `/api/deliveries/{id}/status`
 
 - Handler: `DeliveryController.updateStatus`
-- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:247`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:248`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<DeliveryResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -703,7 +703,7 @@ public ResponseEntity<BaseResponse<DeliveryResponse>> updateStatus( @PathVariabl
 ### `POST` `/api/deliveries/accept`
 
 - Handler: `DeliveryController.acceptDelivery`
-- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:113`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:114`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<DeliveryResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -723,7 +723,7 @@ public ResponseEntity<BaseResponse<DeliveryResponse>> acceptDelivery( @Valid @Re
 ### `POST` `/api/deliveries/batch/accept`
 
 - Handler: `DeliveryController.acceptBatch`
-- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:93`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:94`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<DeliveryResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -743,7 +743,7 @@ public ResponseEntity<BaseResponse<DeliveryResponse>> acceptBatch( @Valid @Reque
 ### `POST` `/api/deliveries/batch/reject`
 
 - Handler: `DeliveryController.rejectBatch`
-- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:104`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:105`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<Void>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -763,7 +763,7 @@ public ResponseEntity<BaseResponse<Void>> rejectBatch( @Valid @RequestBody Rejec
 ### `GET` `/api/deliveries/batches/{batchId}`
 
 - Handler: `DeliveryController.getBatchSnapshot`
-- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:153`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:154`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<com.delivery.delivery_service.dto.response.DeliveryBatchSnapshotResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -783,7 +783,7 @@ public ResponseEntity<BaseResponse<com.delivery.delivery_service.dto.response.De
 ### `POST` `/api/deliveries/cancel-assignment`
 
 - Handler: `DeliveryController.cancelAssignedDelivery`
-- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:124`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:125`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<DeliveryResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -846,7 +846,7 @@ public ResponseEntity<BaseResponse<List<SimulationDeliveryStatus>>> findSimulati
 ### `GET` `/api/deliveries/offers/current`
 
 - Handler: `DeliveryController.getCurrentOffer`
-- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:134`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:135`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<DeliveryOfferResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -865,7 +865,7 @@ public ResponseEntity<BaseResponse<DeliveryOfferResponse>> getCurrentOffer( @Aut
 ### `GET` `/api/deliveries/offers/current-batch`
 
 - Handler: `DeliveryController.getCurrentBatchOffer`
-- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:143`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:144`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<com.delivery.delivery_service.dto.response.DeliveryBatchOfferResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -884,7 +884,7 @@ public ResponseEntity<BaseResponse<com.delivery.delivery_service.dto.response.De
 ### `GET` `/api/deliveries/order/{orderId}`
 
 - Handler: `DeliveryController.getDeliveryByOrderId`
-- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:278`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:279`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<DeliveryResponse>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -904,7 +904,7 @@ public ResponseEntity<BaseResponse<DeliveryResponse>> getDeliveryByOrderId( @Pat
 ### `GET` `/api/deliveries/shipper/{shipperId}`
 
 - Handler: `DeliveryController.getDeliveriesByShipper`
-- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:258`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:259`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<DeliveryResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
@@ -924,7 +924,7 @@ public ResponseEntity<BaseResponse<List<DeliveryResponse>>> getDeliveriesByShipp
 ### `GET` `/api/deliveries/shipper/{shipperId}/active`
 
 - Handler: `DeliveryController.getActiveDeliveriesByShipper`
-- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:268`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
+- Source: [`backend_delivery/delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java:269`](../../../../delivery/infrastructure/src/main/java/com/delivery/delivery_service/controller/DeliveryController.java)
 - Java return type: `ResponseEntity<BaseResponse<List<DeliveryResponse>>>`
 
 | Binding | Wire name | Java type | Required | Default | Validation/annotations |
