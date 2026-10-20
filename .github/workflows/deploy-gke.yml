@@ -216,6 +216,23 @@ jobs:
           docker push "${IMAGE_URI}:${IMAGE_TAG}"
           docker push "${IMAGE_URI}:latest"
 
+      - name: Checkout GitOps CD Repository
+        uses: actions/checkout@v4
+        with:
+          repository: hoanganhnth/gitops-cd
+          token: ${{ secrets.GITOPS_PAT || github.token }}
+          path: gitops-repo
+
+      - name: Dispatch Image Tag to GitOps (Helm Values)
+        env:
+          SERVICE: ${{ matrix.service }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          cd gitops-repo
+          ./scripts/update-image.sh --service "${SERVICE}" --tag "${IMAGE_TAG}" --env staging --commit
+          git pull --rebase origin main || true
+          git push origin main
+
       - name: Get GKE Credentials
         uses: google-github-actions/get-gke-credentials@v2
         with:
