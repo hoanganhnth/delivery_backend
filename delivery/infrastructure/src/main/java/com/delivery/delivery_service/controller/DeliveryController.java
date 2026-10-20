@@ -21,6 +21,7 @@ import com.delivery.delivery_service.service.DeliveryBatchLifecycleService;
 import com.delivery.delivery_service.service.DeliveryProofOfDeliveryService;
 import com.delivery.delivery_service.service.DeliveryExceptionService;
 import com.delivery.auth.resourceserver.security.AuthenticatedActor;
+import com.delivery.identity.contracts.SimulationContext;
 import com.delivery.delivery.application.api.DeliveryCommandPort;
 import com.delivery.delivery.application.api.DeliveryQueryPort;
 import com.delivery.delivery_service.adapter.DeliveryApplicationPorts;

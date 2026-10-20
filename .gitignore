@@ -30,6 +30,8 @@ Thumbs.db
 *.pem
 # Provider credentials — mount them at runtime; never package or commit them.
 firebase-service-account.json
+gcp-key.json
+*key*.json
 # Local source/build archives.
 *.tar.gz
 
