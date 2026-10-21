@@ -25,7 +25,7 @@ jobs:
   # ===========================================================================
   test:
     name: "Stage: Test & Quality Gate"
-    uses: hoanganhnth/cicd.centralized-pipelines/.github/workflows/quality-java.yml@main
+    uses: hoanganhnth23/delivery.devops.centralized-ci/.github/workflows/quality-java.yml@main
     with:
       run_secret_scan: true
       run_contract_check: true
@@ -110,7 +110,7 @@ jobs:
       fail-fast: false
       matrix:
         service: ${{ fromJson(needs.detect-changes.outputs.services) }}
-    uses: hoanganhnth/cicd.centralized-pipelines/.github/workflows/build-java.yml@main
+    uses: hoanganhnth23/delivery.devops.centralized-ci/.github/workflows/build-java.yml@main
     with:
       service_name: ${{ matrix.service }}
       dockerfile: "./Dockerfile"
