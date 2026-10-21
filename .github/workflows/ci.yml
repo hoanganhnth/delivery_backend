@@ -1,108 +1,117 @@
-name: Backend CI
+name: Backend CI Pipeline
 
 on:
-  pull_request:
   push:
-    branches: [main]
+    branches:
+      - main
+      - staging
+  pull_request:
+    branches:
+      - main
+      - staging
+  workflow_dispatch:
+    inputs:
+      service:
+        description: 'Service to dockerize (e.g. api-gateway, auth-service, or "all")'
+        required: false
+        default: 'api-gateway'
 
 permissions:
   contents: read
 
 jobs:
-  required:
-    name: required / build-contract-compose
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-          cache: maven
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - name: Verify build platform canary
-        run: |
-          bash scripts/verify-build-foundation.sh
-          python3 scripts/verify-module-boundaries.py --self-test
-          python3 -B scripts/test-module-boundaries.py
-          python3 -B scripts/verify-phase8-9-regression.py
-          python3 -B scripts/test-report-phase8-coverage.py
-          python3 -B scripts/test-phase8-integration-evidence.py
-          python3 -B scripts/test-runtime-dependency-boundaries.py
-      - name: Verify toolchain and dependency baseline
-        run: ./scripts/verify-build-baseline.sh
-      - name: Verify no-runtime test context isolation
-        run: ./scripts/verify-test-context-isolation.sh
-      - name: Build and test
-        run: mvn -B clean verify
-      - name: Verify packaged Routing runtime
-        run: python3 -B scripts/verify-routing-runtime.py
-      - name: Verify packaged Web BFF runtime
-        run: python3 -B scripts/verify-web-bff-runtime.py
-      - name: Verify packaged Shipper runtime
-        run: python3 -B scripts/verify-shipper-runtime.py
-      - name: Verify packaged User runtime
-        run: python3 -B scripts/verify-user-runtime.py
-      - name: Verify packaged Auth runtime
-        run: python3 -B scripts/verify-auth-runtime.py
-      - name: Verify packaged Restaurant runtime
-        run: python3 -B scripts/verify-restaurant-runtime.py
-      - name: Verify Phase 8 coverage and required integration evidence
-        run: |
-          python3 -B scripts/report-phase8-coverage.py
-          python3 -B scripts/verify-phase8-integration-evidence.py
-      - name: Verify resolved runtime dependency boundaries
-        run: |
-          mvn -B org.apache.maven.plugins:maven-dependency-plugin:3.8.1:tree -Dscope=runtime -DoutputType=tgf -DoutputFile=target/phase8-runtime-dependencies.tgf
-          python3 -B scripts/verify-runtime-dependency-boundaries.py
-      - name: Verify HTTP and public-boundary contracts
-        run: |
-          ./scripts/verify-http-api-inventory.sh
-          node --test docs/platform/system/api/*.test.mjs
-          node docs/platform/system/api/generate-http-contract.mjs --check
-          node docs/platform/system/api/generate-public-edge-manifest.mjs --check
-      - name: Verify discovery/config/secrets Compose topology
-        run: ./scripts/verify-compose-config.sh
-      - name: Verify local runtime recovery script safety
-        run: bash scripts/verify-local-runtime-operations.sh
-      - name: Set up Kubernetes renderer
-        uses: azure/setup-kubectl@v4
-        with:
-          version: v1.34.1
-      - name: Verify Kubernetes deployment foundation
-        run: bash scripts/verify-kubernetes-manifests.sh
-      - name: Secret scan
-        run: bash scripts/verify-secrets.sh
-      - name: Package deployment artifacts
-        run: mvn -B -DskipTests package
-      - name: Verify Docker artifact freshness
-        run: bash scripts/verify-docker-artifact-freshness.sh
-      - name: Verify non-root runtime image
-        run: bash scripts/verify-docker-runtime-security.sh
-      - name: Upload Maven reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: backend-test-reports
-          path: |
-            **/target/surefire-reports/**
-            **/target/failsafe-reports/**
-            **/target/site/jacoco/**
-          if-no-files-found: warn
+  # ===========================================================================
+  # Stage 1: Test & Quality Gate (gọi qua CI tập trung)
+  # ===========================================================================
+  test:
+    name: "Stage: Test & Quality Gate"
+    uses: hoanganhnth/cicd.centralized-pipelines/.github/workflows/quality-java.yml@main
+    with:
+      run_secret_scan: true
+      run_contract_check: true
 
-  advisory-security:
-    name: advisory / filesystem-security
+  # ===========================================================================
+  # Stage 2: Monorepo Change Detection
+  # ===========================================================================
+  detect-changes:
+    name: "Detect Changes"
+    needs: test
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    continue-on-error: true
+    outputs:
+      services: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v4
-      - name: Scan dependencies and configuration
-        uses: aquasecurity/trivy-action@0.33.1
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Detect Changed Services
+        uses: dorny/paths-filter@v3
+        id: filter
         with:
-          scan-type: fs
-          scan-ref: .
-          format: table
-          exit-code: '0'
-          severity: HIGH,CRITICAL
+          filters: |
+            api-gateway:
+              - 'api-gateway/**'
+              - 'runtime-platform-starter/**'
+              - 'observability-starter/**'
+            auth-service:
+              - 'auth/**'
+              - 'auth-resource-server-starter/**'
+              - 'identity-contracts/**'
+            user-service:
+              - 'user/**'
+              - 'identity-contracts/**'
+            order-service:
+              - 'order/**'
+              - 'order-contracts/**'
+            restaurant-service:
+              - 'restaurant/**'
+            delivery-service:
+              - 'delivery/**'
+              - 'delivery-contracts/**'
+            shipper-service:
+              - 'shipper/**'
+              - 'identity-contracts/**'
+            notification-service:
+              - 'notification/**'
+            tracking-service:
+              - 'tracking/**'
+            routing-service:
+              - 'routing/**'
+              - 'routing-contracts/**'
+            search-service:
+              - 'search/**'
+              - 'search-contracts/**'
+            config-server:
+              - 'config-server/**'
+            discovery-server:
+              - 'discovery-server/**'
+
+      - name: Determine Target Services
+        id: set-matrix
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            if [ "${{ inputs.service }}" = "all" ]; then
+              echo 'matrix=["api-gateway","auth-service","user-service","order-service","restaurant-service","delivery-service"]' >> $GITHUB_OUTPUT
+            else
+              echo 'matrix=["${{ inputs.service }}"]' >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "matrix=${{ steps.filter.outputs.changes }}" >> $GITHUB_OUTPUT
+          fi
+
+  # ===========================================================================
+  # Stage 3: Dockerize & Push Image (gọi qua CI tập trung)
+  # ===========================================================================
+  dockerize:
+    name: "Stage: Dockerize (${{ matrix.service }})"
+    needs: [test, detect-changes]
+    if: needs.detect-changes.outputs.services != '[]' && needs.detect-changes.outputs.services != ''
+    strategy:
+      fail-fast: false
+      matrix:
+        service: ${{ fromJson(needs.detect-changes.outputs.services) }}
+    uses: hoanganhnth/cicd.centralized-pipelines/.github/workflows/build-java.yml@main
+    with:
+      service_name: ${{ matrix.service }}
+    secrets:
+      GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
