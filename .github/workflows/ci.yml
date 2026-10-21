@@ -113,5 +113,7 @@ jobs:
     uses: hoanganhnth/cicd.centralized-pipelines/.github/workflows/build-java.yml@main
     with:
       service_name: ${{ matrix.service }}
-    secrets:
-      GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+      dockerfile: "./Dockerfile"
+      platform: "linux/amd64"
+    secrets: inherit
+
